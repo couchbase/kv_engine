@@ -1597,6 +1597,15 @@ void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_stat_to_be(h, h1, "ep_flusher_todo", 0);
 }
 
+void wait_for_item_compressor_to_settle(ENGINE_HANDLE* h,
+                                        ENGINE_HANDLE_V1* h1) {
+    int visited_count = get_int_stat(h, h1, "ep_item_compressor_num_visited");
+
+    // We need to wait for at least one more run of the item compressor
+    wait_for_stat_to_be(
+            h, h1, "ep_item_compressor_num_visited", visited_count + 1);
+}
+
 void wait_for_rollback_to_finish(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_rollback_count") == 0) {

@@ -278,6 +278,15 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 std::string get_dbname(const char* test_cfg);
 
+// Returns true if Compression is enabled for the given engine.
+bool isCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+
+// Returns true if passive compression is enabled for the given engine.
+bool isPassiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+
+// Returns true if active compression is enabled for the given engine.
+bool isActiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+
 // Returns true if Warmup is enabled for the given engine.
 bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 

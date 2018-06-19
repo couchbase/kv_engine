@@ -2012,12 +2012,18 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     if (isPersistentBucket(h, h1)) {
         wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
     }
+
+    if (isActiveCompressionEnabled(h, h1)) {
+        wait_for_item_compressor_to_settle(h, h1);
+    }
+
     int mem_used = get_int_stat(h, h1, "mem_used");
     int cache_size = get_int_stat(h, h1, "ep_total_cache_size");
     int overhead = get_int_stat(h, h1, "ep_overhead");
     int value_size = get_int_stat(h, h1, "ep_value_size");
     check((mem_used - overhead) > cache_size,
-          "ep_kv_size should be greater than the hashtable cache size due to the checkpoint overhead");
+          "ep_kv_size should be greater than the hashtable cache size due to "
+          "the checkpoint overhead");
 
     if (isPersistentBucket(h, h1)) {
         evict_key(h, h1, "key", 0, "Ejected.");
@@ -2029,10 +2035,15 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
         check_key_value(h, h1, "key", value, strlen(value), 0); // Load an item from disk again.
 
+        if (isActiveCompressionEnabled(h, h1)) {
+            wait_for_item_compressor_to_settle(h, h1);
+        }
+
         check(get_int_stat(h, h1, "mem_used") >= mem_used,
               "Expected mem_used to remain the same after an item is loaded from disk");
         check(get_int_stat(h, h1, "ep_value_size") == value_size,
-              "Expected ep_value_size to remain the same after item is loaded from disk");
+              "Expected ep_value_size to remain the same after item is "
+              "loaded from disk");
     }
 
     return SUCCESS;
@@ -6904,6 +6915,12 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                                            "ep_warmup_oom",
                                            "ep_warmup_time",
                                            "ep_warmup_thread"});
+    }
+
+    if (isCompressionEnabled(h, h1)) {
+        auto& vb0_hash_stats = statsKeys.at("hash");
+        vb0_hash_stats.insert(vb0_hash_stats.end(),
+                              {"vb_0:mem_size_uncompressed"});
     }
 
     if (isPersistentBucket(h, h1)) {

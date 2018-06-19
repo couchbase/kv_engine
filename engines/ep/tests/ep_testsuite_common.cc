@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 
 #include <platform/cb_malloc.h>
+#include <platform/compress.h>
 #include <platform/dirutils.h>
 
 const char *dbname_env = NULL;
@@ -448,8 +449,36 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                      uint16_t vbucket) {
     item_info info;
     check(get_item_info(h, h1, &info, key, vbucket), "checking key and value");
-    checkeq(vlen, info.value[0].iov_len, "Value length mismatch");
-    check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
+
+    cb::const_char_buffer payload;
+    cb::compression::Buffer inflated;
+    if (isCompressionEnabled(h, h1) &&
+        (info.datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+        cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                 {static_cast<const char *>(info.value[0].iov_base),
+                                  info.value[0].iov_len},
+                                 inflated);
+        payload = inflated;
+    } else {
+        payload = {static_cast<const char *>(info.value[0].iov_base),
+                                             info.value[0].iov_len};
+    }
+
+    checkeq(vlen, payload.size(), "Value length mismatch");
+    check(memcmp(payload.data(), val, vlen) == 0, "Data mismatch");
+}
+
+bool isCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    return (isPassiveCompressionEnabled(h, h1) ||
+            isActiveCompressionEnabled(h, h1));
+}
+
+bool isActiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    return get_str_stat(h, h1, "ep_compression_mode") == "active";
+}
+
+bool isPassiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    return get_str_stat(h, h1, "ep_compression_mode") == "passive";
 }
 
 bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {

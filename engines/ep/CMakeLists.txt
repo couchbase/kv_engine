@@ -445,8 +445,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 tests/mock/mock_dcp.cc)
     SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcd_util
-                          ${EP_STORAGE_LIBS} dirutils JSON_checker platform
-                          xattr
+                          ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
+                          platform xattr
                           ${LIBEVENT_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
@@ -459,7 +459,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 )
     SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_testsuite_basic engine_utilities JSON_checker dirutils
-                          platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+                          cbcompress platform ${LIBEVENT_LIBRARIES}
+                          ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_dcp SHARED
@@ -479,7 +480,9 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 tests/ep_test_apis.cc
                 src/ext_meta_parser.cc)
     SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint engine_utilities JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+    TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint engine_utilities JSON_checker
+                          cbcompress dirutils platform ${LIBEVENT_LIBRARIES}
+                          ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_xdcr SHARED
@@ -499,7 +502,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 tests/ep_test_apis.cc
                 tests/mock/mock_dcp.cc)
     SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_perfsuite engine_utilities dirutils platform)
+    TARGET_LINK_LIBRARIES(ep_perfsuite engine_utilities cbcompress dirutils platform)
     ADD_DEPENDENCIES(ep_perfsuite engine_testapp)
 
     #ADD_CUSTOM_COMMAND(OUTPUT
@@ -588,17 +591,41 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
             ${Memcached_BINARY_DIR}/engine_testapp
             -E $<TARGET_FILE:ep>
             -T $<TARGET_FILE:${name}>)
-        ADD_TEST(NAME ${name}.value_eviction
-                 COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.db")
-        ADD_TEST(NAME ${name}.full_eviction
-                 COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.db")
-        SET_TESTS_PROPERTIES(${name}.value_eviction PROPERTIES TIMEOUT ${timeout})
-        SET_TESTS_PROPERTIES(${name}.full_eviction PROPERTIES TIMEOUT ${timeout})
+        ADD_TEST(NAME ${name}.value_eviction.comp_off
+                 COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>dbname=./${name}.value_eviction.comp_off.db")
+        ADD_TEST(NAME ${name}.value_eviction.comp_passive
+                 COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>dbname=./${name}.value_eviction.comp_passive.db")
+        ADD_TEST(NAME ${name}.value_eviction.comp_active
+                 COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>dbname=./${name}.value_eviction.comp_active.db")
+        ADD_TEST(NAME ${name}.full_eviction.comp_off
+                 COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>item_eviction_policy=full_eviction\
+$<SEMICOLON>dbname=./${name}.full_eviction.comp_off.db")
+        ADD_TEST(NAME ${name}.full_eviction.comp_passive
+                 COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>item_eviction_policy=full_eviction\
+$<SEMICOLON>dbname=./${name}.full_eviction.comp_passive.db")
+        ADD_TEST(NAME ${name}.full_eviction.comp_active
+                 COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>item_eviction_policy=full_eviction\
+$<SEMICOLON>dbname=./${name}.full_eviction.comp_active.db")
+        SET_TESTS_PROPERTIES(${name}.value_eviction.comp_off PROPERTIES TIMEOUT ${timeout})
+        SET_TESTS_PROPERTIES(${name}.value_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
+        SET_TESTS_PROPERTIES(${name}.value_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
+        SET_TESTS_PROPERTIES(${name}.full_eviction.comp_off PROPERTIES TIMEOUT ${timeout})
+        SET_TESTS_PROPERTIES(${name}.full_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
+        SET_TESTS_PROPERTIES(${name}.full_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
 
         IF (NOT arg_SKIP_EPHEMERAL)
-            ADD_TEST(NAME ${name}.ephemeral
-                     COMMAND ${_cmdline} -v -e "bucket_type=ephemeral$<SEMICOLON>dbname=./${name}.ephemeral.db")
-            SET_TESTS_PROPERTIES(${name}.ephemeral PROPERTIES TIMEOUT ${timeout})
+            ADD_TEST(NAME ${name}.ephemeral.comp_off
+                     COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>bucket_type=ephemeral\
+$<SEMICOLON>dbname=./${name}.ephemeral.comp_off.db")
+            ADD_TEST(NAME ${name}.ephemeral.comp_passive
+                     COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>bucket_type=ephemeral\
+$<SEMICOLON>dbname=./${name}.ephemeral.comp_passive.db")
+            ADD_TEST(NAME ${name}.ephemeral.comp_active
+                     COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>bucket_type=ephemeral\
+$<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
+            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_off PROPERTIES TIMEOUT ${timeout})
+            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_passive PROPERTIES TIMEOUT ${timeout})
+            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_active PROPERTIES TIMEOUT ${timeout})
         ENDIF ()
 
         IF (EP_USE_ROCKSDB)

@@ -55,10 +55,10 @@ Blob::Blob(const size_t len) : Blob(nullptr, len) {
 }
 
 Blob::Blob(const Blob& other)
-    : size(other.size),
+    : size(other.size.load()),
       // While this is a copy, it is a new allocation therefore reset age.
       age(0) {
-    std::memcpy(data, other.data, size);
+    std::memcpy(data, other.data, other.valueSize());
     ObjectRegistry::onCreateBlob(this);
 }
 

@@ -161,8 +161,10 @@ protected:
 
     // Size of the value. The highest bit is used to represent if the
     // value is compressible or not. If set, then the value is not
-    // compressible.
-    uint32_t size;
+    // compressible. This needs to be an atomic variable as there could
+    // be a data race between threads that update the size
+    // (e.g, the setUncompressible API) and the ones that read the size
+    std::atomic<uint32_t> size;
 
     // The age of this Blob, in terms of some unspecified units of time.
     uint8_t age;
