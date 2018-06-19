@@ -16,12 +16,8 @@
  */
 #pragma once
 
-#include <platform/platform.h>
 #include "buckets.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <platform/platform.h>
 
 /**
  * Create a new instance of the given bucket type
@@ -51,22 +47,19 @@ BucketType module_to_bucket_type(const char* module);
 
 /**
  * Initialize the engine map with the different types of supported
- * engine backends. The method will terminate the server upon errors
+ * engine backends.
  *
  * This method is not MT safe
  *
- * @param msg where to store the error message
- * @return true on success, false on error (msg will give more information)
+ * @throws std::bad_alloc on memory failures
+ *         std::runtime_error if an error occurs while initializing
+ *                            an engine
  */
-bool initialize_engine_map(char** msg);
+void initialize_engine_map();
 
 /**
  * Release all allocated resources used by the engine map.
  *
  * This method is not MT safe
  */
-void shutdown_engine_map(void);
-
-#ifdef __cplusplus
-}
-#endif
+void shutdown_engine_map();

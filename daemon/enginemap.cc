@@ -53,10 +53,8 @@ Engine* createEngine(const std::string& so, const std::string& function) {
     auto* engine_ref = load_engine(so.c_str(), function.c_str());
 
     if (engine_ref == nullptr) {
-        std::stringstream ss;
-        ss << "Failed to load engine \"" << so << "\" with symbol \""
-           << function << "\"";
-        throw ss.str();
+        throw std::runtime_error("Failed to load engine \"" + so +
+                                 "\" with symbol \"" + function + "\"");
     }
 
     return new Engine(so, engine_ref);
@@ -84,43 +82,35 @@ bool new_engine_instance(BucketType type,
     return ret;
 }
 
-bool initialize_engine_map(char** msg) {
-    try {
-        map[BucketType::NoBucket] =
-                createEngine("nobucket.so", "create_no_bucket_instance");
-        map[BucketType::Memcached] =
-                createEngine("default_engine.so", "create_instance");
-        map[BucketType::Couchstore] = createEngine("ep.so", "create_instance");
-        if (getenv("MEMCACHED_UNIT_TESTS") != NULL) {
-            // The crash test just wants to create a coredump within the
-            // crash_engine to ensure that breakpad successfuly creates
-            // the dump files etc
-            if (getenv("MEMCACHED_CRASH_TEST") != NULL) {
-                auto engine =
-                        createEngine("crash_engine.so", "create_instance");
-                ENGINE_HANDLE *h;
-                if (!engine->createInstance(nullptr, &h)) {
-                    delete engine;
-                    *msg = cb_strdup("Failed to create instance of crash engine");
-                    return false;
-                }
-                reinterpret_cast<ENGINE_HANDLE_V1*>(h)->initialize(h, nullptr);
-                // Not reached, but to mute code analyzers
+void initialize_engine_map() {
+    map[BucketType::NoBucket] =
+            createEngine("nobucket.so", "create_no_bucket_instance");
+    map[BucketType::Memcached] =
+            createEngine("default_engine.so", "create_instance");
+    map[BucketType::Couchstore] = createEngine("ep.so", "create_instance");
+    if (getenv("MEMCACHED_UNIT_TESTS") != NULL) {
+        // The crash test just wants to create a coredump within the
+        // crash_engine to ensure that breakpad successfuly creates
+        // the dump files etc
+        if (getenv("MEMCACHED_CRASH_TEST") != NULL) {
+            auto engine = createEngine("crash_engine.so", "create_instance");
+            ENGINE_HANDLE* h;
+            if (!engine->createInstance(nullptr, &h)) {
                 delete engine;
+                throw std::runtime_error(
+                        "initialize_engine_map(): Failed to create instance of "
+                        "crash engine");
             }
-            map[BucketType::EWouldBlock] =
-                    createEngine("ewouldblock_engine.so", "create_instance");
+            reinterpret_cast<ENGINE_HANDLE_V1*>(h)->initialize(h, nullptr);
+            // Not reached, but to mute code analyzers
+            delete engine;
         }
-    } catch (const std::string &str) {
-        *msg = cb_strdup(str.c_str());
-        return false;
+        map[BucketType::EWouldBlock] =
+                createEngine("ewouldblock_engine.so", "create_instance");
     }
-
-    return true;
 }
 
-BucketType module_to_bucket_type(const char *module)
-{
+BucketType module_to_bucket_type(const char* module) {
     std::string nm = cb::io::basename(module);
     for (auto entry : map) {
         if (entry.second->getModule() == nm) {

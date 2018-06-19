@@ -2355,14 +2355,20 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Aggregate the maximum number of connections */
     settings.calculateMaxconns();
 
-    {
-        char *errmsg;
-        if (!initialize_engine_map(&errmsg)) {
+    if (getenv("MEMCACHED_CRASH_TEST") == NULL) {
+        try {
+            initialize_engine_map();
+        } catch (const std::exception& error) {
             FATAL_ERROR(EXIT_FAILURE,
-                        "Unable to initialize engine "
-                        "map: {}",
-                        errmsg);
+                        "Unable to initialize engine map: {}",
+                        error.what());
         }
+    } else {
+        // The crash tests wants the system to generate a crash.
+        // I tried to rethrow the exception instead of logging
+        // the error, but for some reason the python test script
+        // didn't like that..
+        initialize_engine_map();
     }
 
     /* Initialize bucket engine */
