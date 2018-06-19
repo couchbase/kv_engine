@@ -29,19 +29,27 @@
 // Testcases //////////////////////////////////////////////////////////////////
 
 static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    // Inserting more than 500 items will cause a new open checkpoint with id 2
-    // to be created.
+    // Inserting more than 5 items (see testcase config) will cause a new open
+    // checkpoint with id 2 to be created.
 
-    for (int j = 0; j < 600; ++j) {
-        std::stringstream ss;
-        ss << "key" << j;
-        item *i;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                      ss.str().c_str(), &i, 0, 0),
-                "Failed to store a value");
-        h1->release(h, i);
-    }
+    write_items(h, h1, 5);
+    wait_for_flusher_to_settle(h, h1);
+
+    checkeq(1,
+            get_int_stat(
+                    h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
+            "Last closed checkpoint Id for VB 0 should still be 1 after "
+            "storing 50 items");
+
+    // Store 1 more - should push it over to the next checkpoint.
+    write_items(h, h1, 1, 5);
+    wait_for_flusher_to_settle(h, h1);
+
+    checkeq(2,
+            get_int_stat(
+                    h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
+            "Last closed checkpoint Id for VB 0 should increase to 2 after "
+            "storing 51 items");
 
     createCheckpoint(h, h1);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
@@ -257,7 +265,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_create_new_checkpoint,
                  test_setup,
                  teardown,
-                 "chk_max_items=500;item_num_based_new_chk=true",
+                 "chk_max_items=5;item_num_based_new_chk=true",
                  prepare,
                  cleanup),
         TestCase("checkpoint: validate checkpoint config params",
