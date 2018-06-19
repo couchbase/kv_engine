@@ -50,10 +50,9 @@ private:
 };
 
 Engine* createEngine(const std::string& so, const std::string& function) {
-    engine_reference* engine_ref =
-            load_engine(so.c_str(), function.c_str(), nullptr);
+    auto* engine_ref = load_engine(so.c_str(), function.c_str());
 
-    if (engine_ref == NULL) {
+    if (engine_ref == nullptr) {
         std::stringstream ss;
         ss << "Failed to load engine \"" << so << "\" with symbol \""
            << function << "\"";

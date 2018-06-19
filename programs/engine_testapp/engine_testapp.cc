@@ -851,7 +851,7 @@ static int report_test(const char *name,
 
 static engine_reference* engine_ref = NULL;
 static bool start_your_engine(const char *engine) {
-    if ((engine_ref = load_engine(engine, nullptr, nullptr)) == nullptr) {
+    if ((engine_ref = load_engine(engine, nullptr)) == nullptr) {
         fprintf(stderr, "Failed to load engine %s.\n", engine);
         return false;
     }

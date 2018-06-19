@@ -273,8 +273,8 @@ public:
             real_engine_config = config.substr(seperator + 1);
         }
 
-        if ((ewb->real_engine_ref = load_engine(
-                     real_engine_name.c_str(), NULL, NULL)) == NULL) {
+        if ((ewb->real_engine_ref =
+                     load_engine(real_engine_name.c_str(), NULL)) == NULL) {
             LOG_CRITICAL(
                     "ERROR: EWB_Engine::initialize(): Failed to load real "
                     "engine '{}'",

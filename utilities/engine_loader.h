@@ -42,16 +42,12 @@ void unload_engine(engine_reference* engine);
  * @param create_function The name of the function used to create the engine
  *                        (Set to NULL to use the "default" list of method
  *                        names)
- * @param destroy_function The name of the function used to destroy the engine
- *                        (Set to NULL to use the "default" list of method
- *                        names)
  * @param logger Where to print error messages (cannot be NULL)
  * @return engine_reference* on success or NULL for failure.
  */
 MCD_UTIL_PUBLIC_API
-engine_reference* load_engine(const char* soname,
-                              const char* create_function,
-                              const char* destroy_function) CB_ATTR_NONNULL(1);
+engine_reference* load_engine(const char* soname, const char* create_function)
+        CB_ATTR_NONNULL(1);
 
 /*
     Create an engine instance.

@@ -38,9 +38,7 @@ static void* find_symbol(cb_dlhandle_t handle, const char* function, char** errm
     return cb_dlsym(handle, function, errmsg);
 }
 
-engine_reference* load_engine(const char* soname,
-                              const char* create_function,
-                              const char* destroy_function) {
+engine_reference* load_engine(const char* soname, const char* create_function) {
     void *create_symbol = NULL;
     void *destroy_symbol = NULL;
     char *errmsg = NULL, *create_errmsg = NULL, *destroy_errmsg = NULL;
@@ -68,13 +66,10 @@ engine_reference* load_engine(const char* soname,
         }
     }
 
-    if (destroy_function) {
-        destroy_symbol = find_symbol(handle, destroy_function, &destroy_errmsg);
-    } else {
-        int ii = 0;
-        while (destroy_functions[ii] != NULL && destroy_symbol == NULL) {
-            destroy_symbol = find_symbol(handle, destroy_functions[ii], &destroy_errmsg);
-        }
+    int ii = 0;
+    while (destroy_functions[ii] != NULL && destroy_symbol == NULL) {
+        destroy_symbol =
+                find_symbol(handle, destroy_functions[ii], &destroy_errmsg);
     }
 
     if (create_symbol == NULL) {
