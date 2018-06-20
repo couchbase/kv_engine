@@ -185,10 +185,6 @@ hash_item *do_item_alloc(struct default_engine *engine,
                     cb_mutex_enter(&engine->stats.lock);
                     engine->stats.evictions++;
                     cb_mutex_exit(&engine->stats.lock);
-                    const hash_key* search_key = item_get_key(search);
-                    engine->server.stat->evicting(cookie,
-                                                  hash_key_get_client_key(search_key),
-                                                  hash_key_get_client_key_len(search_key));
                 } else {
                     engine->items.itemstats[id].reclaimed++;
                     cb_mutex_enter(&engine->stats.lock);

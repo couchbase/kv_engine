@@ -19,7 +19,6 @@ struct mock_connstruct : cb::tracing::Traceable {
     bool connected;
     int sfd;
     ENGINE_ERROR_CODE status;
-    uint64_t evictions;
     int nblocks; /* number of ewouldblocks */
     bool handle_ewouldblock;
     bool handle_mutation_extras;

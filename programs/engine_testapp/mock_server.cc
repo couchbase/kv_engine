@@ -57,7 +57,6 @@ mock_connstruct::mock_connstruct()
       connected(true),
       sfd(0),
       status(ENGINE_SUCCESS),
-      evictions(0),
       nblocks(0),
       handle_ewouldblock(true),
       handle_mutation_extras(true),
@@ -299,17 +298,6 @@ static size_t mock_get_max_item_iovec_size() {
 }
 
 /**
- * SERVER STAT API FUNCTIONS
- */
-
-static void mock_count_eviction(gsl::not_null<const void*> cookie,
-                                const void* key,
-                                const int nkey) {
-    auto* c = cookie_to_mock_object(cookie.get());
-    c->evictions++;
-}
-
-/**
  * SERVER CALLBACK API FUNCTIONS
  */
 
@@ -351,7 +339,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
    static SERVER_CORE_API core_api;
    static SERVER_COOKIE_API server_cookie_api;
-   static SERVER_STAT_API server_stat_api;
    static SERVER_CALLBACK_API callback_api;
    static SERVER_LOG_API log_api;
    static ALLOCATOR_HOOKS_API hooks_api;
@@ -383,7 +370,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.engine_error2mcbp = mock_engine_error2mcbp;
       server_cookie_api.get_log_info = mock_get_log_info;
       server_cookie_api.set_error_context = mock_set_error_context;
-      server_stat_api.evicting = mock_count_eviction;
 
       callback_api.register_callback = mock_register_callback;
       callback_api.perform_callbacks = mock_perform_callbacks;
@@ -409,7 +395,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
 
       rv.interface = 1;
       rv.core = &core_api;
-      rv.stat = &server_stat_api;
       rv.callback = &callback_api;
       rv.log = &log_api;
       rv.cookie = &server_cookie_api;

@@ -81,15 +81,6 @@ typedef struct {
     void (*trigger_tick)(void);
 } SERVER_CORE_API;
 
-typedef struct {
-    /**
-     * Tell the server we've evicted an item.
-     */
-    void (*evicting)(gsl::not_null<const void*> cookie,
-                     const void* key,
-                     int nkey);
-} SERVER_STAT_API;
-
 /**
  * Commands to operate on a specific cookie.
  */

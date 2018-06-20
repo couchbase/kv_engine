@@ -69,7 +69,6 @@
 struct server_handle_v1_t {
     uint64_t interface; /**< The version number on the server structure */
     SERVER_CORE_API* core;
-    SERVER_STAT_API* stat;
     SERVER_CALLBACK_API* callback;
     SERVER_LOG_API* log;
     SERVER_COOKIE_API* cookie;

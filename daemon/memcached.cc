@@ -1581,9 +1581,6 @@ static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
     c->setState(McbpStateMachine::State::closing);
 }
 
-static void count_eviction(gsl::not_null<const void*>, const void*, int) {
-}
-
 static size_t get_max_item_iovec_size() {
     return 1;
 }
@@ -1652,7 +1649,6 @@ SERVER_HANDLE_V1* get_server_api() {
     static int init;
     static SERVER_CORE_API core_api;
     static SERVER_COOKIE_API server_cookie_api;
-    static SERVER_STAT_API server_stat_api;
     static SERVER_LOG_API server_log_api;
     static SERVER_CALLBACK_API callback_api;
     static ALLOCATOR_HOOKS_API hooks_api;
@@ -1689,8 +1685,6 @@ SERVER_HANDLE_V1* get_server_api() {
         server_cookie_api.get_log_info = cookie_get_log_info;
         server_cookie_api.set_error_context = cookie_set_error_context;
 
-        server_stat_api.evicting = count_eviction;
-
         server_log_api.get_logger = get_logger;
         server_log_api.get_level = get_log_level;
         server_log_api.set_level = set_log_level;
@@ -1715,7 +1709,6 @@ SERVER_HANDLE_V1* get_server_api() {
 
         rv.interface = 1;
         rv.core = &core_api;
-        rv.stat = &server_stat_api;
         rv.callback = &callback_api;
         rv.log = &server_log_api;
         rv.cookie = &server_cookie_api;
