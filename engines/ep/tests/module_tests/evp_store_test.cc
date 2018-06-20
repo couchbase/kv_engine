@@ -1030,7 +1030,7 @@ TEST_F(EPStoreFullEvictionNoBloomFIlterTest, MB_29816) {
 
     // Get the keys again
     gv = store->get(key, vbid, cookie, options);
-    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus()) << "key:005 should of been found";
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus()) << "key:005 should have been found";
 
     gv = store->get(key2, vbid, cookie, options);
     ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());

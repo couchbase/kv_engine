@@ -2071,10 +2071,6 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
                     std::to_string(v->getBySeqno()) + "' from bucket " +
                     std::to_string(hbl.getBucketNum()));
         }
-        if (deleted) {
-            // Removed an item from disk - decrement the count of total items.
-            decrNumTotalItems();
-        }
 
         /**
          * Deleted items are to be added to the bloomfilter,
@@ -2086,6 +2082,15 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     if (deleted) {
         ++stats.totalPersisted;
         ++opsDelete;
+
+        /**
+         * MB-30137: Decrement the total number of on-disk items. This needs to be
+         * done to ensure that the item count is accurate in the case of full
+         * eviction
+         */
+        if (v) {
+            decrNumTotalItems();
+        }
     }
     doStatsForFlushing(queuedItem, queuedItem.size());
     --stats.diskQueueSize;

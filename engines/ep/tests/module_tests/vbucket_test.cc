@@ -25,6 +25,7 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "item.h"
+#include "persistence_callback.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket_bgfetch_item.h"
@@ -684,6 +685,44 @@ TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
             << "When trying to replace-with-CAS a deleted item";
 }
 
+class VBucketFullEvictionTest : public VBucketTest {};
+
+TEST_P(VBucketFullEvictionTest, MB_30137) {
+    auto k = makeStoredDocKey("key");
+    queued_item qi(new Item(k, 0, 0, k.data(), k.size()));
+    PersistenceCallback cb1(qi, qi->getCas());
+
+    // (1) Store k
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*qi, qi->getCas()));
+
+    // (1.1) Mimic flusher by running the PCB for the store at (1)
+    EPTransactionContext tc1(global_stats, *vbucket);
+    auto mr1 = std::make_pair(1, true);
+    cb1.callback(tc1, mr1); // Using the create/update callback
+
+    EXPECT_EQ(1, vbucket->getNumItems());
+
+    // (2) Delete k
+    softDeleteOne(k, MutationStatus::WasClean);
+
+    // (3) Now set k again
+    EXPECT_EQ(MutationStatus::WasDirty, public_processSet(*qi, qi->getCas()));
+
+    // (3.1) Run the PCB for the delete/expiry (2)
+    int value = 1;
+    cb1.callback(tc1, value); // Using the delete callback
+
+    // In FE mode, getNumItems is tracking disk items, so we should have 0 disk
+    // items until the 'flush' of the second store (3)
+    EXPECT_EQ(0, vbucket->getNumItems());
+
+    // (4) run the create/update PCB again, the store (3) should look like a
+    // create because of the delete at (2)
+    cb1.callback(tc1, mr1); // Using the create/update callback
+
+    EXPECT_EQ(1, vbucket->getNumItems());
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(
         FullAndValueEviction,
@@ -707,6 +746,15 @@ INSTANTIATE_TEST_CASE_P(
             } else {
                 return "FULL_EVICTION";
             }
+        });
+
+// Test cases which run in Full Eviction only
+INSTANTIATE_TEST_CASE_P(
+        FullEviction,
+        VBucketFullEvictionTest,
+        ::testing::Values(FULL_EVICTION),
+        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
+            return "FULL_EVICTION";
         });
 
 INSTANTIATE_TEST_CASE_P(
