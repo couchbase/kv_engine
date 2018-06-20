@@ -185,6 +185,18 @@ void StoredValue::restoreMeta(const Item& itm) {
     setFreqCounterValue(itm.getFreqCounterValue());
 }
 
+size_t StoredValue::uncompressedValuelen() const {
+    if (!value) {
+        return 0;
+    }
+    if (mcbp::datatype::is_snappy(datatype)) {
+        return cb::compression::get_uncompressed_length(
+                cb::compression::Algorithm::Snappy,
+                {value->getData(), value->valueSize()});
+    }
+    return valuelen();
+}
+
 bool StoredValue::del() {
     if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)->deleteImpl();

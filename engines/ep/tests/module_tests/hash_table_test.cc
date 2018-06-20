@@ -338,9 +338,9 @@ TEST_F(HashTableTest, PoisonKey) {
 }
 
 // Test fixture for HashTable statistics tests.
-class HashTableStatsTest
-        : public HashTableTest,
-          public ::testing::WithParamInterface<item_eviction_policy_t> {
+class HashTableStatsTest : public HashTableTest,
+                           public ::testing::WithParamInterface<
+                                   std::tuple<item_eviction_policy_t, bool>> {
 protected:
     HashTableStatsTest()
         : ht(stats, makeFactory(), 5, 1),
@@ -348,9 +348,13 @@ protected:
           key(makeStoredDocKey("somekey")),
           itemSize(16 * 1024),
           item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize),
-          evictionPolicy(GetParam()) {
+          evictionPolicy(std::get<0>(GetParam())) {
         // Assign a valid sequence number.
         item.setBySeqno(10);
+        // Compress if test parameter specifies so
+        if (std::get<1>(GetParam())) {
+            EXPECT_TRUE(item.compressValue());
+        }
     }
 
     void SetUp() override {
@@ -434,14 +438,18 @@ TEST_P(HashTableStatsTest, SizeEjectRestoreValue) {
         // Value-only: expect to have metadata still present.
         EXPECT_EQ(1, ht.getNumItems());
         EXPECT_EQ(1, ht.getNumInMemoryNonResItems());
-        ASSERT_EQ(1, ht.getDatatypeCounts()[PROTOCOL_BINARY_RAW_BYTES]);
+        EXPECT_EQ(v->metaDataSize(), ht.getUncompressedItemMemory())
+                << "Expected uncompressed memory to be sizeof metadata after "
+                   "evicting";
+        EXPECT_EQ(1, ht.getDatatypeCounts()[item.getDataType()]);
     }
 
     if (evictionPolicy == FULL_EVICTION) {
         // ejectItem() will have removed both the value and meta.
         EXPECT_EQ(0, ht.getNumItems());
         EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
-        ASSERT_EQ(0, ht.getDatatypeCounts()[PROTOCOL_BINARY_RAW_BYTES]);
+        EXPECT_EQ(0, ht.getUncompressedItemMemory());
+        EXPECT_EQ(0, ht.getDatatypeCounts()[item.getDataType()]);
 
         // Need a new tempItem (metadata) to restore value into.
         Item temp(key,
@@ -463,7 +471,7 @@ TEST_P(HashTableStatsTest, SizeEjectRestoreValue) {
     }
 
     EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
-    EXPECT_EQ(1, ht.getDatatypeCounts()[PROTOCOL_BINARY_RAW_BYTES]);
+    EXPECT_EQ(1, ht.getDatatypeCounts()[item.getDataType()]);
 
     del(ht, key);
 }
@@ -681,20 +689,11 @@ TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
     EXPECT_EQ(0, ht.getUncompressedItemMemory());
 }
 
-INSTANTIATE_TEST_CASE_P(
-        ValueAndFullEviction,
-        HashTableStatsTest,
-        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            switch (info.param) {
-            case VALUE_ONLY:
-                return "VALUE_ONLY";
-            case FULL_EVICTION:
-                return "FULL_EVICTION";
-            }
-            throw std::invalid_argument("Unknown eviction_policy:" +
-                                        std::to_string(info.param));
-        });
+INSTANTIATE_TEST_CASE_P(ValueAndFullEviction,
+                        HashTableStatsTest,
+                        ::testing::Combine(::testing::Values(VALUE_ONLY,
+                                                             FULL_EVICTION),
+                                           ::testing::Bool()), );
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup

@@ -475,12 +475,29 @@ public:
     }
 
     /**
+     * Returns the uncompressed value length (if resident); else zero.
+     * For uncompressed values this is the same as valuelen().
+     */
+    size_t uncompressedValuelen() const;
+
+    /**
      * Get the total size of this item.
      *
      * @return the amount of memory used by this item.
      */
     size_t size() const {
         return getObjectSize() + valuelen();
+    }
+
+    /**
+     * Get the total uncompressed size of this item.
+     *
+     * @returns the amount of memory which would be used by this item if is it
+     * was uncompressed.
+     * For uncompressed items this is the same as size().
+     */
+    size_t uncompressedSize() const {
+        return getObjectSize() + uncompressedValuelen();
     }
 
     size_t metaDataSize() const {

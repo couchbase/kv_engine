@@ -346,15 +346,7 @@ void HashTable::Statistics::prologue(const StoredValue& v) {
 
     cacheSize.fetch_sub(v.size());
     memSize.fetch_sub(v.size());
-
-    if (mcbp::datatype::is_snappy(v.getDatatype())) {
-        size_t uncompressed_length = cb::compression::get_uncompressed_length(
-                cb::compression::Algorithm::Snappy,
-                {v.getValue()->getData(), v.valuelen()});
-        uncompressedMemSize.fetch_sub(v.metaDataSize() + uncompressed_length);
-    } else {
-        uncompressedMemSize.fetch_sub(v.size());
-    }
+    uncompressedMemSize.fetch_sub(v.uncompressedSize());
 
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
         --numNonResidentItems;
@@ -380,15 +372,7 @@ void HashTable::Statistics::epilogue(const StoredValue& v) {
 
     cacheSize.fetch_add(v.size());
     memSize.fetch_add(v.size());
-
-    if (mcbp::datatype::is_snappy(v.getDatatype())) {
-        size_t uncompressed_length = cb::compression::get_uncompressed_length(
-                cb::compression::Algorithm::Snappy,
-                {v.getValue()->getData(), v.valuelen()});
-        uncompressedMemSize.fetch_add(v.metaDataSize() + uncompressed_length);
-    } else {
-        uncompressedMemSize.fetch_add(v.size());
-    }
+    uncompressedMemSize.fetch_add(v.uncompressedSize());
 
     if (!v.isResident() && !v.isDeleted() && !v.isTempItem()) {
         ++numNonResidentItems;
