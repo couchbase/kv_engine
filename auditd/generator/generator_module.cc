@@ -19,54 +19,65 @@
 #include "generator_event.h"
 #include "generator_utilities.h"
 
+#include <nlohmann/json.hpp>
 #include <fstream>
+#include <gsl/gsl>
 #include <memory>
 #include <sstream>
 #include <system_error>
 
-Module::Module(gsl::not_null<const cJSON*> object,
+Module::Module(const nlohmann::json& object,
                const std::string& srcRoot,
-               const std::string& objRoot)
-    : name(object->string) {
-    auto* data = const_cast<cJSON*>(object.get());
+               const std::string& objRoot) {
+    /*
+     * https://github.com/nlohmann/json/issues/67
+     * There is no way for a JSON value to "know" whether it is stored in an
+     * object, and if so under which key Use an iterator to get the first (and
+     * only) object and extract the key and data from it
+     */
+    auto it = object.begin();
+    name = it.key();
+    auto data = it.value();
+
+    // Expect a single item in the dictionary, if this is not the case, throw an
+    // exception
+    if (object.size() > 1) {
+        std::stringstream ss;
+        ss << "Module::Module expected single item dictionary, got: " << object;
+        throw std::runtime_error(ss.str());
+    }
 
     // Each module contains:
     //   startid - mandatory
     //   file - mandatory
     //   header - optional
-    cJSON* sid = getMandatoryObject(data, "startid", cJSON_Number);
-    cJSON* fname = getMandatoryObject(data, "file", cJSON_String);
-    cJSON* hfile = getOptionalObject(data, "header", cJSON_String);
-    auto* ent = getOptionalObject(data, "enterprise", -1);
+    size_t expected = 2;
+    start = data.at("startid");
 
-    start = sid->valueint;
     file.assign(srcRoot);
     file.append("/");
-    file.append(fname->valuestring);
+    file.append(data.at("file").get<std::string>());
     cb::io::sanitizePath(file);
 
-    int expected = 2;
-
-    if (hfile) {
-        std::string hp = hfile->valuestring;
-        if (!hp.empty()) {
-            header.assign(objRoot);
-            header.append("/");
-            header.append(hp);
-            cb::io::sanitizePath(header);
-        }
+    auto hfile = data.value("header", "");
+    if (!hfile.empty()) {
+        header.assign(objRoot);
+        header.append("/");
+        header.append(hfile);
+        cb::io::sanitizePath(header);
         ++expected;
     }
 
-    if (ent) {
-        enterprise = ent->type == cJSON_True;
+    auto ent = data.value("enterprise", -1);
+    if (ent != -1) {
+        enterprise = gsl::narrow_cast<bool>(ent);
         ++expected;
     }
 
-    if (cJSON_GetArraySize(data) != expected) {
+    if (data.size() != expected) {
         std::stringstream ss;
         ss << "Unknown elements for " << name << ": " << std::endl
-           << to_string(data) << std::endl;
+           << data << std::endl;
         throw std::runtime_error(ss.str());
     }
 
@@ -120,22 +131,24 @@ void Module::parseEventDescriptorFile() {
     }
 
     json = load_file(file);
-    auto* obj = getMandatoryObject(json.get(), "version", cJSON_Number);
-    if (obj->valueint != 1 && obj->valueint != 2) {
+    auto v = json.at("version").get<int32_t>();
+    if (v != 1 && v != 2) {
         throw std::runtime_error("Invalid version in " + file + ": " +
-                                 std::to_string(obj->valueint));
+                                 std::to_string(v));
     }
 
-    obj = getMandatoryObject(json.get(), "module", cJSON_String);
-    if (name != obj->valuestring) {
-        throw std::runtime_error(name + " can't load a module named " +
-                                 obj->valuestring);
+    auto n = json.at("module").get<std::string>();
+    if (n != name) {
+        throw std::runtime_error(name + " can't load a module named " + n);
     }
 
-    obj = getMandatoryObject(json.get(), "events", cJSON_Array);
     // Parse all of the individual events
-    for (auto* ev = obj->child; ev != nullptr; ev = ev->next) {
-        auto event = std::make_unique<Event>(ev);
+    auto e = json["events"];
+    assert(e.is_array());
+    auto it = e.begin();
+    while (it != e.end()) {
+        auto event = std::make_unique<Event>(*it);
         addEvent(std::move(event));
+        ++it;
     }
 }

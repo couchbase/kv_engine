@@ -17,39 +17,32 @@
 #include "generator_event.h"
 #include "generator_utilities.h"
 
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
+#include <gsl/gsl>
 #include <sstream>
 
-Event::Event(gsl::not_null<const cJSON*> root) {
-    cJSON* cId = getMandatoryObject(root, "id", cJSON_Number);
-    cJSON* cName = getMandatoryObject(root, "name", cJSON_String);
-    cJSON* cDescr = getMandatoryObject(root, "description", cJSON_String);
-    cJSON* cSync = getMandatoryObject(root, "sync", -1);
-    cJSON* cEnabled = getMandatoryObject(root, "enabled", -1);
-    cJSON* cFilteringPermitted =
-            getOptionalObject(root, "filtering_permitted", -1);
-    cJSON* cMand = getMandatoryObject(root, "mandatory_fields", cJSON_Object);
-    cJSON* cOpt = getMandatoryObject(root, "optional_fields", cJSON_Object);
+Event::Event(const nlohmann::json& json) {
+    id = json.at("id");
+    name = json.at("name");
+    description = json.at("description");
+    sync = json.at("sync");
+    enabled = json.at("enabled");
+    auto cFilteringPermitted = json.value("filtering_permitted", -1);
+    mandatory_fields = json.at("mandatory_fields").dump();
+    optional_fields = json.at("optional_fields").dump();
 
-    id = uint32_t(cId->valueint);
-    name.assign(cName->valuestring);
-    description.assign(cDescr->valuestring);
-    sync = cSync->type == cJSON_True;
-    enabled = cEnabled->type == cJSON_True;
-    if (cFilteringPermitted != nullptr) {
-        filtering_permitted = cFilteringPermitted->type == cJSON_True;
+    if (cFilteringPermitted != -1) {
+        filtering_permitted = gsl::narrow_cast<bool>(cFilteringPermitted);
     } else {
         filtering_permitted = false;
     }
-    mandatory_fields = to_string(cMand, false);
-    optional_fields = to_string(cOpt, false);
 
-    int num_elem = cJSON_GetArraySize(const_cast<cJSON*>(root.get()));
-    if ((cFilteringPermitted == nullptr && num_elem != 7) ||
-        (cFilteringPermitted != nullptr && num_elem != 8)) {
+    auto num_elem = json.size();
+    if ((cFilteringPermitted == -1 && num_elem != 7) ||
+        (cFilteringPermitted != -1 && num_elem != 8)) {
         std::stringstream ss;
         ss << "Unknown elements for " << name << ": " << std::endl
-           << to_string(root.get()) << std::endl;
+           << json << std::endl;
         throw std::runtime_error(ss.str());
     }
 }

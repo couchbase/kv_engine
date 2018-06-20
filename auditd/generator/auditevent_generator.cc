@@ -22,9 +22,9 @@
 #include "generator_module.h"
 #include "generator_utilities.h"
 
-#include <cJSON_utils.h>
 #include <errno.h>
 #include <getopt.h>
+#include <nlohmann/json.hpp>
 #include <cstdlib>
 #include <iostream>
 
@@ -56,10 +56,9 @@ int main(int argc, char **argv) {
     }
 
     try {
-        unique_cJSON_ptr ptr;
-        ptr = load_file(input_file);
+        auto json = load_file(input_file);
         std::list<std::unique_ptr<Module>> modules;
-        parse_module_descriptors(ptr.get(), modules, srcroot, objroot);
+        parse_module_descriptors(json, modules, srcroot, objroot);
         create_master_file(modules, output_file);
 
         for (const auto& module : modules) {

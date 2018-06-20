@@ -18,6 +18,7 @@
 #pragma once
 
 #include <gsl.h>
+#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <string>
 
@@ -40,7 +41,7 @@ public:
      * @throws std::runtime_error for errors accessing the expected
      *                            elements
      */
-    explicit Event(gsl::not_null<const cJSON*> entry);
+    explicit Event(const nlohmann::json& json);
 
     /// The identifier for this entry
     uint32_t id;

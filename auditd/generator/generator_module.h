@@ -16,8 +16,8 @@
  */
 #pragma once
 
-#include <cJSON_utils.h>
 #include <gsl.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <vector>
 
@@ -30,7 +30,7 @@ class Event;
 class Module {
 public:
     Module() = delete;
-    Module(gsl::not_null<const cJSON*> object,
+    Module(const nlohmann::json& json,
            const std::string& srcRoot,
            const std::string& objRoot);
 
@@ -54,7 +54,7 @@ public:
     /**
      * The JSON data describing the audit descriptors for this module
      */
-    unique_cJSON_ptr json;
+    nlohmann::json json;
     /**
      * Is this module enterprise only?
      */

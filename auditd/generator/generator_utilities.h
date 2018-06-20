@@ -17,45 +17,13 @@
 
 #pragma once
 
-#include <cJSON_utils.h>
+#include <nlohmann/json_fwd.hpp>
 #include <gsl/gsl>
 #include <list>
 #include <string>
 
-struct cJSON;
 class Module;
 class Event;
-
-/**
- * Search through the provided JSON object for the attribute with
- * the given name and validate that the type is correct.
- *
- * @param root the JSON to search
- * @param name the attribute to search for
- * @param type The expected type (or -1 for a boolean type as cJSON
- *             use two different types for boolean values)
- * @return The object
- * @throws std::runtime_error if the requested attribute isn't found / wrong
- *                            type
- */
-cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,
-                          const std::string& name,
-                          int type);
-
-/**
- * Search through the provided JSON object for the attribute with
- * the given name and validate that the type is correct.
- *
- * @param root the JSON to search
- * @param name the attribute to search for
- * @param type The expected type (or -1 for a boolean type as cJSON
- *             use two different types for boolean values)
- * @return The object or nullptr if the object isn't found
- * @throws std::runtime_error if the requested attribute has the wrong type
- */
-cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
-                         const std::string& name,
-                         int type);
 
 /**
  * Is this build for enterprise edition?
@@ -78,7 +46,7 @@ void set_enterprise_edition(bool enable);
  * @throws std::system_error if we fail to read the file
  *         std::runtime_error if we fail to parse the content of the file
  */
-unique_cJSON_ptr load_file(const std::string& fname);
+nlohmann::json load_file(const std::string& fname);
 
 /**
  * Iterate over the module descriptor json and populate each entry
@@ -91,7 +59,7 @@ unique_cJSON_ptr load_file(const std::string& fname);
  * @param objroot The object root to prepend to all of the paths in the spec
  * @throws std::invalid_argument if the provided JSON is of an unexpected format
  */
-void parse_module_descriptors(gsl::not_null<const cJSON*> ptr,
+void parse_module_descriptors(const nlohmann::json&,
                               std::list<std::unique_ptr<Module>>& modules,
                               const std::string& srcroot,
                               const std::string& objroot);

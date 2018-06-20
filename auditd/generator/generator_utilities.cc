@@ -19,7 +19,7 @@
 #include "generator_event.h"
 #include "generator_module.h"
 
-#include <cJSON.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <cstring>
@@ -27,48 +27,6 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-
-cJSON* getMandatoryObject(gsl::not_null<const cJSON*> root,
-                          const std::string& name,
-                          int type) {
-    cJSON* ret = getOptionalObject(root, name, type);
-    if (ret == nullptr) {
-        throw std::runtime_error("Mandatory element \"" + name +
-                                 "\" is missing");
-    }
-    return ret;
-}
-
-cJSON* getOptionalObject(gsl::not_null<const cJSON*> root,
-                         const std::string& name,
-                         int type) {
-    cJSON* ret =
-            cJSON_GetObjectItem(const_cast<cJSON*>(root.get()), name.c_str());
-    if (ret && ret->type != type) {
-        if (type == -1) {
-            if (ret->type == cJSON_True || ret->type == cJSON_False) {
-                return ret;
-            }
-        }
-
-        std::stringstream ss;
-        ss << "Incorrect type for \"" << name << "\". Should be ";
-        switch (type) {
-        case cJSON_String:
-            ss << "string";
-            break;
-        case cJSON_Number:
-            ss << "number";
-            break;
-        default:
-            ss << type;
-        }
-
-        throw std::runtime_error(ss.str());
-    }
-
-    return ret;
-}
 
 #ifdef COUCHBASE_ENTERPRISE_EDITION
 static bool enterprise_edition = true;
@@ -102,54 +60,58 @@ bool is_enterprise_edition() {
  * event in the module.
  */
 
-unique_cJSON_ptr load_file(const std::string& fname) {
+nlohmann::json load_file(const std::string& fname) {
     auto str = cb::io::loadFile(fname);
     if (str.empty()) {
         throw std::runtime_error(fname + " contained no data");
     }
 
-    unique_cJSON_ptr ret(cJSON_Parse(str.c_str()));
-    if (!ret) {
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(str);
+    } catch (nlohmann::json::parse_error& e) {
         throw std::runtime_error("Failed to parse " + fname + " containing: [" +
-                                 str + "]");
+                                 str + "] with error: " + e.what());
     }
 
-    return ret;
+    return json;
 }
 
-void parse_module_descriptors(gsl::not_null<const cJSON*> ptr,
+void parse_module_descriptors(const nlohmann::json& json,
                               std::list<std::unique_ptr<Module>>& modules,
                               const std::string& srcroot,
                               const std::string& objroot) {
-    auto* mod = getMandatoryObject(ptr, "modules", cJSON_Array);
-    for (auto* obj = mod->child; obj != nullptr; obj = obj->next) {
-        auto new_module =
-                std::make_unique<Module>(obj->child, srcroot, objroot);
-        if (new_module->enterprise && !is_enterprise_edition()) {
-            // Community edition should ignore modules from enterprise Edition
-        } else {
-            modules.emplace_back(std::move(new_module));
+    auto mod = json["modules"];
+    if (mod.is_array()) {
+        for (auto& module : mod) {
+            auto new_module =
+                    std::make_unique<Module>(module, srcroot, objroot);
+            if (new_module->enterprise && !is_enterprise_edition()) {
+                // Community edition should ignore modules from enterprise
+                // Edition
+            } else {
+                modules.emplace_back(std::move(new_module));
+            }
         }
+    } else {
+        throw std::runtime_error("Failed to get module descriptors");
     }
 }
 
 void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
                         const std::string& output_file) {
-    unique_cJSON_ptr output_json(cJSON_CreateObject());
+    nlohmann::json output_json;
+    output_json["version"] = 2;
 
-    cJSON_AddNumberToObject(output_json.get(), "version", 2);
-
-    cJSON* arr = cJSON_CreateArray();
+    auto arr = nlohmann::json::array();
     for (const auto& mod_ptr : modules) {
-        if (mod_ptr->json) {
-            cJSON_AddItemReferenceToArray(arr, mod_ptr->json.get());
-        }
+        arr.push_back(mod_ptr->json);
     }
-    cJSON_AddItemToObject(output_json.get(), "modules", arr);
+    output_json["modules"] = arr;
 
     try {
         std::ofstream out(output_file);
-        out << to_string(output_json) << std::endl;
+        out << output_json << std::endl;
         out.close();
     } catch (...) {
         throw std::system_error(errno,

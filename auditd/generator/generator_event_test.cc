@@ -17,8 +17,8 @@
 
 #include "generator_event.h"
 
-#include <cJSON_utils.h>
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 
 /// @todo Add extra unit tests to verify that we check for the JSON types
 
@@ -51,11 +51,11 @@ protected:
     "sockname": ""
   }
 })";
-        json.reset(cJSON_Parse(input));
+        json = nlohmann::json::parse(input);
     }
 
 protected:
-    unique_cJSON_ptr json;
+    nlohmann::json json;
 };
 
 /**
@@ -63,16 +63,19 @@ protected:
  * descriptor
  */
 TEST_F(EventParseTest, TestCorrectInput) {
-    Event event(json.get());
+    Event event(json);
     EXPECT_EQ(12345, event.id);
     EXPECT_EQ("name", event.name);
     EXPECT_EQ("description", event.description);
     EXPECT_TRUE(event.sync);
     EXPECT_TRUE(event.enabled);
     EXPECT_TRUE(event.filtering_permitted);
-    EXPECT_EQ(R"({"timestamp":"","real_userid":{"domain":"","user":""}})",
-              event.mandatory_fields);
-    EXPECT_EQ(R"({"peername":"","sockname":""})", event.optional_fields);
+    EXPECT_EQ(
+            nlohmann::json::parse(
+                    R"({"timestamp":"","real_userid":{"domain":"","user":""}})"),
+            nlohmann::json::parse(event.mandatory_fields));
+    EXPECT_EQ(nlohmann::json::parse(R"({"peername":"","sockname":""})"),
+              nlohmann::json::parse(event.optional_fields));
 }
 
 /**
@@ -86,17 +89,15 @@ TEST_F(EventParseTest, MandatoryFields) {
                                                      "enabled",
                                                      "mandatory_fields",
                                                      "optional_fields"}}) {
-        unique_cJSON_ptr obj(
-                cJSON_DetachItemFromObject(json.get(), tag.c_str()));
-        ASSERT_TRUE(obj) << "\"" << tag << "\" not found in event!";
+        auto removed = json.at(tag);
+        json.erase(tag);
         try {
-            Event event(json.get());
+            Event event(json);
             FAIL() << "Should not be able to construct events without \"" << tag
                    << "\"";
-        } catch (const std::exception& e) {
-            EXPECT_EQ("Mandatory element \"" + tag + "\" is missing", e.what());
+        } catch (const nlohmann::json::exception&) {
         }
-        cJSON_AddItemToObject(json.get(), tag.c_str(), obj.release());
+        json[tag] = removed;
     }
 }
 
@@ -106,9 +107,8 @@ TEST_F(EventParseTest, MandatoryFields) {
 TEST_F(EventParseTest, OptionalFields) {
     // "filtering_permitted" is optional, and should be set to false if it
     // is missing
-    unique_cJSON_ptr obj(
-            cJSON_DetachItemFromObject(json.get(), "filtering_permitted"));
-    ASSERT_TRUE(obj) << R"("filtering_permitted" not found in event!)";
-    Event event(json.get());
+    auto removed = json.at("filtering_permitted");
+    json.erase("filtering_permitted");
+    Event event(json);
     ASSERT_FALSE(event.filtering_permitted);
 }
