@@ -202,6 +202,31 @@ void TestappTest::TearDownTestCase() {
     stop_memcached_server();
 }
 
+void TestappTest::reconfigure_client_cert_auth(const std::string& state,
+                                               const std::string& path,
+                                               const std::string& prefix,
+                                               const std::string& delimiter) {
+    // Delete the old item from the array
+    cJSON_DeleteItemFromObject(memcached_cfg.get(), "client_cert_auth");
+
+    auto obj = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj, "state", state.c_str());
+    cJSON_AddStringToObject(obj, "path", path.c_str());
+    cJSON_AddStringToObject(obj, "prefix", prefix.c_str());
+    cJSON_AddStringToObject(obj, "delimiter", delimiter.c_str());
+    cJSON_AddItemToObject(memcached_cfg.get(), "client_cert_auth", obj);
+
+    // update the server to use this!
+    reconfigure();
+}
+
+void TestappTest::setClientCertData(MemcachedConnection& connection) {
+    connection.setSslCertFile(SOURCE_ROOT +
+                              std::string("/tests/cert/client.pem"));
+    connection.setSslKeyFile(SOURCE_ROOT +
+                             std::string("/tests/cert/client.key"));
+}
+
 std::string get_sasl_mechs(void) {
     union {
         protocol_binary_request_no_extras request;

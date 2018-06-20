@@ -32,15 +32,17 @@
 
 class AuditTest : public TestappClientTest {
 public:
-    void SetUp() {
+    void SetUp() override {
         TestappClientTest::SetUp();
+        reconfigure_client_cert_auth("disable", "", "", "");
         auto& logdir = mcd_env->getAuditLogDir();
         EXPECT_NO_THROW(cb::io::rmrf(logdir));
         cb::io::mkdirp(logdir);
         setEnabled(true);
     }
 
-    void TearDown() {
+    void TearDown() override {
+        reconfigure_client_cert_auth("disable", "", "", "");
         setEnabled(false);
         auto& logdir = mcd_env->getAuditLogDir();
         EXPECT_NO_THROW(cb::io::rmrf(mcd_env->getAuditLogDir()));
@@ -110,6 +112,11 @@ bool AuditTest::searchAuditLogForID(int id, const std::string& username) {
                         return false;
                     }
                     auto* user = cJSON_GetObjectItem(ue, "user");
+                    if (user != nullptr && username != user->valuestring) {
+                        // We found another user (needed to test authentication
+                        // success ;)
+                        continue;
+                    }
                     return (user != nullptr && username == user->valuestring);
                 }
 
@@ -186,4 +193,29 @@ TEST_P(AuditTest, AuditFailedAuth) {
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                                     "nouser"));
+}
+
+TEST_P(AuditTest, AuditX509SuccessfulAuth) {
+    reconfigure_client_cert_auth("enable", "subject.cn", "", " ");
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    setClientCertData(connection);
+
+    // The certificate will be accepted, so the connection is established
+    // but the server will disconnect the client immediately
+    connection.connect();
+
+    ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
+                                    "Trond"));
+}
+
+TEST_P(AuditTest, AuditX509FailedAuth) {
+    reconfigure_client_cert_auth("mandatory", "subject.cn", "Tr", "");
+    MemcachedConnection connection("127.0.0.1", ssl_port, AF_INET, true);
+    setClientCertData(connection);
+
+    // The certificate will be accepted, so the connection is established
+    // but the server will disconnect the client immediately
+    connection.connect();
+    ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
+                                    "[unknown]"));
 }
