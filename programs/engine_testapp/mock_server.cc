@@ -170,11 +170,15 @@ static ENGINE_ERROR_CODE mock_cookie_release(
 }
 
 static CONN_PRIORITY mock_get_priority(gsl::not_null<const void*> cookie) {
+    auto* c = cookie_to_mock_object(cookie.get());
+    cb_assert(c->magic == CONN_MAGIC);
     return CONN_PRIORITY_MED;
 }
 
 static void mock_set_priority(gsl::not_null<const void*> cookie,
                               CONN_PRIORITY priority) {
+    auto* c = cookie_to_mock_object(cookie.get());
+    cb_assert(c->magic == CONN_MAGIC);
     (void) cookie;
     (void) priority;
 }

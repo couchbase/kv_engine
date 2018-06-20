@@ -88,8 +88,8 @@ protected:
         MemoryTracker::destroyInstance();
     }
 
-    // Setup a DCP producer and attach a stream and cursor to it.
-    void setup_dcp_stream(
+    // Create a DCP producer; initially with no streams associated.
+    void create_dcp_producer(
             int flags = 0,
             IncludeValue includeVal = IncludeValue::Yes,
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
@@ -127,6 +127,15 @@ protected:
                                         control.second.c_str(),
                                         control.second.size()));
         }
+    }
+
+    // Setup a DCP producer and attach a stream and cursor to it.
+    void setup_dcp_stream(
+            int flags = 0,
+            IncludeValue includeVal = IncludeValue::Yes,
+            IncludeXattrs includeXattrs = IncludeXattrs::Yes,
+            std::vector<std::pair<std::string, std::string>> controls = {}) {
+        create_dcp_producer(flags, includeVal, includeXattrs, controls);
 
         vb0 = engine->getVBucket(vbid);
         ASSERT_NE(nullptr, vb0.get());
@@ -233,6 +242,27 @@ protected:
     static int callbackCount;
 };
 int DCPTest::callbackCount = 0;
+
+/*
+ * MB-30189: Test that addStats() on the DcpProducer object doesn't
+ * attempt to dereference the cookie passed in (as it's not it's
+ * object).  Check that no invalid memory accesses occur; requires
+ * ASan for maximum accuracy in testing.
+ */
+TEST_F(DCPTest, MB30189_addStats) {
+    create_dcp_producer();
+    class MockStats {
+    } mockStats;
+    producer->addStats(
+            [](const char* key,
+               const uint16_t klen,
+               const char* val,
+               const uint32_t vlen,
+               gsl::not_null<const void*> cookie) {
+                // do nothing
+            },
+            &mockStats);
+}
 
 class StreamTest : public DCPTest,
                    public ::testing::WithParamInterface<std::string> {
@@ -2824,13 +2854,21 @@ class ConnMapNotifyTest {
 public:
     ConnMapNotifyTest(EventuallyPersistentEngine& engine)
         : connMap(new MockDcpConnMap(engine)),
-          callbacks(0) {
+          callbacks(0),
+          cookie(create_mock_cookie()) {
         connMap->initialize();
 
-        // Use 'this' instead of a mock cookie
-        producer = connMap->newProducer(static_cast<void*>(this),
+        // Save `this` in server-specific so we can retrieve it from
+        // dcp_test_notify_io_complete below:
+        get_mock_server_api()->cookie->store_engine_specific(cookie, this);
+
+        producer = connMap->newProducer(cookie,
                                         "test_producer",
                                         /*flags*/ 0);
+    }
+
+    ~ConnMapNotifyTest() {
+        destroy_mock_cookie(cookie);
     }
 
     void notify() {
@@ -2845,8 +2883,9 @@ public:
 
     static void dcp_test_notify_io_complete(gsl::not_null<const void*> cookie,
                                             ENGINE_ERROR_CODE status) {
-        const auto* notifyTest =
-                reinterpret_cast<const ConnMapNotifyTest*>(cookie.get());
+        const auto* notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(
+                get_mock_server_api()->cookie->get_engine_specific(
+                        cookie.get()));
         // 3. Call notifyPausedConnection again. We're now interleaved inside
         //    of notifyAllPausedConnections, a second notification should occur.
         const_cast<ConnMapNotifyTest*>(notifyTest)->notify();
@@ -2857,7 +2896,7 @@ public:
 
 private:
     int callbacks;
-
+    const void* cookie = nullptr;
 };
 
 
