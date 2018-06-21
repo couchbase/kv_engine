@@ -130,6 +130,14 @@ public:
                 ->getBackfillBufferFullStatus();
     }
 
+    /*
+     * @return A reference to BackfillManager::scanBuffer
+     */
+    auto& public_getBackfillScanBuffer() {
+        return dynamic_cast<MockDcpBackfillManager&>(*backfillMgr)
+                .public_getBackfillScanBuffer();
+    }
+
     const Collections::Filter& getFilter() {
         return filter;
     }

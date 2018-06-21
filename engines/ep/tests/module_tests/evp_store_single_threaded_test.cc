@@ -3315,28 +3315,10 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     producer->cancelCheckpointCreatorTask();
 }
 
-void SingleThreadedEPBucketTest::producerReadyQSizeLimitOnBackfill(
-        const BackfillScanBufferLimit limitType) {
+void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
+        const BackfillBufferLimit limitType) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
-
-    size_t limit = 0;
-    size_t valueSize = 0;
-    switch (limitType) {
-    case BackfillScanBufferLimit::Byte:
-        limit = engine->getConfiguration().getDcpScanByteLimit();
-        valueSize = 1024 * 1024;
-        break;
-    case BackfillScanBufferLimit::Item:
-        limit = engine->getConfiguration().getDcpScanItemLimit();
-        // Note: I need to set a valueSize so that we don't reach the
-        //     DcpScanByteLimit before the DcpScanItemLimit.
-        //     Currently, byteLimit=4MB and itemLimit=4096.
-        valueSize = 1;
-        break;
-    }
-    ASSERT_GT(limit, 0);
-    ASSERT_GT(valueSize, 0);
 
     const uint8_t jsonExtra[] = "";
     auto producer = std::make_shared<MockDcpProducer>(
@@ -3358,7 +3340,36 @@ void SingleThreadedEPBucketTest::producerReadyQSizeLimitOnBackfill(
             0 /* vbUuid */,
             0 /* snapStartSeqno */,
             0 /* snapEndSeqno */);
+
     stream->transitionStateToBackfilling();
+
+    size_t limit = 0;
+    size_t valueSize = 0;
+    switch (limitType) {
+    case BackfillBufferLimit::StreamByte:
+        limit = engine->getConfiguration().getDcpScanByteLimit();
+        valueSize = 1024 * 1024;
+        break;
+    case BackfillBufferLimit::StreamItem:
+        limit = engine->getConfiguration().getDcpScanItemLimit();
+        // Note: I need to set a valueSize so that we don't reach the
+        //     DcpScanByteLimit before the DcpScanItemLimit.
+        //     Currently, byteLimit=4MB and itemLimit=4096.
+        valueSize = 1;
+        break;
+    case BackfillBufferLimit::ConnectionByte:
+        limit = engine->getConfiguration().getDcpBackfillByteLimit();
+        // We want to test the connection-limit (currently max size for
+        // buffer is 20MB). So, disable the stream-limits by setting high values
+        // for maxBytes (1GB) and maxItems (1M)
+        auto& scanBuffer = producer->public_getBackfillScanBuffer();
+        scanBuffer.maxBytes = 1024 * 1024 * 1024;
+        scanBuffer.maxItems = 1000000;
+        valueSize = 1024 * 1024;
+        break;
+    }
+    ASSERT_GT(limit, 0);
+    ASSERT_GT(valueSize, 0);
 
     std::string value(valueSize, 'a');
     int64_t seqno = 1;
@@ -3383,6 +3394,15 @@ void SingleThreadedEPBucketTest::producerReadyQSizeLimitOnBackfill(
                                        backfill_source_t::BACKFILL_FROM_DISK,
                                        false /*force*/);
 
+        if (limitType == BackfillBufferLimit::ConnectionByte) {
+            // Check that we are constantly well below the stream-limits.
+            // We want to be sure that we are really hitting the
+            // connection-limit here.
+            auto& scanBuffer = producer->public_getBackfillScanBuffer();
+            ASSERT_LT(scanBuffer.bytesRead, scanBuffer.maxBytes / 2);
+            ASSERT_LT(scanBuffer.itemsRead, scanBuffer.maxItems / 2);
+        }
+
         if (ret) {
             ASSERT_EQ(seqno, stream->public_readyQ().size());
             expectedLastSeqno = seqno;
@@ -3405,18 +3425,26 @@ void SingleThreadedEPBucketTest::producerReadyQSizeLimitOnBackfill(
 
 /*
  * Test that an ActiveStream does not push items to Stream::readyQ
- * indefinitely as we enforce a DcpScanByteLimit.
+ * indefinitely as we enforce a stream byte-limit on backfill.
  */
-TEST_F(SingleThreadedEPBucketTest, ProducerReadyQByteLimitOnBackfill) {
-    producerReadyQSizeLimitOnBackfill(BackfillScanBufferLimit::Byte);
+TEST_F(SingleThreadedEPBucketTest, ProducerReadyQStreamByteLimitOnBackfill) {
+    producerReadyQLimitOnBackfill(BackfillBufferLimit::StreamByte);
 }
 
 /*
  * Test that an ActiveStream does not push items to Stream::readyQ
- * indefinitely as we enforce a DcpScanItemLimit.
+ * indefinitely as we enforce a stream item-limit on backfill.
  */
-TEST_F(SingleThreadedEPBucketTest, ProducerReadyQItemLimitOnBackfill) {
-    producerReadyQSizeLimitOnBackfill(BackfillScanBufferLimit::Item);
+TEST_F(SingleThreadedEPBucketTest, ProducerReadyQStreamItemLimitOnBackfill) {
+    producerReadyQLimitOnBackfill(BackfillBufferLimit::StreamItem);
+}
+
+/*
+ * Test that an ActiveStream does not push items to Stream::readyQ
+ * indefinitely as we enforce a connection byte-limit on backfill.
+ */
+TEST_F(SingleThreadedEPBucketTest, ProducerReadyQConnectionLimitOnBackfill) {
+    producerReadyQLimitOnBackfill(BackfillBufferLimit::ConnectionByte);
 }
 
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,

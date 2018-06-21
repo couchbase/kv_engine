@@ -36,4 +36,8 @@ public:
     bool getBackfillBufferFullStatus() {
         return buffer.full;
     }
+
+    auto& public_getBackfillScanBuffer() {
+        return scanBuffer;
+    }
 };

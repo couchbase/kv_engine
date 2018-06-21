@@ -156,9 +156,9 @@ protected:
  */
 class SingleThreadedEPBucketTest : public SingleThreadedKVBucketTest {
 public:
-    enum class BackfillScanBufferLimit { Byte = 0, Item };
+    enum class BackfillBufferLimit { StreamByte, StreamItem, ConnectionByte };
 
-    void producerReadyQSizeLimitOnBackfill(BackfillScanBufferLimit limitType);
+    void producerReadyQLimitOnBackfill(BackfillBufferLimit limitType);
 
 protected:
     EPBucket& getEPBucket() {
