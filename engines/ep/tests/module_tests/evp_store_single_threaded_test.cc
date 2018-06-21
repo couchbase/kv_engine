@@ -3315,6 +3315,110 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     producer->cancelCheckpointCreatorTask();
 }
 
+void SingleThreadedEPBucketTest::producerReadyQSizeLimitOnBackfill(
+        const BackfillScanBufferLimit limitType) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+
+    size_t limit = 0;
+    size_t valueSize = 0;
+    switch (limitType) {
+    case BackfillScanBufferLimit::Byte:
+        limit = engine->getConfiguration().getDcpScanByteLimit();
+        valueSize = 1024 * 1024;
+        break;
+    case BackfillScanBufferLimit::Item:
+        limit = engine->getConfiguration().getDcpScanItemLimit();
+        // Note: I need to set a valueSize so that we don't reach the
+        //     DcpScanByteLimit before the DcpScanItemLimit.
+        //     Currently, byteLimit=4MB and itemLimit=4096.
+        valueSize = 1;
+        break;
+    }
+    ASSERT_GT(limit, 0);
+    ASSERT_GT(valueSize, 0);
+
+    const uint8_t jsonExtra[] = "";
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test-producer",
+            DCP_OPEN_COLLECTIONS /*flags*/,
+            cb::const_byte_buffer(&jsonExtra[0], 0),
+            false /*startTask*/);
+
+    auto stream = std::make_shared<MockActiveStream>(
+            engine.get(),
+            producer,
+            DCP_ADD_STREAM_FLAG_DISKONLY /* flags */,
+            0 /* opaque */,
+            *vb,
+            0 /* startSeqno */,
+            std::numeric_limits<uint64_t>::max() /* endSeqno */,
+            0 /* vbUuid */,
+            0 /* snapStartSeqno */,
+            0 /* snapEndSeqno */);
+    stream->transitionStateToBackfilling();
+
+    std::string value(valueSize, 'a');
+    int64_t seqno = 1;
+    int64_t expectedLastSeqno = seqno;
+    bool ret = false;
+    // Note: this loop would block forever (until timeout) if we don't enforce
+    //     any limit on BackfillManager::scanBuffer
+    do {
+        auto item = std::make_unique<Item>(
+                makeStoredDocKey("key_" + std::to_string(seqno)),
+                0 /*flags*/,
+                0 /*expiry*/,
+                value.data(),
+                value.size(),
+                PROTOCOL_BINARY_RAW_BYTES,
+                0 /*cas*/,
+                seqno,
+                stream->getVBucket());
+
+        // Simulate the Cache/Disk callbacks here
+        ret = stream->backfillReceived(std::move(item),
+                                       backfill_source_t::BACKFILL_FROM_DISK,
+                                       false /*force*/);
+
+        if (ret) {
+            ASSERT_EQ(seqno, stream->public_readyQ().size());
+            expectedLastSeqno = seqno;
+            seqno++;
+        } else {
+            ASSERT_EQ(seqno - 1, stream->public_readyQ().size());
+        }
+    } while (ret);
+
+    // Check that we have pushed some items to the Stream::readyQ
+    auto lastSeqno = stream->getLastReadSeqno();
+    ASSERT_GT(lastSeqno, 1);
+    ASSERT_EQ(lastSeqno, expectedLastSeqno);
+    // Check that we have not pushed more than what expected given the limit.
+    // Note: this logic applies to both BackfillScanLimit::byte and
+    //     BackfillScanLimit::item
+    const size_t upperBound = limit / valueSize + 1;
+    ASSERT_LT(lastSeqno, upperBound);
+}
+
+/*
+ * Test that an ActiveStream does not push items to Stream::readyQ
+ * indefinitely as we enforce a DcpScanByteLimit.
+ */
+TEST_F(SingleThreadedEPBucketTest, ProducerReadyQByteLimitOnBackfill) {
+    producerReadyQSizeLimitOnBackfill(BackfillScanBufferLimit::Byte);
+}
+
+/*
+ * Test that an ActiveStream does not push items to Stream::readyQ
+ * indefinitely as we enforce a DcpScanItemLimit.
+ */
+TEST_F(SingleThreadedEPBucketTest, ProducerReadyQItemLimitOnBackfill) {
+    producerReadyQSizeLimitOnBackfill(BackfillScanBufferLimit::Item);
+}
+
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
                         ::testing::Bool(), );

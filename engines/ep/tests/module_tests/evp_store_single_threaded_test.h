@@ -155,6 +155,11 @@ protected:
  * Test fixture for single-threaded tests on EPBucket.
  */
 class SingleThreadedEPBucketTest : public SingleThreadedKVBucketTest {
+public:
+    enum class BackfillScanBufferLimit { Byte = 0, Item };
+
+    void producerReadyQSizeLimitOnBackfill(BackfillScanBufferLimit limitType);
+
 protected:
     EPBucket& getEPBucket() {
         return dynamic_cast<EPBucket&>(*store);

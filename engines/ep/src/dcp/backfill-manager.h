@@ -101,6 +101,14 @@ protected:
         bool full;
     } buffer;
 
+    //! The scan buffer is for the current stream being backfilled
+    struct {
+        size_t bytesRead;
+        size_t itemsRead;
+        size_t maxBytes;
+        size_t maxItems;
+    } scanBuffer;
+
 private:
 
     void moveToActiveQueue();
@@ -113,14 +121,6 @@ private:
     std::list<UniqueDCPBackfillPtr> pendingBackfills;
     EventuallyPersistentEngine& engine;
     ExTask managerTask;
-
-    //! The scan buffer is for the current stream being backfilled
-    struct {
-        size_t bytesRead;
-        size_t itemsRead;
-        size_t maxBytes;
-        size_t maxItems;
-    } scanBuffer;
 };
 
 #endif  // SRC_DCP_BACKFILL_MANAGER_H_
