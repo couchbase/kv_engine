@@ -19,6 +19,8 @@
 
 #include "ep_types.h"
 
+#include <ostream>
+
 std::string to_string(GenerateBySeqno generateBySeqno) {
     using GenerateBySeqnoUType = std::underlying_type<GenerateBySeqno>::type;
 
@@ -75,4 +77,19 @@ std::string to_string(HighPriorityVBNotify hpNotifyType) {
             "to_string(HighPriorityVBNotify) unknown " +
             std::to_string(
                     static_cast<HighPriorityVBNotifyUType>(hpNotifyType)));
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const item_eviction_policy_t& policy) {
+    switch (policy) {
+    case VALUE_ONLY:
+        os << "VALUE_ONLY";
+        return os;
+    case FULL_EVICTION:
+        os << "FULL_EVICTION";
+        return os;
+    }
+    throw std::invalid_argument(
+            "operator<<(item_eviction_policy_t) unknown value " +
+            std::to_string(static_cast<int>(policy)));
 }

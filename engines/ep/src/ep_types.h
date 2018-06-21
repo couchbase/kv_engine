@@ -174,6 +174,8 @@ enum item_eviction_policy_t {
     FULL_EVICTION // Evict an item's key, metadata and value together.
 };
 
+std::ostream& operator<<(std::ostream&, const item_eviction_policy_t& policy);
+
 enum class TaskStatus {
     Reschedule, /* Reschedule for later */
     Complete, /* Complete in this run */

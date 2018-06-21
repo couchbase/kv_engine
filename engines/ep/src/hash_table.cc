@@ -352,15 +352,7 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     size = sv->size();
     metaDataSize = sv->metaDataSize();
     datatype = sv->getDatatype();
-    if (mcbp::datatype::is_snappy(datatype)) {
-        uncompressedSize =
-                cb::compression::get_uncompressed_length(
-                        cb::compression::Algorithm::Snappy,
-                        {sv->getValue()->getData(), sv->valuelen()}) +
-                metaDataSize;
-    } else {
-        uncompressedSize = size;
-    }
+    uncompressedSize = sv->uncompressedSize();
     isResident = sv->isResident();
     isDeleted = sv->isDeleted();
     isTempItem = sv->isTempItem();
