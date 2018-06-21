@@ -145,7 +145,7 @@ protected:
     void configure() {
         FILE* fp = fopen(cfgfile.c_str(), "w");
         ASSERT_NE(nullptr, fp);
-        fprintf(fp, "%s\n", config.to_json().dump().c_str());
+        ASSERT_GE(fprintf(fp, "%s\n", config.to_json().dump().c_str()), 0);
         ASSERT_NE(-1, fclose(fp));
         config_auditd(cfgfile);
     }

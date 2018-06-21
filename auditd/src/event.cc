@@ -15,47 +15,54 @@
  *   limitations under the License.
  */
 
-#include <sstream>
-#include <string>
-#include <cJSON.h>
-#include <memcached/isotime.h>
 #include "event.h"
 #include "audit.h"
+#include <cJSON.h>
+#include <memcached/isotime.h>
+#include <nlohmann/json.hpp>
+#include <sstream>
+#include <string>
 
-bool Event::filterEventByUserid(cJSON* json_payload,
+bool Event::filterEventByUserid(const nlohmann::json& eventPayload,
                                 const AuditConfig& config,
                                 const std::string& userid_type) {
-    auto* id = cJSON_GetObjectItem(json_payload, userid_type.c_str());
-    if (id != nullptr) {
-        auto* source = cJSON_GetObjectItem(id, "source");
-        auto* domain = cJSON_GetObjectItem(id, "domain");
-        if (source != nullptr && source->type != cJSON_String) {
+    if (eventPayload.find(userid_type) != eventPayload.end()) {
+        auto id = eventPayload[userid_type];
+
+        auto sourceIt = id.find("source");
+        if (sourceIt != id.end() && !sourceIt->is_string()) {
             std::stringstream ss;
             ss << "Incorrect type for \"" << userid_type
-                    << "::source\". Should be string.";
+               << "::source\". Should be string.";
             throw std::invalid_argument(ss.str());
         }
-        if (domain != nullptr && domain->type != cJSON_String) {
+
+        auto domainIt = id.find("domain");
+        if (domainIt != id.end() && !domainIt->is_string()) {
             std::stringstream ss;
             ss << "Incorrect type for \"" << userid_type
-                    << "::domain\". Should be string.";
+               << "::domain\". Should be string.";
             throw std::invalid_argument(ss.str());
         }
-        if (source != nullptr || domain != nullptr) {
-            auto* user = cJSON_GetObjectItem(id, "user");
-            if (user != nullptr) {
-                if (user->type != cJSON_String) {
-                    std::stringstream ss;
-                    ss << "Incorrect type for \"" << userid_type
-                       << "::user\". Should be string.";
-                    throw std::invalid_argument(ss.str());
-                }
+
+        if (sourceIt != id.end() || domainIt != id.end()) {
+            auto userIt = id.find("user");
+            if (userIt != id.end() && !userIt->is_string()) {
+                std::stringstream ss;
+                ss << "Incorrect type for \"" << userid_type
+                   << "::user\". Should be string.";
+                throw std::invalid_argument(ss.str());
+            }
+
+            if (userIt != id.end()) {
                 // Have a source/domain and user so build the tuple and check if the
                 // event is filtered
-                auto* sourceValueString = (source != nullptr) ?
-                        source->valuestring : domain->valuestring;
-                const auto& userid =
-                        std::make_pair(sourceValueString, user->valuestring);
+                auto& sourceValueString =
+                        (sourceIt != id.end())
+                                ? sourceIt->get_ref<std::string&>()
+                                : domainIt->get_ref<std::string&>();
+                const auto& userid = std::make_pair(
+                        sourceValueString, (*userIt).get<std::string>());
                 if (config.is_event_filtered(userid)) {
                     return true;
                 }
@@ -66,13 +73,14 @@ bool Event::filterEventByUserid(cJSON* json_payload,
     return false;
 }
 
-bool Event::filterEvent(cJSON* json_payload, const AuditConfig& config) {
+bool Event::filterEvent(const nlohmann::json& eventPayload,
+                        const AuditConfig& config) {
     // Check to see if the real_userid is in the filter list.
-    if (filterEventByUserid(json_payload, config, "real_userid")) {
+    if (filterEventByUserid(eventPayload, config, "real_userid")) {
         return true;
     } else {
         // Check to see if the effective_userid is in the filter list.
-        return filterEventByUserid(json_payload, config, "effective_userid");
+        return filterEventByUserid(eventPayload, config, "effective_userid");
     }
 }
 
@@ -83,19 +91,19 @@ bool Event::process(Audit& audit) {
     }
 
     // convert the event.payload into JSON
-    unique_cJSON_ptr json_payload(cJSON_Parse(payload.c_str()));
-    if (!json_payload) {
+    nlohmann::json json_payload;
+    try {
+        json_payload = nlohmann::json::parse(payload);
+    } catch (const nlohmann::json::exception&) {
         Audit::log_error(AuditErrorCode::JSON_PARSING_ERROR, payload);
         return false;
     }
 
-    cJSON* timestamp_ptr = cJSON_GetObjectItem(json_payload.get(), "timestamp");
-    if (timestamp_ptr == nullptr) {
+    if (json_payload.find("timestamp") == json_payload.end()) {
         // the audit does not contain a timestamp, so the server
         // needs to insert one
         const auto timestamp = ISOTime::generatetimestamp();
-        cJSON_AddStringToObject(
-                json_payload.get(), "timestamp", timestamp.c_str());
+        json_payload["timestamp"] = timestamp;
     }
 
     auto evt = audit.events.find(id);
@@ -112,28 +120,25 @@ bool Event::process(Audit& audit) {
 
     if (audit.config.is_filtering_enabled() &&
         evt->second->isFilteringPermitted() &&
-        filterEvent(json_payload.get(), audit.config)) {
+        filterEvent(json_payload, audit.config)) {
         return true;
     }
 
     if (!audit.auditfile.ensure_open()) {
         Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR,
-                         to_string(json_payload, false));
+                         json_payload.dump());
         return false;
     }
-    cJSON_AddNumberToObject(json_payload.get(), "id", id);
-    cJSON_AddStringToObject(
-            json_payload.get(), "name", evt->second->getName().c_str());
-    cJSON_AddStringToObject(json_payload.get(),
-                            "description",
-                            evt->second->getDescription().c_str());
+    json_payload["id"] = id;
+    json_payload["name"] = evt->second->getName();
+    json_payload["description"] = evt->second->getDescription();
 
-    if (audit.auditfile.write_event_to_disk(json_payload.get())) {
+    if (audit.auditfile.write_event_to_disk(json_payload)) {
         return true;
     }
 
     Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR,
-                     to_string(json_payload, false));
+                     json_payload.dump());
 
     // If the write_event_to_disk function returns false then it is
     // possible the audit file has been closed.  Therefore ensure

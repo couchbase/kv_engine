@@ -17,13 +17,14 @@
 #ifndef AUDITFILE_H
 #define AUDITFILE_H
 
-#include <cstdio>
-#include <inttypes.h>
-#include <string>
-#include <cJSON.h>
-#include <time.h>
 #include "auditconfig.h"
 #include "auditd.h"
+#include <cJSON.h>
+#include <inttypes.h>
+#include <nlohmann/json_fwd.hpp>
+#include <time.h>
+#include <cstdio>
+#include <string>
 
 class AuditFile {
 public:
@@ -102,7 +103,7 @@ public:
      * @param output the data to write
      * @return true if success, false otherwise
      */
-    bool write_event_to_disk(cJSON *output);
+    bool write_event_to_disk(nlohmann::json& output);
 
     /**
      * Check for a file existence

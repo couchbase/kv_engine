@@ -17,8 +17,8 @@
 #include <platform/dirutils.h>
 
 #include "auditfile.h"
-#include <cJSON_utils.h>
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 #include <platform/platform.h>
 #include <time.h>
 #include <atomic>
@@ -35,7 +35,7 @@ protected:
 
     AuditConfig config;
     std::string testdir;
-    cJSON *event;
+    nlohmann::json event;
 
     virtual void SetUp() {
         testdir = std::string("auditfile-test-") + std::to_string(cb_getpid());
@@ -45,20 +45,18 @@ protected:
 
     virtual void TearDown() {
         cb::io::rmrf(testdir);
-        cJSON_Delete(event);
     }
 
-    cJSON *create_audit_event() {
-        cJSON *root = cJSON_CreateObject();
-        cJSON_AddStringToObject(root, "timestamp",
-                                "2015-03-13T02:36:00.000-07:00");
-        cJSON_AddStringToObject(root, "peername", "127.0.0.1:666");
-        cJSON_AddStringToObject(root, "sockname", "127.0.0.1:555");
-        cJSON *source = cJSON_CreateObject();
-        cJSON_AddStringToObject(source, "source", "memcached");
-        cJSON_AddStringToObject(source, "user", "myuser");
-        cJSON_AddItemToObject(root, "real_userid", source);
-        return root;
+    nlohmann::json create_audit_event() {
+        nlohmann::json evt;
+        evt["timestamp"] = "2015-03-13T02:36:00.000-07:00";
+        evt["peername"] = "127.0.0.1:666";
+        evt["sockname"] = "127.0.0.1:555";
+        nlohmann::json source;
+        source["source"] = "memcached";
+        source["user"] = "myuser";
+        evt["real_userid"] = source;
+        return evt;
     }
 };
 
@@ -70,7 +68,7 @@ TEST_F(AuditFileTest, TestFileCreation) {
     AuditFile auditfile;
     auditfile.reconfigure(config);
 
-    cJSON_AddStringToObject(event, "log_path", "fooo");
+    event["log_path"] = "fooo";
 
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
@@ -95,7 +93,7 @@ TEST_F(AuditFileTest, TestTimeRotate) {
     AuditFile auditfile;
     auditfile.reconfigure(config);
 
-    cJSON_AddStringToObject(event, "log_path", "fooo");
+    event["log_path"] = "fooo";
 
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
@@ -121,7 +119,7 @@ TEST_F(AuditFileTest, TestSizeRotate) {
     AuditFile auditfile;
     auditfile.reconfigure(config);
 
-    cJSON_AddStringToObject(event, "log_path", "fooo");
+    event["log_path"] = "fooo";
 
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
@@ -168,7 +166,7 @@ TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {
     FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
     EXPECT_TRUE(fp != nullptr);
 
-    fprintf(fp, "%s", to_string(event, false).c_str());
+    fprintf(fp, "%s", event.dump().c_str());
     fclose(fp);
 
     config.set_rotate_interval(3600);
@@ -233,7 +231,7 @@ TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
     FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
     EXPECT_TRUE(fp != nullptr);
 
-    auto content = to_string(event, false);
+    auto content = event.dump();
     auto idx = content.find("2015");
     ASSERT_NE(std::string::npos, idx);
     content.resize(idx);

@@ -91,7 +91,7 @@ public:
     }
 
     bool add_reconfigure_event(const char *configfile, const void *cookie);
-    bool create_audit_event(uint32_t event_id, cJSON *payload);
+    bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
     bool terminate_consumer_thread(void);
     void clear_events_map(void);
     void clear_events_queues(void);

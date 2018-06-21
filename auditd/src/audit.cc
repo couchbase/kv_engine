@@ -174,30 +174,23 @@ std::string Audit::load_file(const char *file) {
     }
 }
 
-
-bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
+bool Audit::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     // Add common fields to the audit event
-    cJSON_AddStringToObject(payload, "timestamp",
-                            ISOTime::generatetimestamp().c_str());
-    cJSON *real_userid = cJSON_CreateObject();
-    cJSON_AddStringToObject(real_userid, "domain", "internal");
-    cJSON_AddStringToObject(real_userid, "user", "couchbase");
-    cJSON_AddItemToObject(payload, "real_userid", real_userid);
+    payload["timestamp"] = ISOTime::generatetimestamp();
+    nlohmann::json real_userid;
+    real_userid["domain"] = "internal";
+    real_userid["user"] = "couchbase";
+    payload["real_userid"] = real_userid;
 
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
-            cJSON_AddBoolToObject(payload, "auditd_enabled",
-                                  config.is_auditd_enabled());
-            cJSON_AddStringToObject(payload, "descriptors_path",
-                                    config.get_descriptors_path().c_str());
-            cJSON_AddStringToObject(payload, "hostname", hostname.c_str());
-            cJSON_AddStringToObject(payload, "log_path",
-                                    config.get_log_directory().c_str());
-            cJSON_AddNumberToObject(payload, "rotate_interval",
-                                    config.get_rotate_interval());
-            cJSON_AddNumberToObject(payload, "version", config.get_version());
-            cJSON_AddStringToObject(payload, "uuid",
-                                    config.get_uuid().c_str());
+            payload["auditd_enabled"] = config.is_auditd_enabled();
+            payload["descriptors_path"] = config.get_descriptors_path();
+            payload["hostname"] = hostname;
+            payload["log_path"] = config.get_log_directory();
+            payload["rotate_interval"] = config.get_rotate_interval();
+            payload["version"] = config.get_version();
+            payload["uuid"] = config.get_uuid();
             break;
 
         case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON:
@@ -390,18 +383,12 @@ bool Audit::configure(void) {
                              convert.str().c_str());
         } else {
             if (evt->second->isEnabled()) {
-                cJSON *payload = cJSON_CreateObject();
-                if (payload == nullptr) {
-                    return false;
-                }
+                nlohmann::json payload;
                 if (create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
                                        payload)) {
-                    cJSON_AddNumberToObject(payload, "id",
-                                            AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
-                    cJSON_AddStringToObject(payload, "name",
-                                            evt->second->getName().c_str());
-                    cJSON_AddStringToObject(payload, "description",
-                                            evt->second->getDescription().c_str());
+                    payload["id"] = AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
+                    payload["name"] = evt->second->getName();
+                    payload["description"] = evt->second->getDescription();
 
                     if (!(auditfile.ensure_open() && auditfile.write_event_to_disk(payload))) {
                         dropped_events++;
@@ -409,7 +396,6 @@ bool Audit::configure(void) {
                 } else {
                     dropped_events++;
                 }
-                cJSON_Delete(payload);
             }
         }
     }

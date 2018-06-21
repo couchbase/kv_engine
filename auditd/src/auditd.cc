@@ -21,6 +21,7 @@
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
+#include <nlohmann/json.hpp>
 #include <platform/strerror.h>
 #include <algorithm>
 #include <cstring>
@@ -192,13 +193,11 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle) {
 
     if (handle->config.is_auditd_enabled()) {
         // send event to say we are shutting down the audit daemon
-        unique_cJSON_ptr payload(cJSON_CreateObject());
-        if ((payload.get() == nullptr) ||
-            !handle->create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
-                                        payload.get()) ||
+        nlohmann::json payload;
+        if (!handle->create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                                        payload) ||
             !handle->add_to_filleventqueue(
-                AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
-                to_string(payload, false))) {
+                    AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload.dump())) {
             handle->clean_up();
             return AUDIT_FAILED;
         }

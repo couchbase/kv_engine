@@ -18,6 +18,7 @@
 #define EVENT_H
 
 #include <inttypes.h>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 
 class Audit;
@@ -49,7 +50,7 @@ public:
      *                effective_userid or real_userid
      * @return true if event should be filtered out, else false.
      */
-    bool filterEventByUserid(cJSON* json_payload,
+    bool filterEventByUserid(const nlohmann::json& eventPayload,
                              const AuditConfig& config,
                              const std::string& userid_type);
 
@@ -60,7 +61,8 @@ public:
      * @param config  reference to the audit configuration
      * @return true if event should be filtered out, else false.
      */
-    bool filterEvent(cJSON* eventPayload, const AuditConfig& audit);
+    bool filterEvent(const nlohmann::json& eventPayload,
+                     const AuditConfig& audit);
 
     virtual ~Event() {}
 

@@ -14,19 +14,20 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <iostream>
-#include <algorithm>
-#include <sstream>
-#include <cJSON.h>
-#include <sys/stat.h>
-#include <cstring>
-#include <platform/dirutils.h>
-#include <memcached/isotime.h>
-#include <JSON_checker.h>
-#include <fstream>
-#include "auditd.h"
-#include "audit.h"
 #include "auditfile.h"
+#include "audit.h"
+#include "auditd.h"
+#include <JSON_checker.h>
+#include <cJSON.h>
+#include <memcached/isotime.h>
+#include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
+#include <sys/stat.h>
+#include <algorithm>
+#include <cstring>
+#include <fstream>
+#include <iostream>
+#include <sstream>
 
 #ifdef UNITTEST_AUDITFILE
 #define log_error(a,b)
@@ -246,11 +247,10 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
     }
 }
 
-
-bool AuditFile::write_event_to_disk(cJSON *output) {
+bool AuditFile::write_event_to_disk(nlohmann::json& output) {
     bool ret = true;
     try {
-        const auto content = to_string(output, false);
+        const auto content = output.dump();
         current_size += fprintf(file, "%s\n", content.c_str());
         if (ferror(file)) {
             log_error(AuditErrorCode::WRITING_TO_DISK_ERROR, strerror(errno));
