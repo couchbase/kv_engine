@@ -18,6 +18,7 @@
 #pragma once
 
 #include "auditd/src/auditconfig.h"
+#include <nlohmann/json_fwd.hpp>
 
 class MockAuditConfig : public AuditConfig {
 public:
@@ -26,17 +27,11 @@ public:
                   // Empty
           };
 
-    void public_set_disabled(cJSON* array) {
+    void public_set_disabled(const nlohmann::json& array) {
         AuditConfig::set_disabled(array);
     }
 
-    void public_set_disabled_userids(cJSON* array) {
+    void public_set_disabled_userids(const nlohmann::json& array) {
         AuditConfig::set_disabled_userids(array);
-    }
-
-    static cJSON* public_getObject(const cJSON* root,
-                                   const char* name,
-                                   int type) {
-        return AuditConfig::getObject(root, name, type);
     }
 };

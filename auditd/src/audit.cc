@@ -17,6 +17,7 @@
 
 #include <cJSON.h>
 #include <memcached/isotime.h>
+#include <nlohmann/json.hpp>
 #include <utilities/logtags.h>
 #include <algorithm>
 #include <chrono>
@@ -296,8 +297,10 @@ bool Audit::configure(void) {
         return false;
     }
 
-    cJSON *config_json = cJSON_Parse(configuration.c_str());
-    if (config_json == NULL) {
+    nlohmann::json config_json;
+    try {
+        config_json = nlohmann::json::parse(configuration);
+    } catch (const nlohmann::json::exception&) {
         log_error(AuditErrorCode::JSON_PARSING_ERROR, configuration);
         return false;
     }
@@ -318,7 +321,6 @@ bool Audit::configure(void) {
         log_error(AuditErrorCode::CONFIG_INPUT_ERROR);
         failure = true;
     }
-    cJSON_Delete(config_json);
     if (failure) {
         return false;
     }

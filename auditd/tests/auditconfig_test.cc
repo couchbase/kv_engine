@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/platform.h>
 #include <cstdlib>
@@ -50,7 +51,7 @@ protected:
         cb::io::rmrf(testdir);
     }
 
-    cJSON *json;
+    nlohmann::json json;
     AuditConfig config;
     static std::string testdir;
 
@@ -59,28 +60,27 @@ protected:
     }
 
     virtual void TearDown() {
-        cJSON_Delete(json);
     }
 
-    cJSON *createDefaultConfig(void) {
-        cJSON *root = cJSON_CreateObject();
-        cJSON_AddNumberToObject(root, "version", 2);
-        cJSON_AddNumberToObject(root, "rotate_size", 20*1024*1024);
-        cJSON_AddNumberToObject(root, "rotate_interval", 900);
-        cJSON_AddTrueToObject(root, "auditd_enabled");
-        cJSON_AddTrueToObject(root, "buffered");
-        cJSON_AddStringToObject(root, "log_path", testdir.c_str());
-        cJSON_AddStringToObject(root, "descriptors_path", testdir.c_str());
-        cJSON *sync = cJSON_CreateArray();
-        cJSON_AddItemToObject(root, "sync", sync);
-        cJSON *disabled = cJSON_CreateArray();
-        cJSON_AddItemToObject(root, "disabled", disabled);
-        cJSON *event_states = cJSON_CreateObject();
-        cJSON_AddItemToObject(root, "event_states", event_states);
-        cJSON* disabled_userids = cJSON_CreateArray();
-        cJSON_AddItemToObject(root, "disabled_userids", disabled_userids);
-        cJSON_AddTrueToObject(root, "filtering_enabled");
-        cJSON_AddStringToObject(root, "uuid", "123456");
+    nlohmann::json createDefaultConfig() {
+        nlohmann::json root;
+        root["version"] = 2;
+        root["rotate_size"] = 20 * 1024 * 1024;
+        root["rotate_interval"] = 900;
+        root["auditd_enabled"] = true;
+        root["buffered"] = true;
+        root["log_path"] = testdir;
+        root["descriptors_path"] = testdir;
+        nlohmann::json sync = nlohmann::json::array();
+        root["sync"] = sync;
+        nlohmann::json disabled = nlohmann::json::array();
+        root["disabled"] = disabled;
+        nlohmann::json event_states;
+        root["event_states"] = event_states;
+        nlohmann::json disabled_userids = nlohmann::json::array();
+        root["disabled_userids"] = disabled_userids;
+        root["filtering_enabled"] = true;
+        root["uuid"] = "123456";
 
         return root;
     }
@@ -89,7 +89,7 @@ protected:
 std::string AuditConfigTest::testdir;
 
 TEST_F(AuditConfigTest, UnknownTag) {
-    cJSON_AddNumberToObject(json, "foo", 5);
+    json["foo"] = 5;
     EXPECT_THROW(config.initialize_config(json), std::string);
 }
 
@@ -101,38 +101,31 @@ TEST_F(AuditConfigTest, TestGetVersion) {
 }
 
 TEST_F(AuditConfigTest, TestNoVersion) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "version");
-    cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json.erase("version");
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestIllegalDatatypeVersion) {
-    cJSON_ReplaceItemInObject(json, "version",
-                              cJSON_CreateString("foobar"));
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json["version"] = "foobar";
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestLegalVersion) {
     for (int version = -100; version < 100; ++version) {
-        cJSON_ReplaceItemInObject(json, "version",
-                                  cJSON_CreateNumber(version));
+        json["version"] = version;
         if (version == 1) {
-            cJSON* obj = cJSON_DetachItemFromObject(json, "filtering_enabled");
-            cJSON_Delete(obj);
-            obj = cJSON_DetachItemFromObject(json, "disabled_userids");
-            cJSON_Delete(obj);
-            obj = cJSON_DetachItemFromObject(json, "event_states");
-            cJSON_Delete(obj);
-            obj = cJSON_DetachItemFromObject(json, "uuid");
-            cJSON_Delete(obj);
+            json.erase("filtering_enabled");
+            json.erase("disabled_userids");
+            json.erase("event_states");
+            json.erase("uuid");
         }
         if (version == 2) {
-            cJSON_AddTrueToObject(json, "filtering_enabled");
-            cJSON* disabled_userids = cJSON_CreateArray();
-            cJSON_AddItemToObject(json, "disabled_userids", disabled_userids);
-            cJSON* event_states = cJSON_CreateObject();
-            cJSON_AddItemToObject(json, "event_states", event_states);
-            cJSON_AddStringToObject(json, "uuid", "123456");
+            json["filtering_enabled"] = true;
+            nlohmann::json disabled_userids = nlohmann::json::array();
+            json["disabled_userids"] = disabled_userids;
+            nlohmann::json event_states;
+            json["event_states"] = event_states;
+            json["uuid"] = "123456";
         }
         if ((version == 1) || (version == 2)) {
             EXPECT_NO_THROW(config.initialize_config(json));
@@ -145,9 +138,8 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
 // rotate_size
 
 TEST_F(AuditConfigTest, TestNoRotateSize) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "rotate_size");
-    cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json.erase("rotate_size");
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestRotateSizeSetGet) {
@@ -158,29 +150,25 @@ TEST_F(AuditConfigTest, TestRotateSizeSetGet) {
 }
 
 TEST_F(AuditConfigTest, TestRotateSizeIllegalDatatype) {
-    cJSON_ReplaceItemInObject(json, "rotate_size",
-                              cJSON_CreateString("foobar"));
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json["rotate_size"] = "foobar";
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestRotateSizeLegalValue) {
-    cJSON_ReplaceItemInObject(json, "rotate_size",
-                              cJSON_CreateNumber(100));
+    json["rotate_size"] = 100;
     EXPECT_NO_THROW(config.initialize_config(json));
 }
 
 TEST_F(AuditConfigTest, TestRotateSizeIllegalValue) {
-    cJSON_ReplaceItemInObject(json, "rotate_size",
-                              cJSON_CreateNumber(-1));
+    json["rotate_size"] = -1;
     EXPECT_THROW(config.initialize_config(json), std::string);
 }
 
 // rotate_interval
 
 TEST_F(AuditConfigTest, TestNoRotateInterval) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "rotate_interval");
-    cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json.erase("rotate_interval");
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalSetGet) {
@@ -195,9 +183,8 @@ TEST_F(AuditConfigTest, TestRotateIntervalSetGet) {
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalIllegalDatatype) {
-    cJSON_ReplaceItemInObject(json, "rotate_interval",
-                              cJSON_CreateString("foobar"));
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json["rotate_interval"] = "foobar";
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
@@ -207,8 +194,7 @@ TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
 
     for (uint32_t ii = min_file_rotation_time; ii < max_file_rotation_time;
          ii += 1000) {
-        cJSON_ReplaceItemInObject(
-                json, "rotate_interval", cJSON_CreateNumber(ii));
+        json["rotate_interval"] = ii;
         EXPECT_NO_THROW(config.initialize_config(json));
     }
 }
@@ -218,20 +204,17 @@ TEST_F(AuditConfigTest, TestRotateIntervalIllegalValue) {
     const uint32_t min_file_rotation_time = defaultvalue.get_min_file_rotation_time();
     const uint32_t max_file_rotation_time = defaultvalue.get_max_file_rotation_time();
 
-    cJSON_ReplaceItemInObject(json, "rotate_interval",
-                              cJSON_CreateNumber(min_file_rotation_time - 1));
+    json["rotate_interval"] = min_file_rotation_time - 1;
     EXPECT_THROW(config.initialize_config(json), std::string);
-    cJSON_ReplaceItemInObject(json, "rotate_interval",
-                              cJSON_CreateNumber(max_file_rotation_time + 1));
+    json["rotate_interval"] = max_file_rotation_time + 1;
     EXPECT_THROW(config.initialize_config(json), std::string);
 }
 
 // auditd_enabled
 
 TEST_F(AuditConfigTest, TestNoAuditdEnabled) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "auditd_enabled");
-    cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json.erase("auditd_enabled");
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestGetSetAuditdEnabled) {
@@ -242,16 +225,15 @@ TEST_F(AuditConfigTest, TestGetSetAuditdEnabled) {
 }
 
 TEST_F(AuditConfigTest, TestIllegalDatatypeAuditdEnabled) {
-    cJSON_ReplaceItemInObject(json, "auditd_enabled",
-                              cJSON_CreateString("foobar"));
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json["auditd_enabled"] = "foobar";
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestLegalAuditdEnabled) {
-    cJSON_ReplaceItemInObject(json, "auditd_enabled", cJSON_CreateTrue());
+    json["auditd_enabled"] = true;
     EXPECT_NO_THROW(config.initialize_config(json));
 
-    cJSON_ReplaceItemInObject(json, "auditd_enabled", cJSON_CreateFalse());
+    json["auditd_enabled"] = false;
     EXPECT_NO_THROW(config.initialize_config(json));
 }
 
@@ -259,8 +241,7 @@ TEST_F(AuditConfigTest, TestLegalAuditdEnabled) {
 
 TEST_F(AuditConfigTest, TestNoBuffered) {
     // buffered is optional, and enabled unless explicitly disabled
-    cJSON *obj = cJSON_DetachItemFromObject(json, "buffered");
-    cJSON_Delete(obj);
+    json.erase("buffered");
     EXPECT_NO_THROW(config.initialize_config(json));
     EXPECT_TRUE(config.is_buffered());
 }
@@ -273,24 +254,23 @@ TEST_F(AuditConfigTest, TestGetSetBuffered) {
 }
 
 TEST_F(AuditConfigTest, TestIllegalDatatypeBuffered) {
-    cJSON_ReplaceItemInObject(json, "buffered",
-                              cJSON_CreateString("foobar"));
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json["buffered"] = "foobar";
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestLegalBuffered) {
-    cJSON_ReplaceItemInObject(json, "buffered", cJSON_CreateTrue());
+    json["buffered"] = true;
     EXPECT_NO_THROW(config.initialize_config(json));
 
-    cJSON_ReplaceItemInObject(json, "buffered", cJSON_CreateFalse());
+    json["buffered"] = false;
     EXPECT_NO_THROW(config.initialize_config(json));
 }
 
 // log_path
+
 TEST_F(AuditConfigTest, TestNoLogPath) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "log_path");
-    cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json.erase("log_path");
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestGetSetLogPath) {
@@ -319,16 +299,14 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
 
 #ifndef WIN32
 TEST_F(AuditConfigTest, TestFailToCreateDirLogPath) {
-    cJSON_ReplaceItemInObject(json, "log_path",
-                              cJSON_CreateString("/itwouldsuckifthisexists"));
+    json["log_path"] = "/itwouldsuckifthisexists";
     EXPECT_THROW(config.initialize_config(json), std::string);
 }
 #endif
 
 TEST_F(AuditConfigTest, TestCreateDirLogPath) {
     std::string path = testdir + std::string("/mybar");
-    cJSON_ReplaceItemInObject(json, "log_path",
-                              cJSON_CreateString(path.c_str()));
+    json["log_path"] = path;
     EXPECT_NO_THROW(config.initialize_config(json));
     EXPECT_NO_THROW(cb::io::rmrf(config.get_log_directory()))
         << "Failed to remove: " << config.get_log_directory()
@@ -336,10 +314,10 @@ TEST_F(AuditConfigTest, TestCreateDirLogPath) {
 }
 
 // descriptors_path
+
 TEST_F(AuditConfigTest, TestNoDescriptorsPath) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "descriptors_path");
-    cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json.erase("descriptors_path");
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestGetSetDescriptorsPath) {
@@ -358,18 +336,18 @@ TEST_F(AuditConfigTest, TestSetMissingEventDescrFileDescriptorsPath) {
 }
 
 // Sync
+
 TEST_F(AuditConfigTest, TestNoSync) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "sync");
-    cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json.erase("sync");
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestSpecifySync) {
-    cJSON *array = cJSON_CreateArray();
+    nlohmann::json array = nlohmann::json::array();
     for (int ii = 0; ii < 10; ++ii) {
-        cJSON_AddItemToArray(array, cJSON_CreateNumber(ii));
+        array.push_back(ii);
     }
-    cJSON_ReplaceItemInObject(json, "sync", array);
+    json["sync"] = array;
     EXPECT_NO_THROW(config.initialize_config(json));
 
     for (uint32_t ii = 0; ii < 100; ++ii) {
@@ -382,22 +360,22 @@ TEST_F(AuditConfigTest, TestSpecifySync) {
 }
 
 // Disabled
+
 TEST_F(AuditConfigTest, TestNoDisabled) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "disabled");
-    cJSON_Delete(obj);
+    json.erase("disabled");
     if (config.get_version() == 1) {
-        EXPECT_THROW(config.initialize_config(json), std::string);
+        EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
     } else {
         EXPECT_NO_THROW(config.initialize_config(json));
     }
 }
 
 TEST_F(AuditConfigTest, TestSpecifyDisabled) {
-    cJSON *array = cJSON_CreateArray();
+    nlohmann::json array = nlohmann::json::array();
     for (int ii = 0; ii < 10; ++ii) {
-        cJSON_AddItemToArray(array, cJSON_CreateNumber(ii));
+        array.push_back(ii);
     }
-    cJSON_ReplaceItemInObject(json, "disabled", array);
+    json["disabled"] = array;
     EXPECT_NO_THROW(config.initialize_config(json));
 
     for (uint32_t ii = 0; ii < 100; ++ii) {
@@ -410,27 +388,23 @@ TEST_F(AuditConfigTest, TestSpecifyDisabled) {
 }
 
 TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
-    cJSON *array = cJSON_CreateArray();
+    nlohmann::json array = nlohmann::json::array();
     for (uint16_t ii = 0; ii < 10; ++ii) {
-        cJSON* userIdRoot = cJSON_CreateObject();
-        if (userIdRoot == nullptr) {
-            throw std::runtime_error(
-                    "TestSpecifyDisabledUsers - Error "
-                    "creating cJSON object");
-        }
+        nlohmann::json userIdRoot;
+
         // In version 2 of the configuration we support domain or support
         // however domain is the preferred notation.
         // Have 10 users so make half use domain and half use source
         if (ii < 5) {
-            cJSON_AddStringToObject(userIdRoot, "domain", "internal");
+            userIdRoot["domain"] = "internal";
         } else {
-            cJSON_AddStringToObject(userIdRoot, "source", "internal");
+            userIdRoot["source"] = "internal";
         }
         auto user = "user" + std::to_string(ii);
-        cJSON_AddStringToObject(userIdRoot, "user", user.c_str());
-        cJSON_AddItemToArray(array, userIdRoot);
+        userIdRoot["user"] = user;
+        array.push_back(userIdRoot);
     }
-    cJSON_ReplaceItemInObject(json, "disabled_userids", array);
+    json["disabled_userids"] = array;
     EXPECT_NO_THROW(config.initialize_config(json));
 
     for (uint16_t ii = 0; ii < 100; ++ii) {
@@ -452,17 +426,16 @@ TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
  */
 TEST_F(AuditConfigTest, AuditConfigDisabled) {
     MockAuditConfig config;
-    unique_cJSON_ptr disabled(cJSON_CreateObject());
-    cJSON_AddItemToArray(disabled.get(), cJSON_CreateNumber(1234));
-    config.public_set_disabled(disabled.get());
-    unique_cJSON_ptr json { config.to_json() };
-    auto disabledArray = MockAuditConfig::public_getObject(json.get(),
-                                                           "disabled",
-                                                           cJSON_Array);
-    EXPECT_EQ(1, cJSON_GetArraySize(disabledArray));
-    auto disabledUseridsArray = MockAuditConfig::public_getObject(
-            json.get(), "disabled_userids", cJSON_Array);
-    EXPECT_EQ(0, cJSON_GetArraySize(disabledUseridsArray));
+    nlohmann::json disabled = nlohmann::json::array();
+    disabled.push_back(1234);
+    config.public_set_disabled(disabled);
+
+    auto json = config.to_json();
+    auto disabledArray = json["disabled"];
+
+    EXPECT_EQ(1, disabledArray.size());
+    auto disabledUseridsArray = json["disabled_userids"];
+    EXPECT_EQ(0, disabledUseridsArray.size());
 }
 
 /**
@@ -472,33 +445,26 @@ TEST_F(AuditConfigTest, AuditConfigDisabled) {
  */
 TEST_F(AuditConfigTest, AuditConfigDisabledUsers) {
     MockAuditConfig config;
-    unique_cJSON_ptr disabledUserids(cJSON_CreateObject());
 
-    cJSON* userIdRoot = cJSON_CreateObject();
-    if (userIdRoot == nullptr) {
-        throw std::bad_alloc();
-    }
-    cJSON_AddStringToObject(userIdRoot, "domain", "internal");
-    cJSON_AddStringToObject(userIdRoot, "user", "johndoe");
-    cJSON_AddItemToArray(disabledUserids.get(), userIdRoot);
+    nlohmann::json disabledUserids = nlohmann::json::array();
+    nlohmann::json userIdRoot;
+    userIdRoot["domain"] = "internal";
+    userIdRoot["user"] = "johndoe";
+    disabledUserids.push_back(userIdRoot);
+    config.public_set_disabled_userids(disabledUserids);
 
-    config.public_set_disabled_userids(disabledUserids.get());
-    unique_cJSON_ptr json { config.to_json() };
-    auto disabledUseridsArray = MockAuditConfig::public_getObject(
-            json.get(), "disabled_userids", cJSON_Array);
-    EXPECT_EQ(1, cJSON_GetArraySize(disabledUseridsArray));
-    auto disabledArray = MockAuditConfig::public_getObject(json.get(),
-                                                           "disabled",
-                                                           cJSON_Array);
-    EXPECT_EQ(0, cJSON_GetArraySize(disabledArray));
+    auto json = config.to_json();
+    auto disabledUseridsArray = json["disabled_userids"];
+    EXPECT_EQ(1, disabledUseridsArray.size());
+    auto disabledArray = json["disabled"];
+    EXPECT_EQ(0, disabledArray.size());
 }
 
 // Test the filtering_enabled parameter
 
 TEST_F(AuditConfigTest, TestNoFilteringEnabled) {
-    cJSON *obj = cJSON_DetachItemFromObject(json, "filtering_enabled");
-    cJSON_Delete(obj);
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json.erase("filtering_enabled");
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestGetSetFilteringEnabled) {
@@ -509,24 +475,22 @@ TEST_F(AuditConfigTest, TestGetSetFilteringEnabled) {
 }
 
 TEST_F(AuditConfigTest, TestIllegalDatatypeFilteringEnabled) {
-    cJSON_ReplaceItemInObject(json, "filtering_enabled",
-                              cJSON_CreateString("foobar"));
-    EXPECT_THROW(config.initialize_config(json), std::string);
+    json["filtering_enabled"] = "foobar";
+    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestLegalFilteringEnabled) {
-    cJSON_ReplaceItemInObject(json, "filtering_enabled", cJSON_CreateTrue());
+    json["filtering_enabled"] = true;
     EXPECT_NO_THROW(config.initialize_config(json));
 
-    cJSON_ReplaceItemInObject(json, "filtering_enabled", cJSON_CreateFalse());
+    json["filtering_enabled"] = false;
     EXPECT_NO_THROW(config.initialize_config(json));
 }
 
 // The event_states list is optional and therefore if it does not exist
 // it should not throw an exception.
 TEST_F(AuditConfigTest, TestNoEventStates) {
-    cJSON* obj = cJSON_DetachItemFromObject(json, "event_states");
-    cJSON_Delete(obj);
+    json.erase("event_states");
     EXPECT_NO_THROW(config.initialize_config(json));
 }
 
@@ -534,16 +498,16 @@ TEST_F(AuditConfigTest, TestNoEventStates) {
 // the states get converted into corresponding EventStates.  Also if an event
 // is not in the event_states object it has an EventState of undefined.
 TEST_F(AuditConfigTest, TestSpecifyEventStates) {
-    cJSON* object = cJSON_CreateObject();
+    nlohmann::json object;
     for (int ii = 0; ii < 5; ++ii) {
         auto event = std::to_string(ii);
-        cJSON_AddStringToObject(object, event.c_str(), "enabled");
+        object[event] = "enabled";
     }
     for (int ii = 5; ii < 10; ++ii) {
         auto event = std::to_string(ii);
-        cJSON_AddStringToObject(object, event.c_str(), "disabled");
+        object[event] = "disabled";
     }
-    cJSON_ReplaceItemInObject(json, "event_states", object);
+    json["event_states"] = object;
     EXPECT_NO_THROW(config.initialize_config(json));
 
     for (uint32_t ii = 0; ii < 20; ++ii) {

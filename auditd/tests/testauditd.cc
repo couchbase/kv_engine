@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <chrono>
 #include <condition_variable>
@@ -144,7 +145,7 @@ protected:
     void configure() {
         FILE* fp = fopen(cfgfile.c_str(), "w");
         ASSERT_NE(nullptr, fp);
-        fprintf(fp, "%s\n", to_string(config.to_json()).c_str());
+        fprintf(fp, "%s\n", config.to_json().dump().c_str());
         ASSERT_NE(-1, fclose(fp));
         config_auditd(cfgfile);
     }
@@ -201,18 +202,13 @@ protected:
         AuditDaemonTest::SetUp();
         // Add the userid : {"source" : "internal", "user" : "johndoe"}
         // to the disabled users list
-        unique_cJSON_ptr disabled_userids(cJSON_CreateObject());
-        cJSON* userIdRoot = cJSON_CreateObject();
-        if (userIdRoot == nullptr) {
-            throw std::runtime_error(
-                    "TestSpecifyDisabledUsers - Error "
-                    "creating cJSON object");
-        }
-        cJSON_AddStringToObject(userIdRoot, "source", "internal");
-        cJSON_AddStringToObject(userIdRoot, "user", "johndoe");
-        cJSON_AddItemToArray(disabled_userids.get(), userIdRoot);
+        nlohmann::json disabled_userids = nlohmann::json::array();
+        nlohmann::json userIdRoot;
+        userIdRoot["source"] = "internal";
+        userIdRoot["user"] = "johndoe";
+        disabled_userids.push_back(userIdRoot);
 
-        config.public_set_disabled_userids(disabled_userids.get());
+        config.public_set_disabled_userids(disabled_userids);
     }
 
     // Adds a new event that has the filtering_permitted attribute set according

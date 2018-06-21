@@ -17,13 +17,14 @@
 #include <platform/dirutils.h>
 
 #include "auditfile.h"
-#include <iostream>
-#include <map>
-#include <atomic>
-#include <cstring>
-#include <time.h>
+#include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <platform/platform.h>
+#include <time.h>
+#include <atomic>
+#include <cstring>
+#include <iostream>
+#include <map>
 
 using cb::io::findFilesWithPrefix;
 

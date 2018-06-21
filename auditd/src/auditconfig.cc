@@ -23,76 +23,44 @@
 #include <iostream>
 #include <sstream>
 
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 
 #include "auditd.h"
 #include "audit.h"
 #include "auditconfig.h"
 
-/**
- * Get a named object from located under "root". It should be of the
- * given type (or -1 for a boolean value)
- *
- * @param root the root of the json object
- * @param name the name of the tag to search for
- * @param type the type for the object (or -1 for boolean)
- */
-cJSON* AuditConfig::getObject(const cJSON* root, const char* name, int type)
-{
-    cJSON *ret = cJSON_GetObjectItem(const_cast<cJSON*>(root), name);
-    if (ret) {
-        if (ret->type != type) {
-            if (type == -1) {
-                if (ret->type == cJSON_True || ret->type == cJSON_False) {
-                    return ret;
-                }
-            }
+AuditConfig::AuditConfig(const nlohmann::json& json) : AuditConfig() {
+    set_version(json.at("version"));
+    set_rotate_size(json.at("rotate_size"));
+    set_rotate_interval(json.at("rotate_interval"));
+    set_auditd_enabled(json.at("auditd_enabled"));
+    set_buffered(json.value("buffered", true));
+    set_log_directory(json.at("log_path"));
+    set_descriptors_path(json.at("descriptors_path"));
+    set_sync(json.at("sync"));
 
-            std::stringstream ss;
-            ss << "Incorrect type for \"" << name << "\". Should be ";
-            switch (type) {
-            case cJSON_String:
-                ss << "string";
-                break;
-            case cJSON_Number:
-                ss << "number";
-                break;
-            default:
-                ss << type;
-            }
-
-            throw ss.str();
-        }
-    } else {
-        std::stringstream ss;
-        ss << "Element \"" << name << "\" is not present.";
-        throw ss.str();
-    }
-
-    return ret;
-}
-
-AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
-    set_version(getObject(json, "version", cJSON_Number));
-    set_rotate_size(getObject(json, "rotate_size", cJSON_Number));
-    set_rotate_interval(getObject(json, "rotate_interval", cJSON_Number));
-    set_auditd_enabled(getObject(json, "auditd_enabled", -1));
-    set_buffered(cJSON_GetObjectItem(const_cast<cJSON*>(json), "buffered"));
-    set_log_directory(getObject(json, "log_path", cJSON_String));
-    set_descriptors_path(getObject(json, "descriptors_path", cJSON_String));
-    set_sync(getObject(json, "sync", cJSON_Array));
     // The disabled list is depreciated in version 2
     if (get_version() == 1) {
-        set_disabled(getObject(json, "disabled", cJSON_Array));
+        set_disabled(json.at("disabled"));
     }
     if (get_version() == 2) {
-        set_filtering_enabled(getObject(json, "filtering_enabled", -1));
-        set_uuid(getObject(json, "uuid", cJSON_String));
-        set_disabled_userids(getObject(json, "disabled_userids", cJSON_Array));
+        set_filtering_enabled(json.at("filtering_enabled"));
+        set_uuid(json.at("uuid"));
+        auto duids = json.at("disabled_userids");
+        if (duids.is_array()) {
+            set_disabled_userids(duids);
+        } else {
+            std::stringstream ss;
+            ss << "AuditConfig::AuditConfig 'disabled_userids' should "
+                  "be array, but got: '"
+               << duids.type_name() << "'";
+            throw std::runtime_error(ss.str());
+        }
         // event_states is optional so if not defined will not throw an
         // exception.
-        if (cJSON_GetObjectItem(const_cast<cJSON*>(json), "event_states")) {
-            set_event_states(getObject(json, "event_states", cJSON_Object));
+        if (json.find("event_states") != json.end()) {
+            set_event_states(json.at("event_states"));
         }
     }
 
@@ -115,11 +83,10 @@ AuditConfig::AuditConfig(const cJSON *json) : AuditConfig() {
         tags["event_states"] = 1;
     }
 
-    for (cJSON *items = json->child; items != NULL; items = items->next) {
-        if (tags.find(items->string) == tags.end()) {
+    for (auto it = json.begin(); it != json.end(); ++it) {
+        if (tags.find(it.key()) == tags.end()) {
             std::stringstream ss;
-            ss << "Error: Unknown token \"" << items->string << "\""
-               << std::endl;
+            ss << "Error: Unknown token \"" << it.key() << "\"" << std::endl;
             throw ss.str();
         }
     }
@@ -289,76 +256,31 @@ std::string AuditConfig::get_uuid() const {
     return uuid;
 }
 
-void AuditConfig::set_rotate_size(cJSON *obj) {
-    set_rotate_size(static_cast<size_t>(obj->valueint));
-}
+void AuditConfig::add_array(std::vector<uint32_t>& vec,
+                            const nlohmann::json& json,
+                            const char* name) {
+    vec.clear();
 
-void AuditConfig::set_rotate_interval(cJSON *obj) {
-    set_rotate_interval(static_cast<uint32_t>(obj->valueint));
-}
-
-void AuditConfig::set_auditd_enabled(cJSON *obj) {
-    set_auditd_enabled(obj->type == cJSON_True);
-}
-
-void AuditConfig::set_filtering_enabled(cJSON *obj) {
-    set_filtering_enabled(obj->type == cJSON_True);
-}
-
-void AuditConfig::set_buffered(cJSON *obj) {
-    if (obj) {
-        if (obj->type == cJSON_True) {
-            set_buffered(true);
-        } else if (obj->type == cJSON_False) {
-            set_buffered(false);
+    for (const auto& elem : json) {
+        if (elem.is_number()) {
+            vec.push_back(gsl::narrow<uint32_t>(elem));
         } else {
             std::stringstream ss;
-            ss << "Incorrect type (" << obj->type
-               << ") for \"buffered\". Should be boolean";
-            throw ss.str();
+            ss << "Incorrect type (" << elem.type_name() << ") for element in "
+               << name << " array. Expected numbers";
+            throw std::runtime_error(ss.str());
         }
-    }
-}
-
-void AuditConfig::set_log_directory(cJSON *obj) {
-    set_log_directory(obj->valuestring);
-}
-
-void AuditConfig::set_descriptors_path(cJSON *obj) {
-    set_descriptors_path(obj->valuestring);
-}
-
-void AuditConfig::set_version(cJSON *obj) {
-    set_version(static_cast<uint32_t>(obj->valueint));
-}
-
-void AuditConfig::add_array(std::vector<uint32_t> &vec, cJSON *array, const char *name) {
-    vec.clear();
-    for (auto *ii = array->child; ii != NULL; ii = ii->next) {
-        if (ii->type != cJSON_Number) {
-            std::stringstream ss;
-            ss << "Incorrect type (" << ii->type
-               << ") for element in " << name
-               <<" array. Expected numbers";
-            throw ss.str();
-        }
-        vec.push_back(gsl::narrow<uint32_t>(ii->valueint));
     }
 }
 
 void AuditConfig::add_event_states_object(
         std::unordered_map<uint32_t, EventState>& eventStates,
-        cJSON* object,
+        const nlohmann::json& object,
         const char* name) {
     eventStates.clear();
-    cJSON* obj = object->child;
-    while (obj != nullptr) {
-        std::string event(obj->string);
-        if (obj->type != cJSON_String) {
-            throw std::invalid_argument(
-                    "Incorrect type for state. Should be string.");
-        }
-        std::string state{obj->valuestring};
+    for (auto it = object.begin(); it != object.end(); ++it) {
+        std::string event(it.key());
+        std::string state{it.value().get<std::string>()};
         EventState estate{EventState::undefined};
         if (state == "enabled") {
             estate = EventState::enabled;
@@ -367,120 +289,111 @@ void AuditConfig::add_event_states_object(
         }
         // add to the eventStates map
         eventStates[std::stoi(event)] = estate;
-        obj = obj->next;
     }
 }
 
 void AuditConfig::add_pair_string_array(
         std::vector<std::pair<std::string, std::string>>& vec,
-        cJSON* array,
+        const nlohmann::json& array,
         const char* name) {
     vec.clear();
-    for (int ii = 0; ii < cJSON_GetArraySize(array); ii++) {
-        auto element = cJSON_GetArrayItem(array, ii);
-        if (element->type != cJSON_Object) {
+
+    for (auto& elem : array) {
+        if (!elem.is_object()) {
             std::stringstream ss;
-            ss << "Incorrect type (" << element->type << ") for element in "
+            ss << "Incorrect type (" << elem.type_name() << ") for element in "
                << name << " array. Expected objects";
             throw std::invalid_argument(ss.str());
         }
-        auto* source = cJSON_GetObjectItem(element, "source");
-        auto* domain = cJSON_GetObjectItem(element, "domain");
-        if (source != nullptr && source->type != cJSON_String) {
-            throw std::invalid_argument(
-                    "Incorrect type for source. Should be string.");
+        std::string source;
+        std::string domain;
+
+        if (elem.find("source") != elem.end()) {
+            auto s = elem.at("source");
+            if (!s.is_string()) {
+                throw std::invalid_argument(
+                        "Incorrect type for source. Should be string.");
+            }
+            source = s;
         }
-        if (domain != nullptr && domain->type != cJSON_String) {
-            throw std::invalid_argument(
-                    "Incorrect type for domain. Should be string.");
+
+        if (elem.find("domain") != elem.end()) {
+            auto d = elem.at("domain");
+            if (!d.is_string()) {
+                throw std::invalid_argument(
+                        "Incorrect type for domain. Should be string.");
+            }
+            domain = d;
         }
-        if (source != nullptr || domain != nullptr) {
-            auto* user = cJSON_GetObjectItem(element, "user");
-            if (user != nullptr) {
-                if (user->type != cJSON_String) {
+
+        if (!source.empty() || !domain.empty()) {
+            std::string user;
+
+            if (elem.find("user") != elem.end()) {
+                auto u = elem.at("user");
+                if (!u.is_string()) {
                     throw std::invalid_argument(
                             "Incorrect type for user. Should be string.");
                 }
+                user = u;
+            }
+
+            if (!user.empty()) {
                 // Have a source/domain and user so build the pair and add to
                 // the vector
-                auto* sourceValueString = (source != nullptr) ?
-                        source->valuestring : domain->valuestring;
-                const auto& userid =
-                        std::make_pair(sourceValueString, user->valuestring);
+                auto sourceValueString = (!source.empty()) ? source : domain;
+                const auto& userid = std::make_pair(sourceValueString, user);
                 vec.push_back(userid);
             }
         }
     }
 }
 
-void AuditConfig::set_sync(cJSON *array) {
+void AuditConfig::set_sync(const nlohmann::json& array) {
     std::lock_guard<std::mutex> guard(sync_mutex);
     add_array(sync, array, "sync");
 }
 
-void AuditConfig::set_disabled(cJSON *array) {
+void AuditConfig::set_disabled(const nlohmann::json& array) {
     std::lock_guard<std::mutex> guard(disabled_mutex);
     add_array(disabled, array, "disabled");
 }
 
-void AuditConfig::set_disabled_userids(cJSON* array) {
+void AuditConfig::set_disabled_userids(const nlohmann::json& array) {
     std::lock_guard<std::mutex> guard(disabled_userids_mutex);
     add_pair_string_array(disabled_userids, array, "disabled_userids");
 }
 
-void AuditConfig::set_event_states(cJSON* object) {
+void AuditConfig::set_event_states(const nlohmann::json& object) {
     std::lock_guard<std::mutex> guard(event_states_mutex);
     add_event_states_object(event_states, object, "event_states");
 }
 
-void AuditConfig::set_uuid(cJSON *obj) {
-    set_uuid(obj->valuestring);
-}
+nlohmann::json AuditConfig::to_json() const {
+    nlohmann::json ret;
+    ret["version"] = get_version();
+    ret["auditd_enabled"] = is_auditd_enabled();
+    ret["rotate_size"] = get_rotate_size();
+    ret["rotate_interval"] = get_rotate_interval();
+    ret["buffered"] = is_buffered();
+    ret["log_path"] = get_log_directory();
+    ret["descriptors_path"] = get_descriptors_path();
+    ret["filtering_enabled"] = is_filtering_enabled();
+    ret["uuid"] = get_uuid();
 
-unique_cJSON_ptr AuditConfig::to_json() const {
-    unique_cJSON_ptr ret(cJSON_CreateObject());
-    cJSON* root = ret.get();
-    if (root == nullptr) {
-        throw std::bad_alloc();
-    }
+    ret["sync"] = sync;
+    ret["disabled"] = disabled;
 
-    cJSON_AddNumberToObject(root, "version", get_version());
-    cJSON_AddBoolToObject(root, "auditd_enabled", is_auditd_enabled());
-    cJSON_AddNumberToObject(root, "rotate_size", get_rotate_size());
-    cJSON_AddNumberToObject(root, "rotate_interval", get_rotate_interval());
-    cJSON_AddBoolToObject(root, "buffered", is_buffered());
-    cJSON_AddStringToObject(root, "log_path", get_log_directory().c_str());
-    cJSON_AddStringToObject(root, "descriptors_path", get_descriptors_path().c_str());
-    cJSON_AddBoolToObject(root, "filtering_enabled", is_filtering_enabled());
-    cJSON_AddStringToObject(root, "uuid", get_uuid().c_str());
-
-    cJSON* array = cJSON_CreateArray();
-    for (const auto& v : sync) {
-        cJSON_AddItemToArray(array, cJSON_CreateNumber(v));
-    }
-    cJSON_AddItemToObject(root, "sync", array);
-
-    array = cJSON_CreateArray();
-    for (const auto& v : disabled) {
-        cJSON_AddItemToArray(array, cJSON_CreateNumber(v));
-    }
-    cJSON_AddItemToObject(root, "disabled", array);
-
-    array = cJSON_CreateArray();
+    auto array = nlohmann::json::array();
     for (const auto& v : disabled_userids) {
-        cJSON* userIdRoot = cJSON_CreateObject();
-        if (userIdRoot == nullptr) {
-            throw std::runtime_error(
-                    "AuditConfig::to_json - Error creating "
-                    "cJSON object");
-        }
-        cJSON_AddStringToObject(userIdRoot, "domain", v.first.c_str());
-        cJSON_AddStringToObject(userIdRoot, "user", v.second.c_str());
-        cJSON_AddItemToArray(array, userIdRoot);
+        nlohmann::json userIdRoot;
+        userIdRoot["domain"] = v.first;
+        userIdRoot["user"] = v.second;
+        array.push_back(userIdRoot);
     }
-    cJSON_AddItemToObject(root, "disabled_userids", array);
+    ret["disabled_userids"] = array;
 
-    cJSON* object = cJSON_CreateObject();
+    nlohmann::json object;
     for (const auto& v : event_states) {
         std::string event = std::to_string(v.first);
         EventState estate = v.second;
@@ -500,14 +413,14 @@ unique_cJSON_ptr AuditConfig::to_json() const {
                     "found in the event_states list");
         }
         }
-        cJSON_AddStringToObject(object, event.c_str(), state.c_str());
+        object[event] = state;
     }
-    cJSON_AddItemToObject(root, "event_states", object);
+    ret["event_states"] = object;
 
     return ret;
 }
 
-void AuditConfig::initialize_config(const cJSON* json) {
+void AuditConfig::initialize_config(const nlohmann::json& json) {
     AuditConfig other(json);
 
     auditd_enabled = other.auditd_enabled;

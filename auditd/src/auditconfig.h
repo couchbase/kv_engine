@@ -17,9 +17,8 @@
 #ifndef AUDITCONFIG_H
 #define AUDITCONFIG_H
 
-#include <cJSON.h>
-#include <cJSON_utils.h>
 #include <inttypes.h>
+#include <nlohmann/json.hpp>
 #include <atomic>
 #include <mutex>
 #include <string>
@@ -55,14 +54,14 @@ public:
      *
      * @param json the JSON document describing the configuration
      */
-    AuditConfig(const cJSON *json);
+    AuditConfig(const nlohmann::json& json);
 
     /**
      * Initialize the object from the specified JSON payload
      *
      * @todo refactor the logic to
      */
-    void initialize_config(const cJSON *json);
+    void initialize_config(const nlohmann::json& json);
 
     // methods to access the private parts
     bool is_auditd_enabled(void) const;
@@ -114,33 +113,25 @@ public:
      * Create a JSON representation of the audit configuration. This is
      * the same JSON representation that the constructor would accept.
      */
-    unique_cJSON_ptr to_json() const;
+    nlohmann::json to_json() const;
 
 protected:
     void sanitize_path(std::string &path);
-    void set_rotate_size(cJSON *obj);
-    void set_rotate_interval(cJSON *obj);
-    void set_auditd_enabled(cJSON *obj);
-    void set_buffered(cJSON *obj);
-    void set_log_directory(cJSON *obj);
-    void set_descriptors_path(cJSON *obj);
-    void set_version(cJSON *obj);
-    void add_array(std::vector<uint32_t> &vec, cJSON *array, const char *name);
+    void add_array(std::vector<uint32_t>& vec,
+                   const nlohmann::json& array,
+                   const char* name);
     void add_pair_string_array(
             std::vector<std::pair<std::string, std::string>>& vec,
-            cJSON* array,
+            const nlohmann::json& array,
             const char* name);
     void add_event_states_object(
             std::unordered_map<uint32_t, EventState>& eventStates,
-            cJSON* object,
+            const nlohmann::json& object,
             const char* name);
-    void set_sync(cJSON *array);
-    void set_disabled(cJSON *array);
-    void set_disabled_userids(cJSON* array);
-    void set_event_states(cJSON* object);
-    void set_uuid(cJSON *obj);
-    static cJSON* getObject(const cJSON* root, const char* name, int type);
-    void set_filtering_enabled(cJSON *obj);
+    void set_sync(const nlohmann::json& array);
+    void set_disabled(const nlohmann::json& array);
+    void set_disabled_userids(const nlohmann::json& array);
+    void set_event_states(const nlohmann::json& array);
 
     Couchbase::RelaxedAtomic<bool> auditd_enabled;
     Couchbase::RelaxedAtomic<uint32_t> rotate_interval;
