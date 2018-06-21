@@ -36,7 +36,9 @@ void ensure_send(BIO* bio, const void* data, int nbytes) {
         int nw = BIO_write(bio, (const char*)data + total, nbytes - total);
         if (nw <= 0) {
             if (BIO_should_retry(bio) == 0) {
-                fprintf(stderr, "Failed to write data\n");
+                fprintf(stderr,
+                        "Failed to write data, BIO_write returned %d\n",
+                        nw);
                 exit(EXIT_FAILURE);
             }
         } else {
@@ -52,7 +54,9 @@ void ensure_recv(BIO* bio, void* data, int nbytes) {
         int nr = BIO_read(bio, (char*)data + total, nbytes - total);
         if (nr <= 0) {
             if (BIO_should_retry(bio) == 0) {
-                fprintf(stderr, "Failed to read data\n");
+                fprintf(stderr,
+                        "Failed to read data, BIO_read returned %d\n",
+                        nr);
                 exit(EXIT_FAILURE);
             }
         } else {

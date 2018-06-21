@@ -354,7 +354,9 @@ void MemcachedConnection::sendBufferSsl(cb::const_byte_buffer buf) {
                 bio, data + offset, gsl::narrow<int>(nbytes - offset));
         if (nw <= 0) {
             if (BIO_should_retry(bio) == 0) {
-                throw std::runtime_error("Failed to write data");
+                throw std::runtime_error(
+                        "Failed to write data, BIO_write returned " +
+                        std::to_string(nw));
             }
         } else {
             offset += nw;
@@ -451,7 +453,9 @@ void MemcachedConnection::readSsl(Frame& frame, size_t bytes) {
         int nr = BIO_read(bio, data + total, gsl::narrow<int>(bytes - total));
         if (nr <= 0) {
             if (BIO_should_retry(bio) == 0) {
-                throw std::runtime_error("Failed to read data");
+                throw std::runtime_error(
+                        "Failed to read data, BIO_read returned " +
+                        std::to_string(nr));
             }
         } else {
             total += nr;
