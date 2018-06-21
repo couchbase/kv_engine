@@ -447,8 +447,15 @@ void destroy_buckets(std::vector<BucketHolder> &buckets) {
 void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                      const char* key, const char* val, size_t vlen,
                      uint16_t vbucket) {
+    // Fetch item itself, to ensure we maintain a ref-count on the underlying
+    // Blob while comparing the key.
+    auto getResult = get(h, h1, NULL, key, vbucket);
+    checkeq(cb::engine_errc::success,
+            getResult.first,
+            "Failed to fetch document");
     item_info info;
-    check(get_item_info(h, h1, &info, key, vbucket), "checking key and value");
+    check(h1->get_item_info(h, getResult.second.get(), &info),
+          "Failed to get_item_info");
 
     cb::const_char_buffer payload;
     cb::compression::Buffer inflated;
