@@ -18,6 +18,7 @@
 
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include "memcached_audit_events.h"
 #include "testapp_environment.h"
 #include "utilities.h"
 
@@ -327,7 +328,8 @@ void McdEnvironment::SetupAuditFile() {
 
         // Generate the auditd config file.
         audit_config.reset(cJSON_CreateObject());
-        cJSON_AddNumberToObject(audit_config.get(), "version", 1);
+        cJSON_AddNumberToObject(audit_config.get(), "version", 2);
+        cJSON_AddStringToObject(audit_config.get(), "uuid", "this_is_the_uuid");
         cJSON_AddFalseToObject(audit_config.get(), "auditd_enabled");
         cJSON_AddNumberToObject(audit_config.get(), "rotate_interval", 1440);
         cJSON_AddNumberToObject(audit_config.get(), "rotate_size", 20971520);
@@ -339,7 +341,19 @@ void McdEnvironment::SetupAuditFile() {
         cJSON_AddItemToObject(audit_config.get(), "sync", cJSON_CreateArray());
         cJSON_AddItemToObject(audit_config.get(), "disabled",
                               cJSON_CreateArray());
-    } catch (std::exception& e) {
+
+        auto* states = cJSON_CreateObject();
+        cJSON_AddStringToObject(
+                states,
+                std::to_string(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)
+                        .c_str(),
+                "enabled");
+        cJSON_AddItemToObject(audit_config.get(), "event_states", states);
+        cJSON_AddFalseToObject(audit_config.get(), "filtering_enabled");
+        cJSON_AddItemToObject(
+                audit_config.get(), "disabled_userids", cJSON_CreateArray());
+
+    } catch (const std::exception& e) {
         FAIL() << "Failed to generate audit configuration: " << e.what();
     }
 

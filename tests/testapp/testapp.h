@@ -132,6 +132,24 @@ public:
     virtual MemcachedConnection& getConnection();
     virtual MemcachedConnection& getAdminConnection();
 
+    /**
+     * Reconfigure the server to use the given cert_auth policy
+     *
+     * @param state the new state (mandatory, enable, disable)
+     * @param path path in the certificate (ie: subject.cn)
+     * @param prefix the prefix to map
+     * @param delimiter the delimiter in the field
+     */
+    void reconfigure_client_cert_auth(const std::string& state,
+                                      const std::string& path,
+                                      const std::string& prefix,
+                                      const std::string& delimiter);
+
+    /**
+     * Make sure that the provided connection use our client certificates
+     */
+    void setClientCertData(MemcachedConnection& connection);
+
 protected:
     // per test setup function.
     void SetUp() override;
