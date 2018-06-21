@@ -1797,60 +1797,8 @@ void CreateBucketThread::create() {
     /* People aren't allowed to use the engine in this state,
      * so we can do stuff without locking..
      */
-    if (new_engine_instance(type,
-                            name,
-                            get_server_api,
-                            (ENGINE_HANDLE**)&bucket.engine,
-                            settings.extensions.logger)) {
-        auto* engine = bucket.engine;
-        {
-            std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = BucketState::Initializing;
-        }
-
-        try {
-            result = engine->initialize(v1_handle_2_handle(engine),
-                                        config.c_str());
-        } catch (const std::runtime_error& e) {
-            LOG_WARNING("{} - Failed to create bucket [{}]: {}",
-                        connection.getId(),
-                        name,
-                        e.what());
-            result = ENGINE_FAILED;
-        } catch (const std::bad_alloc& e) {
-            LOG_WARNING("{} - Failed to create bucket [{}]: {}",
-                        connection.getId(),
-                        name,
-                        e.what());
-            result = ENGINE_ENOMEM;
-        }
-
-        if (result == ENGINE_SUCCESS) {
-            {
-                std::lock_guard<std::mutex> guard(bucket.mutex);
-                bucket.state = BucketState::Ready;
-            }
-            LOG_INFO("{} - Bucket [{}] created successfully",
-                     connection.getId(),
-                     name);
-            bucket.max_document_size =
-                 engine->getMaxItemSize(reinterpret_cast<ENGINE_HANDLE*>(engine));
-        } else {
-            {
-                std::lock_guard<std::mutex> guard(bucket.mutex);
-                bucket.state = BucketState::Destroying;
-            }
-            engine->destroy(v1_handle_2_handle(engine), false);
-            std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = BucketState::None;
-            bucket.name[0] = '\0';
-            bucket.engine = nullptr;
-            delete bucket.topkeys;
-            bucket.topkeys = nullptr;
-
-            result = ENGINE_NOT_STORED;
-        }
-    } else {
+    auto* engine = new_engine_instance(type, name, get_server_api);
+    if (engine == nullptr) {
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
             bucket.state = BucketState::None;
@@ -1866,6 +1814,55 @@ void CreateBucketThread::create() {
                 connection.getId(),
                 name);
         result = ENGINE_FAILED;
+        return;
+    }
+
+    bucket.engine = engine;
+    {
+        std::lock_guard<std::mutex> guard(bucket.mutex);
+        bucket.state = BucketState::Initializing;
+    }
+
+    try {
+        result = engine->initialize(v1_handle_2_handle(engine), config.c_str());
+    } catch (const std::runtime_error& e) {
+        LOG_WARNING("{} - Failed to create bucket [{}]: {}",
+                    connection.getId(),
+                    name,
+                    e.what());
+        result = ENGINE_FAILED;
+    } catch (const std::bad_alloc& e) {
+        LOG_WARNING("{} - Failed to create bucket [{}]: {}",
+                    connection.getId(),
+                    name,
+                    e.what());
+        result = ENGINE_ENOMEM;
+    }
+
+    if (result == ENGINE_SUCCESS) {
+        {
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            bucket.state = BucketState::Ready;
+        }
+        LOG_INFO("{} - Bucket [{}] created successfully",
+                 connection.getId(),
+                 name);
+        bucket.max_document_size = engine->getMaxItemSize(
+                reinterpret_cast<ENGINE_HANDLE*>(engine));
+    } else {
+        {
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            bucket.state = BucketState::Destroying;
+        }
+        engine->destroy(v1_handle_2_handle(engine), false);
+        std::lock_guard<std::mutex> guard(bucket.mutex);
+        bucket.state = BucketState::None;
+        bucket.name[0] = '\0';
+        bucket.engine = nullptr;
+        delete bucket.topkeys;
+        bucket.topkeys = nullptr;
+
+        result = ENGINE_NOT_STORED;
     }
 }
 
@@ -2053,18 +2050,12 @@ static void initialize_buckets(void) {
 
     // To make the life easier for us in the code, index 0
     // in the array is "no bucket"
-    ENGINE_HANDLE *handle;
-    cb_assert(new_engine_instance(BucketType::NoBucket,
-                                  "<internal>",
-                                  get_server_api,
-                                  &handle,
-                                  settings.extensions.logger));
-
-    cb_assert(handle != nullptr);
     auto &nobucket = all_buckets.at(0);
+    nobucket.engine = new_engine_instance(
+            BucketType::NoBucket, "<internal>", get_server_api);
+    cb_assert(nobucket.engine != nullptr);
     nobucket.type = BucketType::NoBucket;
     nobucket.state = BucketState::Ready;
-    nobucket.engine = (ENGINE_HANDLE_V1*)handle;
 }
 
 static void cleanup_buckets(void) {

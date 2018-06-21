@@ -26,15 +26,11 @@
  * @param name the name of the bucket to create
  * @param get_server_api A function to get the server API (passed to the
  *                       underlying engine)
- * @param handle where to store the newly created engine
- * @param logger where to write log messages
- * @return ENGINE_SUCCESS on success
+ * @return the allocated handle if successful
  */
-bool new_engine_instance(BucketType type,
-                         const std::string& name,
-                         GET_SERVER_API get_server_api,
-                         ENGINE_HANDLE** handle,
-                         EXTENSION_LOGGER_DESCRIPTOR* logger);
+ENGINE_HANDLE_V1* new_engine_instance(BucketType type,
+                                      const std::string& name,
+                                      GET_SERVER_API get_server_api);
 
 /**
  * Try to convert from a module name to a bucket type

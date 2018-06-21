@@ -62,24 +62,20 @@ Engine* createEngine(const std::string& so, const std::string& function) {
 
 std::map<BucketType, Engine *> map;
 
-bool new_engine_instance(BucketType type,
-                         const std::string& name,
-                         GET_SERVER_API get_server_api,
-                         ENGINE_HANDLE** handle,
-                         EXTENSION_LOGGER_DESCRIPTOR* logger) {
+ENGINE_HANDLE_V1* new_engine_instance(BucketType type,
+                                      const std::string& name,
+                                      GET_SERVER_API get_server_api) {
+    ENGINE_HANDLE* ret = nullptr;
     auto iter = map.find(type);
     cb_assert(iter != map.end());
 
-    auto ret = iter->second->createInstance(get_server_api, handle);
-    if (ret) {
-        logger->log(EXTENSION_LOG_NOTICE,
-                    nullptr,
-                    R"(Create bucket "%s" by using "%s")",
-                    name.c_str(),
-                    iter->second->getModule().c_str());
+    if (iter->second->createInstance(get_server_api, &ret)) {
+        LOG_INFO(R"(Create bucket "{}" by using "{}")",
+                 name,
+                 iter->second->getModule());
     }
 
-    return ret;
+    return reinterpret_cast<ENGINE_HANDLE_V1*>(ret);
 }
 
 void initialize_engine_map() {
