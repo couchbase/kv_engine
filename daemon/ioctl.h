@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2014 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -18,12 +18,14 @@
 
 #include "config.h"
 
-#include <stddef.h>
-#include <memcached/types.h>
+#include <memcached/engine_error.h>
+#include <string>
 
-#include "memcached.h"
+// forward decl
+class Cookie;
 
-/* Attempts to read the given property.
+/**
+ * Attempts to read the given property.
  * If the property could be read, return ENGINE_SUCCESS and writes
  * the value into `value`
  * Otherwise returns a status code indicating why the read failed.
@@ -32,7 +34,8 @@ ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
                                      const std::string& key,
                                      std::string& value);
 
-/* Attempts to set property `key` to the value `value`.
+/**
+ * Attempts to set property `key` to the value `value`.
  * If the property could be written, return ENGINE_SUCCESS.
  * Otherwise returns a status code indicating why the write failed.
  */
