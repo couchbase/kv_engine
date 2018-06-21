@@ -29,8 +29,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             client_cert_config.h
             config_parse.cc
             config_parse.h
-            config_util.cc
-            config_util.h
             connection.cc
             connection.h
             server_socket.cc

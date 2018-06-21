@@ -1,4 +1,3 @@
-ADD_SUBDIRECTORY(config_util_test)
 ADD_SUBDIRECTORY(config_parse_test)
 ADD_SUBDIRECTORY(datatype)
 ADD_SUBDIRECTORY(doc_server_api)

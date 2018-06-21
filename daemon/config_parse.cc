@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -17,29 +17,29 @@
 #include "config.h"
 #include "config_parse.h"
 #include "cmdline.h"
-#include "config_util.h"
 #include "settings.h"
 
-#include <sstream>
+#include <JSON_checker.h>
+#include <platform/dirutils.h>
 
 /**
  * Load the configuration file from disk and parse it to JSON
  *
  * @param file the name of the file to load
  * @return A handle to a JSON representing the config file
- * @throws std::runtime_error if an error occurs
+ * @throws std::bad_alloc for memory allocation failures
+ *         std::system_error for failures reading the file
+ *         std::invalid_argument if the file content isn't JSON
  */
 static unique_cJSON_ptr load_config_file(const char* file) {
-    cJSON *sys;
-    config_error_t err = config_load_file(file, &sys);
-
-    if (err != CONFIG_SUCCESS) {
-        throw std::runtime_error(config_strerror(file, err));
+    auto content = cb::io::loadFile(file);
+    if (!checkUTF8JSON((const uint8_t*)content.data(), content.size())) {
+        throw std::invalid_argument("load_config_file(): " + std::string(file) +
+                                    " does not contain valid JSON");
     }
 
-    return unique_cJSON_ptr(sys);
+    return unique_cJSON_ptr{cJSON_Parse(content.c_str())};
 }
-
 
 /******************************************************************************
  * Public functions
