@@ -66,7 +66,7 @@ public:
  */
 TEST_F(CollectionsFilterTest, junk_in) {
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"}]})");
 
@@ -95,7 +95,7 @@ TEST_F(CollectionsFilterTest, junk_in) {
  */
 TEST_F(CollectionsFilterTest, validation1) {
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -127,7 +127,7 @@ TEST_F(CollectionsFilterTest, validation1) {
  */
 TEST_F(CollectionsFilterTest, validation2) {
     Collections::Manifest m(
-            R"({"revision":0,"separator":":","uid":"0",)"
+            R"({"revision":0,"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -172,7 +172,7 @@ TEST_F(CollectionsFilterTest, validation2) {
 TEST_F(CollectionsFilterTest, validation_no_default) {
     // m does not include $default
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},
@@ -211,7 +211,7 @@ TEST_F(CollectionsFilterTest, no_manifest) {
  */
 TEST_F(CollectionsFilterTest, filter_basic1) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -257,7 +257,7 @@ TEST_F(CollectionsFilterTest, filter_basic1) {
  */
 TEST_F(CollectionsFilterTest, filter_basic2) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -286,7 +286,7 @@ TEST_F(CollectionsFilterTest, filter_basic2) {
  */
 TEST_F(CollectionsFilterTest, filter_legacy) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -324,14 +324,14 @@ class CollectionsVBFilterTest : public CollectionsFilterTest {};
  */
 TEST_F(CollectionsVBFilterTest, uid_mismatch) {
     Collections::Manifest m1(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},
                               {"name":"dairy","uid":"5"}]})");
     Collections::Manifest m2(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"8"},
                               {"name":"meat","uid":"99"},
@@ -364,14 +364,14 @@ TEST_F(CollectionsVBFilterTest, uid_mismatch) {
  */
 TEST_F(CollectionsVBFilterTest, deleted_collection) {
     Collections::Manifest m1(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},
                               {"name":"dairy","uid":"5"}]})");
     Collections::Manifest m2(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"},
                               {"name":"dairy","uid":"5"}]})");
@@ -397,7 +397,7 @@ TEST_F(CollectionsVBFilterTest, deleted_collection) {
  */
 TEST_F(CollectionsVBFilterTest, basic_allow) {
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -438,7 +438,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
  */
 TEST_F(CollectionsVBFilterTest, legacy_filter) {
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"}]})");
 
@@ -461,7 +461,7 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
  */
 TEST_F(CollectionsVBFilterTest, passthrough) {
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"meat","uid":"3"}]})");
     std::string filterJson; // empty string
     boost::optional<const std::string&> json(filterJson);
@@ -489,7 +489,7 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
  */
 TEST_F(CollectionsVBFilterTest, no_default) {
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
@@ -522,7 +522,7 @@ TEST_F(CollectionsVBFilterTest, no_default) {
  */
 TEST_F(CollectionsVBFilterTest, remove1) {
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"vegetable","uid":"1"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},
@@ -566,7 +566,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
  */
 TEST_F(CollectionsVBFilterTest, remove2) {
     Collections::Manifest m(
-            R"({"separator":":","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},
@@ -610,7 +610,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
  */
 TEST_F(CollectionsVBFilterTest, system_events1) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"}]})");
@@ -644,7 +644,7 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
  */
 TEST_F(CollectionsVBFilterTest, system_events2) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},
@@ -680,7 +680,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
  */
 TEST_F(CollectionsVBFilterTest, system_events3) {
     Collections::Manifest m(
-            R"({"separator":"$","uid":"0",)"
+            R"({"uid":"0",)"
             R"("collections":[{"name":"$default","uid":"0"},
                               {"name":"meat","uid":"3"},
                               {"name":"fruit", "uid":"4"},

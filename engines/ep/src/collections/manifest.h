@@ -31,12 +31,12 @@ namespace Collections {
  * Manifest is an object that is constructed from JSON data as per
  * a set_collections command
  *
- * Users of this class can then obtain the revision, separator and
- * all collections that are included in the manifest.
+ * Users of this class can then obtain the UID and all collections that are
+ * included in the manifest.
  */
 class Manifest {
 public:
-    // Manfifest::Identifier stores/owns name
+    // Manifest::Identifier stores/owns name
     class Identifier : public IdentifierInterface<Identifier> {
     public:
         Identifier(const std::string& name, uid_t uid) : name(name), uid(uid) {

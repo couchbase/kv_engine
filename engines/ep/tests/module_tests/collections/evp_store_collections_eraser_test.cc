@@ -50,7 +50,7 @@ public:
 // Small numbers of items for easier debug
 TEST_P(CollectionsEraserTest, basic) {
     // add a collection
-    vb->updateFromManifest({R"({"separator":":","uid":"0",)"
+    vb->updateFromManifest({R"({"uid":"0",)"
                             R"("collections":[{"name":"$default", "uid":"0"},)"
                             R"(               {"name":"dairy","uid":"1"}]})"});
 
@@ -69,7 +69,7 @@ TEST_P(CollectionsEraserTest, basic) {
 
     // delete the collection
     vb->updateFromManifest(
-            {R"({"separator":":","uid":"0",)"
+            {R"({"uid":"0",)"
              R"("collections":[{"name":"$default", "uid":"0"}]})"});
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
@@ -86,7 +86,7 @@ TEST_P(CollectionsEraserTest, basic) {
 
 TEST_P(CollectionsEraserTest, basic_2_collections) {
     // add a collection
-    vb->updateFromManifest({R"({"separator":":","uid":"0",)"
+    vb->updateFromManifest({R"({"uid":"0",)"
                             R"("collections":[{"name":"$default", "uid":"0"},)"
                             R"(               {"name":"fruit","uid":"1"},)"
                             R"(               {"name":"dairy","uid":"1"}]})"});
@@ -105,7 +105,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 
     // delete the collections
     vb->updateFromManifest(
-            {R"({"separator":":","uid":"0",)"
+            {R"({"uid":"0",)"
              R"("collections":[{"name":"$default", "uid":"0"}]})"});
 
     // Deleted, but still exists in the manifest
@@ -124,7 +124,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 
 TEST_P(CollectionsEraserTest, basic_3_collections) {
     // add a collection
-    vb->updateFromManifest({R"({"separator":":","uid":"0",)"
+    vb->updateFromManifest({R"({"uid":"0",)"
                             R"("collections":[{"name":"$default", "uid":"0"},)"
                             R"(               {"name":"fruit","uid":"1"},)"
                             R"(               {"name":"dairy","uid":"1"}]})"});
@@ -142,7 +142,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
     EXPECT_EQ(4, vb->getNumItems());
 
     // delete one of the 3 collections
-    vb->updateFromManifest({R"({"separator":":","uid":"0",)"
+    vb->updateFromManifest({R"({"uid":"0",)"
                             R"("collections":[{"name":"$default", "uid":"0"},)"
                             R"(               {"name":"dairy","uid":"1"}]})"});
 
@@ -162,7 +162,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
 
 TEST_P(CollectionsEraserTest, basic_4_collections) {
     // add a collection
-    vb->updateFromManifest({R"({"separator":":","uid":"0",)"
+    vb->updateFromManifest({R"({"uid":"0",)"
                             R"("collections":[{"name":"$default", "uid":"0"},)"
                             R"(               {"name":"fruit","uid":"1"},)"
                             R"(               {"name":"dairy","uid":"1"}]})"});
@@ -178,7 +178,7 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
     flush_vbucket_to_disk(vbid, 4 /* 2x items */);
 
     // delete the collection and re-add a new dairy
-    vb->updateFromManifest({R"({"separator":":","uid":"0",)"
+    vb->updateFromManifest({R"({"uid":"0",)"
                             R"("collections":[{"name":"$default", "uid":"0"},)"
                             R"(               {"name":"dairy","uid":"2"}]})"});
 
@@ -210,7 +210,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     EXPECT_EQ(4, vb->getNumItems());
 
     // delete the default collection
-    vb->updateFromManifest({R"({"separator":":","uid":"0",)"
+    vb->updateFromManifest({R"({"uid":"0",)"
                             R"("collections":[]})"});
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
@@ -221,7 +221,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
 
     // Add default back - so we don't get collection unknown errors
     vb->updateFromManifest(
-            {R"({"separator":":","uid":"0",)"
+            {R"({"uid":"0",)"
              R"("collections":[{"name":"$default", "uid":"0"}]})"});
 
     get_options_t options = static_cast<get_options_t>(
