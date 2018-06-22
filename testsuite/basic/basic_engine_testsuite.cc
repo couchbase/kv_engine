@@ -240,7 +240,7 @@ static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     // remove it
     mutation_descr_t mut_info;
-    cb_assert(h1->remove(h, cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
+    cb_assert(h1->remove(cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
     ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
@@ -314,7 +314,7 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h1->remove(h, cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
+    cb_assert(h1->remove(cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
     ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);

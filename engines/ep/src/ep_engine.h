@@ -115,6 +115,12 @@ public:
             uint8_t datatype,
             uint16_t vbucket) override;
 
+    ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint64_t& cas,
+                             uint16_t vbucket,
+                             mutation_descr_t& mut_info) override;
+
     /**
      * Delete a given key and value from the engine.
      *

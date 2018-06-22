@@ -23,14 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static ENGINE_ERROR_CODE default_item_delete(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint64_t& cas,
-        uint16_t vbucket,
-        mutation_descr_t& mut_info);
-
 static void default_item_release(gsl::not_null<ENGINE_HANDLE*> handle,
                                  gsl::not_null<item*> item);
 static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -172,7 +164,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->remove = default_item_delete;
     engine->release = default_item_release;
     engine->get = default_get;
     engine->get_if = default_get_if;
@@ -362,38 +353,32 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
     }
 }
 
-static ENGINE_ERROR_CODE default_item_delete(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint64_t& cas,
-        uint16_t vbucket,
-        mutation_descr_t& mut_info) {
-    struct default_engine* engine = get_handle(handle);
+ENGINE_ERROR_CODE default_engine::remove(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         uint64_t& cas,
+                                         uint16_t vbucket,
+                                         mutation_descr_t& mut_info) {
     hash_item* it;
     uint64_t cas_in = cas;
-    VBUCKET_GUARD(engine, vbucket);
+    VBUCKET_GUARD(this, vbucket);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     do {
-        it = item_get(engine,
-                      cookie,
-                      key.data(),
-                      key.size(),
-                      DocStateFilter::Alive);
+        it = item_get(
+                this, cookie, key.data(), key.size(), DocStateFilter::Alive);
         if (it == nullptr) {
             return ENGINE_KEY_ENOENT;
         }
 
         if (it->locktime != 0 &&
-            it->locktime > engine->server.core->get_current_time()) {
+            it->locktime > server.core->get_current_time()) {
             if (cas_in != it->cas) {
-                item_release(engine, it);
+                item_release(this, it);
                 return ENGINE_LOCKED;
             }
         }
 
-        auto* deleted = item_alloc(engine,
+        auto* deleted = item_alloc(this,
                                    key.data(),
                                    key.size(),
                                    it->flags,
@@ -403,7 +388,7 @@ static ENGINE_ERROR_CODE default_item_delete(
                                    PROTOCOL_BINARY_RAW_BYTES);
 
         if (deleted == NULL) {
-            item_release(engine, it);
+            item_release(this, it);
             return ENGINE_TMPFAIL;
         }
 
@@ -411,22 +396,22 @@ static ENGINE_ERROR_CODE default_item_delete(
             // If the caller specified the "cas wildcard" we should set
             // the cas for the item we just fetched and do a cas
             // replace with that value
-            item_set_cas(handle, deleted, it->cas);
+            item_set_cas(this, deleted, it->cas);
         } else {
             // The caller specified a specific CAS value so we should
             // use that value in our cas replace
-            item_set_cas(handle, deleted, cas_in);
+            item_set_cas(this, deleted, cas_in);
         }
 
-        ret = store_item(engine,
+        ret = store_item(this,
                          deleted,
                          &cas,
                          OPERATION_CAS,
                          cookie,
                          DocumentState::Deleted);
 
-        item_release(engine, it);
-        item_release(engine, deleted);
+        item_release(this, it);
+        item_release(this, deleted);
 
         // We should only retry for race conditions if the caller specified
         // cas wildcard

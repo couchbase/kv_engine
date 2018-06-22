@@ -72,8 +72,7 @@ void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 	uint64_t cas = 0;
 	mutation_descr_t mut_info;
         const auto* cookie = testHarness.create_cookie();
-        hasError =
-                h1->remove(h, cookie, key, cas, 0, mut_info) != ENGINE_SUCCESS;
+        hasError = h1->remove(cookie, key, cas, 0, mut_info) != ENGINE_SUCCESS;
         testHarness.destroy_cookie(cookie);
 }
 

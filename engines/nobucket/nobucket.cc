@@ -33,7 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::remove = item_delete;
         ENGINE_HANDLE_V1::release = item_release;
         ENGINE_HANDLE_V1::get = get;
         ENGINE_HANDLE_V1::get_meta = get_meta;
@@ -105,6 +104,14 @@ public:
         throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
     }
 
+    ENGINE_ERROR_CODE remove(gsl::not_null<const void*>,
+                             const DocKey&,
+                             uint64_t&,
+                             uint16_t,
+                             mutation_descr_t&) override {
+        return ENGINE_NO_BUCKET;
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -114,15 +121,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static ENGINE_ERROR_CODE item_delete(gsl::not_null<ENGINE_HANDLE*>,
-                                         gsl::not_null<const void*>,
-                                         const DocKey&,
-                                         uint64_t&,
-                                         uint16_t,
-                                         mutation_descr_t&) {
-        return ENGINE_NO_BUCKET;
     }
 
     static void item_release(gsl::not_null<ENGINE_HANDLE*>,

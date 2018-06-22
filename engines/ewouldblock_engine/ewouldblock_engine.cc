@@ -357,19 +357,16 @@ public:
         }
     }
 
-    static ENGINE_ERROR_CODE remove(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    gsl::not_null<const void*> cookie,
-                                    const DocKey& key,
-                                    uint64_t& cas,
-                                    uint16_t vbucket,
-                                    mutation_descr_t& mut_info) {
-        EWB_Engine* ewb = to_engine(handle);
+    ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint64_t& cas,
+                             uint16_t vbucket,
+                             mutation_descr_t& mut_info) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::REMOVE, cookie, err)) {
+        if (should_inject_error(Cmd::REMOVE, cookie, err)) {
             return err;
         } else {
-            return ewb->real_engine->remove(ewb->real_handle, cookie, key, cas,
-                                            vbucket, mut_info);
+            return real_engine->remove(cookie, key, cas, vbucket, mut_info);
         }
     }
 
@@ -1310,7 +1307,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::remove = remove;
     ENGINE_HANDLE_V1::release = release;
     ENGINE_HANDLE_V1::get = get;
     ENGINE_HANDLE_V1::get_if = get_if;

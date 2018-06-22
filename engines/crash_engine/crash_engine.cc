@@ -61,6 +61,12 @@ public:
             rel_time_t exptime,
             uint8_t datatype,
             uint16_t vbucket) override;
+
+    ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint64_t& cas,
+                             uint16_t vbucket,
+                             mutation_descr_t& mut_info) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -145,12 +151,11 @@ std::pair<cb::unique_item_ptr, item_info> CrashEngine::allocate_ex(
     throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
 }
 
-static ENGINE_ERROR_CODE item_delete(gsl::not_null<ENGINE_HANDLE*> handle,
-                                     gsl::not_null<const void*> cookie,
-                                     const DocKey& key,
-                                     uint64_t& cas,
-                                     uint16_t vbucket,
-                                     mutation_descr_t& mut_info) {
+ENGINE_ERROR_CODE CrashEngine::remove(gsl::not_null<const void*> cookie,
+                                      const DocKey& key,
+                                      uint64_t& cas,
+                                      uint16_t vbucket,
+                                      mutation_descr_t& mut_info) {
     return ENGINE_FAILED;
 }
 
@@ -273,7 +278,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->remove = item_delete;
     engine->release = item_release;
     engine->get = get;
     engine->get_if = get_if;

@@ -211,13 +211,13 @@ EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
     return std::make_pair(cb::unique_item_ptr{it, cb::ItemDeleter{this}}, info);
 }
 
-static ENGINE_ERROR_CODE EvpItemDelete(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       const DocKey& key,
-                                       uint64_t& cas,
-                                       uint16_t vbucket,
-                                       mutation_descr_t& mut_info) {
-    return acquireEngine(handle)->itemDelete(
+ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint64_t& cas,
+        uint16_t vbucket,
+        mutation_descr_t& mut_info) {
+    return acquireEngine(this)->itemDelete(
             cookie, key, cas, vbucket, nullptr, mut_info);
 }
 
@@ -1850,7 +1850,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::remove = EvpItemDelete;
     ENGINE_HANDLE_V1::release = EvpItemRelease;
     ENGINE_HANDLE_V1::get = EvpGet;
     ENGINE_HANDLE_V1::get_if = EvpGetIf;

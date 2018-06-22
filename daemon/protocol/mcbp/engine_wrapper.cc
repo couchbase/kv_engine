@@ -154,8 +154,8 @@ ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 uint16_t vbucket,
                                 mutation_descr_t& mut_info) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->remove(
-            c.getBucketEngineAsV0(), &cookie, key, cas, vbucket, mut_info);
+    auto ret =
+            c.getBucketEngine()->remove(&cookie, key, cas, vbucket, mut_info);
     if (ret == ENGINE_SUCCESS) {
         cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Delete);

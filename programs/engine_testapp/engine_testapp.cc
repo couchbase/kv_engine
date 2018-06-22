@@ -45,6 +45,12 @@ struct mock_engine : public EngineIface {
             uint8_t datatype,
             uint16_t vbucket) override;
 
+    ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint64_t& cas,
+                             uint16_t vbucket,
+                             mutation_descr_t& mut_info) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -230,14 +236,13 @@ std::pair<cb::unique_item_ptr, item_info> mock_engine::allocate_ex(
     throw std::logic_error("mock_allocate_ex: Should never get here");
 }
 
-static ENGINE_ERROR_CODE mock_remove(gsl::not_null<ENGINE_HANDLE*> handle,
-                                     gsl::not_null<const void*> cookie,
-                                     const DocKey& key,
-                                     uint64_t& cas,
-                                     uint16_t vbucket,
-                                     mutation_descr_t& mut_info) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->remove,
-                               get_engine_from_handle(handle),
+ENGINE_ERROR_CODE mock_engine::remove(gsl::not_null<const void*> cookie,
+                                      const DocKey& key,
+                                      uint64_t& cas,
+                                      uint16_t vbucket,
+                                      mutation_descr_t& mut_info) {
+    auto engine_fn = std::bind(&EngineIface::remove,
+                               the_engine,
                                cookie,
                                key,
                                std::ref(cas),
@@ -245,7 +250,7 @@ static ENGINE_ERROR_CODE mock_remove(gsl::not_null<ENGINE_HANDLE*> handle,
                                std::ref(mut_info));
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-    return call_engine_and_handle_EWOULDBLOCK(handle, construct, engine_fn);
+    return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
 }
 
 static void mock_release(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -882,7 +887,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->remove = mock_remove;
         me->release = mock_release;
         me->get = mock_get;
         me->get_if = mock_get_if;

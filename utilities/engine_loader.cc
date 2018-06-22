@@ -130,7 +130,6 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
         ret = false;        \
     }
 
-    check(remove);
     check(release);
     check(get);
     check(get_if);

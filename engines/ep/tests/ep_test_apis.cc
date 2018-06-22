@@ -376,8 +376,7 @@ ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         create_cookie = true;
     }
 
-    auto ret = h1->remove(h,
-                          cookie,
+    auto ret = h1->remove(cookie,
                           DocKey(key, testHarness.doc_namespace),
                           *cas,
                           vbucket,

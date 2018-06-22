@@ -233,7 +233,6 @@ struct EngineIface {
     /**
      * Remove an item.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param key the key identifying the item to be removed
      * @param vbucket the virtual bucket id
@@ -242,13 +241,11 @@ struct EngineIface {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE(*remove)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     const DocKey& key,
-     uint64_t& cas,
-     uint16_t vbucket,
-     mutation_descr_t& mut_info);
+    virtual ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
+                                     const DocKey& key,
+                                     uint64_t& cas,
+                                     uint16_t vbucket,
+                                     mutation_descr_t& mut_info) = 0;
 
     /**
      * Indicate that a caller who received an item no longer needs
