@@ -124,6 +124,8 @@ struct default_engine : public EngineIface {
                              uint16_t vbucket,
                              mutation_descr_t& mut_info) override;
 
+    void release(gsl::not_null<item*> item) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 

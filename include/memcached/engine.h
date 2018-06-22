@@ -251,11 +251,9 @@ struct EngineIface {
      * Indicate that a caller who received an item no longer needs
      * it.
      *
-     * @param handle the engine handle
      * @param item the item to be released
      */
-    void (*release)(gsl::not_null<ENGINE_HANDLE*> handle,
-                    gsl::not_null<item*> item);
+    virtual void release(gsl::not_null<item*> item) = 0;
 
     /**
      * Retrieve an item.
@@ -602,8 +600,7 @@ public:
 
     void operator()(item* item) {
         if (handle) {
-            auto* v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
-            v1->release(handle, item);
+            handle->release(item);
         } else {
             throw std::invalid_argument("cb::ItemDeleter: item attempted to be "
                                         "freed by null engine handle");

@@ -859,7 +859,7 @@ static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
                   info.cas),
             "Should not be able to add the key two times");
 
-    h1->release(h, i);
+    h->release(i);
     return SUCCESS;
 }
 
@@ -1117,7 +1117,7 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value", &itm),
             "Failed to set key");
-    h1->release(h, itm);
+    h->release(itm);
 
     checkeq(cb::engine_errc::success,
             getl(h, h1, nullptr, "key", 0, 15).first,
@@ -1342,7 +1342,7 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
     item_info info;
     check(h1->get_item_info(h, i, &info), "Getting item info failed");
 
-    h1->release(h, i);
+    h->release(i);
 
     check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
 
@@ -1377,7 +1377,7 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
             "Incorrect DocState for deleted item");
     checkne(uint64_t(0), info.cas, "Expected non-zero CAS for deleted item");
 
-    h1->release(h, i);
+    h->release(i);
 
     check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
 
@@ -1445,7 +1445,7 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
-    h1->release(h, i);
+    h->release(i);
     check_key_value(h, h1, "key", "somevalue", 9);
 
     uint64_t cas = 0;
@@ -1467,7 +1467,7 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Can I time travel to an expired object and delete it?
     checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
-    h1->release(h, i);
+    h->release(i);
     testHarness.time_travel(3617);
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key", 0, 0),
             "Did not get ENOENT removing an expired object.");
@@ -1497,7 +1497,7 @@ static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HAN
     check_key_value(h, h1, "key", "somevalue", 9);
     item_info info;
     check(h1->get_item_info(h, i, &info), "Should be able to get info");
-    h1->release(h, i);
+    h->release(i);
 
     checkeq(ENGINE_KEY_EEXISTS, del(h, h1, "key", info.cas + 1, 0),
           "Didn't expect to be able to remove the item with wrong cas");

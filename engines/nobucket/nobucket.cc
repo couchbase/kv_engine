@@ -33,7 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::release = item_release;
         ENGINE_HANDLE_V1::get = get;
         ENGINE_HANDLE_V1::get_meta = get_meta;
         ENGINE_HANDLE_V1::get_if = get_if;
@@ -112,6 +111,12 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
+    void release(gsl::not_null<item*>) override {
+        throw std::logic_error(
+                "NoBucket::item_release: no items should have"
+                " been allocated from this engine");
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -121,12 +126,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static void item_release(gsl::not_null<ENGINE_HANDLE*>,
-                             gsl::not_null<item*>) {
-        throw std::logic_error("NoBucket::item_release: no items should have"
-                                   " been allocated from this engine");
     }
 
     static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> h,

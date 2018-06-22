@@ -67,6 +67,8 @@ public:
                              uint64_t& cas,
                              uint16_t vbucket,
                              mutation_descr_t& mut_info) override;
+
+    void release(gsl::not_null<item*> item) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -159,8 +161,7 @@ ENGINE_ERROR_CODE CrashEngine::remove(gsl::not_null<const void*> cookie,
     return ENGINE_FAILED;
 }
 
-static void item_release(gsl::not_null<ENGINE_HANDLE*> handle,
-                         gsl::not_null<item*> item) {
+void CrashEngine::release(gsl::not_null<item*> item) {
 }
 
 static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -278,7 +279,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->release = item_release;
     engine->get = get;
     engine->get_if = get_if;
     engine->get_and_touch = get_and_touch;

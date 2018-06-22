@@ -51,6 +51,8 @@ struct mock_engine : public EngineIface {
                              uint16_t vbucket,
                              mutation_descr_t& mut_info) override;
 
+    void release(gsl::not_null<item*> item) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -253,10 +255,8 @@ ENGINE_ERROR_CODE mock_engine::remove(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
 }
 
-static void mock_release(gsl::not_null<ENGINE_HANDLE*> handle,
-                         gsl::not_null<item*> item) {
-    struct mock_engine *me = get_handle(handle);
-    me->the_engine->release((ENGINE_HANDLE*)me->the_engine, item);
+void mock_engine::release(gsl::not_null<item*> item) {
+    the_engine->release(item);
 }
 
 static cb::EngineErrorItemPair mock_get(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -887,7 +887,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->release = mock_release;
         me->get = mock_get;
         me->get_if = mock_get_if;
         me->get_and_touch = mock_get_and_touch;

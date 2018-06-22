@@ -668,9 +668,8 @@ public:
      * Release all of the items we've saved a reference to
      */
     void releaseReservedItems() {
-        ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(bucketEngine);
         for (auto* it : reservedItems) {
-            bucketEngine->release(handle, it);
+            bucketEngine->release(it);
         }
         reservedItems.clear();
     }

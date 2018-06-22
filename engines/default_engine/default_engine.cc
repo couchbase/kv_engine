@@ -23,8 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static void default_item_release(gsl::not_null<ENGINE_HANDLE*> handle,
-                                 gsl::not_null<item*> item);
 static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
                                            gsl::not_null<const void*> cookie,
                                            const DocKey& key,
@@ -164,7 +162,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->release = default_item_release;
     engine->get = default_get;
     engine->get_if = default_get_if;
     engine->get_locked = default_get_locked;
@@ -425,9 +422,8 @@ ENGINE_ERROR_CODE default_engine::remove(gsl::not_null<const void*> cookie,
     return ret;
 }
 
-static void default_item_release(gsl::not_null<ENGINE_HANDLE*> handle,
-                                 gsl::not_null<item*> item) {
-    item_release(get_handle(handle), get_real_item(item));
+void default_engine::release(gsl::not_null<item*> item) {
+    item_release(this, get_real_item(item));
 }
 
 static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,

@@ -3621,7 +3621,7 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, it->c_str(),
                                       it->c_str(), &itm, 0, 0),
                 "Failed to store a value");
-        h1->release(h, itm);
+        h->release(itm);
     }
     std::string del_key("key_" + std::to_string(del_key_idx));
     checkeq(ENGINE_SUCCESS, del(h, h1, del_key.c_str(), 0, 0),
@@ -3941,7 +3941,7 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 1),
                 "Failed to store a value");
-        h1->release(h, i);
+        h->release(i);
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -4194,7 +4194,7 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         checkeq(ENGINE_SUCCESS,
                 store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0),
                 "Failed to store a value");
-        h1->release(h, i);
+        h->release(i);
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
         check_key_value(h, h1, it->c_str(), it->data(), it->size(), 0);
@@ -5666,7 +5666,7 @@ static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
 
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
-    h1->release(h, i);
+    h->release(i);
 
     uint64_t cas = 0;
     uint64_t vb_uuid;

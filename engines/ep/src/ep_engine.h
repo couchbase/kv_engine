@@ -121,6 +121,8 @@ public:
                              uint16_t vbucket,
                              mutation_descr_t& mut_info) override;
 
+    void release(gsl::not_null<item*> itm) override;
+
     /**
      * Delete a given key and value from the engine.
      *

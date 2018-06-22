@@ -90,7 +90,7 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
-    h1->release(h, i);
+    h->release(i);
     return SUCCESS;
 }
 
@@ -119,7 +119,7 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
-    h1->release(h, i);
+    h->release(i);
 
     if (isWarmupEnabled(h, h1)) {
         // restart
@@ -173,7 +173,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(1, temp, "Expect one getMeta op");
 
-    h1->release(h, i);
+    h->release(i);
     return SUCCESS;
 }
 
@@ -1905,7 +1905,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
 
     h1->get_item_info(h, i, &info);
     wait_for_flusher_to_settle(h, h1);
-    h1->release(h, i);
+    h->release(i);
 
     // put some random metadata
     ItemMetaData itemMeta;
@@ -1965,7 +1965,7 @@ static enum test_result test_getMeta_with_item_eviction(ENGINE_HANDLE *h,
                           it->getFlags(), it->getExptime());
     verifyMetaData(metadata, errorMetaPair.second);
 
-    h1->release(h, i);
+    h->release(i);
     return SUCCESS;
 }
 

@@ -370,16 +370,14 @@ public:
         }
     }
 
-    static void release(gsl::not_null<ENGINE_HANDLE*> handle,
-                        gsl::not_null<item*> item) {
-        EWB_Engine* ewb = to_engine(handle);
+    void release(gsl::not_null<item*> item) override {
         LOG_DEBUG("EWB_Engine: release");
 
-        if (item == &ewb->dcp_mutation_item) {
+        if (item == &dcp_mutation_item) {
             // Ignore the DCP mutation, we own it (and don't track
             // refcounts on it).
         } else {
-            return ewb->real_engine->release(ewb->real_handle, item);
+            return real_engine->release(item);
         }
     }
 
@@ -1307,7 +1305,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::release = release;
     ENGINE_HANDLE_V1::get = get;
     ENGINE_HANDLE_V1::get_if = get_if;
     ENGINE_HANDLE_V1::get_locked = get_locked;

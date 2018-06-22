@@ -201,7 +201,7 @@ static ENGINE_ERROR_CODE mock_mutation(gsl::not_null<const void*> cookie,
     dcp_last_collection_len = collectionLen;
     dcp_last_datatype = item->getDataType();
     if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(engine_handle, item);
+        engine_handle_v1->release(item);
     }
     return ENGINE_SUCCESS;
 }
@@ -240,7 +240,7 @@ static ENGINE_ERROR_CODE mock_deletion(gsl::not_null<const void*> cookie,
     dcp_last_delete_time = deleteTime;
 
     if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(engine_handle, item);
+        engine_handle_v1->release(item);
     }
     return ENGINE_SUCCESS;
 }
@@ -298,7 +298,7 @@ static ENGINE_ERROR_CODE mock_expiration(gsl::not_null<const void*> cookie,
                                          uint8_t) {
     clear_dcp_data();
     if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(engine_handle, itm);
+        engine_handle_v1->release(itm);
     }
     return ENGINE_ENOTSUP;
 }

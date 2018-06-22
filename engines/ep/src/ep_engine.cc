@@ -180,8 +180,6 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
 static bool EvpGetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
                            gsl::not_null<const item*> itm,
                            gsl::not_null<item_info*> itm_info);
-static void EvpItemRelease(gsl::not_null<ENGINE_HANDLE*> handle,
-                           gsl::not_null<item*> itm);
 
 std::pair<cb::unique_item_ptr, item_info>
 EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
@@ -203,7 +201,7 @@ EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
 
     item_info info;
     if (!EvpGetItemInfo(this, it, &info)) {
-        EvpItemRelease(this, it);
+        release(it);
         throw cb::engine_error(cb::engine_errc::failed,
                                "EvpItemAllocateEx: EvpGetItemInfo failed");
     }
@@ -221,9 +219,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
             cookie, key, cas, vbucket, nullptr, mut_info);
 }
 
-static void EvpItemRelease(gsl::not_null<ENGINE_HANDLE*> handle,
-                           gsl::not_null<item*> itm) {
-    acquireEngine(handle)->itemRelease(itm);
+void EventuallyPersistentEngine::release(gsl::not_null<item*> itm) {
+    acquireEngine(this)->itemRelease(itm);
 }
 
 static cb::EngineErrorItemPair EvpGet(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1850,7 +1847,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::release = EvpItemRelease;
     ENGINE_HANDLE_V1::get = EvpGet;
     ENGINE_HANDLE_V1::get_if = EvpGetIf;
     ENGINE_HANDLE_V1::get_and_touch = EvpGetAndTouch;
