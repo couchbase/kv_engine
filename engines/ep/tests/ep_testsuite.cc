@@ -251,7 +251,8 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     // stop flusher before loading new items
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "CMD_STOP_PERSISTENCE failed!");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(),
@@ -279,7 +280,9 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // resume flusher before shutdown + warmup
     pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
-    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "CMD_START_PERSISTENCE failed!");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Failed to start persistence!");
@@ -1254,7 +1257,7 @@ static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
     pkt = prepare_get_replica(h, h1, vbucket_state_active);
     checkeq(ENGINE_NOT_MY_VBUCKET,
             h1->unknown_command(
-                    h, NULL, pkt, add_response, testHarness.doc_namespace),
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Get Replica Failed");
 
     cb_free(pkt);
@@ -1269,7 +1272,8 @@ static enum test_result test_get_replica_pending_state(ENGINE_HANDLE *h,
     testHarness.set_ewouldblock_handling(cookie, false);
     pkt = prepare_get_replica(h, h1, vbucket_state_pending);
     checkeq(ENGINE_EWOULDBLOCK,
-            h1->unknown_command(h, cookie, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    cookie, pkt, add_response, testHarness.doc_namespace),
             "Should have returned error for pending state");
     checkeq(1,
             get_int_stat(h, h1, "vb_pending_ops_get"),
@@ -1285,7 +1289,7 @@ static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
     pkt = prepare_get_replica(h, h1, vbucket_state_dead);
     checkeq(ENGINE_NOT_MY_VBUCKET,
             h1->unknown_command(
-                    h, NULL, pkt, add_response, testHarness.doc_namespace),
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Get Replica Failed");
     cb_free(pkt);
     return SUCCESS;
@@ -1296,7 +1300,8 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_replica);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Get Replica Failed");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
@@ -1339,7 +1344,7 @@ static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
     pkt = prepare_get_replica(h, h1, vbucket_state_replica, makeinvalidkey);
     checkeq(ENGINE_NOT_MY_VBUCKET,
             h1->unknown_command(
-                    h, NULL, pkt, add_response, testHarness.doc_namespace),
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Get Replica Failed");
     cb_free(pkt);
     return SUCCESS;
@@ -2971,7 +2976,8 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
     uint64_t cas = 0x0101010101010101;
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, 0, cas, ext, 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "SET_VBUCKET command failed");
     cb_free(pkt);
     cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
@@ -2979,7 +2985,8 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
     cas = 0x0102030405060708;
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, 0, cas, ext, 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "SET_VBUCKET command failed");
     cb_free(pkt);
     cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -3439,7 +3446,8 @@ static enum test_result test_warmup_oom(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Failed to send data traffic command to the services");
     checkeq(PROTOCOL_BINARY_RESPONSE_ENOMEM, last_status.load(),
             "Data traffic command should have failed with enomem");
@@ -3649,22 +3657,16 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     if (isPersistentBucket(h, h1)) {
         checkeq(ENGINE_SUCCESS,
-                h1->unknown_command(h,
-                                    nullptr,
-                                    pkt1,
-                                    add_response,
-                                    testHarness.doc_namespace),
+                h1->unknown_command(
+                        nullptr, pkt1, add_response, testHarness.doc_namespace),
                 "Failed to get all_keys, sort: ascending");
         cb_free(pkt1);
     } else {
         /* We intend to support PROTOCOL_BINARY_CMD_GET_KEYS in ephemeral
            buckets in the future */
         checkeq(ENGINE_ENOTSUP,
-                h1->unknown_command(h,
-                                    nullptr,
-                                    pkt1,
-                                    add_response,
-                                    testHarness.doc_namespace),
+                h1->unknown_command(
+                        nullptr, pkt1, add_response, testHarness.doc_namespace),
                 "Should return not supported");
         cb_free(pkt1);
         return SUCCESS;
@@ -3708,22 +3710,16 @@ static enum test_result test_all_keys_api_during_bucket_creation(
 
     if (isPersistentBucket(h, h1)) {
         checkeq(ENGINE_SUCCESS,
-                h1->unknown_command(h,
-                                    nullptr,
-                                    pkt1,
-                                    add_response,
-                                    testHarness.doc_namespace),
+                h1->unknown_command(
+                        nullptr, pkt1, add_response, testHarness.doc_namespace),
                 "Unexpected return code from all_keys_api");
         cb_free(pkt1);
     } else {
         /* We intend to support PROTOCOL_BINARY_CMD_GET_KEYS in ephemeral
            buckets in the future */
         checkeq(ENGINE_ENOTSUP,
-                h1->unknown_command(h,
-                                    nullptr,
-                                    pkt1,
-                                    add_response,
-                                    testHarness.doc_namespace),
+                h1->unknown_command(
+                        nullptr, pkt1, add_response, testHarness.doc_namespace),
                 "Should return not supported");
         cb_free(pkt1);
         return SUCCESS;
@@ -3866,7 +3862,8 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     pkt->request.vbucket = htons(0);
 
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Failed to evict key.");
 
     checkeq(ENGINE_SUCCESS,
@@ -4442,7 +4439,7 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, 0, 0, NULL, 0,
                            NULL, 0, invalid_data.str().data(),
                            invalid_data.str().length());
-    h1->unknown_command(h, NULL, request, add_response, testHarness.doc_namespace);
+    h1->unknown_command(NULL, request, add_response, testHarness.doc_namespace);
 
     cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
@@ -4788,14 +4785,17 @@ static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     // Check invalid packets
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0", 1);
-    check(h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace) == ENGINE_SUCCESS,
+    check(h1->unknown_command(
+                  NULL, pkt, add_response, testHarness.doc_namespace) ==
+                  ENGINE_SUCCESS,
           "Observe failed.");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
     cb_free(pkt);
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0000", 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Observe failed.");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
     cb_free(pkt);
@@ -4810,7 +4810,8 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Failed to send data traffic command to the server");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Faile to disable data traffic");
@@ -4822,7 +4823,8 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Failed to send data traffic command to the server");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Faile to enable data traffic");
@@ -5126,7 +5128,9 @@ static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
                        "key", 3, "val", 3);
-    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Expected to be able to store ret meta");
     cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
@@ -5222,8 +5226,10 @@ static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
                        "key", 3, "val", 3);
-    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
-          "Expected to be able to add ret meta");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
+            "Expected to be able to add ret meta");
     cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
@@ -5359,7 +5365,8 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
                        "key", 3);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, NULL, pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    NULL, pkt, add_response, testHarness.doc_namespace),
             "Expected to be able to del ret meta");
     cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
@@ -5891,7 +5898,8 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
     pkt.request.opcode = PROTOCOL_BINARY_CMD_GET_RANDOM_KEY;
 
     checkeq(ENGINE_KEY_ENOENT,
-            h1->unknown_command(h, cookie, &pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    cookie, &pkt, add_response, testHarness.doc_namespace),
             "Database should be empty");
 
     // Store a key
@@ -5914,7 +5922,8 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
 
     // We should be able to get one if there is something in there
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(h, cookie, &pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    cookie, &pkt, add_response, testHarness.doc_namespace),
             "get random should work");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
@@ -5927,19 +5936,22 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
     // Check for invalid packets
     pkt.request.extlen = 1;
     checkeq(ENGINE_EINVAL,
-            h1->unknown_command(h, cookie, &pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    cookie, &pkt, add_response, testHarness.doc_namespace),
             "extlen not allowed");
 
     pkt.request.extlen = 0;
     pkt.request.keylen = 1;
     checkeq(ENGINE_EINVAL,
-            h1->unknown_command(h, cookie, &pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    cookie, &pkt, add_response, testHarness.doc_namespace),
             "keylen not allowed");
 
     pkt.request.keylen = 0;
     pkt.request.bodylen = 1;
     checkeq(ENGINE_EINVAL,
-            h1->unknown_command(h, cookie, &pkt, add_response, testHarness.doc_namespace),
+            h1->unknown_command(
+                    cookie, &pkt, add_response, testHarness.doc_namespace),
             "bodylen not allowed");
 
     testHarness.destroy_cookie(cookie);

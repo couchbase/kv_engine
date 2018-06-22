@@ -176,6 +176,12 @@ struct default_engine : public EngineIface {
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
+    ENGINE_ERROR_CODE unknown_command(
+            const void* cookie,
+            gsl::not_null<protocol_binary_request_header*> request,
+            ADD_RESPONSE response,
+            DocNamespace doc_namespace) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 

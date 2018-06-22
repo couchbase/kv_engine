@@ -33,7 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::unknown_command = unknown_command;
         ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
         ENGINE_HANDLE_V1::item_set_datatype = item_set_datatype;
         ENGINE_HANDLE_V1::get_item_info = get_item_info;
@@ -178,6 +177,14 @@ public:
     void reset_stats(gsl::not_null<const void*> cookie) override {
     }
 
+    ENGINE_ERROR_CODE unknown_command(
+            const void*,
+            gsl::not_null<protocol_binary_request_header*>,
+            ADD_RESPONSE,
+            DocNamespace) override {
+        return ENGINE_NO_BUCKET;
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -187,15 +194,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static ENGINE_ERROR_CODE unknown_command(
-            gsl::not_null<ENGINE_HANDLE*>,
-            const void*,
-            gsl::not_null<protocol_binary_request_header*>,
-            ADD_RESPONSE,
-            DocNamespace) {
-        return ENGINE_NO_BUCKET;
     }
 
     static void item_set_cas(gsl::not_null<ENGINE_HANDLE*>,

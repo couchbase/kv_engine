@@ -457,7 +457,6 @@ struct EngineIface {
     /**
      * Any unknown command will be considered engine specific.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param request pointer to request header to be filled in
      * @param response function to transmit data
@@ -465,12 +464,13 @@ struct EngineIface {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE(*unknown_command)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     const void* cookie,
-     gsl::not_null<protocol_binary_request_header*> request,
-     ADD_RESPONSE response,
-     DocNamespace doc_namespace);
+    virtual ENGINE_ERROR_CODE unknown_command(
+            const void* cookie,
+            gsl::not_null<protocol_binary_request_header*> request,
+            ADD_RESPONSE response,
+            DocNamespace doc_namespace) {
+        return ENGINE_ENOTSUP;
+    }
 
     /**
      * Set the CAS id on an item.

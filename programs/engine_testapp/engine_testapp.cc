@@ -96,6 +96,12 @@ struct mock_engine : public EngineIface {
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
+    ENGINE_ERROR_CODE unknown_command(
+            const void* cookie,
+            gsl::not_null<protocol_binary_request_header*> request,
+            ADD_RESPONSE response,
+            DocNamespace doc_namespace) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -439,19 +445,21 @@ void mock_engine::reset_stats(gsl::not_null<const void*> cookie) {
     the_engine->reset_stats(cookie);
 }
 
-static ENGINE_ERROR_CODE mock_unknown_command(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE mock_engine::unknown_command(
         const void* cookie,
         gsl::not_null<protocol_binary_request_header*> request,
         ADD_RESPONSE response,
         DocNamespace doc_namespace) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->unknown_command,
-                               get_engine_from_handle(handle),
+    auto engine_fn = std::bind(&EngineIface::unknown_command,
+                               the_engine,
                                static_cast<const void*>(c),
-                               request, response, doc_namespace);
+                               request,
+                               response,
+                               doc_namespace);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    ENGINE_ERROR_CODE ret =
+            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -903,7 +911,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->unknown_command = mock_unknown_command;
         me->item_set_cas = mock_item_set_cas;
         me->get_item_info = mock_get_item_info;
         me->dcp.step = mock_dcp_step;
@@ -930,12 +937,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         me->getMinCompressionRatio = mock_getMinCompressionRatio;
 
         me->the_engine = (ENGINE_HANDLE_V1*)handle;
-
-        /* Reset all members that aren't set (to allow the users to write */
-        /* testcases to verify that they initialize them.. */
-        if (me->the_engine->unknown_command == NULL) {
-            me->unknown_command = NULL;
-        }
 
         if (initialize) {
             if (!init_engine_instance(handle, cfg)) {

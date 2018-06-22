@@ -1306,13 +1306,12 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     return rv;
 }
 
-static ENGINE_ERROR_CODE EvpUnknownCommand(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::unknown_command(
         const void* cookie,
         gsl::not_null<protocol_binary_request_header*> request,
         ADD_RESPONSE response,
         DocNamespace doc_namespace) {
-    auto engine = acquireEngine(handle);
+    auto engine = acquireEngine(this);
     auto ret = processUnknownCommand(
             engine.get(), cookie, request, response, doc_namespace);
     return ret;
@@ -1843,7 +1842,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
     ENGINE_HANDLE_V1::item_set_datatype = EvpItemSetDatatype;
     ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;

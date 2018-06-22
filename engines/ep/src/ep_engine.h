@@ -170,6 +170,12 @@ public:
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
 
+    ENGINE_ERROR_CODE unknown_command(
+            const void* cookie,
+            gsl::not_null<protocol_binary_request_header*> request,
+            ADD_RESPONSE response,
+            DocNamespace doc_namespace) override;
+
     /**
      * Delete a given key and value from the engine.
      *

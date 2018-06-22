@@ -29,13 +29,6 @@ static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
 
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
                                                  const char *cfg_str);
-static ENGINE_ERROR_CODE default_unknown_command(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        const void* cookie,
-        gsl::not_null<protocol_binary_request_header*> request,
-        ADD_RESPONSE response,
-        DocNamespace doc_namespace);
-
 union vbucket_info_adapter {
     char c;
     struct vbucket_info v;
@@ -100,7 +93,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->unknown_command = default_unknown_command;
     engine->item_set_cas = item_set_cas;
     engine->item_set_datatype = item_set_datatype;
     engine->get_item_info = get_item_info;
@@ -856,25 +848,23 @@ static bool set_param(struct default_engine* e,
     return false;
 }
 
-static ENGINE_ERROR_CODE default_unknown_command(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE default_engine::unknown_command(
         const void* cookie,
         gsl::not_null<protocol_binary_request_header*> request,
         ADD_RESPONSE response,
         DocNamespace doc_namespace) {
-    struct default_engine* e = get_handle(handle);
     bool sent;
 
     switch(request->request.opcode) {
     case PROTOCOL_BINARY_CMD_SCRUB:
-        sent = scrub_cmd(e, cookie, request, response);
+        sent = scrub_cmd(this, cookie, request, response);
         break;
     case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
-        sent = rm_vbucket(e, cookie, request, response);
+        sent = rm_vbucket(this, cookie, request, response);
         break;
     case PROTOCOL_BINARY_CMD_SET_VBUCKET:
         sent = set_vbucket(
-                e,
+                this,
                 cookie,
                 reinterpret_cast<protocol_binary_request_set_vbucket*>(
                         request.get()),
@@ -882,14 +872,14 @@ static ENGINE_ERROR_CODE default_unknown_command(
         break;
     case PROTOCOL_BINARY_CMD_GET_VBUCKET:
         sent = get_vbucket(
-                e,
+                this,
                 cookie,
                 reinterpret_cast<protocol_binary_request_get_vbucket*>(
                         request.get()),
                 response);
         break;
     case PROTOCOL_BINARY_CMD_SET_PARAM:
-        sent = set_param(e,
+        sent = set_param(this,
                          cookie,
                          reinterpret_cast<protocol_binary_request_set_param*>(
                                  request.get()),

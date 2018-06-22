@@ -513,14 +513,11 @@ public:
      * underlying real engine, this is also used to configure
      * ewouldblock_engine itself using he CMD_EWOULDBLOCK_CTL opcode.
      */
-    static ENGINE_ERROR_CODE unknown_command(
-            gsl::not_null<ENGINE_HANDLE*> handle,
+    ENGINE_ERROR_CODE unknown_command(
             const void* cookie,
             gsl::not_null<protocol_binary_request_header*> request,
             ADD_RESPONSE response,
-            DocNamespace doc_namespace) {
-        EWB_Engine* ewb = to_engine(handle);
-
+            DocNamespace doc_namespace) override {
         if (request->request.opcode == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
             auto* req =
                     reinterpret_cast<request_ewouldblock_ctl*>(request.get());
@@ -560,24 +557,23 @@ public:
                     break;
 
                 case EWBEngineMode::IncrementClusterMapRevno:
-                    ewb->clustermap_revno++;
+                    clustermap_revno++;
                     response(nullptr, 0, nullptr, 0, nullptr, 0,
                              PROTOCOL_BINARY_RAW_BYTES,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
                     return ENGINE_SUCCESS;
 
                 case EWBEngineMode::BlockMonitorFile:
-                    return ewb->handleBlockMonitorFile(cookie, value, key,
-                                                       response);
+                    return handleBlockMonitorFile(cookie, value, key, response);
 
                 case EWBEngineMode::Suspend:
-                    return ewb->handleSuspend(cookie, value, response);
+                    return handleSuspend(cookie, value, response);
 
                 case EWBEngineMode::Resume:
-                    return ewb->handleResume(cookie, value, response);
+                    return handleResume(cookie, value, response);
 
                 case EWBEngineMode::SetItemCas:
-                    return ewb->setItemCas(cookie, key, value, response);
+                    return setItemCas(cookie, key, value, response);
             }
 
             if (new_mode == nullptr) {
@@ -598,12 +594,13 @@ public:
                             new_mode->to_string(),
                             cookie);
 
-                    uint64_t id = ewb->get_connection_id(cookie);
+                    uint64_t id = get_connection_id(cookie);
 
                     {
-                        std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
-                        ewb->connection_map.erase(id);
-                        ewb->connection_map.emplace(id, std::make_pair(cookie, new_mode));
+                        std::lock_guard<std::mutex> guard(cookie_map_mutex);
+                        connection_map.erase(id);
+                        connection_map.emplace(
+                                id, std::make_pair(cookie, new_mode));
                     }
 
                     response(nullptr, 0, nullptr, 0, nullptr, 0,
@@ -616,12 +613,11 @@ public:
             }
         } else {
             ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-            if (ewb->should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
+            if (should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
                 return err;
             } else {
-                return ewb->real_engine->unknown_command(ewb->real_handle, cookie,
-                                                         request, response,
-                                                         doc_namespace);
+                return real_engine->unknown_command(
+                        cookie, request, response, doc_namespace);
             }
         }
     }
@@ -1263,7 +1259,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::unknown_command = unknown_command;
     ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
     ENGINE_HANDLE_V1::item_set_datatype = item_set_datatype;
     ENGINE_HANDLE_V1::get_item_info = get_item_info;
