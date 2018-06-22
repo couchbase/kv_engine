@@ -33,7 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::destroy = destroy;
         ENGINE_HANDLE_V1::allocate = item_allocate;
         ENGINE_HANDLE_V1::allocate_ex = item_allocate_ex;
         ENGINE_HANDLE_V1::remove = item_delete;
@@ -82,6 +81,10 @@ public:
         return ENGINE_SUCCESS;
     }
 
+    void destroy(bool) override {
+        delete this;
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -91,10 +94,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static void destroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool) {
-        delete get_handle(handle);
     }
 
     static cb::EngineErrorItemPair item_allocate(gsl::not_null<ENGINE_HANDLE*>,

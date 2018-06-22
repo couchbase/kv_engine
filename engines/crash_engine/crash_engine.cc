@@ -43,6 +43,7 @@ void destroy_engine(void);
 class CrashEngine : public EngineIface {
 public:
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
+    void destroy(bool) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -101,8 +102,8 @@ ENGINE_ERROR_CODE CrashEngine::initialize(const char* config_str) {
     return ENGINE_ERROR_CODE(recursive_crash_function(25, mode));
 }
 
-static void destroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool force) {
-    delete handle;
+void CrashEngine::destroy(const bool force) {
+    delete this;
 }
 
 static cb::EngineErrorItemPair item_allocate(
@@ -258,7 +259,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->destroy = destroy;
     engine->allocate = item_allocate;
     engine->allocate_ex = item_allocate_ex;
     engine->remove = item_delete;

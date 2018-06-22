@@ -96,7 +96,7 @@ class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
     friend class LookupCallback;
 public:
     ENGINE_ERROR_CODE initialize(const char* config) override;
-    void destroy(bool force);
+    void destroy(bool force) override;
 
     ENGINE_ERROR_CODE itemAllocate(item** itm,
                                    const DocKey& key,
@@ -498,6 +498,8 @@ public:
      * @returns item_info created from item
      */
     item_info getItemInfo(const Item& item);
+
+    void destroyInner(bool force);
 
     /**
      * class-specific deallocation. Required to ensure engine is

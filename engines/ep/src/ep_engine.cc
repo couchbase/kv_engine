@@ -145,9 +145,9 @@ static void checkNumeric(const char* str) {
     }
 }
 
-static void EvpDestroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool force) {
-    auto eng = acquireEngine(handle);
-    eng->destroy(force);
+void EventuallyPersistentEngine::destroy(const bool force) {
+    auto eng = acquireEngine(this);
+    eng->destroyInner(force);
     delete eng.get();
 }
 
@@ -1853,7 +1853,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::destroy = EvpDestroy;
     ENGINE_HANDLE_V1::allocate = EvpItemAllocate;
     ENGINE_HANDLE_V1::allocate_ex = EvpItemAllocateEx;
     ENGINE_HANDLE_V1::remove = EvpItemDelete;
@@ -2197,7 +2196,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     return ENGINE_SUCCESS;
 }
 
-void EventuallyPersistentEngine::destroy(bool force) {
+void EventuallyPersistentEngine::destroyInner(bool force) {
     stats.forceShutdown = force;
     stats.isShutdown = true;
 

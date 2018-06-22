@@ -99,6 +99,7 @@ struct vbucket_info {
  */
 struct default_engine : public EngineIface {
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
+    void destroy(bool force) override;
 
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;

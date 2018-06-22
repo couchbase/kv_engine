@@ -107,10 +107,6 @@ static EXTENSION_LOG_LEVEL get_log_level(void);
 static std::mutex buckets_lock;
 std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
 
-static ENGINE_HANDLE* v1_handle_2_handle(ENGINE_HANDLE_V1* v1) {
-    return reinterpret_cast<ENGINE_HANDLE*>(v1);
-}
-
 const char* getBucketName(const Connection* c) {
     return all_buckets[c->getBucketIndex()].name;
 }
@@ -1846,7 +1842,7 @@ void CreateBucketThread::create() {
             std::lock_guard<std::mutex> guard(bucket.mutex);
             bucket.state = BucketState::Destroying;
         }
-        engine->destroy(v1_handle_2_handle(engine), false);
+        engine->destroy(false);
         std::lock_guard<std::mutex> guard(bucket.mutex);
         bucket.state = BucketState::None;
         bucket.name[0] = '\0';
@@ -1997,7 +1993,7 @@ void DestroyBucketThread::destroy() {
     LOG_INFO(
             "{} Delete bucket [{}]. Shut down the bucket", connection_id, name);
 
-    bucket.engine->destroy(v1_handle_2_handle(bucket.engine), force);
+    bucket.engine->destroy(force);
 
     LOG_INFO("{} Delete bucket [{}]. Clean up allocated resources ",
              connection_id,
@@ -2076,7 +2072,7 @@ static void cleanup_buckets(void) {
         } while (waiting);
 
         if (bucket.state == BucketState::Ready) {
-            bucket.engine->destroy(v1_handle_2_handle(bucket.engine), false);
+            bucket.engine->destroy(false);
             delete bucket.topkeys;
         }
     }

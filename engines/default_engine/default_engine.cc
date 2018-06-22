@@ -23,8 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static void default_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
-                            const bool force);
 static cb::EngineErrorItemPair default_item_allocate(
         gsl::not_null<ENGINE_HANDLE*> handle,
         gsl::not_null<const void*> cookie,
@@ -194,7 +192,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->destroy = default_destroy;
     engine->allocate = default_item_allocate;
     engine->allocate_ex = default_item_allocate_ex;
     engine->remove = default_item_delete;
@@ -285,10 +282,8 @@ ENGINE_ERROR_CODE default_engine::initialize(const char* config_str) {
     return ENGINE_SUCCESS;
 }
 
-static void default_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
-                            const bool force) {
-    (void)force;
-    engine_manager_delete_engine(get_handle(handle));
+void default_engine::destroy(const bool force) {
+    engine_manager_delete_engine(this);
 }
 
 void destroy_engine_instance(struct default_engine* engine) {

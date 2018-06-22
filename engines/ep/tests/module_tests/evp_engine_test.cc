@@ -75,7 +75,7 @@ void EventuallyPersistentEngineTest::SetUp() {
 void EventuallyPersistentEngineTest::TearDown() {
     // Need to force the destroy (i.e. pass true) because
     // NonIO threads may have been disabled (see DCPTest subclass).
-    engine_v1->destroy(handle, true);
+    engine_v1->destroy(true);
     destroy_mock_event_callbacks();
     destroy_mock_cookie(cookie);
     destroy_engine();

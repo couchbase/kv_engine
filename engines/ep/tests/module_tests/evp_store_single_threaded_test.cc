@@ -1947,7 +1947,7 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     ObjectRegistry::onSwitchThread(engine.get());
     // 'Destroy' the engine - this doesn't delete the object, just shuts down
     // connections, marks streams as dead etc.
-    engine->destroy(/*force*/false);
+    engine->destroyInner(/*force*/ false);
 
     {
         // If we can get the lock we know the thread is waiting for destroy.

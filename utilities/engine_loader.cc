@@ -130,7 +130,6 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
         ret = false;        \
     }
 
-    check(destroy);
     check(allocate);
     check(allocate_ex);
     check(remove);
@@ -165,7 +164,7 @@ bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str) {
 
     error = engine->initialize(config_str);
     if (error != ENGINE_SUCCESS) {
-        engine->destroy(engine, false);
+        engine->destroy(false);
         cb::engine_error err{cb::engine_errc(error),
                              "Failed to initialize instance"};
         LOG_WARNING("{}", err.what());

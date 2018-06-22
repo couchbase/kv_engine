@@ -26,6 +26,7 @@
 
 struct mock_engine : public EngineIface {
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
+    void destroy(bool force) override;
 
     ENGINE_HANDLE_V1 *the_engine;
 };
@@ -69,10 +70,8 @@ ENGINE_ERROR_CODE mock_engine::initialize(const char* config_str) {
     return the_engine->initialize(config_str);
 }
 
-static void mock_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
-                         const bool force) {
-    struct mock_engine *me = get_handle(handle);
-    me->the_engine->destroy((ENGINE_HANDLE*)me->the_engine, force);
+void mock_engine::destroy(const bool force) {
+    the_engine->destroy(force);
 }
 
 // Helper function to convert a cookie (externally represented as
@@ -868,7 +867,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->destroy = mock_destroy;
         me->allocate = mock_allocate;
         me->allocate_ex = mock_allocate_ex;
         me->remove = mock_remove;
@@ -930,7 +928,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
 }
 
 static void destroy_bucket(ENGINE_HANDLE* handle, ENGINE_HANDLE_V1* handle_v1, bool force) {
-    handle_v1->destroy(handle, force);
+    handle_v1->destroy(force);
     delete handle_v1;
 }
 

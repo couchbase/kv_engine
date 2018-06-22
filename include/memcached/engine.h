@@ -155,10 +155,9 @@ struct EngineIface {
     /**
      * Tear down this engine.
      *
-     * @param handle the engine handle
      * @param force the flag indicating the force shutdown or not.
      */
-    void (*destroy)(gsl::not_null<ENGINE_HANDLE*> handle, const bool force);
+    virtual void destroy(bool force) = 0;
 
     /*
      * Item operations.

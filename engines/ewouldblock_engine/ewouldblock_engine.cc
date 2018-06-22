@@ -312,11 +312,9 @@ public:
         return res;
     }
 
-    static void destroy(gsl::not_null<ENGINE_HANDLE*> handle,
-                        const bool force) {
-        EWB_Engine* ewb = to_engine(handle);
-        ewb->real_engine->destroy(ewb->real_handle, force);
-        delete ewb;
+    void destroy(bool force) override {
+        real_engine->destroy(force);
+        delete this;
     }
 
     static cb::EngineErrorItemPair allocate(
@@ -1319,7 +1317,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::destroy = destroy;
     ENGINE_HANDLE_V1::allocate = allocate;
     ENGINE_HANDLE_V1::allocate_ex = allocate_ex;
     ENGINE_HANDLE_V1::remove = remove;
