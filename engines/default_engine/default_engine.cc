@@ -198,7 +198,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->engine.interface.interface = 1;
     engine->engine.initialize = default_initialize;
     engine->engine.destroy = default_destroy;
     engine->engine.allocate = default_item_allocate;
@@ -238,25 +237,24 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->config.min_compression_ratio = default_min_compression_ratio;
 }
 
-extern "C" ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                             GET_SERVER_API get_server_api,
-                                             ENGINE_HANDLE **handle) {
-   SERVER_HANDLE_V1 *api = get_server_api();
-   struct default_engine *engine;
+extern "C" ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
+                                             ENGINE_HANDLE** handle) {
+    SERVER_HANDLE_V1* api = get_server_api();
+    struct default_engine* engine;
 
-   if (interface != 1 || api == NULL) {
-      return ENGINE_ENOTSUP;
-   }
+    if (api == NULL) {
+        return ENGINE_ENOTSUP;
+    }
 
-   if ((engine = engine_manager_create_engine()) == NULL) {
-      return ENGINE_ENOMEM;
-   }
+    if ((engine = engine_manager_create_engine()) == NULL) {
+        return ENGINE_ENOMEM;
+    }
 
-   engine->server = *api;
-   engine->get_server_api = get_server_api;
-   engine->initialized = true;
-   *handle = (ENGINE_HANDLE*)&engine->engine;
-   return ENGINE_SUCCESS;
+    engine->server = *api;
+    engine->get_server_api = get_server_api;
+    engine->initialized = true;
+    *handle = (ENGINE_HANDLE*)&engine->engine;
+    return ENGINE_SUCCESS;
 }
 
 extern "C" void destroy_engine() {

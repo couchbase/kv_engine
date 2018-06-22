@@ -1731,18 +1731,15 @@ void EvpSetLogLevel(gsl::not_null<ENGINE_HANDLE*> handle,
 /**
  * The only public interface to the eventually persistent engine.
  * Allocate a new instance and initialize it
- * @param interface the highest interface the server supports (we only
- *                  support interface 1)
  * @param get_server_api callback function to get the server exported API
  *                  functions
  * @param handle Where to return the new instance
  * @return ENGINE_SUCCESS on success
  */
-ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                  GET_SERVER_API get_server_api,
+ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
                                   ENGINE_HANDLE** handle) {
     SERVER_HANDLE_V1* api = get_server_api();
-    if (interface != 1 || api == NULL) {
+    if (api == NULL) {
         return ENGINE_ENOTSUP;
     }
 
@@ -1859,7 +1856,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    interface.interface = 1;
     ENGINE_HANDLE_V1::initialize = EvpInitialize;
     ENGINE_HANDLE_V1::destroy = EvpDestroy;
     ENGINE_HANDLE_V1::allocate = EvpItemAllocate;

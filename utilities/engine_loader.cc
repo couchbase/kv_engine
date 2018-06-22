@@ -106,7 +106,8 @@ bool create_engine_instance(engine_reference* engine_ref,
     ENGINE_HANDLE* engine = NULL;
 
     /* request a instance with protocol version 1 */
-    ENGINE_ERROR_CODE error = (*engine_ref->my_create_instance.create)(1, get_server_api, &engine);
+    ENGINE_ERROR_CODE error =
+            (*engine_ref->my_create_instance.create)(get_server_api, &engine);
 
     if (error != ENGINE_SUCCESS || engine == NULL) {
         LOG_WARNING("Failed to create instance. Error code: {}", error);
@@ -158,23 +159,18 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
 bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str) {
     ENGINE_ERROR_CODE error;
 
-    if (engine->interface == 1) {
-        auto engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(engine);
-        if (!validate_engine_interface(engine_v1)) {
-            // error already logged
-            return false;
-        }
+    auto engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(engine);
+    if (!validate_engine_interface(engine_v1)) {
+        // error already logged
+        return false;
+    }
 
-        error = engine_v1->initialize(engine, config_str);
-        if (error != ENGINE_SUCCESS) {
-            engine_v1->destroy(engine, false);
-            cb::engine_error err{cb::engine_errc(error),
-                                 "Failed to initialize instance"};
-            LOG_WARNING("{}", err.what());
-            return false;
-        }
-    } else {
-        LOG_WARNING("Unsupported interface level {}", engine->interface);
+    error = engine_v1->initialize(engine, config_str);
+    if (error != ENGINE_SUCCESS) {
+        engine_v1->destroy(engine, false);
+        cb::engine_error err{cb::engine_errc(error),
+                             "Failed to initialize instance"};
+        LOG_WARNING("{}", err.what());
         return false;
     }
     return true;

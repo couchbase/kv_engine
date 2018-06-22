@@ -869,8 +869,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        mock_engine->me.interface.interface = 1;
-
         mock_engine->me.initialize = mock_initialize;
         mock_engine->me.destroy = mock_destroy;
         mock_engine->me.allocate = mock_allocate;
@@ -918,8 +916,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
 
         /* Reset all members that aren't set (to allow the users to write */
         /* testcases to verify that they initialize them.. */
-        cb_assert(mock_engine->me.interface.interface == mock_engine->the_engine->interface.interface);
-
         if (mock_engine->the_engine->unknown_command == NULL) {
             mock_engine->me.unknown_command = NULL;
         }

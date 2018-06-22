@@ -55,9 +55,6 @@
  * engine.
  */
 
-#define ENGINE_INTERFACE_VERSION 1
-
-
 /**
  * Abstract interface to an engine.
  */
@@ -79,18 +76,14 @@ struct server_handle_v1_t {
 /**
  * The signature for the "create_instance" function exported from the module.
  *
- * This function should fill out an engine inteface structure according to
- * the interface parameter (Note: it is possible to return a lower version
- * number).
+ * This function should fill out an engine interface structure.
  *
- * @param interface The highest interface level the server supports
  * @param get_server_api function to get the server API from
  * @param Where to store the interface handle
  * @return See description of ENGINE_ERROR_CODE
  */
-typedef ENGINE_ERROR_CODE (* CREATE_INSTANCE)(uint64_t interface,
-                                              GET_SERVER_API get_server_api,
-                                              ENGINE_HANDLE** handle);
+typedef ENGINE_ERROR_CODE (*CREATE_INSTANCE)(GET_SERVER_API get_server_api,
+                                             ENGINE_HANDLE** handle);
 
 /**
  * The signature for the "destroy_engine" function exported from the module.

@@ -34,9 +34,7 @@
 
 extern "C" {
 MEMCACHED_PUBLIC_API
-ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                  GET_SERVER_API gsa,
-                                  ENGINE_HANDLE **handle);
+ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle);
 
 MEMCACHED_PUBLIC_API
 void destroy_engine(void);
@@ -254,22 +252,14 @@ static size_t get_max_item_size(gsl::not_null<ENGINE_HANDLE*> handle) {
     return default_max_item_size;
 }
 
-ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                  GET_SERVER_API gsa,
-                                  ENGINE_HANDLE **handle)
-{
+ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
     CrashEngine* engine;
     (void)gsa;
-
-    if (interface != 1) {
-        return ENGINE_ENOTSUP;
-    }
 
     if ((engine = reinterpret_cast<CrashEngine*>(cb_calloc(1, sizeof(*engine)))) == NULL) {
         return ENGINE_ENOMEM;
     }
 
-    engine->engine.interface.interface = 1;
     engine->engine.initialize = initialize;
     engine->engine.destroy = destroy;
     engine->engine.allocate = item_allocate;

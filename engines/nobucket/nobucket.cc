@@ -34,7 +34,6 @@ class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
         memset(this, 0, sizeof(*this));
-        ENGINE_HANDLE_V1::interface.interface = 1;
         ENGINE_HANDLE_V1::initialize = initialize;
         ENGINE_HANDLE_V1::destroy = destroy;
         ENGINE_HANDLE_V1::allocate = item_allocate;
@@ -457,14 +456,8 @@ private:
 };
 
 MEMCACHED_PUBLIC_API
-ENGINE_ERROR_CODE create_no_bucket_instance(uint64_t interface,
-                                            GET_SERVER_API get_server_api,
-                                            ENGINE_HANDLE **handle)
-{
-    if (interface != 1) {
-        return ENGINE_ENOTSUP;
-    }
-
+ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
+                                            ENGINE_HANDLE** handle) {
     try {
         NoBucket* engine = new NoBucket();
         *handle = reinterpret_cast<ENGINE_HANDLE*>(engine);

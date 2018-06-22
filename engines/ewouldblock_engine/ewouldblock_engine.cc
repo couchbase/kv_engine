@@ -91,8 +91,8 @@
 
 extern "C" {
     MEMCACHED_PUBLIC_API
-    ENGINE_ERROR_CODE create_instance(uint64_t interface, GET_SERVER_API gsa,
-                                      ENGINE_HANDLE **handle);
+    ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa,
+                                      ENGINE_HANDLE** handle);
 
     MEMCACHED_PUBLIC_API
     void destroy_engine(void);
@@ -291,13 +291,6 @@ public:
             abort();
         }
 
-        if (ewb->real_handle->interface != 1) {
-            LOG_CRITICAL(
-                    "ERROR: EWB_Engine::initialize(): Only support engine "
-                    "with interface v1 - got v{}.",
-                    ewb->real_engine->interface.interface);
-            abort();
-        }
         ewb->real_engine =
                 reinterpret_cast<ENGINE_HANDLE_V1*>(ewb->real_handle);
 
@@ -1334,7 +1327,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    interface.interface = 1;
     ENGINE_HANDLE_V1::initialize = initialize;
     ENGINE_HANDLE_V1::destroy = destroy;
     ENGINE_HANDLE_V1::allocate = allocate;
@@ -1898,14 +1890,7 @@ float EWB_Engine::getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
     }
 }
 
-ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                  GET_SERVER_API gsa,
-                                  ENGINE_HANDLE **handle)
-{
-    if (interface != 1) {
-        return ENGINE_ENOTSUP;
-    }
-
+ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
     try {
         EWB_Engine* engine = new EWB_Engine(gsa);
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);

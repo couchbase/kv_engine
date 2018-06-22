@@ -42,9 +42,8 @@ class VBucketCountVisitor;
 
 extern "C" {
     MEMCACHED_PUBLIC_API
-    ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                      GET_SERVER_API get_server_api,
-                                      ENGINE_HANDLE **handle);
+    ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
+                                      ENGINE_HANDLE** handle);
 
     MEMCACHED_PUBLIC_API
     void destroy_engine(void);
@@ -520,9 +519,8 @@ protected:
     }
 
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
-    friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                             GET_SERVER_API get_server_api,
-                                             ENGINE_HANDLE **handle);
+    friend ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
+                                             ENGINE_HANDLE** handle);
 
     /**
      * Report the state of a memory condition when out of memory.

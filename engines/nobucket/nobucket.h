@@ -30,10 +30,8 @@ extern "C" {
 #endif
 
     MEMCACHED_PUBLIC_API
-    ENGINE_ERROR_CODE create_no_bucket_instance(uint64_t interface,
-                                                GET_SERVER_API get_server_api,
-                                                ENGINE_HANDLE **handle);
-
+    ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
+                                                ENGINE_HANDLE** handle);
 
     MEMCACHED_PUBLIC_API
     void destroy_engine(void);
