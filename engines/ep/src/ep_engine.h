@@ -152,6 +152,18 @@ public:
                                           uint16_t vbucket,
                                           uint32_t expirytime) override;
 
+    ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
+                            gsl::not_null<item*> item,
+                            uint64_t& cas,
+                            ENGINE_STORE_OPERATION operation,
+                            DocumentState document_state) override;
+    cb::EngineErrorCasPair store_if(gsl::not_null<const void*> cookie,
+                                    gsl::not_null<item*> item,
+                                    uint64_t cas,
+                                    ENGINE_STORE_OPERATION operation,
+                                    cb::StoreIfPredicate predicate,
+                                    DocumentState document_state) override;
+
     /**
      * Delete a given key and value from the engine.
      *
@@ -232,16 +244,16 @@ public:
 
     void resetStats();
 
-    ENGINE_ERROR_CODE store(const void* cookie,
-                            item* itm,
-                            uint64_t& cas,
-                            ENGINE_STORE_OPERATION operation);
+    ENGINE_ERROR_CODE storeInner(const void* cookie,
+                                 item* itm,
+                                 uint64_t& cas,
+                                 ENGINE_STORE_OPERATION operation);
 
-    cb::EngineErrorCasPair store_if(const void* cookie,
-                                    Item& itm,
-                                    uint64_t cas,
-                                    ENGINE_STORE_OPERATION operation,
-                                    cb::StoreIfPredicate predicate);
+    cb::EngineErrorCasPair storeIfInner(const void* cookie,
+                                        Item& itm,
+                                        uint64_t cas,
+                                        ENGINE_STORE_OPERATION operation,
+                                        cb::StoreIfPredicate predicate);
 
     ENGINE_ERROR_CODE flush(const void *cookie);
 

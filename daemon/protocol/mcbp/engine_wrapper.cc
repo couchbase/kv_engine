@@ -99,12 +99,8 @@ ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
                                ENGINE_STORE_OPERATION operation,
                                DocumentState document_state) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->store(c.getBucketEngineAsV0(),
-                                          &cookie,
-                                          item_,
-                                          cas,
-                                          operation,
-                                          document_state);
+    auto ret = c.getBucketEngine()->store(
+            &cookie, item_, cas, operation, document_state);
     if (ret == ENGINE_SUCCESS) {
         using namespace cb::audit::document;
         add(cookie,
@@ -126,13 +122,8 @@ cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
                                        cb::StoreIfPredicate predicate,
                                        DocumentState document_state) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->store_if(c.getBucketEngineAsV0(),
-                                             &cookie,
-                                             item_,
-                                             cas,
-                                             operation,
-                                             predicate,
-                                             document_state);
+    auto ret = c.getBucketEngine()->store_if(
+            &cookie, item_, cas, operation, predicate, document_state);
     if (ret.status == cb::engine_errc::success) {
         using namespace cb::audit::document;
         add(cookie,

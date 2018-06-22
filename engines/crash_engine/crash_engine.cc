@@ -98,6 +98,12 @@ public:
                                           const DocKey& key,
                                           uint16_t vbucket,
                                           uint32_t expirytime) override;
+
+    ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
+                            gsl::not_null<item*> item,
+                            uint64_t& cas,
+                            ENGINE_STORE_OPERATION operation,
+                            DocumentState document_state) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -242,23 +248,12 @@ static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
     return ENGINE_FAILED;
 }
 
-static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*> handle,
-                               gsl::not_null<const void*> cookie,
-                               gsl::not_null<item*> item,
-                               uint64_t& cas,
-                               ENGINE_STORE_OPERATION operation,
-                               DocumentState) {
+ENGINE_ERROR_CODE CrashEngine::store(gsl::not_null<const void*> cookie,
+                                     gsl::not_null<item*> item,
+                                     uint64_t& cas,
+                                     ENGINE_STORE_OPERATION operation,
+                                     DocumentState) {
     return ENGINE_FAILED;
-}
-
-static cb::EngineErrorCasPair store_if(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       gsl::not_null<item*> item,
-                                       uint64_t cas,
-                                       ENGINE_STORE_OPERATION operation,
-                                       cb::StoreIfPredicate,
-                                       DocumentState) {
-    return {cb::engine_errc::failed, 0};
 }
 
 static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -311,8 +306,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
 
     engine->get_stats = get_stats;
     engine->reset_stats = reset_stats;
-    engine->store = store;
-    engine->store_if = store_if;
     engine->flush = flush;
     engine->item_set_cas = item_set_cas;
     engine->item_set_datatype = item_set_datatype;

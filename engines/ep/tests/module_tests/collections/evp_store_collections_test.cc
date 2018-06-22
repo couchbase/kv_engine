@@ -564,7 +564,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_SUCCESS,
-                  engine->store(cookie, &item, cas, OPERATION_SET));
+                  engine->storeInner(cookie, &item, cas, OPERATION_SET));
     }
     {
         Item item({"dairy:milk", DocNamespace::Collections},
@@ -575,7 +575,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         item.setVBucketId(vbid);
         uint64_t cas;
         EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-                  engine->store(cookie, &item, cas, OPERATION_SET));
+                  engine->storeInner(cookie, &item, cas, OPERATION_SET));
     }
 }
 

@@ -1278,11 +1278,11 @@ TEST_F(StoreIfTest, store_if_basic) {
         return cb::StoreIfStatus::Fail;
     };
     auto item = make_item(vbid, {"key", DocNamespace::DefaultCollection}, "value", 0, 0);
-    auto rv = engine->store_if(cookie, item, 0, OPERATION_ADD, pred);
+    auto rv = engine->storeIfInner(cookie, item, 0, OPERATION_ADD, pred);
     EXPECT_EQ(cb::engine_errc::success, rv.status);
-    rv = engine->store_if(cookie, item, 0, OPERATION_REPLACE, pred);
+    rv = engine->storeIfInner(cookie, item, 0, OPERATION_REPLACE, pred);
     EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
-    rv = engine->store_if(cookie, item, 0, OPERATION_SET, pred);
+    rv = engine->storeIfInner(cookie, item, 0, OPERATION_SET, pred);
     EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
 }
 

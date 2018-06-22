@@ -455,43 +455,34 @@ public:
         }
     }
 
-    static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   gsl::not_null<const void*> cookie,
-                                   gsl::not_null<item*> item,
-                                   uint64_t& cas,
-                                   ENGINE_STORE_OPERATION operation,
-                                   DocumentState document_state) {
-        EWB_Engine* ewb = to_engine(handle);
+    ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
+                            gsl::not_null<item*> item,
+                            uint64_t& cas,
+                            ENGINE_STORE_OPERATION operation,
+                            DocumentState document_state) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
-        if (ewb->should_inject_error(opcode, cookie, err)) {
+        if (should_inject_error(opcode, cookie, err)) {
             return err;
         } else {
-            return ewb->real_engine->store(ewb->real_handle, cookie, item, cas,
-                                           operation, document_state);
+            return real_engine->store(
+                    cookie, item, cas, operation, document_state);
         }
     }
 
-    static cb::EngineErrorCasPair store_if(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           gsl::not_null<item*> item,
-                                           uint64_t cas,
-                                           ENGINE_STORE_OPERATION operation,
-                                           cb::StoreIfPredicate predicate,
-                                           DocumentState document_state) {
-        EWB_Engine* ewb = to_engine(handle);
+    cb::EngineErrorCasPair store_if(gsl::not_null<const void*> cookie,
+                                    gsl::not_null<item*> item,
+                                    uint64_t cas,
+                                    ENGINE_STORE_OPERATION operation,
+                                    cb::StoreIfPredicate predicate,
+                                    DocumentState document_state) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
-        if (ewb->should_inject_error(opcode, cookie, err)) {
+        if (should_inject_error(opcode, cookie, err)) {
             return {cb::engine_errc(err), 0};
         } else {
-            return ewb->real_engine->store_if(ewb->real_handle,
-                                              cookie,
-                                              item,
-                                              cas,
-                                              operation,
-                                              predicate,
-                                              document_state);
+            return real_engine->store_if(
+                    cookie, item, cas, operation, predicate, document_state);
         }
     }
 
@@ -1279,8 +1270,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::store = store;
-    ENGINE_HANDLE_V1::store_if = store_if;
     ENGINE_HANDLE_V1::flush = flush;
     ENGINE_HANDLE_V1::get_stats = get_stats;
     ENGINE_HANDLE_V1::reset_stats = reset_stats;

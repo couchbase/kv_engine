@@ -364,7 +364,6 @@ struct EngineIface {
      * documents in that state, and the underlying engine may choose to
      * purge it whenever it please.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param item the item to store
      * @param cas the CAS value for conditional sets
@@ -374,20 +373,19 @@ struct EngineIface {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE(*store)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     gsl::not_null<item*> item,
-     uint64_t& cas,
-     ENGINE_STORE_OPERATION operation,
-     DocumentState document_state);
+    virtual ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
+                                    gsl::not_null<item*> item,
+                                    uint64_t& cas,
+                                    ENGINE_STORE_OPERATION operation,
+                                    DocumentState document_state) = 0;
 
     /**
      * Store an item into the underlying engine with the given
      * state only if the predicate argument returns true when called against an
      * existing item.
      *
-     * @param handle the engine handle
+     * Optional interface; not supported by all engines.
+     *
      * @param cookie The cookie provided by the frontend
      * @param item the item to store
      * @param cas the CAS value for conditional sets
@@ -411,13 +409,14 @@ struct EngineIface {
      *
      * @return a std::pair containing the engine_error code and new CAS
      */
-    cb::EngineErrorCasPair (*store_if)(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       gsl::not_null<item*> item,
-                                       uint64_t cas,
-                                       ENGINE_STORE_OPERATION operation,
-                                       cb::StoreIfPredicate predicate,
-                                       DocumentState document_state);
+    virtual cb::EngineErrorCasPair store_if(gsl::not_null<const void*> cookie,
+                                            gsl::not_null<item*> item,
+                                            uint64_t cas,
+                                            ENGINE_STORE_OPERATION operation,
+                                            cb::StoreIfPredicate predicate,
+                                            DocumentState document_state) {
+        return {cb::engine_errc::not_supported, 0};
+    }
 
     /**
      * Flush the cache.

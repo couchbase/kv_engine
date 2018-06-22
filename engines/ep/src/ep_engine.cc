@@ -307,37 +307,34 @@ static ENGINE_ERROR_CODE EvpGetStats(gsl::not_null<ENGINE_HANDLE*> handle,
             cookie, key.data(), gsl::narrow_cast<int>(key.size()), add_stat);
 }
 
-static ENGINE_ERROR_CODE EvpStore(gsl::not_null<ENGINE_HANDLE*> handle,
-                                  gsl::not_null<const void*> cookie,
-                                  gsl::not_null<item*> itm,
-                                  uint64_t& cas,
-                                  ENGINE_STORE_OPERATION operation,
-                                  DocumentState document_state) {
-    auto engine = acquireEngine(handle);
-
+ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
+        gsl::not_null<const void*> cookie,
+        gsl::not_null<item*> itm,
+        uint64_t& cas,
+        ENGINE_STORE_OPERATION operation,
+        DocumentState document_state) {
     if (document_state == DocumentState::Deleted) {
         Item* item = static_cast<Item*>(itm.get());
         item->setDeleted();
     }
 
-    return engine->store(cookie, itm, cas, operation);
+    return acquireEngine(this)->storeInner(cookie, itm, cas, operation);
 }
 
-static cb::EngineErrorCasPair EvpStoreIf(gsl::not_null<ENGINE_HANDLE*> handle,
-                                         gsl::not_null<const void*> cookie,
-                                         gsl::not_null<item*> itm,
-                                         uint64_t cas,
-                                         ENGINE_STORE_OPERATION operation,
-                                         cb::StoreIfPredicate predicate,
-                                         DocumentState document_state) {
-    auto engine = acquireEngine(handle);
-
+cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
+        gsl::not_null<const void*> cookie,
+        gsl::not_null<item*> itm,
+        uint64_t cas,
+        ENGINE_STORE_OPERATION operation,
+        cb::StoreIfPredicate predicate,
+        DocumentState document_state) {
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm.get()));
 
     if (document_state == DocumentState::Deleted) {
         item.setDeleted();
     }
-    return engine->store_if(cookie, item, cas, operation, predicate);
+    return acquireEngine(this)->storeIfInner(
+            cookie, item, cas, operation, predicate);
 }
 
 static ENGINE_ERROR_CODE EvpFlush(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1852,8 +1849,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       minCompressionRatio(default_min_compression_ratio) {
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
     ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
-    ENGINE_HANDLE_V1::store = EvpStore;
-    ENGINE_HANDLE_V1::store_if = EvpStoreIf;
     ENGINE_HANDLE_V1::flush = EvpFlush;
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
@@ -2504,7 +2499,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unlockInner(const void* cookie,
     return kvBucket->unlockKey(key, vbucket, cas, ep_current_time());
 }
 
-cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
+cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         const void* cookie,
         Item& item,
         uint64_t cas,
@@ -2572,13 +2567,13 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
     return {cb::engine_errc(status), item.getCas()};
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
+ENGINE_ERROR_CODE EventuallyPersistentEngine::storeInner(
         const void* cookie,
         item* itm,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation) {
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm));
-    auto rv = store_if(cookie, item, cas, operation, {});
+    auto rv = storeIfInner(cookie, item, cas, operation, {});
     cas = rv.cas;
     return ENGINE_ERROR_CODE(rv.status);
 }

@@ -29,21 +29,6 @@ static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                            ADD_STAT add_stat);
 static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                 gsl::not_null<const void*> cookie);
-static ENGINE_ERROR_CODE default_store(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       gsl::not_null<item*> item,
-                                       uint64_t& cas,
-                                       ENGINE_STORE_OPERATION operation,
-                                       DocumentState);
-
-static cb::EngineErrorCasPair default_store_if(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        gsl::not_null<item*> item_,
-        uint64_t cas,
-        ENGINE_STORE_OPERATION operation,
-        cb::StoreIfPredicate predicate,
-        DocumentState document_state);
 
 static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
                               gsl::not_null<item*> item,
@@ -126,8 +111,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     engine->bucket_id = id;
     engine->get_stats = default_get_stats;
     engine->reset_stats = default_reset_stats;
-    engine->store = default_store;
-    engine->store_if = default_store_if;
     engine->flush = default_flush;
     engine->unknown_command = default_unknown_command;
     engine->item_set_cas = item_set_cas;
@@ -593,33 +576,27 @@ static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE default_store(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       gsl::not_null<item*> item,
-                                       uint64_t& cas,
-                                       ENGINE_STORE_OPERATION operation,
-                                       DocumentState document_state) {
-    auto* engine = get_handle(handle);
-    auto& config = engine->config;
+ENGINE_ERROR_CODE default_engine::store(gsl::not_null<const void*> cookie,
+                                        gsl::not_null<item*> item,
+                                        uint64_t& cas,
+                                        ENGINE_STORE_OPERATION operation,
+                                        DocumentState document_state) {
     auto* it = get_real_item(item);
 
     if (document_state == DocumentState::Deleted && !config.keep_deleted) {
-        return safe_item_unlink(engine, it);
+        return safe_item_unlink(this, it);
     }
 
-    return store_item(engine, it, &cas, operation, cookie, document_state);
+    return store_item(this, it, &cas, operation, cookie, document_state);
 }
 
-static cb::EngineErrorCasPair default_store_if(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorCasPair default_engine::store_if(
         gsl::not_null<const void*> cookie,
         gsl::not_null<item*> item,
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
         DocumentState document_state) {
-    struct default_engine* engine = get_handle(handle);
-
     if (predicate) {
         // Check for an existing item and call the item predicate on it.
         auto* it = get_real_item(item);
@@ -629,13 +606,13 @@ static cb::EngineErrorCasPair default_store_if(
                                    "default_store_if: item_get_key failed");
         }
         cb::unique_item_ptr existing(
-                item_get(engine, cookie, *key, DocStateFilter::Alive),
-                cb::ItemDeleter{handle});
+                item_get(this, cookie, *key, DocStateFilter::Alive),
+                cb::ItemDeleter{this});
 
         cb::StoreIfStatus status;
         if (existing.get()) {
             item_info info;
-            if (!get_item_info(handle, existing.get(), &info)) {
+            if (!get_item_info(this, existing.get(), &info)) {
                 throw cb::engine_error(
                         cb::engine_errc::failed,
                         "default_store_if: get_item_info failed");
@@ -657,8 +634,7 @@ static cb::EngineErrorCasPair default_store_if(
     }
 
     auto* it = get_real_item(item);
-    auto status =
-            store_item(engine, it, &cas, operation, cookie, document_state);
+    auto status = store_item(this, it, &cas, operation, cookie, document_state);
     return {cb::engine_errc(status), cas};
 }
 

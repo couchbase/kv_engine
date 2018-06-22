@@ -82,6 +82,12 @@ struct mock_engine : public EngineIface {
                                           uint16_t vbucket,
                                           uint32_t expirytime) override;
 
+    ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
+                            gsl::not_null<item*> item,
+                            uint64_t& cas,
+                            ENGINE_STORE_OPERATION operation,
+                            DocumentState document_state) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -398,14 +404,13 @@ static ENGINE_ERROR_CODE mock_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_store(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    gsl::not_null<const void*> cookie,
-                                    gsl::not_null<item*> item,
-                                    uint64_t& cas,
-                                    ENGINE_STORE_OPERATION operation,
-                                    DocumentState document_state) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->store,
-                               get_engine_from_handle(handle),
+ENGINE_ERROR_CODE mock_engine::store(gsl::not_null<const void*> cookie,
+                                     gsl::not_null<item*> item,
+                                     uint64_t& cas,
+                                     ENGINE_STORE_OPERATION operation,
+                                     DocumentState document_state) {
+    auto engine_fn = std::bind(&EngineIface::store,
+                               the_engine,
                                cookie,
                                item,
                                std::ref(cas),
@@ -415,7 +420,7 @@ static ENGINE_ERROR_CODE mock_store(gsl::not_null<ENGINE_HANDLE*> handle,
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
-    return call_engine_and_handle_EWOULDBLOCK(handle, construct, engine_fn);
+    return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
 }
 
 static ENGINE_ERROR_CODE mock_flush(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -899,7 +904,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->store = mock_store;
         me->flush = mock_flush;
         me->get_stats = mock_get_stats;
         me->reset_stats = mock_reset_stats;

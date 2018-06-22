@@ -802,8 +802,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(h,
-                        cookie,
+    auto rv = h1->store(cookie,
                         ret.second.get(),
                         cas,
                         OPERATION_SET,
@@ -866,8 +865,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(h,
-                        cookie,
+    auto rv = h1->store(cookie,
                         ret.second.get(),
                         cas,
                         OPERATION_SET,
@@ -1034,8 +1032,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(h,
-                        cookie,
+    auto rv = h1->store(cookie,
                         ret.second.get(),
                         cas,
                         OPERATION_SET,
@@ -1111,8 +1108,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(h,
-                        cookie,
+    auto rv = h1->store(cookie,
                         ret.second.get(),
                         cas,
                         OPERATION_SET,
@@ -1144,8 +1140,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     cas = 0;
     // Add a new item with the same key.
-    rv = h1->store(h,
-                   cookie,
+    rv = h1->store(cookie,
                    ret.second.get(),
                    cas,
                    OPERATION_ADD,
@@ -1199,8 +1194,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(h,
-                        cookie,
+    auto rv = h1->store(cookie,
                         ret.second.get(),
                         cas,
                         OPERATION_SET,
@@ -1229,8 +1223,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
     cas = 0;
-    rv = h1->store(h,
-                   cookie,
+    rv = h1->store(cookie,
                    ret.second.get(),
                    cas,
                    OPERATION_SET,

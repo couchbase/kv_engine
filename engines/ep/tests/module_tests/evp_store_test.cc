@@ -820,7 +820,8 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
                               makeStoredDocKey("key_" + std::to_string(count)),
                               value);
         uint64_t cas;
-        result = engine->store(dummyCookie.get(), &item, cas, OPERATION_SET);
+        result = engine->storeInner(
+                dummyCookie.get(), &item, cas, OPERATION_SET);
     }
 
     if (GetParam() == "value_only") {
@@ -868,15 +869,15 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_throws) {
     evict_key(vbid, key);
 
     if (::testing::get<0>(GetParam()) == "full_eviction") {
-        EXPECT_NO_THROW(engine->store_if(
+        EXPECT_NO_THROW(engine->storeIfInner(
                 cookie, item, 0 /*cas*/, OPERATION_SET, predicate));
         runBGFetcherTask();
     }
 
     // If the itemInfo exists, you can't ask for it again - so expect throw
-    EXPECT_THROW(
-            engine->store_if(cookie, item, 0 /*cas*/, OPERATION_SET, predicate),
-            std::logic_error);
+    EXPECT_THROW(engine->storeIfInner(
+                         cookie, item, 0 /*cas*/, OPERATION_SET, predicate),
+                 std::logic_error);
 }
 
 TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
@@ -938,11 +939,11 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
         flush_vbucket_to_disk(vbid);
         evict_key(vbid, test.key);
         auto item = make_item(vbid, test.key, "new_value");
-        test.actualStatus = engine->store_if(cookie,
-                                             item,
-                                             0 /*cas*/,
-                                             OPERATION_SET,
-                                             test.predicate)
+        test.actualStatus = engine->storeIfInner(cookie,
+                                                 item,
+                                                 0 /*cas*/,
+                                                 OPERATION_SET,
+                                                 test.predicate)
                                     .status;
         if (test.actualStatus == cb::engine_errc::success) {
             flush_vbucket_to_disk(vbid);
@@ -967,11 +968,11 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if) {
         for (size_t i = 0; i < testData.size(); i++) {
             if (testData[i].actualStatus == cb::engine_errc::would_block) {
                 auto item = make_item(vbid, testData[i].key, "new_value");
-                auto status = engine->store_if(cookie,
-                                               item,
-                                               0 /*cas*/,
-                                               OPERATION_SET,
-                                               testData[i].predicate);
+                auto status = engine->storeIfInner(cookie,
+                                                   item,
+                                                   0 /*cas*/,
+                                                   OPERATION_SET,
+                                                   testData[i].predicate);
                 // The second run should result the same as VE
                 EXPECT_EQ(testData[i].expectedVEStatus, status.status);
             }
@@ -1000,23 +1001,23 @@ TEST_P(EPStoreEvictionBloomOnOffTest, store_if_fe_interleave) {
     flush_vbucket_to_disk(vbid);
     evict_key(vbid, key);
 
-    EXPECT_EQ(
-            cb::engine_errc::would_block,
-            engine->store_if(cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
-                    .status);
+    EXPECT_EQ(cb::engine_errc::would_block,
+              engine->storeIfInner(
+                            cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
+                      .status);
 
     // expect another store to the same key to be told the same, even though the
     // first store has populated the store with a temp item
-    EXPECT_EQ(
-            cb::engine_errc::would_block,
-            engine->store_if(cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
-                    .status);
+    EXPECT_EQ(cb::engine_errc::would_block,
+              engine->storeIfInner(
+                            cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
+                      .status);
 
     runBGFetcherTask();
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            engine->store_if(cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
-                    .status);
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->storeIfInner(
+                            cookie, item, 0 /*cas*/, OPERATION_SET, predicate)
+                      .status);
 }
 
 // Run in FE only with bloom filter off, so all gets turn into bgFetches

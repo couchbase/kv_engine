@@ -35,8 +35,6 @@ public:
     NoBucket() {
         ENGINE_HANDLE_V1::get_stats = get_stats;
         ENGINE_HANDLE_V1::reset_stats = reset_stats;
-        ENGINE_HANDLE_V1::store = store;
-        ENGINE_HANDLE_V1::store_if = store_if;
         ENGINE_HANDLE_V1::flush = flush;
         ENGINE_HANDLE_V1::unknown_command = unknown_command;
         ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
@@ -153,6 +151,23 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
+    ENGINE_ERROR_CODE store(gsl::not_null<const void*>,
+                            gsl::not_null<item*>,
+                            uint64_t&,
+                            ENGINE_STORE_OPERATION,
+                            DocumentState) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    cb::EngineErrorCasPair store_if(gsl::not_null<const void*>,
+                                    gsl::not_null<item*>,
+                                    uint64_t,
+                                    ENGINE_STORE_OPERATION,
+                                    cb::StoreIfPredicate,
+                                    DocumentState) override {
+        return {cb::engine_errc::no_bucket, 0};
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -169,25 +184,6 @@ private:
                                        cb::const_char_buffer key,
                                        ADD_STAT) {
         return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE store(gsl::not_null<ENGINE_HANDLE*>,
-                                   gsl::not_null<const void*>,
-                                   gsl::not_null<item*>,
-                                   uint64_t&,
-                                   ENGINE_STORE_OPERATION,
-                                   DocumentState) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static cb::EngineErrorCasPair store_if(gsl::not_null<ENGINE_HANDLE*>,
-                                           gsl::not_null<const void*>,
-                                           gsl::not_null<item*>,
-                                           uint64_t,
-                                           ENGINE_STORE_OPERATION,
-                                           cb::StoreIfPredicate,
-                                           DocumentState) {
-        return {cb::engine_errc::no_bucket, 0};
     }
 
     static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*>,

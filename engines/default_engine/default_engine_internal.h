@@ -155,6 +155,19 @@ struct default_engine : public EngineIface {
                                           uint16_t vbucket,
                                           uint32_t expirytime) override;
 
+    ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
+                            gsl::not_null<item*> item,
+                            uint64_t& cas,
+                            ENGINE_STORE_OPERATION operation,
+                            DocumentState document_state) override;
+
+    cb::EngineErrorCasPair store_if(gsl::not_null<const void*> cookie,
+                                    gsl::not_null<item*> item,
+                                    uint64_t cas,
+                                    ENGINE_STORE_OPERATION operation,
+                                    cb::StoreIfPredicate predicate,
+                                    DocumentState document_state) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 
