@@ -16,9 +16,6 @@
  */
 
 #include "checkpoint_remover_test.h"
-
-#include "checkpoint_utils.h"
-
 #include <engines/ep/src/checkpoint_remover.h>
 
 #include "../mock/mock_dcp.h"
@@ -29,6 +26,12 @@
 
 size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {
     return vb.checkpointManager->getCheckpointConfig().getCheckpointMaxItems();
+}
+
+const CheckpointList&
+CheckpointManagerTestIntrospector::public_getCheckpointList(
+        CheckpointManager& checkpointManager) {
+    return checkpointManager.checkpointList;
 }
 
 /**

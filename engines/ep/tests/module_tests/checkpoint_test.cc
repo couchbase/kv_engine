@@ -15,8 +15,6 @@
  *   limitations under the License.
  */
 
-#include "checkpoint_test.h"
-
 #include "config.h"
 
 #include <algorithm>
@@ -25,7 +23,7 @@
 #include <vector>
 
 #include "checkpoint.h"
-#include "checkpoint_utils.h"
+#include "checkpoint_test.h"
 #include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
@@ -33,8 +31,6 @@
 #include "stats.h"
 #include "tests/module_tests/test_helpers.h"
 #include "thread_gate.h"
-
-#include "../mock/mock_dcp_consumer.h"
 
 #include <engines/ep/src/ep_types.h>
 #include <gmock/gmock.h>
@@ -1238,114 +1234,4 @@ TYPED_TEST(CheckpointTest,
 
     // Test - second item (duplicate key) should return false.
     EXPECT_FALSE(this->queueNewItem("key"));
-}
-
-/*
- * We always want to close the current open checkpoint on replica-vbuckets
- * when the Consumer receives the snapshotEnd mutation of a memory-snapshot.
- */
-TEST_F(SingleThreadedCheckpointTest,
-       MB30019_CloseReplicaCheckpointOnMemorySnapshotEnd) {
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
-    auto vb = store->getVBuckets().getBucket(vbid);
-    auto* ckptMgr = vb->checkpointManager.get();
-    ASSERT_NE(nullptr, ckptMgr);
-
-    // We must have only 1 open checkpoint
-    ASSERT_EQ(1, ckptMgr->getNumCheckpoints());
-    // We must have only one cursor (the persistence cursor), as there is no
-    // DCP producer for vbid
-    ASSERT_EQ(1, ckptMgr->getNumOfCursors());
-    // We must have only the checkpoint-open and the vbucket-state meta-items
-    // in the open checkpoint
-    ASSERT_EQ(2, ckptMgr->getNumItems());
-    ASSERT_EQ(0, ckptMgr->getNumOpenChkItems());
-
-    auto consumer =
-            std::make_shared<MockDcpConsumer>(*engine, cookie, "test-consumer");
-    auto passiveStream = std::static_pointer_cast<MockPassiveStream>(
-            consumer->makePassiveStream(
-                    *engine,
-                    consumer,
-                    "test-passive-stream",
-                    0 /* flags */,
-                    0 /* opaque */,
-                    vbid,
-                    0 /* startSeqno */,
-                    std::numeric_limits<uint64_t>::max() /* endSeqno */,
-                    0 /* vbUuid */,
-                    0 /* snapStartSeqno */,
-                    0 /* snapEndSeqno */,
-                    0 /* vb_high_seqno */));
-
-    const size_t snapshotEnd = 3;
-    // 1) the consumer receives the snapshot-marker
-    SnapshotMarker snapshotMarker(
-            0 /* opaque */,
-            vbid,
-            0 /* startSeqno */,
-            snapshotEnd /* endSeqno */,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY /* flags */);
-    passiveStream->processMarker(&snapshotMarker);
-
-    // 2) the consumer receives the mutations until (snapshotEnd -1)
-    size_t i = 1;
-    for (; i < snapshotEnd; i++) {
-        // Queue item
-        queued_item qi(new Item(makeStoredDocKey("key_" + std::to_string(i)),
-                                0 /*flags*/,
-                                0 /*expiry*/,
-                                "value",
-                                5 /*valueSize*/,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                0 /*cas*/,
-                                i /*bySeqno*/,
-                                vb->getId()));
-
-        MutationResponse mutation(std::move(qi), 0 /* opaque */);
-
-        // PassiveStream::processMutation does 2 things:
-        //     1) setWithMeta (which enqueues the item into the checkpoint)
-        //     2) calls PassiveStream::handleSnapshotEnd (which must close the
-        //             open checkpoint if the current mutation is the
-        //             snapshot-end)
-        passiveStream->processMutation(&mutation);
-    }
-    // We must have 2 items in the checkpoint now
-    ASSERT_EQ(snapshotEnd - 1, ckptMgr->getNumOpenChkItems());
-    // We still must have only 1 open checkpoint, as the consumer has not
-    // received the snapshot-end mutation
-    ASSERT_EQ(1, ckptMgr->getNumCheckpoints());
-
-    // 3) the consumer receives the snapshotEnd mutation
-    queued_item qi(
-            new Item(makeStoredDocKey("key_" + std::to_string(snapshotEnd)),
-                     0 /*flags*/,
-                     0 /*expiry*/,
-                     "value",
-                     5 /*valueSize*/,
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     0 /*cas*/,
-                     i /*bySeqno*/,
-                     vb->getId()));
-    MutationResponse mutation(std::move(qi), 0 /* opaque */);
-    passiveStream->processMutation(&mutation);
-
-    // The consumer has received the snapshotEnd mutation, now we expect
-    // that a new (empty) open checkpoint has been created. So we must have
-    // 2 checkpoints in total (the closed and the new open one).
-    ASSERT_EQ(2, ckptMgr->getNumCheckpoints());
-
-    // Also, the new open checkpoint must be empty (all mutations are in the
-    // closed one)
-    const auto& ckptList =
-            CheckpointManagerTestIntrospector::public_getCheckpointList(
-                    *ckptMgr);
-    ASSERT_EQ(ckptList.back()->getId(), ckptList.front()->getId() + 1);
-    ASSERT_EQ(checkpoint_state::CHECKPOINT_CLOSED,
-              ckptList.front()->getState_UNLOCKED());
-    ASSERT_EQ(snapshotEnd, ckptList.front()->getNumItems());
-    ASSERT_EQ(checkpoint_state::CHECKPOINT_OPEN,
-              ckptList.back()->getState_UNLOCKED());
-    ASSERT_EQ(0, ckptList.back()->getNumItems());
 }

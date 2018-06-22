@@ -272,14 +272,6 @@ public:
         return PassiveStream::messageReceived(std::move(dcpResponse));
     }
 
-    void processMarker(SnapshotMarker* marker) override {
-        PassiveStream::processMarker(marker);
-    }
-
-    ENGINE_ERROR_CODE processMutation(MutationResponse* mutation) override {
-        return PassiveStream::processMutation(mutation);
-    }
-
     size_t getNumBufferItems() const {
         LockHolder lh(buffer.bufMutex);
         return buffer.messages.size();
