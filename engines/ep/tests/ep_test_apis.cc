@@ -617,11 +617,8 @@ cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
         cookie = testHarness.create_cookie();
         create_cookie = true;
     }
-    auto ret = h1->get_locked(h,
-                              cookie,
-                              DocKey(key, testHarness.doc_namespace),
-                              vb,
-                              lock_timeout);
+    auto ret = h1->get_locked(
+            cookie, DocKey(key, testHarness.doc_namespace), vb, lock_timeout);
     if (create_cookie) {
         testHarness.destroy_cookie(cookie);
     }

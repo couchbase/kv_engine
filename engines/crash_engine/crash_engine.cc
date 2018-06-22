@@ -83,6 +83,11 @@ public:
     cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
                                          uint16_t vbucket) override;
+
+    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
+                                       const DocKey& key,
+                                       uint16_t vbucket,
+                                       uint32_t lock_timeout) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -209,11 +214,11 @@ static cb::EngineErrorItemPair get_and_touch(
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static cb::EngineErrorItemPair get_locked(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          gsl::not_null<const void*> cookie,
-                                          const DocKey& key,
-                                          uint16_t vbucket,
-                                          uint32_t lock_timeout) {
+cb::EngineErrorItemPair CrashEngine::get_locked(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t lock_timeout) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
@@ -300,7 +305,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
     }
 
     engine->get_and_touch = get_and_touch;
-    engine->get_locked = get_locked;
     engine->unlock = unlock;
     engine->get_stats = get_stats;
     engine->reset_stats = reset_stats;

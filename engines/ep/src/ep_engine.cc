@@ -276,16 +276,15 @@ static cb::EngineErrorItemPair EvpGetAndTouch(
                                                 expiry_time);
 }
 
-static cb::EngineErrorItemPair EvpGetLocked(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t lock_timeout) {
     item* itm = nullptr;
-    auto ret = acquireEngine(handle)->get_locked(
+    auto ret = acquireEngine(this)->getLockedInner(
             cookie, &itm, key, vbucket, lock_timeout);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, handle);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
 }
 
 static size_t EvpGetMaxItemSize(
@@ -1853,7 +1852,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
     ENGINE_HANDLE_V1::get_and_touch = EvpGetAndTouch;
-    ENGINE_HANDLE_V1::get_locked = EvpGetLocked;
     ENGINE_HANDLE_V1::unlock = EvpUnlock;
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
     ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
@@ -2472,11 +2470,12 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
     throw std::logic_error("EventuallyPersistentEngine::get_if: loop terminated");
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::get_locked(const void* cookie,
-                                                         item** itm,
-                                                         const DocKey& key,
-                                                         uint16_t vbucket,
-                                                         uint32_t lock_timeout) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
+        const void* cookie,
+        item** itm,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t lock_timeout) {
     auto default_timeout = static_cast<uint32_t>(getGetlDefaultTimeout());
 
     if (lock_timeout == 0) {

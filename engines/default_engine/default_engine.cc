@@ -30,13 +30,6 @@ static cb::EngineErrorItemPair default_get_and_touch(
         uint16_t vbucket,
         uint32_t expiry_time);
 
-static cb::EngineErrorItemPair default_get_locked(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint16_t vbucket,
-        uint32_t lock_timeout);
-
 static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
                                         gsl::not_null<const void*> cookie,
                                         const DocKey& key,
@@ -143,7 +136,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->get_locked = default_get_locked;
     engine->get_and_touch = default_get_and_touch;
     engine->unlock = default_unlock;
     engine->get_stats = default_get_stats;
@@ -482,15 +474,12 @@ static cb::EngineErrorItemPair default_get_and_touch(
             cb::engine_errc(ret), reinterpret_cast<item*>(it), handle);
 }
 
-static cb::EngineErrorItemPair default_get_locked(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair default_engine::get_locked(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t lock_timeout) {
-    auto* engine = get_handle(handle);
-
-    if (!handled_vbucket(engine, vbucket)) {
+    if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
 
@@ -504,12 +493,12 @@ static cb::EngineErrorItemPair default_get_locked(
     }
 
     // Convert the lock timeout to an absolute time
-    lock_timeout += engine->server.core->get_current_time();
+    lock_timeout += server.core->get_current_time();
 
     hash_item* it = nullptr;
-    auto ret = item_get_locked(engine, cookie, &it, key.data(), key.size(),
-                               lock_timeout);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), it, handle);
+    auto ret = item_get_locked(
+            this, cookie, &it, key.data(), key.size(), lock_timeout);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), it, this);
 }
 
 cb::EngineErrorMetadataPair default_engine::get_meta(

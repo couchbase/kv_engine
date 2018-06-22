@@ -137,6 +137,11 @@ public:
                                          const DocKey& key,
                                          uint16_t vbucket) override;
 
+    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
+                                       const DocKey& key,
+                                       uint16_t vbucket,
+                                       uint32_t lock_timeout) override;
+
     /**
      * Delete a given key and value from the engine.
      *
@@ -195,12 +200,11 @@ public:
                                           uint16_t vbucket,
                                           uint32_t expiry_time);
 
-    ENGINE_ERROR_CODE get_locked(const void* cookie,
-                                 item** itm,
-                                 const DocKey& key,
-                                 uint16_t vbucket,
-                                 uint32_t lock_timeout);
-
+    ENGINE_ERROR_CODE getLockedInner(const void* cookie,
+                                     item** itm,
+                                     const DocKey& key,
+                                     uint16_t vbucket,
+                                     uint32_t lock_timeout);
 
     ENGINE_ERROR_CODE unlock(const void* cookie,
                              const DocKey& key,

@@ -313,21 +313,19 @@ struct EngineIface {
     /**
      * Lock and Retrieve an item.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
-     * @param item output variable that will receive the located item
      * @param key the key to look up
      * @param vbucket the virtual bucket id
      * @param lock_timeout the number of seconds to hold the lock
      *                     (0 == use the engines default lock time)
      *
-     * @return ENGINE_SUCCESS if all goes well
+     * @return A pair of the error code and (optionally) the item
      */
-    cb::EngineErrorItemPair (*get_locked)(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          gsl::not_null<const void*> cookie,
-                                          const DocKey& key,
-                                          uint16_t vbucket,
-                                          uint32_t lock_timeout);
+    virtual cb::EngineErrorItemPair get_locked(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            uint32_t lock_timeout) = 0;
 
     /**
      * Get and update the expiry time for the document

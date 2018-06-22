@@ -424,19 +424,15 @@ public:
         }
     }
 
-    static cb::EngineErrorItemPair get_locked(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            uint16_t vbucket,
-            uint32_t lock_timeout) {
-        EWB_Engine* ewb = to_engine(handle);
+    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
+                                       const DocKey& key,
+                                       uint16_t vbucket,
+                                       uint32_t lock_timeout) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::LOCK, cookie, err)) {
+        if (should_inject_error(Cmd::LOCK, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc(err));
         } else {
-            return ewb->real_engine->get_locked(
-                    ewb->real_handle, cookie, key, vbucket, lock_timeout);
+            return real_engine->get_locked(cookie, key, vbucket, lock_timeout);
         }
     }
 
@@ -1290,7 +1286,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::get_locked = get_locked;
     ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
     ENGINE_HANDLE_V1::unlock = unlock;
     ENGINE_HANDLE_V1::store = store;

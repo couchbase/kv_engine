@@ -229,7 +229,7 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           uint32_t lock_timeout) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_locked(
-            c.getBucketEngineAsV0(), &cookie, key, vbucket, lock_timeout);
+            &cookie, key, vbucket, lock_timeout);
 
     if (ret.first == cb::engine_errc::success) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Lock);

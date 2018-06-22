@@ -140,6 +140,11 @@ struct default_engine : public EngineIface {
                                          const DocKey& key,
                                          uint16_t vbucket) override;
 
+    cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
+                                       const DocKey& key,
+                                       uint16_t vbucket,
+                                       uint32_t lock_timeout) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 
