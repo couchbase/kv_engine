@@ -213,7 +213,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
                                              uint32_t expiration) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_and_touch(
-            c.getBucketEngineAsV0(), &cookie, key, vbucket, expiration);
+            &cookie, key, vbucket, expiration);
 
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_and_touch return ENGINE_DISCONNECT",
@@ -251,8 +251,7 @@ ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
                                 uint16_t vbucket,
                                 uint64_t cas) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->unlock(
-            c.getBucketEngineAsV0(), &cookie, key, vbucket, cas);
+    auto ret = c.getBucketEngine()->unlock(&cookie, key, vbucket, cas);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} bucket_unlock return ENGINE_DISCONNECT",
                     c.getId(),

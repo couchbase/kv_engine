@@ -72,6 +72,16 @@ struct mock_engine : public EngineIface {
                                        uint16_t vbucket,
                                        uint32_t lock_timeout) override;
 
+    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint16_t vbucket,
+                             uint64_t cas) override;
+
+    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t expirytime) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -309,14 +319,13 @@ cb::EngineErrorItemPair mock_engine::get_if(
             this, construct, engine_fn);
 }
 
-static cb::EngineErrorItemPair mock_get_and_touch(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair mock_engine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t expiry_time) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_and_touch,
-                               get_engine_from_handle(handle),
+    auto engine_fn = std::bind(&EngineIface::get_and_touch,
+                               the_engine,
                                cookie,
                                key,
                                vbucket,
@@ -325,7 +334,7 @@ static cb::EngineErrorItemPair mock_get_and_touch(
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
     return do_blocking_engine_call<cb::unique_item_ptr>(
-            handle, construct, engine_fn);
+            this, construct, engine_fn);
 }
 
 cb::EngineErrorItemPair mock_engine::get_locked(
@@ -359,21 +368,16 @@ cb::EngineErrorMetadataPair mock_engine::get_meta(
     return do_blocking_engine_call<item_info>(this, construct, engine_fn);
 }
 
-static ENGINE_ERROR_CODE mock_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                     gsl::not_null<const void*> cookie,
-                                     const DocKey& key,
-                                     uint16_t vbucket,
-                                     uint64_t cas) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->unlock,
-                               get_engine_from_handle(handle),
-                               cookie,
-                               key,
-                               vbucket,
-                               cas);
+ENGINE_ERROR_CODE mock_engine::unlock(gsl::not_null<const void*> cookie,
+                                      const DocKey& key,
+                                      uint16_t vbucket,
+                                      uint64_t cas) {
+    auto engine_fn = std::bind(
+            &EngineIface::unlock, the_engine, cookie, key, vbucket, cas);
 
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-    return call_engine_and_handle_EWOULDBLOCK(handle, construct, engine_fn);
+    return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
 }
 
 static ENGINE_ERROR_CODE mock_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -895,8 +899,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->get_and_touch = mock_get_and_touch;
-        me->unlock = mock_unlock;
         me->store = mock_store;
         me->flush = mock_flush;
         me->get_stats = mock_get_stats;

@@ -142,6 +142,16 @@ public:
                                        uint16_t vbucket,
                                        uint32_t lock_timeout) override;
 
+    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint16_t vbucket,
+                             uint64_t cas) override;
+
+    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t expirytime) override;
+
     /**
      * Delete a given key and value from the engine.
      *
@@ -195,10 +205,10 @@ public:
             uint16_t vbucket,
             std::function<bool(const item_info&)> filter);
 
-    cb::EngineErrorItemPair get_and_touch(const void* cookie,
-                                          const DocKey& key,
-                                          uint16_t vbucket,
-                                          uint32_t expiry_time);
+    cb::EngineErrorItemPair getAndTouchInner(const void* cookie,
+                                             const DocKey& key,
+                                             uint16_t vbucket,
+                                             uint32_t expiry_time);
 
     ENGINE_ERROR_CODE getLockedInner(const void* cookie,
                                      item** itm,
@@ -206,10 +216,10 @@ public:
                                      uint16_t vbucket,
                                      uint32_t lock_timeout);
 
-    ENGINE_ERROR_CODE unlock(const void* cookie,
-                             const DocKey& key,
-                             uint16_t vbucket,
-                             uint64_t cas);
+    ENGINE_ERROR_CODE unlockInner(const void* cookie,
+                                  const DocKey& key,
+                                  uint16_t vbucket,
+                                  uint64_t cas);
 
     const std::string& getName() const {
         return name;

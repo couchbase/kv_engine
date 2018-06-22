@@ -1324,7 +1324,7 @@ TEST_F(ExpiryLimitTest, gat) {
             vbid, {"key", DocNamespace::DefaultCollection}, "value", 0);
 
     // Now touch with 0
-    auto rval = engine->get_and_touch(
+    auto rval = engine->getAndTouchInner(
             cookie, {"key", DocNamespace::DefaultCollection}, vbid, 0);
 
     EXPECT_EQ(cb::engine_errc::success, rval.first);

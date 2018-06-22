@@ -33,8 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
-        ENGINE_HANDLE_V1::unlock = unlock;
         ENGINE_HANDLE_V1::get_stats = get_stats;
         ENGINE_HANDLE_V1::reset_stats = reset_stats;
         ENGINE_HANDLE_V1::store = store;
@@ -141,6 +139,20 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
+    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*>,
+                             const DocKey&,
+                             uint16_t,
+                             uint64_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
+                                          const DocKey&,
+                                          uint16_t,
+                                          uint32_t) override {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -150,23 +162,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static cb::EngineErrorItemPair get_and_touch(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            const DocKey&,
-            uint16_t,
-            uint32_t) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
-    }
-
-    static ENGINE_ERROR_CODE unlock(gsl::not_null<ENGINE_HANDLE*>,
-                                    gsl::not_null<const void*>,
-                                    const DocKey&,
-                                    uint16_t,
-                                    uint64_t) {
-        return ENGINE_NO_BUCKET;
     }
 
     static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*>,

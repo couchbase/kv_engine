@@ -266,14 +266,13 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
     return acquireEngine(this)->getIfInner(cookie, key, vbucket, filter);
 }
 
-static cb::EngineErrorItemPair EvpGetAndTouch(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t expiry_time) {
-    return acquireEngine(handle)->get_and_touch(cookie, key, vbucket,
-                                                expiry_time);
+    return acquireEngine(this)->getAndTouchInner(
+            cookie, key, vbucket, expiry_time);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
@@ -292,12 +291,12 @@ static size_t EvpGetMaxItemSize(
     return acquireEngine(handle)->getMaxItemSize();
 }
 
-static ENGINE_ERROR_CODE EvpUnlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   gsl::not_null<const void*> cookie,
-                                   const DocKey& key,
-                                   uint16_t vbucket,
-                                   uint64_t cas) {
-    return acquireEngine(handle)->unlock(cookie, key, vbucket, cas);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint64_t cas) {
+    return acquireEngine(this)->unlockInner(cookie, key, vbucket, cas);
 }
 
 static ENGINE_ERROR_CODE EvpGetStats(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1851,8 +1850,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::get_and_touch = EvpGetAndTouch;
-    ENGINE_HANDLE_V1::unlock = EvpUnlock;
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
     ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
     ENGINE_HANDLE_V1::store = EvpStore;
@@ -2348,10 +2345,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
     return ENGINE_ENOTSUP;
 }
 
-cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* cookie,
-                                                           const DocKey& key,
-                                                           uint16_t vbucket,
-                                                           uint32_t exptime) {
+cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        uint32_t exptime) {
     auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
 
     cb::ExpiryLimit expiryLimit;
@@ -2499,10 +2497,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
     return result.getStatus();
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(const void* cookie,
-                                                     const DocKey& key,
-                                                     uint16_t vbucket,
-                                                     uint64_t cas) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::unlockInner(const void* cookie,
+                                                          const DocKey& key,
+                                                          uint16_t vbucket,
+                                                          uint64_t cas) {
     return kvBucket->unlockKey(key, vbucket, cas, ep_current_time());
 }
 

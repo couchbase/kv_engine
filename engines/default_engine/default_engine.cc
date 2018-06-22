@@ -23,18 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static cb::EngineErrorItemPair default_get_and_touch(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint16_t vbucket,
-        uint32_t expiry_time);
-
-static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        const DocKey& key,
-                                        uint16_t vbucket,
-                                        uint64_t cas);
 static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
                                            gsl::not_null<const void*> cookie,
                                            cb::const_char_buffer key,
@@ -136,8 +124,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->get_and_touch = default_get_and_touch;
-    engine->unlock = default_unlock;
     engine->get_stats = default_get_stats;
     engine->reset_stats = default_reset_stats;
     engine->store = default_store;
@@ -449,29 +435,26 @@ cb::EngineErrorItemPair default_engine::get_if(
             cb::engine_errc::success, ret.release(), this);
 }
 
-static cb::EngineErrorItemPair default_get_and_touch(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair default_engine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         uint32_t expiry_time) {
-    struct default_engine* engine = get_handle(handle);
-
-    if (!handled_vbucket(engine, vbucket)) {
+    if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
 
     hash_item* it = nullptr;
     auto ret = item_get_and_touch(
-            engine,
+            this,
             cookie,
             &it,
             key.data(),
             key.size(),
-            engine->server.core->realtime(expiry_time, cb::NoExpiryLimit));
+            server.core->realtime(expiry_time, cb::NoExpiryLimit));
 
     return cb::makeEngineErrorItemPair(
-            cb::engine_errc(ret), reinterpret_cast<item*>(it), handle);
+            cb::engine_errc(ret), reinterpret_cast<item*>(it), this);
 }
 
 cb::EngineErrorItemPair default_engine::get_locked(
@@ -529,14 +512,12 @@ cb::EngineErrorMetadataPair default_engine::get_meta(
     return std::make_pair(cb::engine_errc::success, info);
 }
 
-static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        const DocKey& key,
-                                        uint16_t vbucket,
-                                        uint64_t cas) {
-    auto* engine = get_handle(handle);
-    VBUCKET_GUARD(engine, vbucket);
-    return item_unlock(engine, cookie, key.data(), key.size(), cas);
+ENGINE_ERROR_CODE default_engine::unlock(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         uint16_t vbucket,
+                                         uint64_t cas) {
+    VBUCKET_GUARD(this, vbucket);
+    return item_unlock(this, cookie, key.data(), key.size(), cas);
 }
 
 static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,

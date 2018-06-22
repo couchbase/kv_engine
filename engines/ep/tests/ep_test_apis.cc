@@ -565,7 +565,7 @@ cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             const char* key, uint16_t vb, uint32_t exp) {
     const auto* cookie = testHarness.create_cookie();
     auto ret = h1->get_and_touch(
-            h, cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
+            cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
     testHarness.destroy_cookie(cookie);
 
     if (ret.first == cb::engine_errc::success) {
@@ -1107,7 +1107,7 @@ ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
            uint16_t vb, uint32_t exp) {
     const auto* cookie = testHarness.create_cookie();
     auto result = h1->get_and_touch(
-            h, cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
+            cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
     testHarness.destroy_cookie(cookie);
 
     // Update the global cas value (used by some tests)
@@ -1129,8 +1129,8 @@ ENGINE_ERROR_CODE unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         cookie = testHarness.create_cookie();
         create_cookie = true;
     }
-    auto ret = h1->unlock(
-            h, cookie, DocKey(key, testHarness.doc_namespace), vb, cas);
+    auto ret =
+            h1->unlock(cookie, DocKey(key, testHarness.doc_namespace), vb, cas);
 
     if (create_cookie) {
         testHarness.destroy_cookie(cookie);

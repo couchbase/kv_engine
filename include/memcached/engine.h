@@ -328,26 +328,8 @@ struct EngineIface {
             uint32_t lock_timeout) = 0;
 
     /**
-     * Get and update the expiry time for the document
-     *
-     * @param handle the engine handle
-     * @param cookie The cookie provided by the frontend
-     * @param key the key to look up
-     * @param vbucket the virtual bucket id
-     * @param expirytime the new expiry time for the object
-     * @return A pair of the error code and (optionally) the item
-     */
-    cb::EngineErrorItemPair (*get_and_touch)(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            uint16_t vbucket,
-            uint32_t expirytime);
-
-    /**
      * Unlock an item.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param key the key to look up
      * @param vbucket the virtual bucket id
@@ -355,12 +337,25 @@ struct EngineIface {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE(*unlock)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     const DocKey& key,
-     uint16_t vbucket,
-     uint64_t cas);
+    virtual ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
+                                     const DocKey& key,
+                                     uint16_t vbucket,
+                                     uint64_t cas) = 0;
+
+    /**
+     * Get and update the expiry time for the document
+     *
+     * @param cookie The cookie provided by the frontend
+     * @param key the key to look up
+     * @param vbucket the virtual bucket id
+     * @param expirytime the new expiry time for the object
+     * @return A pair of the error code and (optionally) the item
+     */
+    virtual cb::EngineErrorItemPair get_and_touch(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            uint32_t expirytime) = 0;
 
     /**
      * Store an item into the underlying engine with the given

@@ -408,19 +408,15 @@ public:
         }
     }
 
-    static cb::EngineErrorItemPair get_and_touch(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            uint16_t vbucket,
-            uint32_t exptime) {
-        EWB_Engine* ewb = to_engine(handle);
+    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t exptime) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
+        if (should_inject_error(Cmd::GET, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
         } else {
-            return ewb->real_engine->get_and_touch(
-                    ewb->real_handle, cookie, key, vbucket, exptime);
+            return real_engine->get_and_touch(cookie, key, vbucket, exptime);
         }
     }
 
@@ -436,6 +432,18 @@ public:
         }
     }
 
+    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint16_t vbucket,
+                             uint64_t cas) override {
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (should_inject_error(Cmd::UNLOCK, cookie, err)) {
+            return err;
+        } else {
+            return real_engine->unlock(cookie, key, vbucket, cas);
+        }
+    }
+
     cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
                                          uint16_t vbucket) override {
@@ -444,21 +452,6 @@ public:
             return std::make_pair(cb::engine_errc(err), item_info());
         } else {
             return real_engine->get_meta(cookie, key, vbucket);
-        }
-    }
-
-    static ENGINE_ERROR_CODE unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    gsl::not_null<const void*> cookie,
-                                    const DocKey& key,
-                                    uint16_t vbucket,
-                                    uint64_t cas) {
-        EWB_Engine* ewb = to_engine(handle);
-        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::UNLOCK, cookie, err)) {
-            return err;
-        } else {
-            return ewb->real_engine->unlock(ewb->real_handle, cookie, key,
-                                            vbucket, cas);
         }
     }
 
@@ -1286,8 +1279,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
-    ENGINE_HANDLE_V1::unlock = unlock;
     ENGINE_HANDLE_V1::store = store;
     ENGINE_HANDLE_V1::store_if = store_if;
     ENGINE_HANDLE_V1::flush = flush;

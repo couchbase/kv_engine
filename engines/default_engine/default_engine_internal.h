@@ -145,6 +145,16 @@ struct default_engine : public EngineIface {
                                        uint16_t vbucket,
                                        uint32_t lock_timeout) override;
 
+    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint16_t vbucket,
+                             uint64_t cas) override;
+
+    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t expirytime) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 

@@ -88,6 +88,16 @@ public:
                                        const DocKey& key,
                                        uint16_t vbucket,
                                        uint32_t lock_timeout) override;
+
+    ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
+                             const DocKey& key,
+                             uint16_t vbucket,
+                             uint64_t cas) override;
+
+    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
+                                          const DocKey& key,
+                                          uint16_t vbucket,
+                                          uint32_t expirytime) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -205,12 +215,8 @@ cb::EngineErrorMetadataPair CrashEngine::get_meta(
     return {cb::engine_errc::failed, {}};
 }
 
-static cb::EngineErrorItemPair get_and_touch(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey&,
-        uint16_t,
-        uint32_t) {
+cb::EngineErrorItemPair CrashEngine::get_and_touch(
+        gsl::not_null<const void*> cookie, const DocKey&, uint16_t, uint32_t) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
@@ -222,11 +228,10 @@ cb::EngineErrorItemPair CrashEngine::get_locked(
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static ENGINE_ERROR_CODE unlock(gsl::not_null<ENGINE_HANDLE*> handle,
-                                gsl::not_null<const void*> cookie,
-                                const DocKey& key,
-                                uint16_t vbucket,
-                                uint64_t cas) {
+ENGINE_ERROR_CODE CrashEngine::unlock(gsl::not_null<const void*> cookie,
+                                      const DocKey& key,
+                                      uint16_t vbucket,
+                                      uint64_t cas) {
     return ENGINE_FAILED;
 }
 
@@ -304,8 +309,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->get_and_touch = get_and_touch;
-    engine->unlock = unlock;
     engine->get_stats = get_stats;
     engine->reset_stats = reset_stats;
     engine->store = store;
