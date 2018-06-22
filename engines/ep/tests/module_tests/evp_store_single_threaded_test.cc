@@ -1503,7 +1503,7 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine.get()->dcp.stream_req(&engine.get()->interface,
+              engine.get()->dcp.stream_req(engine.get(),
                                            cookie,
                                            /*flags*/ 0,
                                            /*opaque*/ 0,
@@ -1888,7 +1888,7 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
     // Actual stream request method (EvpDcpStreamReq) is static, so access via
     // the engine_interface.
     EXPECT_EQ(ENGINE_SUCCESS,
-              engine->dcp.stream_req(&engine->interface,
+              engine->dcp.stream_req(engine.get(),
                                      cookie,
                                      /*flags*/ 0,
                                      /*opaque*/ 0,

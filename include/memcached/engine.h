@@ -139,12 +139,7 @@ static const size_t default_max_item_size = 20 * 1024 * 1024;
 /**
  * Definition of the first version of the engine interface
  */
-typedef struct engine_interface_v1 {
-    /**
-     * Engine info.
-     */
-    struct engine_interface interface;
-
+struct EngineIface {
     /**
      * Initialize an engine instance.
      * This is called *after* creation, but before the engine may be used.
@@ -585,8 +580,7 @@ typedef struct engine_interface_v1 {
      * @returns the minimum compression ratio defined in the bucket
      */
     float (*getMinCompressionRatio)(gsl::not_null<ENGINE_HANDLE*> handle);
-
-} ENGINE_HANDLE_V1;
+};
 
 namespace cb {
 class ItemDeleter {

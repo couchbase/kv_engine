@@ -4,8 +4,12 @@
 #include <stdint.h>
 #include <gsl/gsl>
 
-typedef struct engine_interface {
-} ENGINE_HANDLE;
+struct EngineIface;
+
+// Temporary type aliases to aid in migration.
+// TODO: remove these when all code is moved over to use EngineIFace.
+using ENGINE_HANDLE = EngineIface;
+using ENGINE_HANDLE_V1 = EngineIface;
 
 /**
  * Callback for any function producing stats.
