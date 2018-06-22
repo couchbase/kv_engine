@@ -1781,8 +1781,7 @@ cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
         cookie = testHarness.create_cookie();
         cookie_created = true;
     }
-    auto ret = h1->allocate(h,
-                            cookie,
+    auto ret = h1->allocate(cookie,
                             DocKey(key, testHarness.doc_namespace),
                             nbytes,
                             flags,

@@ -28,6 +28,23 @@ struct mock_engine : public EngineIface {
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
     void destroy(bool force) override;
 
+    cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
+                                     const DocKey& key,
+                                     const size_t nbytes,
+                                     const int flags,
+                                     const rel_time_t exptime,
+                                     uint8_t datatype,
+                                     uint16_t vbucket) override;
+    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            size_t nbytes,
+            size_t priv_nbytes,
+            int flags,
+            rel_time_t exptime,
+            uint8_t datatype,
+            uint16_t vbucket) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -150,17 +167,15 @@ static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
     return ret;
 }
 
-static cb::EngineErrorItemPair mock_allocate(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        const size_t nbytes,
-        const int flags,
-        const rel_time_t exptime,
-        uint8_t datatype,
-        uint16_t vbucket) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate,
-                               get_engine_from_handle(handle),
+cb::EngineErrorItemPair mock_engine::allocate(gsl::not_null<const void*> cookie,
+                                              const DocKey& key,
+                                              const size_t nbytes,
+                                              const int flags,
+                                              const rel_time_t exptime,
+                                              uint8_t datatype,
+                                              uint16_t vbucket) {
+    auto engine_fn = std::bind(&EngineIface::allocate,
+                               the_engine,
                                cookie,
                                key,
                                nbytes,
@@ -172,11 +187,11 @@ static cb::EngineErrorItemPair mock_allocate(
     auto* c =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
-    return do_blocking_engine_call<cb::unique_item_ptr>(handle, c, engine_fn);
+    return do_blocking_engine_call<cb::unique_item_ptr>(
+            the_engine, c, engine_fn);
 }
 
-static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+std::pair<cb::unique_item_ptr, item_info> mock_engine::allocate_ex(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         const size_t nbytes,
@@ -185,8 +200,8 @@ static std::pair<cb::unique_item_ptr, item_info> mock_allocate_ex(
         const rel_time_t exptime,
         uint8_t datatype,
         uint16_t vbucket) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate_ex,
-                               get_engine_from_handle(handle),
+    auto engine_fn = std::bind(&EngineIface::allocate_ex,
+                               the_engine,
                                cookie,
                                key,
                                nbytes,
@@ -867,8 +882,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->allocate = mock_allocate;
-        me->allocate_ex = mock_allocate_ex;
         me->remove = mock_remove;
         me->release = mock_release;
         me->get = mock_get;

@@ -317,33 +317,23 @@ public:
         delete this;
     }
 
-    static cb::EngineErrorItemPair allocate(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            const size_t nbytes,
-            const int flags,
-            const rel_time_t exptime,
-            uint8_t datatype,
-            uint16_t vbucket) {
-        EWB_Engine* ewb = to_engine(handle);
+    cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
+                                     const DocKey& key,
+                                     const size_t nbytes,
+                                     const int flags,
+                                     const rel_time_t exptime,
+                                     uint8_t datatype,
+                                     uint16_t vbucket) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::ALLOCATE, cookie, err)) {
+        if (should_inject_error(Cmd::ALLOCATE, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc(err));
         } else {
-            return ewb->real_engine->allocate(ewb->real_handle,
-                                              cookie,
-                                              key,
-                                              nbytes,
-                                              flags,
-                                              exptime,
-                                              datatype,
-                                              vbucket);
+            return real_engine->allocate(
+                    cookie, key, nbytes, flags, exptime, datatype, vbucket);
         }
     }
 
-    static std::pair<cb::unique_item_ptr, item_info> allocate_ex(
-            gsl::not_null<ENGINE_HANDLE*> handle,
+    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             size_t nbytes,
@@ -351,16 +341,19 @@ public:
             int flags,
             rel_time_t exptime,
             uint8_t datatype,
-            uint16_t vbucket) {
-        EWB_Engine* ewb = to_engine(handle);
+            uint16_t vbucket) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::ALLOCATE, cookie, err)) {
+        if (should_inject_error(Cmd::ALLOCATE, cookie, err)) {
             throw cb::engine_error(cb::engine_errc(err), "ewb: injecting error");
         } else {
-            return ewb->real_engine->allocate_ex(ewb->real_handle, cookie,
-                                                 key, nbytes, priv_nbytes,
-                                                 flags, exptime, datatype,
-                                                 vbucket);
+            return real_engine->allocate_ex(cookie,
+                                            key,
+                                            nbytes,
+                                            priv_nbytes,
+                                            flags,
+                                            exptime,
+                                            datatype,
+                                            vbucket);
         }
     }
 
@@ -1317,8 +1310,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::allocate = allocate;
-    ENGINE_HANDLE_V1::allocate_ex = allocate_ex;
     ENGINE_HANDLE_V1::remove = remove;
     ENGINE_HANDLE_V1::release = release;
     ENGINE_HANDLE_V1::get = get;

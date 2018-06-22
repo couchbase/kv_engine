@@ -101,6 +101,23 @@ struct default_engine : public EngineIface {
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
     void destroy(bool force) override;
 
+    cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
+                                     const DocKey& key,
+                                     const size_t nbytes,
+                                     const int flags,
+                                     const rel_time_t exptime,
+                                     uint8_t datatype,
+                                     uint16_t vbucket) override;
+    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            size_t nbytes,
+            size_t priv_nbytes,
+            int flags,
+            rel_time_t exptime,
+            uint8_t datatype,
+            uint16_t vbucket) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 

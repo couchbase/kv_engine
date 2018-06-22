@@ -44,6 +44,23 @@ class CrashEngine : public EngineIface {
 public:
     ENGINE_ERROR_CODE initialize(const char* config_str) override;
     void destroy(bool) override;
+
+    cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
+                                     const DocKey& key,
+                                     const size_t nbytes,
+                                     const int flags,
+                                     const rel_time_t exptime,
+                                     uint8_t datatype,
+                                     uint16_t vbucket) override;
+    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            size_t nbytes,
+            size_t priv_nbytes,
+            int flags,
+            rel_time_t exptime,
+            uint8_t datatype,
+            uint16_t vbucket) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -106,20 +123,17 @@ void CrashEngine::destroy(const bool force) {
     delete this;
 }
 
-static cb::EngineErrorItemPair item_allocate(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        const size_t nbytes,
-        const int flags,
-        const rel_time_t exptime,
-        uint8_t datatype,
-        uint16_t vbucket) {
+cb::EngineErrorItemPair CrashEngine::allocate(gsl::not_null<const void*> cookie,
+                                              const DocKey& key,
+                                              const size_t nbytes,
+                                              const int flags,
+                                              const rel_time_t exptime,
+                                              uint8_t datatype,
+                                              uint16_t vbucket) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+std::pair<cb::unique_item_ptr, item_info> CrashEngine::allocate_ex(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         size_t nbytes,
@@ -259,8 +273,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->allocate = item_allocate;
-    engine->allocate_ex = item_allocate_ex;
     engine->remove = item_delete;
     engine->release = item_release;
     engine->get = get;

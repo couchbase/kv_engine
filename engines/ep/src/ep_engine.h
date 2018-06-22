@@ -98,14 +98,23 @@ public:
     ENGINE_ERROR_CODE initialize(const char* config) override;
     void destroy(bool force) override;
 
-    ENGINE_ERROR_CODE itemAllocate(item** itm,
-                                   const DocKey& key,
-                                   const size_t nbytes,
-                                   const size_t priv_nbytes,
-                                   const int flags,
-                                   rel_time_t exptime,
-                                   uint8_t datatype,
-                                   uint16_t vbucket);
+    cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
+                                     const DocKey& key,
+                                     const size_t nbytes,
+                                     const int flags,
+                                     const rel_time_t exptime,
+                                     uint8_t datatype,
+                                     uint16_t vbucket) override;
+    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            size_t nbytes,
+            size_t priv_nbytes,
+            int flags,
+            rel_time_t exptime,
+            uint8_t datatype,
+            uint16_t vbucket) override;
+
     /**
      * Delete a given key and value from the engine.
      *
@@ -500,6 +509,15 @@ public:
     item_info getItemInfo(const Item& item);
 
     void destroyInner(bool force);
+
+    ENGINE_ERROR_CODE itemAllocate(item** itm,
+                                   const DocKey& key,
+                                   const size_t nbytes,
+                                   const size_t priv_nbytes,
+                                   const int flags,
+                                   rel_time_t exptime,
+                                   uint8_t datatype,
+                                   uint16_t vbucket);
 
     /**
      * class-specific deallocation. Required to ensure engine is

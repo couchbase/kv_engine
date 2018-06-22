@@ -294,8 +294,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
 
     auto& c = cookie.getConnection();
     try {
-        return c.getBucketEngine()->allocate_ex(c.getBucketEngineAsV0(),
-                                                &cookie,
+        return c.getBucketEngine()->allocate_ex(&cookie,
                                                 key,
                                                 nbytes,
                                                 priv_nbytes,

@@ -33,8 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::allocate = item_allocate;
-        ENGINE_HANDLE_V1::allocate_ex = item_allocate_ex;
         ENGINE_HANDLE_V1::remove = item_delete;
         ENGINE_HANDLE_V1::release = item_release;
         ENGINE_HANDLE_V1::get = get;
@@ -85,6 +83,28 @@ public:
         delete this;
     }
 
+    cb::EngineErrorItemPair allocate(gsl::not_null<const void*>,
+                                     const DocKey&,
+                                     const size_t,
+                                     const int,
+                                     const rel_time_t,
+                                     uint8_t,
+                                     uint16_t) override {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
+    }
+
+    std::pair<cb::unique_item_ptr, item_info> allocate_ex(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            size_t nbytes,
+            size_t priv_nbytes,
+            int flags,
+            rel_time_t exptime,
+            uint8_t datatype,
+            uint16_t vbucket) override {
+        throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -94,30 +114,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static cb::EngineErrorItemPair item_allocate(gsl::not_null<ENGINE_HANDLE*>,
-                                                 gsl::not_null<const void*>,
-                                                 const DocKey&,
-                                                 const size_t,
-                                                 const int,
-                                                 const rel_time_t,
-                                                 uint8_t,
-                                                 uint16_t) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
-    }
-
-    static std::pair<cb::unique_item_ptr, item_info> item_allocate_ex(
-            gsl::not_null<ENGINE_HANDLE*>,
-            gsl::not_null<const void*> cookie,
-            const DocKey&,
-            size_t,
-            size_t,
-            int,
-            rel_time_t,
-            uint8_t,
-            uint16_t) {
-        throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
     }
 
     static ENGINE_ERROR_CODE item_delete(gsl::not_null<ENGINE_HANDLE*>,

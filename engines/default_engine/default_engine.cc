@@ -23,26 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static cb::EngineErrorItemPair default_item_allocate(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        const size_t nbytes,
-        const int flags,
-        const rel_time_t exptime,
-        uint8_t datatype,
-        uint16_t vbucket);
-static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        size_t nbytes,
-        size_t priv_nbytes,
-        int flags,
-        rel_time_t exptime,
-        uint8_t datatype,
-        uint16_t vbucket);
-
 static ENGINE_ERROR_CODE default_item_delete(
         gsl::not_null<ENGINE_HANDLE*> handle,
         gsl::not_null<const void*> cookie,
@@ -192,8 +172,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->allocate = default_item_allocate;
-    engine->allocate_ex = default_item_allocate_ex;
     engine->remove = default_item_delete;
     engine->release = default_item_release;
     engine->get = default_get;
@@ -303,8 +281,7 @@ void destroy_engine_instance(struct default_engine* engine) {
     }
 }
 
-static cb::EngineErrorItemPair default_item_allocate(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair default_engine::allocate(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         const size_t nbytes,
@@ -313,9 +290,14 @@ static cb::EngineErrorItemPair default_item_allocate(
         uint8_t datatype,
         uint16_t vbucket) {
     try {
-        auto pair = default_item_allocate_ex(handle, cookie, key, nbytes,
-                                             0, // No privileged bytes
-                                             flags, exptime, datatype, vbucket);
+        auto pair = allocate_ex(cookie,
+                                key,
+                                nbytes,
+                                0, // No privileged bytes
+                                flags,
+                                exptime,
+                                datatype,
+                                vbucket);
         return {cb::engine_errc::success, std::move(pair.first)};
     } catch (const cb::engine_error& error) {
         return cb::makeEngineErrorItemPair(
@@ -323,8 +305,7 @@ static cb::EngineErrorItemPair default_item_allocate(
     }
 }
 
-static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         size_t nbytes,
@@ -336,45 +317,44 @@ static std::pair<cb::unique_item_ptr, item_info> default_item_allocate_ex(
     hash_item *it;
 
     unsigned int id;
-    struct default_engine* engine = get_handle(handle);
 
-    if (!handled_vbucket(engine, vbucket)) {
+    if (!handled_vbucket(this, vbucket)) {
         throw cb::engine_error(cb::engine_errc::not_my_vbucket,
                                "default_item_allocate_ex");
     }
 
     size_t ntotal = sizeof(hash_item) + key.size() + nbytes;
-    id = slabs_clsid(engine, ntotal);
+    id = slabs_clsid(this, ntotal);
     if (id == 0) {
         throw cb::engine_error(cb::engine_errc::too_big,
                                "default_item_allocate_ex: no slab class");
     }
 
-    if ((nbytes - priv_nbytes) > engine->config.item_size_max) {
+    if ((nbytes - priv_nbytes) > config.item_size_max) {
         throw cb::engine_error(cb::engine_errc::too_big,
                                "default_item_allocate_ex");
     }
 
-    it = item_alloc(engine,
+    it = item_alloc(this,
                     key.data(),
                     key.size(),
                     flags,
-                    engine->server.core->realtime(exptime, cb::NoExpiryLimit),
+                    server.core->realtime(exptime, cb::NoExpiryLimit),
                     (uint32_t)nbytes,
                     cookie,
                     datatype);
 
     if (it != NULL) {
         item_info info;
-        if (!get_item_info(handle, it, &info)) {
+        if (!get_item_info(this, it, &info)) {
             // This should never happen (unless we provide invalid
             // arguments)
-            item_release(engine, it);
+            item_release(this, it);
             throw cb::engine_error(cb::engine_errc::failed,
                                    "default_item_allocate_ex");
         }
 
-        return std::make_pair(cb::unique_item_ptr(it, cb::ItemDeleter{handle}),
+        return std::make_pair(cb::unique_item_ptr(it, cb::ItemDeleter{this}),
                               info);
     } else {
         throw cb::engine_error(cb::engine_errc::no_memory,

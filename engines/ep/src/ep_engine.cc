@@ -151,8 +151,7 @@ void EventuallyPersistentEngine::destroy(const bool force) {
     delete eng.get();
 }
 
-static cb::EngineErrorItemPair EvpItemAllocate(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         const size_t nbytes,
@@ -167,15 +166,15 @@ static cb::EngineErrorItemPair EvpItemAllocate(
     }
 
     item* itm = nullptr;
-    auto ret = acquireEngine(handle)->itemAllocate(&itm,
-                                                   key,
-                                                   nbytes,
-                                                   0, // No privileged bytes
-                                                   flags,
-                                                   exptime,
-                                                   datatype,
-                                                   vbucket);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, handle);
+    auto ret = acquireEngine(this)->itemAllocate(&itm,
+                                                 key,
+                                                 nbytes,
+                                                 0, // No privileged bytes
+                                                 flags,
+                                                 exptime,
+                                                 datatype,
+                                                 vbucket);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
 }
 
 static bool EvpGetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -184,18 +183,17 @@ static bool EvpGetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
 static void EvpItemRelease(gsl::not_null<ENGINE_HANDLE*> handle,
                            gsl::not_null<item*> itm);
 
-static std::pair<cb::unique_item_ptr, item_info> EvpItemAllocateEx(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        size_t nbytes,
-        size_t priv_nbytes,
-        int flags,
-        rel_time_t exptime,
-        uint8_t datatype,
-        uint16_t vbucket) {
+std::pair<cb::unique_item_ptr, item_info>
+EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
+                                        const DocKey& key,
+                                        size_t nbytes,
+                                        size_t priv_nbytes,
+                                        int flags,
+                                        rel_time_t exptime,
+                                        uint8_t datatype,
+                                        uint16_t vbucket) {
     item* it = nullptr;
-    auto err = acquireEngine(handle)->itemAllocate(
+    auto err = acquireEngine(this)->itemAllocate(
             &it, key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
 
     if (err != ENGINE_SUCCESS) {
@@ -204,14 +202,13 @@ static std::pair<cb::unique_item_ptr, item_info> EvpItemAllocateEx(
     }
 
     item_info info;
-    if (!EvpGetItemInfo(handle, it, &info)) {
-        EvpItemRelease(handle, it);
+    if (!EvpGetItemInfo(this, it, &info)) {
+        EvpItemRelease(this, it);
         throw cb::engine_error(cb::engine_errc::failed,
                                "EvpItemAllocateEx: EvpGetItemInfo failed");
     }
 
-    return std::make_pair(cb::unique_item_ptr{it, cb::ItemDeleter{handle}},
-                          info);
+    return std::make_pair(cb::unique_item_ptr{it, cb::ItemDeleter{this}}, info);
 }
 
 static ENGINE_ERROR_CODE EvpItemDelete(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1853,8 +1850,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::allocate = EvpItemAllocate;
-    ENGINE_HANDLE_V1::allocate_ex = EvpItemAllocateEx;
     ENGINE_HANDLE_V1::remove = EvpItemDelete;
     ENGINE_HANDLE_V1::release = EvpItemRelease;
     ENGINE_HANDLE_V1::get = EvpGet;

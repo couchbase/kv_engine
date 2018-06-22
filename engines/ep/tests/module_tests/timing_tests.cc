@@ -85,8 +85,7 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                       uint16_t vb) {
     uint64_t cas = 0;
 
-    auto ret = h1->allocate(h,
-                            cookie,
+    auto ret = h1->allocate(cookie,
                             DocKey(key, DocNamespace::DefaultCollection),
                             vlen,
                             flags,

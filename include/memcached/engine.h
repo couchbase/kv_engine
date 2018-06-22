@@ -166,7 +166,6 @@ struct EngineIface {
     /**
      * Allocate an item.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param output variable that will receive the item
      * @param key the item's key
@@ -178,19 +177,17 @@ struct EngineIface {
      *
      * @return {cb::engine_errc::success, unique_item_ptr} if all goes well
      */
-    cb::EngineErrorItemPair (*allocate)(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        const DocKey& key,
-                                        const size_t nbytes,
-                                        const int flags,
-                                        const rel_time_t exptime,
-                                        uint8_t datatype,
-                                        uint16_t vbucket);
+    virtual cb::EngineErrorItemPair allocate(gsl::not_null<const void*> cookie,
+                                             const DocKey& key,
+                                             const size_t nbytes,
+                                             const int flags,
+                                             const rel_time_t exptime,
+                                             uint8_t datatype,
+                                             uint16_t vbucket) = 0;
 
     /**
-     * Allocate an item.
+     * Allocate an item (extended API)
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param key the item's key
      * @param nbytes the number of bytes that will make up the
@@ -223,8 +220,7 @@ struct EngineIface {
      *   * `cb::engine_errc::too_busy` Too busy to serve the request,
      *                                 back off and try again.
      */
-    std::pair<cb::unique_item_ptr, item_info> (*allocate_ex)(
-            gsl::not_null<ENGINE_HANDLE*> handle,
+    virtual std::pair<cb::unique_item_ptr, item_info> allocate_ex(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             size_t nbytes,
@@ -232,7 +228,7 @@ struct EngineIface {
             int flags,
             rel_time_t exptime,
             uint8_t datatype,
-            uint16_t vbucket);
+            uint16_t vbucket) = 0;
 
     /**
      * Remove an item.

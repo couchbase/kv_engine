@@ -41,7 +41,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     vlen = strlen(value);
     auto ret = h1->allocate(
-            h, cookie, key, vlen, flags, expiry, PROTOCOL_BINARY_RAW_BYTES, 0);
+            cookie, key, vlen, flags, expiry, PROTOCOL_BINARY_RAW_BYTES, 0);
     cb_assert(ret.first == cb::engine_errc::success);
 
     if (!h1->get_item_info(h, ret.second.get(), &info)) {
