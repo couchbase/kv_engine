@@ -48,13 +48,8 @@ public:
         ENGINE_HANDLE_V1::dcp.flush = dcp_flush;
         ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
         ENGINE_HANDLE_V1::dcp.system_event = dcp_system_event;
-        ENGINE_HANDLE_V1::set_log_level = nullptr;
         ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
         ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
-        ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
-        ENGINE_HANDLE_V1::getCompressionMode = nullptr;
-        ENGINE_HANDLE_V1::getMaxItemSize = getMaxItemSize;
-        ENGINE_HANDLE_V1::getMinCompressionRatio = nullptr;
     };
 
     ENGINE_ERROR_CODE initialize(const char* config_str) override {
@@ -397,22 +392,6 @@ private:
             gsl::not_null<ENGINE_HANDLE*> handle) {
         return {cb::engine_errc::no_bucket,
                 "nobucket::collections_get_manifest"};
-    }
-
-    static bool isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
-        return false;
-    }
-
-    static BucketCompressionMode getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
-        return BucketCompressionMode::Off;
-    }
-
-    static size_t getMaxItemSize(gsl::not_null<ENGINE_HANDLE*> handle) {
-        return default_max_item_size;
-    }
-
-    static float getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
-        return default_min_compression_ratio;
     }
 };
 

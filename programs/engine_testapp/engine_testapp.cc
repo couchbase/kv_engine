@@ -110,6 +110,26 @@ struct mock_engine : public EngineIface {
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
+    void set_log_level(EXTENSION_LOG_LEVEL level) override {
+        the_engine->set_log_level(level);
+    }
+
+    bool isXattrEnabled() override {
+        return the_engine->isXattrEnabled();
+    }
+
+    BucketCompressionMode getCompressionMode() override {
+        return the_engine->getCompressionMode();
+    }
+
+    size_t getMaxItemSize() override {
+        return the_engine->getMaxItemSize();
+    }
+
+    float getMinCompressionRatio() override {
+        return the_engine->getMinCompressionRatio();
+    }
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -761,25 +781,6 @@ static cb::engine_error mock_collections_set_manifest(
             (ENGINE_HANDLE*)me->the_engine, json);
 }
 
-void mock_set_log_level(gsl::not_null<ENGINE_HANDLE*> handle,
-                        EXTENSION_LOG_LEVEL level) {
-    if (get_handle(handle)->the_engine->set_log_level != nullptr) {
-        get_handle(handle)->the_engine->set_log_level(handle, level);
-    }
-}
-
-bool mock_isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
-    return get_handle(handle)->the_engine->isXattrEnabled(handle);
-}
-
-BucketCompressionMode mock_getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
-    return get_handle(handle)->the_engine->getCompressionMode(handle);
-}
-
-float mock_getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
-    return get_handle(handle)->the_engine->getMinCompressionRatio(handle);
-}
-
 static void usage(void) {
     printf("\n");
     printf("engine_testapp -E <path_to_engine_lib> -T <path_to_testlib>\n");
@@ -935,11 +936,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         me->dcp.buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
         me->dcp.control = mock_dcp_control;
         me->dcp.response_handler = mock_dcp_response_handler;
-        me->set_log_level = mock_set_log_level;
         me->collections.set_manifest = mock_collections_set_manifest;
-        me->isXattrEnabled = mock_isXattrEnabled;
-        me->getCompressionMode = mock_getCompressionMode;
-        me->getMinCompressionRatio = mock_getMinCompressionRatio;
 
         me->the_engine = (ENGINE_HANDLE_V1*)handle;
 

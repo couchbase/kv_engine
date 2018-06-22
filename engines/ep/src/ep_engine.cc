@@ -282,11 +282,6 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
 }
 
-static size_t EvpGetMaxItemSize(
-        gsl::not_null<ENGINE_HANDLE*> handle) {
-    return acquireEngine(handle)->getMaxItemSize();
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
@@ -1704,8 +1699,7 @@ static void EvpHandleDeleteBucket(const void* cookie,
     acquireEngine(static_cast<ENGINE_HANDLE*>(c))->handleDeleteBucket(cookie);
 }
 
-void EvpSetLogLevel(gsl::not_null<ENGINE_HANDLE*> handle,
-                    EXTENSION_LOG_LEVEL level) {
+void EventuallyPersistentEngine::set_log_level(EXTENSION_LOG_LEVEL level) {
     Logger::setGlobalLogLevel(level);
 }
 
@@ -1792,19 +1786,8 @@ static cb::EngineErrorStringPair EvpCollectionsGetManifest(
     return engine->getKVBucket()->getCollections();
 }
 
-static bool EvpIsXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
-    auto engine = acquireEngine(handle);
-    return engine->getKVBucket()->isXattrEnabled();
-}
-
-static BucketCompressionMode EvpGetCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
-    auto engine = acquireEngine(handle);
-    return engine->getCompressionMode();
-}
-
-static float EvpGetMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
-    auto engine = acquireEngine(handle);
-    return engine->getMinCompressionRatio();
+bool EventuallyPersistentEngine::isXattrEnabled() {
+    return getKVBucket()->isXattrEnabled();
 }
 
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
@@ -1845,13 +1828,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::dcp.control = EvpDcpControl;
     ENGINE_HANDLE_V1::dcp.response_handler = EvpDcpResponseHandler;
     ENGINE_HANDLE_V1::dcp.system_event = EvpDcpSystemEvent;
-    ENGINE_HANDLE_V1::set_log_level = EvpSetLogLevel;
     ENGINE_HANDLE_V1::collections.set_manifest = EvpCollectionsSetManifest;
     ENGINE_HANDLE_V1::collections.get_manifest = EvpCollectionsGetManifest;
-    ENGINE_HANDLE_V1::isXattrEnabled = EvpIsXattrEnabled;
-    ENGINE_HANDLE_V1::getCompressionMode = EvpGetCompressionMode;
-    ENGINE_HANDLE_V1::getMaxItemSize = EvpGetMaxItemSize;
-    ENGINE_HANDLE_V1::getMinCompressionRatio = EvpGetMinCompressionRatio;
 
     serverApi = getServerApiFunc();
 }

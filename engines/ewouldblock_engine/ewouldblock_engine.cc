@@ -651,6 +651,22 @@ public:
         }
     }
 
+    bool isXattrEnabled() override {
+        return real_engine->isXattrEnabled();
+    }
+
+    BucketCompressionMode getCompressionMode() override {
+        return real_engine->getCompressionMode();
+    }
+
+    size_t getMaxItemSize() override {
+        return real_engine->getMaxItemSize();
+    }
+
+    float getMinCompressionRatio() override {
+        return real_engine->getMinCompressionRatio();
+    }
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -924,14 +940,6 @@ private:
 
     static cb::EngineErrorStringPair collections_get_manifest(
             gsl::not_null<ENGINE_HANDLE*> handle);
-
-    static bool isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle);
-
-    static BucketCompressionMode getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle);
-
-    static size_t getMaxItemSize(gsl::not_null<ENGINE_HANDLE*> handle);
-
-    static float getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle);
 
     // Base class for all fault injection modes.
     struct FaultInjectMode {
@@ -1234,8 +1242,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::set_log_level = NULL;
-
     ENGINE_HANDLE_V1::dcp = {};
     ENGINE_HANDLE_V1::dcp.step = dcp_step;
     ENGINE_HANDLE_V1::dcp.open = dcp_open;
@@ -1260,11 +1266,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::collections = {};
     ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
     ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
-
-    ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
-    ENGINE_HANDLE_V1::getCompressionMode = getCompressionMode;
-    ENGINE_HANDLE_V1::getMaxItemSize = getMaxItemSize;
-    ENGINE_HANDLE_V1::getMinCompressionRatio = getMinCompressionRatio;
 
     clustermap_revno = 1;
 
@@ -1736,42 +1737,6 @@ cb::EngineErrorStringPair EWB_Engine::collections_get_manifest(
                 "EWB_Engine::collections_get_manifest"};
     } else {
         return ewb->real_engine->collections.get_manifest(ewb->real_handle);
-    }
-}
-
-bool EWB_Engine::isXattrEnabled(gsl::not_null<ENGINE_HANDLE*> handle) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->isXattrEnabled == nullptr) {
-        return false;
-    } else {
-        return ewb->real_engine->isXattrEnabled(ewb->real_handle);
-    }
-}
-
-BucketCompressionMode EWB_Engine::getCompressionMode(gsl::not_null<ENGINE_HANDLE*> handle) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->getCompressionMode == nullptr) {
-        return BucketCompressionMode::Off;
-    } else {
-        return ewb->real_engine->getCompressionMode(ewb->real_handle);
-    }
-}
-
-size_t EWB_Engine::getMaxItemSize(gsl::not_null<ENGINE_HANDLE*> handle) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->getMaxItemSize == nullptr) {
-        return default_max_item_size;
-    } else {
-        return ewb->real_engine->getMaxItemSize(ewb->real_handle);
-    }
-}
-
-float EWB_Engine::getMinCompressionRatio(gsl::not_null<ENGINE_HANDLE*> handle) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->getMinCompressionRatio == nullptr) {
-        return default_min_compression_ratio;
-    } else {
-        return ewb->real_engine->getMinCompressionRatio(ewb->real_handle);
     }
 }
 

@@ -502,37 +502,39 @@ struct EngineIface {
     /**
      * Set the current log level
      *
-     * @param handle the engine handle
      * @param level the current log level
      */
-    void (*set_log_level)(gsl::not_null<ENGINE_HANDLE*> handle,
-                          EXTENSION_LOG_LEVEL level);
+    virtual void set_log_level(EXTENSION_LOG_LEVEL level){};
 
     collections_interface collections;
 
     /**
-     * @param handle the engine handle
      * @returns if XATTRs are enabled for this bucket
      */
-    bool (*isXattrEnabled)(gsl::not_null<ENGINE_HANDLE*> handle);
+    virtual bool isXattrEnabled() {
+        return false;
+    }
 
     /**
-     * @param handle the engine handle
      * @returns the compression mode of the bucket
      */
-    BucketCompressionMode (*getCompressionMode)(gsl::not_null<ENGINE_HANDLE*> handle);
+    virtual BucketCompressionMode getCompressionMode() {
+        return BucketCompressionMode::Off;
+    }
 
     /**
-     * @param handle the engine handle
      * @returns the maximum item size supported by the bucket
      */
-    size_t (*getMaxItemSize)(gsl::not_null<ENGINE_HANDLE*> handle);
+    virtual size_t getMaxItemSize() {
+        return default_max_item_size;
+    };
 
     /**
-     * @param handle the engine handle
      * @returns the minimum compression ratio defined in the bucket
      */
-    float (*getMinCompressionRatio)(gsl::not_null<ENGINE_HANDLE*> handle);
+    virtual float getMinCompressionRatio() {
+        return default_min_compression_ratio;
+    }
 };
 
 namespace cb {

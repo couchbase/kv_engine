@@ -169,12 +169,12 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
 
 BucketCompressionMode bucket_get_compression_mode(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    return c.getBucketEngine()->getCompressionMode(c.getBucketEngineAsV0());
+    return c.getBucketEngine()->getCompressionMode();
 }
 
 float bucket_min_compression_ratio(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    return c.getBucketEngine()->getMinCompressionRatio(c.getBucketEngineAsV0());
+    return c.getBucketEngine()->getMinCompressionRatio();
 }
 
 cb::EngineErrorItemPair bucket_get_if(
@@ -229,7 +229,7 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
 
 size_t bucket_get_max_item_size(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    return c.getBucketEngine()->getMaxItemSize(c.getBucketEngineAsV0());
+    return c.getBucketEngine()->getMaxItemSize();
 }
 
 ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,

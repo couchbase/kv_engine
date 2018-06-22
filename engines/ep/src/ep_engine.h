@@ -184,6 +184,22 @@ public:
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
+    void set_log_level(EXTENSION_LOG_LEVEL level) override;
+
+    bool isXattrEnabled() override;
+
+    BucketCompressionMode getCompressionMode() override {
+        return compressionMode;
+    }
+
+    size_t getMaxItemSize() override {
+        return maxItemSize;
+    }
+
+    float getMinCompressionRatio() override {
+        return minCompressionRatio;
+    }
+
     /**
      * Delete a given key and value from the engine.
      *
@@ -483,10 +499,6 @@ public:
         return maxFailoverEntries;
     }
 
-    size_t getMaxItemSize() const {
-        return maxItemSize;
-    }
-
     bool isDegradedMode() const;
 
     WorkLoadPolicy& getWorkLoadPolicy() {
@@ -508,14 +520,6 @@ public:
 
     void setMinCompressionRatio(float minCompressRatio) {
         minCompressionRatio = minCompressRatio;
-    }
-
-    BucketCompressionMode getCompressionMode() {
-        return compressionMode;
-    }
-
-    float getMinCompressionRatio() {
-        return minCompressionRatio;
     }
 
     ConnHandler* getConnHandler(const void *cookie);

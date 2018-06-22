@@ -260,10 +260,8 @@ static void populate_log_level(void*) {
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (auto& bucket : all_buckets) {
         std::lock_guard<std::mutex> guard(bucket.mutex);
-        if (bucket.state == BucketState::Ready &&
-            bucket.engine->set_log_level != nullptr) {
-            bucket.engine->set_log_level(reinterpret_cast<ENGINE_HANDLE*>(bucket.engine),
-                                         val);
+        if (bucket.state == BucketState::Ready) {
+            bucket.engine->set_log_level(val);
         }
     }
 }
@@ -1835,8 +1833,7 @@ void CreateBucketThread::create() {
         LOG_INFO("{} - Bucket [{}] created successfully",
                  connection.getId(),
                  name);
-        bucket.max_document_size = engine->getMaxItemSize(
-                reinterpret_cast<ENGINE_HANDLE*>(engine));
+        bucket.max_document_size = engine->getMaxItemSize();
     } else {
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);

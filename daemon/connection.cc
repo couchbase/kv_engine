@@ -1446,8 +1446,7 @@ void Connection::setPriority(Connection::Priority priority) {
 
 bool Connection::selectedBucketIsXattrEnabled() const {
     if (bucketEngine) {
-        return settings.isXattrEnabled() &&
-               bucketEngine->isXattrEnabled(getBucketEngineAsV0());
+        return settings.isXattrEnabled() && bucketEngine->isXattrEnabled();
     }
     return settings.isXattrEnabled();
 }

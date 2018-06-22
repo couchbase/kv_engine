@@ -284,14 +284,6 @@ bool CrashEngine::get_item_info(gsl::not_null<const item*> item,
     return false;
 }
 
-static bool is_xattr_enabled(gsl::not_null<ENGINE_HANDLE*> handle) {
-    return true;
-}
-
-static size_t get_max_item_size(gsl::not_null<ENGINE_HANDLE*> handle) {
-    return default_max_item_size;
-}
-
 ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
     CrashEngine* engine;
 
@@ -301,8 +293,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->isXattrEnabled = is_xattr_enabled;
-    engine->getMaxItemSize = get_max_item_size;
     *handle = engine;
     return ENGINE_SUCCESS;
 }

@@ -190,6 +190,14 @@ struct default_engine : public EngineIface {
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
+    bool isXattrEnabled() override;
+
+    BucketCompressionMode getCompressionMode() override;
+
+    size_t getMaxItemSize() override;
+
+    float getMinCompressionRatio() override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 

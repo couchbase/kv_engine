@@ -53,15 +53,6 @@ static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
 /* mechanism for handling bad vbucket requests */
 #define VBUCKET_GUARD(e, v) if (!handled_vbucket(e, v)) { return ENGINE_NOT_MY_VBUCKET; }
 
-static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle);
-
-static BucketCompressionMode get_compression_mode(
-                               gsl::not_null<ENGINE_HANDLE*> handle);
-
-static float get_min_compression_ratio(gsl::not_null<ENGINE_HANDLE*> handle);
-
-static size_t get_max_item_size(gsl::not_null<ENGINE_HANDLE*> handle);
-
 /**
  * Given that default_engine is implemented in C and not C++ we don't have
  * a constructor for the struct to initialize the members to some sane
@@ -81,11 +72,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->set_log_level = nullptr;
-    engine->isXattrEnabled = is_xattr_supported;
-    engine->getCompressionMode = get_compression_mode;
-    engine->getMaxItemSize = get_max_item_size;
-    engine->getMinCompressionRatio = get_min_compression_ratio;
     engine->config.verbose = 0;
     engine->config.oldest_live = 0;
     engine->config.evict_to_free = true;
@@ -956,21 +942,18 @@ bool default_engine::get_item_info(gsl::not_null<const item*> item,
     return true;
 }
 
-static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle) {
-    return get_handle(handle)->config.xattr_enabled;
+bool default_engine::isXattrEnabled() {
+    return config.xattr_enabled;
 }
 
-static BucketCompressionMode get_compression_mode(
-                              gsl::not_null<ENGINE_HANDLE*> handle) {
-    return get_handle(handle)->config.compression_mode;
+BucketCompressionMode default_engine::getCompressionMode() {
+    return config.compression_mode;
 }
 
-static float get_min_compression_ratio(
-                             gsl::not_null<ENGINE_HANDLE*> handle) {
-    return get_handle(handle)->config.min_compression_ratio;
+float default_engine::getMinCompressionRatio() {
+    return config.min_compression_ratio;
 }
 
-static size_t get_max_item_size(
-                             gsl::not_null<ENGINE_HANDLE*> handle) {
-    return get_handle(handle)->config.item_size_max;
+size_t default_engine::getMaxItemSize() {
+    return config.item_size_max;
 }

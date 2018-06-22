@@ -117,32 +117,8 @@ bool create_engine_instance(engine_reference* engine_ref,
     return true;
 }
 
-static void logit(const char* field) {
-    LOG_WARNING("Failed to initialize engine, missing implementation for {}",
-                field);
-}
-
-static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
-    bool ret = true;
-#define check(a)            \
-    if (v1->a == nullptr) { \
-        logit(#a);          \
-        ret = false;        \
-    }
-
-    check(isXattrEnabled);
-#undef check
-
-    return ret;
-}
-
 bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str) {
     ENGINE_ERROR_CODE error;
-
-    if (!validate_engine_interface(engine)) {
-        // error already logged
-        return false;
-    }
 
     error = engine->initialize(config_str);
     if (error != ENGINE_SUCCESS) {
