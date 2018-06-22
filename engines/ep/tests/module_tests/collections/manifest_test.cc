@@ -34,10 +34,7 @@ TEST(ManifestTest, validation) {
             // valid separator, valid uid, no collections
             R"({"separator" : ":", "uid" : "0"})",
 
-            // valid uid, valid collections type, no separator
-            R"({"uid":"0", "collections" : []})",
-
-            //  valid separator, valid uid, invalid collections type
+            // valid separator, valid uid, invalid collections type
             R"({"separator": ":", "uid" : "0",
                 "collections":[0]})",
 
@@ -60,15 +57,6 @@ TEST(ManifestTest, validation) {
             // invalid name (wrong type), valid uid
             R"({"separator": ":", "uid" : "0",
                 "collections":[{"name":1, "uid":"1"}]})",
-
-            // invalid separator (empty)
-            R"({"separator" : "", "uid" : "0",
-               "collections":[{"name":"beer", "uid":"1"}]})",
-
-            // invalid separator > 16
-            R"({"separator": "0123456789abcdef_", "uid" : "0",
-                "collections":[{"name":"beer", "uid":"1"},
-                               {"name":"brewery","uid":"2"}]})",
 
             // illegal $ prefixed  name
             R"({"separator": ":", "uid" : "0",
@@ -104,10 +92,7 @@ TEST(ManifestTest, validation) {
 
             // UID cannot be 0x prefixed
             R"({"separator":":", "uid" : "0x101",
-                "collections":[{"name":"beer", "uid":"1"}]})",
-
-            // separator too large
-            R"({"separator":"012345", "uid" : "0", "collections":[]})"};
+                "collections":[{"name":"beer", "uid":"1"}]})"};
 
     std::vector<std::string> validManifests = {
             R"({"separator":":", "uid" : "0", "collections":[]})",
@@ -167,24 +152,6 @@ TEST(ManifestTest, validation) {
     }
 }
 
-TEST(ManifestTest, getSeparator) {
-    std::vector<std::pair<std::string, std::string> > validManifests = {
-            {"_",
-             R"({"separator":"_", "uid" : "0",
-                "collections":[{"name":"beer", "uid":"1"},
-                               {"name":"brewery","uid":"2"}]})"},
-            {"01234",
-             R"({"separator":"01234", "uid" : "0",
-                "collections":[{"name":"beer", "uid":"1"},
-                               {"name":"brewery","uid":"2"}]})"},
-    };
-
-    for (auto& manifest : validManifests) {
-        Collections::Manifest m(manifest.second);
-        EXPECT_EQ(manifest.first, m.getSeparator());
-    }
-}
-
 TEST(ManifestTest, getUid) {
     std::vector<std::pair<Collections::uid_t, std::string> > validManifests = {
             {0,
@@ -235,23 +202,16 @@ TEST(ManifestTest, findCollection) {
 TEST(ManifestTest, toJson) {
     // Inputs for testing are not whitespace formatted as toJson does not format
     std::vector<std::string> validManifests = {
-            R"({"separator":":","uid":"abcd","collections":[]})",
+            R"({"uid":"abcd","collections":[]})",
 
-            R"({"separator":":","uid":"abcd","collections":[{"name":"$default","uid":"0"},)"
+            R"({"uid":"abcd","collections":[{"name":"$default","uid":"0"},)"
             R"({"name":"beer","uid":"1"},{"name":"brewery","uid":"2"}]})",
 
             // beer & brewery have same UID, valid
-            R"({"separator":":","uid":"abcd","collections":[{"name":"$default","uid":"0"},)"
+            R"({"uid":"abcd","collections":[{"name":"$default","uid":"0"},)"
             R"({"name":"beer","uid":"1"},{"name":"brewery","uid":"1"}]})",
 
-            R"({"separator":":","uid":"abcd","collections":[{"name":"beer","uid":"1"},)"
-            R"({"name":"brewery","uid":"2"}]})",
-
-            // Max separator
-            R"({"separator":"01234","uid":"abcd","collections":)"
-            R"([{"name":"beer","uid":"1"},{"name":"brewery","uid":"2"}]})",
-
-            R"({"separator":"_","uid":"abcd","collections":[{"name":"beer","uid":"af"},)"
+            R"({"uid":"abcd","collections":[{"name":"beer","uid":"1"},)"
             R"({"name":"brewery","uid":"2"}]})"};
 
     for (auto& manifest : validManifests) {

@@ -47,16 +47,6 @@ Manifest::Manifest(const std::string& json, size_t maxNumberOfCollections)
             getJsonObject(cjson.get(), CollectionUidKey, CollectionUidType);
     uid = makeUid(jsonUid->valuestring);
 
-    auto* jsonSeparator =
-            getJsonObject(cjson.get(), SeparatorKey, SeparatorType);
-
-    if (validSeparator(jsonSeparator->valuestring)) {
-        separator = jsonSeparator->valuestring;
-    } else {
-        throw std::invalid_argument("Manifest::Manifest invalid separator:" +
-                                    std::string(jsonSeparator->valuestring));
-    }
-
     auto jsonCollections =
             getJsonObject(cjson.get(), CollectionsKey, CollectionsType);
 
@@ -123,11 +113,6 @@ void Manifest::enableDefaultCollection(const char* name) {
     }
 }
 
-bool Manifest::validSeparator(const char* separator) {
-    size_t size = std::strlen(separator);
-    return size > 0 && size <= MaxSeparatorLength;
-}
-
 bool Manifest::validCollection(const char* collection) {
     // Current validation is to just check the prefix to ensure
     // 1. $default is the only $ prefixed collection.
@@ -141,8 +126,7 @@ bool Manifest::validCollection(const char* collection) {
 
 std::string Manifest::toJson() const {
     std::stringstream json;
-    json << R"({"separator":")" << separator << R"(","uid":")" << std::hex
-         << uid << R"(","collections":[)";
+    json << R"({"uid":")" << std::hex << uid << R"(","collections":[)";
     for (size_t ii = 0; ii < collections.size(); ii++) {
         json << R"({"name":")" << collections[ii].getName().data()
              << R"(","uid":")" << std::hex << collections[ii].getUid()
@@ -162,7 +146,6 @@ void Manifest::dump() const {
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "Collections::Manifest"
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
-       << ", separator:" << manifest.separator
        << ", collections.size:" << manifest.collections.size() << std::endl;
     for (const auto& entry : manifest.collections) {
         os << "collection:{" << entry << "}\n";

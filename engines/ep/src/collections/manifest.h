@@ -74,10 +74,6 @@ public:
      */
     Manifest(const std::string& json, size_t maxNumberOfCollections = 1000);
 
-    const std::string& getSeparator() const {
-        return separator;
-    }
-
     bool doesDefaultCollectionExist() const {
         return defaultCollectionExists;
     }
@@ -161,13 +157,6 @@ private:
                                        int expectedType);
 
     /**
-     * Check if the C-string input has a length > 0 and < 250.
-     *
-     * @param separator a C-string representing the separator.
-     */
-    static bool validSeparator(const char* separator);
-
-    /**
      * Check if the C-string represents a legal collection name.
      * Current validation is to ensure we block creation of _ prefixed
      * collections and only accept $default for $ prefixed names.
@@ -179,13 +168,10 @@ private:
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
     bool defaultCollectionExists;
-    std::string separator;
     container collections;
     uid_t uid;
 
     // strings used in JSON parsing
-    static constexpr char const* SeparatorKey = "separator";
-    static constexpr int SeparatorType = cJSON_String;
     static constexpr char const* CollectionsKey = "collections";
     static constexpr int CollectionsType = cJSON_Array;
     static constexpr char const* CollectionNameKey = "name";
