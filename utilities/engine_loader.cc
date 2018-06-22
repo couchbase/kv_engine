@@ -130,7 +130,6 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
         ret = false;        \
     }
 
-    check(initialize);
     check(destroy);
     check(allocate);
     check(allocate_ex);
@@ -159,15 +158,14 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
 bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str) {
     ENGINE_ERROR_CODE error;
 
-    auto engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(engine);
-    if (!validate_engine_interface(engine_v1)) {
+    if (!validate_engine_interface(engine)) {
         // error already logged
         return false;
     }
 
-    error = engine_v1->initialize(engine, config_str);
+    error = engine->initialize(config_str);
     if (error != ENGINE_SUCCESS) {
-        engine_v1->destroy(engine, false);
+        engine->destroy(engine, false);
         cb::engine_error err{cb::engine_errc(error),
                              "Failed to initialize instance"};
         LOG_WARNING("{}", err.what());

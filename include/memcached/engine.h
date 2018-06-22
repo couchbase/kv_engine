@@ -140,6 +140,9 @@ static const size_t default_max_item_size = 20 * 1024 * 1024;
  * Definition of the first version of the engine interface
  */
 struct EngineIface {
+    virtual ~EngineIface() {
+    }
+
     /**
      * Initialize an engine instance.
      * This is called *after* creation, but before the engine may be used.
@@ -147,8 +150,7 @@ struct EngineIface {
      * @param handle the engine handle
      * @param config_str configuration this engine needs to initialize itself.
      */
-    ENGINE_ERROR_CODE(*initialize)
-    (gsl::not_null<ENGINE_HANDLE*> handle, const char* config_str);
+    virtual ENGINE_ERROR_CODE initialize(const char* config_str) = 0;
 
     /**
      * Tear down this engine.

@@ -176,8 +176,7 @@ static SERVER_HANDLE_V1 *get_wrapped_gsa() {
 }
 
 /** ewouldblock_engine class */
-class EWB_Engine : public ENGINE_HANDLE_V1 {
-
+class EWB_Engine : public EngineIface {
 private:
     enum class Cmd {
         NONE,
@@ -203,7 +202,7 @@ private:
 public:
     EWB_Engine(GET_SERVER_API gsa_);
 
-    ~EWB_Engine();
+    ~EWB_Engine() override;
 
     // Convert from a handle back to the read object.
     static EWB_Engine* to_engine(ENGINE_HANDLE* handle) {
@@ -259,10 +258,7 @@ public:
 
     /* Implementation of all the engine functions. ***************************/
 
-    static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        const char* config_str) {
-        EWB_Engine* ewb = to_engine(handle);
-
+    ENGINE_ERROR_CODE initialize(const char* config_str) override {
         // Extract the name of the real engine we will be proxying; then
         // create and initialize it.
         std::string config(config_str);
@@ -273,8 +269,8 @@ public:
             real_engine_config = config.substr(seperator + 1);
         }
 
-        if ((ewb->real_engine_ref =
-                     load_engine(real_engine_name.c_str(), NULL)) == NULL) {
+        if ((real_engine_ref = load_engine(real_engine_name.c_str(), NULL)) ==
+            NULL) {
             LOG_CRITICAL(
                     "ERROR: EWB_Engine::initialize(): Failed to load real "
                     "engine '{}'",
@@ -283,7 +279,7 @@ public:
         }
 
         if (!create_engine_instance(
-                    ewb->real_engine_ref, get_wrapped_gsa, &ewb->real_handle)) {
+                    real_engine_ref, get_wrapped_gsa, &real_handle)) {
             LOG_CRITICAL(
                     "ERROR: EWB_Engine::initialize(): Failed create "
                     "engine instance '{}'",
@@ -291,32 +287,27 @@ public:
             abort();
         }
 
-        ewb->real_engine =
-                reinterpret_cast<ENGINE_HANDLE_V1*>(ewb->real_handle);
+        real_engine = real_handle;
 
-
-        engine_map[ewb->real_handle] = ewb;
-        ENGINE_ERROR_CODE res = ewb->real_engine->initialize(
-                ewb->real_handle, real_engine_config.c_str());
+        engine_map[real_handle] = this;
+        ENGINE_ERROR_CODE res =
+                real_engine->initialize(real_engine_config.c_str());
 
         if (res == ENGINE_SUCCESS) {
             // For engine interface functions which cannot return EWOULDBLOCK,
             // and we otherwise don't want to interpose, we can simply use the
             // real_engine's functions directly.
-            ewb->ENGINE_HANDLE_V1::item_set_cas = ewb->real_engine->item_set_cas;
-            ewb->ENGINE_HANDLE_V1::set_item_info = ewb->real_engine->set_item_info;
-            ewb->ENGINE_HANDLE_V1::item_set_datatype =
-                    ewb->real_engine->item_set_datatype;
+            ENGINE_HANDLE_V1::item_set_cas = real_engine->item_set_cas;
+            ENGINE_HANDLE_V1::set_item_info = real_engine->set_item_info;
+            ENGINE_HANDLE_V1::item_set_datatype =
+                    real_engine->item_set_datatype;
         }
 
         // Register a callback on DISCONNECT events, so we can delete
         // any stale elements from connection_map when a connection
         // DC's.
         real_api->callback->register_callback(
-                reinterpret_cast<ENGINE_HANDLE*>(ewb),
-                ON_DISCONNECT,
-                handle_disconnect,
-                reinterpret_cast<ENGINE_HANDLE*>(ewb));
+                this, ON_DISCONNECT, handle_disconnect, this);
 
         return res;
     }
@@ -764,7 +755,8 @@ public:
     GET_SERVER_API gsa;
 
     // Actual engine we are proxying requests to.
-    ENGINE_HANDLE* real_handle;
+    ENGINE_HANDLE*
+            real_handle; // TODO: Remove real_handle as same as real_engine now.
     ENGINE_HANDLE_V1* real_engine;
     engine_reference* real_engine_ref;
 
@@ -1327,7 +1319,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::initialize = initialize;
     ENGINE_HANDLE_V1::destroy = destroy;
     ENGINE_HANDLE_V1::allocate = allocate;
     ENGINE_HANDLE_V1::allocate_ex = allocate_ex;

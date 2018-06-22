@@ -95,7 +95,7 @@ private:
 class EventuallyPersistentEngine : public ENGINE_HANDLE_V1 {
     friend class LookupCallback;
 public:
-    ENGINE_ERROR_CODE initialize(const char* config);
+    ENGINE_ERROR_CODE initialize(const char* config) override;
     void destroy(bool force);
 
     ENGINE_ERROR_CODE itemAllocate(item** itm,
@@ -498,6 +498,13 @@ public:
      * @returns item_info created from item
      */
     item_info getItemInfo(const Item& item);
+
+    /**
+     * class-specific deallocation. Required to ensure engine is
+     * deregisterd from TLS before freeing memory (and invoking delete
+     * hooks).
+     */
+    static void operator delete(void* ptr);
 
 protected:
     friend class EpEngineValueChangeListener;

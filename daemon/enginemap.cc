@@ -97,7 +97,7 @@ void initialize_engine_map() {
                         "initialize_engine_map(): Failed to create instance of "
                         "crash engine");
             }
-            reinterpret_cast<ENGINE_HANDLE_V1*>(h)->initialize(h, nullptr);
+            h->initialize(nullptr);
             // Not reached, but to mute code analyzers
             delete engine;
         }

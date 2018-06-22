@@ -24,8 +24,9 @@
 #include <platform/processclock.h>
 #include <platform/strerror.h>
 
-struct mock_engine {
-    ENGINE_HANDLE_V1 me;
+struct mock_engine : public EngineIface {
+    ENGINE_ERROR_CODE initialize(const char* config_str) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -64,10 +65,8 @@ static ENGINE_HANDLE* get_engine_from_handle(ENGINE_HANDLE* handle) {
     return reinterpret_cast<ENGINE_HANDLE*>(get_handle(handle)->the_engine);
 }
 
-static ENGINE_ERROR_CODE mock_initialize(gsl::not_null<ENGINE_HANDLE*> handle,
-                                         const char* config_str) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine->initialize((ENGINE_HANDLE*)me->the_engine, config_str);
+ENGINE_ERROR_CODE mock_engine::initialize(const char* config_str) {
+    return the_engine->initialize(config_str);
 }
 
 static void mock_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -865,79 +864,74 @@ static void stop_your_engine() {
 }
 
 static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
-    struct mock_engine* mock_engine = (struct mock_engine*)cb_calloc(1, sizeof(struct mock_engine));
+    auto me = std::make_unique<mock_engine>();
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        mock_engine->me.initialize = mock_initialize;
-        mock_engine->me.destroy = mock_destroy;
-        mock_engine->me.allocate = mock_allocate;
-        mock_engine->me.allocate_ex = mock_allocate_ex;
-        mock_engine->me.remove = mock_remove;
-        mock_engine->me.release = mock_release;
-        mock_engine->me.get = mock_get;
-        mock_engine->me.get_if = mock_get_if;
-        mock_engine->me.get_and_touch = mock_get_and_touch;
-        mock_engine->me.get_locked = mock_get_locked;
-        mock_engine->me.get_meta = mock_get_meta;
-        mock_engine->me.unlock = mock_unlock;
-        mock_engine->me.store = mock_store;
-        mock_engine->me.flush = mock_flush;
-        mock_engine->me.get_stats = mock_get_stats;
-        mock_engine->me.reset_stats = mock_reset_stats;
-        mock_engine->me.unknown_command = mock_unknown_command;
-        mock_engine->me.item_set_cas = mock_item_set_cas;
-        mock_engine->me.get_item_info = mock_get_item_info;
-        mock_engine->me.dcp.step = mock_dcp_step;
-        mock_engine->me.dcp.open = mock_dcp_open;
-        mock_engine->me.dcp.add_stream = mock_dcp_add_stream;
-        mock_engine->me.dcp.close_stream = mock_dcp_close_stream;
-        mock_engine->me.dcp.stream_req = mock_dcp_stream_req;
-        mock_engine->me.dcp.get_failover_log = mock_dcp_get_failover_log;
-        mock_engine->me.dcp.stream_end = mock_dcp_stream_end;
-        mock_engine->me.dcp.snapshot_marker = mock_dcp_snapshot_marker;
-        mock_engine->me.dcp.mutation = mock_dcp_mutation;
-        mock_engine->me.dcp.deletion = mock_dcp_deletion;
-        mock_engine->me.dcp.expiration = mock_dcp_expiration;
-        mock_engine->me.dcp.flush = mock_dcp_flush;
-        mock_engine->me.dcp.set_vbucket_state = mock_dcp_set_vbucket_state;
-        mock_engine->me.dcp.noop = mock_dcp_noop;
-        mock_engine->me.dcp.buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
-        mock_engine->me.dcp.control = mock_dcp_control;
-        mock_engine->me.dcp.response_handler = mock_dcp_response_handler;
-        mock_engine->me.set_log_level = mock_set_log_level;
-        mock_engine->me.collections.set_manifest =
-                mock_collections_set_manifest;
-        mock_engine->me.isXattrEnabled = mock_isXattrEnabled;
-        mock_engine->me.getCompressionMode = mock_getCompressionMode;
-        mock_engine->me.getMinCompressionRatio = mock_getMinCompressionRatio;
+        me->destroy = mock_destroy;
+        me->allocate = mock_allocate;
+        me->allocate_ex = mock_allocate_ex;
+        me->remove = mock_remove;
+        me->release = mock_release;
+        me->get = mock_get;
+        me->get_if = mock_get_if;
+        me->get_and_touch = mock_get_and_touch;
+        me->get_locked = mock_get_locked;
+        me->get_meta = mock_get_meta;
+        me->unlock = mock_unlock;
+        me->store = mock_store;
+        me->flush = mock_flush;
+        me->get_stats = mock_get_stats;
+        me->reset_stats = mock_reset_stats;
+        me->unknown_command = mock_unknown_command;
+        me->item_set_cas = mock_item_set_cas;
+        me->get_item_info = mock_get_item_info;
+        me->dcp.step = mock_dcp_step;
+        me->dcp.open = mock_dcp_open;
+        me->dcp.add_stream = mock_dcp_add_stream;
+        me->dcp.close_stream = mock_dcp_close_stream;
+        me->dcp.stream_req = mock_dcp_stream_req;
+        me->dcp.get_failover_log = mock_dcp_get_failover_log;
+        me->dcp.stream_end = mock_dcp_stream_end;
+        me->dcp.snapshot_marker = mock_dcp_snapshot_marker;
+        me->dcp.mutation = mock_dcp_mutation;
+        me->dcp.deletion = mock_dcp_deletion;
+        me->dcp.expiration = mock_dcp_expiration;
+        me->dcp.flush = mock_dcp_flush;
+        me->dcp.set_vbucket_state = mock_dcp_set_vbucket_state;
+        me->dcp.noop = mock_dcp_noop;
+        me->dcp.buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
+        me->dcp.control = mock_dcp_control;
+        me->dcp.response_handler = mock_dcp_response_handler;
+        me->set_log_level = mock_set_log_level;
+        me->collections.set_manifest = mock_collections_set_manifest;
+        me->isXattrEnabled = mock_isXattrEnabled;
+        me->getCompressionMode = mock_getCompressionMode;
+        me->getMinCompressionRatio = mock_getMinCompressionRatio;
 
-        mock_engine->the_engine = (ENGINE_HANDLE_V1*)handle;
+        me->the_engine = (ENGINE_HANDLE_V1*)handle;
 
         /* Reset all members that aren't set (to allow the users to write */
         /* testcases to verify that they initialize them.. */
-        if (mock_engine->the_engine->unknown_command == NULL) {
-            mock_engine->me.unknown_command = NULL;
+        if (me->the_engine->unknown_command == NULL) {
+            me->unknown_command = NULL;
         }
 
         if (initialize) {
             if (!init_engine_instance(handle, cfg)) {
                 fprintf(stderr, "Failed to init engine with config %s.\n", cfg);
-                cb_free(mock_engine);
                 return NULL;
             }
         }
 
-        return &mock_engine->me;
-    } else {
-        cb_free(mock_engine);
-        return NULL;
+        return me.release();
     }
+    return nullptr;
 }
 
 static void destroy_bucket(ENGINE_HANDLE* handle, ENGINE_HANDLE_V1* handle_v1, bool force) {
     handle_v1->destroy(handle, force);
-    cb_free(handle_v1);
+    delete handle_v1;
 }
 
 //

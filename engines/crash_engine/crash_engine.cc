@@ -40,8 +40,9 @@ MEMCACHED_PUBLIC_API
 void destroy_engine(void);
 } // extern "C"
 
-struct CrashEngine {
-    ENGINE_HANDLE_V1 engine;
+class CrashEngine : public EngineIface {
+public:
+    ENGINE_ERROR_CODE initialize(const char* config_str) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -82,10 +83,7 @@ char recursive_crash_function(char depth, CrashMode mode) {
 /* 'initializes' this engine - given this is the crash_engine that
  * means crashing it.
  */
-static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    const char* config_str) {
-    (void)handle;
-    (void)config_str;
+ENGINE_ERROR_CODE CrashEngine::initialize(const char* config_str) {
     std::string mode_string(getenv("MEMCACHED_CRASH_TEST"));
     CrashMode mode;
     if (mode_string == "segfault") {
@@ -104,8 +102,7 @@ static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*> handle,
 }
 
 static void destroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool force) {
-    (void)force;
-    cb_free(handle);
+    delete handle;
 }
 
 static cb::EngineErrorItemPair item_allocate(
@@ -254,35 +251,35 @@ static size_t get_max_item_size(gsl::not_null<ENGINE_HANDLE*> handle) {
 
 ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
     CrashEngine* engine;
-    (void)gsa;
 
-    if ((engine = reinterpret_cast<CrashEngine*>(cb_calloc(1, sizeof(*engine)))) == NULL) {
+    try {
+        engine = new CrashEngine();
+    } catch (std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }
 
-    engine->engine.initialize = initialize;
-    engine->engine.destroy = destroy;
-    engine->engine.allocate = item_allocate;
-    engine->engine.allocate_ex = item_allocate_ex;
-    engine->engine.remove = item_delete;
-    engine->engine.release = item_release;
-    engine->engine.get = get;
-    engine->engine.get_if = get_if;
-    engine->engine.get_and_touch = get_and_touch;
-    engine->engine.get_locked = get_locked;
-    engine->engine.unlock = unlock;
-    engine->engine.get_stats = get_stats;
-    engine->engine.reset_stats = reset_stats;
-    engine->engine.store = store;
-    engine->engine.store_if = store_if;
-    engine->engine.flush = flush;
-    engine->engine.item_set_cas = item_set_cas;
-    engine->engine.item_set_datatype = item_set_datatype;
-    engine->engine.get_item_info = get_item_info;
-    engine->engine.set_item_info = set_item_info;
-    engine->engine.isXattrEnabled = is_xattr_enabled;
-    engine->engine.getMaxItemSize = get_max_item_size;
-    *handle = reinterpret_cast<ENGINE_HANDLE*>(&engine->engine);
+    engine->destroy = destroy;
+    engine->allocate = item_allocate;
+    engine->allocate_ex = item_allocate_ex;
+    engine->remove = item_delete;
+    engine->release = item_release;
+    engine->get = get;
+    engine->get_if = get_if;
+    engine->get_and_touch = get_and_touch;
+    engine->get_locked = get_locked;
+    engine->unlock = unlock;
+    engine->get_stats = get_stats;
+    engine->reset_stats = reset_stats;
+    engine->store = store;
+    engine->store_if = store_if;
+    engine->flush = flush;
+    engine->item_set_cas = item_set_cas;
+    engine->item_set_datatype = item_set_datatype;
+    engine->get_item_info = get_item_info;
+    engine->set_item_info = set_item_info;
+    engine->isXattrEnabled = is_xattr_enabled;
+    engine->getMaxItemSize = get_max_item_size;
+    *handle = engine;
     return ENGINE_SUCCESS;
 }
 

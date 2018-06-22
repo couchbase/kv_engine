@@ -145,11 +145,6 @@ static void checkNumeric(const char* str) {
     }
 }
 
-static ENGINE_ERROR_CODE EvpInitialize(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       const char* config_str) {
-    return acquireEngine(handle)->initialize(config_str);
-}
-
 static void EvpDestroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool force) {
     auto eng = acquireEngine(handle);
     eng->destroy(force);
@@ -1856,7 +1851,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::initialize = EvpInitialize;
     ENGINE_HANDLE_V1::destroy = EvpDestroy;
     ENGINE_HANDLE_V1::allocate = EvpItemAllocate;
     ENGINE_HANDLE_V1::allocate_ex = EvpItemAllocateEx;
@@ -2071,6 +2065,7 @@ private:
 };
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
+    auto switchToEngine = acquireEngine(this);
     resetStats();
     if (config != nullptr) {
         if (!configuration.parseConfiguration(config, serverApi)) {
@@ -2248,6 +2243,16 @@ time_t EventuallyPersistentEngine::processExpiryTime(time_t in) const {
     }
 
     return out;
+}
+
+void EventuallyPersistentEngine::operator delete(void* ptr) {
+    // Already destructed EventuallyPersistentEngine object; about to
+    // deallocate its memory. As such; it is not valid to update the
+    // memory state inside the now-destroyed EPStats child object of
+    // EventuallyPersistentEngine.  Therefore forcably disassociated
+    // the current thread from this engine before deallocating memory.
+    ObjectRegistry::onSwitchThread(nullptr);
+    ::operator delete(ptr);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(

@@ -23,8 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static ENGINE_ERROR_CODE default_initialize(
-        gsl::not_null<ENGINE_HANDLE*> handle, const char* config_str);
 static void default_destroy(gsl::not_null<ENGINE_HANDLE*> handle,
                             const bool force);
 static cb::EngineErrorItemPair default_item_allocate(
@@ -190,40 +188,38 @@ static size_t get_max_item_size(gsl::not_null<ENGINE_HANDLE*> handle);
  */
 void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
 {
-    memset(engine, 0, sizeof(*engine));
-
     cb_mutex_initialize(&engine->slabs.lock);
     cb_mutex_initialize(&engine->items.lock);
     cb_mutex_initialize(&engine->stats.lock);
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->engine.initialize = default_initialize;
-    engine->engine.destroy = default_destroy;
-    engine->engine.allocate = default_item_allocate;
-    engine->engine.allocate_ex = default_item_allocate_ex;
-    engine->engine.remove = default_item_delete;
-    engine->engine.release = default_item_release;
-    engine->engine.get = default_get;
-    engine->engine.get_if = default_get_if;
-    engine->engine.get_locked = default_get_locked;
-    engine->engine.get_meta = default_get_meta;
-    engine->engine.get_and_touch = default_get_and_touch;
-    engine->engine.unlock = default_unlock;
-    engine->engine.get_stats = default_get_stats;
-    engine->engine.reset_stats = default_reset_stats;
-    engine->engine.store = default_store;
-    engine->engine.store_if = default_store_if;
-    engine->engine.flush = default_flush;
-    engine->engine.unknown_command = default_unknown_command;
-    engine->engine.item_set_cas = item_set_cas;
-    engine->engine.item_set_datatype = item_set_datatype;
-    engine->engine.get_item_info = get_item_info;
-    engine->engine.set_item_info = set_item_info;
-    engine->engine.isXattrEnabled = is_xattr_supported;
-    engine->engine.getCompressionMode = get_compression_mode;
-    engine->engine.getMaxItemSize = get_max_item_size;
-    engine->engine.getMinCompressionRatio = get_min_compression_ratio;
+    engine->destroy = default_destroy;
+    engine->allocate = default_item_allocate;
+    engine->allocate_ex = default_item_allocate_ex;
+    engine->remove = default_item_delete;
+    engine->release = default_item_release;
+    engine->get = default_get;
+    engine->get_if = default_get_if;
+    engine->get_locked = default_get_locked;
+    engine->get_meta = default_get_meta;
+    engine->get_and_touch = default_get_and_touch;
+    engine->unlock = default_unlock;
+    engine->get_stats = default_get_stats;
+    engine->reset_stats = default_reset_stats;
+    engine->store = default_store;
+    engine->store_if = default_store_if;
+    engine->flush = default_flush;
+    engine->unknown_command = default_unknown_command;
+    engine->item_set_cas = item_set_cas;
+    engine->item_set_datatype = item_set_datatype;
+    engine->get_item_info = get_item_info;
+    engine->set_item_info = set_item_info;
+    engine->set_log_level = nullptr;
+    engine->isXattrEnabled = is_xattr_supported;
+    engine->getCompressionMode = get_compression_mode;
+    engine->getMaxItemSize = get_max_item_size;
+    engine->getMinCompressionRatio = get_min_compression_ratio;
     engine->config.verbose = 0;
     engine->config.oldest_live = 0;
     engine->config.evict_to_free = true;
@@ -253,7 +249,7 @@ extern "C" ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
     engine->server = *api;
     engine->get_server_api = get_server_api;
     engine->initialized = true;
-    *handle = (ENGINE_HANDLE*)&engine->engine;
+    *handle = engine;
     return ENGINE_SUCCESS;
 }
 
@@ -270,21 +266,18 @@ static hash_item* get_real_item(item* item) {
     return (hash_item*)item;
 }
 
-static ENGINE_ERROR_CODE default_initialize(
-        gsl::not_null<ENGINE_HANDLE*> handle, const char* config_str) {
-    struct default_engine* se = get_handle(handle);
-    ENGINE_ERROR_CODE ret = initalize_configuration(se, config_str);
+ENGINE_ERROR_CODE default_engine::initialize(const char* config_str) {
+    ENGINE_ERROR_CODE ret = initalize_configuration(this, config_str);
     if (ret != ENGINE_SUCCESS) {
         return ret;
     }
 
-    ret = assoc_init(se);
+    ret = assoc_init(this);
     if (ret != ENGINE_SUCCESS) {
         return ret;
     }
 
-    ret = slabs_init(
-            se, se->config.maxbytes, se->config.factor, se->config.preallocate);
+    ret = slabs_init(this, config.maxbytes, config.factor, config.preallocate);
     if (ret != ENGINE_SUCCESS) {
         return ret;
     }

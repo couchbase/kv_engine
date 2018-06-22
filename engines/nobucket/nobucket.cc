@@ -33,8 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        memset(this, 0, sizeof(*this));
-        ENGINE_HANDLE_V1::initialize = initialize;
         ENGINE_HANDLE_V1::destroy = destroy;
         ENGINE_HANDLE_V1::allocate = item_allocate;
         ENGINE_HANDLE_V1::allocate_ex = item_allocate_ex;
@@ -71,11 +69,18 @@ public:
         ENGINE_HANDLE_V1::dcp.flush = dcp_flush;
         ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
         ENGINE_HANDLE_V1::dcp.system_event = dcp_system_event;
+        ENGINE_HANDLE_V1::set_log_level = nullptr;
         ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
         ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
         ENGINE_HANDLE_V1::isXattrEnabled = isXattrEnabled;
+        ENGINE_HANDLE_V1::getCompressionMode = nullptr;
         ENGINE_HANDLE_V1::getMaxItemSize = getMaxItemSize;
+        ENGINE_HANDLE_V1::getMinCompressionRatio = nullptr;
     };
+
+    ENGINE_ERROR_CODE initialize(const char* config_str) override {
+        return ENGINE_SUCCESS;
+    }
 
 private:
     /**
@@ -86,11 +91,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static ENGINE_ERROR_CODE initialize(gsl::not_null<ENGINE_HANDLE*>,
-                                        const char*) {
-        return ENGINE_SUCCESS;
     }
 
     static void destroy(gsl::not_null<ENGINE_HANDLE*> handle, const bool) {

@@ -1824,7 +1824,7 @@ void CreateBucketThread::create() {
     }
 
     try {
-        result = engine->initialize(v1_handle_2_handle(engine), config.c_str());
+        result = engine->initialize(config.c_str());
     } catch (const std::runtime_error& e) {
         LOG_WARNING("{} - Failed to create bucket [{}]: {}",
                     connection.getId(),
