@@ -37,12 +37,6 @@ static cb::EngineErrorItemPair default_get_locked(
         uint16_t vbucket,
         uint32_t lock_timeout);
 
-static cb::EngineErrorMetadataPair default_get_meta(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint16_t vbucket);
-
 static ENGINE_ERROR_CODE default_unlock(gsl::not_null<ENGINE_HANDLE*> handle,
                                         gsl::not_null<const void*> cookie,
                                         const DocKey& key,
@@ -150,7 +144,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
 
     engine->bucket_id = id;
     engine->get_locked = default_get_locked;
-    engine->get_meta = default_get_meta;
     engine->get_and_touch = default_get_and_touch;
     engine->unlock = default_unlock;
     engine->get_stats = default_get_stats;
@@ -519,30 +512,27 @@ static cb::EngineErrorItemPair default_get_locked(
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), it, handle);
 }
 
-static cb::EngineErrorMetadataPair default_get_meta(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorMetadataPair default_engine::get_meta(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket) {
-    auto* engine_handle = get_handle(handle);
-
-    if (!handled_vbucket(engine_handle, vbucket)) {
+    if (!handled_vbucket(this, vbucket)) {
         return std::make_pair(cb::engine_errc::not_my_vbucket, item_info());
     }
 
-    cb::unique_item_ptr item{item_get(engine_handle,
+    cb::unique_item_ptr item{item_get(this,
                                       cookie,
                                       key.data(),
                                       key.size(),
                                       DocStateFilter::AliveOrDeleted),
-                             cb::ItemDeleter(handle)};
+                             cb::ItemDeleter(this)};
 
     if (!item) {
         return std::make_pair(cb::engine_errc::no_such_key, item_info());
     }
 
     item_info info;
-    if (!get_item_info(handle, item.get(), &info)) {
+    if (!get_item_info(this, item.get(), &info)) {
         throw cb::engine_error(cb::engine_errc::failed,
                                "default_get_if: get_item_info failed");
     }

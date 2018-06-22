@@ -650,7 +650,7 @@ bool get_meta(ENGINE_HANDLE* h,
         cookie_create = true;
     }
 
-    out = h1->get_meta(h, cookie, docKey, /*vb*/ 0);
+    out = h1->get_meta(cookie, docKey, /*vb*/ 0);
 
     if (cookie_create) {
         testHarness.destroy_cookie(cookie);

@@ -136,6 +136,10 @@ struct default_engine : public EngineIface {
             uint16_t vbucket,
             std::function<bool(const item_info&)> filter) override;
 
+    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         uint16_t vbucket) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 

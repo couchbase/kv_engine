@@ -33,7 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::get_meta = get_meta;
         ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
         ENGINE_HANDLE_V1::get_locked = get_locked;
         ENGINE_HANDLE_V1::unlock = unlock;
@@ -130,6 +129,12 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
+    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         uint16_t vbucket) override {
+        return cb::EngineErrorMetadataPair(cb::engine_errc::no_bucket, {});
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -139,14 +144,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static cb::EngineErrorMetadataPair get_meta(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            uint16_t vbucket) {
-        return cb::EngineErrorMetadataPair(cb::engine_errc::no_bucket, {});
     }
 
     static cb::EngineErrorItemPair get_and_touch(

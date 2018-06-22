@@ -83,8 +83,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
                                             uint16_t vbucket) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->get_meta(
-            c.getBucketEngineAsV0(), &cookie, key, vbucket);
+    auto ret = c.getBucketEngine()->get_meta(&cookie, key, vbucket);
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_meta return ENGINE_DISCONNECT",
                     c.getId(),

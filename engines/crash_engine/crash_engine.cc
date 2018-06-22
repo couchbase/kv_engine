@@ -79,6 +79,10 @@ public:
             const DocKey& key,
             uint16_t vbucket,
             std::function<bool(const item_info&)> filter) override;
+
+    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         uint16_t vbucket) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -187,6 +191,13 @@ cb::EngineErrorItemPair CrashEngine::get_if(
         uint16_t,
         std::function<bool(const item_info&)>) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
+}
+
+cb::EngineErrorMetadataPair CrashEngine::get_meta(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint16_t vbucket) {
+    return {cb::engine_errc::failed, {}};
 }
 
 static cb::EngineErrorItemPair get_and_touch(

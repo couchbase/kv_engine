@@ -1784,12 +1784,11 @@ static bool EvpGetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
     return true;
 }
 
-static cb::EngineErrorMetadataPair EvpGetMeta(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket) {
-    return acquireEngine(handle)->getMeta(cookie, key, vbucket);
+    return acquireEngine(this)->getMetaInner(cookie, key, vbucket);
 }
 
 static bool EvpSetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1848,7 +1847,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       minCompressionRatio(default_min_compression_ratio) {
     ENGINE_HANDLE_V1::get_and_touch = EvpGetAndTouch;
     ENGINE_HANDLE_V1::get_locked = EvpGetLocked;
-    ENGINE_HANDLE_V1::get_meta = EvpGetMeta;
     ENGINE_HANDLE_V1::unlock = EvpUnlock;
     ENGINE_HANDLE_V1::get_stats = EvpGetStats;
     ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
@@ -4709,7 +4707,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                         status, 0, cookie);
 }
 
-cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMeta(
+cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
         const void* cookie, const DocKey& key, uint16_t vbucket) {
     uint32_t deleted;
     uint8_t datatype;

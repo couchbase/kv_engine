@@ -133,6 +133,10 @@ public:
             uint16_t vbucket,
             std::function<bool(const item_info&)> filter) override;
 
+    cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         uint16_t vbucket) override;
+
     /**
      * Delete a given key and value from the engine.
      *
@@ -239,9 +243,9 @@ public:
                                    uint16_t vbucket,
                                    uint32_t flags);
 
-    cb::EngineErrorMetadataPair getMeta(const void* cookie,
-                                        const DocKey& key,
-                                        uint16_t vbucket);
+    cb::EngineErrorMetadataPair getMetaInner(const void* cookie,
+                                             const DocKey& key,
+                                             uint16_t vbucket);
 
     ENGINE_ERROR_CODE setWithMeta(const void* cookie,
                                  protocol_binary_request_set_with_meta *request,

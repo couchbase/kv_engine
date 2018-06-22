@@ -299,18 +299,16 @@ struct EngineIface {
     /**
      * Retrieve metadata for a given item.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param key the key to look up
      * @param vbucket the virtual bucket id
      *
      * @return  Pair (ENGINE_SUCCESS, Metadata) if all goes well
      */
-    cb::EngineErrorMetadataPair (*get_meta)(
-            gsl::not_null<ENGINE_HANDLE*> handle,
+    virtual cb::EngineErrorMetadataPair get_meta(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
-            uint16_t vbucket);
+            uint16_t vbucket) = 0;
 
     /**
      * Lock and Retrieve an item.

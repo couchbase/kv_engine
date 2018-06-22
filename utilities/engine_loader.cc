@@ -131,7 +131,6 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
     }
 
     check(get_locked);
-    check(get_meta);
     check(get_and_touch);
     check(unlock);
     check(store);
