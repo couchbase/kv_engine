@@ -258,7 +258,6 @@ struct EngineIface {
     /**
      * Retrieve an item.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param item output variable that will receive the located item
      * @param key the key to look up
@@ -270,11 +269,32 @@ struct EngineIface {
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    cb::EngineErrorItemPair (*get)(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   gsl::not_null<const void*> cookie,
-                                   const DocKey& key,
-                                   uint16_t vbucket,
-                                   DocStateFilter documentStateFilter);
+    virtual cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
+                                        const DocKey& key,
+                                        uint16_t vbucket,
+                                        DocStateFilter documentStateFilter) = 0;
+
+    /**
+     * Optionally retrieve an item. Only non-deleted items may be fetched
+     * through this interface (Documents in deleted state may be evicted
+     * from memory and we don't want to go to disk in order to fetch these)
+     *
+     * @param cookie The cookie provided by the frontend
+     * @param key the key to look up
+     * @param vbucket the virtual bucket id
+     * @param filter callback filter to see if the item should be returned
+     *               or not. If filter returns false the item should be
+     *               skipped.
+     *               Note: the filter is applied only to the *metadata* of the
+     *               item_info - i.e. the `value` should not be expected to be
+     *               present when filter is invoked.
+     * @return A pair of the error code and (optionally) the item
+     */
+    virtual cb::EngineErrorItemPair get_if(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            std::function<bool(const item_info&)> filter) = 0;
 
     /**
      * Retrieve metadata for a given item.
@@ -291,30 +311,6 @@ struct EngineIface {
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint16_t vbucket);
-
-    /**
-     * Optionally retrieve an item. Only non-deleted items may be fetched
-     * through this interface (Documents in deleted state may be evicted
-     * from memory and we don't want to go to disk in order to fetch these)
-     *
-     * @param handle the engine handle
-     * @param cookie The cookie provided by the frontend
-     * @param key the key to look up
-     * @param vbucket the virtual bucket id
-     * @param filter callback filter to see if the item should be returned
-     *               or not. If filter returns false the item should be
-     *               skipped.
-     *               Note: the filter is applied only to the *metadata* of the
-     *               item_info - i.e. the `value` should not be expected to be
-     *               present when filter is invoked.
-     * @return A pair of the error code and (optionally) the item
-     */
-    cb::EngineErrorItemPair (*get_if)(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            const DocKey& key,
-            uint16_t vbucket,
-            std::function<bool(const item_info&)> filter);
 
     /**
      * Lock and Retrieve an item.

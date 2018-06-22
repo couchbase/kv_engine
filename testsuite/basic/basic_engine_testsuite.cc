@@ -161,7 +161,7 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         cb_assert(cas != prev_cas);
     }
 
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h1->get_item_info(h, ret.second.get(), &item_info) == true);
     cb_assert(item_info.value[0].iov_len == sizeof(int));
@@ -208,7 +208,7 @@ static enum test_result get_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
     test_harness.destroy_cookie(cookie);
     return SUCCESS;
@@ -230,23 +230,23 @@ static enum test_result get_deleted_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                         cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
 
     // Asking for a dead document should not find it!
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Deleted);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Deleted);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
 
     // remove it
     mutation_descr_t mut_info;
     cb_assert(h1->remove(cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
 
     // But we should be able to fetch it if we ask for deleted
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Deleted);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Deleted);
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(ret.second != nullptr);
 
@@ -269,7 +269,7 @@ static enum test_result expiry_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     test_harness.time_travel(11);
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     test_harness.destroy_cookie(cookie);
     return SUCCESS;
@@ -315,7 +315,7 @@ static enum test_result remove_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->remove(cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
     test_harness.destroy_cookie(cookie);
@@ -342,7 +342,7 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h1->flush(h, cookie) == ENGINE_SUCCESS);
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
 
@@ -445,7 +445,7 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     for (ii = 0; ii < 250; ++ii) {
         uint8_t key[1024];
 
-        ret = h1->get(h, cookie, hot_key, 0, DocStateFilter::Alive);
+        ret = h1->get(cookie, hot_key, 0, DocStateFilter::Alive);
         cb_assert(ret.first == cb::engine_errc::success);
         DocKey allocate_key(key,
                             snprintf(reinterpret_cast<char*>(key), sizeof(key),
@@ -475,10 +475,10 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                 "lru_test_key_%08d", jj),
                        test_harness.doc_namespace);
         if (jj == 0 || jj == 1) {
-            ret = h1->get(h, cookie, get_key, 0, DocStateFilter::Alive);
+            ret = h1->get(cookie, get_key, 0, DocStateFilter::Alive);
             cb_assert(ret.first == cb::engine_errc::no_such_key);
         } else {
-            ret = h1->get(h, cookie, get_key, 0, DocStateFilter::Alive);
+            ret = h1->get(cookie, get_key, 0, DocStateFilter::Alive);
             cb_assert(ret.first == cb::engine_errc::success);
             cb_assert(ret.second != nullptr);
         }
@@ -520,7 +520,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
 
-    ret = h1->get(h, cookie, key, 0, DocStateFilter::Alive);
+    ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
 
     cb_assert(h1->get_item_info(h, ret.second.get(), &ii));

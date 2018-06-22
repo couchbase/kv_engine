@@ -53,6 +53,16 @@ struct mock_engine : public EngineIface {
 
     void release(gsl::not_null<item*> item) override;
 
+    cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
+                                const DocKey& key,
+                                uint16_t vbucket,
+                                DocStateFilter documentStateFilter) override;
+    cb::EngineErrorItemPair get_if(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            std::function<bool(const item_info&)> filter) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -259,13 +269,12 @@ void mock_engine::release(gsl::not_null<item*> item) {
     the_engine->release(item);
 }
 
-static cb::EngineErrorItemPair mock_get(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        const DocKey& key,
-                                        uint16_t vbucket,
-                                        DocStateFilter documentStateFilter) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get,
-                               get_engine_from_handle(handle),
+cb::EngineErrorItemPair mock_engine::get(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         uint16_t vbucket,
+                                         DocStateFilter documentStateFilter) {
+    auto engine_fn = std::bind(&EngineIface::get,
+                               the_engine,
                                cookie,
                                key,
                                vbucket,
@@ -274,26 +283,21 @@ static cb::EngineErrorItemPair mock_get(gsl::not_null<ENGINE_HANDLE*> handle,
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
     return do_blocking_engine_call<cb::unique_item_ptr>(
-            handle, construct, engine_fn);
+            this, construct, engine_fn);
 }
 
-static cb::EngineErrorItemPair mock_get_if(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair mock_engine::get_if(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_if,
-                               get_engine_from_handle(handle),
-                               cookie,
-                               key,
-                               vbucket,
-                               filter);
+    auto engine_fn = std::bind(
+            &EngineIface::get_if, the_engine, cookie, key, vbucket, filter);
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
     return do_blocking_engine_call<cb::unique_item_ptr>(
-            handle, construct, engine_fn);
+            this, construct, engine_fn);
 }
 
 static cb::EngineErrorItemPair mock_get_and_touch(
@@ -887,8 +891,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->get = mock_get;
-        me->get_if = mock_get_if;
         me->get_and_touch = mock_get_and_touch;
         me->get_locked = mock_get_locked;
         me->get_meta = mock_get_meta;

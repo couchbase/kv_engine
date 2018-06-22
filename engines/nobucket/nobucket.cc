@@ -33,9 +33,7 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::get = get;
         ENGINE_HANDLE_V1::get_meta = get_meta;
-        ENGINE_HANDLE_V1::get_if = get_if;
         ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
         ENGINE_HANDLE_V1::get_locked = get_locked;
         ENGINE_HANDLE_V1::unlock = unlock;
@@ -117,6 +115,21 @@ public:
                 " been allocated from this engine");
     }
 
+    cb::EngineErrorItemPair get(gsl::not_null<const void*>,
+                                const DocKey&,
+                                uint16_t,
+                                DocStateFilter) override {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
+    }
+
+    cb::EngineErrorItemPair get_if(
+            gsl::not_null<const void*>,
+            const DocKey&,
+            uint16_t,
+            std::function<bool(const item_info&)>) override {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -128,29 +141,12 @@ private:
         return reinterpret_cast<NoBucket*>(handle);
     }
 
-    static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> h,
-                                       gsl::not_null<const void*>,
-                                       const DocKey&,
-                                       uint16_t,
-                                       DocStateFilter) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
-    }
-
     static cb::EngineErrorMetadataPair get_meta(
             gsl::not_null<ENGINE_HANDLE*> handle,
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint16_t vbucket) {
         return cb::EngineErrorMetadataPair(cb::engine_errc::no_bucket, {});
-    }
-
-    static cb::EngineErrorItemPair get_if(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*>,
-            const DocKey&,
-            uint16_t,
-            std::function<bool(const item_info&)>) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
     static cb::EngineErrorItemPair get_and_touch(

@@ -1806,8 +1806,7 @@ cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
         create_cookie = true;
     }
 
-    auto ret = h1->get(h,
-                       cookie,
+    auto ret = h1->get(cookie,
                        DocKey(key, testHarness.doc_namespace),
                        vb,
                        documentStateFilter);

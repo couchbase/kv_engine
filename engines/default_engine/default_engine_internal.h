@@ -126,6 +126,16 @@ struct default_engine : public EngineIface {
 
     void release(gsl::not_null<item*> item) override;
 
+    cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
+                                const DocKey& key,
+                                uint16_t vbucket,
+                                DocStateFilter documentStateFilter) override;
+    cb::EngineErrorItemPair get_if(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            std::function<bool(const item_info&)> filter) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 

@@ -123,6 +123,16 @@ public:
 
     void release(gsl::not_null<item*> itm) override;
 
+    cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
+                                const DocKey& key,
+                                uint16_t vbucket,
+                                DocStateFilter documentStateFilter) override;
+    cb::EngineErrorItemPair get_if(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            std::function<bool(const item_info&)> filter) override;
+
     /**
      * Delete a given key and value from the engine.
      *
@@ -170,11 +180,11 @@ public:
      * value (whereas we could have just fetched the meta+value in the first
      * place).
      */
-    cb::EngineErrorItemPair get_if(const void* cookie,
-                                   const DocKey& key,
-                                   uint16_t vbucket,
-                                   std::function<bool(
-                                       const item_info&)> filter);
+    cb::EngineErrorItemPair getIfInner(
+            const void* cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            std::function<bool(const item_info&)> filter);
 
     cb::EngineErrorItemPair get_and_touch(const void* cookie,
                                           const DocKey& key,

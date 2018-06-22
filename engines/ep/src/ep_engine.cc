@@ -223,11 +223,11 @@ void EventuallyPersistentEngine::release(gsl::not_null<item*> itm) {
     acquireEngine(this)->itemRelease(itm);
 }
 
-static cb::EngineErrorItemPair EvpGet(gsl::not_null<ENGINE_HANDLE*> handle,
-                                      gsl::not_null<const void*> cookie,
-                                      const DocKey& key,
-                                      uint16_t vbucket,
-                                      DocStateFilter documentStateFilter) {
+cb::EngineErrorItemPair EventuallyPersistentEngine::get(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        DocStateFilter documentStateFilter) {
     get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
@@ -246,7 +246,7 @@ static cb::EngineErrorItemPair EvpGet(gsl::not_null<ENGINE_HANDLE*> handle,
         // if anyone start using it
         return std::make_pair(
                 cb::engine_errc::not_supported,
-                cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
     case DocStateFilter::AliveOrDeleted:
         options = static_cast<get_options_t>(options | GET_DELETED_VALUE);
         break;
@@ -254,17 +254,16 @@ static cb::EngineErrorItemPair EvpGet(gsl::not_null<ENGINE_HANDLE*> handle,
 
     item* itm = nullptr;
     ENGINE_ERROR_CODE ret =
-            acquireEngine(handle)->get(cookie, &itm, key, vbucket, options);
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, handle);
+            acquireEngine(this)->get(cookie, &itm, key, vbucket, options);
+    return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
 }
 
-static cb::EngineErrorItemPair EvpGetIf(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
-    return acquireEngine(handle)->get_if(cookie, key, vbucket, filter);
+    return acquireEngine(this)->getIfInner(cookie, key, vbucket, filter);
 }
 
 static cb::EngineErrorItemPair EvpGetAndTouch(
@@ -1847,8 +1846,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::get = EvpGet;
-    ENGINE_HANDLE_V1::get_if = EvpGetIf;
     ENGINE_HANDLE_V1::get_and_touch = EvpGetAndTouch;
     ENGINE_HANDLE_V1::get_locked = EvpGetLocked;
     ENGINE_HANDLE_V1::get_meta = EvpGetMeta;
@@ -2390,10 +2387,11 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(const void* co
     return cb::makeEngineErrorItemPair(cb::engine_errc(rv));
 }
 
-cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(const void* cookie,
-                                                       const DocKey& key,
-                                                       uint16_t vbucket,
-                                                       std::function<bool(const item_info&)>filter) {
+cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
+        const void* cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        std::function<bool(const item_info&)> filter) {
     auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
 
     ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(

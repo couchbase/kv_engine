@@ -69,6 +69,16 @@ public:
                              mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
+
+    cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
+                                const DocKey& key,
+                                uint16_t vbucket,
+                                DocStateFilter documentStateFilter) override;
+    cb::EngineErrorItemPair get_if(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint16_t vbucket,
+            std::function<bool(const item_info&)> filter) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -164,19 +174,18 @@ ENGINE_ERROR_CODE CrashEngine::remove(gsl::not_null<const void*> cookie,
 void CrashEngine::release(gsl::not_null<item*> item) {
 }
 
-static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   gsl::not_null<const void*> cookie,
-                                   const DocKey& key,
-                                   uint16_t vbucket,
-                                   DocStateFilter) {
+cb::EngineErrorItemPair CrashEngine::get(gsl::not_null<const void*> cookie,
+                                         const DocKey& key,
+                                         uint16_t vbucket,
+                                         DocStateFilter) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
-static cb::EngineErrorItemPair get_if(gsl::not_null<ENGINE_HANDLE*> handle,
-                                      gsl::not_null<const void*>,
-                                      const DocKey&,
-                                      uint16_t,
-                                      std::function<bool(const item_info&)>) {
+cb::EngineErrorItemPair CrashEngine::get_if(
+        gsl::not_null<const void*>,
+        const DocKey&,
+        uint16_t,
+        std::function<bool(const item_info&)>) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
@@ -279,8 +288,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->get = get;
-    engine->get_if = get_if;
     engine->get_and_touch = get_and_touch;
     engine->get_locked = get_locked;
     engine->unlock = unlock;

@@ -584,10 +584,10 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterNegative) {
     // Setup a lambda for how we want to call get_if() - filter always returns
     // false.
     auto do_getIf = [this]() {
-        return engine->get_if(cookie,
-                              makeStoredDocKey("key"),
-                              vbid,
-                              [](const item_info& info) { return false; });
+        return engine->getIfInner(cookie,
+                                  makeStoredDocKey("key"),
+                                  vbid,
+                                  [](const item_info& info) { return false; });
     };
 
     auto& stats = engine->getEpStats();
@@ -639,10 +639,10 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
     // Setup a lambda for how we want to call get_if() - filter always returns
     // true.
     auto do_getIf = [this]() {
-        return engine->get_if(cookie,
-                              makeStoredDocKey("key"),
-                              vbid,
-                              [](const item_info& info) { return true; });
+        return engine->getIfInner(cookie,
+                                  makeStoredDocKey("key"),
+                                  vbid,
+                                  [](const item_info& info) { return true; });
     };
 
     auto& stats = engine->getEpStats();

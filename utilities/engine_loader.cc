@@ -130,8 +130,6 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
         ret = false;        \
     }
 
-    check(get);
-    check(get_if);
     check(get_locked);
     check(get_meta);
     check(get_and_touch);

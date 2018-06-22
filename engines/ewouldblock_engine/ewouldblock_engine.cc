@@ -381,39 +381,30 @@ public:
         }
     }
 
-    static cb::EngineErrorItemPair get(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       const DocKey& key,
-                                       uint16_t vbucket,
-                                       DocStateFilter documentStateFilter) {
-        EWB_Engine* ewb = to_engine(handle);
+    cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
+                                const DocKey& key,
+                                uint16_t vbucket,
+                                DocStateFilter documentStateFilter) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
+        if (should_inject_error(Cmd::GET, cookie, err)) {
             return std::make_pair(
                     cb::engine_errc(err),
-                    cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+                    cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
         } else {
-            return ewb->real_engine->get(ewb->real_handle,
-                                         cookie,
-                                         key,
-                                         vbucket,
-                                         documentStateFilter);
+            return real_engine->get(cookie, key, vbucket, documentStateFilter);
         }
     }
 
-    static cb::EngineErrorItemPair get_if(
-            gsl::not_null<ENGINE_HANDLE*> handle,
+    cb::EngineErrorItemPair get_if(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             uint16_t vbucket,
-            std::function<bool(const item_info&)> filter) {
-        EWB_Engine* ewb = to_engine(handle);
+            std::function<bool(const item_info&)> filter) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
+        if (should_inject_error(Cmd::GET, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
         } else {
-            return ewb->real_engine->get_if(
-                    ewb->real_handle, cookie, key, vbucket, filter);
+            return real_engine->get_if(cookie, key, vbucket, filter);
         }
     }
 
@@ -1305,8 +1296,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::get = get;
-    ENGINE_HANDLE_V1::get_if = get_if;
     ENGINE_HANDLE_V1::get_locked = get_locked;
     ENGINE_HANDLE_V1::get_meta = get_meta;
     ENGINE_HANDLE_V1::get_and_touch = get_and_touch;
@@ -2031,8 +2020,7 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
         cas64 = LOCKED_CAS;
     }
 
-    auto rv = real_engine->get(real_handle,
-                               cookie,
+    auto rv = real_engine->get(cookie,
                                DocKey{key, DocNamespace::DefaultCollection},
                                0,
                                DocStateFilter::Alive);

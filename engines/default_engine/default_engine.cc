@@ -23,19 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           const DocKey& key,
-                                           uint16_t vbucket,
-                                           DocStateFilter);
-
-static cb::EngineErrorItemPair default_get_if(
-        gsl::not_null<ENGINE_HANDLE*>,
-        gsl::not_null<const void*>,
-        const DocKey&,
-        uint16_t,
-        std::function<bool(const item_info&)>);
-
 static cb::EngineErrorItemPair default_get_and_touch(
         gsl::not_null<ENGINE_HANDLE*> handle,
         gsl::not_null<const void*> cookie,
@@ -162,8 +149,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->get = default_get;
-    engine->get_if = default_get_if;
     engine->get_locked = default_get_locked;
     engine->get_meta = default_get_meta;
     engine->get_and_touch = default_get_and_touch;
@@ -426,53 +411,47 @@ void default_engine::release(gsl::not_null<item*> item) {
     item_release(this, get_real_item(item));
 }
 
-static cb::EngineErrorItemPair default_get(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           const DocKey& key,
-                                           uint16_t vbucket,
-                                           DocStateFilter documentStateFilter) {
-    struct default_engine* engine = get_handle(handle);
-
-    if (!handled_vbucket(engine, vbucket)) {
+cb::EngineErrorItemPair default_engine::get(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint16_t vbucket,
+        DocStateFilter documentStateFilter) {
+    if (!handled_vbucket(this, vbucket)) {
         return std::make_pair(
                 cb::engine_errc::not_my_vbucket,
-                cb::unique_item_ptr{nullptr, cb::ItemDeleter{handle}});
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
     }
 
-    item* it = item_get(
-            engine, cookie, key.data(), key.size(), documentStateFilter);
+    item* it =
+            item_get(this, cookie, key.data(), key.size(), documentStateFilter);
     if (it != nullptr) {
-        return cb::makeEngineErrorItemPair(
-                cb::engine_errc::success, it, handle);
+        return cb::makeEngineErrorItemPair(cb::engine_errc::success, it, this);
     } else {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
     }
 }
 
-static cb::EngineErrorItemPair default_get_if(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+cb::EngineErrorItemPair default_engine::get_if(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
-    struct default_engine* engine = get_handle(handle);
-
-    if (!handled_vbucket(engine, vbucket)) {
+    if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
 
-    cb::unique_item_ptr ret(item_get(engine,
+    cb::unique_item_ptr ret(item_get(this,
                                      cookie,
                                      key.data(),
                                      key.size(),
                                      DocStateFilter::Alive),
-                            cb::ItemDeleter{handle});
+                            cb::ItemDeleter{this});
     if (!ret) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
     }
 
     item_info info;
-    if (!get_item_info(handle, ret.get(), &info)) {
+    if (!get_item_info(this, ret.get(), &info)) {
         throw cb::engine_error(cb::engine_errc::failed,
                                "default_get_if: get_item_info failed");
     }
@@ -482,7 +461,7 @@ static cb::EngineErrorItemPair default_get_if(
     }
 
     return cb::makeEngineErrorItemPair(
-            cb::engine_errc::success, ret.release(), handle);
+            cb::engine_errc::success, ret.release(), this);
 }
 
 static cb::EngineErrorItemPair default_get_and_touch(

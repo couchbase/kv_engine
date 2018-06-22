@@ -172,11 +172,8 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
                                    uint16_t vbucket,
                                    DocStateFilter documentStateFilter) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->get(c.getBucketEngineAsV0(),
-                                        &cookie,
-                                        key,
-                                        vbucket,
-                                        documentStateFilter);
+    auto ret = c.getBucketEngine()->get(
+            &cookie, key, vbucket, documentStateFilter);
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get return ENGINE_DISCONNECT",
                     c.getId(),
@@ -201,8 +198,7 @@ cb::EngineErrorItemPair bucket_get_if(
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->get_if(
-            c.getBucketEngineAsV0(), &cookie, key, vbucket, filter);
+    auto ret = c.getBucketEngine()->get_if(&cookie, key, vbucket, filter);
 
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_if return ENGINE_DISCONNECT",
