@@ -623,11 +623,6 @@ public:
         return manifest.lock(key);
     }
 
-    Collections::VB::Manifest::CachingReadHandle lockCollections(
-            const DocKey& key, const std::string& separator) const {
-        return manifest.lock(key, separator);
-    }
-
     /**
      * Update the Collections::VB::Manifest and the VBucket.
      * Adds SystemEvents for the create and delete of collections into the

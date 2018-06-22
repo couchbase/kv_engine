@@ -138,7 +138,6 @@ protected:
     bool defaultAllowed;
     bool passthrough;
     bool systemEventsAllowed;
-    std::string separator;
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
 };

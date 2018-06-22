@@ -116,9 +116,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         itemsReady.store(true);
         // lock is released on leaving the scope
     }
-
-    // Finally obtain a copy of the current separator
-    currentSeparator = vbucket.getManifest().lock().getSeparator();
 }
 
 ActiveStream::~ActiveStream() {
@@ -877,7 +874,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // Note: This function is hot - it is called for every item to be
     // sent over the DCP connection.
     if (item->getOperation() != queue_op::system_event) {
-        auto cKey = Collections::DocKey::make(item->getKey(), currentSeparator);
+        auto cKey = Collections::DocKey::make(item->getKey(),
+                                              Collections::DefaultSeparator);
         if (shouldModifyItem(item,
                              includeValue,
                              includeXattributes,

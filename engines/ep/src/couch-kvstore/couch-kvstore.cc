@@ -1760,8 +1760,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     DocKey docKey = makeDocKey(
             docinfo->id, sctx->config.shouldPersistDocNamespace());
 
-    CacheLookup lookup(
-            docKey, byseqno, vbucketId, Collections::DefaultSeparator);
+    CacheLookup lookup(docKey, byseqno, vbucketId);
     cl->callback(lookup);
     if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
         sctx->lastReadSeqno = byseqno;

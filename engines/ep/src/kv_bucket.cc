@@ -2513,8 +2513,7 @@ bool KVBucket::collectionsEraseKey(uint16_t vbid,
 
     { // collections read lock scope
         auto collectionsRHandle = vb->lockCollections();
-        if (collectionsRHandle.isLogicallyDeleted(
-                    key, bySeqno, Collections::DefaultSeparator)) {
+        if (collectionsRHandle.isLogicallyDeleted(key, bySeqno)) {
             vb->removeKey(key, bySeqno);
 
             // Update item count for non-system collections.

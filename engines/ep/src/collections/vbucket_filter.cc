@@ -38,7 +38,6 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
 
     // Lock for reading and create a VB filter
     auto rh = manifest.lock();
-    separator = rh.getSeparator();
     if (filter.allowDefaultCollection()) {
         if (rh.doesDefaultCollectionExist()) {
             defaultAllowed = true;
@@ -90,7 +89,8 @@ bool Collections::VB::Filter::checkAndUpdateSlow(const Item& item) {
     if (item.getKey().getDocNamespace() == DocNamespace::Collections &&
         !filter.empty()) {
         // Collections require a look up in the filter
-        const auto cKey = Collections::DocKey::make(item.getKey(), separator);
+        const auto cKey =
+                Collections::DocKey::make(item.getKey(), DefaultSeparator);
         allowed = filter.count(cKey.getCollection());
     } else if (item.getKey().getDocNamespace() == DocNamespace::System) {
         allowed = allowSystemEvent(item);
@@ -196,12 +196,6 @@ std::ostream& Collections::VB::operator<<(
        << ": defaultAllowed:" << filter.defaultAllowed
        << ", passthrough:" << filter.passthrough
        << ", systemEventsAllowed:" << filter.systemEventsAllowed;
-
-    if (filter.separator.empty()) {
-        os << ", separator empty";
-    } else {
-        os << ", separator:" << filter.separator;
-    }
 
     os << ", filter.size:" << filter.filter.size() << std::endl;
     for (auto& m : filter.filter) {

@@ -102,12 +102,6 @@ public:
             return manifest.isLogicallyDeleted(key, seqno);
         }
 
-        bool isLogicallyDeleted(::DocKey key,
-                                int64_t seqno,
-                                const std::string& separator) const {
-            return manifest.isLogicallyDeleted(key, seqno, separator);
-        }
-
         /**
          * Function intended for use by the KVBucketr collection's eraser code.
          *
@@ -122,15 +116,8 @@ public:
             return manifest.shouldCompleteDeletion(key);
         }
 
-        /**
-         * @returns a copy of the current separator
-         */
-        std::string getSeparator() const {
-            return manifest.getSeparator();
-        }
-
         DocKey makeCollectionsDocKey(::DocKey key) const {
-            return Collections::DocKey::make(key, manifest.getSeparator());
+            return Collections::DocKey::make(key, DefaultSeparator);
         }
 
         /**
@@ -215,13 +202,6 @@ public:
     public:
         CachingReadHandle(const Manifest& m, cb::RWLock& lock, ::DocKey key)
             : ReadHandle(m, lock), itr(m.getManifestEntry(key)), key(key) {
-        }
-
-        CachingReadHandle(const Manifest& m,
-                          cb::RWLock& lock,
-                          ::DocKey key,
-                          const std::string& separator)
-            : ReadHandle(m, lock), itr(m.getManifestEntry(key, separator)), key(key) {
         }
 
         /**
@@ -406,10 +386,6 @@ public:
         return {*this, rwlock, key};
     }
 
-    CachingReadHandle lock(::DocKey key, const std::string& separator) const {
-        return {*this, rwlock, key, separator};
-    }
-
     WriteHandle wlock() {
         return {*this, rwlock};
     }
@@ -548,15 +524,6 @@ private:
                             int64_t seqno) const;
 
     /**
-     * Variant of isLogicallyDeleted where the caller specifies the separator.
-     *
-     * @return true if the key belongs to a deleted collection.
-     */
-    bool isLogicallyDeleted(const ::DocKey& key,
-                            int64_t seqno,
-                            const std::string& separator) const;
-
-    /**
      * Function intended for use by the collection eraser code, checking
      * keys/seqno in seqno order.
      *
@@ -569,14 +536,6 @@ private:
      */
     boost::optional<cb::const_char_buffer> shouldCompleteDeletion(
             const ::DocKey& key) const;
-
-    /**
-     * @returns the current separator
-     */
-    std::string getSeparator() const {
-        return separator;
-    }
-
 
     /**
      * @returns true/false if $default exists
@@ -624,13 +583,6 @@ private:
      * return map.end() for unknown collections.
      */
     container::const_iterator getManifestEntry(const ::DocKey& key) const;
-
-    /**
-     * Get a manifest entry for the collection associated with the key. Can
-     * return map.end() for unknown collections.
-     */
-    container::const_iterator getManifestEntry(
-            const ::DocKey& key, const std::string& separator) const;
 
     /// @return the manifest UID that last updated this vb::manifest
     uid_t getManifestUid() const {
@@ -804,11 +756,6 @@ protected:
      * Does the current set contain the default collection?
      */
     bool defaultCollectionExists;
-
-    /**
-     * The collection separator
-     */
-    std::string separator;
 
     /**
      * A key below this seqno might be logically deleted and should be checked

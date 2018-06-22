@@ -110,15 +110,6 @@ public:
         return DcpProducer::findStream(vbid);
     }
 
-    std::string getCurrentSeparatorForStream(uint16_t vbid) {
-        auto stream = findStream(vbid);
-        if (stream) {
-            auto as = static_cast<ActiveStream*>(stream.get());
-            return as->getCurrentSeparator();
-        }
-        return {};
-    }
-
     /**
      * Sets the backfill buffer size (max limit) to a particular value
      */

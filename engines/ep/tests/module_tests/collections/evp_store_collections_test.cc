@@ -730,7 +730,6 @@ TEST_F(CollectionsManagerTest, basic) {
     // Check all vbuckets got the collections
     for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
         auto vbp = store->getVBucket(vb);
-        EXPECT_EQ(":", vbp->lockCollections().getSeparator());
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                 {"meat:bacon", CollectionEntry::meat}));
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
@@ -761,15 +760,12 @@ TEST_F(CollectionsManagerTest, basic2) {
     for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
         auto vbp = store->getVBucket(vb);
         if (vbp->getState() == vbucket_state_active) {
-            EXPECT_EQ(":", vbp->lockCollections().getSeparator());
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                     {"meat:bacon", CollectionEntry::meat}));
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                     {"anykey", DocNamespace::DefaultCollection}));
         } else {
             // Replica will be in default constructed settings
-            EXPECT_EQ(Collections::DefaultSeparator,
-                      vbp->lockCollections().getSeparator());
             EXPECT_FALSE(vbp->lockCollections().doesKeyContainValidCollection(
                     {"meat:bacon", CollectionEntry::meat}));
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(

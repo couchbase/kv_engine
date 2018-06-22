@@ -106,8 +106,7 @@ public:
             }
         }
 
-        // finally check the separator's match
-        return rhs.separator == separator;
+        return true;
     }
 
     bool operator!=(const MockVBManifest& rhs) const {

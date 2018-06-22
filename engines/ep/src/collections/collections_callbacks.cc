@@ -29,8 +29,8 @@ void LogicallyDeletedCallback::callback(CacheLookup& lookup) {
     }
     // Check with collections if this key should be loaded, status EEXISTS is
     // the only way to inform the scan to not continue with this key.
-    if (vb->lockCollections().isLogicallyDeleted(
-                lookup.getKey(), lookup.getBySeqno(), lookup.getSeparator())) {
+    if (vb->lockCollections().isLogicallyDeleted(lookup.getKey(),
+                                                 lookup.getBySeqno())) {
         setStatus(ENGINE_KEY_EEXISTS);
         return;
     }

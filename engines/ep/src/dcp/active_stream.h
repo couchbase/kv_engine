@@ -117,11 +117,6 @@ public:
                (includeXattributes == IncludeXattrs::No);
     }
 
-    /// @returns a copy of the current collections separator.
-    std::string getCurrentSeparator() const {
-        return currentSeparator;
-    }
-
     /// @return a const reference to the streams cursor name
     const std::string& getCursorName() const {
         return cursorName;
@@ -326,13 +321,6 @@ private:
 
     /// Should items be forcefully compressed on this stream?
     ForceValueCompression forceValueCompression;
-
-    /**
-     * A copy of the collections separator so we can generate MutationResponse
-     * instances that embed the collection/document-name data so we can
-     * replicate that collection information (as a length).
-     */
-    std::string currentSeparator;
 
     /**
      * The filter the stream will use to decide which keys should be transmitted

@@ -32,7 +32,6 @@ namespace VB {
 
 Manifest::Manifest(const std::string& manifest)
     : defaultCollectionExists(false),
-      separator(DefaultSeparator),
       greatestEndSeqno(StoredValue::state_collection_open),
       nDeletingCollections(0) {
     if (manifest.empty()) {
@@ -58,8 +57,6 @@ Manifest::Manifest(const std::string& manifest)
 
     // Load the uid
     manifestUid = makeUid(getJsonEntry(cjson.get(), "uid"));
-
-    separator = DefaultSeparator;
 
     // Load the collections array
     auto jsonCollections = cJSON_GetObjectItem(cjson.get(), "collections");
@@ -308,7 +305,7 @@ bool Manifest::doesKeyContainValidCollection(const ::DocKey& key) const {
         key.getDocNamespace() == DocNamespace::DefaultCollection) {
         return true;
     } else if (key.getDocNamespace() == DocNamespace::Collections) {
-        const auto cKey = Collections::DocKey::make(key, separator);
+        const auto cKey = Collections::DocKey::make(key, DefaultSeparator);
         if (cKey.getCollectionLen()) {
             auto itr = map.find({reinterpret_cast<const char*>(cKey.data()),
                                  cKey.getCollectionLen()});
@@ -322,17 +319,12 @@ bool Manifest::doesKeyContainValidCollection(const ::DocKey& key) const {
 
 Manifest::container::const_iterator Manifest::getManifestEntry(
         const ::DocKey& key) const {
-    return getManifestEntry(key, separator);
-}
-
-Manifest::container::const_iterator Manifest::getManifestEntry(
-        const ::DocKey& key, const std::string& separator) const {
     cb::const_char_buffer identifier;
     if (defaultCollectionExists &&
         key.getDocNamespace() == DocNamespace::DefaultCollection) {
         identifier = DefaultCollectionIdentifier;
     } else if (key.getDocNamespace() == DocNamespace::Collections) {
-        const auto cKey = Collections::DocKey::make(key, separator);
+        const auto cKey = Collections::DocKey::make(key, DefaultSeparator);
         identifier = cKey.getCollection();
     } else if (key.getDocNamespace() == DocNamespace::System) {
         const auto cKey = Collections::DocKey::make(key);
@@ -351,19 +343,13 @@ Manifest::container::const_iterator Manifest::getManifestEntry(
 }
 
 bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
-    return isLogicallyDeleted(key, seqno, separator);
-}
-
-bool Manifest::isLogicallyDeleted(const ::DocKey& key,
-                                  int64_t seqno,
-                                  const std::string& separator) const {
     // Only do the searching/scanning work for keys in the deleted range.
     if (seqno <= greatestEndSeqno) {
         switch (key.getDocNamespace()) {
         case DocNamespace::DefaultCollection:
             return !defaultCollectionExists;
         case DocNamespace::Collections: {
-            const auto cKey = Collections::DocKey::make(key, separator);
+            const auto cKey = Collections::DocKey::make(key, DefaultSeparator);
             auto itr = map.find(cKey.getCollection());
             if (itr != map.end()) {
                 return seqno <= itr->second->getEndSeqno();
@@ -471,7 +457,7 @@ int64_t Manifest::queueSystemEvent(::VBucket& vb,
 }
 
 size_t Manifest::getSerialisedDataSize(cb::const_char_buffer collection) const {
-    size_t bytesNeeded = SerialisedManifest::getObjectSize(separator.size());
+    size_t bytesNeeded = SerialisedManifest::getObjectSize();
     for (const auto& collectionEntry : map) {
         // Skip if a collection in the map matches the collection being changed
         if (collectionEntry.second->getCharBuffer() == collection) {
@@ -486,7 +472,7 @@ size_t Manifest::getSerialisedDataSize(cb::const_char_buffer collection) const {
 }
 
 size_t Manifest::getSerialisedDataSize() const {
-    size_t bytesNeeded = SerialisedManifest::getObjectSize(separator.size());
+    size_t bytesNeeded = SerialisedManifest::getObjectSize();
     for (const auto& collectionEntry : map) {
         // Skip if a collection in the map matches the collection being changed
         bytesNeeded += SerialisedManifestEntry::getObjectSize(
@@ -498,8 +484,7 @@ size_t Manifest::getSerialisedDataSize() const {
 
 void Manifest::populateWithSerialisedData(cb::char_buffer out,
                                           Identifier identifier) const {
-    auto* sMan = SerialisedManifest::make(
-            out.data(), separator, getManifestUid(), out);
+    auto* sMan = SerialisedManifest::make(out.data(), getManifestUid(), out);
     uint32_t itemCounter = 1; // always a final entry
     char* serial = sMan->getManifestEntryBuffer();
 
@@ -543,8 +528,8 @@ std::string Manifest::serialToJson(const Item& collectionsEventItem) {
     const char* serial = sMan->getManifestEntryBuffer();
 
     std::stringstream json;
-    json << R"({"separator":")" << sMan->getSeparator() << R"(","uid":")"
-         << std::hex << sMan->getManifestUid() << R"(","collections":[)";
+    json << R"({"uid":")" << std::hex << sMan->getManifestUid()
+         << R"(","collections":[)";
 
     if (sMan->getEntryCount() > 1) {
         // Iterate and produce an comma separated list
@@ -586,8 +571,8 @@ std::string Manifest::serialToJson(cb::const_char_buffer buffer) {
     const char* serial = sMan->getManifestEntryBuffer();
 
     std::stringstream json;
-    json << R"({"separator":")" << sMan->getSeparator() << R"(","uid":")"
-         << std::hex << sMan->getManifestUid() << R"(","collections":[)";
+    json << R"({"uid":")" << std::hex << sMan->getManifestUid()
+         << R"(","collections":[)";
 
     for (uint32_t ii = 0; ii < sMan->getEntryCount(); ii++) {
         const auto* sme =
@@ -642,7 +627,6 @@ std::string Manifest::getExceptionString(const std::string& thrower,
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "VB::Manifest"
        << ": defaultCollectionExists:" << manifest.defaultCollectionExists
-       << ", separator:" << manifest.separator
        << ", greatestEndSeqno:" << manifest.greatestEndSeqno
        << ", nDeletingCollections:" << manifest.nDeletingCollections
        << ", map.size:" << manifest.map.size() << std::endl;
