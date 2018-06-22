@@ -128,8 +128,7 @@ static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const char *statname, const char *statkey = NULL) {
     vals.clear();
     const auto* cookie = testHarness.create_cookie();
-    check(h1->get_stats(h,
-                        cookie,
+    check(h1->get_stats(cookie,
                         {statkey, statkey == NULL ? 0 : strlen(statkey)},
                         add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");

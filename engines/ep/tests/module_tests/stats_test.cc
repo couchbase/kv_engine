@@ -59,11 +59,9 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
         stats->map[k] = v;
     };
 
-    ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(engine.get());
     EXPECT_EQ(
             ENGINE_SUCCESS,
-            engine->get_stats(handle,
-                              &stats,
+            engine->get_stats(&stats,
                               {statkey, statkey == NULL ? 0 : strlen(statkey)},
                               add_stats))
             << "Failed to get stats.";

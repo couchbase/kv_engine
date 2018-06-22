@@ -164,6 +164,12 @@ public:
                                     cb::StoreIfPredicate predicate,
                                     DocumentState document_state) override;
 
+    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
+                                cb::const_char_buffer key,
+                                ADD_STAT add_stat) override;
+
+    void reset_stats(gsl::not_null<const void*> cookie) override;
+
     /**
      * Delete a given key and value from the engine.
      *
@@ -254,8 +260,6 @@ public:
                                         uint64_t cas,
                                         ENGINE_STORE_OPERATION operation,
                                         cb::StoreIfPredicate predicate);
-
-    ENGINE_ERROR_CODE flush(const void *cookie);
 
     ENGINE_ERROR_CODE dcpOpen(const void* cookie,
                               uint32_t opaque,

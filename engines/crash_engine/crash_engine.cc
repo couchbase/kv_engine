@@ -104,6 +104,12 @@ public:
                             uint64_t& cas,
                             ENGINE_STORE_OPERATION operation,
                             DocumentState document_state) override;
+
+    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
+                                cb::const_char_buffer key,
+                                ADD_STAT add_stat) override;
+
+    void reset_stats(gsl::not_null<const void*> cookie) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -241,10 +247,9 @@ ENGINE_ERROR_CODE CrashEngine::unlock(gsl::not_null<const void*> cookie,
     return ENGINE_FAILED;
 }
 
-static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   gsl::not_null<const void*> cookie,
-                                   cb::const_char_buffer key,
-                                   ADD_STAT add_stat) {
+ENGINE_ERROR_CODE CrashEngine::get_stats(gsl::not_null<const void*> cookie,
+                                         cb::const_char_buffer key,
+                                         ADD_STAT add_stat) {
     return ENGINE_FAILED;
 }
 
@@ -256,13 +261,7 @@ ENGINE_ERROR_CODE CrashEngine::store(gsl::not_null<const void*> cookie,
     return ENGINE_FAILED;
 }
 
-static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                               gsl::not_null<const void*> cookie) {
-    return ENGINE_FAILED;
-}
-
-static void reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                        gsl::not_null<const void*> cookie) {
+void CrashEngine::reset_stats(gsl::not_null<const void*> cookie) {
 }
 
 static void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -304,9 +303,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->get_stats = get_stats;
-    engine->reset_stats = reset_stats;
-    engine->flush = flush;
     engine->item_set_cas = item_set_cas;
     engine->item_set_datatype = item_set_datatype;
     engine->get_item_info = get_item_info;

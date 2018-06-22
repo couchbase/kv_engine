@@ -61,7 +61,7 @@ void bucket_item_set_datatype(Cookie& cookie,
 
 void bucket_reset_stats(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    c.getBucketEngine()->reset_stats(c.getBucketEngineAsV0(), &cookie);
+    c.getBucketEngine()->reset_stats(&cookie);
 }
 
 bool bucket_get_item_info(Cookie& cookie,
@@ -299,7 +299,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
 
 ENGINE_ERROR_CODE bucket_flush(Cookie& cookie) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->flush(c.getBucketEngineAsV0(), &cookie);
+    auto ret = c.getBucketEngine()->flush(&cookie);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} bucket_flush return ENGINE_DISCONNECT",
                     c.getId(),
@@ -312,8 +312,7 @@ ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
                                    cb::const_char_buffer key,
                                    ADD_STAT add_stat) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->get_stats(
-            c.getBucketEngineAsV0(), &cookie, key, add_stat);
+    auto ret = c.getBucketEngine()->get_stats(&cookie, key, add_stat);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} bucket_get_stats return ENGINE_DISCONNECT",
                     c.getId(),

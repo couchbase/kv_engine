@@ -1222,7 +1222,7 @@ bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     const auto* cookie = testHarness.create_cookie();
-    check(h1->get_stats(h, cookie, {}, add_stats) == ENGINE_SUCCESS,
+    check(h1->get_stats(cookie, {}, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     testHarness.destroy_cookie(cookie);
 
@@ -1325,8 +1325,7 @@ std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
 
     const auto* cookie = testHarness.create_cookie();
     ENGINE_ERROR_CODE err =
-            h1->get_stats(h,
-                          cookie,
+            h1->get_stats(cookie,
                           {statkey, statkey == NULL ? 0 : strlen(statkey)},
                           add_individual_stat);
     testHarness.destroy_cookie(cookie);
@@ -1436,8 +1435,7 @@ static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     const auto* cookie = testHarness.create_cookie();
     ENGINE_ERROR_CODE err =
-            h1->get_stats(h,
-                          cookie,
+            h1->get_stats(cookie,
                           {statkey, statkey == NULL ? 0 : strlen(statkey)},
                           add_individual_histo_stat);
     testHarness.destroy_cookie(cookie);
@@ -1457,8 +1455,7 @@ statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
     }
     const auto* cookie = testHarness.create_cookie();
     ENGINE_ERROR_CODE err =
-            h1->get_stats(h,
-                          cookie,
+            h1->get_stats(cookie,
                           {statset, statset == NULL ? 0 : strlen(statset)},
                           add_stats);
     testHarness.destroy_cookie(cookie);
@@ -1831,7 +1828,7 @@ bool repeat_till_true(std::function<bool()> functor,
 void reset_stats(gsl::not_null<ENGINE_HANDLE*> h) {
     auto* h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(h.get());
     const auto* cookie = testHarness.create_cookie();
-    h1->reset_stats(h, cookie);
+    h1->reset_stats(cookie);
     testHarness.destroy_cookie(cookie);
 }
 
@@ -1840,7 +1837,7 @@ ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> h,
                             ADD_STAT callback) {
     auto* h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(h.get());
     const auto* cookie = testHarness.create_cookie();
-    auto ret = h1->get_stats(h, cookie, key, callback);
+    auto ret = h1->get_stats(cookie, key, callback);
     testHarness.destroy_cookie(cookie);
     return ret;
 }

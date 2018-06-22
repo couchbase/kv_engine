@@ -33,9 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::get_stats = get_stats;
-        ENGINE_HANDLE_V1::reset_stats = reset_stats;
-        ENGINE_HANDLE_V1::flush = flush;
         ENGINE_HANDLE_V1::unknown_command = unknown_command;
         ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
         ENGINE_HANDLE_V1::item_set_datatype = item_set_datatype;
@@ -168,6 +165,19 @@ public:
         return {cb::engine_errc::no_bucket, 0};
     }
 
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*>) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*>,
+                                cb::const_char_buffer key,
+                                ADD_STAT) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    void reset_stats(gsl::not_null<const void*> cookie) override {
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -177,21 +187,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*>,
-                                       gsl::not_null<const void*>,
-                                       cb::const_char_buffer key,
-                                       ADD_STAT) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*>,
-                                   gsl::not_null<const void*>) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static void reset_stats(gsl::not_null<ENGINE_HANDLE*>, gsl::not_null<const void*> cookie) {
     }
 
     static ENGINE_ERROR_CODE unknown_command(

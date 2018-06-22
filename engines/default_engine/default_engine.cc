@@ -23,19 +23,10 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           cb::const_char_buffer key,
-                                           ADD_STAT add_stat);
-static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                gsl::not_null<const void*> cookie);
-
 static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
                               gsl::not_null<item*> item,
                               protocol_binary_datatype_t val);
 
-static ENGINE_ERROR_CODE default_flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie);
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
                                                  const char *cfg_str);
 static ENGINE_ERROR_CODE default_unknown_command(
@@ -109,9 +100,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->get_stats = default_get_stats;
-    engine->reset_stats = default_reset_stats;
-    engine->flush = default_flush;
     engine->unknown_command = default_unknown_command;
     engine->item_set_cas = item_set_cas;
     engine->item_set_datatype = item_set_datatype;
@@ -503,43 +491,41 @@ ENGINE_ERROR_CODE default_engine::unlock(gsl::not_null<const void*> cookie,
     return item_unlock(this, cookie, key.data(), key.size(), cas);
 }
 
-static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           cb::const_char_buffer key,
-                                           ADD_STAT add_stat) {
-    struct default_engine* engine = get_handle(handle);
+ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
+                                            cb::const_char_buffer key,
+                                            ADD_STAT add_stat) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (key.empty()) {
         char val[128];
         int len;
 
-        cb_mutex_enter(&engine->stats.lock);
-        len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.evictions);
+        cb_mutex_enter(&stats.lock);
+        len = sprintf(val, "%" PRIu64, (uint64_t)stats.evictions);
         add_stat("evictions", 9, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.curr_items);
+        len = sprintf(val, "%" PRIu64, (uint64_t)stats.curr_items);
         add_stat("curr_items", 10, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.total_items);
+        len = sprintf(val, "%" PRIu64, (uint64_t)stats.total_items);
         add_stat("total_items", 11, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, (uint64_t)engine->stats.curr_bytes);
+        len = sprintf(val, "%" PRIu64, (uint64_t)stats.curr_bytes);
         add_stat("bytes", 5, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, engine->stats.reclaimed);
+        len = sprintf(val, "%" PRIu64, stats.reclaimed);
         add_stat("reclaimed", 9, val, len, cookie);
-        len = sprintf(val, "%" PRIu64, (uint64_t)engine->config.maxbytes);
+        len = sprintf(val, "%" PRIu64, (uint64_t)config.maxbytes);
         add_stat("engine_maxbytes", 15, val, len, cookie);
-        cb_mutex_exit(&engine->stats.lock);
+        cb_mutex_exit(&stats.lock);
     } else if (key == "slabs"_ccb) {
-        slabs_stats(engine, add_stat, cookie);
+        slabs_stats(this, add_stat, cookie);
     } else if (key == "items"_ccb) {
-        item_stats(engine, add_stat, cookie);
+        item_stats(this, add_stat, cookie);
     } else if (key == "sizes"_ccb) {
-        item_stats_sizes(engine, add_stat, cookie);
+        item_stats_sizes(this, add_stat, cookie);
     } else if (key == "uuid"_ccb) {
-        if (engine->config.uuid) {
+        if (config.uuid) {
             add_stat("uuid",
                      4,
-                     engine->config.uuid,
-                     (uint32_t)strlen(engine->config.uuid),
+                     config.uuid,
+                     (uint32_t)strlen(config.uuid),
                      cookie);
         } else {
             add_stat("uuid", 4, "", 0, cookie);
@@ -548,27 +534,26 @@ static ENGINE_ERROR_CODE default_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
         char val[128];
         int len;
 
-        cb_mutex_enter(&engine->scrubber.lock);
-        if (engine->scrubber.running) {
+        cb_mutex_enter(&scrubber.lock);
+        if (scrubber.running) {
             add_stat("scrubber:status", 15, "running", 7, cookie);
         } else {
             add_stat("scrubber:status", 15, "stopped", 7, cookie);
         }
 
-        if (engine->scrubber.started != 0) {
-            if (engine->scrubber.stopped != 0) {
-                time_t diff =
-                        engine->scrubber.started - engine->scrubber.stopped;
+        if (scrubber.started != 0) {
+            if (scrubber.stopped != 0) {
+                time_t diff = scrubber.started - scrubber.stopped;
                 len = sprintf(val, "%" PRIu64, (uint64_t)diff);
                 add_stat("scrubber:last_run", 17, val, len, cookie);
             }
 
-            len = sprintf(val, "%" PRIu64, engine->scrubber.visited);
+            len = sprintf(val, "%" PRIu64, scrubber.visited);
             add_stat("scrubber:visited", 16, val, len, cookie);
-            len = sprintf(val, "%" PRIu64, engine->scrubber.cleaned);
+            len = sprintf(val, "%" PRIu64, scrubber.cleaned);
             add_stat("scrubber:cleaned", 16, val, len, cookie);
         }
-        cb_mutex_exit(&engine->scrubber.lock);
+        cb_mutex_exit(&scrubber.lock);
     } else {
         ret = ENGINE_KEY_ENOENT;
     }
@@ -638,23 +623,20 @@ cb::EngineErrorCasPair default_engine::store_if(
     return {cb::engine_errc(status), cas};
 }
 
-static ENGINE_ERROR_CODE default_flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie) {
-    item_flush_expired(get_handle(handle));
+ENGINE_ERROR_CODE default_engine::flush(gsl::not_null<const void*> cookie) {
+    item_flush_expired(get_handle(this));
 
     return ENGINE_SUCCESS;
 }
 
-static void default_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                gsl::not_null<const void*> cookie) {
-    struct default_engine* engine = get_handle(handle);
-    item_stats_reset(engine);
+void default_engine::reset_stats(gsl::not_null<const void*> cookie) {
+    item_stats_reset(this);
 
-    cb_mutex_enter(&engine->stats.lock);
-    engine->stats.evictions = 0;
-    engine->stats.reclaimed = 0;
-    engine->stats.total_items = 0;
-    cb_mutex_exit(&engine->stats.lock);
+    cb_mutex_enter(&stats.lock);
+    stats.evictions = 0;
+    stats.reclaimed = 0;
+    stats.total_items = 0;
+    cb_mutex_exit(&stats.lock);
 }
 
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,

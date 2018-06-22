@@ -168,6 +168,14 @@ struct default_engine : public EngineIface {
                                     cb::StoreIfPredicate predicate,
                                     DocumentState document_state) override;
 
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
+
+    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
+                                cb::const_char_buffer key,
+                                ADD_STAT add_stat) override;
+
+    void reset_stats(gsl::not_null<const void*> cookie) override;
+
    SERVER_HANDLE_V1 server;
    GET_SERVER_API get_server_api;
 

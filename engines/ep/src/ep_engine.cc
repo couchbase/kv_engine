@@ -299,11 +299,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(
     return acquireEngine(this)->unlockInner(cookie, key, vbucket, cas);
 }
 
-static ENGINE_ERROR_CODE EvpGetStats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                     gsl::not_null<const void*> cookie,
-                                     cb::const_char_buffer key,
-                                     ADD_STAT add_stat) {
-    return acquireEngine(handle)->getStats(
+ENGINE_ERROR_CODE EventuallyPersistentEngine::get_stats(
+        gsl::not_null<const void*> cookie,
+        cb::const_char_buffer key,
+        ADD_STAT add_stat) {
+    return acquireEngine(this)->getStats(
             cookie, key.data(), gsl::narrow_cast<int>(key.size()), add_stat);
 }
 
@@ -337,13 +337,9 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
             cookie, item, cas, operation, predicate);
 }
 
-static ENGINE_ERROR_CODE EvpFlush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                  gsl::not_null<const void*> cookie) {
-    return acquireEngine(handle)->flush(cookie);
-}
-
-static void EvpResetStats(gsl::not_null<ENGINE_HANDLE*> handle, gsl::not_null<const void*> cookie) {
-    acquireEngine(handle)->resetStats();
+void EventuallyPersistentEngine::reset_stats(
+        gsl::not_null<const void*> cookie) {
+    acquireEngine(this)->resetStats();
 }
 
 protocol_binary_response_status EventuallyPersistentEngine::setReplicationParam(
@@ -1847,9 +1843,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::get_stats = EvpGetStats;
-    ENGINE_HANDLE_V1::reset_stats = EvpResetStats;
-    ENGINE_HANDLE_V1::flush = EvpFlush;
     ENGINE_HANDLE_V1::unknown_command = EvpUnknownCommand;
     ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
     ENGINE_HANDLE_V1::item_set_datatype = EvpItemSetDatatype;
@@ -2334,10 +2327,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
     }
 
     return ret;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie){
-    return ENGINE_ENOTSUP;
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(

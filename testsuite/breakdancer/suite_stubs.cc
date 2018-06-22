@@ -64,7 +64,7 @@ void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const auto* cookie = testHarness.create_cookie();
-    hasError = h1->flush(h, cookie);
+    hasError = h1->flush(cookie);
     testHarness.destroy_cookie(cookie);
 }
 

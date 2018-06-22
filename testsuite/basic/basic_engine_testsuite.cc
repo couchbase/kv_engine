@@ -331,7 +331,7 @@ static enum test_result flush_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                         cas,
                         OPERATION_SET,
                         DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h1->flush(h, cookie) == ENGINE_SUCCESS);
+    cb_assert(h1->flush(cookie) == ENGINE_SUCCESS);
     ret = h1->get(cookie, key, 0, DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
@@ -446,7 +446,7 @@ static enum test_result lru_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                             cas,
                             OPERATION_SET,
                             DocumentState::Alive) == ENGINE_SUCCESS);
-        cb_assert(h1->get_stats(h, cookie, {}, eviction_stats_handler) ==
+        cb_assert(h1->get_stats(cookie, {}, eviction_stats_handler) ==
                   ENGINE_SUCCESS);
         if (evictions == 2) {
             break;

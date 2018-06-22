@@ -421,13 +421,14 @@ struct EngineIface {
     /**
      * Flush the cache.
      *
-     * @param handle the engine handle
-     * @param cookie The cookie provided by the frontend
+     * Optional interface; not supported by all engines.
      *
+     * @param cookie The cookie provided by the frontend
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE(*flush)
-    (gsl::not_null<ENGINE_HANDLE*> handle, gsl::not_null<const void*> cookie);
+    virtual ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) {
+        return ENGINE_ENOTSUP;
+    }
 
     /*
      * Statistics
@@ -436,27 +437,22 @@ struct EngineIface {
     /**
      * Get statistics from the engine.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      * @param key optional argument to stats
      * @param add_stat callback to feed results to the output
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    ENGINE_ERROR_CODE(*get_stats)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     cb::const_char_buffer key,
-     ADD_STAT add_stat);
+    virtual ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
+                                        cb::const_char_buffer key,
+                                        ADD_STAT add_stat) = 0;
 
     /**
      * Reset the stats.
      *
-     * @param handle the engine handle
      * @param cookie The cookie provided by the frontend
      */
-    void (*reset_stats)(gsl::not_null<ENGINE_HANDLE*> handle,
-                        gsl::not_null<const void*> cookie);
+    virtual void reset_stats(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Any unknown command will be considered engine specific.

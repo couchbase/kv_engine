@@ -486,34 +486,27 @@ public:
         }
     }
 
-    static ENGINE_ERROR_CODE flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                   gsl::not_null<const void*> cookie) {
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override {
         // Flush is a little different - it often returns EWOULDBLOCK, and
         // notify_io_complete() just tells the server it can issue it's *next*
         // command (i.e. no need to re-flush). Therefore just pass Flush
         // straight through for now.
-        EWB_Engine* ewb = to_engine(handle);
-        return ewb->real_engine->flush(ewb->real_handle, cookie);
+        return real_engine->flush(cookie);
     }
 
-    static ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       cb::const_char_buffer key,
-                                       ADD_STAT add_stat) {
-        EWB_Engine* ewb = to_engine(handle);
+    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
+                                cb::const_char_buffer key,
+                                ADD_STAT add_stat) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-        if (ewb->should_inject_error(Cmd::GET_STATS, cookie, err)) {
+        if (should_inject_error(Cmd::GET_STATS, cookie, err)) {
             return err;
         } else {
-            return ewb->real_engine->get_stats(
-                    ewb->real_handle, cookie, key, add_stat);
+            return real_engine->get_stats(cookie, key, add_stat);
         }
     }
 
-    static void reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                            gsl::not_null<const void*> cookie) {
-        EWB_Engine* ewb = to_engine(handle);
-        return ewb->real_engine->reset_stats(ewb->real_handle, cookie);
+    void reset_stats(gsl::not_null<const void*> cookie) override {
+        return real_engine->reset_stats(cookie);
     }
 
     /* Handle 'unknown_command'. In additional to wrapping calls to the
@@ -1270,9 +1263,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::flush = flush;
-    ENGINE_HANDLE_V1::get_stats = get_stats;
-    ENGINE_HANDLE_V1::reset_stats = reset_stats;
     ENGINE_HANDLE_V1::unknown_command = unknown_command;
     ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
     ENGINE_HANDLE_V1::item_set_datatype = item_set_datatype;

@@ -88,6 +88,14 @@ struct mock_engine : public EngineIface {
                             ENGINE_STORE_OPERATION operation,
                             DocumentState document_state) override;
 
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
+
+    ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
+                                cb::const_char_buffer key,
+                                ADD_STAT add_stat) override;
+
+    void reset_stats(gsl::not_null<const void*> cookie) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -386,21 +394,17 @@ ENGINE_ERROR_CODE mock_engine::unlock(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
 }
 
-static ENGINE_ERROR_CODE mock_get_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        cb::const_char_buffer key,
-                                        ADD_STAT add_stat) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_stats,
-                               get_engine_from_handle(handle),
-                               cookie,
-                               key,
-                               add_stat);
+ENGINE_ERROR_CODE mock_engine::get_stats(gsl::not_null<const void*> cookie,
+                                         cb::const_char_buffer key,
+                                         ADD_STAT add_stat) {
+    auto engine_fn = std::bind(
+            &EngineIface::get_stats, the_engine, cookie, key, add_stat);
 
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
 
     ENGINE_ERROR_CODE ret =
-            call_engine_and_handle_EWOULDBLOCK(handle, construct, engine_fn);
+            call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
     return ret;
 }
 
@@ -423,21 +427,16 @@ ENGINE_ERROR_CODE mock_engine::store(gsl::not_null<const void*> cookie,
     return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
 }
 
-static ENGINE_ERROR_CODE mock_flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    gsl::not_null<const void*> cookie) {
-    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->flush,
-                               get_engine_from_handle(handle),
-                               cookie);
+ENGINE_ERROR_CODE mock_engine::flush(gsl::not_null<const void*> cookie) {
+    auto engine_fn = std::bind(&EngineIface::flush, the_engine, cookie);
 
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
-    return call_engine_and_handle_EWOULDBLOCK(handle, construct, engine_fn);
+    return call_engine_and_handle_EWOULDBLOCK(this, construct, engine_fn);
 }
 
-static void mock_reset_stats(gsl::not_null<ENGINE_HANDLE*> handle,
-                             gsl::not_null<const void*> cookie) {
-    struct mock_engine *me = get_handle(handle);
-    me->the_engine->reset_stats((ENGINE_HANDLE*)me->the_engine, cookie);
+void mock_engine::reset_stats(gsl::not_null<const void*> cookie) {
+    the_engine->reset_stats(cookie);
 }
 
 static ENGINE_ERROR_CODE mock_unknown_command(
@@ -904,9 +903,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->flush = mock_flush;
-        me->get_stats = mock_get_stats;
-        me->reset_stats = mock_reset_stats;
         me->unknown_command = mock_unknown_command;
         me->item_set_cas = mock_item_set_cas;
         me->get_item_info = mock_get_item_info;
