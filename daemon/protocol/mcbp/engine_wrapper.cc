@@ -45,15 +45,14 @@ void bucket_item_set_cas(Cookie& cookie,
                          gsl::not_null<item*> it,
                          uint64_t cas) {
     auto& c = cookie.getConnection();
-    c.getBucketEngine()->item_set_cas(c.getBucketEngineAsV0(), it, cas);
+    c.getBucketEngine()->item_set_cas(it, cas);
 }
 
 void bucket_item_set_datatype(Cookie& cookie,
                               gsl::not_null<item*> it,
                               protocol_binary_datatype_t datatype) {
     auto& c = cookie.getConnection();
-    c.getBucketEngine()->item_set_datatype(
-            c.getBucketEngineAsV0(), it, datatype);
+    c.getBucketEngine()->item_set_datatype(it, datatype);
 }
 
 void bucket_reset_stats(Cookie& cookie) {
@@ -65,8 +64,7 @@ bool bucket_get_item_info(Cookie& cookie,
                           gsl::not_null<const item*> item_,
                           gsl::not_null<item_info*> item_info_) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->get_item_info(
-            c.getBucketEngineAsV0(), item_, item_info_);
+    auto ret = c.getBucketEngine()->get_item_info(item_, item_info_);
     if (!ret) {
         LOG_INFO("{}: {} bucket_get_item_info failed",
                  c.getId(),

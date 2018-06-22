@@ -110,6 +110,14 @@ public:
                                 ADD_STAT add_stat) override;
 
     void reset_stats(gsl::not_null<const void*> cookie) override;
+
+    void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
+
+    void item_set_datatype(gsl::not_null<item*> item,
+                           protocol_binary_datatype_t datatype) override;
+
+    bool get_item_info(gsl::not_null<const item*> item,
+                       gsl::not_null<item_info*> item_info) override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -264,25 +272,15 @@ ENGINE_ERROR_CODE CrashEngine::store(gsl::not_null<const void*> cookie,
 void CrashEngine::reset_stats(gsl::not_null<const void*> cookie) {
 }
 
-static void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
-                         gsl::not_null<item*> item,
-                         uint64_t val) {
+void CrashEngine::item_set_cas(gsl::not_null<item*> item, uint64_t val) {
 }
 
-static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
-                              gsl::not_null<item*> item,
-                              protocol_binary_datatype_t val) {
+void CrashEngine::item_set_datatype(gsl::not_null<item*> item,
+                                    protocol_binary_datatype_t val) {
 }
 
-static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                          gsl::not_null<const item*> item,
-                          gsl::not_null<item_info*> item_info) {
-    return false;
-}
-
-static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                          gsl::not_null<item*> item,
-                          gsl::not_null<const item_info*> itm_info) {
+bool CrashEngine::get_item_info(gsl::not_null<const item*> item,
+                                gsl::not_null<item_info*> item_info) {
     return false;
 }
 
@@ -303,10 +301,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
         return ENGINE_ENOMEM;
     }
 
-    engine->item_set_cas = item_set_cas;
-    engine->item_set_datatype = item_set_datatype;
-    engine->get_item_info = get_item_info;
-    engine->set_item_info = set_item_info;
     engine->isXattrEnabled = is_xattr_enabled;
     engine->getMaxItemSize = get_max_item_size;
     *handle = engine;

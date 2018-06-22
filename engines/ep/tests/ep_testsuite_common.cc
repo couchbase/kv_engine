@@ -456,7 +456,7 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
             getResult.first,
             "Failed to fetch document");
     item_info info;
-    check(h1->get_item_info(h, getResult.second.get(), &info),
+    check(h1->get_item_info(getResult.second.get(), &info),
           "Failed to get_item_info");
 
     cb::const_char_buffer payload;

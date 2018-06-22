@@ -756,7 +756,7 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
     /* Retrieve the item info and create a new blob out of the data */
     item_info info;
     checkeq(true,
-            h1->get_item_info(h, ret.second.get(), &info),
+            h1->get_item_info(ret.second.get(), &info),
             "Unable to retrieve item info");
 
     cb::char_buffer value_buf{static_cast<char*>(info.value[0].iov_base),
@@ -799,7 +799,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, ret.second.get(), &info)) {
+    if (!h1->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -862,7 +862,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, ret.second.get(), &info)) {
+    if (!h1->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1029,7 +1029,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, ret.second.get(), &info)) {
+    if (!h1->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1105,7 +1105,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, ret.second.get(), &info)) {
+    if (!h1->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1136,7 +1136,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                    0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h1->get_item_info(h, ret.second.get(), &info)) {
+    if (!h1->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1191,7 +1191,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, ret.second.get(), &info)) {
+    if (!h1->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1219,7 +1219,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                    0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h1->get_item_info(h, ret.second.get(), &info)) {
+    if (!h1->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, new_data, strlen(new_data));
@@ -2888,7 +2888,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h1->get_item_info(h, ret.second.get(), &info);
+    h1->get_item_info(ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype");
 
@@ -2905,7 +2905,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ret = get(h, h1, cookie, key1, 0);
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
-    h1->get_item_info(h, ret.second.get(), &info);
+    h1->get_item_info(ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 
@@ -2935,7 +2935,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h1->get_item_info(h, ret.second.get(), &info);
+    h1->get_item_info(ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 

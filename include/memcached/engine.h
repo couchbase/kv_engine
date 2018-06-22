@@ -475,16 +475,13 @@ struct EngineIface {
     /**
      * Set the CAS id on an item.
      */
-    void (*item_set_cas)(gsl::not_null<ENGINE_HANDLE*> handle,
-                         gsl::not_null<item*> item,
-                         uint64_t cas);
+    virtual void item_set_cas(gsl::not_null<item*> item, uint64_t cas) = 0;
 
     /**
      * Set the data type on an item.
      */
-    void (*item_set_datatype)(gsl::not_null<ENGINE_HANDLE*> handle,
-                              gsl::not_null<item*> item,
-                              protocol_binary_datatype_t datatype);
+    virtual void item_set_datatype(gsl::not_null<item*> item,
+                                   protocol_binary_datatype_t datatype) = 0;
 
     /**
      * Get information about an item.
@@ -493,30 +490,12 @@ struct EngineIface {
      * an item. Instead of having to create multiple functions to get each
      * individual item, this function will get all of them.
      *
-     * @param handle the engine that owns the object
-     * @param cookie connection cookie for this item
      * @param item the item to request information about
      * @param item_info
      * @return true if successful
      */
-    bool (*get_item_info)(gsl::not_null<ENGINE_HANDLE*> handle,
-                          gsl::not_null<const item*> item,
-                          gsl::not_null<item_info*> item_info);
-
-    /**
-     * Set information of an item.
-     *
-     * Set updated item information.
-     *
-     * @param handle the engine that owns the object
-     * @param cookie connection cookie for this item
-     * @param item the item who's information is to be updated
-     * @param item_info
-     * @return true if successful
-     */
-    bool (*set_item_info)(gsl::not_null<ENGINE_HANDLE*> handle,
-                          gsl::not_null<item*> item,
-                          gsl::not_null<const item_info*> itm_info);
+    virtual bool get_item_info(gsl::not_null<const item*> item,
+                               gsl::not_null<item_info*> item_info) = 0;
 
     struct dcp_interface dcp;
 

@@ -130,9 +130,6 @@ static bool validate_engine_interface(const ENGINE_HANDLE_V1* v1) {
         ret = false;        \
     }
 
-    check(item_set_cas);
-    check(get_item_info);
-    check(set_item_info);
     check(isXattrEnabled);
 #undef check
 

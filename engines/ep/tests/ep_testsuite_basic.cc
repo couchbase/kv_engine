@@ -402,7 +402,7 @@ static enum test_result test_getl_delete_with_cas(ENGINE_HANDLE *h,
             ret.first,
             "Expected getl to succeed on key");
     item_info info;
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Failed to get item info");
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", info.cas, 0), "Expected SUCCESS");
@@ -497,7 +497,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Expected to be able to getl on first try");
 
     item_info info;
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Failed to get item info");
 
     checkeq(std::string{"{\"lock\":\"data\"}"},
@@ -554,7 +554,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success,
             ret.first,
             "Acquire lock should have succeeded");
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Failed to get item info");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES), info.datatype,
             "Expected datatype to be RAW BYTES");
@@ -611,7 +611,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                    0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation Failed");
 
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Failed to get item info");
 
     memcpy(info.value[0].iov_base, edata, strlen(edata));
@@ -704,7 +704,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Expected to be able to getl on first try");
     item_info info;
     checkeq(true,
-            h1->get_item_info(h, ret.second.get(), &info),
+            h1->get_item_info(ret.second.get(), &info),
             "failed to get item info");
     uint64_t cas = info.cas;
 
@@ -844,7 +844,7 @@ static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
             "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
     item_info info;
-    check(h1->get_item_info(h, i, &info), "Should be able to get info");
+    check(h1->get_item_info(i, &info), "Should be able to get info");
 
     checkeq(ENGINE_KEY_EEXISTS,
             store(h,
@@ -873,7 +873,7 @@ static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value.");
 
     item_info info;
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Failed to get item info.");
 
     checkeq(ENGINE_SUCCESS,
@@ -1056,7 +1056,7 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             ENGINE_ERROR_CODE(ret.first), "gat mykey");
 
     item_info info;
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Getting item info failed");
 
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
@@ -1338,7 +1338,7 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
             "Failed set");
 
     item_info info;
-    check(h1->get_item_info(h, i, &info), "Getting item info failed");
+    check(h1->get_item_info(i, &info), "Getting item info failed");
 
     h->release(i);
 
@@ -1369,7 +1369,7 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
 
     wait_for_flusher_to_settle(h, h1);
 
-    check(h1->get_item_info(h, i, &info), "Getting item info failed");
+    check(h1->get_item_info(i, &info), "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
             "Incorrect DocState for deleted item");
@@ -1410,7 +1410,7 @@ static enum test_result test_delete_with_value_cas(ENGINE_HANDLE *h,
             curr_revseqno + 1,
             "rev seqno should have incremented");
 
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
@@ -1494,7 +1494,7 @@ static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HAN
             "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
     item_info info;
-    check(h1->get_item_info(h, i, &info), "Should be able to get info");
+    check(h1->get_item_info(i, &info), "Should be able to get info");
     h->release(i);
 
     checkeq(ENGINE_KEY_EEXISTS, del(h, h1, "key", info.cas + 1, 0),
@@ -1842,7 +1842,7 @@ static test_result pre_link_document(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Fetch the value and verify that the callback was called!
     auto ret = get(h, h1, nullptr, "key", 0);
     checkeq(cb::engine_errc::success, ret.first, "get failed");
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Failed to get item info.");
     checkeq(0, memcmp(info.value[0].iov_base, "valuesome", 9),
            "Expected value to be modified");

@@ -33,10 +33,6 @@
 class NoBucket : public ENGINE_HANDLE_V1 {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
-        ENGINE_HANDLE_V1::item_set_datatype = item_set_datatype;
-        ENGINE_HANDLE_V1::get_item_info = get_item_info;
-        ENGINE_HANDLE_V1::set_item_info = set_item_info;
         ENGINE_HANDLE_V1::dcp.step = dcp_step;
         ENGINE_HANDLE_V1::dcp.open = dcp_open;
         ENGINE_HANDLE_V1::dcp.add_stream = dcp_add_stream;
@@ -185,6 +181,26 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
+    void item_set_cas(gsl::not_null<item*>, uint64_t) override {
+        throw std::logic_error(
+                "NoBucket::item_set_cas: no items should have"
+                " been allocated from this engine");
+    }
+
+    void item_set_datatype(gsl::not_null<item*>,
+                           protocol_binary_datatype_t) override {
+        throw std::logic_error(
+                "NoBucket::item_set_datatype: no items should have"
+                " been allocated from this engine");
+    }
+
+    bool get_item_info(gsl::not_null<const item*>,
+                       gsl::not_null<item_info*>) override {
+        throw std::logic_error(
+                "NoBucket::get_item_info: no items should have"
+                " been allocated from this engine");
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -194,28 +210,6 @@ private:
      */
     static NoBucket* get_handle(ENGINE_HANDLE* handle) {
         return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static void item_set_cas(gsl::not_null<ENGINE_HANDLE*>,
-                             gsl::not_null<item*>,
-                             uint64_t) {
-        throw std::logic_error("NoBucket::item_set_cas: no items should have"
-                                   " been allocated from this engine");
-    }
-
-    static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*>,
-                                  gsl::not_null<item*>,
-                                  protocol_binary_datatype_t) {
-        throw std::logic_error(
-                "NoBucket::item_set_datatype: no items should have"
-                " been allocated from this engine");
-    }
-
-    static bool get_item_info(gsl::not_null<ENGINE_HANDLE*>,
-                              gsl::not_null<const item*>,
-                              gsl::not_null<item_info*>) {
-        throw std::logic_error("NoBucket::get_item_info: no items should have"
-                                   " been allocated from this engine");
     }
 
     static bool set_item_info(gsl::not_null<ENGINE_HANDLE*>,

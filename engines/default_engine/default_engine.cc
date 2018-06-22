@@ -23,10 +23,6 @@
 // we may use for testing ;)
 #define DEFAULT_ENGINE_VBUCKET_UUID 0xdeadbeef
 
-static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
-                              gsl::not_null<item*> item,
-                              protocol_binary_datatype_t val);
-
 static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
                                                  const char *cfg_str);
 union vbucket_info_adapter {
@@ -57,14 +53,6 @@ static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
 /* mechanism for handling bad vbucket requests */
 #define VBUCKET_GUARD(e, v) if (!handled_vbucket(e, v)) { return ENGINE_NOT_MY_VBUCKET; }
 
-static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                          gsl::not_null<const item*> item,
-                          gsl::not_null<item_info*> item_info);
-
-static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                          gsl::not_null<item*> item,
-                          gsl::not_null<const item_info*> itm_info);
-
 static bool is_xattr_supported(gsl::not_null<ENGINE_HANDLE*> handle);
 
 static BucketCompressionMode get_compression_mode(
@@ -93,10 +81,6 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
     cb_mutex_initialize(&engine->scrubber.lock);
 
     engine->bucket_id = id;
-    engine->item_set_cas = item_set_cas;
-    engine->item_set_datatype = item_set_datatype;
-    engine->get_item_info = get_item_info;
-    engine->set_item_info = set_item_info;
     engine->set_log_level = nullptr;
     engine->isXattrEnabled = is_xattr_supported;
     engine->getCompressionMode = get_compression_mode;
@@ -253,7 +237,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
 
     if (it != NULL) {
         item_info info;
-        if (!get_item_info(this, it, &info)) {
+        if (!get_item_info(it, &info)) {
             // This should never happen (unless we provide invalid
             // arguments)
             item_release(this, it);
@@ -312,11 +296,11 @@ ENGINE_ERROR_CODE default_engine::remove(gsl::not_null<const void*> cookie,
             // If the caller specified the "cas wildcard" we should set
             // the cas for the item we just fetched and do a cas
             // replace with that value
-            item_set_cas(this, deleted, it->cas);
+            item_set_cas(deleted, it->cas);
         } else {
             // The caller specified a specific CAS value so we should
             // use that value in our cas replace
-            item_set_cas(this, deleted, cas_in);
+            item_set_cas(deleted, cas_in);
         }
 
         ret = store_item(this,
@@ -385,7 +369,7 @@ cb::EngineErrorItemPair default_engine::get_if(
     }
 
     item_info info;
-    if (!get_item_info(this, ret.get(), &info)) {
+    if (!get_item_info(ret.get(), &info)) {
         throw cb::engine_error(cb::engine_errc::failed,
                                "default_get_if: get_item_info failed");
     }
@@ -467,7 +451,7 @@ cb::EngineErrorMetadataPair default_engine::get_meta(
     }
 
     item_info info;
-    if (!get_item_info(this, item.get(), &info)) {
+    if (!get_item_info(item.get(), &info)) {
         throw cb::engine_error(cb::engine_errc::failed,
                                "default_get_if: get_item_info failed");
     }
@@ -589,7 +573,7 @@ cb::EngineErrorCasPair default_engine::store_if(
         cb::StoreIfStatus status;
         if (existing.get()) {
             item_info info;
-            if (!get_item_info(this, existing.get(), &info)) {
+            if (!get_item_info(existing.get(), &info)) {
                 throw cb::engine_error(
                         cb::engine_errc::failed,
                         "default_store_if: get_item_info failed");
@@ -898,16 +882,13 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
     }
 }
 
-void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
-                  gsl::not_null<item*> item,
-                  uint64_t val) {
+void default_engine::item_set_cas(gsl::not_null<item*> item, uint64_t val) {
     hash_item* it = get_real_item(item);
     it->cas = val;
 }
 
-static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*> handle,
-                              gsl::not_null<item*> item,
-                              protocol_binary_datatype_t val) {
+void default_engine::item_set_datatype(gsl::not_null<item*> item,
+                                       protocol_binary_datatype_t val) {
     auto* it = reinterpret_cast<hash_item*>(item.get());
     it->datatype = val;
 }
@@ -924,12 +905,10 @@ char* item_get_data(const hash_item* item)
     return ((char*)key->header.full_key) + hash_key_get_key_len(key);
 }
 
-static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                          gsl::not_null<const item*> item,
-                          gsl::not_null<item_info*> item_info) {
+bool default_engine::get_item_info(gsl::not_null<const item*> item,
+                                   gsl::not_null<item_info*> item_info) {
     auto* it = reinterpret_cast<const hash_item*>(item.get());
     const hash_key* key = item_get_key(it);
-    auto* engine = get_handle(handle);
 
     // This may potentially open up for a race, but:
     // 1) If the item isn't linked anymore we don't need to mask
@@ -944,7 +923,7 @@ static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
     const auto iflag = it->iflag.load(std::memory_order_relaxed);
 
     if ((iflag & ITEM_LINKED) && it->locktime != 0 &&
-        it->locktime > engine->server.core->get_current_time()) {
+        it->locktime > server.core->get_current_time()) {
         // This object is locked. According to docs/Document.md we should
         // return -1 in such cases to hide the real CAS for the other clients
         // (Note the check on ITEM_LINKED.. for the actual item returned by
@@ -960,7 +939,7 @@ static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
     if (it->exptime == 0) {
         item_info->exptime = 0;
     } else {
-        item_info->exptime = engine->server.core->abstime(it->exptime);
+        item_info->exptime = server.core->abstime(it->exptime);
     }
     item_info->nbytes = it->nbytes;
     item_info->flags = it->flags;
@@ -974,14 +953,6 @@ static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
     } else {
         item_info->document_state = DocumentState::Alive;
     }
-    return true;
-}
-
-static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                          gsl::not_null<item*> item,
-                          gsl::not_null<const item_info*> itm_info) {
-    auto* it = reinterpret_cast<hash_item*>(item.get());
-    it->datatype = itm_info->datatype;
     return true;
 }
 

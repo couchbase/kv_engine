@@ -576,7 +576,7 @@ cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     if (ret.first == cb::engine_errc::success) {
         item_info info;
-        check(h1->get_item_info(h, ret.second.get(), &info),
+        check(h1->get_item_info(ret.second.get(), &info),
               "gat Failed to get item info");
 
         last_body.assign((const char*)info.value[0].iov_base,
@@ -591,7 +591,7 @@ bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
     if (ret.first != cb::engine_errc::success) {
         return false;
     }
-    if (!h1->get_item_info(h, ret.second.get(), info)) {
+    if (!h1->get_item_info(ret.second.get(), info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
@@ -603,7 +603,7 @@ bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
              std::string &key) {
 
     item_info info;
-    if (!h1->get_item_info(h, i, &info)) {
+    if (!h1->get_item_info(i, &info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
@@ -1079,7 +1079,7 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     auto ret = allocate(h, h1, cookie, key, value.size(), 0, 0, datatype, vb);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     ENGINE_ERROR_CODE res = h1->store(
@@ -1105,13 +1105,13 @@ cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         return rv;
     }
     item_info info;
-    if (!h1->get_item_info(h, rv.second.get(), &info)) {
+    if (!h1->get_item_info(rv.second.get(), &info)) {
         abort();
     }
 
     cb_assert(info.value[0].iov_len == vlen);
     std::copy(value, value + vlen, reinterpret_cast<char*>(info.value[0].iov_base));
-    h1->item_set_cas(h, rv.second.get(), casIn);
+    h1->item_set_cas(rv.second.get(), casIn);
 
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -1138,7 +1138,7 @@ ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     // Update the global cas value (used by some tests)
     if (result.first == cb::engine_errc::success) {
         item_info info{};
-        check(h1->get_item_info(h, result.second.get(), &info),
+        check(h1->get_item_info(result.second.get(), &info),
               "Failed to get item info");
         last_cas.store(info.cas);
     }
@@ -1229,7 +1229,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
         return {ENGINE_ERROR_CODE(rv.first), ""};
     }
     item_info info;
-    if (!h1->get_item_info(h, rv.second.get(), &info)) {
+    if (!h1->get_item_info(rv.second.get(), &info)) {
         return {ENGINE_FAILED, ""};
     }
     auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),
@@ -1783,7 +1783,7 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
-    check(h1->get_item_info(h, ret.second.get(), &info),
+    check(h1->get_item_info(ret.second.get(), &info),
           "get_CAS: Failed to get item info for key");
 
     return info.cas;

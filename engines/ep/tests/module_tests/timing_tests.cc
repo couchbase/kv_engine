@@ -95,12 +95,12 @@ static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(ret.first == cb::engine_errc::success, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(h, ret.second.get(), &info)) {
+    if (!h1->get_item_info(ret.second.get(), &info)) {
         abort();
     }
 
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(h, ret.second.get(), casIn);
+    h1->item_set_cas(ret.second.get(), casIn);
 
     auto rv =
             h1->store(cookie, ret.second.get(), cas, op, DocumentState::Alive);

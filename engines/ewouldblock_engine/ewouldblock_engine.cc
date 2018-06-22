@@ -293,16 +293,6 @@ public:
         ENGINE_ERROR_CODE res =
                 real_engine->initialize(real_engine_config.c_str());
 
-        if (res == ENGINE_SUCCESS) {
-            // For engine interface functions which cannot return EWOULDBLOCK,
-            // and we otherwise don't want to interpose, we can simply use the
-            // real_engine's functions directly.
-            ENGINE_HANDLE_V1::item_set_cas = real_engine->item_set_cas;
-            ENGINE_HANDLE_V1::set_item_info = real_engine->set_item_info;
-            ENGINE_HANDLE_V1::item_set_datatype =
-                    real_engine->item_set_datatype;
-        }
-
         // Register a callback on DISCONNECT events, so we can delete
         // any stale elements from connection_map when a connection
         // DC's.
@@ -622,58 +612,43 @@ public:
         }
     }
 
-    static void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
-                             gsl::not_null<item*> item,
-                             uint64_t cas) {
-        // Should never be called as ENGINE_HANDLE_V1::item_set_cas is updated
-        // to point to the real_engine once it is initialized. This function
-        //only exists so there is a non-NULL value for
-        // ENGINE_HANDLE_V1::item_set_cas initially to keep load_engine()
-        // happy.
-        abort();
+    void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override {
+        // function cannot return EWOULDBLOCK, simply call the real_engine's
+        // function directly.
+        real_engine->item_set_cas(item, cas);
     }
 
-    static void item_set_datatype(gsl::not_null<ENGINE_HANDLE*>,
-                                  gsl::not_null<item*> itm,
-                                  protocol_binary_datatype_t datatype) {
-        // Should never be called - set item_set_datatype().
-        abort();
+    void item_set_datatype(gsl::not_null<item*> itm,
+                           protocol_binary_datatype_t datatype) override {
+        // function cannot return EWOULDBLOCK, simply call the real_engine's
+        // function directly.
+        real_engine->item_set_datatype(itm, datatype);
     }
 
-    static bool get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                              gsl::not_null<const item*> item,
-                              gsl::not_null<item_info*> item_info) {
-        EWB_Engine* ewb = to_engine(handle);
+    bool get_item_info(gsl::not_null<const item*> item,
+                       gsl::not_null<item_info*> item_info) override {
         LOG_DEBUG("EWB_Engine: get_item_info");
 
         // This function cannot return EWOULDBLOCK - just chain to the real
         // engine's function, unless it is a request for our special DCP item.
-        if (item == &ewb->dcp_mutation_item) {
+        if (item == &dcp_mutation_item) {
             item_info->cas = 0;
             item_info->vbucket_uuid = 0;
             item_info->seqno = 0;
             item_info->exptime = 0;
             item_info->nbytes =
-                    gsl::narrow<uint32_t>(ewb->dcp_mutation_item.value.size());
+                    gsl::narrow<uint32_t>(dcp_mutation_item.value.size());
             item_info->flags = 0;
             item_info->datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
             item_info->nkey =
-                    gsl::narrow<uint16_t>(ewb->dcp_mutation_item.key.size());
-            item_info->key = ewb->dcp_mutation_item.key.c_str();
-            item_info->value[0].iov_base = &ewb->dcp_mutation_item.value[0];
+                    gsl::narrow<uint16_t>(dcp_mutation_item.key.size());
+            item_info->key = dcp_mutation_item.key.c_str();
+            item_info->value[0].iov_base = &dcp_mutation_item.value[0];
             item_info->value[0].iov_len = item_info->nbytes;
             return true;
         } else {
-            return ewb->real_engine->get_item_info(
-                    ewb->real_handle, item, item_info);
+            return real_engine->get_item_info(item, item_info);
         }
-    }
-
-    static bool set_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                              gsl::not_null<item*> item,
-                              gsl::not_null<const item_info*> item_info) {
-        // Should never be called - set item_set_cas().
-        abort();
     }
 
     static void handle_disconnect(const void* cookie,
@@ -1259,10 +1234,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
-    ENGINE_HANDLE_V1::item_set_datatype = item_set_datatype;
-    ENGINE_HANDLE_V1::get_item_info = get_item_info;
-    ENGINE_HANDLE_V1::set_item_info = set_item_info;
     ENGINE_HANDLE_V1::set_log_level = NULL;
 
     ENGINE_HANDLE_V1::dcp = {};
@@ -1982,7 +1953,7 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
     }
 
     // item_set_cas has no return value!
-    real_engine->item_set_cas(real_handle, rv.second.get(), cas64);
+    real_engine->item_set_cas(rv.second.get(), cas64);
     response(nullptr, 0, nullptr, 0, nullptr, 0,
              PROTOCOL_BINARY_RAW_BYTES,
              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);

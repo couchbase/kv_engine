@@ -102,6 +102,14 @@ struct mock_engine : public EngineIface {
             ADD_RESPONSE response,
             DocNamespace doc_namespace) override;
 
+    void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
+
+    void item_set_datatype(gsl::not_null<item*> item,
+                           protocol_binary_datatype_t datatype) override;
+
+    bool get_item_info(gsl::not_null<const item*> item,
+                       gsl::not_null<item_info*> item_info) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 };
 
@@ -465,19 +473,18 @@ ENGINE_ERROR_CODE mock_engine::unknown_command(
     return ret;
 }
 
-static void mock_item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
-                              gsl::not_null<item*> item,
-                              uint64_t val) {
-    struct mock_engine *me = get_handle(handle);
-    me->the_engine->item_set_cas((ENGINE_HANDLE*)me->the_engine, item, val);
+void mock_engine::item_set_cas(gsl::not_null<item*> item, uint64_t val) {
+    the_engine->item_set_cas(item, val);
 }
 
-static bool mock_get_item_info(gsl::not_null<ENGINE_HANDLE*> handle,
-                               gsl::not_null<const item*> item,
-                               gsl::not_null<item_info*> item_info) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine->get_item_info(
-            (ENGINE_HANDLE*)me->the_engine, item, item_info);
+void mock_engine::item_set_datatype(gsl::not_null<item*> item,
+                                    protocol_binary_datatype_t datatype) {
+    the_engine->item_set_datatype(item, datatype);
+}
+
+bool mock_engine::get_item_info(gsl::not_null<const item*> item,
+                                gsl::not_null<item_info*> item_info) {
+    return the_engine->get_item_info(item, item_info);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_step(
@@ -911,8 +918,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->item_set_cas = mock_item_set_cas;
-        me->get_item_info = mock_get_item_info;
         me->dcp.step = mock_dcp_step;
         me->dcp.open = mock_dcp_open;
         me->dcp.add_stream = mock_dcp_add_stream;

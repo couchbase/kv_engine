@@ -176,6 +176,14 @@ public:
             ADD_RESPONSE response,
             DocNamespace doc_namespace) override;
 
+    void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
+
+    void item_set_datatype(gsl::not_null<item*> item,
+                           protocol_binary_datatype_t datatype) override;
+
+    bool get_item_info(gsl::not_null<const item*> item,
+                       gsl::not_null<item_info*> item_info) override;
+
     /**
      * Delete a given key and value from the engine.
      *

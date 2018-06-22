@@ -177,10 +177,6 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
     return cb::makeEngineErrorItemPair(cb::engine_errc(ret), itm, this);
 }
 
-static bool EvpGetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
-                           gsl::not_null<const item*> itm,
-                           gsl::not_null<item_info*> itm_info);
-
 std::pair<cb::unique_item_ptr, item_info>
 EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
                                         const DocKey& key,
@@ -200,7 +196,7 @@ EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
     }
 
     item_info info;
-    if (!EvpGetItemInfo(this, it, &info)) {
+    if (!get_item_info(it, &info)) {
         release(it);
         throw cb::engine_error(cb::engine_errc::failed,
                                "EvpItemAllocateEx: EvpGetItemInfo failed");
@@ -1317,15 +1313,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::unknown_command(
     return ret;
 }
 
-static void EvpItemSetCas(gsl::not_null<ENGINE_HANDLE*>,
-                          gsl::not_null<item*> itm,
-                          uint64_t cas) {
+void EventuallyPersistentEngine::item_set_cas(gsl::not_null<item*> itm,
+                                              uint64_t cas) {
     static_cast<Item*>(itm.get())->setCas(cas);
 }
 
-static void EvpItemSetDatatype(gsl::not_null<ENGINE_HANDLE*>,
-                               gsl::not_null<item*> itm,
-                               protocol_binary_datatype_t datatype) {
+void EventuallyPersistentEngine::item_set_datatype(
+        gsl::not_null<item*> itm, protocol_binary_datatype_t datatype) {
     static_cast<Item*>(itm.get())->setDataType(datatype);
 }
 
@@ -1772,12 +1766,10 @@ void destroy_engine() {
     ObjectRegistry::reset();
 }
 
-static bool EvpGetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
-                           gsl::not_null<const item*> itm,
-                           gsl::not_null<item_info*> itm_info) {
+bool EventuallyPersistentEngine::get_item_info(
+        gsl::not_null<const item*> itm, gsl::not_null<item_info*> itm_info) {
     const Item* it = reinterpret_cast<const Item*>(itm.get());
-    auto engine = acquireEngine(handle);
-    *itm_info = engine->getItemInfo(*it);
+    *itm_info = acquireEngine(this)->getItemInfo(*it);
     return true;
 }
 
@@ -1786,14 +1778,6 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
         const DocKey& key,
         uint16_t vbucket) {
     return acquireEngine(this)->getMetaInner(cookie, key, vbucket);
-}
-
-static bool EvpSetItemInfo(gsl::not_null<ENGINE_HANDLE*> handle,
-                           gsl::not_null<item*> itm,
-                           gsl::not_null<const item_info*> itm_info) {
-    Item* it = reinterpret_cast<Item*>(itm.get());
-    it->setDataType(itm_info->datatype);
-    return true;
 }
 
 static cb::engine_error EvpCollectionsSetManifest(
@@ -1842,11 +1826,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::item_set_cas = EvpItemSetCas;
-    ENGINE_HANDLE_V1::item_set_datatype = EvpItemSetDatatype;
-    ENGINE_HANDLE_V1::get_item_info = EvpGetItemInfo;
-    ENGINE_HANDLE_V1::set_item_info = EvpSetItemInfo;
-
     ENGINE_HANDLE_V1::dcp.step = EvpDcpStep;
     ENGINE_HANDLE_V1::dcp.open = EvpDcpOpen;
     ENGINE_HANDLE_V1::dcp.add_stream = EvpDcpAddStream;
