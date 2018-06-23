@@ -41,32 +41,24 @@ public:
     /**
      * Factory method to create a Collections::DocKey from a DocKey
      */
-    static DocKey make(const ::DocKey& key, const std::string& separator) {
+    static DocKey make(const ::DocKey& key) {
         switch (key.getDocNamespace()) {
         case DocNamespace::DefaultCollection:
-            return DocKey(key, 0, 0);
-        case DocNamespace::Collections: {
-            const uint8_t* collection = findCollection(key, separator);
+            return DocKey(key, 0);
+        case DocNamespace::Collections:
+        case DocNamespace::System: {
+            const uint8_t* collection = findCollection(key);
             if (collection) {
                 return DocKey(key,
-                              gsl::narrow<uint8_t>(collection - key.data()),
-                              gsl::narrow<uint8_t>(separator.size()));
+                              gsl::narrow<uint8_t>(collection - key.data()));
             }
             // No collection found in this key, so return empty (len 0)
-            return DocKey(key, 0, 0);
+            return DocKey(key, 0);
         }
-        case DocNamespace::System:
-            throw std::invalid_argument(
-                    "DocKey::make incorrect use of SystemKey");
         }
         throw std::invalid_argument("DocKey::make invalid key.namespace: " +
                                     std::to_string(int(key.getDocNamespace())));
     }
-
-    /**
-     * Factory method to create a Collections::DocKey from a DocKey
-     */
-    static Collections::DocKey make(const ::DocKey& key);
 
     /**
      * @return how many bytes of the key are a collection
@@ -79,7 +71,7 @@ public:
      * @return how the length of the separator used in creating this
      */
     size_t getSeparatorLen() const {
-        return separatorLen;
+        return 1;
     }
 
     /**
@@ -99,15 +91,8 @@ public:
     }
 
 private:
-    DocKey(const ::DocKey& key, uint8_t _collectionLen, uint8_t _separatorLen)
-        : ::DocKey(key),
-          collectionLen(_collectionLen),
-          separatorLen(_separatorLen) {
-        if (_separatorLen > std::numeric_limits<uint8_t>::max()) {
-            throw std::invalid_argument(
-                    "Collections::DocKey invalid separatorLen:" +
-                    std::to_string(_separatorLen));
-        }
+    DocKey(const ::DocKey& key, uint8_t _collectionLen)
+        : ::DocKey(key), collectionLen(_collectionLen) {
     }
 
     /**
@@ -116,9 +101,8 @@ private:
      * @returns pointer to the start of the separator or nullptr if none found.
      */
     static const cb::const_byte_buffer::iterator findCollection(
-            const ::DocKey& key, const std::string& separator) {
-        if (key.size() == 0 || separator.size() == 0 ||
-            separator.size() > key.size()) {
+            const ::DocKey& key) {
+        if (key.size() == 0) {
             return nullptr;
         }
 
@@ -127,6 +111,7 @@ private:
         // ensure we skip character 0 to correctly split the key.
         const int start = key.getDocNamespace() == DocNamespace::System ? 1 : 0;
 
+        std::string separator = DefaultSeparator;
         auto rv = std::search(key.data() + start,
                               key.data() + key.size(),
                               separator.begin(),
@@ -138,7 +123,6 @@ private:
     }
 
     uint8_t collectionLen;
-    uint8_t separatorLen;
 };
 } // end namespace Collections
 

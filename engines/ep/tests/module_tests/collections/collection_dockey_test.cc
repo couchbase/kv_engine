@@ -22,32 +22,20 @@
 #include <gtest/gtest.h>
 
 TEST(CollectionDocKeyTest, make) {
-    auto key1 = makeStoredDocKey("beer::bud", DocNamespace::Collections);
+    auto key1 = makeStoredDocKey("beer:bud", DocNamespace::Collections);
     auto key2 = makeStoredDocKey("beerbud", DocNamespace::Collections);
     auto key3 = makeStoredDocKey("$collections:beer", DocNamespace::System);
     auto key4 = makeStoredDocKey("$collections:$default", DocNamespace::System);
+    auto key5 = makeStoredDocKey(":", DocNamespace::Collections);
 
     EXPECT_EQ(strlen("beer"),
-              Collections::DocKey::make(key1, "::").getCollectionLen());
+              Collections::DocKey::make(key1).getCollectionLen());
 
-    EXPECT_EQ(0, Collections::DocKey::make(key2, "::").getCollectionLen());
-
-    EXPECT_EQ(0, Collections::DocKey::make(key1, "##").getCollectionLen());
+    EXPECT_EQ(0, Collections::DocKey::make(key2).getCollectionLen());
 
     // This case is if the separator and the key are the same thing
     // The collection len is 0
-    EXPECT_EQ(0,
-              Collections::DocKey::make(key1, "beer::bud").getCollectionLen());
-
-    // If a key is beer::brewery and the separator is brewery then the
-    // collection is beer::
-    EXPECT_EQ(strlen("beer::"),
-              Collections::DocKey::make(key1, "bud").getCollectionLen());
-
-    EXPECT_EQ(0,
-              Collections::DocKey::make(key1, "longerthanthekey")
-                      .getCollectionLen());
-
+    EXPECT_EQ(0, Collections::DocKey::make(key5).getCollectionLen());
     // Check that system keys can be split up
     EXPECT_EQ(strlen(Collections::SystemEventPrefix),
               Collections::DocKey::make(key3).getCollectionLen());

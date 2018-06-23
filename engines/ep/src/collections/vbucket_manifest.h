@@ -117,7 +117,7 @@ public:
         }
 
         DocKey makeCollectionsDocKey(::DocKey key) const {
-            return Collections::DocKey::make(key, DefaultSeparator);
+            return Collections::DocKey::make(key);
         }
 
         /**

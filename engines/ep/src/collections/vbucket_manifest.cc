@@ -305,7 +305,7 @@ bool Manifest::doesKeyContainValidCollection(const ::DocKey& key) const {
         key.getDocNamespace() == DocNamespace::DefaultCollection) {
         return true;
     } else if (key.getDocNamespace() == DocNamespace::Collections) {
-        const auto cKey = Collections::DocKey::make(key, DefaultSeparator);
+        const auto cKey = Collections::DocKey::make(key);
         if (cKey.getCollectionLen()) {
             auto itr = map.find({reinterpret_cast<const char*>(cKey.data()),
                                  cKey.getCollectionLen()});
@@ -324,7 +324,7 @@ Manifest::container::const_iterator Manifest::getManifestEntry(
         key.getDocNamespace() == DocNamespace::DefaultCollection) {
         identifier = DefaultCollectionIdentifier;
     } else if (key.getDocNamespace() == DocNamespace::Collections) {
-        const auto cKey = Collections::DocKey::make(key, DefaultSeparator);
+        const auto cKey = Collections::DocKey::make(key);
         identifier = cKey.getCollection();
     } else if (key.getDocNamespace() == DocNamespace::System) {
         const auto cKey = Collections::DocKey::make(key);
@@ -349,7 +349,7 @@ bool Manifest::isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const {
         case DocNamespace::DefaultCollection:
             return !defaultCollectionExists;
         case DocNamespace::Collections: {
-            const auto cKey = Collections::DocKey::make(key, DefaultSeparator);
+            const auto cKey = Collections::DocKey::make(key);
             auto itr = map.find(cKey.getCollection());
             if (itr != map.end()) {
                 return seqno <= itr->second->getEndSeqno();

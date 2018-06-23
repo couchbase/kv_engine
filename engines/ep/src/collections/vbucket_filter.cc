@@ -89,8 +89,7 @@ bool Collections::VB::Filter::checkAndUpdateSlow(const Item& item) {
     if (item.getKey().getDocNamespace() == DocNamespace::Collections &&
         !filter.empty()) {
         // Collections require a look up in the filter
-        const auto cKey =
-                Collections::DocKey::make(item.getKey(), DefaultSeparator);
+        const auto cKey = Collections::DocKey::make(item.getKey());
         allowed = filter.count(cKey.getCollection());
     } else if (item.getKey().getDocNamespace() == DocNamespace::System) {
         allowed = allowSystemEvent(item);

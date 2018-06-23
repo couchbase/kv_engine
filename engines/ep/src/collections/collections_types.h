@@ -33,9 +33,6 @@ const char* const DefaultSeparator = ":";
 const char* const SystemSeparator = ":"; // Note this never changes
 const char* const SystemEventPrefix = "$collections";
 const char* const SystemEventPrefixWithSeparator = "$collections:";
-const char* const SeparatorChangePrefix = "$collections_separator";
-const char* const SeparatorChangePrefixWithSeparator =
-        "$collections_separator:";
 const char* const DeleteKey = "$collections:delete:";
 
 // Couchstore private file name for manifest data
@@ -45,8 +42,6 @@ const char CouchstoreManifest[] = "_local/collections_manifest";
 const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 
 using uid_t = uint64_t;
-
-const size_t MaxSeparatorLength = 5;
 
 /**
  * Return a uid from a C-string.

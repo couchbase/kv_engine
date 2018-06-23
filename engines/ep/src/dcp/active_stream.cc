@@ -874,8 +874,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // Note: This function is hot - it is called for every item to be
     // sent over the DCP connection.
     if (item->getOperation() != queue_op::system_event) {
-        auto cKey = Collections::DocKey::make(item->getKey(),
-                                              Collections::DefaultSeparator);
+        auto cKey = Collections::DocKey::make(item->getKey());
         if (shouldModifyItem(item,
                              includeValue,
                              includeXattributes,
