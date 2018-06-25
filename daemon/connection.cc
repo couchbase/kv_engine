@@ -722,7 +722,7 @@ int Connection::sslPreConnection() {
                         this, "Client did not provide an X.509 certificate");
             } else {
                 audit_auth_failure(
-                        this, "Failed to use client prided X.509 certificate");
+                        this, "Failed to use client provided X.509 certificate");
             }
             cb::net::set_econnreset();
             if (!certResult.second.empty()) {
