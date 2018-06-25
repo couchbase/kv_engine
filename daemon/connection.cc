@@ -674,6 +674,7 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
                 cb::rbac::createInitialContext(getUsername(), getDomain());
         setAuthenticated(true);
         setInternal(context.second);
+        audit_auth_success(this);
         LOG_INFO(
                 "{}: Client {} authenticated as '{}' via X509 "
                 "certificate",
@@ -720,6 +721,16 @@ int Connection::sslPreConnection() {
             }
         }
         if (disconnect) {
+            // Set the username to "[unknown]" if we failed to pick
+            // out a username from the certificate to avoid the
+            // audit event being "empty"
+            if (certResult.first == cb::x509::Status::NotPresent) {
+                audit_auth_failure(
+                        this, "Client did not provide an X.509 certificate");
+            } else {
+                audit_auth_failure(
+                        this, "Failed to use client prided X.509 certificate");
+            }
             cb::net::set_econnreset();
             if (!certResult.second.empty()) {
                 LOG_WARNING(
