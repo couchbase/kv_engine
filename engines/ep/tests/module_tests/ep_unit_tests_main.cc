@@ -35,7 +35,7 @@ static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 
 int main(int argc, char **argv) {
-    bool log_to_stderr = false;
+    bool verbose_logging = false;
     // Parse command-line options.
     int cmd;
     bool invalid_argument = false;
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
            (cmd = getopt(argc, argv, "v")) != EOF) {
         switch (cmd) {
         case 'v':
-            log_to_stderr = true;
+            verbose_logging = true;
             break;
         default:
             std::cerr << "Usage: " << argv[0] << " [-v] [gtest_options...]" << std::endl
@@ -59,9 +59,10 @@ int main(int argc, char **argv) {
 
     cb::logger::createBlackholeLogger();
     mock_init_alloc_hooks();
-    init_mock_server(log_to_stderr);
-
-    get_mock_server_api()->log->set_level(EXTENSION_LOG_DEBUG);
+    init_mock_server();
+    const auto log_level =
+            verbose_logging ? EXTENSION_LOG_DEBUG : EXTENSION_LOG_FATAL;
+    get_mock_server_api()->log->set_level(log_level);
     Logger::setLoggerAPI(get_mock_server_api()->log);
 
     // Need to initialize ep_real_time and friends.

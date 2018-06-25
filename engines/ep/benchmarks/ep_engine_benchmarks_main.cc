@@ -33,7 +33,7 @@ static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 int main(int argc, char** argv) {
     putenv(allow_no_stats_env);
     mock_init_alloc_hooks();
-    init_mock_server(true);
+    init_mock_server();
     initialize_time_functions(get_mock_server_api()->core);
     ::benchmark::Initialize(&argc, argv);
     /*

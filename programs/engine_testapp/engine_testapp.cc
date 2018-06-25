@@ -30,7 +30,7 @@ struct mock_engine {
 };
 
 static bool color_enabled;
-static bool log_to_stderr = false;
+static bool verbose_logging = false;
 
 #ifndef WIN32
 #include <signal.h>
@@ -1082,7 +1082,10 @@ static int execute_test(engine_test_t test,
     }
 
     if (ret == PENDING) {
-        init_mock_server(log_to_stderr);
+        init_mock_server();
+        const auto log_level =
+                verbose_logging ? EXTENSION_LOG_DEBUG : EXTENSION_LOG_FATAL;
+        get_mock_server_api()->log->set_level(log_level);
 
         /* Start the engine and go */
         if (!start_your_engine(engine)) {
@@ -1394,7 +1397,7 @@ int main(int argc, char **argv) {
             terminate_on_error = true;
             break;
         case 'X':
-            log_to_stderr = true;
+            verbose_logging = true;
             break;
         default:
             fprintf(stderr, "Illegal argument \"%c\"\n", c);

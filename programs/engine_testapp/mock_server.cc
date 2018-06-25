@@ -405,11 +405,12 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    return &rv;
 }
 
-void init_mock_server(bool log_to_stderr) {
+void init_mock_server() {
     process_started = time(0);
-    log_to_stderr ? cb::logger::createConsoleLogger()
-                  : cb::logger::createBlackholeLogger();
+    cb::logger::createConsoleLogger();
     extensions.logger = &cb::logger::getLoggerDescriptor();
+    log_level = EXTENSION_LOG_FATAL;
+
     session_cas = 0x0102030405060708;
     session_ctr = 0;
     cb_mutex_initialize(&session_mutex);
