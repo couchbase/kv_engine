@@ -73,26 +73,9 @@ ENDIF ("${MEMCACHED_VERSION}" STREQUAL "")
 
 CHECK_SYMBOL_EXISTS(memalign malloc.h HAVE_MEMALIGN)
 
-IF (ENABLE_DTRACE)
-    ADD_DEFINITIONS(-DENABLE_DTRACE=1)
-ENDIF (ENABLE_DTRACE)
-
 if(HAVE_MALLOC_USABLE_SIZE)
   ADD_DEFINITIONS(-DHAVE_MALLOC_USABLE_SIZE)
 endif()
-
-ADD_CUSTOM_COMMAND(OUTPUT ${Memcached_BINARY_DIR}/memcached_dtrace.h
-                   COMMAND
-                   ${DTRACE} -h
-                   -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
-                   -o ${Memcached_BINARY_DIR}/memcached_dtrace.h
-                   && sed -itmp "s/, *char \\*/, const char \\*/g" ${Memcached_BINARY_DIR}/memcached_dtrace.h
-                   DEPENDS
-                   memcached_dtrace.d
-                   COMMENT "Generating DTrace probe header file"
-                   VERBATIM)
-ADD_CUSTOM_TARGET(generate_memcached_dtrace_h
-                  DEPENDS ${Memcached_BINARY_DIR}/memcached_dtrace.h)
 
 INCLUDE_DIRECTORIES(BEFORE
                     ${LIBEVENT_INCLUDE_DIR}

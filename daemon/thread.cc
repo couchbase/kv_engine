@@ -10,7 +10,6 @@
 #include "memcached.h"
 #include "stats.h"
 #include "timing_histogram.h"
-#include "trace.h"
 #include "tracing.h"
 
 #include <memcached/openssl.h>
@@ -385,7 +384,6 @@ void dispatch_conn_new(SOCKET sfd, int parent_port) {
         return ;
     }
 
-    MEMCACHED_CONN_DISPATCH(sfd, (uintptr_t)thread.thread_id);
     notify_thread(thread);
 }
 

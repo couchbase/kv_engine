@@ -17,7 +17,6 @@
 #include "get_context.h"
 
 #include "engine_wrapper.h"
-#include "trace.h"
 
 #include <daemon/buckets.h>
 #include <daemon/debug_helpers.h>
@@ -125,9 +124,6 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
     STATS_MISS(&connection, get);
 
     const auto key = cookie.getRequestKey();
-    MEMCACHED_COMMAND_GET(connection.getId(),
-                          reinterpret_cast<const char*>(key.data()),
-                          int(key.size()), -1, 0);
 
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()

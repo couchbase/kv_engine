@@ -186,7 +186,6 @@ static int do_slabs_newslab(struct default_engine *engine, const unsigned int id
         (grow_slab_list(engine, id) == 0) ||
         ((ptr = static_cast<char*>(memory_allocate(engine, (size_t)len))) == 0)) {
 
-        MEMCACHED_SLABS_SLABCLASS_ALLOCATE_FAILED(id);
         return 0;
     }
 
@@ -196,7 +195,6 @@ static int do_slabs_newslab(struct default_engine *engine, const unsigned int id
 
     p->slab_list[p->slabs++] = ptr;
     engine->slabs.mem_malloced += len;
-    MEMCACHED_SLABS_SLABCLASS_ALLOCATE(id);
 
     return 1;
 }
@@ -207,7 +205,6 @@ static void *do_slabs_alloc(struct default_engine *engine, const size_t size, un
     void *ret = NULL;
 
     if (id < POWER_SMALLEST || id > engine->slabs.power_largest) {
-        MEMCACHED_SLABS_ALLOCATE_FAILED(size, 0);
         return NULL;
     }
 
@@ -246,9 +243,6 @@ static void *do_slabs_alloc(struct default_engine *engine, const size_t size, un
 
     if (ret) {
         p->requested += size;
-        MEMCACHED_SLABS_ALLOCATE(size, id, p->size, ret);
-    } else {
-        MEMCACHED_SLABS_ALLOCATE_FAILED(size, id);
     }
 
     return ret;
@@ -260,7 +254,6 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
     if (id < POWER_SMALLEST || id > engine->slabs.power_largest)
         return;
 
-    MEMCACHED_SLABS_DEALLOCATE(size, id, ptr);
     p = &engine->slabs.slabclass[id];
 
 #ifdef USE_SYSTEM_MALLOC

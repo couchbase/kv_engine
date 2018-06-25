@@ -25,7 +25,6 @@
 #include "runtime.h"
 #include "server_event.h"
 #include "statemachine_mcbp.h"
-#include "trace.h"
 
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/header.h>
@@ -1205,7 +1204,6 @@ Connection::Connection()
       peername("unknown"),
       sockname("unknown"),
       stateMachine(*this) {
-    MEMCACHED_CONN_CREATE(this);
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     setConnectionId(peername.c_str());
@@ -1218,7 +1216,6 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
       peername(cb::net::getpeername(socketDescriptor)),
       sockname(cb::net::getsockname(socketDescriptor)),
       stateMachine(*this) {
-    MEMCACHED_CONN_CREATE(this);
     setTcpNoDelay(ifc.tcp_nodelay);
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
@@ -1239,7 +1236,6 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
 }
 
 Connection::~Connection() {
-    MEMCACHED_CONN_DESTROY(this);
     releaseReservedItems();
     for (auto* ptr : temp_alloc) {
         cb_free(ptr);

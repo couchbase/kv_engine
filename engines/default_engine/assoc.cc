@@ -115,7 +115,6 @@ hash_item *assoc_find(uint32_t hash, const hash_key *key) {
         it = it->h_next;
         ++depth;
     }
-    MEMCACHED_ASSOC_FIND(hash_key_get_key(key), hash_key_get_key_len(key), depth);
     return ret;
 }
 
@@ -210,7 +209,6 @@ int assoc_insert(uint32_t hash, hash_item *it) {
     if (! global_assoc->expanding && global_assoc->hash_items > (hashsize(global_assoc->hashpower) * 3) / 2) {
         assoc_expand();
     }
-    MEMCACHED_ASSOC_INSERT(hash_key_get_key(item_get_key(it)), hash_key_get_key_len(item_get_key(it)), global_assoc->hash_items);
     return 1;
 }
 
@@ -221,12 +219,6 @@ void assoc_delete(uint32_t hash, const hash_key *key) {
     if (*before) {
         hash_item *nxt;
         global_assoc->hash_items--;
-        /* The DTrace probe cannot be triggered as the last instruction
-         * due to possible tail-optimization by the compiler
-         */
-        MEMCACHED_ASSOC_DELETE(hash_key_get_key(key),
-                               hash_key_get_key_len(key),
-                               global_assoc->hash_items);
         nxt = (*before)->h_next;
         (*before)->h_next = 0;   /* probably pointless, but whatever. */
         *before = nxt;

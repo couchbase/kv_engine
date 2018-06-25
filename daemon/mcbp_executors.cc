@@ -51,7 +51,6 @@
 #include "sasl_tasks.h"
 #include "session_cas.h"
 #include "subdocument.h"
-#include "trace.h"
 
 #include <mcbp/protocol/header.h>
 #include <platform/string.h>
@@ -924,8 +923,6 @@ void try_read_mcbp_command(Connection& c) {
     }
 
     c.addMsgHdr(true);
-    MEMCACHED_PROCESS_COMMAND_START(
-            c.getId(), input.data(), sizeof(cb::mcbp::Request));
 
     auto reason = validate_packet_execusion_constraints(cookie);
     if (reason != cb::mcbp::Status::Success) {

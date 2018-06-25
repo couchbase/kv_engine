@@ -301,7 +301,6 @@ int do_item_link(struct default_engine *engine,
                  const void* cookie,
                  hash_item *it) {
     const hash_key* key = item_get_key(it);
-    MEMCACHED_ITEM_LINK(hash_key_get_client_key(key), hash_key_get_client_key_len(key), it->nbytes);
     cb_assert((it->iflag & (ITEM_LINKED|ITEM_SLABBED)) == 0);
     it->iflag |= ITEM_LINKED;
     it->time = engine->server.core->get_current_time();
@@ -342,9 +341,6 @@ int do_item_link(struct default_engine *engine,
 
 void do_item_unlink(struct default_engine *engine, hash_item *it) {
     const hash_key* key = item_get_key(it);
-    MEMCACHED_ITEM_UNLINK(hash_key_get_client_key(key),
-                          hash_key_get_client_key_len(key),
-                          it->nbytes);
     if ((it->iflag & ITEM_LINKED) != 0) {
         it->iflag &= ~ITEM_LINKED;
         cb_mutex_enter(&engine->stats.lock);
@@ -373,9 +369,6 @@ ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
     auto ret = ENGINE_SUCCESS;
 
     if (it->cas == stored->cas) {
-        MEMCACHED_ITEM_UNLINK(hash_key_get_client_key(key),
-                              hash_key_get_client_key_len(key),
-                              it->nbytes);
         if ((stored->iflag & ITEM_LINKED) != 0) {
             stored->iflag &= ~ITEM_LINKED;
             cb_mutex_enter(&engine->stats.lock);
@@ -399,9 +392,6 @@ ENGINE_ERROR_CODE do_safe_item_unlink(struct default_engine* engine,
 }
 
 void do_item_release(struct default_engine *engine, hash_item *it) {
-    MEMCACHED_ITEM_REMOVE(hash_key_get_client_key(item_get_key(it)),
-                          hash_key_get_client_key_len(item_get_key(it)),
-                          it->nbytes);
     if (it->refcount != 0) {
         it->refcount--;
         DEBUG_REFCNT(it, '-');
@@ -413,9 +403,6 @@ void do_item_release(struct default_engine *engine, hash_item *it) {
 
 void do_item_update(struct default_engine *engine, hash_item *it) {
     rel_time_t current_time = engine->server.core->get_current_time();
-    MEMCACHED_ITEM_UPDATE(hash_key_get_client_key(item_get_key(it)),
-                          hash_key_get_client_key_len(item_get_key(it)),
-                          it->nbytes);
     if (it->time < current_time - ITEM_UPDATE_INTERVAL) {
         cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
@@ -431,12 +418,6 @@ int do_item_replace(struct default_engine *engine,
                     const void* cookie,
                     hash_item *it,
                     hash_item *new_it) {
-    MEMCACHED_ITEM_REPLACE(hash_key_get_client_key(item_get_key(it)),
-                           hash_key_get_client_key_len(item_get_key(it)),
-                           it->nbytes,
-                           hash_key_get_client_key(item_get_key(new_it)),
-                           hash_key_get_client_key_len(item_get_key(new_it)),
-                           new_it->nbytes);
     cb_assert((it->iflag & ITEM_SLABBED) == 0);
 
     do_item_unlink(engine, it);

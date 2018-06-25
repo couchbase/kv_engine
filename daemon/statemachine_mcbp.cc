@@ -26,7 +26,6 @@
 #include "mcbp_executors.h"
 #include "protocol/mcbp/ship_dcp_log.h"
 #include "sasl_tasks.h"
-#include "trace.h"
 
 #include <mcbp/mcbp.h>
 #include <platform/strerror.h>
@@ -371,7 +370,6 @@ bool conn_execute(Connection& connection) {
     }
 
     mcbp_collect_timings(cookie);
-    MEMCACHED_PROCESS_COMMAND_END(connection.getId(), nullptr, 0);
 
     // Consume the packet we just executed from the input buffer
     connection.read->consume([&cookie](

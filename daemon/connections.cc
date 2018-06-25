@@ -22,7 +22,6 @@
 #include "runtime.h"
 #include "settings.h"
 #include "stats.h"
-#include "trace.h"
 #include "utilities/protocol2text.h"
 
 #include <cJSON.h>
@@ -200,7 +199,6 @@ Connection* conn_new(const SOCKET sfd,
     }
 
     c->setThread(thread);
-    MEMCACHED_CONN_ALLOCATE(c->getId());
 
     if (settings.getVerbose() > 1) {
         LOG_DEBUG("<{} new client connection", sfd);

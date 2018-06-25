@@ -33,7 +33,6 @@
 /* Forward decl */
 struct default_engine;
 
-#include "trace.h"
 #include "items.h"
 #include "assoc.h"
 #include "slabs.h"
