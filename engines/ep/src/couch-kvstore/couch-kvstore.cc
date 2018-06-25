@@ -1943,26 +1943,19 @@ bool CouchKVStore::commit2couchstore(const Item* collectionsManifest) {
     return success;
 }
 
-static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx) {
-    if (ctx == nullptr) {
-        throw std::invalid_argument("readDocInfos: ctx must be non-NULL");
-    }
-    if (!docinfo) {
-        throw std::invalid_argument("readDocInfos: docInfo must be non-NULL");
-    }
-    kvstats_ctx* cbCtx = static_cast<kvstats_ctx*>(ctx);
-    if(docinfo) {
-        // An item exists in the VB DB file.
-        if (!docinfo->deleted) {
-            // Collections: TODO: Permanently restore to stored namespace
-            auto itr = cbCtx->keyStats.find(
-                    makeDocKey(docinfo->id, cbCtx->persistDocNamespace));
-            if (itr != cbCtx->keyStats.end()) {
-                itr->second = true;
-            }
+// Callback when the btree is updated which we use for tracking create/update
+// type statistics.
+static void saveDocsCallback(const DocInfo* info,
+                             couchstore_updated_how how,
+                             void* context) {
+    if (how == COUCHSTORE_REPLACED && !info->deleted) {
+        kvstats_ctx* cbCtx = static_cast<kvstats_ctx*>(context);
+        auto itr = cbCtx->keyStats.find(
+                makeDocKey(info->id, cbCtx->persistDocNamespace));
+        if (itr != cbCtx->keyStats.end()) {
+            itr->second = true; // mark this key as replaced
         }
     }
-    return 0;
 }
 
 couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
@@ -2003,30 +1996,19 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid,
                         ids[idx], configuration.shouldPersistDocNamespace());
                 kvctx.keyStats[key] = false;
             }
-            errCode = couchstore_docinfos_by_id(db,
-                                                ids.data(),
-                                                (unsigned)ids.size(),
-                                                0,
-                                                readDocInfos,
-                                                &kvctx);
-            if (errCode != COUCHSTORE_SUCCESS) {
-                logger.log(EXTENSION_LOG_WARNING,
-                           "CouchKVStore::saveDocs: couchstore_docinfos_by_id "
-                           "error:%s [%s], vb:%" PRIu16 ", numdocs:%" PRIu64,
-                           couchstore_strerror(errCode),
-                           couchkvstore_strerrno(db, errCode).c_str(),
-                           vbid,
-                           uint64_t(docs.size()));
-                return errCode;
-            }
 
             auto cs_begin = ProcessClock::now();
+
             uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
-            errCode = couchstore_save_documents(db,
-                                                docs.data(),
-                                                docinfos.data(),
-                                                (unsigned)docs.size(),
-                                                flags);
+            errCode = couchstore_save_documents_and_callback(
+                    db,
+                    docs.data(),
+                    docinfos.data(),
+                    (unsigned)docs.size(),
+                    flags,
+                    &saveDocsCallback,
+                    &kvctx);
+
             st.saveDocsHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             ProcessClock::now() - cs_begin));
