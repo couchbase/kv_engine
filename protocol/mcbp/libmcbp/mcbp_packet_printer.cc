@@ -106,11 +106,10 @@ int main(int argc, char** argv) {
             cb::byte_buffer buf;
             std::vector<uint8_t> data;
 
-            cb::MemoryMappedFile map(argv[optind],
-                                     cb::MemoryMappedFile::Mode::RDONLY);
-            map.open();
-
-            buf = {static_cast<uint8_t*>(map.getRoot()), map.getSize()};
+            cb::io::MemoryMappedFile map(
+                    argv[optind], cb::io::MemoryMappedFile::Mode::RDONLY);
+            auto payload = map.content();
+            buf = {reinterpret_cast<uint8_t*>(payload.data()), payload.size()};
 
             switch (format) {
             case Format::Raw:

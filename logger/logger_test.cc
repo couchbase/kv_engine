@@ -22,7 +22,6 @@
 #include <memcached/extension.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
-#include <platform/memorymap.h>
 #include <valgrind/valgrind.h>
 
 #ifndef WIN32
@@ -82,17 +81,13 @@ protected:
 
     std::string getLogContents() {
         files = cb::io::findFilesWithPrefix(filename);
-        std::ostringstream ret;
+        std::string ret;
 
         for (const auto& file : files) {
-            cb::MemoryMappedFile map(file.c_str(),
-                                     cb::MemoryMappedFile::Mode::RDONLY);
-            map.open();
-            ret << std::string{reinterpret_cast<const char*>(map.getRoot()),
-                               map.getSize()};
+            ret.append(cb::io::loadFile(file));
         }
 
-        return ret.str();
+        return ret;
     }
 
     std::vector<std::string> files;
@@ -109,11 +104,10 @@ protected:
  * @return the number of times we found the message in the file
  */
 int countInFile(const std::string& file, const std::string& msg) {
-    cb::MemoryMappedFile map(file.c_str(), cb::MemoryMappedFile::Mode::RDONLY);
-    map.open();
+    const auto content = cb::io::loadFile(file);
 
-    const auto* begin = reinterpret_cast<const char*>(map.getRoot());
-    const auto* end = begin + map.getSize();
+    const auto* begin = content.data();
+    const auto* end = begin + content.size();
 
     int count = 0;
     while ((begin = std::search(begin, end, msg.begin(), msg.end())) != end) {

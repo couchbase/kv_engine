@@ -20,17 +20,17 @@
 #include <gtest/gtest.h>
 #include <mcbp/mcbp.h>
 #include <platform/dirutils.h>
-#include <platform/memorymap.h>
 #include <platform/sized_buffer.h>
 
 TEST(ParserTest, GdbOutput) {
     std::string file{SOURCE_ROOT};
     file.append("/protocol/mcbp/libmcbp/gdb_output.txt");
     cb::io::sanitizePath(file);
-    cb::MemoryMappedFile map(file.c_str(), cb::MemoryMappedFile::Mode::RDONLY);
-    map.open();
-
-    cb::byte_buffer buf = {static_cast<uint8_t*>(map.getRoot()), map.getSize()};
+    const auto content = cb::io::loadFile(file);
+    cb::byte_buffer buf = {
+            const_cast<uint8_t*>(
+                    reinterpret_cast<const uint8_t*>(content.data())),
+            content.size()};
     auto data = cb::mcbp::gdb::parseDump(buf);
 
     const std::vector<uint8_t> bytes = {
@@ -51,10 +51,11 @@ TEST(ParserTest, LldbOutput) {
     std::string file{SOURCE_ROOT};
     file.append("/protocol/mcbp/libmcbp/lldb_output.txt");
     cb::io::sanitizePath(file);
-    cb::MemoryMappedFile map(file.c_str(), cb::MemoryMappedFile::Mode::RDONLY);
-    map.open();
-
-    cb::byte_buffer buf = {static_cast<uint8_t*>(map.getRoot()), map.getSize()};
+    const auto content = cb::io::loadFile(file);
+    cb::byte_buffer buf = {
+            const_cast<uint8_t*>(
+                    reinterpret_cast<const uint8_t*>(content.data())),
+            content.size()};
     auto data = cb::mcbp::lldb::parseDump(buf);
 
     const std::vector<uint8_t> bytes = {

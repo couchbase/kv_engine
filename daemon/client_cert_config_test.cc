@@ -24,7 +24,6 @@
 #include <openssl/conf.h>
 #include <openssl/engine.h>
 #include <platform/dirutils.h>
-#include <platform/memorymap.h>
 #include <gsl/gsl>
 
 #include <string>
@@ -147,18 +146,13 @@ public:
 #ifdef WIN32
         std::replace(certPath.begin(), certPath.end(), '/', '\\');
 #endif
-
-        cb::MemoryMappedFile map(certPath.c_str(),
-                                 cb::MemoryMappedFile::Mode::RDONLY);
-        map.open();
-        auto* certbio = BIO_new_mem_buf(reinterpret_cast<char*>(map.getRoot()),
-                                        gsl::narrow<int>(map.getSize()));
+        auto data = cb::io::loadFile(certPath);
+        auto* certbio = BIO_new_mem_buf(static_cast<const void*>(data.data()),
+                                        gsl::narrow<int>(data.size()));
         cert.reset(PEM_read_bio_X509(certbio, NULL, 0, NULL));
         BIO_free(certbio);
         ASSERT_TRUE(cert.get()) << "Error in reading certificate file: "
                                 << certPath;
-
-        map.close();
     }
 
     static void TearDownTestCase() {

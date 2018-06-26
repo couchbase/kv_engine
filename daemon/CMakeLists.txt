@@ -242,6 +242,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    client_cert_config.h)
     target_link_libraries(client_cert_config_test PRIVATE
             cJSON
+            dirutils
             gtest
             gtest_main
             platform

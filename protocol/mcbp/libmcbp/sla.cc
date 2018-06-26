@@ -20,7 +20,6 @@
 
 #include <cJSON_utils.h>
 #include <platform/dirutils.h>
-#include <platform/memorymap.h>
 
 #include <algorithm>
 #include <array>
@@ -156,11 +155,8 @@ static unique_cJSON_ptr mergeFilesOnDisk(const std::string& root) {
     unique_cJSON_ptr configuration;
 
     if (cb::io::isFile(system)) {
-        cb::MemoryMappedFile map(system.c_str(),
-                                 cb::MemoryMappedFile::Mode::RDONLY);
-        map.open();
-        std::string string{static_cast<char*>(map.getRoot()), map.getSize()};
-        unique_cJSON_ptr doc(cJSON_Parse(string.c_str()));
+        const auto content = cb::io::loadFile(system);
+        unique_cJSON_ptr doc(cJSON_Parse(content.c_str()));
         if (!doc) {
             throw std::invalid_argument(
                     "cb::mcbp::sla::reconfigure: Invalid json in '" + system +
@@ -183,12 +179,8 @@ static unique_cJSON_ptr mergeFilesOnDisk(const std::string& root) {
                 continue;
             }
 
-            cb::MemoryMappedFile map(file.c_str(),
-                                     cb::MemoryMappedFile::Mode::RDONLY);
-            map.open();
-            std::string string{static_cast<char*>(map.getRoot()),
-                               map.getSize()};
-            unique_cJSON_ptr doc(cJSON_Parse(string.c_str()));
+            const auto content = cb::io::loadFile(file);
+            unique_cJSON_ptr doc(cJSON_Parse(content.c_str()));
             if (!doc) {
                 throw std::invalid_argument(
                         "cb::mcbp::sla::reconfigure: Invalid json in '" + file +

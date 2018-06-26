@@ -18,7 +18,7 @@
 #include <cbsasl/pwdb.h>
 #include "user.h"
 
-#include <platform/memorymap.h>
+#include <platform/dirutils.h>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -101,11 +101,7 @@ std::string cb::sasl::pwdb::read_password_file(const std::string& filename) {
         return contents;
     }
 
-    cb::MemoryMappedFile map(filename.c_str(),
-                             cb::MemoryMappedFile::Mode::RDONLY);
-    map.open();
-    std::string ret(reinterpret_cast<char*>(map.getRoot()), map.getSize());
-    map.close();
+    auto ret = cb::io::loadFile(filename);
 
     // The password file may be encrypted
     auto* env = getenv("COUCHBASE_CBSASL_SECRETS");

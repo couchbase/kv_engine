@@ -17,7 +17,7 @@
 #include <memcached/rbac.h>
 
 #include <cJSON_utils.h>
-#include <platform/memorymap.h>
+#include <platform/dirutils.h>
 #include <platform/rwlock.h>
 #include <strings.h>
 #include <atomic>
@@ -257,12 +257,7 @@ std::pair<PrivilegeContext, bool> createInitialContext(
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {
-    cb::MemoryMappedFile map(filename.c_str(),
-                             cb::MemoryMappedFile::Mode::RDONLY);
-    map.open();
-    std::string content(reinterpret_cast<char*>(map.getRoot()), map.getSize());
-    map.close();
-
+    const auto content = cb::io::loadFile(filename);
     unique_cJSON_ptr json(cJSON_Parse(content.c_str()));
     if (json.get() == nullptr) {
         throw std::runtime_error(

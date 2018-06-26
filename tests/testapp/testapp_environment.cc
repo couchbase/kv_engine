@@ -24,7 +24,6 @@
 
 #include <cJSON_utils.h>
 #include <platform/dirutils.h>
-#include <platform/memorymap.h>
 #include <platform/strerror.h>
 #include <fstream>
 #include <memory>
@@ -394,13 +393,7 @@ void McdEnvironment::SetupRbacFile() {
 #ifdef WIN32
     std::replace(input_file.begin(), input_file.end(), '\\', '/');
 #endif
-    cb::MemoryMappedFile map(input_file.c_str(),
-                             cb::MemoryMappedFile::Mode::RDONLY);
-    map.open();
-    std::string input(reinterpret_cast<char*>(map.getRoot()),
-                      map.getSize());
-    map.close();
-
+    const auto input = cb::io::loadFile(input_file);
     rbac_data.reset(cJSON_Parse(input.c_str()));
 
     rbac_file_name = cwd + "/" + cb::io::mktemp("rbac.json.XXXXXX");
