@@ -608,3 +608,28 @@ TEST_P(McdTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
                               "56"});
     expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_EINVAL, {});
 }
+
+// MB-30278: Perform a multi-mutation with two paths with backticks in them.
+TEST_P(McdTestappTest, MB_30278_SubdocBacktickMultiMutation) {
+    store_object("dict", "{}");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE,
+                              "key1``",
+                              "1"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE,
+                              "key2``",
+                              "2"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE,
+                              "key3``",
+                              "3"});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+
+    validate_object("dict", R"({"key1`":1,"key2`":2,"key3`":3})");
+
+    delete_object("dict");
+}
