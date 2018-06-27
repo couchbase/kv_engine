@@ -16,10 +16,10 @@
  */
 #pragma once
 
-#include <cJSON_utils.h>
 #include <cbcrypto/cbcrypto.h>
 #include <cbsasl/mechanism.h>
 #include <cbsasl/pwdb.h>
+#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -70,15 +70,15 @@ public:
          *         "i" : "iteration count"
          *     }
          *
-         * @param obj pointer to the cJSON structure
+         * @param obj reference to the json structure
          */
-        explicit PasswordMetaData(cJSON* obj);
+        explicit PasswordMetaData(const nlohmann::json& obj);
 
         /**
          * This is a helper function used from the unit tests
          * to generate a JSON representation of a user
          */
-        cJSON* to_json() const;
+        nlohmann::json to_json() const;
 
         const std::string& getSalt() const {
             return salt;
@@ -147,7 +147,7 @@ public:
      * Generate a JSON encoding of this object (it is primarily used
      * from the test suite to generate a user database)
      */
-    unique_cJSON_ptr to_json() const;
+    nlohmann::json to_json() const;
 
     /**
      * Generate a textual representation of the user object (in JSON)
@@ -210,7 +210,7 @@ public:
      * @param obj the object containing the JSON description
      * @throws std::runtime_error if there is a syntax error
      */
-    static User create(const cJSON* obj);
+    static User create(const nlohmann::json& obj);
 
     /**
      * Construct a dummy user object that may be used in authentication

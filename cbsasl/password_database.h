@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cbsasl/visibility.h>
+#include <nlohmann/json_fwd.hpp>
 
 #include <string>
 #include <unordered_map>
@@ -66,7 +67,7 @@ public:
     /**
      * Create a JSON representation of the password database
      */
-    unique_cJSON_ptr to_json() const;
+    nlohmann::json to_json() const;
 
     /**
      * Create a textual representation (in JSON) of the password database

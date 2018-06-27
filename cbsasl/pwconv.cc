@@ -26,21 +26,9 @@
 #include <sstream>
 
 void cb::sasl::pwdb::convert(std::istream& is, std::ostream& os) {
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    if (root.get() == nullptr) {
-        throw std::bad_alloc();
-    }
-    auto* users = cJSON_CreateArray();
-    if (users == nullptr) {
-        throw std::bad_alloc();
-    }
-    cJSON_AddItemToObject(root.get(), "users", users);
+    nlohmann::json json;
+    nlohmann::json users = nlohmann::json::array();
 
-    /* File has lines that are newline terminated.
-     * File may have comment lines that must being with '#'.
-     * Lines should look like...
-     *   <NAME><whitespace><PASSWORD>
-     */
     std::vector<char> up(1024);
 
     while (is.getline(up.data(), up.size()).good()) {
@@ -72,10 +60,12 @@ void cb::sasl::pwdb::convert(std::istream& is, std::ostream& os) {
                                "Create user entry for [" + username + "]");
 
         auto u = UserFactory::create(username, password);
-        cJSON_AddItemToArray(users, u.to_json().release());
+        users.push_back(u.to_json());
     }
 
-    os << to_string(root, true) << std::endl;
+    json["users"] = users;
+
+    os << json.dump(4) << std::endl;
 }
 
 void cb::sasl::pwdb::convert(const std::string& ifile,

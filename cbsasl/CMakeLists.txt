@@ -46,7 +46,7 @@ generate_export_header(cbsasl
                        EXPORT_MACRO_NAME CBSASL_PUBLIC_API
                        EXPORT_FILE_NAME ${PROJECT_BINARY_DIR}/include/cbsasl/visibility.h)
 set_target_properties(cbsasl PROPERTIES SOVERSION 2.0.0)
-target_link_libraries(cbsasl cbcrypto cbsocket dirutils mcd_util cJSON platform)
+target_link_libraries(cbsasl cbcrypto cbsocket dirutils mcd_util platform)
 add_sanitizers(cbsasl)
 
 install(TARGETS cbsasl
@@ -82,8 +82,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           gtest
                           cbsasl
                           mcd_util
-                          platform
-                          cJSON)
+                          platform)
     add_test(NAME cbsasl-pwconv-test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND cbsasl_pwconv_test)
@@ -95,7 +94,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           cbcrypto
                           cbsasl
                           gtest
-                          cJSON
                           dirutils
                           platform
                           ${OPENSSL_LIBRARIES})
@@ -116,7 +114,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           cbsasl
                           cbcrypto
                           platform
-                          cJSON
                           gtest
                           gtest_main)
     add_test(NAME cbsasl-server-sasl

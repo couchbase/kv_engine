@@ -16,7 +16,7 @@
  */
 #include "password_database.h"
 
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <memory>
 #include <string>
 
@@ -25,62 +25,61 @@ namespace sasl {
 namespace pwdb {
 
 PasswordDatabase::PasswordDatabase(const std::string& content, bool file) {
-    unique_cJSON_ptr unique_json;
+    nlohmann::json json;
 
     if (file) {
         auto c = read_password_file(content);
-        unique_json.reset(cJSON_Parse(c.c_str()));
-    } else {
-        unique_json.reset(cJSON_Parse(content.c_str()));
-    }
-
-    auto* json = unique_json.get();
-    if (json == nullptr) {
-        if (file) {
+        try {
+            json = nlohmann::json::parse(c);
+        } catch (const nlohmann::json::exception&) {
             throw std::runtime_error(
                     "PasswordDatabase: Failed to parse the JSON in " + content);
-        } else {
+        }
+    } else {
+        try {
+            json = nlohmann::json::parse(content);
+        } catch (const nlohmann::json::exception&) {
             throw std::runtime_error(
                     "PasswordDatabase: Failed to parse the supplied JSON");
         }
     }
 
-    if (cJSON_GetArraySize(json) != 1) {
+    if (json.size() != 1) {
         throw std::runtime_error("PasswordDatabase: format error..");
     }
 
-    auto* users = cJSON_GetObjectItem(json, "users");
-    if (users == nullptr) {
+    auto it = json.find("users");
+    if (it == json.end()) {
         throw std::runtime_error(
                 "PasswordDatabase: format error. users not"
                 " present");
     }
-    if (users->type != cJSON_Array) {
+
+    if (!it->is_array()) {
         throw std::runtime_error(
-                "PasswordDatabase: Illegal type for "
-                "\"users\". Expected Array");
+                "PasswordDatabase: Illegal type for \"users\". Expected Array");
     }
 
     // parse all of the users
-    for (auto* u = users->child; u != nullptr; u = u->next) {
+    for (const auto& u : *it) {
         auto user = UserFactory::create(u);
         db[user.getUsername()] = user;
     }
 }
 
-unique_cJSON_ptr PasswordDatabase::to_json() const {
-    auto* json = cJSON_CreateObject();
-    auto* array = cJSON_CreateArray();
+nlohmann::json PasswordDatabase::to_json() const {
+    nlohmann::json json;
+    nlohmann::json array = nlohmann::json::array();
 
     for (const auto& u : db) {
-        cJSON_AddItemToArray(array, u.second.to_json().release());
+        array.push_back(u.second.to_json());
     }
-    cJSON_AddItemToObject(json, "users", array);
-    return unique_cJSON_ptr(json);
+    json["users"] = array;
+    return json;
 }
 
 std::string PasswordDatabase::to_string() const {
-    return ::to_string(to_json());
+    return to_json().dump();
 }
 
 } // namespace pwdb

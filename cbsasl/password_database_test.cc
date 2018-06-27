@@ -21,6 +21,7 @@
 #include <cbsasl/pwdb.h>
 #include <cbsasl/server.h>
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 #include <openssl/evp.h>
 #include <platform/base64.h>
 #include <platform/checked_snprintf.h>
@@ -34,20 +35,17 @@
 class PasswordMetaTest : public ::testing::Test {
 public:
     void SetUp() {
-        root.reset(cJSON_CreateObject());
-        cJSON_AddStringToObject(
-                root.get(), "h", "NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=");
-        cJSON_AddStringToObject(
-                root.get(), "s", "iiU7hLv7l3yOoEgXusJvT2i1J2A=");
-        cJSON_AddNumberToObject(root.get(), "i", 10);
+        root["h"] = "NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=";
+        root["s"] = "iiU7hLv7l3yOoEgXusJvT2i1J2A=";
+        root["i"] = 10;
     }
 
-    unique_cJSON_ptr root;
+    nlohmann::json root;
 };
 
 TEST_F(PasswordMetaTest, TestNormalInit) {
     cb::sasl::pwdb::User::PasswordMetaData md;
-    EXPECT_NO_THROW(md = cb::sasl::pwdb::User::PasswordMetaData(root.get()));
+    EXPECT_NO_THROW(md = cb::sasl::pwdb::User::PasswordMetaData(root));
     EXPECT_EQ("iiU7hLv7l3yOoEgXusJvT2i1J2A=", md.getSalt());
     EXPECT_EQ("NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=",
               Couchbase::Base64::encode(md.getPassword()));
@@ -55,110 +53,97 @@ TEST_F(PasswordMetaTest, TestNormalInit) {
 }
 
 TEST_F(PasswordMetaTest, UnknownLabel) {
-    cJSON_AddStringToObject(root.get(), "extra", "foo");
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root["extra"] = "foo";
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestMissingHash) {
-    cJSON_DeleteItemFromObject(root.get(), "h");
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root.erase("h");
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidDatatypeForHash) {
-    cJSON_DeleteItemFromObject(root.get(), "h");
-    cJSON_AddNumberToObject(root.get(), "h", 5);
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root["h"] = 5;
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestMissingSalt) {
-    cJSON_DeleteItemFromObject(root.get(), "s");
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root.erase("s");
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidDatatypeForSalt) {
-    cJSON_DeleteItemFromObject(root.get(), "s");
-    cJSON_AddNumberToObject(root.get(), "s", 5);
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root["s"] = 5;
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestMissingIterationCount) {
-    cJSON_DeleteItemFromObject(root.get(), "i");
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root.erase("i");
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidDatatypeForIterationCount) {
-    cJSON_DeleteItemFromObject(root.get(), "i");
-    cJSON_AddStringToObject(root.get(), "i", "foo");
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root["i"] = "foo";
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::runtime_error);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidBase64EncodingForHash) {
-    cJSON_DeleteItemFromObject(root.get(), "h");
-    cJSON_AddStringToObject(root.get(), "h", "!@#$%^&*");
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root["h"] = "!@#$%^&*";
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::invalid_argument);
 }
 
 TEST_F(PasswordMetaTest, TestInvalidBase64EncodingForSalt) {
-    cJSON_DeleteItemFromObject(root.get(), "s");
-    cJSON_AddStringToObject(root.get(), "s", "!@#$%^&*");
-    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root.get()),
+    root["s"] = "!@#$%^&*";
+    EXPECT_THROW(cb::sasl::pwdb::User::PasswordMetaData md(root),
                  std::invalid_argument);
 }
 
 class UserTest : public ::testing::Test {
 public:
     void SetUp() {
-        root.reset(cJSON_CreateObject());
-        cJSON_AddStringToObject(root.get(), "n", "username");
-        cJSON_AddStringToObject(root.get(),
-                                "plain",
-                                Couchbase::Base64::encode("secret").c_str());
+        root["n"] = "username";
+        root["plain"] = Couchbase::Base64::encode("secret");
 
-        auto* obj = cJSON_CreateObject();
-        cJSON_AddStringToObject(obj, "h", "NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=");
-        cJSON_AddStringToObject(obj, "s", "iiU7hLv7l3yOoEgXusJvT2i1J2A=");
-        cJSON_AddNumberToObject(obj, "i", 10);
+        nlohmann::json sha1;
+        sha1["h"] = "NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=";
+        sha1["s"] = "iiU7hLv7l3yOoEgXusJvT2i1J2A=";
+        sha1["i"] = 10;
+        root["sha1"] = sha1;
 
-        cJSON_AddItemToObject(root.get(), "sha1", obj);
+        nlohmann::json sha256;
+        sha256["h"] = "BGq4Rd/YH5nfqeV2CtL0lTBLZezuBQVpdTHDGFAwW8w=";
+        sha256["s"] = "i5Jn//LLM0245cscYnldCjM/HMC7Hj2U1HT6iXqCC0E=";
+        sha256["i"] = 10;
+        root["sha256"] = sha256;
 
-        obj = cJSON_CreateObject();
-        cJSON_AddStringToObject(
-                obj, "h", "BGq4Rd/YH5nfqeV2CtL0lTBLZezuBQVpdTHDGFAwW8w=");
-        cJSON_AddStringToObject(
-                obj, "s", "i5Jn//LLM0245cscYnldCjM/HMC7Hj2U1HT6iXqCC0E=");
-        cJSON_AddNumberToObject(obj, "i", 10);
-        cJSON_AddItemToObject(root.get(), "sha256", obj);
-
-        obj = cJSON_CreateObject();
-        cJSON_AddStringToObject(obj,
-                                "h",
-                                "KZuRjeXbF6NR5rrrQMyHAOvkFq7dUSQ6H08uV"
-                                "ae6TPUTKs4DZNSCenq+puXq5t9zrW9oZb"
-                                "Ic/6wUODFh3ZKAOQ==");
-        cJSON_AddStringToObject(obj,
-                                "s",
-                                "nUNk2ZbAZTabxboF+OBQws3zNJpxePtnuF8Kw"
-                                "cylC3h/NnQQ9FqU0YYohjJhvGRNbxjPTT"
-                                "SuYOgxBG4FMV1W3A==");
-        cJSON_AddNumberToObject(obj, "i", 10);
-        cJSON_AddItemToObject(root.get(), "sha512", obj);
+        nlohmann::json sha512;
+        sha512["h"] =
+                "KZuRjeXbF6NR5rrrQMyHAOvkFq7dUSQ6H08uV"
+                "ae6TPUTKs4DZNSCenq+puXq5t9zrW9oZb"
+                "Ic/6wUODFh3ZKAOQ==";
+        sha512["s"] =
+                "nUNk2ZbAZTabxboF+OBQws3zNJpxePtnuF8Kw"
+                "cylC3h/NnQQ9FqU0YYohjJhvGRNbxjPTT"
+                "SuYOgxBG4FMV1W3A==";
+        sha512["i"] = 10;
+        root["sha512"] = sha512;
     }
 
-    unique_cJSON_ptr root;
+    nlohmann::json root;
 };
 
 TEST_F(UserTest, TestNormalInit) {
     using namespace cb::sasl;
     pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
     EXPECT_EQ("username", u.getUsername());
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
@@ -207,9 +192,9 @@ TEST_F(UserTest, TestNormalInit) {
 TEST_F(UserTest, TestNoPlaintext) {
     using namespace cb::sasl;
 
-    cJSON_DeleteItemFromObject(root.get(), "plain");
+    root.erase("plain");
     pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -219,9 +204,9 @@ TEST_F(UserTest, TestNoPlaintext) {
 TEST_F(UserTest, TestNoSha512) {
     using namespace cb::sasl;
 
-    cJSON_DeleteItemFromObject(root.get(), "sha512");
+    root.erase("sha512");
     pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA512), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -231,9 +216,9 @@ TEST_F(UserTest, TestNoSha512) {
 TEST_F(UserTest, TestNoSha256) {
     using namespace cb::sasl;
 
-    cJSON_DeleteItemFromObject(root.get(), "sha256");
+    root.erase("sha256");
     pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA256), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
@@ -243,9 +228,9 @@ TEST_F(UserTest, TestNoSha256) {
 TEST_F(UserTest, TestNoSha1) {
     using namespace cb::sasl;
 
-    cJSON_DeleteItemFromObject(root.get(), "sha1");
+    root.erase("sha1");
     pwdb::User u;
-    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root.get()));
+    EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
     EXPECT_THROW(u.getPassword(Mechanism::SCRAM_SHA1), std::invalid_argument);
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
@@ -253,8 +238,8 @@ TEST_F(UserTest, TestNoSha1) {
 }
 
 TEST_F(UserTest, InvalidLabel) {
-    cJSON_AddStringToObject(root.get(), "gssapi", "foo");
-    EXPECT_THROW(auto u = cb::sasl::pwdb::UserFactory::create(root.get()),
+    root["gssapi"] = "foo";
+    EXPECT_THROW(auto u = cb::sasl::pwdb::UserFactory::create(root),
                  std::runtime_error);
 }
 
@@ -281,38 +266,23 @@ TEST_F(UserTest, CreateDummy) {
 class PasswordDatabaseTest : public ::testing::Test {
 public:
     void SetUp() {
-        unique_cJSON_ptr root(cJSON_CreateObject());
-        auto* array = cJSON_CreateArray();
+        nlohmann::json root;
+        nlohmann::json array = nlohmann::json::array();
 
-        cJSON_AddItemToArray(
-                array,
-                cb::sasl::pwdb::UserFactory::create("trond", "secret1")
-                        .to_json()
-                        .release());
-        cJSON_AddItemToArray(
-                array,
-                cb::sasl::pwdb::UserFactory::create("mike", "secret2")
-                        .to_json()
-                        .release());
-        cJSON_AddItemToArray(
-                array,
-                cb::sasl::pwdb::UserFactory::create("anne", "secret3")
-                        .to_json()
-                        .release());
-        cJSON_AddItemToArray(
-                array,
-                cb::sasl::pwdb::UserFactory::create("will", "secret4")
-                        .to_json()
-                        .release());
-        cJSON_AddItemToArray(
-                array,
-                cb::sasl::pwdb::UserFactory::create("dave", "secret5")
-                        .to_json()
-                        .release());
+        array.push_back(cb::sasl::pwdb::UserFactory::create("trond", "secret1")
+                                .to_json());
+        array.push_back(cb::sasl::pwdb::UserFactory::create("mike", "secret2")
+                                .to_json());
+        array.push_back(cb::sasl::pwdb::UserFactory::create("anne", "secret3")
+                                .to_json());
+        array.push_back(cb::sasl::pwdb::UserFactory::create("will", "secret4")
+                                .to_json());
+        array.push_back(cb::sasl::pwdb::UserFactory::create("dave", "secret5")
+                                .to_json());
 
-        cJSON_AddItemToObject(root.get(), "users", array);
+        root["users"] = array;
 
-        json = to_string(root);
+        json = root.dump();
     }
 
     std::string json;
@@ -365,25 +335,23 @@ static char environment[1024];
 class EncryptedDatabaseTest : public ::testing::Test {
 public:
     void SetUp() override {
-        unique_cJSON_ptr meta(cJSON_CreateObject());
-        cJSON_AddStringToObject(meta.get(), "cipher", "AES_256_cbc");
+        nlohmann::json meta;
+        meta["cipher"] = "AES_256_cbc";
         std::string blob;
         blob.resize(EVP_CIPHER_key_length(EVP_aes_256_cbc()));
 
         Couchbase::RandomGenerator randomGenerator(true);
         ASSERT_TRUE(randomGenerator.getBytes(const_cast<char*>(blob.data()),
                                              blob.size()));
-        cJSON_AddStringToObject(
-                meta.get(), "key", Couchbase::Base64::encode(blob).c_str());
+        meta["key"] = Couchbase::Base64::encode(blob);
 
         blob.resize(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
         ASSERT_TRUE(randomGenerator.getBytes(const_cast<char*>(blob.data()),
                                              blob.size()));
 
-        cJSON_AddStringToObject(
-                meta.get(), "iv", Couchbase::Base64::encode(blob).c_str());
+        meta["iv"] = Couchbase::Base64::encode(blob);
 
-        std::string envstr = to_string(meta);
+        std::string envstr = meta.dump();
 
         // Add the file to the exec environment
         checked_snprintf(environment,

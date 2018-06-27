@@ -18,6 +18,7 @@
 #include "config.h"
 #include "user.h"
 
+#include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <atomic>
@@ -147,45 +148,43 @@ User UserFactory::createDummy(const std::string& unm, const Mechanism& mech) {
     return ret;
 }
 
-User UserFactory::create(const cJSON* obj) {
+User UserFactory::create(const nlohmann::json& obj) {
     if (obj == nullptr) {
         throw std::runtime_error(
                 "cb::cbsasl::UserFactory::create: obj cannot be null");
     }
-
-    if (obj->type != cJSON_Object) {
+    if (!obj.is_object()) {
         throw std::runtime_error(
                 "cb::cbsasl::UserFactory::create: Invalid object type");
     }
 
-    auto* o = cJSON_GetObjectItem(const_cast<cJSON*>(obj), "n");
-    if (o == nullptr) {
+    auto n = obj.find("n");
+    if (n == obj.end()) {
         throw std::runtime_error(
                 "cb::cbsasl::UserFactory::create: missing mandatory label 'n'");
     }
-    if (o->type != cJSON_String) {
+    if (!n->is_string()) {
         throw std::runtime_error(
                 "cb::cbsasl::UserFactory::create: 'n' must be a string");
     }
 
-    User ret{o->valuestring, false};
+    User ret{*n, false};
 
-    for (o = obj->child; o != nullptr; o = o->next) {
-        std::string label(o->string);
+    for (auto it = obj.begin(); it != obj.end(); ++it) {
+        std::string label(it.key());
         if (label == "n") {
             // skip. we've already processed this
         } else if (label == "sha512") {
-            User::PasswordMetaData pd(o);
+            User::PasswordMetaData pd(it.value());
             ret.password[Mechanism::SCRAM_SHA512] = pd;
         } else if (label == "sha256") {
-            User::PasswordMetaData pd(o);
+            User::PasswordMetaData pd(it.value());
             ret.password[Mechanism::SCRAM_SHA256] = pd;
         } else if (label == "sha1") {
-            User::PasswordMetaData pd(o);
+            User::PasswordMetaData pd(it.value());
             ret.password[Mechanism::SCRAM_SHA1] = pd;
         } else if (label == "plain") {
-            User::PasswordMetaData pd(
-                    Couchbase::Base64::decode(o->valuestring));
+            User::PasswordMetaData pd(Couchbase::Base64::decode(it.value()));
             ret.password[Mechanism::PLAIN] = pd;
         } else {
             throw std::runtime_error(
@@ -290,52 +289,50 @@ void User::generateSecrets(const Mechanism& mech, const std::string& passwd) {
     password[mech] = PasswordMetaData(digest, encodedSalt, IterationCount);
 }
 
-User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
-    if (obj->type != cJSON_Object) {
+User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
+    if (!obj.is_object()) {
         throw std::runtime_error(
-                "cb::cbsasl::User::PasswordMetaData: invalid"
-                " object type");
+                "cb::cbsasl::User::PasswordMetaData: invalid object type");
     }
 
-    auto* h = cJSON_GetObjectItem(obj, "h");
-    auto* s = cJSON_GetObjectItem(obj, "s");
-    auto* i = cJSON_GetObjectItem(obj, "i");
+    auto h = obj.find("h");
+    auto s = obj.find("s");
+    auto i = obj.find("i");
 
-    if (h == nullptr || s == nullptr || i == nullptr) {
+    if (h == obj.end() || s == obj.end() || i == obj.end()) {
         throw std::runtime_error(
-                "cb::cbsasl::User::PasswordMetaData: missing "
-                "mandatory attributes");
+                "cb::cbsasl::User::PasswordMetaData: missing mandatory "
+                "attributes");
     }
 
-    if (h->type != cJSON_String) {
+    if (!h->is_string()) {
         throw std::runtime_error(
                 "cb::cbsasl::User::PasswordMetaData: hash"
                 " should be a string");
     }
 
-    if (s->type != cJSON_String) {
+    if (!s->is_string()) {
         throw std::runtime_error(
                 "cb::cbsasl::User::PasswordMetaData: salt"
                 " should be a string");
     }
 
-    if (i->type != cJSON_Number) {
+    if (!i->is_number()) {
         throw std::runtime_error(
                 "cb::cbsasl::User::PasswordMetaData: iteration"
                 " count should be a number");
     }
 
-    if (cJSON_GetArraySize(obj) != 3) {
+    if (obj.size() != 3) {
         throw std::runtime_error(
                 "cb::cbsasl::User::PasswordMetaData: invalid "
                 "number of labels specified");
     }
 
-    salt.assign(s->valuestring);
-    // validate that we may decode the salt
+    salt = *s;
     Couchbase::Base64::decode(salt);
-    password.assign(Couchbase::Base64::decode(h->valuestring));
-    iteration_count = gsl::narrow<int>(i->valueint);
+    password.assign(Couchbase::Base64::decode(*h));
+    iteration_count = gsl::narrow<int>(*i);
     if (iteration_count < 0) {
         throw std::runtime_error(
                 "cb::cbsasl::User::PasswordMetaData: iteration "
@@ -343,38 +340,34 @@ User::PasswordMetaData::PasswordMetaData(cJSON* obj) {
     }
 }
 
-cJSON* User::PasswordMetaData::to_json() const {
-    auto* ret = cJSON_CreateObject();
+nlohmann::json User::PasswordMetaData::to_json() const {
+    nlohmann::json ret;
     std::string s((char*)password.data(), password.size());
-    cJSON_AddStringToObject(ret, "h", Couchbase::Base64::encode(s).c_str());
-    cJSON_AddStringToObject(ret, "s", salt.c_str());
-    cJSON_AddNumberToObject(ret, "i", iteration_count);
+    ret["h"] = Couchbase::Base64::encode(s);
+    ret["s"] = salt;
+    ret["i"] = iteration_count;
 
     return ret;
 }
 
-unique_cJSON_ptr User::to_json() const {
-    auto* ret = cJSON_CreateObject();
+nlohmann::json User::to_json() const {
+    nlohmann::json ret;
 
-    cJSON_AddStringToObject(ret, "n", username.c_str());
+    ret["n"] = username;
     for (auto& e : password) {
-        auto* obj = e.second.to_json();
+        auto obj = e.second.to_json();
         switch (e.first) {
         case Mechanism::PLAIN:
-            cJSON_AddStringToObject(
-                    ret, "plain", cJSON_GetObjectItem(obj, "h")->valuestring);
-            cJSON_Delete(obj);
+            ret["plain"] = obj["h"];
             break;
-
         case Mechanism::SCRAM_SHA512:
-            cJSON_AddItemToObject(ret, "sha512", obj);
+            ret["sha512"] = obj;
             break;
-
         case Mechanism::SCRAM_SHA256:
-            cJSON_AddItemToObject(ret, "sha256", obj);
+            ret["sha256"] = obj;
             break;
         case Mechanism::SCRAM_SHA1:
-            cJSON_AddItemToObject(ret, "sha1", obj);
+            ret["sha1"] = obj;
             break;
         default:
             throw std::runtime_error(
@@ -382,11 +375,11 @@ unique_cJSON_ptr User::to_json() const {
         }
     }
 
-    return unique_cJSON_ptr(ret);
+    return ret;
 }
 
 std::string User::to_string() const {
-    return ::to_string(to_json(), false);
+    return to_json().dump();
 }
 
 const User::PasswordMetaData& User::getPassword(const Mechanism& mech) const {
