@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -306,6 +306,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
 
     // Drop a privilege from the effective set
     setup(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE, empty);
+
+    setup(PROTOCOL_BINARY_CMD_REVOKE_USER_PERMISSIONS,
+          require<Privilege::SecurityManagement>);
 
     /* Refresh the RBAC data */
     setup(PROTOCOL_BINARY_CMD_RBAC_REFRESH,

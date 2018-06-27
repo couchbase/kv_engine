@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -595,6 +595,18 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
     }
 
     return verify_common_dcp_restrictions(cookie);
+}
+
+static protocol_binary_response_status revoke_user_permissions_validator(
+        const Cookie& cookie) {
+    const auto& req = cookie.getRequest(Cookie::PacketContent::Header);
+    if (!req.isValid() || req.getExtlen() != 0 || req.getKeylen() == 0 ||
+        req.getKeylen() != req.getBodylen() || req.getCas() != 0 ||
+        req.getDatatype() != cb::mcbp::Datatype::Raw) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
 static protocol_binary_response_status configuration_refresh_validator(const Cookie& cookie)
@@ -1541,6 +1553,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_ERROR_MAP, get_errmap_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_LOCKED, get_locked_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_UNLOCK_KEY, unlock_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_REVOKE_USER_PERMISSIONS,
+                       revoke_user_permissions_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG,
                        dcp_get_failover_log_validator);

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -146,6 +146,7 @@ bool cb::mcbp::Request::isQuiet() const {
         case ClientOpcode::GetCmdTimer:
         case ClientOpcode::SetCtrlToken:
         case ClientOpcode::GetCtrlToken:
+        case ClientOpcode::RevokeUserPermissions:
         case ClientOpcode::RbacRefresh:
         case ClientOpcode::DropPrivilege:
         case ClientOpcode::AdjustTimeofday:

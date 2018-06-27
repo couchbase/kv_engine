@@ -270,7 +270,7 @@ public:
      *         PrivilegeAccess::Fail If the context lacks the privilege
      */
     PrivilegeAccess check(const PrivilegeContext& context,
-                          Privilege privilege) {
+                          Privilege privilege) const {
         if (context.getGeneration() != generation) {
             return PrivilegeAccess::Stale;
         }
@@ -304,7 +304,16 @@ public:
      * @throws cb::rbac::NoSuchUserException if the user doesn't exist
      */
     std::pair<PrivilegeContext, bool> createInitialContext(
-            const std::string& user, cb::sasl::Domain domain);
+            const std::string& user, cb::sasl::Domain domain) const;
+
+    /**
+     * Remove the specified user from the database
+     *
+     * @param user The user to remove
+     * @return A newly created database without that user
+     */
+    std::unique_ptr<PrivilegeDatabase> removeUser(
+            const std::string& user) const;
 
     /**
      * The generation for this PrivilegeDatabase (a privilege context must
@@ -362,6 +371,14 @@ void loadPrivilegeDatabase(const std::string& filename);
  */
 RBAC_PUBLIC_API
 bool mayAccessBucket(const std::string& user, const std::string& bucket);
+
+/**
+ * Remove a user from the database
+ *
+ * @param user the name of the user to remove
+ */
+RBAC_PUBLIC_API
+void removeUser(const std::string& user);
 
 /**
  * Initialize the RBAC module

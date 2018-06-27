@@ -2985,5 +2985,56 @@ TEST_F(EvictKeyValidatorTest, InvalidBodylen) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
+class RevokeUserPermissionsValidatorTest : public ValidatorTest {
+    virtual void SetUp() override {
+        ValidatorTest::SetUp();
+        request.message.header.request.keylen = htons(10);
+        request.message.header.request.bodylen = htonl(10);
+        request.message.header.request.cas = 0;
+    }
+
+protected:
+    protocol_binary_response_status validate() {
+        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_EVICT_KEY,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_F(RevokeUserPermissionsValidatorTest, CorrectMessage) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+}
+
+TEST_F(RevokeUserPermissionsValidatorTest, InvalidMagic) {
+    request.message.header.request.magic = 0;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(RevokeUserPermissionsValidatorTest, InvalidExtlen) {
+    request.message.header.request.extlen = 2;
+    request.message.header.request.bodylen = htonl(12);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(RevokeUserPermissionsValidatorTest, InvalidDatatype) {
+    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(RevokeUserPermissionsValidatorTest, InvalidCas) {
+    request.message.header.request.cas = 0xff;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(RevokeUserPermissionsValidatorTest, MissingKey) {
+    request.message.header.request.keylen = 0;
+    request.message.header.request.bodylen = 0;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+TEST_F(RevokeUserPermissionsValidatorTest, InvalidBodylen) {
+    request.message.header.request.bodylen = htonl(4);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
 } // namespace test
 } // namespace mcbp

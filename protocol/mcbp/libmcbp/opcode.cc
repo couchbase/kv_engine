@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -319,6 +319,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "SET_CTRL_TOKEN";
     case ClientOpcode::GetCtrlToken:
         return "GET_CTRL_TOKEN";
+    case ClientOpcode::RevokeUserPermissions:
+        return "REVOKE_USER_PERMISSIONS";
     case ClientOpcode::RbacRefresh:
         return "RBAC_REFRESH";
     case ClientOpcode::DropPrivilege:

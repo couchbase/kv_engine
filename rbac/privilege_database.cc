@@ -137,6 +137,17 @@ PrivilegeDatabase::PrivilegeDatabase(const cJSON* json)
     }
 }
 
+std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::removeUser(
+        const std::string& user) const {
+    auto ret = std::make_unique<PrivilegeDatabase>(nullptr);
+    ret->userdb = userdb;
+    auto iter = ret->userdb.find(user);
+    if (iter != ret->userdb.end()) {
+        ret->userdb.erase(iter);
+    }
+    return ret;
+}
+
 PrivilegeContext PrivilegeDatabase::createContext(
         const std::string& user, const std::string& bucket) const {
     PrivilegeMask mask;
@@ -163,7 +174,7 @@ PrivilegeContext PrivilegeDatabase::createContext(
 }
 
 std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
-        const std::string& user, cb::sasl::Domain domain) {
+        const std::string& user, cb::sasl::Domain domain) const {
     const auto& ue = lookup(user);
     if (ue.getDomain() != domain) {
         throw NoSuchUserException(user.c_str());
@@ -292,6 +303,14 @@ bool mayAccessBucket(const std::string& user, const std::string& bucket) {
     }
 
     return false;
+}
+
+RBAC_PUBLIC_API
+void removeUser(const std::string& user) {
+    std::unique_ptr<PrivilegeDatabase> next;
+    std::lock_guard<cb::ReaderLock> guard(rwlock.writer());
+    next = db->removeUser(user);
+    db.swap(next);
 }
 
 } // namespace rbac

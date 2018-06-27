@@ -295,7 +295,13 @@ enum class ClientOpcode : uint8_t {
     /* ns_server - memcached session validation */
     SetCtrlToken = 0xf4,
     GetCtrlToken = 0xf5,
-
+    /**
+     * Revoke a users permissions
+     *
+     * This message causes memcached to drop the entry in the privilege
+     * database for the specified user
+     */
+    RevokeUserPermissions = 0xf6,
     /* Refresh the RBAC database */
     RbacRefresh = 0xf7,
 

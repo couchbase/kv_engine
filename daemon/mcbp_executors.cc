@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -501,6 +501,13 @@ static void shutdown_executor(Cookie& cookie) {
     }
 }
 
+static void revoke_user_permissions_executor(Cookie& cookie) {
+    auto key = cookie.getRequestKey();
+    cb::rbac::removeUser(
+            std::string{reinterpret_cast<const char*>(key.data()), key.size()});
+    cookie.sendResponse(cb::mcbp::Status::Success);
+}
+
 static void rbac_refresh_executor(Cookie& cookie) {
     cookie.obtainContext<RbacReloadCommandContext>(cookie).drive();
 }
@@ -671,6 +678,8 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG] =
             dcp_get_failover_log_executor;
     handlers[PROTOCOL_BINARY_CMD_DROP_PRIVILEGE] = drop_privilege_executor;
+    handlers[PROTOCOL_BINARY_CMD_REVOKE_USER_PERMISSIONS] =
+            revoke_user_permissions_executor;
     handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
             get_cluster_config_executor;

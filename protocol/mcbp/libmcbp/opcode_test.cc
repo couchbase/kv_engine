@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -175,6 +175,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::GetCmdTimer, "GET_CMD_TIMER"},
          {ClientOpcode::SetCtrlToken, "SET_CTRL_TOKEN"},
          {ClientOpcode::GetCtrlToken, "GET_CTRL_TOKEN"},
+         {ClientOpcode::RevokeUserPermissions, "REVOKE_USER_PERMISSIONS"},
          {ClientOpcode::RbacRefresh, "RBAC_REFRESH"},
          {ClientOpcode::DropPrivilege, "DROP_PRIVILEGES"},
          {ClientOpcode::AdjustTimeofday, "ADJUST_TIMEOFDAY"},
@@ -205,7 +206,8 @@ TEST(ClientOpcode_to_string, CompatWithOldCode) {
             entry.first == ClientOpcode::EwouldblockCtl ||
             entry.first == ClientOpcode::ChangeVbFilter ||
             entry.first == ClientOpcode::DeregisterTapClient ||
-            entry.first == ClientOpcode::ResetReplicationChain) {
+            entry.first == ClientOpcode::ResetReplicationChain ||
+            entry.first == ClientOpcode::RevokeUserPermissions) {
             // Entries we didn't have in the old code..
             continue;
         }
