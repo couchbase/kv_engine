@@ -1856,6 +1856,34 @@ TEST_P(SubdocTestappTest, SubdocUTF8ValTest) {
     validate_object("dict", "{ \"key1\": \"Ẇ̴̷̦͔͖͚̝̟̋̽ͪ̾ͤ̈́ͯͮͮ̀͗̌ͭ̾͜h̨̥̞͖̬̠͍͖̘̹͎͌̇̂̃ͯͣ͗̆̌̑ͨ̍̊ͪ̆̾̆̚͟͞ȧ̛̰̞̗̞̬̣̹͎̰̝͍͈̮̖̘̫̤̟͆̈́̒͗ͦ̋̓̌̊̋͝ͅţ͒ͮ͋̋̔̽ͥ̂ͭ̒̉̔̃ͫ̌̆̆҉̹͙̟̩̖̩̹̳̜͚̜̜ ͎̲͕̺̔̿̀͒̈́̏̌ͬͫ͒͂ͩͦ̀͝â̢̡̘̫̮̞̩̰̎ͨ̾ͤ̈́͑̉̈ͧ͆̃ͩ͆̚͡ ̧̢̛̙͔̰̹̲̱͔̤̝͖̥͚͓̲̪̯̟̖̏͒̽ͬ̂ͫͩͭ͋̏͊̽͗͊̀ͭ̋͘c̵̴͐̉̇͂̋ͬ̇̃͊ͨ͗̆̄̊́͏̡̡̫̦̦͉̼̙̜͉̯̮̪̫͍̩̼̘̫̻͍o̸̷͕̭̼̺̤͖͚̯̪̥̘̪̼̝̩̮͕̥̟̐͒̏ͭͦͮ̒ͧ̔̉̅̂͜͢͡o̷̢̡͕̟͓̺͚̟̱̜̻͇̘͍̤͓̲ͣͫ̾͛͗̅̐̏͑͆͌̀͜ͅͅͅl̴̡̙̹͖̈̄̌͒ͣ͒̅̏̕ ͛̐̿͋ͦ͛͌̄ͫ̒ͪ͊̀ͤ̀̿͏̶̡҉҉̤͎͖v̸̵̱͇̲͎̩͚̩͈̙̜̳̞̭̯̩̻̮̪ͯ̋̔͗̃̊ͬͮ̄̃͛̂̒̍͘͘a̦̝͇̙̬̬̰̪͙̗̟͙̝̬͛͂͑ͣ̓͑̏ͤ̑̀̚̚͘l͊̔́͋̋ͫ̈́̿̈̉̀͏̡͍͇̲̙̺̮͠uͬ̄̋̔ͪͧͥ͛ͭ̏̅ͫ͊̚͏̧͈̠̱͇͉̦̫͎͠ę̸͔̯̭̤͕̱͈̖͖̯̭̞͈͖ͨ̑̌̓̈ͮ͂̆̀͟ͅ\" }");
 }
 
+// MB-30278: Perform a DICT_ADD followed by SD_GET to a path with backticks in
+// them; to verify the path caching of un-escaped components is correctly reset
+// between calls.
+TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickLookup) {
+    // Test DICT_ADD where the element key contains a literal backtick.
+    store_document("doc", "{}");
+    // Add a key with literal backtick (which we escape by passing
+    // double-backtick)
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "doc", "key``", "\"value\""));
+    EXPECT_SD_GET("doc", "key``", "\"value\"");
+    validate_object("doc", R"({"key`":"value"})");
+}
+
+// MB-30278: Perform two DICT_ADD calls to paths with backticks in them;
+// to verify the path caching of un-escaped components is correctly reset
+// between calls.
+TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickDictAdd) {
+    store_document("doc", "{}");
+    EXPECT_SD_OK(BinprotSubdocCommand(
+            PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "doc", "key``", "\"value\""));
+    EXPECT_SD_OK(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                      "doc",
+                                      "key2``",
+                                      "\"value2\""));
+    validate_object("doc", R"({"key`":"value","key2`":"value2"})");
+}
+
 INSTANTIATE_TEST_CASE_P(
         Subdoc,
         SubdocTestappTest,

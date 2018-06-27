@@ -944,18 +944,18 @@ void validate_object(const char *key, const std::string& expected_value) {
     safe_send(send.bytes, len, false);
 
     std::vector<char> receive;
-    receive.resize(sizeof(protocol_binary_response_get) + expected_value.size());
-
-    safe_recv_packet(receive.data(), receive.size());
+    safe_recv_packet(receive);
 
     auto* response = reinterpret_cast<protocol_binary_response_no_extras*>(receive.data());
     mcbp_validate_response_header(response, PROTOCOL_BINARY_CMD_GET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
     char* ptr = receive.data() + sizeof(*response) + 4;
-    size_t vallen = response->message.header.response.getBodylen() - 4;
-    ASSERT_EQ(expected_value.size(), vallen);
-    std::string actual(ptr, vallen);
-    EXPECT_EQ(expected_value, actual);
+    if (response->message.header.response.getStatus() ==
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        size_t vallen = response->message.header.response.getBodylen() - 4;
+        std::string actual(ptr, vallen);
+        EXPECT_EQ(expected_value, actual);
+    }
 }
 
 void validate_flags(const char *key, uint32_t expected_flags) {
@@ -1349,6 +1349,10 @@ bool safe_recv_packet(void *buf, size_t size) {
 }
 
 bool safe_recv_packet(std::vector<uint8_t>& buf) {
+    return safe_recv_packetT(buf);
+}
+
+bool safe_recv_packet(std::vector<char>& buf) {
     return safe_recv_packetT(buf);
 }
 
