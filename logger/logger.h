@@ -166,7 +166,7 @@ LOGGER_PUBLIC_API const bool isInitialized();
 #define CB_LOG_ENTRY(severity, ...)               \
     do {                                          \
         auto _logger_ = cb::logger::get();        \
-        if (severity >= _logger_->level()) {      \
+        if (_logger_->should_log(severity)) {     \
             _logger_->log(severity, __VA_ARGS__); \
         }                                         \
     } while (false)

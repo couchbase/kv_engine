@@ -1281,6 +1281,16 @@ const std::string& Settings::getErrorMap(size_t version) const {
     return error_maps[version];
 }
 
+EXTENSION_LOG_LEVEL Settings::getLogLevel() const {
+    switch (getVerbose()) {
+    case 0:
+        return EXTENSION_LOG_NOTICE;
+    case 1:
+        return EXTENSION_LOG_INFO;
+    default:
+        return EXTENSION_LOG_DEBUG;
+    }
+}
 
 void Settings::notify_changed(const std::string& key) {
     auto iter = change_listeners.find(key);

@@ -175,8 +175,11 @@ public:
         notify_changed("stdin_listener");
     }
 
-    const cb::logger::Config getLoggerConfig() {
-        return logger_settings;
+    cb::logger::Config getLoggerConfig() const {
+        auto config = logger_settings;
+        // log_level is synthesised from settings.verbose.
+        config.log_level = cb::logger::convertToSpdSeverity(getLogLevel());
+        return config;
     };
 
     void setLoggerConfig(const cb::logger::Config& config) {
@@ -222,7 +225,6 @@ public:
      */
     void loadErrorMaps(const std::string& path);
 
-public:
     /**
      * Get the error map of the requested version
      * @param version the maximum version of the error map. The returned map
@@ -251,6 +253,9 @@ public:
         has.verbose = true;
         notify_changed("verbosity");
     }
+
+    /// Return the log level as defined by the current verbosity.
+    EXTENSION_LOG_LEVEL getLogLevel() const;
 
     /**
      * Get the idle time for a connection. Connections that stays idle

@@ -1612,16 +1612,8 @@ static EXTENSION_LOGGER_DESCRIPTOR* get_logger(void)
     return settings.extensions.logger;
 }
 
-static EXTENSION_LOG_LEVEL get_log_level(void)
-{
-    EXTENSION_LOG_LEVEL ret;
-    switch (settings.getVerbose()) {
-    case 0: ret = EXTENSION_LOG_NOTICE; break;
-    case 1: ret = EXTENSION_LOG_INFO; break;
-    default:
-        ret = EXTENSION_LOG_DEBUG;
-    }
-    return ret;
+static EXTENSION_LOG_LEVEL get_log_level() {
+    return settings.getLogLevel();
 }
 
 static void set_log_level(EXTENSION_LOG_LEVEL severity)
