@@ -34,6 +34,7 @@
 #include <event.h>
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
@@ -207,7 +208,7 @@ public:
     /**
      * Create a cJSON representation of the members of the connection
      */
-    unique_cJSON_ptr toJSON() const;
+    nlohmann::json toJSON() const;
 
     /**
      * Enable or disable TCP NoDelay on the underlying socket

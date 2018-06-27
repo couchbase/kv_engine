@@ -17,6 +17,7 @@
 
 #include <mcbp/protocol/request.h>
 #include <memcached/protocol_binary.h>
+#include <nlohmann/json.hpp>
 
 bool cb::mcbp::Request::isQuiet() const {
     if (getMagic() == Magic::ClientRequest) {
@@ -188,31 +189,29 @@ bool cb::mcbp::Request::isQuiet() const {
     throw std::invalid_argument("Request::isQuiet: Uknown opcode");
 }
 
-unique_cJSON_ptr cb::mcbp::Request::toJSON() const {
+nlohmann::json cb::mcbp::Request::toJSON() const {
     if (!isValid()) {
         throw std::logic_error("Request::toJSON(): Invalid packet");
     }
-    unique_cJSON_ptr ret(cJSON_CreateObject());
+
+    nlohmann::json ret;
     auto m = cb::mcbp::Magic(magic);
-    cJSON_AddStringToObject(ret.get(), "magic", ::to_string(m));
+    ret["magic"] = ::to_string(m);
 
     if (m == Magic::ClientRequest) {
-        cJSON_AddStringToObject(
-                ret.get(), "opcode", ::to_string(getClientOpcode()));
+        ret["opcode"] = ::to_string(getClientOpcode());
 
     } else {
-        cJSON_AddStringToObject(
-                ret.get(), "opcode", ::to_string(getServerOpcode()));
+        ret["opcode"] = ::to_string(getServerOpcode());
     }
 
-    cJSON_AddNumberToObject(ret.get(), "keylen", getKeylen());
-    cJSON_AddNumberToObject(ret.get(), "extlen", getExtlen());
-    cJSON_AddItemToObject(
-            ret.get(), "datatype", ::toJSON(getDatatype()).release());
-    cJSON_AddNumberToObject(ret.get(), "vbucket", getVBucket());
-    cJSON_AddNumberToObject(ret.get(), "bodylen", getBodylen());
-    cJSON_AddUintPtrToObject(ret.get(), "opaque", getOpaque());
-    cJSON_AddNumberToObject(ret.get(), "cas", getCas());
+    ret["keylen"] = getKeylen();
+    ret["extlen"] = getExtlen();
+    ret["datatype"] = ::toJSON(getDatatype());
+    ret["vbucket"] = getVBucket();
+    ret["bodylen"] = getBodylen();
+    ret["opaque"] = getOpaque();
+    ret["cas"] = getCas();
 
     return ret;
 }

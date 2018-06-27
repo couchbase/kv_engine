@@ -22,6 +22,7 @@
 
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/checked_snprintf.h>
 #include <platform/string.h>
@@ -29,32 +30,29 @@
 #include <utilities/logtags.h>
 #include <chrono>
 
-unique_cJSON_ptr Cookie::toJSON() const {
-    unique_cJSON_ptr ret(cJSON_CreateObject());
+nlohmann::json Cookie::toJSON() const {
+    nlohmann::json ret;
 
     if (packet.empty()) {
-        cJSON_AddItemToObject(ret.get(), "packet", cJSON_CreateObject());
+        ret["packet"] = nlohmann::json();
     } else {
         const auto& header = getHeader();
-        cJSON_AddItemToObject(ret.get(), "packet", header.toJSON().release());
+        ret["packet"] = header.toJSON();
     }
 
     if (!event_id.empty()) {
-        cJSON_AddStringToObject(ret.get(), "event_id", event_id.c_str());
+        ret["event_id"] = event_id;
     }
 
     if (!error_context.empty()) {
-        cJSON_AddStringToObject(
-                ret.get(), "error_context", error_context.c_str());
+        ret["error_context"] = error_context;
     }
 
     if (cas != 0) {
-        std::string str = std::to_string(cas);
-        cJSON_AddStringToObject(ret.get(), "cas", str.c_str());
+        ret["cas"] = std::to_string(cas);
     }
 
-    cJSON_AddStringToObject(
-            ret.get(), "connection", connection.getDescription());
+    ret["connection"] = connection.getDescription();
 
     return ret;
 }

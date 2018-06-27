@@ -53,6 +53,7 @@
 #include "subdocument.h"
 
 #include <mcbp/protocol/header.h>
+#include <nlohmann/json.hpp>
 #include <platform/string.h>
 #include <utilities/protocol2text.h>
 
@@ -881,9 +882,7 @@ void try_read_mcbp_command(Connection& c) {
     const auto& header = cookie.getHeader();
     if (settings.getVerbose() > 1) {
         try {
-            LOG_TRACE(">{} Read command {}",
-                      c.getId(),
-                      to_string(header.toJSON(), false));
+            LOG_TRACE(">{} Read command {}", c.getId(), header.toJSON().dump());
         } catch (const std::exception&) {
             // Failed to decode the header.. do a raw multiline dump
             // instead

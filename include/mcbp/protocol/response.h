@@ -20,9 +20,9 @@
 
 #include "datatype.h"
 
-#include <cJSON_utils.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
 #include <cstdint>
 #ifndef WIN32
@@ -216,7 +216,7 @@ struct Response {
         return {begin() + getValueOffset(), getValuelen()};
     }
 
-    unique_cJSON_ptr toJSON() const;
+    nlohmann::json toJSON() const;
 
     /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen

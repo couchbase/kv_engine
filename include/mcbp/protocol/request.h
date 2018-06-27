@@ -183,7 +183,7 @@ struct Request {
      */
     bool isQuiet() const;
 
-    unique_cJSON_ptr toJSON() const;
+    nlohmann::json toJSON() const;
 
     /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen

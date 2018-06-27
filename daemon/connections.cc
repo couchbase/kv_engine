@@ -25,6 +25,7 @@
 #include "utilities/protocol2text.h"
 
 #include <cJSON.h>
+#include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <algorithm>
 #include <list>
@@ -228,8 +229,7 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *) {
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto *c : connections.conns) {
         try {
-            auto json = c->toJSON();
-            auto info = to_string(json, false);
+            auto info = c->toJSON().dump();
             LOG_INFO("Connection: {}", info);
         } catch (const std::bad_alloc&) {
             LOG_WARNING("Failed to allocate memory to dump info for {}",

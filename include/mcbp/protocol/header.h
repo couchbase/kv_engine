@@ -20,7 +20,7 @@
 
 #include "magic.h"
 
-#include <cJSON_utils.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/platform.h>
 
 #ifndef WIN32
@@ -130,7 +130,7 @@ public:
     /**
      * Create a JSON representation of the header
      */
-    unique_cJSON_ptr toJSON() const;
+    nlohmann::json toJSON() const;
 
 protected:
     /*

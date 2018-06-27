@@ -23,6 +23,7 @@
 #include "xattr/utils.h"
 
 #include <mcbp/protocol/framebuilder.h>
+#include <nlohmann/json.hpp>
 #include <platform/compress.h>
 
 static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
@@ -112,7 +113,7 @@ void mcbp_add_header(Cookie& cookie,
         try {
             LOG_TRACE("<{} Sending: {}",
                       connection.getId(),
-                      to_string(header->toJSON(), false));
+                      header->toJSON().dump());
         } catch (const std::exception&) {
             // Failed.. do a raw dump instead
             char buffer[1024];

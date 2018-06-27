@@ -16,6 +16,7 @@
  */
 
 #include <mcbp/mcbp.h>
+#include <nlohmann/json.hpp>
 
 #include <stdexcept>
 
@@ -34,7 +35,7 @@ bool Header::isValid() const {
     return false;
 }
 
-unique_cJSON_ptr Header::toJSON() const {
+nlohmann::json Header::toJSON() const {
     if (isRequest()) {
         return getRequest().toJSON();
     }

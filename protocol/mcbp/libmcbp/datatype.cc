@@ -15,26 +15,27 @@
  *   limitations under the License.
  */
 #include <mcbp/protocol/datatype.h>
+#include <nlohmann/json.hpp>
 
 std::string to_string(cb::mcbp::Datatype datatype) {
-    return to_string(toJSON(datatype), false);
+    return toJSON(datatype).dump();
 }
 
-unique_cJSON_ptr toJSON(cb::mcbp::Datatype datatype) {
+nlohmann::json toJSON(cb::mcbp::Datatype datatype) {
     if (datatype == cb::mcbp::Datatype::Raw) {
-        return unique_cJSON_ptr{cJSON_CreateString("raw")};
+        return nlohmann::json("raw");
     }
 
-    unique_cJSON_ptr ret(cJSON_CreateArray());
+    nlohmann::json ret = nlohmann::json::array();
     auto val = uint8_t(datatype);
     if (val & uint8_t(cb::mcbp::Datatype::JSON)) {
-        cJSON_AddItemToArray(ret.get(), cJSON_CreateString("JSON"));
+        ret.push_back("JSON");
     }
     if (val & uint8_t(cb::mcbp::Datatype::Snappy)) {
-        cJSON_AddItemToArray(ret.get(), cJSON_CreateString("Snappy"));
+        ret.push_back("Snappy");
     }
     if (val & uint8_t(cb::mcbp::Datatype::Xattr)) {
-        cJSON_AddItemToArray(ret.get(), cJSON_CreateString("Xattr"));
+        ret.push_back("Xattr");
     }
 
     return ret;

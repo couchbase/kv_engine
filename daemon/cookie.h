@@ -24,6 +24,7 @@
 #include <mcbp/mcbp.h>
 #include <memcached/dockey.h>
 #include <memcached/types.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/processclock.h>
 #include <platform/uuid.h>
 
@@ -84,7 +85,7 @@ public:
     /**
      * Get a representation of the object in JSON
      */
-    unique_cJSON_ptr toJSON() const;
+    nlohmann::json toJSON() const;
 
     /**
      * Get the unique event identifier created for this command. It should

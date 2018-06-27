@@ -17,39 +17,36 @@
 
 #include <mcbp/protocol/response.h>
 #include <mcbp/protocol/status.h>
+#include <nlohmann/json.hpp>
 
-unique_cJSON_ptr cb::mcbp::Response::toJSON() const {
+nlohmann::json cb::mcbp::Response::toJSON() const {
     if (!isValid()) {
         throw std::logic_error("Response::toJSON(): Invalid packet");
     }
-    unique_cJSON_ptr ret(cJSON_CreateObject());
+
+    nlohmann::json ret;
     auto m = cb::mcbp::Magic(magic);
-    cJSON_AddStringToObject(ret.get(), "magic", ::to_string(m));
+    ret["magic"] = ::to_string(m);
 
     if (m == Magic::ClientResponse || m == Magic::AltClientResponse) {
-        cJSON_AddStringToObject(
-                ret.get(), "opcode", ::to_string(getClientOpcode()));
+        ret["opcode"] = ::to_string(getClientOpcode());
 
     } else {
-        cJSON_AddStringToObject(
-                ret.get(), "opcode", ::to_string(getServerOpcode()));
+        ret["opcode"] = ::to_string(getServerOpcode());
     }
 
-    cJSON_AddNumberToObject(ret.get(), "keylen", getKeylen());
-    cJSON_AddNumberToObject(ret.get(), "extlen", getExtlen());
+    ret["keylen"] = getKeylen();
+    ret["extlen"] = getExtlen();
 
     if (m == Magic::AltClientResponse) {
-        cJSON_AddNumberToObject(
-                ret.get(), "framingextra", getFramingExtraslen());
+        ret["framingextra"] = getFramingExtraslen();
     }
 
-    cJSON_AddItemToObject(
-            ret.get(), "datatype", ::toJSON(getDatatype()).release());
-    cJSON_AddStringToObject(
-            ret.get(), "status", ::to_string(Status(getStatus())));
-    cJSON_AddNumberToObject(ret.get(), "bodylen", getBodylen());
-    cJSON_AddUintPtrToObject(ret.get(), "opaque", getOpaque());
-    cJSON_AddNumberToObject(ret.get(), "cas", getCas());
+    ret["datatype"] = ::toJSON(getDatatype());
+    ret["status"] = ::to_string(Status(getStatus()));
+    ret["bodylen"] = getBodylen();
+    ret["opaque"] = getOpaque();
+    ret["cas"] = getCas();
 
     return ret;
 }

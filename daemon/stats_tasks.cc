@@ -21,6 +21,8 @@
 #include "cookie.h"
 #include "memcached.h"
 
+#include <nlohmann/json.hpp>
+
 StatsTaskConnectionStats::StatsTaskConnectionStats(Connection& connection_,
                                                    Cookie& cookie_,
                                                    ADD_STAT add_stats_,
@@ -42,9 +44,7 @@ Task::Status StatsTaskConnectionStats::execute() {
     try {
         iterate_all_connections([this](Connection& c) -> void {
             if (c.getSocketDescriptor() == fd || fd == -1) {
-                auto stats = c.toJSON();
-                // no key, JSON value contains all properties of the connection.
-                auto stats_str = to_string(stats, false);
+                auto stats_str = c.toJSON().dump();
                 add_stats(nullptr,
                           0,
                           stats_str.data(),

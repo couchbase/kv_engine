@@ -20,6 +20,7 @@
 #include "runtime.h"
 #include "settings.h"
 
+#include <nlohmann/json.hpp>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <utilities/logtags.h>
@@ -262,14 +263,15 @@ void SslContext::dumpCipherList(uint32_t id) const {
     LOG_DEBUG("{}: Using SSL ciphers: {}", id, to_string(array, false));
 }
 
-cJSON* SslContext::toJSON() const {
-    cJSON* obj = cJSON_CreateObject();
-    cJSON_AddBoolToObject(obj, "enabled", enabled);
+nlohmann::json SslContext::toJSON() const {
+    nlohmann::json obj;
+
+    obj["enabled"] = enabled;
     if (enabled) {
-        cJSON_AddBoolToObject(obj, "connected", connected);
-        cJSON_AddBoolToObject(obj, "error", error);
-        cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
-        cJSON_AddNumberToObject(obj, "total_send", totalSend);
+        obj["connected"] = connected;
+        obj["error"] = error;
+        obj["total_recv"] = totalRecv;
+        obj["total_send"] = totalSend;
     }
 
     return obj;

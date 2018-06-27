@@ -13,6 +13,7 @@
 #include "tracing.h"
 
 #include <memcached/openssl.h>
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/platform.h>
@@ -337,14 +338,14 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
 
     auto* thr = cookie.getConnection().getThread();
     if (thr == nullptr) {
-        auto json = cookie.getConnection().toJSON();
+        auto json = cookie.getConnection().toJSON().dump();
         LOG_ERROR(
                 "notify_io_complete: got a notification on a cookie which "
                 "isn't bound to a thread: {}",
-                to_string(json));
+                json);
         throw std::runtime_error(
                 "notify_io_complete: connection should be bound to a thread: " +
-                to_string(json));
+                json);
     }
 
     int notify;

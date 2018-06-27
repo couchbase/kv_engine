@@ -22,6 +22,7 @@
 
 #include <cJSON.h>
 #include <memcached/openssl.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/pipe.h>
 #include <platform/socket.h>
 #include <cstdint>
@@ -147,9 +148,9 @@ public:
 
     std::pair<cb::x509::Status, std::string> getCertUserName();
     /**
-     * Get a JSON description of this object.. caller must call cJSON_Delete()
+     * Get a JSON description of this object
      */
-    cJSON* toJSON() const;
+    nlohmann::json toJSON() const;
 
 protected:
     bool drainInputSocketBuf();

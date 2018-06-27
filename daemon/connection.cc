@@ -28,6 +28,7 @@
 
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/header.h>
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
@@ -86,164 +87,153 @@ bool Connection::setTcpNoDelay(bool enable) {
     return true;
 }
 
+static std::string getUintPtrString(uintptr_t value) {
+    char buffer[64];
+    snprintf(buffer, sizeof(buffer), "0x%" PRIxPTR, value);
+    return std::string(buffer);
+}
+
 /**
  * Get a JSON representation of an event mask
  *
  * @param mask the mask to convert to JSON
- * @return the json representation. Caller is responsible for calling
- *         cJSON_Delete()
+ * @return the json representation.
  */
-static cJSON* event_mask_to_json(const short mask) {
-    cJSON* ret = cJSON_CreateObject();
-    cJSON* array = cJSON_CreateArray();
+static nlohmann::json event_mask_to_json(const short mask) {
+    nlohmann::json ret;
+    nlohmann::json array = nlohmann::json::array();
 
-    cJSON_AddUintPtrToObject(ret, "raw", mask);
+    ret["raw"] = getUintPtrString((uintptr_t)mask);
+
     if (mask & EV_READ) {
-        cJSON_AddItemToArray(array, cJSON_CreateString("read"));
+        array.push_back("read");
     }
     if (mask & EV_WRITE) {
-        cJSON_AddItemToArray(array, cJSON_CreateString("write"));
+        array.push_back("write");
     }
     if (mask & EV_PERSIST) {
-        cJSON_AddItemToArray(array, cJSON_CreateString("persist"));
+        array.push_back("persist");
     }
     if (mask & EV_TIMEOUT) {
-        cJSON_AddItemToArray(array, cJSON_CreateString("timeout"));
+        array.push_back("timeout");
     }
 
-    cJSON_AddItemToObject(ret, "decoded", array);
+    ret["decoded"] = array;
     return ret;
 }
 
-unique_cJSON_ptr Connection::toJSON() const {
-    unique_cJSON_ptr ret(cJSON_CreateObject());
-    cJSON* obj = ret.get();
-    cJSON_AddUintPtrToObject(obj, "connection", (uintptr_t)this);
+nlohmann::json Connection::toJSON() const {
+    nlohmann::json ret;
+
+    ret["connection"] = getUintPtrString((uintptr_t)this);
+
     if (socketDescriptor == INVALID_SOCKET) {
-        cJSON_AddStringToObject(obj, "socket", "disconnected");
+        ret["socket"] = "disconnected";
         return ret;
     }
 
-    cJSON_AddNumberToObject(obj, "socket", socketDescriptor);
-    cJSON_AddNumberToObject(obj, "yields", yields.load());
-    cJSON_AddStringToObject(obj, "protocol", "memcached");
-    cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
-    cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
-    cJSON_AddNumberToObject(obj, "parent_port", parent_port);
-    cJSON_AddNumberToObject(obj, "bucket_index", getBucketIndex());
-    cJSON_AddBoolToObject(obj, "internal", isInternal());
+    ret["socket"] = socketDescriptor;
+    ret["yields"] = yields.load();
+    ret["protocol"] = "memcached";
+    ret["peername"] = getPeername().c_str();
+    ret["sockname"] = getSockname().c_str();
+    ret["parent_port"] = parent_port;
+    ret["bucket_index"] = getBucketIndex();
+    ret["internal"] = isInternal();
+
     if (authenticated) {
-        cJSON_AddStringToObject(obj, "username", username.c_str());
+        ret["username"] = username.c_str();
     }
-    cJSON_AddBoolToObject(obj, "nodelay", nodelay);
-    cJSON_AddNumberToObject(obj, "refcount", refcount);
 
-    cJSON* features = cJSON_CreateObject();
-    cJSON_AddBoolToObject(
-            features, "mutation_extras", isSupportsMutationExtras());
-    cJSON_AddBoolToObject(features, "xerror", isXerrorSupport());
+    ret["nodelay"] = nodelay;
+    ret["refcount"] = refcount;
 
-    cJSON_AddItemToObject(obj, "features", features);
+    nlohmann::json features;
+    features["mutation_extras"] = isSupportsMutationExtras();
+    features["xerror"] = isXerrorSupport();
+    ret["features"] = features;
 
-    cJSON_AddUintPtrToObject(obj, "engine_storage", (uintptr_t)engine_storage);
-    cJSON_AddUintPtrToObject(
-            obj,
-            "thread",
+    ret["engine_storage"] = getUintPtrString((uintptr_t)engine_storage);
+    ret["thread"] = getUintPtrString(
             (uintptr_t)thread.load(std::memory_order::memory_order_relaxed));
-    cJSON_AddStringToObject(obj, "priority", to_string(priority));
+    ret["priority"] = to_string(priority);
 
     if (clustermap_revno == -2) {
-        cJSON_AddStringToObject(obj, "clustermap_revno", "unknown");
+        ret["clustermap_revno"] = "unknown";
     } else {
-        cJSON_AddNumberToObject(obj, "clustermap_revno", clustermap_revno);
+        ret["clustermap_revno"] = clustermap_revno;
     }
 
-    cJSON_AddStringToObject(obj,
-                            "total_cpu_time",
-                            std::to_string(total_cpu_time.count()).c_str());
-    cJSON_AddStringToObject(obj,
-                            "min_sched_time",
-                            std::to_string(min_sched_time.count()).c_str());
-    cJSON_AddStringToObject(obj,
-                            "max_sched_time",
-                            std::to_string(max_sched_time.count()).c_str());
+    ret["total_cpu_time"] = std::to_string(total_cpu_time.count());
+    ret["min_sched_time"] = std::to_string(min_sched_time.count());
+    ret["max_sched_time"] = std::to_string(max_sched_time.count());
 
-    unique_cJSON_ptr arr(cJSON_CreateArray());
+    nlohmann::json arr = nlohmann::json::array();
     for (const auto& c : cookies) {
-        cJSON_AddItemToArray(arr.get(), c->toJSON().release());
+        arr.push_back(c->toJSON());
     }
-    cJSON_AddItemToObject(obj, "cookies", arr.release());
+    ret["cookies"] = arr;
 
     if (agentName.front() != '\0') {
-        cJSON_AddStringToObject(obj, "agent_name", agentName.data());
+        ret["agent_name"] = std::string(agentName.data());
     }
     if (connectionId.front() != '\0') {
-        cJSON_AddStringToObject(obj, "connection_id", connectionId.data());
+        ret["connection_id"] = std::string(connectionId.data());
     }
 
-    cJSON_AddBoolToObject(obj, "tracing", tracingEnabled);
-    cJSON_AddBoolToObject(obj, "sasl_enabled", saslAuthEnabled);
-    cJSON_AddBoolToObject(obj, "dcp", isDCP());
-    cJSON_AddBoolToObject(obj, "dcp_xattr_aware", isDcpXattrAware());
-    cJSON_AddBoolToObject(obj, "dcp_no_value", isDcpNoValue());
-    cJSON_AddNumberToObject(obj, "max_reqs_per_event", max_reqs_per_event);
-    cJSON_AddNumberToObject(obj, "nevents", numEvents);
-    cJSON_AddStringToObject(obj, "state", getStateName());
+    ret["tracing"] = tracingEnabled;
+    ret["sasl_enabled"] = saslAuthEnabled;
+    ret["dcp"] = isDCP();
+    ret["dcp_xattr_aware"] = isDcpXattrAware();
+    ret["dcp_no_value"] = isDcpNoValue();
+    ret["max_reqs_per_event"] = max_reqs_per_event;
+    ret["nevents"] = numEvents;
+    ret["state"] = getStateName();
 
-    {
-        cJSON* o = cJSON_CreateObject();
-        cJSON_AddBoolToObject(o, "registered", isRegisteredInLibevent());
-        cJSON_AddItemToObject(o, "ev_flags", event_mask_to_json(ev_flags));
-        cJSON_AddItemToObject(o, "which", event_mask_to_json(currentEvent));
-        cJSON_AddItemToObject(obj, "libevent", o);
-    }
+    nlohmann::json libevt;
+    libevt["registered"] = isRegisteredInLibevent();
+    libevt["ev_flags"] = event_mask_to_json(ev_flags);
+    libevt["which"] = event_mask_to_json(currentEvent);
+    ret["libevent"] = libevt;
 
     if (read) {
-        cJSON_AddItemToObject(obj, "read", read->to_json().release());
+        ret["read"] = read->to_json();
     }
 
     if (write) {
-        cJSON_AddItemToObject(obj, "write", write->to_json().release());
+        ret["write"] = write->to_json();
     }
 
-    cJSON_AddStringToObject(
-            obj, "write_and_go", stateMachine.getStateName(write_and_go));
+    ret["write_and_go"] = std::string(stateMachine.getStateName(write_and_go));
 
-    {
-        cJSON* iovobj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(iovobj, "size", iov.size());
-        cJSON_AddNumberToObject(iovobj, "used", iovused);
-        cJSON_AddItemToObject(obj, "iov", iovobj);
-    }
+    nlohmann::json iovobj;
+    iovobj["size"] = iov.size();
+    iovobj["used"] = iovused;
+    ret["iov"] = iovobj;
 
-    {
-        cJSON* msg = cJSON_CreateObject();
-        cJSON_AddNumberToObject(msg, "used", msglist.size());
-        cJSON_AddNumberToObject(msg, "curr", msgcurr);
-        cJSON_AddNumberToObject(msg, "bytes", msgbytes);
-        cJSON_AddItemToObject(obj, "msglist", msg);
-    }
-    {
-        cJSON* ilist = cJSON_CreateObject();
-        cJSON_AddNumberToObject(ilist, "size", reservedItems.size());
-        cJSON_AddItemToObject(obj, "itemlist", ilist);
-    }
-    {
-        cJSON* talloc = cJSON_CreateObject();
-        cJSON_AddNumberToObject(talloc, "size", temp_alloc.size());
-        cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
-    }
+    nlohmann::json msg;
+    msg["used"] = msglist.size();
+    msg["curr"] = msgcurr;
+    msg["bytes"] = msgbytes;
+    ret["msglist"] = msg;
+
+    nlohmann::json ilist;
+    ilist["size"] = reservedItems.size();
+    ret["itemlist"] = ilist;
+
+    nlohmann::json talloc;
+    talloc["size"] = temp_alloc.size();
+    ret["temp_alloc_list"] = talloc;
 
     /* @todo we should decode the binary header */
-    cJSON_AddNumberToObject(obj, "aiostat", aiostat);
-    cJSON_AddBoolToObject(obj, "ewouldblock", ewouldblock);
-    cJSON_AddItemToObject(obj, "ssl", ssl.toJSON());
-    cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
-    cJSON_AddNumberToObject(obj, "total_send", totalSend);
-    cJSON_AddStringToObject(
-            obj,
-            "datatype",
-            mcbp::datatype::to_string(datatype.getRaw()).c_str());
+    ret["aiostat"] = aiostat;
+    ret["ewouldblock"] = ewouldblock;
+    ret["ssl"] = ssl.toJSON();
+    ret["total_recv"] = totalRecv;
+    ret["total_send"] = totalSend;
+
+    ret["datatype"] = mcbp::datatype::to_string(datatype.getRaw()).c_str();
+
     return ret;
 }
 
@@ -1327,7 +1317,7 @@ void Connection::runEventLoop(short which) {
                         "{}: exception occurred in runloop during packet "
                         "execution. Cookie info: {} - closing connection: {}",
                         getId(),
-                        to_string(getCookieObject().toJSON(), false),
+                        getCookieObject().toJSON().dump(),
                         e.what());
                 logged = true;
             } catch (const std::bad_alloc&) {
@@ -1429,8 +1419,7 @@ void Connection::signalIfIdle(bool logbusy, size_t workerthread) {
         }
         event_active(event.get(), EV_WRITE, 0);
     } else if (logbusy) {
-        unique_cJSON_ptr json(toJSON());
-        auto details = to_string(json, false);
+        auto details = toJSON().dump();
         LOG_INFO("Worker thread {}: {}", workerthread, details);
     }
 }
