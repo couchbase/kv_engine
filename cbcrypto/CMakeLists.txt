@@ -5,13 +5,13 @@ SET_TARGET_PROPERTIES(cbcrypto PROPERTIES SOVERSION 2.0.0)
 
 if (APPLE)
     # Apple is using the Common Crypto Framework for all crypto functions
-    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE cJSON platform phosphor)
+    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE platform phosphor)
 elseif (WIN32)
     # Use the OpenSSL ones for all other platforms
-    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE cJSON platform phosphor Bcrypt)
+    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE platform phosphor Bcrypt)
 else()
     # Use the OpenSSL ones for all other platforms
-    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE cJSON platform phosphor ${OPENSSL_LIBRARIES})
+    TARGET_LINK_LIBRARIES(cbcrypto PRIVATE platform phosphor ${OPENSSL_LIBRARIES})
 endif ()
 
 GENERATE_EXPORT_HEADER(cbcrypto
@@ -31,7 +31,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     TARGET_LINK_LIBRARIES(cbcrypto_test
                           cbcrypto
                           platform
-                          cJSON
                           gtest gtest_main)
 
     ADD_TEST(NAME cbcrypto-test

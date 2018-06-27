@@ -18,6 +18,7 @@
 #include <cbsasl/pwdb.h>
 #include "user.h"
 
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <fstream>
 #include <iostream>
@@ -109,14 +110,18 @@ std::string cb::sasl::pwdb::read_password_file(const std::string& filename) {
         return ret;
     }
 
-    unique_cJSON_ptr json(cJSON_Parse(env));
-    if (json.get() == nullptr) {
-        throw std::runtime_error(
-                "cbsasl_read_password_file: Invalid json"
-                " specified in COUCHBASE_CBSASL_SECRETS");
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(env);
+    } catch (const nlohmann::json::exception& e) {
+        std::stringstream ss;
+        ss << "cbsasl_read_password_file: Invalid json specified in "
+              "COUCHBASE_CBSASL_SECRETS. Parse failed with: '"
+           << e.what() << "'";
+        throw std::runtime_error(ss.str());
     }
 
-    return cb::crypto::decrypt(json.get(), ret);
+    return cb::crypto::decrypt(json, ret);
 }
 
 void cb::sasl::pwdb::write_password_file(const std::string& filename,
@@ -133,13 +138,18 @@ void cb::sasl::pwdb::write_password_file(const std::string& filename,
     if (env == nullptr) {
         of.write(content.data(), content.size());
     } else {
-        unique_cJSON_ptr json(cJSON_Parse(env));
-        if (json.get() == nullptr) {
-            throw std::runtime_error(
-                    "cbsasl_write_password_file: Invalid json"
-                    " specified in COUCHBASE_CBSASL_SECRETS");
+        nlohmann::json json;
+        try {
+            json = nlohmann::json::parse(env);
+        } catch (const nlohmann::json::exception& e) {
+            std::stringstream ss;
+            ss << "cbsasl_write_password_file: Invalid json specified in "
+                  "COUCHBASE_CBSASL_SECRETS. Parse failed with: '"
+               << e.what() << "'";
+            throw std::runtime_error(ss.str());
         }
-        auto enc = cb::crypto::encrypt(json.get(), content);
+
+        auto enc = cb::crypto::encrypt(json, content);
         of.write(enc.data(), enc.size());
     }
 

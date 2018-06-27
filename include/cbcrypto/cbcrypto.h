@@ -18,8 +18,8 @@
 
 #include <cbcrypto/visibility.h>
 
-#include <cJSON_utils.h>
 #include <gsl.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
 #include <cstdint>
 #include <string>
@@ -101,8 +101,7 @@ std::string encrypt(Cipher cipher,
  * @return The encrypted data
  */
 CBCRYPTO_PUBLIC_API
-std::string encrypt(gsl::not_null<const cJSON*> json,
-                    cb::const_char_buffer data);
+std::string encrypt(const nlohmann::json& json, cb::const_char_buffer data);
 
 /**
  * Decrypt the specified data by using a given cipher
@@ -134,8 +133,7 @@ std::string decrypt(Cipher cipher,
  * @return The decrypted data
  */
 CBCRYPTO_PUBLIC_API
-std::string decrypt(gsl::not_null<const cJSON*> json,
-                    cb::const_char_buffer data);
+std::string decrypt(const nlohmann::json& json, cb::const_char_buffer data);
 
 } // namespace crypto
 } // namespace cb

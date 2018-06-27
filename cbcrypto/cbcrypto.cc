@@ -17,6 +17,7 @@
 #include "config.h"
 #include <cbcrypto/cbcrypto.h>
 
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/base64.h>
 #include <iomanip>
@@ -1089,37 +1090,35 @@ std::string cb::crypto::digest(const Algorithm algorithm,
 /**
  * decode the META information for the encryption bits.
  *
- * @param meta the input json data (not const to avoid all of the const
- *             casts, and this is a private helper function not visible
- *             outside this file
+ * @param meta the input json data
  * @param cipher the cipher to use (out)
  * @param key the key to use (out)
  * @param iv the iv to use (out)
  */
-static void decodeJsonMeta(cJSON* meta,
+static void decodeJsonMeta(const nlohmann::json& json,
                            cb::crypto::Cipher& cipher,
                            std::string& key,
                            std::string& iv) {
-    auto* obj = cJSON_GetObjectItem(meta, "cipher");
-    if (obj == nullptr) {
+    auto it = json.find("cipher");
+    if (it == json.end()) {
         throw std::runtime_error(
                 "cb::crypto::decodeJsonMeta: cipher not specified");
     }
+    cipher = cb::crypto::to_cipher(*it);
 
-    cipher = cb::crypto::to_cipher(obj->valuestring);
-    obj = cJSON_GetObjectItem(meta, "key");
-    if (obj == nullptr) {
+    it = json.find("key");
+    if (it == json.end()) {
         throw std::runtime_error(
                 "cb::crypto::decodeJsonMeta: key not specified");
     }
-    key = Couchbase::Base64::decode(obj->valuestring);
+    key = Couchbase::Base64::decode(*it);
 
-    obj = cJSON_GetObjectItem(meta, "iv");
-    if (obj == nullptr) {
+    it = json.find("iv");
+    if (it == json.end()) {
         throw std::runtime_error(
                 "cb::crypto::decodeJsonMeta: iv not specified");
     }
-    iv = Couchbase::Base64::decode(obj->valuestring);
+    iv = Couchbase::Base64::decode(*it);
 }
 
 std::string cb::crypto::encrypt(const Cipher cipher,
@@ -1149,13 +1148,13 @@ std::string cb::crypto::encrypt(const Cipher cipher,
     return internal::encrypt(cipher, key, iv, data);
 }
 
-std::string cb::crypto::encrypt(gsl::not_null<const cJSON*> json,
+std::string cb::crypto::encrypt(const nlohmann::json& json,
                                 cb::const_char_buffer data) {
     Cipher cipher;
     std::string key;
     std::string iv;
 
-    decodeJsonMeta(const_cast<cJSON*>(json.get()), cipher, key, iv);
+    decodeJsonMeta(json, cipher, key, iv);
     return internal::encrypt(
             cipher, {key.data(), key.size()}, {iv.data(), iv.size()}, data);
 }
@@ -1187,13 +1186,13 @@ std::string cb::crypto::decrypt(const Cipher cipher,
     return internal::decrypt(cipher, key, iv, data);
 }
 
-std::string cb::crypto::decrypt(gsl::not_null<const cJSON*> json,
+std::string cb::crypto::decrypt(const nlohmann::json& json,
                                 cb::const_char_buffer data) {
     Cipher cipher;
     std::string key;
     std::string iv;
 
-    decodeJsonMeta(const_cast<cJSON*>(json.get()), cipher, key, iv);
+    decodeJsonMeta(json, cipher, key, iv);
     return internal::decrypt(
             cipher, {key.data(), key.size()}, {iv.data(), iv.size()}, data);
 }
