@@ -881,7 +881,7 @@ void try_read_mcbp_command(Connection& c) {
     const auto& header = cookie.getHeader();
     if (settings.getVerbose() > 1) {
         try {
-            LOG_DEBUG(">{} Read command {}",
+            LOG_TRACE(">{} Read command {}",
                       c.getId(),
                       to_string(header.toJSON(), false));
         } catch (const std::exception&) {
@@ -897,7 +897,7 @@ void try_read_mcbp_command(Connection& c) {
                                         (const char*)input.data(),
                                         sizeof(cb::mcbp::Request));
             if (nw != -1) {
-                LOG_DEBUG("{}", buffer);
+                LOG_TRACE("{}", buffer);
             }
         }
     }

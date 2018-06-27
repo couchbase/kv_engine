@@ -1287,8 +1287,10 @@ EXTENSION_LOG_LEVEL Settings::getLogLevel() const {
         return EXTENSION_LOG_NOTICE;
     case 1:
         return EXTENSION_LOG_INFO;
-    default:
+    case 2:
         return EXTENSION_LOG_DEBUG;
+    default:
+        return EXTENSION_LOG_TRACE;
     }
 }
 

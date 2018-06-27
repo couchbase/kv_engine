@@ -110,7 +110,7 @@ void mcbp_add_header(Cookie& cookie,
     if (settings.getVerbose() > 1) {
         auto* header = reinterpret_cast<const cb::mcbp::Header*>(wbuf.data());
         try {
-            LOG_DEBUG("<{} Sending: {}",
+            LOG_TRACE("<{} Sending: {}",
                       connection.getId(),
                       to_string(header->toJSON(), false));
         } catch (const std::exception&) {
@@ -124,7 +124,7 @@ void mcbp_add_header(Cookie& cookie,
                         "Writing bin response:",
                         reinterpret_cast<const char*>(wbuf.data()),
                         wbuf.size()) != -1) {
-                LOG_DEBUG("{}", buffer);
+                LOG_TRACE("{}", buffer);
             }
         }
     }
