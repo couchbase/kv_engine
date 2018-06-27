@@ -147,8 +147,9 @@ public:
         std::replace(certPath.begin(), certPath.end(), '/', '\\');
 #endif
         auto data = cb::io::loadFile(certPath);
-        auto* certbio = BIO_new_mem_buf(static_cast<const void*>(data.data()),
-                                        gsl::narrow<int>(data.size()));
+        auto* certbio = BIO_new_mem_buf(
+                const_cast<void*>(static_cast<const void*>(data.data())),
+                gsl::narrow<int>(data.size()));
         cert.reset(PEM_read_bio_X509(certbio, NULL, 0, NULL));
         BIO_free(certbio);
         ASSERT_TRUE(cert.get()) << "Error in reading certificate file: "
