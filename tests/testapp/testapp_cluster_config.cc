@@ -160,7 +160,7 @@ TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
                   "without duplex";
     } catch (const std::runtime_error& e) {
         EXPECT_STREQ(
-                "Failed to say hello: 'ClustermapChangeNotification needs "
+                "Failed to say hello: 'Clustermap change notification needs "
                 "Duplex', Invalid arguments (4)",
                 e.what());
     }

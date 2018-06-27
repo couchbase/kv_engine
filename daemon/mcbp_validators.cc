@@ -484,6 +484,22 @@ static protocol_binary_response_status configuration_refresh_validator(const Coo
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status rbac_provider_validator(
+        const Cookie& cookie) {
+    auto& header = cookie.getHeader();
+
+    if (!header.isValid() || // Does the internal header fields add up?
+        header.getMagic() != PROTOCOL_BINARY_REQ || // It must be a request
+        header.getExtlen() != 0 || // extras is not allowed
+        header.getKeylen() != 0 || // Key is not used
+        header.getBodylen() != 0 || // No value
+        header.getCas() != 0 || // Cas should not be set
+        header.getDatatype() != PROTOCOL_BINARY_RAW_BYTES) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status verbosity_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
@@ -1415,6 +1431,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_REVOKE_USER_PERMISSIONS,
                        revoke_user_permissions_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
+    chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::RbacProvider),
+                       rbac_provider_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG,
                        dcp_get_failover_log_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,

@@ -323,6 +323,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "REVOKE_USER_PERMISSIONS";
     case ClientOpcode::RbacRefresh:
         return "RBAC_REFRESH";
+    case ClientOpcode::RbacProvider:
+        return "RBAC_PROVIDER";
     case ClientOpcode::DropPrivilege:
         return "DROP_PRIVILEGES";
     case ClientOpcode::AdjustTimeofday:
@@ -345,6 +347,8 @@ std::string to_string(cb::mcbp::ServerOpcode opcode) {
     switch (opcode) {
     case ServerOpcode::ClustermapChangeNotification:
         return "ClustermapChangeNotification";
+    case ServerOpcode::GetUserPermissions:
+        return "GetUserPermissions";
     }
     throw std::invalid_argument(
             "to_string(cb::mcbp::ServerOpcode): Invalid opcode: " +

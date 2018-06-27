@@ -512,6 +512,19 @@ static void rbac_refresh_executor(Cookie& cookie) {
     cookie.obtainContext<RbacReloadCommandContext>(cookie).drive();
 }
 
+static void rbac_provider_executor(Cookie& cookie) {
+    auto& connection = cookie.getConnection();
+    if (connection.isDuplexSupported()) {
+        // To ease the integration with ns_server we'll just tell it
+        // that we accepted this connection for auth requests, but
+        // we won't use it
+        cookie.sendResponse(cb::mcbp::Status::Success);
+    } else {
+        cookie.setErrorContext("Connection is not in duplex mode");
+        cookie.sendResponse(cb::mcbp::Status::Einval);
+    }
+}
+
 static void no_support_executor(Cookie& cookie) {
     cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
@@ -681,6 +694,8 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_REVOKE_USER_PERMISSIONS] =
             revoke_user_permissions_executor;
     handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
+    handlers[uint8_t(cb::mcbp::ClientOpcode::RbacProvider)] =
+            rbac_provider_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
             get_cluster_config_executor;
     handlers[PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG] =

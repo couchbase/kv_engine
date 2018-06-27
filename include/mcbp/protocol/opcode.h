@@ -304,6 +304,8 @@ enum class ClientOpcode : uint8_t {
     RevokeUserPermissions = 0xf6,
     /* Refresh the RBAC database */
     RbacRefresh = 0xf7,
+    /// Offer to be an RBAC provider
+    RbacProvider = 0xf8,
 
     /**
      * Drop a privilege from the current privilege set.
@@ -361,6 +363,19 @@ enum class ServerOpcode {
      *   value is the actual cluster map
      */
     ClustermapChangeNotification = 0x01,
+    /**
+     * Get the RBAC entry for the specified user
+     *
+     * The request contains the name of the requested user, and the response
+     * should contain the username in the key field, and the JSON containing
+     * the RBAC definition for the user in the body.
+     *
+     * The RBAC definition is considered to be valid and _may_ be cached by
+     * memcached. The other end needs to send the RevokeUserPermissions
+     * command toinvalidate the entry (the receiver of this command should
+     * however make no assumptions that memcached will cache this entry).
+     */
+    GetUserPermissions = 0x02
 };
 
 } // namespace mcbp

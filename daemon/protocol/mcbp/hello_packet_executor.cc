@@ -114,7 +114,8 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::ClustermapChangeNotification:
             // Needs duplex
             if (!containsFeature(requested, cb::mcbp::Feature::Duplex)) {
-                throw std::invalid_argument("ClustermapChangeNotification needs Duplex");
+                throw std::invalid_argument(to_string(feature) +
+                                            " needs Duplex");
             }
             break;
         }
@@ -294,7 +295,6 @@ void process_hello_packet_executor(Cookie& cookie) {
                          connection.getId(),
                          connection.getDescription());
             }
-
         } // end switch
 
         if (added) {

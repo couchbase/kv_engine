@@ -58,7 +58,7 @@ enum class Feature : uint16_t {
     /**
      * Tell the server to enable tracing of function calls
      */
-    Tracing = 0x0f,
+    Tracing = 0x0f
 };
 
 } // namespace mcbp

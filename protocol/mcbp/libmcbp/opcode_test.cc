@@ -177,6 +177,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::GetCtrlToken, "GET_CTRL_TOKEN"},
          {ClientOpcode::RevokeUserPermissions, "REVOKE_USER_PERMISSIONS"},
          {ClientOpcode::RbacRefresh, "RBAC_REFRESH"},
+         {ClientOpcode::RbacProvider, "RBAC_PROVIDER"},
          {ClientOpcode::DropPrivilege, "DROP_PRIVILEGES"},
          {ClientOpcode::AdjustTimeofday, "ADJUST_TIMEOFDAY"},
          {ClientOpcode::EwouldblockCtl, "EWB_CTL"},
@@ -207,7 +208,8 @@ TEST(ClientOpcode_to_string, CompatWithOldCode) {
             entry.first == ClientOpcode::ChangeVbFilter ||
             entry.first == ClientOpcode::DeregisterTapClient ||
             entry.first == ClientOpcode::ResetReplicationChain ||
-            entry.first == ClientOpcode::RevokeUserPermissions) {
+            entry.first == ClientOpcode::RevokeUserPermissions ||
+            entry.first == ClientOpcode::RbacProvider) {
             // Entries we didn't have in the old code..
             continue;
         }
@@ -248,7 +250,8 @@ TEST(ClientOpcode_to_opcode, SpaceMayBeUsed) {
 
 const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
         {{ServerOpcode::ClustermapChangeNotification,
-          "ClustermapChangeNotification"}}};
+          "ClustermapChangeNotification"},
+         {ServerOpcode::GetUserPermissions, "GetUserPermissions"}}};
 
 TEST(ServerOpcode, to_string) {
     for (int ii = 0; ii < 0x100; ++ii) {

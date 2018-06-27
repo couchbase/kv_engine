@@ -419,7 +419,9 @@ information about a given command.
 | 0xf3 | Get cmd timer |
 | 0xf4 | Set ctrl token |
 | 0xf5 | Get ctrl token |
-| 0xf6 | Init complete |
+| 0xf6 | RBAC revoke user permission |
+| 0xf7 | RBAC refresh |
+| 0xf8 | RBAC provider |
 
 As a convention all of the commands ending with "Q" for Quiet. A quiet version
 of a command will omit responses that are considered uninteresting. Whether a
@@ -431,7 +433,8 @@ for examples of commands that include quiet variants.
 
 | Raw  | Description                                             |
 | -----|---------------------------------------------------------|
-| 0x00 |  |
+| 0x01 | ClustermapChangeNotification |
+| 0x02 | GetUserPermissions |
 
 ### Data Types
 
