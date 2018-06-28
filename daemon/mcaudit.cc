@@ -33,7 +33,7 @@ static cb::audit::UniqueAuditPtr auditHandle;
 static std::atomic_bool audit_enabled{false};
 
 static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
-static const int Last = MEMCACHED_AUDIT_DOCUMENT_DELETE;
+static const int Last = MEMCACHED_AUDIT_SELECT_BUCKET;
 
 static std::array<std::atomic_bool, Last - First + 1> events;
 
@@ -134,6 +134,22 @@ void audit_auth_success(const Connection* c) {
     auto root = create_memcached_audit_object(c);
     do_audit(c, MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, root,
              "Failed to send AUTH SUCCESS audit event");
+}
+
+void audit_bucket_selection(const Connection& c) {
+    if (!isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET)) {
+        return;
+    }
+    const auto& bucket = c.getBucket();
+    // Don't audit that we're jumping into the "no bucket"
+    if (bucket.type != BucketType::NoBucket) {
+        auto root = create_memcached_audit_object(&c);
+        cJSON_AddStringToObject(root.get(), "bucket", c.getBucket().name);
+        do_audit(&c,
+                 MEMCACHED_AUDIT_SELECT_BUCKET,
+                 root,
+                 "Failed to send SELECT BUCKET audit event");
+    }
 }
 
 void audit_bucket_flush(const Connection* c, const char* bucket) {

@@ -212,6 +212,7 @@ bool associate_bucket(Connection& connection, const char* name) {
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
             connection.setBucketIndex(gsl::narrow<int>(ii));
+            audit_bucket_selection(connection);
             found = true;
         }
     }
