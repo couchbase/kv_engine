@@ -1591,6 +1591,7 @@ The following features is defined:
 | 0x000c | Duplex |
 | 0x000d | Clustermap change notification |
 | 0x000e | Unordered Execution |
+| 0x000f | Tracing |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1646,6 +1647,8 @@ The following features is defined:
   the command in isolation. Once the command is completed the server
   starts reordering the next commands. NOTE: It is not possible to
   enable unordered execution on connections used for DCP.
+* `Tracing` - The client wants the server to include tracing information
+  in the response packet
 
 Response:
 
