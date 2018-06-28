@@ -236,11 +236,7 @@ bool AuditConfig::is_filtering_enabled() const {
 }
 
 void AuditConfig::sanitize_path(std::string &path) {
-#ifdef WIN32
-    // Make sure that the path is in windows format
-    std::replace(path.begin(), path.end(), '/', '\\');
-#endif
-
+    cb::io::sanitizePath(path);
     if (path.length() > 1 && path.data()[path.length() - 1] == DIRECTORY_SEPARATOR_CHARACTER) {
         path.resize(path.length() - 1);
     }

@@ -390,9 +390,7 @@ void McdEnvironment::rewriteAuditConfig() {
 void McdEnvironment::SetupRbacFile() {
     std::string input_file{SOURCE_ROOT};
     input_file.append("/tests/testapp/rbac.json");
-#ifdef WIN32
-    std::replace(input_file.begin(), input_file.end(), '\\', '/');
-#endif
+    cb::io::sanitizePath(input_file);
     const auto input = cb::io::loadFile(input_file);
     rbac_data.reset(cJSON_Parse(input.c_str()));
 
