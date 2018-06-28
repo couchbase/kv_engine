@@ -17,6 +17,13 @@ from difflib import SequenceMatcher
 from operator import itemgetter
 
 try:
+    from natsort import natsorted
+except ImportError:
+    sys.exit("Error: could not import natsort. If you're running this from the "
+    "source directory then you need to build then run cbstats from "
+    "build/kv-engine instead.")
+
+try:
     import simplejson as json
 except ImportError:
     try:
@@ -24,7 +31,6 @@ except ImportError:
     except ImportError:
         sys.exit("Error: could not import json module")
 
-MAGIC_CONVERT_RE=re.compile("(\d+)")
 
 BIG_VALUE = 2 ** 60
 SMALL_VALUE = - (2 ** 60)
@@ -52,17 +58,19 @@ def stats_perform(mc, cmd=''):
         print "Stats '%s' are not available from the requested engine. (%s)"\
                 % (cmd, e)
 
-def stats_formatter(stats, prefix=" ", cmp=None):
+def stats_formatter(stats, prefix=" "):
+    """ Format and output the stats as either json or text
+    """
     if stats:
         if output_json:
             for stat, val in stats.items():
                 stats[stat] = _maybeInt(val)
                 if isinstance(stats[stat], str):
                     stats[stat] = _maybeFloat(val)
-            print json.dumps(stats, sort_keys=True, indent=4)
+            print json.dumps(natsorted(stats), indent=4)
         else:
             longest = max((len(x) + 2) for x in stats.keys())
-            for stat, val in sorted(stats.items(), cmp=cmp):
+            for stat, val in natsorted(stats.items()):
                 s = stat + ":"
                 print "%s%s%s" % (prefix, s.ljust(longest), val)
 
@@ -635,14 +643,6 @@ def _maybeFloat(x):
     except:
         return x
 
-def _magicConvert(s):
-    return [_maybeInt(x) for x in MAGIC_CONVERT_RE.split(s)]
-
-def magic_cmp(a, b):
-    am = _magicConvert(a[0])
-    bm = _magicConvert(b[0])
-    return cmp(am, bm)
-
 @cmd
 def stats_diskinfo(mc, with_detail=None):
     cmd_str = 'diskinfo'
@@ -699,7 +699,7 @@ def stats_hash(mc, with_detail=None):
             if 'vb_' not in k:
                 toDisplay[k] = h[k]
 
-    stats_formatter(toDisplay, cmp=magic_cmp)
+    stats_formatter(toDisplay)
 
 @cmd
 def stats_scheduler(mc):

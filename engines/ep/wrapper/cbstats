@@ -1,0 +1,13 @@
+#! /bin/sh
+
+export EP_ENGINE_VERSION="@EP_ENGINE_VERSION@"
+export CLI_PATH="@CLI_PATH@"
+export CBSTATS_PATH="@CBSTATS_PATH@"
+
+if test -z "$PYTHONPATH"; then
+   PYTHONPATH="$CLI_PATH"
+else
+   PYTHONPATH="$CLI_PATH:$PYTHONPATH"
+fi
+export PYTHONPATH
+exec "$CBSTATS_PATH"/`basename "$0"` "$@"

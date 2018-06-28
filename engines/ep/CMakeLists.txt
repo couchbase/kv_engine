@@ -112,6 +112,12 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/wrapper/wrapper
                 ${CMAKE_CURRENT_BINARY_DIR}/wrapper/kv_trace_dump)
 
+# Generate the cbstats wrapper that lets us run from the build/kv_engine dir
+SET(CLI_PATH "${CMAKE_SOURCE_DIR}/couchbase-cli")
+SET(CBSTATS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/management/")
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wrapper/cbstats
+               ${CMAKE_BINARY_DIR}/kv_engine/cbstats)
+
 SET(Python_ADDITIONAL_VERSIONS 2.6)
 FIND_PACKAGE(PythonInterp)
 
@@ -120,9 +126,16 @@ SET(ENV{PYTHONDONTWRITEBYTECODE} 1)
 
 if (NOT EP_BYPASS_TESTS)
     # runs cbstats & cbepctl - will fail on basic syntax errors
+    IF (WIN32)
+        FIND_PACKAGE(PythonInterp)
+    ENDIF (WIN32)
     ADD_TEST(NAME cbstats_test
-             COMMAND ${PYTHON_EXECUTABLE}
-             ${CMAKE_CURRENT_SOURCE_DIR}/management/cbstats --help)
+            COMMAND ${PYTHON_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/management/cbstats --help)
+    # cbstats needs the natsort library from couchbase-cli so add it to the
+    # python path for this test
+    SET_PROPERTY(TEST cbstats_test PROPERTY ENVIRONMENT
+                "PYTHONPATH=${CMAKE_SOURCE_DIR}/couchbase-cli")
     ADD_TEST(NAME cbepctl_test
              COMMAND ${PYTHON_EXECUTABLE}
              ${CMAKE_CURRENT_SOURCE_DIR}/management/cbepctl --help)
