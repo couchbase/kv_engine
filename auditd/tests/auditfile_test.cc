@@ -218,7 +218,7 @@ TEST_F(AuditFileTest, TestCrashRecoveryNoTimestamp) {
     fprintf(fp, "{}");
     fclose(fp);
 
-    EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::string);
+    EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::exception);
 }
 
 TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
@@ -238,7 +238,7 @@ TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
     fprintf(fp, "%s", content.c_str());
     fclose(fp);
 
-    EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::string);
+    EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::exception);
     {
         auto files = findFilesWithPrefix(testdir + "/testing");
         EXPECT_EQ(0, files.size());

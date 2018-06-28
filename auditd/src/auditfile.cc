@@ -136,27 +136,21 @@ void AuditFile::close_and_rotate_log(void) {
 
 
 void AuditFile::cleanup_old_logfile(const std::string& log_path) {
-    std::stringstream file;
-    file << log_path << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
-    std::string filename = file.str();
+    auto filename = log_path + "/audit.log";
+    cb::io::sanitizePath(filename);
 
     if (file_exists(filename)) {
         // open the audit.log that needs archiving
-        std::string str;
-        try {
-            str = cb::io::loadFile(filename);
-        } catch (...) {
-            std::stringstream ss;
-            ss << "Audit: Failed to read \"" << filename << "\"";
-            throw ss.str();
-        }
+        std::string str = cb::io::loadFile(filename);
+
         if (str.empty()) {
             // empty file, just remove it.
             if (remove(filename.c_str()) != 0) {
-                std::stringstream ss;
-                ss << "Audit: Failed to remove \"" << filename << "\": "
-                   << strerror(errno);
-                throw ss.str();
+                throw std::system_error(errno,
+                                        std::system_category(),
+                                        "AuditFile::cleanup_old_logfile(): "
+                                        "Failed to remove \"" +
+                                                filename + "\"");
             }
             return;
         }
@@ -170,66 +164,54 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         // check that it is valid json (cJSON doesn't validate
         // and may run outside the buffers...)
         if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(str.data()), str.size())) {
-            std::stringstream ss;
-            ss << "Audit: Failed to parse data in audit file (invalid JSON) \""
-            << filename << "\"";
-            throw ss.str();
+            throw std::runtime_error(
+                    "AuditFile::cleanup_old_logfile(): Failed to parse data in "
+                    "audit file (invalid JSON) \"" +
+                    filename + "\"");
         }
 
-        cJSON *json_ptr = cJSON_Parse(str.c_str());
-        if (json_ptr == NULL) {
-            std::stringstream ss;
-            ss << "Audit: Failed to parse data in audit file \""
-               << filename << "\"";
-            throw ss.str();
+        unique_cJSON_ptr json_ptr(cJSON_Parse(str.c_str()));
+        if (!json_ptr) {
+            throw std::runtime_error(
+                    "AuditFile::cleanup_old_logfile(): Failed to parse data in "
+                    "audit file (invalid JSON) \"" +
+                    filename + "\"");
         }
 
         // Find the timestamp
-        cJSON *timestamp = cJSON_GetObjectItem(json_ptr, "timestamp");
+        cJSON* timestamp = cJSON_GetObjectItem(json_ptr.get(), "timestamp");
         if (timestamp == NULL) {
-            cJSON_Delete(json_ptr);
-            std::stringstream ss;
-            ss << "Audit: Failed to locate \"timestamp\" in audit file \""
-               << filename << "\": " << str;
-            throw ss.str();
+            throw std::runtime_error(
+                    R"(AuditFile::cleanup_old_logfile(): Failed to locate "timestamp" in first entry in audit file ")" +
+                    filename + "\": " + str);
         }
 
         if (timestamp->type != cJSON_String) {
-            cJSON_Delete(json_ptr);
-            std::stringstream ss;
-            ss << "Audit: Incorrect format for \"timestamp\" in audit "
-               << "file \"" << filename << "\" (expected string): "
-               << str;
-            throw ss.str();
+            throw std::runtime_error(
+                    R"(AuditFile::cleanup_old_logfile(): Incorrect format for "timestamp" in first entry in audit file ")" +
+                    filename + "\" (expected string): " + str);
         }
 
         std::string ts(timestamp->valuestring);
         if (!is_timestamp_format_correct(ts)) {
-            cJSON_Delete(json_ptr);
-            std::stringstream ss;
-            ss << "Audit: Incorrect format for \"timestamp\" in audit "
-               << "file \"" << filename << "\": "
-               << ts;
-            throw ss.str();
+            throw std::runtime_error(
+                    R"(AuditFile::cleanup_old_logfile(): Incorrect format for "timestamp" in first entry in audit file ")" +
+                    filename + "\": " + str);
         }
 
         ts = ts.substr(0, 19);
         std::replace(ts.begin(), ts.end(), ':', '-');
         // form the archive filename
-        std::string archive_filename = my_hostname;
-        archive_filename += "-" + ts + "-audit.log";
-        // move the audit_log to the archive.
-        std::stringstream archive_file;
-        archive_file << log_path << DIRECTORY_SEPARATOR_CHARACTER
-                     << archive_filename;
-        if (rename(filename.c_str(), archive_file.str().c_str()) != 0) {
-            cJSON_Delete(json_ptr);
-            std::stringstream ss;
-            ss << "Audit: failed to rename \"" << filename << "\" to \""
-               << archive_file.str() << "\": " << strerror(errno);
-            throw ss.str();
+        auto archive_file =
+                log_path + "/" + my_hostname + "-" + ts + "-audit.log";
+        cb::io::sanitizePath(archive_file);
+        if (rename(filename.c_str(), archive_file.c_str()) != 0) {
+            throw std::system_error(
+                    errno,
+                    std::system_category(),
+                    "AuditFile::cleanup_old_logfile(): Failed to rename \"" +
+                            filename + "\" to \"" + archive_file + "\"");
         }
-        cJSON_Delete(json_ptr);
     }
 }
 

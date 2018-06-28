@@ -307,9 +307,10 @@ bool Audit::configure(void) {
     if (!auditfile.is_open()) {
         try {
             auditfile.cleanup_old_logfile(config.get_log_directory());
-        } catch (std::string &str) {
-            // @todo We shouldn't be throwing strings..
-            LOG_WARNING("{}", str);
+        } catch (const std::exception& exception) {
+            LOG_WARNING(
+                    "Audit::configure(): Failed to clean up old log files: {}",
+                    exception.what());
             return false;
         }
     }
