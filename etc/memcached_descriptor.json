@@ -102,22 +102,23 @@
         "sockname": ""
       }
     },
-    {  "id" : 20485,
-      "name" : "authentication succeeded",
-      "description" : "Authentication to the cluster succeeded",
-      "sync" : false,
-      "enabled" : false,
+    {
+      "id": 20485,
+      "name": "authentication succeeded",
+      "description": "Authentication to the cluster succeeded",
+      "sync": false,
+      "enabled": false,
       "filtering_permitted": true,
-      "mandatory_fields" : {
-        "timestamp" : "",
-        "real_userid" : {
-          "domain" : "",
-          "user" : ""
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
         }
       },
-      "optional_fields" : {
-        "peername" : "",
-        "sockname" : ""
+      "optional_fields": {
+        "peername": "",
+        "sockname": ""
       }
     },
     {
@@ -245,6 +246,26 @@
         "sockname": ""
       },
       "optional_fields": {
+      }
+    },
+    {
+      "id": 20492,
+      "name": "select bucket",
+      "description": "The specified bucket was selected",
+      "sync": false,
+      "enabled": true,
+      "filtering_permitted": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
+        },
+        "bucket": ""
+      },
+      "optional_fields": {
+        "peername": "",
+        "sockname": ""
       }
     }
   ]

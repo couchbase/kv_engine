@@ -69,7 +69,9 @@ public:
 
     std::vector<unique_cJSON_ptr> readAuditData();
 
-    bool searchAuditLogForID(int id, const std::string& username = "");
+    bool searchAuditLogForID(int id,
+                             const std::string& username = "",
+                             const std::string& bucketname = "");
 };
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -97,7 +99,9 @@ std::vector<unique_cJSON_ptr> AuditTest::readAuditData() {
     return rval;
 }
 
-bool AuditTest::searchAuditLogForID(int id, const std::string& username) {
+bool AuditTest::searchAuditLogForID(int id,
+                                    const std::string& username,
+                                    const std::string& bucketname) {
     // @todo loop up to 5 sec trying to get it..
     auto timeout = time(NULL) + 5;
 
@@ -106,18 +110,45 @@ bool AuditTest::searchAuditLogForID(int id, const std::string& username) {
         for (auto& entry : auditEntries) {
             cJSON* idEntry = cJSON_GetObjectItem(entry.get(), "id");
             if (idEntry && idEntry->valueint == id) {
+                // This the type we're searching for..
+                std::string user;
+                std::string bucket;
+
+                auto* obj = cJSON_GetObjectItem(entry.get(), "bucket");
+                if (obj && obj->type == cJSON_String) {
+                    bucket.assign(obj->valuestring);
+                }
+
+                obj = cJSON_GetObjectItem(entry.get(), "real_userid");
+                if (obj) {
+                    obj = cJSON_GetObjectItem(obj, "user");
+                    if (obj && obj->type == cJSON_String) {
+                        user.assign(obj->valuestring);
+                    }
+                }
+
                 if (!username.empty()) {
-                    auto* ue = cJSON_GetObjectItem(entry.get(), "real_userid");
-                    if (ue == nullptr) {
+                    if (user.empty()) {
+                        // The entry did not contain a username!
                         return false;
                     }
-                    auto* user = cJSON_GetObjectItem(ue, "user");
-                    if (user != nullptr && username != user->valuestring) {
+
+                    if (user != username) {
                         // We found another user (needed to test authentication
                         // success ;)
                         continue;
                     }
-                    return (user != nullptr && username == user->valuestring);
+                }
+
+                if (!bucketname.empty()) {
+                    if (bucket.empty()) {
+                        // This entry did not contain a bucket entry
+                        return false;
+                    }
+
+                    if (bucket != bucketname) {
+                        continue;
+                    }
                 }
 
                 return true;
@@ -218,4 +249,13 @@ TEST_P(AuditTest, AuditX509FailedAuth) {
     connection.connect();
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                                     "[unknown]"));
+}
+
+TEST_P(AuditTest, AuditSelectBucket) {
+    auto& conn = getAdminConnection();
+    conn.createBucket("bucket-1", "", BucketType::Memcached);
+    conn.selectBucket("bucket-1");
+
+    ASSERT_TRUE(searchAuditLogForID(
+            MEMCACHED_AUDIT_SELECT_BUCKET, "@admin", "bucket-1"));
 }

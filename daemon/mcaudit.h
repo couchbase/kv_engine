@@ -40,6 +40,14 @@ void audit_auth_failure(const Connection* c, const char* reason);
 void audit_auth_success(const Connection* c);
 
 /**
+ * Send an audit event for that the specified connection
+ * changed the active bucket
+ *
+ * @param c the connection selected the bucket
+ */
+void audit_bucket_selection(const Connection& c);
+
+/**
  * Send an audit event for bucket flush
  * @param c the connection performing the operation
  * @param bucket the name of the bucket

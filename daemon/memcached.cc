@@ -215,6 +215,7 @@ bool associate_bucket(Connection& connection, const char* name) {
             b.clients++;
             connection.setBucketIndex(gsl::narrow<int>(ii));
             connection.setBucketEngine(b.engine);
+            audit_bucket_selection(connection);
             found = true;
         }
     }
