@@ -21,8 +21,8 @@
 
 #include "utility.h"
 
-#include <cJSON.h>
 #include <memcached/engine.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/random.h>
 
 #include <atomic>
@@ -168,8 +168,7 @@ class FailoverTable {
     size_t getNumErroneousEntriesErased() const;
 
  private:
-
-    bool loadFromJSON(cJSON *json);
+     bool loadFromJSON(const nlohmann::json& json);
     bool loadFromJSON(const std::string& json);
     void cacheTableJSON();
 

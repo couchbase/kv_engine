@@ -16,7 +16,7 @@
  */
 #include "config.h"
 
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 
 #include "atomic.h"
@@ -238,15 +238,15 @@ std::string FailoverTable::toJSON() {
 }
 
 void FailoverTable::cacheTableJSON() {
-    unique_cJSON_ptr list(cJSON_CreateArray());
+    nlohmann::json json = nlohmann::json::array();
     table_t::iterator it;
-    for(it = table.begin(); it != table.end(); it++) {
-        unique_cJSON_ptr obj(cJSON_CreateObject());
-        cJSON_AddNumberToObject(obj.get(), "id", (*it).vb_uuid);
-        cJSON_AddNumberToObject(obj.get(), "seq", (*it).by_seqno);
-        cJSON_AddItemToArray(list.get(), obj.release());
+    for (it = table.begin(); it != table.end(); ++it) {
+        nlohmann::json obj;
+        obj["id"] = (*it).vb_uuid;
+        obj["seq"] = (*it).by_seqno;
+        json.push_back(obj);
     }
-    cachedTableJSON = to_string(list, false);
+    cachedTableJSON = json.dump();
 }
 
 void FailoverTable::addStats(const void* cookie, uint16_t vbid,
@@ -290,31 +290,31 @@ std::vector<vbucket_failover_t> FailoverTable::getFailoverLog() {
     return result;
 }
 
-bool FailoverTable::loadFromJSON(cJSON *json) {
-    if (json->type != cJSON_Array) {
+bool FailoverTable::loadFromJSON(const nlohmann::json& json) {
+    if (!json.is_array()) {
         return false;
     }
 
     table_t new_table;
 
-    for (cJSON* it = json->child; it != NULL; it = it->next) {
-        if (it->type != cJSON_Object) {
+    for (const auto& it : json) {
+        if (!it.is_object()) {
             return false;
         }
 
-        cJSON* jid = cJSON_GetObjectItem(it, "id");
-        cJSON* jseq = cJSON_GetObjectItem(it, "seq");
+        auto jid = it.find("id");
+        auto jseq = it.find("seq");
 
-        if (!jid || jid->type != cJSON_Number) {
+        if (jid == it.end() || !jid->is_number()) {
             return false;
         }
-        if (!jseq || jseq->type != cJSON_Number){
-                return false;
+        if (jseq == it.end() || !jseq->is_number()) {
+            return false;
         }
 
         failover_entry_t entry;
-        entry.vb_uuid = uint64_t(jid->valueint);
-        entry.by_seqno = uint64_t(jseq->valueint);
+        entry.vb_uuid = *jid;
+        entry.by_seqno = *jseq;
         new_table.push_back(entry);
     }
 
@@ -330,13 +330,18 @@ bool FailoverTable::loadFromJSON(cJSON *json) {
 }
 
 bool FailoverTable::loadFromJSON(const std::string& json) {
-    unique_cJSON_ptr parsed(cJSON_Parse(json.c_str()));
-    bool ret = true;
-
-    if (parsed) {
-        ret = loadFromJSON(parsed.get());
-        cachedTableJSON = json;
+    nlohmann::json parsed;
+    try {
+        parsed = nlohmann::json::parse(json);
+    } catch (const nlohmann::json::exception& e) {
+        LOG(EXTENSION_LOG_WARNING,
+            "FailoverTable::loadFromJSON: Failed to parse JSON string: %s",
+            e.what());
+        return false;
     }
+
+    auto ret = loadFromJSON(parsed);
+    cachedTableJSON = json;
 
     return ret;
 }
