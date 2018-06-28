@@ -18,6 +18,7 @@
 #include <cJSON.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
 #include <utilities/logtags.h>
 #include <algorithm>
 #include <chrono>
@@ -159,21 +160,6 @@ void Audit::log_error(const AuditErrorCode return_code,
     }
 }
 
-
-std::string Audit::load_file(const char *file) {
-    std::ifstream myfile(file, std::ios::in | std::ios::binary);
-    if (myfile.is_open()) {
-        std::string str((std::istreambuf_iterator<char>(myfile)),
-                        std::istreambuf_iterator<char>());
-        myfile.close();
-        return str;
-    } else {
-        Audit::log_error(AuditErrorCode::FILE_OPEN_ERROR, file);
-        std::string str;
-        return str;
-    }
-}
-
 bool Audit::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     // Add common fields to the audit event
     payload["timestamp"] = ISOTime::generatetimestamp();
@@ -285,7 +271,7 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
 
 bool Audit::configure(void) {
     bool is_enabled_before_reconfig = config.is_auditd_enabled();
-    std::string configuration = load_file(configfile.c_str());
+    const auto configuration = cb::io::loadFile(configfile);
     if (configuration.empty()) {
         return false;
     }
@@ -327,10 +313,10 @@ bool Audit::configure(void) {
             return false;
         }
     }
-    std::stringstream audit_events_file;
-    audit_events_file << config.get_descriptors_path();
-    audit_events_file << DIRECTORY_SEPARATOR_CHARACTER << "audit_events.json";
-    std::string str = load_file(audit_events_file.str().c_str());
+    auto audit_events_file =
+            config.get_descriptors_path() + "/audit_events.json";
+    cb::io::sanitizePath(audit_events_file);
+    const auto str = cb::io::loadFile(audit_events_file);
     if (str.empty()) {
         return false;
     }

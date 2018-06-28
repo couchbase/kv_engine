@@ -33,23 +33,9 @@
 #define log_error(a,b)
 #define my_hostname "testing"
 
-static std::string load_file(const char *file) {
-    std::ifstream myfile(file, std::ios::in | std::ios::binary);
-    if (myfile.is_open()) {
-        std::string str((std::istreambuf_iterator<char>(myfile)),
-                        std::istreambuf_iterator<char>());
-        myfile.close();
-        return str;
-    } else {
-        std::string str;
-        return str;
-    }
-}
-
 #else
 #define log_error(a,b) Audit::log_error(a,b)
 #define my_hostname Audit::hostname
-#define load_file(a) Audit::load_file(a)
 #endif
 
 bool AuditFile::file_exists(const std::string& name) {
@@ -158,7 +144,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         // open the audit.log that needs archiving
         std::string str;
         try {
-            str = load_file(filename.c_str());
+            str = cb::io::loadFile(filename);
         } catch (...) {
             std::stringstream ss;
             ss << "Audit: Failed to read \"" << filename << "\"";

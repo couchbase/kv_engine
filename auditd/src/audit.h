@@ -99,7 +99,6 @@ public:
 
     static void log_error(const AuditErrorCode return_code,
                           const std::string& string = "");
-    static std::string load_file(const char *file);
 
     /**
      * Add a listener to notify state changes for individual events.
