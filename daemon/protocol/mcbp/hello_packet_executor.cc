@@ -18,6 +18,7 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
+#include <nlohmann/json.hpp>
 
 #include <set>
 
@@ -180,23 +181,24 @@ void process_hello_packet_executor(Cookie& cookie) {
         if (key.front() == '{') {
             // This may be JSON
             const auto data = to_string(key);
-            unique_cJSON_ptr json{cJSON_Parse(data.c_str())};
-            if (json) {
-                auto* obj = cJSON_GetObjectItem(json.get(), "i");
-                if (obj != nullptr && obj->type == cJSON_String) {
+            nlohmann::json json;
+            try {
+                json = nlohmann::json::parse(data);
+                auto obj = json.find("i");
+                if (obj != json.end() && (*obj).is_string()) {
                     try {
-                        connection.setConnectionId(obj->valuestring);
+                        connection.setConnectionId(obj->get<std::string>());
                     } catch (const std::exception& exception) {
                         LOG_INFO("{}: Failed to parse connection uuid: {}",
                                  connection.getId(),
                                  exception.what());
                     }
                 }
-                obj = cJSON_GetObjectItem(json.get(), "a");
-                if (obj != nullptr && obj->type == cJSON_String) {
-                    connection.setAgentName(obj->valuestring);
+                obj = json.find("a");
+                if (obj != json.end() && obj->is_string()) {
+                    connection.setAgentName(obj->get<std::string>());
                 }
-            } else {
+            } catch (const nlohmann::json::exception&) {
                 connection.setAgentName(key);
             }
         } else {

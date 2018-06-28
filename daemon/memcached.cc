@@ -64,6 +64,7 @@
 #include <memcached/rbac.h>
 #include <memcached/server_api.h>
 #include <memcached/util.h>
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
@@ -785,66 +786,64 @@ static ENGINE_ERROR_CODE pre_link_document(
     return ENGINE_SUCCESS;
 }
 
-static cJSON* get_bucket_details_UNLOCKED(const Bucket& bucket, size_t idx) {
+static nlohmann::json get_bucket_details_UNLOCKED(const Bucket& bucket,
+                                                  size_t idx) {
     if (bucket.state == BucketState::None) {
-        return nullptr;
+        return nlohmann::json();
     }
 
-    cJSON *root = cJSON_CreateObject();
-    cJSON_AddNumberToObject(root, "index", idx);
+    nlohmann::json json;
+    json["index"] = idx;
     switch (bucket.state.load()) {
     case BucketState::None:
-        cJSON_AddStringToObject(root, "state", "none");
+        json["state"] = "none";
         break;
     case BucketState::Creating:
-        cJSON_AddStringToObject(root, "state", "creating");
+        json["state"] = "creating";
         break;
     case BucketState::Initializing:
-        cJSON_AddStringToObject(root, "state", "initializing");
+        json["state"] = "initializing";
         break;
     case BucketState::Ready:
-        cJSON_AddStringToObject(root, "state", "ready");
+        json["state"] = "ready";
         break;
     case BucketState::Stopping:
-        cJSON_AddStringToObject(root, "state", "stopping");
+        json["state"] = "stopping";
         break;
     case BucketState::Destroying:
-        cJSON_AddStringToObject(root, "state", "destroying");
+        json["state"] = "destroying";
         break;
     }
 
-    cJSON_AddNumberToObject(root, "clients", bucket.clients);
-    cJSON_AddStringToObject(root, "name", bucket.name);
+    json["clients"] = bucket.clients;
+    json["name"] = bucket.name;
 
     switch (bucket.type) {
     case BucketType::Unknown:
-        cJSON_AddStringToObject(root, "type", "<<unknown>>");
+        json["type"] = "<<unknown>>";
         break;
     case BucketType::NoBucket:
-        cJSON_AddStringToObject(root, "type", "no bucket");
+        json["type"] = "no bucket";
         break;
     case BucketType::Memcached:
-        cJSON_AddStringToObject(root, "type", "memcached");
+        json["type"] = "memcached";
         break;
     case BucketType::Couchstore:
-        cJSON_AddStringToObject(root, "type", "couchstore");
+        json["type"] = "couchstore";
         break;
     case BucketType::EWouldBlock:
-        cJSON_AddStringToObject(root, "type", "ewouldblock");
+        json["type"] = "ewouldblock";
         break;
     }
 
-    return root;
+    return json;
 }
 
-cJSON *get_bucket_details(size_t idx)
-{
-    cJSON* ret;
-    Bucket &bucket = all_buckets.at(idx);
+nlohmann::json get_bucket_details(size_t idx) {
+    Bucket& bucket = all_buckets.at(idx);
     std::lock_guard<std::mutex> guard(bucket.mutex);
-    ret = get_bucket_details_UNLOCKED(bucket, idx);
 
-    return ret;
+    return get_bucket_details_UNLOCKED(bucket, idx);
 }
 
 /**

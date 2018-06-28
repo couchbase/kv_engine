@@ -18,10 +18,11 @@
 
 #include "settings.h"
 
-#include <array>
-#include <platform/sized_buffer.h>
-#include <memcached/engine.h>
 #include <cJSON.h>
+#include <memcached/engine.h>
+#include <nlohmann/json_fwd.hpp>
+#include <platform/sized_buffer.h>
+#include <array>
 
 #include <mutex>
 #include <list>
@@ -86,7 +87,8 @@ public:
      *    ]
      * }
      */
-    ENGINE_ERROR_CODE json_stats(cJSON* object, rel_time_t current_time) {
+    ENGINE_ERROR_CODE json_stats(nlohmann::json& object,
+                                 rel_time_t current_time) {
         if (settings.isTopkeysEnabled()) {
             return do_json_stats(object, current_time);
         }
@@ -101,7 +103,8 @@ protected:
                               rel_time_t current_time,
                               ADD_STAT add_stat);
 
-    ENGINE_ERROR_CODE do_json_stats(cJSON* object, rel_time_t current_time);
+    ENGINE_ERROR_CODE do_json_stats(nlohmann::json& object,
+                                    rel_time_t current_time);
 
 private:
     // Number of shards the keyspace is broken into. Permits some level of

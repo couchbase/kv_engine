@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <inttypes.h>
+#include <nlohmann/json.hpp>
 #include <platform/platform.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -193,16 +194,15 @@ void TopKeys::doUpdateKey(const void* key,
 }
 
 struct tk_context {
-    tk_context(const void *c, ADD_STAT a, rel_time_t t, cJSON *arr)
-        : cookie(c), add_stat(a), current_time(t), array(arr)
-    {
+    tk_context(const void* c, ADD_STAT a, rel_time_t t, nlohmann::json* arr)
+        : cookie(c), add_stat(a), current_time(t), array(arr) {
         // empty
     }
 
     const void *cookie;
     ADD_STAT add_stat;
     rel_time_t current_time;
-    cJSON *array;
+    nlohmann::json* array;
 };
 
 static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
@@ -248,13 +248,12 @@ static void tk_jsonfunc(const std::string& key, const topkey_item_t& it,
         throw std::invalid_argument("tk_jsonfunc: c->array can't be nullptr");
     }
 
-    cJSON *obj = cJSON_CreateObject();
-    cJSON_AddItemToObject(obj, "key", cJSON_CreateString(key.c_str()));
-    cJSON_AddItemToObject(obj, "access_count",
-                          cJSON_CreateNumber(it.ti_access_count));
-    cJSON_AddItemToObject(obj, "ctime", cJSON_CreateNumber(c->current_time
-                                                           - it.ti_ctime));
-    cJSON_AddItemToArray(c->array, obj);
+    nlohmann::json obj;
+    obj["key"] = key;
+    obj["access_count"] = it.ti_access_count;
+    obj["ctime"] = c->current_time - it.ti_ctime;
+
+    c->array->push_back(obj);
 }
 
 ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
@@ -279,17 +278,17 @@ ENGINE_ERROR_CODE TopKeys::doStats(const void* cookie,
  *    ]
  * }
  */
-ENGINE_ERROR_CODE TopKeys::do_json_stats(cJSON* object,
+ENGINE_ERROR_CODE TopKeys::do_json_stats(nlohmann::json& object,
                                          rel_time_t current_time) {
-    cJSON *topkeys = cJSON_CreateArray();
-    struct tk_context context(nullptr, nullptr, current_time, topkeys);
+    nlohmann::json topkeys = nlohmann::json::array();
+    struct tk_context context(nullptr, nullptr, current_time, &topkeys);
 
     /* Collate the topkeys JSON object */
     for (auto& shard : shards) {
         shard.accept_visitor(tk_jsonfunc, &context);
     }
 
-    cJSON_AddItemToObject(object, "topkeys", topkeys);
+    object["topkeys"] = topkeys;
     return ENGINE_SUCCESS;
 }
 

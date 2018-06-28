@@ -33,6 +33,7 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/audit_interface.h>
+#include <nlohmann/json.hpp>
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
 #include <platform/checked_snprintf.h>
@@ -439,18 +440,18 @@ static void append_stats(const char* key,
  * @param c the connection to return the details for
  */
 static void process_bucket_details(Cookie& cookie) {
-    unique_cJSON_ptr obj(cJSON_CreateObject());
+    nlohmann::json json;
+    nlohmann::json array = nlohmann::json::array();
 
-    cJSON* array = cJSON_CreateArray();
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-        cJSON* o = get_bucket_details(ii);
-        if (o != nullptr) {
-            cJSON_AddItemToArray(array, o);
+        auto o = get_bucket_details(ii);
+        if (o.size() > 0) {
+            array.push_back(o);
         }
     }
-    cJSON_AddItemToObject(obj.get(), "buckets", array);
+    json["buckets"] = array;
 
-    const auto stats_str = to_string(obj, false);
+    const auto stats_str = json.dump();
     append_stats("bucket details",
                  14,
                  stats_str.data(),
@@ -660,26 +661,23 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
     if (arg.empty()) {
         ENGINE_ERROR_CODE ret;
 
-        unique_cJSON_ptr topkeys_doc(cJSON_CreateObject());
-        if (!topkeys_doc) {
-            ret = ENGINE_ENOMEM;
-        } else {
-            auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
-            if (bucket.topkeys == nullptr) {
-                return ENGINE_NO_BUCKET;
-            }
-            ret = bucket.topkeys->json_stats(topkeys_doc.get(),
-                                             mc_time_get_current_time());
+        nlohmann::json topkeys_doc;
 
-            if (ret == ENGINE_SUCCESS) {
-                char key[] = "topkeys_json";
-                const auto topkeys_str = to_string(topkeys_doc, false);
-                append_stats(key,
-                             (uint16_t)strlen(key),
-                             topkeys_str.data(),
-                             uint32_t(topkeys_str.size()),
-                             &cookie);
-            }
+        auto& bucket = all_buckets[cookie.getConnection().getBucketIndex()];
+        if (bucket.topkeys == nullptr) {
+            return ENGINE_NO_BUCKET;
+        }
+        ret = bucket.topkeys->json_stats(topkeys_doc,
+                                         mc_time_get_current_time());
+
+        if (ret == ENGINE_SUCCESS) {
+            char key[] = "topkeys_json";
+            const auto topkeys_str = topkeys_doc.dump();
+            append_stats(key,
+                         (uint16_t)strlen(key),
+                         topkeys_str.data(),
+                         uint32_t(topkeys_str.size()),
+                         &cookie);
         }
         return ret;
     } else {
@@ -727,19 +725,18 @@ static ENGINE_ERROR_CODE stat_responses_json_executor(const std::string& arg,
     try {
         auto& respCounters =
                 cookie.getConnection().getBucket().responseCounters;
-        unique_cJSON_ptr jsonPtr(cJSON_CreateObject());
+        nlohmann::json json;
 
         for (uint16_t resp = 0; resp < respCounters.size(); ++resp) {
             const auto value = respCounters[resp].load();
             if (value > 0) {
                 std::stringstream stream;
                 stream << std::hex << resp;
-                cJSON_AddNumberToObject(
-                        jsonPtr.get(), stream.str().c_str(), value);
+                json[stream.str()] = value;
             }
         }
 
-        std::string json_str = to_string(jsonPtr, false);
+        std::string json_str = json.dump();
         const std::string stat_name = "responses";
         append_stats(stat_name.c_str(),
                      gsl::narrow<uint16_t>(stat_name.size()),

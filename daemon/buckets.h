@@ -17,6 +17,7 @@
 #pragma once
 
 #include <memcached/engine.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/thread.h>
 #include <array>
 #include <condition_variable>
@@ -224,7 +225,7 @@ extern std::array<Bucket, COUCHBASE_MAX_NUM_BUCKETS + 1> all_buckets;
  */
 void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg);
 
-cJSON *get_bucket_details(size_t idx);
+nlohmann::json get_bucket_details(size_t idx);
 
 /**
  * Is the connected bucket currently dying?
