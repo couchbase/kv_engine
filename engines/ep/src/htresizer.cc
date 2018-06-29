@@ -37,8 +37,8 @@ public:
     }
 };
 
-HashtableResizerTask::HashtableResizerTask(KVBucketIface* s, double sleepTime)
-    : GlobalTask(&s->getEPEngine(),
+HashtableResizerTask::HashtableResizerTask(KVBucketIface& s, double sleepTime)
+    : GlobalTask(&s.getEPEngine(),
                  TaskId::HashtableResizerTask,
                  sleepTime,
                  false),
@@ -56,11 +56,11 @@ bool HashtableResizerTask::run(void) {
     // non-negligible impact on frontend operations.
     const auto maxExpectedDuration = std::chrono::milliseconds(100);
 
-    store->visit(std::move(pv),
-                 "Hashtable resizer",
-                 TaskId::HashtableResizerVisitorTask,
-                 /*sleepTime*/ 0,
-                 maxExpectedDuration);
+    store.visit(std::move(pv),
+                "Hashtable resizer",
+                TaskId::HashtableResizerVisitorTask,
+                /*sleepTime*/ 0,
+                maxExpectedDuration);
 
     snooze(engine->getConfiguration().getHtResizeInterval());
     return true;

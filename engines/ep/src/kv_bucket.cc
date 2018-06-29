@@ -405,7 +405,7 @@ bool KVBucket::initialize() {
 
     initializeExpiryPager(config);
 
-    ExTask htrTask = std::make_shared<HashtableResizerTask>(this, 10);
+    ExTask htrTask = std::make_shared<HashtableResizerTask>(*this, 10);
     ExecutorPool::get()->schedule(htrTask);
 
     size_t checkpointRemoverInterval = config.getChkRemoverStime();

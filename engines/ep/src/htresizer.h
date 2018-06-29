@@ -32,7 +32,7 @@ class KVBucketIface;
 class HashtableResizerTask : public GlobalTask {
 public:
 
-    HashtableResizerTask(KVBucketIface* s, double sleepTime);
+    HashtableResizerTask(KVBucketIface& s, double sleepTime);
 
     bool run(void);
 
@@ -49,5 +49,5 @@ public:
     }
 
 private:
-    KVBucketIface* store;
+    KVBucketIface& store;
 };
