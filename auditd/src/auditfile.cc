@@ -38,22 +38,6 @@
 #define my_hostname Audit::hostname
 #endif
 
-bool AuditFile::file_exists(const std::string& name) {
-#ifdef WIN32
-    DWORD dwAttrib = GetFileAttributes(name.c_str());
-    if (dwAttrib == INVALID_FILE_ATTRIBUTES) {
-        return false;
-    }
-    return (!(dwAttrib & FILE_ATTRIBUTE_DIRECTORY));
-#else
-    struct stat buffer;
-    if (stat (name.c_str(), &buffer) != 0) {
-        return false;
-    }
-    return (!S_ISDIR(buffer.st_mode));
-#endif
-}
-
 bool AuditFile::time_to_rotate_log(void) const {
     cb_assert(open_time != 0);
     time_t now = auditd_time();
@@ -126,7 +110,7 @@ void AuditFile::close_and_rotate_log(void) {
         archive_file << "-audit.log";
         fname.assign(archive_file.str());
         ++count;
-    } while (file_exists(fname));
+    } while (cb::io::isFile(fname));
 
     if (rename(open_file_name.c_str(), fname.c_str()) != 0) {
         log_error(AuditErrorCode::FILE_RENAME_ERROR, open_file_name.c_str());
@@ -139,7 +123,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
     auto filename = log_path + "/audit.log";
     cb::io::sanitizePath(filename);
 
-    if (file_exists(filename)) {
+    if (cb::io::isFile(filename)) {
         // open the audit.log that needs archiving
         std::string str = cb::io::loadFile(filename);
 

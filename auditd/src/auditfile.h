@@ -106,14 +106,6 @@ public:
     bool write_event_to_disk(nlohmann::json& output);
 
     /**
-     * Check for a file existence
-     *
-     * @param name the name to check for
-     * @return true if the file exists, false otherwise
-     */
-    static bool file_exists(const std::string& name);
-
-    /**
      * Is the audit file open already?
      */
     bool is_open(void) const {
