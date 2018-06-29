@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include "mcbp_validators.h"
+#include "connection.h"
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
 #include <platform/string.h>

@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "enginemap.h"
+#include "logger/logger.h"
 #include "utilities/engine_loader.h"
 
 #include <map>

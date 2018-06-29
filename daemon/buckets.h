@@ -16,24 +16,17 @@
  */
 #pragma once
 
-#include <memcached/engine.h>
-#include <nlohmann/json_fwd.hpp>
-#include <platform/thread.h>
-#include <array>
-#include <condition_variable>
-#include <cstring>
-#include <mutex>
-#include <vector>
-
 #include "cluster_config.h"
-#include "connection.h"
-#include "cookie.h"
-#include "function_chain.h"
 #include "mcbp_validators.h"
-#include "stats.h"
 #include "timings.h"
-#include "topkeys.h"
-#include "task.h"
+
+#include <memcached/callback.h>
+#include <memcached/types.h>
+
+#include <condition_variable>
+
+struct thread_stats;
+class TopKeys;
 
 enum class BucketState : uint8_t {
     /** This bucket entry is not used */
@@ -90,17 +83,7 @@ typedef std::array<std::vector<struct engine_event_handler>,
 
 class Bucket {
 public:
-    Bucket()
-        : clients(0),
-          state(BucketState::None),
-          type(BucketType::Unknown),
-          topkeys(nullptr),
-          max_document_size(default_max_item_size)
-    {
-        std::memset(name, 0, sizeof(name));
-
-        McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
-    }
+    Bucket();
 
     /* Copy-construct. Note acquires the lock of `other` ensuring a
      * consistent state is copied.
@@ -277,126 +260,3 @@ namespace BucketValidator {
     bool validateBucketType(const BucketType& type, std::string& errors);
 }
 
-/**
- * The CreateBucketThread is as the name implies a thread who creates a new
- * bucket.
- */
-class CreateBucketThread : public Couchbase::Thread {
-public:
-    /**
-     * Initialize this bucket creation thread.
-     *
-     * @param name_ the name of the bucket to create
-     * @param config_ the buckets configuration
-     * @param type_ the type of bucket to create
-     * @param connection_ the connection that requested the operation (and
-     *                    should be signalled when the creation is complete)
-     *
-     * @throws std::illegal_arguments if bucket name contains illegal
-     *                                characters
-     */
-    CreateBucketThread(const std::string& name_,
-                       const std::string& config_,
-                       const BucketType& type_,
-                       Connection& connection_,
-                       Task* task_)
-        : Couchbase::Thread("mc:bucket_add"),
-          name(name_),
-          config(config_),
-          type(type_),
-          connection(connection_),
-          task(task_),
-          result(ENGINE_DISCONNECT) {
-        // Empty
-    }
-
-    ~CreateBucketThread() {
-        waitForState(Couchbase::ThreadState::Zombie);
-    }
-
-    Connection& getConnection() const {
-        return connection;
-    }
-
-    ENGINE_ERROR_CODE getResult() const {
-        return result;
-    }
-
-    const std::string& getErrorMessage() const {
-        return error;
-    }
-
-protected:
-    void run() override;
-
-private:
-    /**
-     * The actual implementation of the bucket creation.
-     */
-    void create();
-
-    std::string name;
-    std::string config;
-    BucketType type;
-    Connection& connection;
-    Task* task;
-    ENGINE_ERROR_CODE result;
-    std::string error;
-};
-
-/**
- * The DestroyBucketThread is as the name implies a thread is responsible for
- * deleting a bucket.
- */
-class DestroyBucketThread : public Couchbase::Thread {
-public:
-    /**
-     * Initialize this bucket creation task.
-     *
-     * @param name_ the name of the bucket to delete
-     * @param force_ should the bucket be forcibly shut down or should it
-     *               try to perform a clean shutdown
-     * @param cookie_ the cookie that requested the operation (may be
-     *                nullptr if the system itself requested the deletion)
-     * @param task_ the task to notify when deletion is complete
-     */
-    DestroyBucketThread(std::string name_,
-                        bool force_,
-                        Cookie* cookie_,
-                        Task* task_)
-        : Couchbase::Thread("mc:bucket_del"),
-          name(std::move(name_)),
-          force(force_),
-          cookie(cookie_),
-          task(task_),
-          result(ENGINE_DISCONNECT) {
-    }
-
-    ~DestroyBucketThread() override {
-        waitForState(Couchbase::ThreadState::Zombie);
-    }
-
-    ENGINE_ERROR_CODE getResult() const {
-        return result;
-    }
-
-    Cookie* getCookie() {
-        return cookie;
-    }
-
-protected:
-    void run() override;
-
-private:
-
-    /**
-     * The actual implementation of the bucket deletion.
-     */
-    void destroy();
-
-    std::string name;
-    bool force;
-    Cookie* cookie;
-    Task* task;
-    ENGINE_ERROR_CODE result;
-};

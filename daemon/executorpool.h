@@ -16,11 +16,16 @@
  */
 #pragma once
 
-#include "executor.h"
-
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <vector>
+
+namespace cb {
+struct ProcessClockSource;
+}
+class Executor;
+class Task;
 
 /**
  * As the name implies the ExecutorPool is pool of executors to execute

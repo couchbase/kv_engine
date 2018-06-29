@@ -15,11 +15,13 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "memcached.h"
 #include "mcaudit.h"
-#include "memcached_audit_events.h"
 #include "buckets.h"
+#include "connection.h"
 #include "debug_helpers.h"
+#include "logger/logger.h"
+#include "memcached.h"
+#include "memcached_audit_events.h"
 #include "runtime.h"
 
 #include <memcached/audit_interface.h>

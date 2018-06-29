@@ -16,11 +16,14 @@
  */
 #pragma once
 
-#include <cstdint>
+#include "timing_histogram.h"
+
+#include <platform/socket.h>
 #include <relaxed_atomic.h>
+
+#include <cstdint>
 #include <mutex>
 
-#include "timing_histogram.h"
 
 /**
  * Stats stored per-thread.

@@ -17,6 +17,7 @@
 
 #include <benchmark/benchmark.h>
 
+#include <boost/optional/optional.hpp>
 #include <logger/logger.h>
 #include <iostream>
 

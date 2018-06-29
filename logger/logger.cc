@@ -17,6 +17,8 @@
 
 #include "logger.h"
 
+#include <cJSON.h>
+
 namespace cb {
 namespace logger {
 

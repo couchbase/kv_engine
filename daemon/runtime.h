@@ -22,10 +22,12 @@
  */
 #pragma once
 
-#include <daemon/timing_histogram.h>
-#include <memcached/openssl.h>
+#include <openssl/ossl_typ.h>
+
 #include <string>
 #include <vector>
+
+class TimingHistogram;
 
 void set_ssl_cipher_list(const std::string& new_list);
 

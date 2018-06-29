@@ -15,19 +15,10 @@
  *   limitations under the License.
  */
 #pragma once
-#include <algorithm>
-#include <cmath>
-#include <cstddef>
-#include <mutex>
-#include <ostream>
-#include <stdexcept>
-#include <string>
-#include <vector>
 
-#include <memcached/visibility.h>
-#include <platform/platform.h>
-#include <platform/processclock.h>
 #include "tracing/tracetypes.h"
+#include <platform/processclock.h>
+#include <vector>
 
 namespace cb {
 namespace tracing {
@@ -93,16 +84,9 @@ public:
     /**
      * Max time period represented here is 02:00.125042
      */
-    static uint16_t encodeMicros(uint64_t actual) {
-        static const uint64_t maxVal = 120125042;
-        actual = std::min(actual, maxVal);
-        return uint16_t(std::round(std::pow(actual * 2, 1.0 / 1.74)));
-    }
+    static uint16_t encodeMicros(uint64_t actual);
 
-    static std::chrono::microseconds decodeMicros(uint16_t encoded) {
-        auto usecs = uint64_t(std::pow(encoded, 1.74) / 2);
-        return std::chrono::microseconds(usecs);
-    }
+    static std::chrono::microseconds decodeMicros(uint16_t encoded);
 
     // clear the collected trace data;
     void clear();

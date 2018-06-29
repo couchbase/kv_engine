@@ -31,15 +31,17 @@
 
 #pragma once
 
+#include "config.h"
+
 #include <logger/visibility.h>
 
-#include <boost/optional/optional.hpp>
-#include <cJSON.h>
+#include <boost/optional/optional_fwd.hpp>
 #include <memcached/extension.h>
-#include <memcached/server_api.h>
 #include <spdlog/logger.h>
 
 #include <string>
+
+struct cJSON;
 
 namespace cb {
 namespace logger {

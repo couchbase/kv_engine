@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 #include "cccp_notification_task.h"
+
+#include "connection.h"
 #include "log_macros.h"
 #include "memcached.h"
 #include "server_event.h"

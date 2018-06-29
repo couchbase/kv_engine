@@ -16,32 +16,31 @@
  */
 #include "config.h"
 
+#include "engine_errc_2_mcbp.h"
 #include "engine_wrapper.h"
+#include "logger/logger.h"
 #include "stats_context.h"
 #include "utilities.h"
 
 #include <cbsasl/saslauthd_config.h>
 #include <daemon/buckets.h>
-#include <daemon/connections.h>
-#include <daemon/debug_helpers.h>
+#include <daemon/connection.h>
+#include <daemon/cookie.h>
 #include <daemon/executorpool.h>
 #include <daemon/mc_time.h>
-#include <daemon/mcbp.h>
+#include <daemon/memcached.h>
 #include <daemon/runtime.h>
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
+#include <daemon/topkeys.h>
 #include <mcbp/protocol/framebuilder.h>
-#include <mcbp/protocol/header.h>
 #include <memcached/audit_interface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/stats_callback.h>
 #include <phosphor/trace_log.h>
 #include <platform/checked_snprintf.h>
-#include <platform/sized_buffer.h>
-#include <utilities/protocol2text.h>
-#include <gsl/gsl>
 
-#include <numeric>
+#include <gsl/gsl>
 
 /*************************** ADD STAT CALLBACKS ***************************/
 

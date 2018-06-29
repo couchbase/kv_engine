@@ -16,6 +16,19 @@
  */
 #include "buckets.h"
 #include "mc_time.h"
+#include "stats.h"
+#include <memcached/engine.h>
+
+Bucket::Bucket()
+    : clients(0),
+      state(BucketState::None),
+      type(BucketType::Unknown),
+      topkeys(nullptr),
+      max_document_size(default_max_item_size) {
+    std::memset(name, 0, sizeof(name));
+
+    McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
+}
 
 Bucket::Bucket(const Bucket& other)
 {

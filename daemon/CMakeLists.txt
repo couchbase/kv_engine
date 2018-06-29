@@ -17,6 +17,7 @@ ENDIF ()
 
 ADD_LIBRARY(memcached_daemon STATIC
             $<TARGET_OBJECTS:memory_tracking>
+            bucket_threads.h
             buckets.cc
             buckets.h
             cccp_notification_task.cc

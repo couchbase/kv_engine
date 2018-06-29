@@ -23,6 +23,7 @@
 #include "debug_helpers.h"
 #include "doc_pre_expiry.h"
 #include "enginemap.h"
+#include "executor.h"
 #include "executorpool.h"
 #include "front_end_thread.h"
 #include "ioctl.h"

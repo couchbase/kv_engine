@@ -16,14 +16,13 @@
  */
 #pragma once
 
-#include <platform/platform.h>
+#include "timing_histogram.h"
+#include "timing_interval.h"
+
 #include <array>
 #include <string>
 #include <mutex>
-#include <cstdint>
 
-#include "timing_histogram.h"
-#include "timing_interval.h"
 
 #define MAX_NUM_OPCODES 0x100
 

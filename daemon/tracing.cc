@@ -23,6 +23,7 @@
 #include "task.h"
 #include "tracing_types.h"
 
+#include <daemon/protocol/mcbp/command_context.h>
 #include <platform/processclock.h>
 
 #include <memory>

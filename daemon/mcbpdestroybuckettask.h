@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "bucket_threads.h"
 #include "buckets.h"
 #include "connection.h"
 #include "memcached.h"

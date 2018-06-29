@@ -16,8 +16,10 @@
  */
 
 #include "executorpool.h"
+#include "executor.h"
 #include "task.h"
 
+#include <platform/processclock.h>
 #include <cstdlib>
 #include <iostream>
 #include <string>

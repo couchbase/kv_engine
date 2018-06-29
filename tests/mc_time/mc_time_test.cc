@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include <daemon/executor.h>
 #include <daemon/executorpool.h>
 #include <daemon/mc_time.h>
 #include <daemon/memcached.h>

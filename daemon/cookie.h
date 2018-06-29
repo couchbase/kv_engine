@@ -19,22 +19,24 @@
 #include "dynamic_buffer.h"
 #include "tracing/tracer.h"
 
-#include <cJSON_utils.h>
-#include <daemon/protocol/mcbp/command_context.h>
-#include <mcbp/mcbp.h>
+#include <mcbp/protocol/datatype.h>
+#include <mcbp/protocol/status.h>
 #include <memcached/dockey.h>
-#include <memcached/types.h>
+#include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/processclock.h>
-#include <platform/uuid.h>
+#include <platform/sized_buffer.h>
 
-#include <chrono>
-#include <memory>
-#include <stdexcept>
-
-// Forward decl
-
+// Forward decls
 class Connection;
+class CommandContext;
+namespace cb {
+namespace mcbp {
+class Header;
+struct Request;
+struct Response;
+} // namespace mcbp
+} // namespace cb
 
 /**
  * The Cookie class represents the cookie passed from the memcached core
@@ -49,8 +51,7 @@ class Connection;
  */
 class Cookie {
 public:
-    explicit Cookie(Connection& conn) : connection(conn) {
-    }
+    explicit Cookie(Connection& conn);
 
     /**
      * Initialize this cookie.
@@ -71,16 +72,7 @@ public:
      * Reset the Cookie object to allow it to be reused in the same
      * context as the last time.
      */
-    void reset() {
-        event_id.clear();
-        error_context.clear();
-        json_message.clear();
-        packet = {};
-        cas = 0;
-        commandContext.reset();
-        dynamicBuffer.clear();
-        tracer.clear();
-    }
+    void reset();
 
     /**
      * Get a representation of the object in JSON
@@ -94,13 +86,7 @@ public:
      *
      * @return A "random" UUID
      */
-    const std::string& getEventId() const {
-        if (event_id.empty()) {
-            event_id = to_string(cb::uuid::random());
-        }
-
-        return event_id;
-    }
+    const std::string& getEventId() const;
 
     void setEventId(std::string uuid) {
         event_id = std::move(uuid);
@@ -428,9 +414,7 @@ public:
         return commandContext.get();
     }
 
-    void setCommandContext(CommandContext* ctx = nullptr) {
-        commandContext.reset(ctx);
-    }
+    void setCommandContext(CommandContext* ctx = nullptr);
 
     /**
      * Log the current connection if its execution time exceeds the

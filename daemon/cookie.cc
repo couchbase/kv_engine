@@ -28,6 +28,7 @@
 #include <platform/checked_snprintf.h>
 #include <platform/string.h>
 #include <platform/timeutils.h>
+#include <platform/uuid.h>
 #include <utilities/logtags.h>
 #include <chrono>
 
@@ -56,6 +57,14 @@ nlohmann::json Cookie::toJSON() const {
     ret["connection"] = connection.getDescription();
 
     return ret;
+}
+
+const std::string& Cookie::getEventId() const {
+    if (event_id.empty()) {
+        event_id = to_string(cb::uuid::random());
+    }
+
+    return event_id;
 }
 
 const std::string& Cookie::getErrorJson() {
@@ -445,6 +454,10 @@ void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
     logResponse(cb::to_string(cb::engine_errc(code)).c_str());
 }
 
+void Cookie::setCommandContext(CommandContext* ctx) {
+    commandContext.reset(ctx);
+}
+
 void Cookie::maybeLogSlowCommand(ProcessClock::duration elapsed) const {
     const auto opcode = getRequest().getClientOpcode();
     const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
@@ -498,6 +511,9 @@ void Cookie::maybeLogSlowCommand(ProcessClock::duration elapsed) const {
     }
 }
 
+Cookie::Cookie(Connection& conn) : connection(conn) {
+}
+
 void Cookie::initialize(cb::const_byte_buffer header, bool tracing_enabled) {
     reset();
     enableTracing = tracing_enabled;
@@ -505,4 +521,15 @@ void Cookie::initialize(cb::const_byte_buffer header, bool tracing_enabled) {
     setCas(0);
     start = ProcessClock::now();
     tracer.begin(cb::tracing::TraceCode::REQUEST, start);
+}
+
+void Cookie::reset() {
+    event_id.clear();
+    error_context.clear();
+    json_message.clear();
+    packet = {};
+    cas = 0;
+    commandContext.reset();
+    dynamicBuffer.clear();
+    tracer.clear();
 }

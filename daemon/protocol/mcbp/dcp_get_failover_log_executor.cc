@@ -21,6 +21,7 @@
 #include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
+#include <mcbp/protocol/header.h>
 
 void dcp_get_failover_log_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

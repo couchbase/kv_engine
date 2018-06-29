@@ -14,6 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include <daemon/executor.h>
 #include <daemon/executorpool.h>
 #include <daemon/task.h>
 #include <daemon/tracing.h>
@@ -22,7 +24,6 @@
 #include <gtest/gtest.h>
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
-
 #include <atomic>
 #include <memory>
 
