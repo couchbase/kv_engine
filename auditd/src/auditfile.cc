@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,10 +37,6 @@
 #define log_error(a,b) Audit::log_error(a,b)
 #define my_hostname Audit::hostname
 #endif
-
-AuditFile::~AuditFile() {
-    close();
-}
 
 bool AuditFile::maybe_rotate_files() {
     if (is_open() && time_to_rotate_log()) {
@@ -107,26 +103,26 @@ time_t AuditFile::auditd_time() {
 }
 
 bool AuditFile::open() {
-    cb_assert(file == nullptr);
+    cb_assert(!file);
     cb_assert(open_time == 0);
 
     std::stringstream ss;
     ss << log_directory << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     open_file_name = ss.str();
-    file = fopen(open_file_name.c_str(), "wb");
-    if (file == nullptr) {
+    file.reset(fopen(open_file_name.c_str(), "wb"));
+    if (!file) {
         log_error(AuditErrorCode::FILE_OPEN_ERROR, open_file_name.c_str());
         return false;
     }
+
     current_size = 0;
     open_time = auditd_time();
     return true;
 }
 
 void AuditFile::close_and_rotate_log() {
-    cb_assert(file != nullptr);
-    fclose(file);
-    file = nullptr;
+    cb_assert(file);
+    file.reset();
     if (current_size == 0) {
         remove(open_file_name.c_str());
         return;
@@ -246,8 +242,8 @@ bool AuditFile::write_event_to_disk(nlohmann::json& output) {
     bool ret = true;
     try {
         const auto content = output.dump();
-        current_size += fprintf(file, "%s\n", content.c_str());
-        if (ferror(file)) {
+        current_size += fprintf(file.get(), "%s\n", content.c_str());
+        if (ferror(file.get())) {
             log_error(AuditErrorCode::WRITING_TO_DISK_ERROR, strerror(errno));
             ret = false;
             close_and_rotate_log();
@@ -296,7 +292,7 @@ void AuditFile::reconfigure(const AuditConfig &config) {
 
 bool AuditFile::flush() {
     if (is_open()) {
-        if (fflush(file) != 0) {
+        if (fflush(file.get()) != 0) {
             log_error(AuditErrorCode::WRITING_TO_DISK_ERROR,
                       strerror(errno));
             close_and_rotate_log();

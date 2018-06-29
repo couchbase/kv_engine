@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,12 +22,11 @@
 #include <cinttypes>
 #include <cstdio>
 #include <ctime>
+#include <memory>
 #include <string>
 
 class AuditFile {
 public:
-    ~AuditFile();
-
     /**
      * Check if we need to rotate the logfile, and if so go ahead and
      * do so.
@@ -68,7 +67,7 @@ public:
      * Is the audit file open already?
      */
     bool is_open() const {
-        return file != nullptr;
+        return file.get() != nullptr;
     }
 
     /**
@@ -100,7 +99,13 @@ private:
 
     static time_t auditd_time();
 
-    FILE* file = nullptr;
+    struct FileDeleter {
+        void operator()(FILE* fp) {
+            fclose(fp);
+        }
+    };
+
+    std::unique_ptr<FILE, FileDeleter> file;
     std::string open_file_name;
     std::string log_directory;
     time_t open_time = 0;
