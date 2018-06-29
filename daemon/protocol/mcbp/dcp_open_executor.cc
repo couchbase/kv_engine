@@ -19,6 +19,7 @@
 
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
+#include <string>
 #include "engine_wrapper.h"
 #include "utilities.h"
 
@@ -91,33 +92,38 @@ void dcp_open_executor(Cookie& cookie) {
         connection.setDcpCollectionAware(dcpCollections);
         connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
 
-        unique_cJSON_ptr json(cJSON_CreateArray());
+        // String buffer with max length = total length of all possible contents
+        std::string logBuffer;
+
         const bool dcpProducer =
                 (flags & DCP_OPEN_PRODUCER) == DCP_OPEN_PRODUCER;
         if (dcpProducer) {
-            cJSON_AddItemToArray(json.get(), cJSON_CreateString("PRODUCER"));
+            logBuffer.append("PRODUCER, ");
         }
-
         if (dcpNotifier) {
-            cJSON_AddItemToArray(json.get(), cJSON_CreateString("NOTIFIER"));
+            logBuffer.append("NOTIFIER, ");
         }
         if (dcpXattrAware) {
-            cJSON_AddItemToArray(json.get(),
-                                 cJSON_CreateString("INCLUDE_XATTRS"));
+            logBuffer.append("INCLUDE_XATTRS, ");
         }
         if (dcpNoValue) {
-            cJSON_AddItemToArray(json.get(), cJSON_CreateString("NO_VALUE"));
+            logBuffer.append("NO_VALUE, ");
         }
         if (dcpCollections) {
-            cJSON_AddItemToArray(json.get(), cJSON_CreateString("COLLECTIONS"));
+            logBuffer.append("COLLECTIONS, ");
         }
         if (dcpDeleteTimes) {
-            cJSON_AddItemToArray(json.get(),
-                                 cJSON_CreateString("DELETE_TIMES"));
+            logBuffer.append("DELETE_TIMES, ");
         }
-        LOG_INFO("{}: DCP connection opened successfully. flags:{} {}",
+
+        // Remove trailing whitespace and comma
+        if (!logBuffer.empty()) {
+            logBuffer.resize(logBuffer.size() - 2);
+        }
+
+        LOG_INFO("{}: DCP connection opened successfully. {} {}",
                  connection.getId(),
-                 to_string(json, false),
+                 logBuffer,
                  connection.getDescription().c_str());
 
         audit_dcp_open(&connection);
