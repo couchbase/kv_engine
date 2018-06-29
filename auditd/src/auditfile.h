@@ -14,53 +14,25 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef AUDITFILE_H
-#define AUDITFILE_H
+#pragma once
 
 #include "auditconfig.h"
-#include "auditd.h"
-#include <cJSON.h>
-#include <inttypes.h>
+
 #include <nlohmann/json_fwd.hpp>
-#include <time.h>
+#include <cinttypes>
 #include <cstdio>
+#include <ctime>
 #include <string>
 
 class AuditFile {
 public:
-
-    AuditFile(void) :
-        file(NULL),
-        open_time(0),
-        current_size(0),
-        max_log_size(20 * 1024 * 1024),
-        rotate_interval(900),
-        buffered(true)
-    {
-    }
-
-    ~AuditFile() {
-        close();
-    }
+    ~AuditFile();
 
     /**
      * Check if we need to rotate the logfile, and if so go ahead and
      * do so.
      */
-    bool maybe_rotate_files(void) {
-        if (is_open() && time_to_rotate_log()) {
-            if (is_empty()) {
-                // Given the audit log is empty on rotation instead of
-                // closing and then re-opening we can just keep open and
-                // update the open_time.
-                open_time = auditd_time();
-                return true;
-            }
-            close_and_rotate_log();
-            return true;
-        }
-        return false;
-    }
+    bool maybe_rotate_files();
 
     /**
      * Make sure that the auditfile is open
@@ -68,25 +40,12 @@ public:
      * @return true if success, false if we failed to open the file for
      *              some reason.
      */
-    bool ensure_open(void) {
-        if (!is_open()) {
-            return open();
-        } else {
-            if (maybe_rotate_files()) {
-                return open();
-            }
-        }
-        return true;
-    }
+    bool ensure_open();
 
     /**
      * Close the audit trail (and rename it to the correct name
      */
-    void close(void) {
-        if (is_open()) {
-            close_and_rotate_log();
-        }
-    }
+    void close();
 
     /**
      * Look in the log directory if a file named "audit.log" exists
@@ -108,8 +67,8 @@ public:
     /**
      * Is the audit file open already?
      */
-    bool is_open(void) const {
-        return file != NULL;
+    bool is_open() const {
+        return file != nullptr;
     }
 
     /**
@@ -121,24 +80,17 @@ public:
     /**
      * Flush the buffers to the disk
      */
-    bool flush(void);
+    bool flush();
 
     /**
      * get the number of seconds for the next log rotation
      */
-    uint32_t get_seconds_to_rotation(void) {
-        if (is_open()) {
-            time_t now = auditd_time();
-            return rotate_interval - (uint32_t)difftime(now, open_time);
-        } else {
-            return rotate_interval;
-        }
-    }
+    uint32_t get_seconds_to_rotation() const;
 
 private:
-    bool open(void);
-    bool time_to_rotate_log(void) const;
-    void close_and_rotate_log(void);
+    bool open();
+    bool time_to_rotate_log() const;
+    void close_and_rotate_log();
     void set_log_directory(const std::string &new_directory);
     bool is_timestamp_format_correct(std::string& str);
 
@@ -148,14 +100,13 @@ private:
 
     static time_t auditd_time();
 
-    FILE *file;
+    FILE* file = nullptr;
     std::string open_file_name;
     std::string log_directory;
-    time_t open_time;
-    size_t current_size;
-    size_t max_log_size;
-    uint32_t rotate_interval;
-    bool buffered;
+    time_t open_time = 0;
+    size_t current_size = 0;
+    size_t max_log_size = 20 * 1024 * 1024;
+    uint32_t rotate_interval = 900;
+    bool buffered = true;
 };
 
-#endif

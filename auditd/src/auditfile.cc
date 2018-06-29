@@ -38,7 +38,52 @@
 #define my_hostname Audit::hostname
 #endif
 
-bool AuditFile::time_to_rotate_log(void) const {
+AuditFile::~AuditFile() {
+    close();
+}
+
+bool AuditFile::maybe_rotate_files() {
+    if (is_open() && time_to_rotate_log()) {
+        if (is_empty()) {
+            // Given the audit log is empty on rotation instead of
+            // closing and then re-opening we can just keep open and
+            // update the open_time.
+            open_time = auditd_time();
+            return true;
+        }
+        close_and_rotate_log();
+        return true;
+    }
+    return false;
+}
+
+bool AuditFile::ensure_open() {
+    if (!is_open()) {
+        return open();
+    } else {
+        if (maybe_rotate_files()) {
+            return open();
+        }
+    }
+    return true;
+}
+
+void AuditFile::close() {
+    if (is_open()) {
+        close_and_rotate_log();
+    }
+}
+
+uint32_t AuditFile::get_seconds_to_rotation() const {
+    if (is_open()) {
+        time_t now = auditd_time();
+        return rotate_interval - (uint32_t)difftime(now, open_time);
+    } else {
+        return rotate_interval;
+    }
+}
+
+bool AuditFile::time_to_rotate_log() const {
     cb_assert(open_time != 0);
     time_t now = auditd_time();
     if (difftime(now, open_time) > rotate_interval) {
@@ -61,15 +106,15 @@ time_t AuditFile::auditd_time() {
     return tv.tv_sec;
 }
 
-bool AuditFile::open(void) {
-    cb_assert(file == NULL);
+bool AuditFile::open() {
+    cb_assert(file == nullptr);
     cb_assert(open_time == 0);
 
     std::stringstream ss;
     ss << log_directory << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
     open_file_name = ss.str();
     file = fopen(open_file_name.c_str(), "wb");
-    if (file == NULL) {
+    if (file == nullptr) {
         log_error(AuditErrorCode::FILE_OPEN_ERROR, open_file_name.c_str());
         return false;
     }
@@ -78,11 +123,10 @@ bool AuditFile::open(void) {
     return true;
 }
 
-
-void AuditFile::close_and_rotate_log(void) {
-    cb_assert(file != NULL);
+void AuditFile::close_and_rotate_log() {
+    cb_assert(file != nullptr);
     fclose(file);
-    file = NULL;
+    file = nullptr;
     if (current_size == 0) {
         remove(open_file_name.c_str());
         return;
@@ -117,7 +161,6 @@ void AuditFile::close_and_rotate_log(void) {
     }
     open_time = 0;
 }
-
 
 void AuditFile::cleanup_old_logfile(const std::string& log_path) {
     auto filename = log_path + "/audit.log";
@@ -164,7 +207,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
 
         // Find the timestamp
         cJSON* timestamp = cJSON_GetObjectItem(json_ptr.get(), "timestamp");
-        if (timestamp == NULL) {
+        if (timestamp == nullptr) {
             throw std::runtime_error(
                     R"(AuditFile::cleanup_old_logfile(): Failed to locate "timestamp" in first entry in audit file ")" +
                     filename + "\": " + str);
@@ -228,7 +271,7 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
         return;
     }
 
-    if (file != NULL) {
+    if (file != nullptr) {
         close_and_rotate_log();
     }
 
@@ -251,7 +294,7 @@ void AuditFile::reconfigure(const AuditConfig &config) {
     buffered = config.is_buffered();
 }
 
-bool AuditFile::flush(void) {
+bool AuditFile::flush() {
     if (is_open()) {
         if (fflush(file) != 0) {
             log_error(AuditErrorCode::WRITING_TO_DISK_ERROR,
