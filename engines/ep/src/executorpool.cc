@@ -24,7 +24,7 @@
 #include "statwriter.h"
 #include "taskqueue.h"
 
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <platform/processclock.h>
 #include <platform/string.h>
@@ -859,59 +859,38 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
     char statname[80] = {0};
     char prefix[] = "ep_tasks";
 
-    unique_cJSON_ptr list(cJSON_CreateArray());
+    nlohmann::json list = nlohmann::json::array();
 
     for (auto& pair : taskLocatorCopy) {
         size_t tid = pair.first;
         ExTask& task = pair.second.first;
 
-        unique_cJSON_ptr obj(cJSON_CreateObject());
+        nlohmann::json obj;
 
-        cJSON_AddNumberToObject(obj.get(), "tid", tid);
-        cJSON_AddStringToObject(
-                obj.get(), "state", to_string(task->getState()).c_str());
-        cJSON_AddStringToObject(
-                obj.get(), "name", GlobalTask::getTaskName(task->getTaskId()));
-        cJSON_AddStringToObject(
-                obj.get(),
-                "this",
-                cb::to_hex(reinterpret_cast<uint64_t>(task.get())).c_str());
-        cJSON_AddStringToObject(
-                obj.get(), "bucket", task->getTaskable().getName().c_str());
-        cJSON_AddStringToObject(
-                obj.get(), "description", task->getDescription().c_str());
-        cJSON_AddNumberToObject(
-                obj.get(), "priority", task->getQueuePriority());
-        cJSON_AddNumberToObject(obj.get(),
-                                "waketime_ns",
-                                task->getWaketime().time_since_epoch().count());
-        cJSON_AddNumberToObject(
-                obj.get(), "total_runtime_ns", task->getTotalRuntime().count());
-        cJSON_AddNumberToObject(
-                obj.get(),
-                "last_starttime_ns",
-                to_ns_since_epoch(task->getLastStartTime()).count());
-        cJSON_AddNumberToObject(obj.get(),
-                                "previous_runtime_ns",
-                                task->getPrevRuntime().count());
-        cJSON_AddNumberToObject(
-                obj.get(),
-                "num_runs",
+        obj["tid"] = tid;
+        obj["state"] = to_string(task->getState());
+        obj["name"] = GlobalTask::getTaskName(task->getTaskId());
+        obj["this"] = cb::to_hex(reinterpret_cast<uint64_t>(task.get()));
+        obj["bucket"] = task->getTaskable().getName();
+        obj["description"] = task->getDescription();
+        obj["priority"] = task->getQueuePriority();
+        obj["waketime_ns"] = task->getWaketime().time_since_epoch().count();
+        obj["total_runtime_ns"] = task->getTotalRuntime().count();
+        obj["last_starttime_ns"] =
+                to_ns_since_epoch(task->getLastStartTime()).count();
+        obj["previous_runtime_ns"] = task->getPrevRuntime().count();
+        obj["num_runs"] =
                 engine->getEpStats()
                         .taskRuntimeHisto[static_cast<int>(task->getTaskId())]
-                        .total());
-        cJSON_AddStringToObject(
-                obj.get(),
-                "type",
-                TaskQueue::taskType2Str(
-                        GlobalTask::getTaskType(task->getTaskId()))
-                        .c_str());
+                        .total();
+        obj["type"] = TaskQueue::taskType2Str(
+                GlobalTask::getTaskType(task->getTaskId()));
 
-        cJSON_AddItemToArray(list.get(), obj.release());
+        list.push_back(obj);
     }
 
     checked_snprintf(statname, sizeof(statname), "%s:tasks", prefix);
-    add_casted_stat(statname, to_string(list, false), add_stat, cookie);
+    add_casted_stat(statname, list.dump(), add_stat, cookie);
 
     checked_snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
     add_casted_stat(statname,
