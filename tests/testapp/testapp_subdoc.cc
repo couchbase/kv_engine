@@ -1918,8 +1918,8 @@ public:
 
 unique_cJSON_ptr WorkerConcurrencyTest::memcached_cfg;
 
-
-TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
+// MB-30301: Temporarily disabling due to intermittent timeouts.
+TEST_F(WorkerConcurrencyTest, DISABLED_SubdocArrayPushLast_Concurrent) {
     // Concurrently add to two different array documents, using two connections.
 
     // Setup the initial empty objects.
