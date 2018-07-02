@@ -50,3 +50,13 @@ protected:
         return dynamic_cast<EPBucket&>(*store);
     }
 };
+
+/**
+ * Stateless class used to gain privileged access into CheckpointManager for
+ * testing purposes. This is a friend class of CheckpointManager.
+ */
+class CheckpointManagerTestIntrospector {
+public:
+    static const CheckpointList& public_getCheckpointList(
+            CheckpointManager& checkpointManager);
+};
