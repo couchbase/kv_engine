@@ -995,7 +995,14 @@ static ENGINE_ERROR_CODE getReplicaCmd(EventuallyPersistentEngine* e,
     DocKey key(reinterpret_cast<const uint8_t*>(request) + sizeof(*request),
                keylen, docNamespace);
 
-    GetValue rv(kvb->getReplica(key, vbucket, cookie));
+    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                       HONOR_STATES |
+                                                       TRACK_REFERENCE |
+                                                       DELETE_TEMP |
+                                                       HIDE_LOCKED_CAS |
+                                                       TRACK_STATISTICS);
+
+    GetValue rv(kvb->getReplica(key, vbucket, cookie, options));
 
     if ((error_code = rv.getStatus()) != ENGINE_SUCCESS) {
         if (error_code == ENGINE_NOT_MY_VBUCKET) {

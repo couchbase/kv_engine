@@ -557,7 +557,10 @@ static enum test_result test_vb_get_pending(ENGINE_HANDLE *h,
 
     checkeq(cb::engine_errc::would_block,
             get(h, h1, cookie, "key", 1).first,
-            "Expected woodblock.");
+            "Expected wouldblock.");
+    checkeq(1,
+            get_int_stat(h, h1, "vb_pending_ops_get"),
+            "Expected 1 get");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -1275,6 +1278,9 @@ static enum test_result test_get_replica_pending_state(ENGINE_HANDLE *h,
     checkeq(ENGINE_EWOULDBLOCK,
             h1->unknown_command(h, cookie, pkt, add_response, testHarness.doc_namespace),
             "Should have returned error for pending state");
+    checkeq(1,
+            get_int_stat(h, h1, "vb_pending_ops_get"),
+            "Expected 1 get");
     testHarness.destroy_cookie(cookie);
     cb_free(pkt);
     return SUCCESS;
@@ -1303,6 +1309,9 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
             "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
     checkeq(std::string("replicadata"), last_body,
             "Should have returned identical value");
+    checkeq(1,
+            get_int_stat(h, h1, "vb_replica_ops_get"),
+            "Expected 1 get");
 
     cb_free(pkt);
     return SUCCESS;
@@ -1323,6 +1332,9 @@ static enum test_result test_get_replica_non_resident(ENGINE_HANDLE *h,
     get_replica(h, h1, "key", 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success");
+    checkeq(1,
+            get_int_stat(h, h1, "vb_replica_ops_get"),
+            "Expected 1 get");
 
     return SUCCESS;
 }
@@ -1988,6 +2000,9 @@ static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     checkeq(1,
             get_int_stat(h, h1, "vb_active_ops_delete"),
             "Expected 1 deletion");
+    checkeq(3,
+            get_int_stat(h, h1, "vb_active_ops_get"),
+            "Expected 3 gets");
 
     return SUCCESS;
 }
@@ -6362,6 +6377,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                                    "vb_0:num_temp_items",
                                    "vb_0:ops_create",
                                    "vb_0:ops_delete",
+                                   "vb_0:ops_get",
                                    "vb_0:ops_reject",
                                    "vb_0:ops_update",
                                    "vb_0:pending_writes",
@@ -6844,6 +6860,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
               "vb_active_num_non_resident",
               "vb_active_ops_create",
               "vb_active_ops_delete",
+              "vb_active_ops_get",
               "vb_active_ops_reject",
               "vb_active_ops_update",
               "vb_active_perc_mem_resident",
@@ -6872,6 +6889,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
               "vb_pending_num_non_resident",
               "vb_pending_ops_create",
               "vb_pending_ops_delete",
+              "vb_pending_ops_get",
               "vb_pending_ops_reject",
               "vb_pending_ops_update",
               "vb_pending_perc_mem_resident",
@@ -6899,6 +6917,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
               "vb_replica_num_non_resident",
               "vb_replica_ops_create",
               "vb_replica_ops_delete",
+              "vb_replica_ops_get",
               "vb_replica_ops_reject",
               "vb_replica_ops_update",
               "vb_replica_perc_mem_resident",

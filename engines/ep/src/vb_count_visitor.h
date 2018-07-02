@@ -51,9 +51,10 @@ public:
           checkpointMemoryUnreferenced(0),
           checkpointMemoryOverhead(0),
           opsCreate(0),
-          opsUpdate(0),
           opsDelete(0),
+          opsGet(0),
           opsReject(0),
+          opsUpdate(0),
           queueSize(0),
           queueMemory(0),
           queueFill(0),
@@ -143,16 +144,18 @@ public:
     size_t getOpsCreate() {
         return opsCreate;
     }
-    size_t getOpsUpdate() {
-        return opsUpdate;
-    }
     size_t getOpsDelete() {
         return opsDelete;
+    }
+    size_t getOpsGet() {
+        return opsGet;
     }
     size_t getOpsReject() {
         return opsReject;
     }
-
+    size_t getOpsUpdate() {
+        return opsUpdate;
+    }
     size_t getQueueSize() {
         return queueSize;
     }
@@ -221,9 +224,10 @@ private:
     size_t checkpointMemoryOverhead;
 
     size_t opsCreate;
-    size_t opsUpdate;
     size_t opsDelete;
+    size_t opsGet;
     size_t opsReject;
+    size_t opsUpdate;
 
     size_t queueSize;
     size_t queueMemory;

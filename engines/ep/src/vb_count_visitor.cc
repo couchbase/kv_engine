@@ -43,9 +43,10 @@ void VBucketCountVisitor::visitBucket(VBucketPtr& vb) {
                 vb->getChkMgrMemUsageOfUnrefCheckpoints();
         checkpointMemoryOverhead += vb->getChkMgrMemUsageOverhead();
         opsCreate += vb->opsCreate;
-        opsUpdate += vb->opsUpdate;
         opsDelete += vb->opsDelete;
+        opsGet += vb->opsGet;
         opsReject += vb->opsReject;
+        opsUpdate += vb->opsUpdate;
 
         queueSize += vb->dirtyQueueSize;
         queueMemory += vb->dirtyQueueMem;

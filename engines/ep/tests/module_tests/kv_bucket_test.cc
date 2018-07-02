@@ -1182,6 +1182,32 @@ TEST_P(KVBucketParamTest, numberOfVBucketsInState) {
     EXPECT_EQ(0, store->getNumOfVBucketsInState(vbucket_state_replica));
 }
 
+/**
+ * Test to verify if the vbucket opsGet stat is incremented when
+ * the vbucket is in pending state in the case of a get and
+ * getReplica
+ */
+TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
+   auto key = makeStoredDocKey("key");
+   store_item(vbid, key, "value");
+
+   store->setVBucketState(vbid, vbucket_state_pending, false);
+
+   get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+
+   auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
+   GetValue result = doGet();
+   ASSERT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+   EXPECT_EQ(1, store->getVBucket(vbid)->opsGet);
+
+   auto doGetReplica = [&]() { return store->getReplica(key, vbid, cookie, options); };
+   result = doGetReplica();
+   ASSERT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+   EXPECT_EQ(2, store->getVBucket(vbid)->opsGet);
+}
+
 /***
  * Test class to expose the behaviour needed to create an ItemAccessVisitor
  */

@@ -1259,9 +1259,10 @@ public:
     std::unique_ptr<FailoverTable> failovers;
 
     std::atomic<size_t>  opsCreate;
-    std::atomic<size_t>  opsUpdate;
     std::atomic<size_t>  opsDelete;
+    std::atomic<size_t>  opsGet;
     std::atomic<size_t>  opsReject;
+    std::atomic<size_t>  opsUpdate;
 
     cb::NonNegativeCounter<size_t> dirtyQueueSize;
     std::atomic<size_t>  dirtyQueueMem;

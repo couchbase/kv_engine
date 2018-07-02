@@ -164,9 +164,10 @@ VBucket::VBucket(id_type i,
                                                             flusherCb)),
       failovers(std::move(table)),
       opsCreate(0),
-      opsUpdate(0),
       opsDelete(0),
+      opsGet(0),
       opsReject(0),
+      opsUpdate(0),
       dirtyQueueSize(0),
       dirtyQueueMem(0),
       dirtyQueueFill(0),
@@ -436,9 +437,10 @@ void VBucket::decrMetaDataDisk(const Item& qi) {
 
 void VBucket::resetStats() {
     opsCreate.store(0);
-    opsUpdate.store(0);
     opsDelete.store(0);
+    opsGet.store(0);
     opsReject.store(0);
+    opsUpdate.store(0);
 
     stats.diskQueueSize.fetch_sub(dirtyQueueSize.exchange(0));
     dirtyQueueMem.store(0);
@@ -1826,6 +1828,11 @@ GetValue VBucket::getInternal(
         } else {
             item = v->toItem(hideCas, getId());
         }
+
+        if (options & TRACK_STATISTICS) {
+            opsGet++;
+        }
+
         return GetValue(std::move(item),
                         ENGINE_SUCCESS,
                         v->getBySeqno(),
@@ -2162,9 +2169,10 @@ void VBucket::_addStats(bool details, ADD_STAT add_stat, const void* c) {
         addStat("ht_size", ht.getSize(), add_stat, c);
         addStat("num_ejects", ht.getNumEjects(), add_stat, c);
         addStat("ops_create", opsCreate.load(), add_stat, c);
-        addStat("ops_update", opsUpdate.load(), add_stat, c);
-        addStat("ops_delete", opsDelete.load(), add_stat, c);
+	addStat("ops_delete", opsDelete.load(), add_stat, c);
+        addStat("ops_get", opsGet.load(), add_stat, c);
         addStat("ops_reject", opsReject.load(), add_stat, c);
+        addStat("ops_update", opsUpdate.load(), add_stat, c);
         addStat("queue_size", dirtyQueueSize.load(), add_stat, c);
         addStat("backfill_queue_size", getBackfillSize(), add_stat, c);
         addStat("queue_memory", dirtyQueueMem.load(), add_stat, c);

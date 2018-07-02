@@ -1112,6 +1112,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_active_ops_create", active.getOpsCreate());
     DO_STAT("vb_active_ops_update", active.getOpsUpdate());
     DO_STAT("vb_active_ops_delete", active.getOpsDelete());
+    DO_STAT("vb_active_ops_get", active.getOpsGet());
     DO_STAT("vb_active_ops_reject", active.getOpsReject());
     DO_STAT("vb_active_queue_size", active.getQueueSize());
     DO_STAT("vb_active_queue_memory", active.getQueueMemory());
@@ -1144,6 +1145,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_replica_ops_create", replica.getOpsCreate());
     DO_STAT("vb_replica_ops_update", replica.getOpsUpdate());
     DO_STAT("vb_replica_ops_delete", replica.getOpsDelete());
+    DO_STAT("vb_replica_ops_get", replica.getOpsGet());
     DO_STAT("vb_replica_ops_reject", replica.getOpsReject());
     DO_STAT("vb_replica_queue_size", replica.getQueueSize());
     DO_STAT("vb_replica_queue_memory", replica.getQueueMemory());
@@ -1176,6 +1178,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
     DO_STAT("vb_pending_ops_create", pending.getOpsCreate());
     DO_STAT("vb_pending_ops_update", pending.getOpsUpdate());
     DO_STAT("vb_pending_ops_delete", pending.getOpsDelete());
+    DO_STAT("vb_pending_ops_get", pending.getOpsGet());
     DO_STAT("vb_pending_ops_reject", pending.getOpsReject());
     DO_STAT("vb_pending_queue_size", pending.getQueueSize());
     DO_STAT("vb_pending_queue_memory", pending.getQueueMemory());
@@ -1371,6 +1374,9 @@ GetValue KVBucket::getInternal(const DocKey& key,
             return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
         } else if (vbState == vbucket_state_pending) {
             if (vb->addPendingOp(cookie)) {
+                if (options & TRACK_STATISTICS) {
+                    vb->opsGet++;
+                }
                 return GetValue(NULL, ENGINE_EWOULDBLOCK);
             }
         }
