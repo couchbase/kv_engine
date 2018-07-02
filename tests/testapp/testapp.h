@@ -434,6 +434,7 @@ bool safe_recv(void *buf, size_t len);
  */
 bool safe_recv_packet(void *buf, size_t size);
 bool safe_recv_packet(std::vector<uint8_t>& buf);
+bool safe_recv_packet(std::vector<char>& buf);
 
 /* Whether receiving an EOF during a read is considered an error */
 void set_allow_closed_read(bool enabled);
