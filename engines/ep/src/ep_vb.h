@@ -229,10 +229,7 @@ private:
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;
 
-    size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override {
-        return st.getEstimatedTotalMemoryUsed() +
-               StoredValue::getRequiredStorage(item.getKey());
-    }
+    size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override;
 
     /**
      * Total number of alive (non-deleted) items on-disk in this vBucket.

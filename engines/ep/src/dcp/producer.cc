@@ -23,6 +23,8 @@
 #include "collections/manager.h"
 #include "collections/vbucket_filter.h"
 #include "common.h"
+#include "dcp/active_stream.h"
+#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "executorpool.h"

@@ -19,6 +19,7 @@
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"
+#include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "tests/module_tests/test_helpers.h"

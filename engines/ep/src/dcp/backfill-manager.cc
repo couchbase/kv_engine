@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include "connmap.h"
+#include "dcp/active_stream.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/backfill_disk.h"
 #include "dcp/dcpconnmap.h"

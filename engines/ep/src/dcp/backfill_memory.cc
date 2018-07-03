@@ -17,8 +17,8 @@
 
 #include "config.h"
 
+#include "dcp/active_stream.h"
 #include "dcp/backfill_memory.h"
-#include "dcp/stream.h"
 #include "ep_engine.h"
 #include "ephemeral_vb.h"
 #include "seqlist.h"

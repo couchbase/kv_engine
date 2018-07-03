@@ -17,7 +17,17 @@
 
 #include "config.h"
 
+#include "dcp/active_stream.h"
 #include "dcp/backfill.h"
+
+DCPBackfill::DCPBackfill(std::shared_ptr<ActiveStream> s,
+                         uint64_t startSeqno,
+                         uint64_t endSeqno)
+    : streamPtr(s),
+      startSeqno(startSeqno),
+      endSeqno(endSeqno),
+      vbid(s->getVBucket()) {
+}
 
 bool DCPBackfill::isStreamDead() const {
     auto stream = streamPtr.lock();

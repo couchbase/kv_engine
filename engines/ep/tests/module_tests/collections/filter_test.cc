@@ -18,8 +18,10 @@
 #include "collections/filter.h"
 #include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest.h"
+#include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
+#include "stats.h"
 
 #include <gtest/gtest.h>
 

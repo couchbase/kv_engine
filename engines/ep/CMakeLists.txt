@@ -175,6 +175,10 @@ ADD_LIBRARY(ep_objs OBJECT
             src/connhandler.cc
             src/connmap.cc
             src/crc32.c
+            src/dcp/active_stream.cc
+            src/dcp/active_stream.h
+            src/dcp/active_stream_checkpoint_processor_task.cc
+            src/dcp/active_stream_checkpoint_processor_task.h
             src/dcp/backfill.cc
             src/dcp/backfill-manager.cc
             src/dcp/backfill_disk.cc

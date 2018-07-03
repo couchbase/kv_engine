@@ -647,3 +647,8 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
 
     return ht.insertFromWarmup(itm, eject, keyMetaDataOnly, eviction);
 }
+
+size_t EPVBucket::estimateNewMemoryUsage(EPStats& st, const Item& item) {
+    return st.getEstimatedTotalMemoryUsed() +
+           StoredValue::getRequiredStorage(item.getKey());
+}

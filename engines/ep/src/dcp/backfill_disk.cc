@@ -17,8 +17,8 @@
 
 #include "config.h"
 
+#include "dcp/active_stream.h"
 #include "dcp/backfill_disk.h"
-#include "dcp/stream.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "vbucket.h"

@@ -29,35 +29,6 @@
 
 #include <memory>
 
-enum end_stream_status_t {
-    //! The stream ended due to all items being streamed
-    END_STREAM_OK,
-    //! The stream closed early due to a close stream message
-    END_STREAM_CLOSED,
-    //! The stream closed early because the vbucket state changed
-    END_STREAM_STATE,
-    //! The stream closed early because the connection was disconnected
-    END_STREAM_DISCONNECTED,
-    //! The stream was closed early because it was too slow (currently unused,
-    //! but not deleted because it is part of the externally-visible API)
-    END_STREAM_SLOW,
-    //! The stream closed early due to backfill failure
-    END_STREAM_BACKFILL_FAIL,
-    //! The stream closed early because the vbucket is rolling back and
-    //! downstream needs to reopen the stream and rollback too
-    END_STREAM_ROLLBACK,
-
-    //! All filtered collections have been removed so no more data can be sent.
-    END_STREAM_FILTER_EMPTY
-};
-
-enum dcp_marker_flag_t {
-    MARKER_FLAG_MEMORY = 0x01,
-    MARKER_FLAG_DISK   = 0x02,
-    MARKER_FLAG_CHK    = 0x04,
-    MARKER_FLAG_ACK    = 0x08
-};
-
 class DcpResponse {
 public:
     enum class Event {

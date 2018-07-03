@@ -19,8 +19,9 @@
 
 #include "config.h"
 
-#include "dcp/stream.h"
+#include "vbucket.h"
 
+class ActiveStream;
 class ScanContext;
 
 /**
@@ -36,12 +37,7 @@ class DCPBackfill {
 public:
     DCPBackfill(std::shared_ptr<ActiveStream> s,
                 uint64_t startSeqno,
-                uint64_t endSeqno)
-        : streamPtr(s),
-          startSeqno(startSeqno),
-          endSeqno(endSeqno),
-          vbid(s->getVBucket()) {
-    }
+                uint64_t endSeqno);
 
     virtual ~DCPBackfill() {
     }

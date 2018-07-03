@@ -18,6 +18,8 @@
 #pragma once
 
 #include "collections/manager.h"
+#include "dcp/active_stream.h"
+#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "kv_bucket.h"
