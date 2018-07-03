@@ -116,6 +116,10 @@ inline bool parseInt64(const char *str, int64_t *out) {
     return false;
 }
 
+inline bool parseInt64(const std::string& str, int64_t* out) {
+    return parseInt64(str.c_str(), out);
+}
+
 #define xisspace(c) isspace((unsigned char)c)
 inline bool parseUint64(const char *str, uint64_t *out) {
     if (out == nullptr) {
@@ -140,6 +144,10 @@ inline bool parseUint64(const char *str, uint64_t *out) {
         return true;
     }
     return false;
+}
+
+inline bool parseUint64(const std::string& str, uint64_t* out) {
+    return parseUint64(str.c_str(), out);
 }
 
 #endif  // SRC_COMMON_H_

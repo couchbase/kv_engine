@@ -27,21 +27,22 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
+#include <platform/cb_malloc.h>
+#include <platform/checked_snprintf.h>
+#include <platform/dirutils.h>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <fstream>
+#include <gsl/gsl>
 #include <iostream>
 #include <list>
 #include <map>
-#include <phosphor/phosphor.h>
-#include <platform/cb_malloc.h>
-#include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>
 #include <vector>
-#include <cJSON.h>
-#include <platform/dirutils.h>
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
@@ -626,21 +627,28 @@ void CouchKVStore::getPersistedStats(std::map<std::string,
         session_stats.close();
         buffer[flen] = '\0';
 
-        cJSON *json_obj = cJSON_Parse(buffer.data());
-        if (!json_obj) {
-            logger.log(EXTENSION_LOG_WARNING, "CouchKVStore::getPersistedStats:"
+        nlohmann::json json;
+        try {
+            json = nlohmann::json::parse(buffer);
+        } catch (const nlohmann::json::exception&) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "CouchKVStore::getPersistedStats:"
                        " Failed to parse the session stats json doc!!!");
             return;
         }
 
-        int json_arr_size = cJSON_GetArraySize(json_obj);
-        for (int i = 0; i < json_arr_size; ++i) {
-            cJSON *obj = cJSON_GetArrayItem(json_obj, i);
-            if (obj) {
-                stats[obj->string] = obj->valuestring ? obj->valuestring : "";
-            }
+        if (!json.is_array()) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "CouchKVStore::getPersistedStats:"
+                       " Parsed json is not an array!!!");
+            return;
         }
-        cJSON_Delete(json_obj);
+
+        for (const auto& elem : json) {
+            cb_assert(elem.size() == 1);
+            auto it = elem.begin();
+            stats[it.key()] = it.value();
+        }
 
     } catch (const std::ifstream::failure &e) {
         logger.log(EXTENSION_LOG_WARNING,
@@ -2170,59 +2178,63 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
         }
     } else {
         const std::string statjson(ldoc->json.buf, ldoc->json.size);
-        cJSON *jsonObj = cJSON_Parse(statjson.c_str());
-        if (!jsonObj) {
+
+        nlohmann::json json;
+        try {
+            json = nlohmann::json::parse(statjson);
+        } catch (const nlohmann::json::exception& e) {
             couchstore_free_local_document(ldoc);
-            logger.log(EXTENSION_LOG_WARNING, "CouchKVStore::readVBState: Failed to "
-                       "parse the vbstat json doc for vb:%" PRIu16 ", json:%s",
-                       vbId , statjson.c_str());
+            logger.log(EXTENSION_LOG_WARNING,
+                       "CouchKVStore::readVBState: Failed to "
+                       "parse the vbstat json doc for vb:%" PRIu16
+                       ", json:%s, with reason:%s",
+                       vbId,
+                       statjson.c_str(),
+                       e.what());
             return couchErr2EngineErr(errCode);
         }
 
-        const std::string vb_state = getJSONObjString(
-                                cJSON_GetObjectItem(jsonObj, "state"));
-        const std::string checkpoint_id = getJSONObjString(
-                                cJSON_GetObjectItem(jsonObj,"checkpoint_id"));
-        const std::string max_deleted_seqno = getJSONObjString(
-                                cJSON_GetObjectItem(jsonObj, "max_deleted_seqno"));
-        const std::string snapStart = getJSONObjString(
-                                cJSON_GetObjectItem(jsonObj, "snap_start"));
-        const std::string snapEnd = getJSONObjString(
-                                cJSON_GetObjectItem(jsonObj, "snap_end"));
-        const std::string maxCasValue = getJSONObjString(
-                                cJSON_GetObjectItem(jsonObj, "max_cas"));
-        const std::string hlcCasEpoch =
-                getJSONObjString(cJSON_GetObjectItem(jsonObj, "hlc_epoch"));
-        mightContainXattrs = getJSONObjBool(
-                cJSON_GetObjectItem(jsonObj, "might_contain_xattrs"));
+        auto vb_state = json.value("state", "");
+        auto checkpoint_id = json.value("checkpoint_id", "");
+        auto max_deleted_seqno = json.value("max_deleted_seqno", "");
+        auto snapStart = json.find("snap_start");
+        auto snapEnd = json.find("snap_end");
+        auto maxCasValue = json.find("max_cas");
+        auto hlcCasEpoch = json.find("hlc_epoch");
+        mightContainXattrs = json.value("might_contain_xattrs", false);
 
-        cJSON *failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
-        if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0
-                || max_deleted_seqno.compare("") == 0) {
-            logger.log(EXTENSION_LOG_WARNING, "CouchKVStore::readVBState: State"
-                       " JSON doc for vb:%" PRIu16 " is in the wrong format:%s, "
+        auto failover_json = json.find("failover_table");
+        if (vb_state.empty() || checkpoint_id.empty() ||
+            max_deleted_seqno.empty()) {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "CouchKVStore::readVBState: State"
+                       " JSON doc for vb:%" PRIu16
+                       " is in the wrong format:%s, "
                        "vb state:%s, checkpoint id:%s and max deleted seqno:%s",
-                       vbId, statjson.c_str(), vb_state.c_str(),
-                       checkpoint_id.c_str(), max_deleted_seqno.c_str());
+                       vbId,
+                       statjson.c_str(),
+                       vb_state.c_str(),
+                       checkpoint_id.c_str(),
+                       max_deleted_seqno.c_str());
         } else {
             state = VBucket::fromString(vb_state.c_str());
-            parseUint64(max_deleted_seqno.c_str(), &maxDeletedSeqno);
-            parseUint64(checkpoint_id.c_str(), &checkpointId);
+            parseUint64(max_deleted_seqno, &maxDeletedSeqno);
+            parseUint64(checkpoint_id, &checkpointId);
 
-            if (snapStart.compare("") == 0) {
-                lastSnapStart = highSeqno;
+            if (snapStart == json.end()) {
+                lastSnapStart = gsl::narrow<uint64_t>(highSeqno);
             } else {
-                parseUint64(snapStart.c_str(), &lastSnapStart);
+                parseUint64(snapStart->get<std::string>(), &lastSnapStart);
             }
 
-            if (snapEnd.compare("") == 0) {
-                lastSnapEnd = highSeqno;
+            if (snapEnd == json.end()) {
+                lastSnapEnd = gsl::narrow<uint64_t>(highSeqno);
             } else {
-                parseUint64(snapEnd.c_str(), &lastSnapEnd);
+                parseUint64(snapEnd->get<std::string>(), &lastSnapEnd);
             }
 
-            if (maxCasValue.compare("") != 0) {
-                parseUint64(maxCasValue.c_str(), &maxCas);
+            if (maxCasValue != json.end()) {
+                parseUint64(maxCasValue->get<std::string>(), &maxCas);
 
                 // MB-17517: If the maxCas on disk was invalid then don't use it -
                 // instead rebuild from the items we load from disk (i.e. as per
@@ -2237,15 +2249,14 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                 }
             }
 
-            if (!hlcCasEpoch.empty()) {
-                parseInt64(hlcCasEpoch.c_str(), &hlcCasEpochSeqno);
+            if (hlcCasEpoch != json.end()) {
+                parseInt64(hlcCasEpoch->get<std::string>(), &hlcCasEpochSeqno);
             }
 
-            if (failover_json) {
-                failovers = to_string(failover_json, false);
+            if (failover_json != json.end()) {
+                failovers = failover_json->dump();
             }
         }
-        cJSON_Delete(jsonObj);
         couchstore_free_local_document(ldoc);
     }
 
