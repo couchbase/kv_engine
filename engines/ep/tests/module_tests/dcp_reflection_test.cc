@@ -37,55 +37,20 @@ class DCPLoopbackStreamTest : public SingleThreadedKVBucketTest {
 protected:
     void SetUp() override {
         SingleThreadedKVBucketTest::SetUp();
-
-        // In addition to the initial engine which is created; we also need
-        // to create a second bucket instance for the destination (replica)
-        // vBucket.
-        std::string config = config_string;
-        if (config.size() > 0) {
-            config += ";";
-        }
-        config += "dbname=" + std::string(test_dbname) + "-replica";
-        replicaEngine = SynchronousEPEngine::build(config);
-
-        setupProducerAndConsumerStreams();
     }
 
-    void setupProducerAndConsumerStreams() {
-        // Setup the source (active) and destination (replica) Buckets.
+    void setupProducer() {
+        // Setup the source (active) Bucket.
         EXPECT_EQ(ENGINE_SUCCESS,
                   engine->getKVBucket()->setVBucketState(
                           vbid,
                           vbucket_state_active, /*transfer*/
                           false));
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  replicaEngine->getKVBucket()->setVBucketState(
-                          vbid,
-                          vbucket_state_replica, /*transfer*/
-                          false));
 
-        auto& sourceVb = *engine->getVBucket(vbid);
-
-        // Add some items to replicate / takeover to the source Bucket.
+        // Add some items to the source Bucket.
         store_item(vbid, makeStoredDocKey("key1"), "value");
         store_item(vbid, makeStoredDocKey("key2"), "value");
         store_item(vbid, makeStoredDocKey("key3"), "value");
-
-        // Setup the consumer.
-        consumer = std::make_shared<MockDcpConsumer>(
-                *replicaEngine, cookie, "test_consumer");
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  consumer->addStream(
-                          /*opaque*/ 0, vbid, DCP_ADD_STREAM_FLAG_TAKEOVER));
-        consumerStream = consumer->getVbucketStream(vbid).get();
-
-        // Need to discard the first message from the consumerStream (the
-        // StreamRequest), as we'll manually set that up in the producer.
-        {
-            std::unique_ptr<DcpResponse> streamRequest(consumerStream->next());
-            EXPECT_NE(nullptr, streamRequest);
-            EXPECT_EQ(DcpResponse::Event::StreamReq, streamRequest->getEvent());
-        }
 
         // Create the Dcp producer.
         producer = SingleThreadedKVBucketTest::createDcpProducer(
@@ -95,6 +60,7 @@ protected:
                 IncludeDeleteTime::No);
         producer->scheduleCheckpointProcessorTask();
 
+        auto& sourceVb = *engine->getVBucket(vbid);
         producer->mockActiveStreamRequest(consumerStream->getFlags(),
                                           consumerStream->getOpaque(),
                                           sourceVb,
@@ -106,10 +72,6 @@ protected:
         producerStream = dynamic_cast<MockActiveStream*>(
                 producer->findStream(vbid).get());
 
-        // // Both streams created. Check state is as expected.
-        ASSERT_TRUE(producerStream->isTakeoverSend())
-                << "Producer stream state should have transitioned to "
-                   "TakeoverSend";
         ASSERT_EQ(2, sourceVb.checkpointManager->getNumOfCursors())
                 << "Should have both persistence and DCP producer cursor on "
                    "source "
@@ -119,6 +81,41 @@ protected:
         // ActiveStreamCheckpointProcessorTask
         // that task though sleeps forever, so won't run until woken.
         ASSERT_EQ(1, getLpAuxQ()->getFutureQueueSize());
+    }
+
+    void setupConsumer(uint32_t flags) {
+        // In addition to the initial engine which is created; we also need
+        // to create a second bucket instance for the destination (replica)
+        // vBucket.
+        std::string config = config_string;
+        if (config.size() > 0) {
+            config += ";";
+        }
+        config += "dbname=" + std::string(test_dbname) + "-replica";
+        replicaEngine = SynchronousEPEngine::build(config);
+
+        // Setup destination (replica) Bucket.
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  replicaEngine->getKVBucket()->setVBucketState(
+                          vbid,
+                          vbucket_state_replica, /*transfer*/
+                          false));
+
+        // Setup the consumer.
+        consumer = std::make_shared<MockDcpConsumer>(
+                *replicaEngine, cookie, "test_consumer");
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  consumer->addStream(
+                          /*opaque*/ 0, vbid, flags));
+        consumerStream = consumer->getVbucketStream(vbid).get();
+
+        // Need to discard the first message from the consumerStream (the
+        // StreamRequest), as we'll manually set that up in the producer.
+        {
+            std::unique_ptr<DcpResponse> streamRequest(consumerStream->next());
+            EXPECT_NE(nullptr, streamRequest);
+            EXPECT_EQ(DcpResponse::Event::StreamReq, streamRequest->getEvent());
+        }
     }
 
     void TearDown() override {
@@ -200,6 +197,19 @@ void DCPLoopbackStreamTest::readNextConsumerMsgAndSendToProducer(
  * the vBucket should be active on the destination; and dead on the source.
  */
 TEST_F(DCPLoopbackStreamTest, Takeover) {
+    // Note: the order matters.
+    //     First, we setup the Consumer with the given flags and we discard the
+    //     StreamRequest message from the Consumer::readyQ.
+    //     Then, we simulate the Producer receiving the StreamRequest just
+    //     by creating the Producer with the Consumer's flags
+    setupConsumer(DCP_ADD_STREAM_FLAG_TAKEOVER);
+    setupProducer();
+
+    // Both streams created. Check state is as expected.
+    ASSERT_TRUE(producerStream->isTakeoverSend())
+            << "Producer stream state should have transitioned to "
+               "TakeoverSend";
+
     while (true) {
         auto producerMsg = getNextProducerMsg(producerStream);
 
