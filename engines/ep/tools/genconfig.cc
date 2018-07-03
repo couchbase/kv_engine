@@ -246,12 +246,18 @@ static string getString(cJSON *i) {
 
 static bool isReadOnly(cJSON *o) {
     cJSON *i = cJSON_GetObjectItem(o, "dynamic");
-    if (i == NULL || i->type == cJSON_False) {
-        return false;
+    if (i == nullptr) {
+        cerr << "\"dynamic\" attribute needs to be specified for "
+             << o->string << endl;
+        exit(1);
+    }
+
+    if (i->type == cJSON_False) {
+        return true;
     }
 
     cb_assert(i->type == cJSON_True);
-    return true;
+    return false;
 }
 
 static bool hasAliases(cJSON* o) {
