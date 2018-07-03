@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 

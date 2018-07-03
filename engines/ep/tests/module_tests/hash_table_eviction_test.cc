@@ -29,6 +29,7 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
 #include <gtest/gtest.h>
+#include <programs/engine_testapp/mock_server.h>
 
 #include <random>
 

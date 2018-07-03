@@ -20,13 +20,12 @@
 
 #include "config.h"
 
-#include <vector>
-
-
 #include "kvshard.h"
 #include "utility.h"
 
 #include <platform/non_negative_counter.h>
+
+#include <vector>
 
 class KVBucket;
 class VBucket;

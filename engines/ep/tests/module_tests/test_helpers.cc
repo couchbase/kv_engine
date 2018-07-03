@@ -18,6 +18,7 @@
 #include "test_helpers.h"
 
 #include <platform/compress.h>
+#include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <memory>
@@ -121,4 +122,13 @@ std::string createXattrValue(const std::string& body,
         return {output.data(), output.size()};
     }
     return data;
+}
+
+TimeTraveller::TimeTraveller(int by) : by(by) {
+    mock_time_travel(by);
+}
+
+TimeTraveller::~TimeTraveller() {
+    // restore original timeline.
+    mock_time_travel(-by);
 }

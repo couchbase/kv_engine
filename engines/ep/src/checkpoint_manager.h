@@ -22,17 +22,16 @@
 #include "callbacks.h"
 #include "ep_types.h"
 #include "item.h"
-#include "locks.h"
 #include "monotonic.h"
-#include "stats.h"
-
-#include <memcached/engine_common.h>
+#include "vbucket.h"
 
 #include <map>
+#include <memory>
 
 class Checkpoint;
 class CheckpointConfig;
 class CheckpointCursor;
+class EPStats;
 class PreLinkDocumentContext;
 class VBucket;
 

@@ -17,16 +17,12 @@
 
 #pragma once
 
+#include <boost/optional/optional_fwd.hpp>
+
 #include <list>
 #include <map>
 #include <memory>
-#include <stdexcept>
 #include <string>
-#include <type_traits>
-
-#include <boost/optional/optional.hpp>
-#include <platform/bitset.h>
-#include "memcached/vbucket.h"
 
 // Forward declarations for types defined elsewhere.
 class Item;
@@ -114,9 +110,7 @@ enum class QueueBgFetch {Yes, No};
 using OptionalSeqno = boost::optional<int64_t>;
 
 /// Determine the GenerateBySeqno value from an OptionalSeqno
-static inline GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
-    return seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes;
-}
+GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno);
 
 /**
  * Captures the result of a rollback request.

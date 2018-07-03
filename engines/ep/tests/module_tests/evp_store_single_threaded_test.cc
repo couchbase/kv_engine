@@ -23,6 +23,7 @@
 #include "../mock/mock_global_task.h"
 #include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_stream.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "dcp/dcpconnmap.h"

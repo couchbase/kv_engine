@@ -26,10 +26,12 @@
 #include "evp_store_single_threaded_test.h"
 #include "tasks.h"
 #include "test_helpers.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "thread_gate.h"
 #include "tracing/trace_helpers.h"
 
 #include <gmock/gmock.h>
+#include <programs/engine_testapp/mock_server.h>
 
 #include <functional>
 #include <thread>

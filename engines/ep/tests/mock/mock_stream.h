@@ -18,6 +18,7 @@
 #pragma once
 
 #include "collections/vbucket_filter.h"
+#include "dcp/active_stream.h"
 #include "dcp/consumer.h"
 #include "dcp/passive_stream.h"
 #include "dcp/producer.h"

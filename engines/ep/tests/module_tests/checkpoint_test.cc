@@ -19,29 +19,24 @@
 
 #include "config.h"
 
-#include <algorithm>
-#include <set>
-#include <thread>
-#include <vector>
-
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
-#include "configuration.h"
 #include "dcp_utils.h"
+#include "ep_types.h"
 #include "ep_vb.h"
 #include "failover-table.h"
-#include "item_pager.h"
-#include "stats.h"
 #include "tests/module_tests/test_helpers.h"
 #include "thread_gate.h"
 
 #include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 
-#include <engines/ep/src/ep_types.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <valgrind/valgrind.h>
+
+#include <thread>
 
 #define NUM_DCP_THREADS 3
 #define NUM_DCP_THREADS_VG 2

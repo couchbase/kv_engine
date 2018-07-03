@@ -31,6 +31,7 @@
 #include "checkpoint_manager.h"
 #include "connmap.h"
 #include "dcp/backfill_disk.h"
+#include "dcp/backfill_memory.h"
 #include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
@@ -44,9 +45,9 @@
 #include "objectregistry.h"
 #include "test_helpers.h"
 
-#include <dcp/backfill_memory.h>
 #include <gtest/gtest.h>
 #include <platform/compress.h>
+#include <programs/engine_testapp/mock_server.h>
 #include <xattr/utils.h>
 
 #include <thread>

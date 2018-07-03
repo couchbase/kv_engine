@@ -24,6 +24,7 @@
 #include <tests/mock/mock_dcp_consumer.h>
 #include <tests/mock/mock_dcp_producer.h>
 #include <tests/mock/mock_stream.h>
+#include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include "checkpoint_manager.h"
 #include "evp_store_single_threaded_test.h"

@@ -19,7 +19,12 @@
 
 #include "ep_types.h"
 
+#include <boost/optional.hpp>
 #include <ostream>
+
+GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
+    return seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes;
+}
 
 std::string to_string(GenerateBySeqno generateBySeqno) {
     using GenerateBySeqnoUType = std::underlying_type<GenerateBySeqno>::type;

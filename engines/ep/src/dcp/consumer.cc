@@ -28,7 +28,6 @@
 #include "kv_bucket.h"
 #include "replicationthrottle.h"
 
-#include <climits>
 #include <phosphor/phosphor.h>
 
 const std::string DcpConsumer::noopCtrlMsg = "enable_noop";

@@ -27,15 +27,14 @@
 
 #include "config.h"
 
-#include "ep_bucket.h"
-#include "ep_engine.h"
+#include "callbacks.h"
 #include "item.h"
-
-#include <memcached/engine.h>
-#include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include <gtest/gtest.h>
 #include <memory>
+
+class KVBucket;
+class SynchronousEPEngine;
 
 /**
  * Test fixture for KVBucket unit tests.
@@ -246,11 +245,5 @@ public:
  */
 class KVBucketParamTest : public KVBucketTest,
                           public ::testing::WithParamInterface<std::string> {
-    void SetUp() override {
-        config_string += GetParam();
-        KVBucketTest::SetUp();
-
-        // Have all the objects, activate vBucket zero so we can store data.
-        store->setVBucketState(vbid, vbucket_state_active, false);
-    }
+    void SetUp() override;
 };

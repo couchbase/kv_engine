@@ -21,11 +21,10 @@
 
 #pragma once
 
-#include "callbacks.h"
 #include "config.h"
-#include "kvstore.h"
+#include "callbacks.h"
 #include "item.h"
-#include "programs/engine_testapp/mock_server.h"
+#include "kvstore.h"
 
 #include <chrono>
 
@@ -78,15 +77,9 @@ std::string createXattrValue(const std::string& body,
  */
 class TimeTraveller {
 public:
-    TimeTraveller(int by)
-        : by(by) {
-        mock_time_travel(by);
-    }
+    TimeTraveller(int by);
 
-    ~TimeTraveller() {
-        // restore original timeline.
-        mock_time_travel(-by);
-    }
+    ~TimeTraveller();
 
 private:
     // Amount of time travel.

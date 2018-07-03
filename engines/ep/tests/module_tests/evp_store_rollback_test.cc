@@ -19,7 +19,6 @@
  * Tests for Rollback functionality in EPStore.
  */
 
-#include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 #include "checkpoint_manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
@@ -31,7 +30,9 @@
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
+#include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 
 class RollbackTest
         : public EPBucketTest,

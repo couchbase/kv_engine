@@ -22,6 +22,7 @@
 #include "test_helpers.h"
 
 #include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_synchronous_ep_engine.h"
 #include "dcp/dcpconnmap.h"
 /*
  * Test statistics related to an individual VBucket's sequence list.

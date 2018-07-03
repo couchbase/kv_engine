@@ -32,10 +32,12 @@
 #include "dcp/dcpconnmap.h"
 #include "flusher.h"
 #include "tests/mock/mock_global_task.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 
+#include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

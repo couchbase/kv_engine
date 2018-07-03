@@ -36,17 +36,19 @@
 #include "replicationthrottle.h"
 #include "tasks.h"
 #include "tests/mock/mock_global_task.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 
 #include <platform/dirutils.h>
-#include <chrono>
-#include <thread>
-
+#include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+
+#include <chrono>
+#include <thread>
 
 void KVBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
@@ -1345,3 +1347,11 @@ INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
                         });
 
 const char KVBucketTest::test_dbname[] = "ep_engine_ep_unit_tests_db";
+
+void KVBucketParamTest::SetUp() {
+    config_string += GetParam();
+    KVBucketTest::SetUp();
+
+    // Have all the objects, activate vBucket zero so we can store data.
+    store->setVBucketState(vbid, vbucket_state_active, false);
+}

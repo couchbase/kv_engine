@@ -19,7 +19,6 @@
 
 #include "backfill.h"
 #include "checkpoint_manager.h"
-#include "collections/filter.h"
 #include "collections/manager.h"
 #include "collections/vbucket_filter.h"
 #include "common.h"
@@ -33,9 +32,6 @@
 #include "item_eviction.h"
 #include "kv_bucket.h"
 #include "snappy-c.h"
-
-#include <memcached/server_api.h>
-#include <vector>
 
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 

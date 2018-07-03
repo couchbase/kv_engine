@@ -24,9 +24,8 @@
 #include "evp_store_test.h"
 #include "fakes/fake_executorpool.h"
 
+struct dcp_message_producers;
 class MockActiveStreamWithOverloadedRegisterCursor;
-class MockDcpProducer;
-
 class MockDcpProducer;
 
 /*
