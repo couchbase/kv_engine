@@ -1,0 +1,110 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2018 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+#include "ready-queue.h"
+
+#include "locks.h"
+#include "statwriter.h"
+
+bool DcpReadyQueue::exists(uint16_t vbucket) {
+    LockHolder lh(lock);
+    return (queuedValues.count(vbucket) != 0);
+}
+
+bool DcpReadyQueue::popFront(uint16_t& frontValue) {
+    LockHolder lh(lock);
+    if (!readyQueue.empty()) {
+        frontValue = readyQueue.front();
+        readyQueue.pop();
+        queuedValues.erase(frontValue);
+        return true;
+    }
+    return false;
+}
+
+void DcpReadyQueue::pop() {
+    LockHolder lh(lock);
+    if (!readyQueue.empty()) {
+        queuedValues.erase(readyQueue.front());
+        readyQueue.pop();
+    }
+}
+
+bool DcpReadyQueue::pushUnique(uint16_t vbucket) {
+    bool wasEmpty;
+    {
+        LockHolder lh(lock);
+        wasEmpty = queuedValues.empty();
+        const bool inserted = queuedValues.emplace(vbucket).second;
+        if (inserted) {
+            readyQueue.push(vbucket);
+        }
+    }
+    return wasEmpty;
+}
+
+size_t DcpReadyQueue::size() {
+    LockHolder lh(lock);
+    return readyQueue.size();
+}
+
+bool DcpReadyQueue::empty() {
+    LockHolder lh(lock);
+    return readyQueue.empty();
+}
+
+void DcpReadyQueue::addStats(const std::string& prefix,
+                             ADD_STAT add_stat,
+                             const void* c) {
+    // Take a copy of the queue data under lock; then format it to stats.
+    std::queue<uint16_t> qCopy;
+    std::unordered_set<uint16_t> qMapCopy;
+    {
+        LockHolder lh(lock);
+        qCopy = readyQueue;
+        qMapCopy = queuedValues;
+    }
+
+    add_casted_stat((prefix + "size").c_str(), qCopy.size(), add_stat, c);
+    add_casted_stat(
+            (prefix + "map_size").c_str(), qMapCopy.size(), add_stat, c);
+
+    // Form a comma-separated string of the queue's contents.
+    std::string contents;
+    while (!qCopy.empty()) {
+        contents += std::to_string(qCopy.front()) + ",";
+        qCopy.pop();
+    }
+    if (!contents.empty()) {
+        contents.pop_back();
+    }
+    add_casted_stat(
+            (prefix + "contents").c_str(), contents.c_str(), add_stat, c);
+
+    // Form a comma-separated string of the queue map's contents.
+    std::string qMapContents;
+    for (auto& vbid : qMapCopy) {
+        qMapContents += std::to_string(vbid) + ",";
+    }
+    if (!qMapContents.empty()) {
+        qMapContents.pop_back();
+    }
+    add_casted_stat((prefix + "map_contents").c_str(),
+                    qMapContents.c_str(),
+                    add_stat,
+                    c);
+}

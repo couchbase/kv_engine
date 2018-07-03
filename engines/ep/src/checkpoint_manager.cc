@@ -15,10 +15,11 @@
  *   limitations under the License.
  */
 
-#include "checkpoint.h"
 #include "checkpoint_manager.h"
+#include "checkpoint.h"
 #include "ep_time.h"
 #include "pre_link_document_context.h"
+#include "statwriter.h"
 #include "vbucket.h"
 
 const std::string CheckpointManager::pCursorName("persistence");

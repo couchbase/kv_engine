@@ -25,6 +25,7 @@
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/flow-control.h"
+#include "dcp/ready-queue.h"
 #include "globaltask.h"
 
 #include <relaxed_atomic.h>

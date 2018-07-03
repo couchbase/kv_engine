@@ -185,6 +185,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/flow-control.cc
             src/dcp/flow-control-manager.cc
             src/dcp/producer.cc
+            src/dcp/ready-queue.cc
+            src/dcp/ready-queue.h
             src/dcp/response.cc
             src/dcp/stream.cc
             src/defragmenter.cc

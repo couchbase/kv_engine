@@ -25,6 +25,7 @@
 #include "collections/filter.h"
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
+#include "dcp/ready-queue.h"
 #include "dcp/response.h"
 #include "ep_engine.h"
 #include "monotonic.h"
