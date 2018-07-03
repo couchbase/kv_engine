@@ -28,6 +28,7 @@
 
 #include <platform/non_negative_counter.h>
 
+class KVBucket;
 class VBucket;
 
 /**

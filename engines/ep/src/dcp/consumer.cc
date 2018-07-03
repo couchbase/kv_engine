@@ -19,7 +19,8 @@
 
 #include "checkpoint_manager.h"
 #include "dcp/dcpconnmap.h"
-#include "dcp/stream.h"
+#include "dcp/passive_stream.h"
+#include "dcp/response.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "executorpool.h"
