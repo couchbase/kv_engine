@@ -27,6 +27,7 @@
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
+#include "dcp/notifier_stream.h"
 #include "executorpool.h"
 #include "failover-table.h"
 #include "item_eviction.h"

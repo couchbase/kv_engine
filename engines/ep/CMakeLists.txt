@@ -188,6 +188,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/dcpconnmap.cc
             src/dcp/flow-control.cc
             src/dcp/flow-control-manager.cc
+            src/dcp/notifier_stream.cc
+            src/dcp/notifier_stream.h
             src/dcp/passive_stream.cc
             src/dcp/passive_stream.h
             src/dcp/producer.cc
