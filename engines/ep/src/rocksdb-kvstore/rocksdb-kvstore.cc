@@ -29,6 +29,7 @@
 #include <rocksdb/convenience.h>
 #include <rocksdb/filter_policy.h>
 
+#include <nlohmann/json.hpp>
 #include <stdio.h>
 #include <string.h>
 #include <algorithm>
@@ -979,35 +980,32 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
                        vbid);
         }
     } else {
-        cJSON* jsonObj = cJSON_Parse(vbstate.c_str());
-        if (!jsonObj) {
+        nlohmann::json json;
+        try {
+            json = nlohmann::json::parse(vbstate);
+        } catch (const nlohmann::json::exception& e) {
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksKVStore::readVBState: Failed to parse the vbstat "
-                       "json doc for vb:%" PRIu16 ", json:%s",
+                       "json doc for vb:%" PRIu16 ", json:%s with reason:%s",
                        vbid,
-                       vbstate.c_str());
+                       vbstate.c_str(),
+                       e.what());
+            return;
         }
 
-        const std::string vb_state =
-                getJSONObjString(cJSON_GetObjectItem(jsonObj, "state"));
-        const std::string checkpoint_id =
-                getJSONObjString(cJSON_GetObjectItem(jsonObj, "checkpoint_id"));
-        const std::string max_deleted_seqno = getJSONObjString(
-                cJSON_GetObjectItem(jsonObj, "max_deleted_seqno"));
-        const std::string snapStart =
-                getJSONObjString(cJSON_GetObjectItem(jsonObj, "snap_start"));
-        const std::string snapEnd =
-                getJSONObjString(cJSON_GetObjectItem(jsonObj, "snap_end"));
-        const std::string maxCasValue =
-                getJSONObjString(cJSON_GetObjectItem(jsonObj, "max_cas"));
-        const std::string hlcCasEpoch =
-                getJSONObjString(cJSON_GetObjectItem(jsonObj, "hlc_epoch"));
-        mightContainXattrs = getJSONObjBool(
-                cJSON_GetObjectItem(jsonObj, "might_contain_xattrs"));
+        auto vb_state = json.value("state", "");
+        auto checkpoint_id = json.value("checkpoint_id", "");
+        auto max_deleted_seqno = json.value("max_deleted_seqno", "");
+        auto snapStart = json.find("snap_start");
+        auto snapEnd = json.find("snap_end");
+        auto maxCasValue = json.find("max_cas");
+        auto hlcCasEpoch = json.find("hlc_epoch");
+        mightContainXattrs = json.value("might_contain_xattrs", false);
 
-        cJSON* failover_json = cJSON_GetObjectItem(jsonObj, "failover_table");
-        if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0 ||
-            max_deleted_seqno.compare("") == 0) {
+        auto failover_json = json.find("failover_table");
+        if (vb_state.empty() || checkpoint_id.empty() ||
+            max_deleted_seqno.empty()) {
+            std::stringstream error;
             logger.log(EXTENSION_LOG_WARNING,
                        "RocksDBKVStore::readVBState: State"
                        " JSON doc for vb:%" PRIu16
@@ -1023,31 +1021,30 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
             maxDeletedSeqno = std::stoull(max_deleted_seqno);
             checkpointId = std::stoull(checkpoint_id);
 
-            if (snapStart.compare("") == 0) {
-                lastSnapStart = highSeqno;
+            if (snapStart == json.end()) {
+                lastSnapStart = gsl::narrow<uint64_t>(highSeqno);
             } else {
-                lastSnapStart = std::stoull(snapStart.c_str());
+                lastSnapStart = std::stoull(snapStart->get<std::string>());
             }
 
-            if (snapEnd.compare("") == 0) {
-                lastSnapEnd = highSeqno;
+            if (snapEnd == json.end()) {
+                lastSnapEnd = gsl::narrow<uint64_t>(highSeqno);
             } else {
-                lastSnapEnd = std::stoull(snapEnd.c_str());
+                lastSnapEnd = std::stoull(snapEnd->get<std::string>());
             }
 
-            if (maxCasValue.compare("") != 0) {
-                maxCas = std::stoull(maxCasValue.c_str());
+            if (maxCasValue != json.end()) {
+                maxCas = std::stoull(maxCasValue->get<std::string>());
             }
 
-            if (!hlcCasEpoch.empty()) {
-                hlcCasEpochSeqno = std::stoull(hlcCasEpoch);
+            if (hlcCasEpoch != json.end()) {
+                hlcCasEpochSeqno = std::stoull(hlcCasEpoch->get<std::string>());
             }
 
-            if (failover_json) {
-                failovers = to_string(failover_json, false);
+            if (failover_json != json.end()) {
+                failovers = failover_json->dump();
             }
         }
-        cJSON_Delete(jsonObj);
     }
 
     cachedVBStates[vbh.vbid] =
