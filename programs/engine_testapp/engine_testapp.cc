@@ -144,6 +144,15 @@ struct mock_engine : public EngineIface, public DcpIface {
                            cb::const_char_buffer name,
                            cb::const_byte_buffer jsonExtras) override;
 
+    ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
@@ -536,36 +545,29 @@ ENGINE_ERROR_CODE mock_engine::open(gsl::not_null<const void*> cookie,
     return the_engine_dcp->open(cookie, opaque, seqno, flags, name, jsonExtras);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_add_stream(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint32_t flags) {
-    struct mock_engine* me = get_handle(handle);
+ENGINE_ERROR_CODE mock_engine::add_stream(gsl::not_null<const void*> cookie,
+                                          uint32_t opaque,
+                                          uint16_t vbucket,
+                                          uint32_t flags) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
-    auto& dcp = dynamic_cast<DcpIface&>(*me->the_engine);
-    auto engine_fn = std::bind(dcp.add_stream,
-                               get_engine_from_handle(handle),
+    auto engine_fn = std::bind(&DcpIface::add_stream,
+                               the_engine_dcp,
                                static_cast<const void*>(c),
                                opaque,
                                vbucket,
                                flags);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    ENGINE_ERROR_CODE ret =
+            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_close_stream(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->close_stream(
-            (ENGINE_HANDLE*)me->the_engine, cookie, opaque, vbucket);
+ENGINE_ERROR_CODE mock_engine::close_stream(gsl::not_null<const void*> cookie,
+                                            uint32_t opaque,
+                                            uint16_t vbucket) {
+    return the_engine_dcp->close_stream(cookie, opaque, vbucket);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_stream_req(
@@ -972,8 +974,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->add_stream = mock_dcp_add_stream;
-        me->close_stream = mock_dcp_close_stream;
         me->stream_req = mock_dcp_stream_req;
         me->get_failover_log = mock_dcp_get_failover_log;
         me->stream_end = mock_dcp_stream_end;

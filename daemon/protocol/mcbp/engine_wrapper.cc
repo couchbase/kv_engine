@@ -323,8 +323,7 @@ ENGINE_ERROR_CODE dcpAddStream(Cookie& cookie,
                                uint32_t flags) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->add_stream(
-            connection.getBucketEngineAsV0(), &cookie, opaque, vbid, flags);
+    auto ret = dcp->add_stream(&cookie, opaque, vbid, flags);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.add_stream returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -355,8 +354,7 @@ ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
                                  uint16_t vbid) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->close_stream(
-            connection.getBucketEngineAsV0(), &cookie, opaque, vbid);
+    auto ret = dcp->close_stream(&cookie, opaque, vbid);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.close_stream returned ENGINE_DISCONNECT",
                     connection.getId(),

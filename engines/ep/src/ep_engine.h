@@ -213,6 +213,16 @@ public:
                            uint32_t flags,
                            cb::const_char_buffer name,
                            cb::const_byte_buffer jsonExtras) override;
+
+    ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket) override;
+
     /**
      * Delete a given key and value from the engine.
      *

@@ -376,18 +376,39 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                    cb::const_char_buffer name,
                                    cb::const_byte_buffer jsonExtras) = 0;
 
-    ENGINE_ERROR_CODE(*add_stream)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint32_t flags);
+    /**
+     * Called from the memcached core to add a vBucket stream to the set of
+     * connected streams.
+     *
+     * @param cookie a unique handle the engine should pass on to the
+     *               message producers (typically representing the memcached
+     *               connection).
+     * @param opaque what to use as the opaque for this DCP connection.
+     * @param vbucket The vBucket to stream.
+     * @param flags bitfield of flags to specify what to open. See
+     *              DCP_ADD_STREAM_FLAG_XXX
+     * @return ENGINE_SUCCESS if the DCP stream was successfully opened,
+     *         otherwise error code indicating reason for the failure.
+     */
+    virtual ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags) = 0;
 
-    ENGINE_ERROR_CODE(*close_stream)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket);
+    /**
+     * Called from the memcached core to close a vBucket stream to the set of
+     * connected streams.
+     *
+     * @param cookie a unique handle the engine should pass on to the
+     *               message producers (typically representing the memcached
+     *               connection).
+     * @param opaque what to use as the opaque for this DCP connection.
+     * @param vbucket The vBucket to close.
+     * @return
+     */
+    virtual ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket) = 0;
 
     /**
      * Callback to the engine that a Stream Request message was received

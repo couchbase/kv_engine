@@ -686,6 +686,15 @@ public:
                            cb::const_char_buffer name,
                            cb::const_byte_buffer json) override;
 
+    ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket) override;
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -784,19 +793,6 @@ private:
     std::queue<const void*> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
-
-    static ENGINE_ERROR_CODE dcp_add_stream(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint16_t vbucket,
-            uint32_t flags);
-
-    static ENGINE_ERROR_CODE dcp_close_stream(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint16_t vbucket);
 
     static ENGINE_ERROR_CODE dcp_stream_req(
             gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1247,8 +1243,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     init_wrapped_api(gsa);
 
     DcpIface::stream_req = dcp_stream_req;
-    DcpIface::add_stream = dcp_add_stream;
-    DcpIface::close_stream = dcp_close_stream;
     DcpIface::buffer_acknowledgement = dcp_buffer_acknowledgement;
     DcpIface::control = dcp_control;
     DcpIface::get_failover_log = dcp_get_failover_log;
@@ -1405,32 +1399,24 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_add_stream(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint32_t flags) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->add_stream) {
+ENGINE_ERROR_CODE EWB_Engine::add_stream(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->add_stream(
-                ewb->real_handle, cookie, opaque, vbucket, flags);
+        return real_engine_dcp->add_stream(cookie, opaque, vbucket, flags);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_close_stream(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->close_stream) {
+ENGINE_ERROR_CODE EWB_Engine::close_stream(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->close_stream(
-                ewb->real_handle, cookie, opaque, vbucket);
+        return real_engine_dcp->close_stream(cookie, opaque, vbucket);
     }
 }
 

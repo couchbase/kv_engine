@@ -1340,19 +1340,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::open(
             cookie, opaque, seqno, flags, name, jsonExtra);
 }
 
-static ENGINE_ERROR_CODE EvpDcpAddStream(gsl::not_null<ENGINE_HANDLE*> handle,
-                                         gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         uint16_t vbucket,
-                                         uint32_t flags) {
-    return acquireEngine(handle)->dcpAddStream(cookie, opaque, vbucket, flags);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::add_stream(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t flags) {
+    return acquireEngine(this)->dcpAddStream(cookie, opaque, vbucket, flags);
 }
 
-static ENGINE_ERROR_CODE EvpDcpCloseStream(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           uint16_t vbucket) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::close_stream(
+        gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->closeStream(opaque, vbucket);
@@ -1808,8 +1806,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    dcp_interface::add_stream = EvpDcpAddStream;
-    dcp_interface::close_stream = EvpDcpCloseStream;
     dcp_interface::get_failover_log = EvpDcpGetFailoverLog;
     dcp_interface::stream_req = EvpDcpStreamReq;
     dcp_interface::stream_end = EvpDcpStreamEnd;

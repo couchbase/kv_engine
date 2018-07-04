@@ -749,7 +749,7 @@ ENGINE_ERROR_CODE TestDcpConsumer::closeStreams(bool fClear) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     for (auto& ctx : stream_ctxs) {
         if (ctx.opaque > 0) {
-            err = dcp->close_stream(h, cookie, ctx.opaque, 0);
+            err = dcp->close_stream(cookie, ctx.opaque, 0);
             if (ENGINE_SUCCESS != err) {
                 break;
             }
@@ -3143,7 +3143,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
-            dcp->add_stream(h, cookie, opaque, vbucket, flags),
+            dcp->add_stream(cookie, opaque, vbucket, flags),
             "Add stream request failed");
 
     dcp_step(h, h1, cookie);
@@ -3488,7 +3488,7 @@ static enum test_result test_failover_scenario_one_with_dcp(
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->close_stream(h, cookie, stream_opaque, 0),
+            dcp->close_stream(cookie, stream_opaque, 0),
             "Expected success");
 
     // Simulating a failover scenario, where the replica vbucket will
@@ -3788,7 +3788,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->add_stream(h, cookie, ++opaque, vbid, 0),
+            dcp->add_stream(cookie, ++opaque, vbid, 0),
             "Add stream request failed");
 
     dcp_step(h, h1, cookie);
@@ -3883,7 +3883,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->add_stream(h, cookie, opaque, 0, 0),
+            dcp->add_stream(cookie, opaque, 0, 0),
             "Add stream request failed");
 
     dcp_step(h, h1, cookie);
@@ -3999,7 +3999,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->add_stream(h, cookie, opaque, 0, 0),
+            dcp->add_stream(cookie, opaque, 0, 0),
             "Add stream request failed");
 
     dcp_step(h, h1, cookie);
@@ -4261,12 +4261,12 @@ static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
 
     /* Send add stream to consumer */
     checkeq(ENGINE_SUCCESS,
-            dcp->add_stream(h, cookie, ++opaque, vbucket, 0),
+            dcp->add_stream(cookie, ++opaque, vbucket, 0),
             "Add stream request failed");
 
     /* Send add stream to consumer twice and expect failure */
     checkeq(ENGINE_KEY_EEXISTS,
-            dcp->add_stream(h, cookie, ++opaque, 0, 0),
+            dcp->add_stream(cookie, ++opaque, 0, 0),
             "Stream exists for this vbucket");
 
     /* Try adding another stream for the vbucket in another consumer conn */
@@ -4280,7 +4280,7 @@ static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
 
     /* Send add stream */
     checkeq(ENGINE_KEY_EEXISTS,
-            dcp->add_stream(h, cookie1, ++opaque1, vbucket, 0),
+            dcp->add_stream(cookie1, ++opaque1, vbucket, 0),
             "Stream exists for this vbucket");
 
     /* Just check that we can add passive stream for another vbucket in this
@@ -4288,7 +4288,7 @@ static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
     checkeq(true, set_vbucket_state(h, h1, vbucket + 1, vbucket_state_replica),
             "Failed to set vbucket state.");
     checkeq(ENGINE_SUCCESS,
-            dcp->add_stream(h, cookie1, ++opaque1, vbucket + 1, 0),
+            dcp->add_stream(cookie1, ++opaque1, vbucket + 1, 0),
             "Add stream request failed in the second conn");
     testHarness.destroy_cookie(cookie);
     testHarness.destroy_cookie(cookie1);
@@ -4314,7 +4314,7 @@ static enum test_result test_dcp_add_stream_nmvb(ENGINE_HANDLE *h,
     // Send add stream to consumer for vbucket that doesn't exist
     opaque++;
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            dcp->add_stream(h, cookie, opaque, 1, 0),
+            dcp->add_stream(cookie, opaque, 1, 0),
             "Add stream expected not my vbucket");
     testHarness.destroy_cookie(cookie);
 
@@ -4377,7 +4377,7 @@ static enum test_result test_dcp_close_stream_no_stream(ENGINE_HANDLE *h,
             "Failed dcp producer open connection.");
 
     checkeq(ENGINE_KEY_ENOENT,
-            dcp->close_stream(h, cookie, opaque + 1, 0),
+            dcp->close_stream(cookie, opaque + 1, 0),
             "Expected stream doesn't exist");
 
     testHarness.destroy_cookie(cookie);
@@ -4409,7 +4409,7 @@ static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
     checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->close_stream(h, cookie, stream_opaque, 0),
+            dcp->close_stream(cookie, stream_opaque, 0),
             "Expected success");
 
     testHarness.destroy_cookie(cookie);
@@ -5294,7 +5294,7 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
     checkeq(6, get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
             "The last mutation should've been dropped!");
 
-    checkeq(dcp->close_stream(h, cookie, stream_opaque, 0),
+    checkeq(dcp->close_stream(cookie, stream_opaque, 0),
             ENGINE_SUCCESS,
             "Expected to close stream!");
     testHarness.destroy_cookie(cookie);
@@ -5353,7 +5353,7 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
     std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
     wait_for_stat_to_be(h, h1, bufferItemsStr.c_str(), 0, "dcp");
 
-    checkeq(dcp->close_stream(h, cookie1, stream_opaque, 0),
+    checkeq(dcp->close_stream(cookie1, stream_opaque, 0),
             ENGINE_SUCCESS,
             "Expected to close stream1!");
     testHarness.destroy_cookie(cookie1);
@@ -5407,7 +5407,7 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
         }
     }
 
-    checkeq(dcp->close_stream(h, cookie2, stream_opaque, 0),
+    checkeq(dcp->close_stream(cookie2, stream_opaque, 0),
             ENGINE_SUCCESS,
             "Expected to close stream2!");
     testHarness.destroy_cookie(cookie2);
