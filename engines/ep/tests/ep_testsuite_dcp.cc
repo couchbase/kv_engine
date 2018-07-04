@@ -624,8 +624,7 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
 
         /* Initiate stream request */
         uint64_t rollback = 0;
-        ENGINE_ERROR_CODE rv = dcp->stream_req(h,
-                                               cookie,
+        ENGINE_ERROR_CODE rv = dcp->stream_req(cookie,
                                                ctx.flags,
                                                opaque,
                                                ctx.vbucket,
@@ -774,8 +773,7 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     uint64_t snap_end_seqno = snap_start_seqno;
     auto dcp = requireDcpIface(h);
 
-    ENGINE_ERROR_CODE err = dcp->stream_req(h,
-                                            cookie,
+    ENGINE_ERROR_CODE err = dcp->stream_req(cookie,
                                             flags,
                                             opaque,
                                             vbucket,
@@ -818,8 +816,7 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     /* Send snapshot marker */
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(h,
-                                 cookie,
+            dcp->snapshot_marker(cookie,
                                  opaque,
                                  vbucket,
                                  snap_start_seqno,
@@ -1021,8 +1018,7 @@ extern "C" {
             ss << "kamakeey-" << i;
 
             // send mutations in single mutation snapshots to race more with compaction
-            ctx->dcp->snapshot_marker(ctx->h,
-                                      cookie,
+            ctx->dcp->snapshot_marker(cookie,
                                       stream_opaque,
                                       0 /*vbid*/,
                                       ctx->items,
@@ -2727,8 +2723,7 @@ static test_result test_dcp_producer_stream_req_nmvb(ENGINE_HANDLE *h,
     uint64_t rollback = 0;
 
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            dcp->stream_req(h,
-                            cookie1,
+            dcp->stream_req(cookie1,
                             0,
                             0,
                             req_vbucket,
@@ -3014,8 +3009,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
 
     uint64_t rollback = 0;
     checkeq(ENGINE_SUCCESS,
-            dcp->stream_req(h,
-                            cookie,
+            dcp->stream_req(cookie,
                             flags,
                             ++opaque,
                             vbucket,
@@ -3270,7 +3264,7 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
     uint32_t stream_opaque =
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(h, cookie, stream_opaque, 0, 0, 10, 2),
+            dcp->snapshot_marker(cookie, stream_opaque, 0, 0, 10, 2),
             "Failed to send snapshot marker");
 
     for (int i = 1; i <= items; i++) {
@@ -3380,7 +3374,7 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
     uint32_t stream_opaque =
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
-    dcp->snapshot_marker(h, cookie, stream_opaque, 0, 1, 5, 10);
+    dcp->snapshot_marker(cookie, stream_opaque, 0, 1, 5, 10);
     for (int i = 1; i <= 5; i++) {
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocNamespace::DefaultCollection);
@@ -3404,7 +3398,7 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
                 "Failed to send dcp mutation");
     }
 
-    dcp->snapshot_marker(h, cookie, stream_opaque, 0, 6, 10, 10);
+    dcp->snapshot_marker(cookie, stream_opaque, 0, 6, 10, 10);
     for (int i = 6; i <= 10; i++) {
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocNamespace::DefaultCollection);
@@ -3482,7 +3476,7 @@ static enum test_result test_failover_scenario_one_with_dcp(
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(h, cookie, stream_opaque, 0, 200, 300, 300),
+            dcp->snapshot_marker(cookie, stream_opaque, 0, 200, 300, 300),
             "Failed to send snapshot marker");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
@@ -3534,7 +3528,7 @@ static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
 
     // Snapshot marker indicating 5 mutations will follow
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(h, cookie, stream_opaque, 0, 0, 5, 0),
+            dcp->snapshot_marker(cookie, stream_opaque, 0, 0, 5, 0),
             "Failed to send marker!");
 
     // Send 4 mutations
@@ -3663,7 +3657,7 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
 
     uint32_t stream_opaque =
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
-    checkeq(dcp->snapshot_marker(h, cookie, stream_opaque, 0, 0, 20, 1),
+    checkeq(dcp->snapshot_marker(cookie, stream_opaque, 0, 0, 20, 1),
             ENGINE_SUCCESS,
             "Failed to send snapshot marker");
 
@@ -4212,8 +4206,7 @@ static enum test_result test_dcp_get_failover_log(ENGINE_HANDLE *h,
             "Failed dcp Consumer open connection.");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->get_failover_log(
-                    h, cookie, opaque, 0, mock_dcp_add_failover_log),
+            dcp->get_failover_log(cookie, opaque, 0, mock_dcp_add_failover_log),
             "Failed to retrieve failover log");
 
     testHarness.destroy_cookie(cookie);
@@ -4443,7 +4436,7 @@ static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
     checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->stream_end(h, cookie, stream_opaque, vbucket, end_flag),
+            dcp->stream_end(cookie, stream_opaque, vbucket, end_flag),
             "Expected success");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_state",
@@ -4496,7 +4489,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
     uint32_t lockTime = 0;
 
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
+            dcp->snapshot_marker(cookie, opaque, 0, 10, 10, 1),
             "Failed to send snapshot marker");
 
     /* Add snapshot marker bytes to unacked bytes. Since we are shipping out
@@ -4536,7 +4529,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
 
     // Send snapshot marker
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(h, cookie, opaque, 0, 10, 15, 300),
+            dcp->snapshot_marker(cookie, opaque, 0, 10, 15, 300),
             "Failed to send marker!");
 
     exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
@@ -4619,7 +4612,7 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     int exp_unacked_bytes = dcp_snapshot_marker_base_msg_bytes;
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
+            dcp->snapshot_marker(cookie, opaque, 0, 10, 10, 1),
             "Failed to send snapshot marker");
 
     const std::string key{"key"};
@@ -5191,7 +5184,7 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t  stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
 
-    checkeq(dcp->snapshot_marker(h, cookie, stream_opaque, 0, 5, 10, 300),
+    checkeq(dcp->snapshot_marker(cookie, stream_opaque, 0, 5, 10, 300),
             ENGINE_SUCCESS,
             "Failed to send snapshot marker!");
     for (int i = 5; i <= 10; i++) {
@@ -5324,7 +5317,7 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
 
-    checkeq(dcp->snapshot_marker(h, cookie1, stream_opaque, 0, 1, 10, 300),
+    checkeq(dcp->snapshot_marker(cookie1, stream_opaque, 0, 1, 10, 300),
             ENGINE_SUCCESS,
             "Failed to send snapshot marker!");
     for (int i = 1; i <= 10; i++) {
@@ -5372,13 +5365,13 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
     stream_opaque = get_int_stat(h , h1, opaqueStr.c_str(), "dcp");
 
     // Send a snapshot marker that would be rejected
-    checkeq(dcp->snapshot_marker(h, cookie2, stream_opaque, 0, 5, 10, 1),
+    checkeq(dcp->snapshot_marker(cookie2, stream_opaque, 0, 5, 10, 1),
             ENGINE_ERANGE,
             "Snapshot marker should have been dropped!");
 
     // Send a snapshot marker that would be accepted, but a few of
     // the mutations that are part of this snapshot will be dropped
-    checkeq(dcp->snapshot_marker(h, cookie2, stream_opaque, 0, 5, 15, 1),
+    checkeq(dcp->snapshot_marker(cookie2, stream_opaque, 0, 5, 15, 1),
             ENGINE_SUCCESS,
             "Failed to send snapshot marker!");
     for (int i = 5; i <= 15; i++) {
@@ -5502,7 +5495,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
 
-    checkeq(dcp->snapshot_marker(h, cookie, stream_opaque, 0, 1, 10, 300),
+    checkeq(dcp->snapshot_marker(cookie, stream_opaque, 0, 1, 10, 300),
             ENGINE_SUCCESS,
             "Failed to send snapshot marker!");
     for (int i = 1; i <= 10; i++) {
@@ -5532,7 +5525,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
     wait_for_stat_to_be(h, h1, bufferItemsStr.c_str(), 0, "dcp");
 
     // Invalid snapshot marker with end <= start
-    checkeq(dcp->snapshot_marker(h, cookie, stream_opaque, 0, 11, 8, 300),
+    checkeq(dcp->snapshot_marker(cookie, stream_opaque, 0, 11, 8, 300),
             ENGINE_EINVAL,
             "Failed to send snapshot marker!");
 
@@ -5588,8 +5581,7 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
     for (int i = 0; i < streams; i++) {
         uint64_t rollback = 0;
-        check(dcp->stream_req(h,
-                              cookie,
+        check(dcp->stream_req(cookie,
                               DCP_ADD_STREAM_FLAG_DISKONLY,
                               ++opaque,
                               i,
@@ -5816,8 +5808,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
                                           ("eq_dcpq:" + name + ":stream_0_opaque").c_str(),
                                           "dcp");
 
-    dcp->snapshot_marker(h,
-                         cookie,
+    dcp->snapshot_marker(cookie,
                          stream_opaque,
                          /*vbid*/ 0,
                          /*start*/ 0,
@@ -6047,7 +6038,7 @@ static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
         if (i % 20) {
             checkeq(ENGINE_SUCCESS,
                     dcp->snapshot_marker(
-                            h, cookie, stream_opaque, 0, i, i + 20, 0x01),
+                            cookie, stream_opaque, 0, i, i + 20, 0x01),
                     "Failed to send snapshot marker");
         }
         const std::string key("key" + std::to_string(i));
@@ -6119,8 +6110,7 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
     uint32_t stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(
-                    h, cookie, stream_opaque, rep_vb_num, 0, 10, 1),
+            dcp->snapshot_marker(cookie, stream_opaque, rep_vb_num, 0, 10, 1),
             "Failed to send snapshot marker!");
 
     const std::string key("key");
@@ -6222,8 +6212,7 @@ static enum test_result test_mb19153(ENGINE_HANDLE *h,
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     uint64_t rollback = 0;
     checkeq(ENGINE_SUCCESS,
-            dcp->stream_req(h,
-                            cookie,
+            dcp->stream_req(cookie,
                             0,
                             opaque,
                             0,
@@ -6303,8 +6292,7 @@ static enum test_result test_mb19982(ENGINE_HANDLE *h,
                                           "dcp");
 
     for (int i = 1; i <= num_items; i++) {
-        checkeq(dcp->snapshot_marker(h,
-                                     cookie,
+        checkeq(dcp->snapshot_marker(cookie,
                                      stream_opaque,
                                      0 /*vbid*/,
                                      num_items,

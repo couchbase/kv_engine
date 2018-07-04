@@ -223,6 +223,35 @@ public:
                                    uint32_t opaque,
                                    uint16_t vbucket) override;
 
+    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
+                                 uint32_t flags,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno,
+                                 uint64_t* rollback_seqno,
+                                 dcp_add_failover_log callback) override;
+
+    ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       uint16_t vbucket,
+                                       dcp_add_failover_log callback) override;
+
+    ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      uint16_t vbucket,
+                                      uint64_t start_seqno,
+                                      uint64_t end_seqno,
+                                      uint32_t flags) override;
+
     /**
      * Delete a given key and value from the engine.
      *

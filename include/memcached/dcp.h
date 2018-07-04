@@ -413,51 +413,44 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a Stream Request message was received
      */
-    ENGINE_ERROR_CODE(*stream_req)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t flags,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint64_t start_seqno,
-     uint64_t end_seqno,
-     uint64_t vbucket_uuid,
-     uint64_t snap_start_seqno,
-     uint64_t snap_end_seqno,
-     uint64_t* rollback_seqno,
-     dcp_add_failover_log callback);
+    virtual ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
+                                         uint32_t flags,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vbucket_uuid,
+                                         uint64_t snap_start_seqno,
+                                         uint64_t snap_end_seqno,
+                                         uint64_t* rollback_seqno,
+                                         dcp_add_failover_log callback) = 0;
 
     /**
      * Callback to the engine that a get failover log message was received
      */
-    ENGINE_ERROR_CODE(*get_failover_log)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     dcp_add_failover_log callback);
+    virtual ENGINE_ERROR_CODE get_failover_log(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            uint16_t vbucket,
+            dcp_add_failover_log callback) = 0;
 
     /**
      * Callback to the engine that a stream end message was received
      */
-    ENGINE_ERROR_CODE(*stream_end)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint32_t flags);
+    virtual ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags) = 0;
 
     /**
      * Callback to the engine that a snapshot marker message was received
      */
-    ENGINE_ERROR_CODE(*snapshot_marker)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint64_t start_seqno,
-     uint64_t end_seqno,
-     uint32_t flags);
+    virtual ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket,
+                                              uint64_t start_seqno,
+                                              uint64_t end_seqno,
+                                              uint32_t flags) = 0;
 
     /**
      * Callback to the engine that a mutation message was received

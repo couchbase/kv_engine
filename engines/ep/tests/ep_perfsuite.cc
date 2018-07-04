@@ -898,8 +898,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     // We create a stream from 0 to MAX(seqno), and then rely on encountering the
     // sentinel document to know when to finish.
     uint64_t rollback = 0;
-    checkeq(dcp.stream_req(h,
-                           cookie,
+    checkeq(dcp.stream_req(cookie,
                            0,
                            streamOpaque,
                            vbid,

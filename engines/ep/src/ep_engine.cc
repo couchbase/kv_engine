@@ -1358,19 +1358,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::close_stream(
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpStreamReq(gsl::not_null<ENGINE_HANDLE*> handle,
-                                         gsl::not_null<const void*> cookie,
-                                         uint32_t flags,
-                                         uint32_t opaque,
-                                         uint16_t vbucket,
-                                         uint64_t startSeqno,
-                                         uint64_t endSeqno,
-                                         uint64_t vbucketUuid,
-                                         uint64_t snapStartSeqno,
-                                         uint64_t snapEndSeqno,
-                                         uint64_t* rollbackSeqno,
-                                         dcp_add_failover_log callback) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
+        gsl::not_null<const void*> cookie,
+        uint32_t flags,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint64_t startSeqno,
+        uint64_t endSeqno,
+        uint64_t vbucketUuid,
+        uint64_t snapStartSeqno,
+        uint64_t snapEndSeqno,
+        uint64_t* rollbackSeqno,
+        dcp_add_failover_log callback) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->streamRequest(flags,
@@ -1387,8 +1387,7 @@ static ENGINE_ERROR_CODE EvpDcpStreamReq(gsl::not_null<ENGINE_HANDLE*> handle,
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
@@ -1400,7 +1399,7 @@ static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(
     // 2) GET_FAILOVER_LOG
     //     It does not require a DCP connection (the client has opened
     //     a regular MCBP connection).
-    auto engine = acquireEngine(handle);
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     // Note: (conn != nullptr) only if conn is a DCP connection
     if (conn) {
@@ -1417,7 +1416,7 @@ static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(
             return ENGINE_DISCONNECT;
         }
     }
-    VBucketPtr vb = engine->getVBucket(vbucket);
+    VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         LOG(EXTENSION_LOG_WARNING,
             "%s (vb %d) Get Failover Log failed because this vbucket doesn't "
@@ -1433,12 +1432,12 @@ static ENGINE_ERROR_CODE EvpDcpGetFailoverLog(
     return ret;
 }
 
-static ENGINE_ERROR_CODE EvpDcpStreamEnd(gsl::not_null<ENGINE_HANDLE*> handle,
-                                         gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         uint16_t vbucket,
-                                         uint32_t flags) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_end(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t flags) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->streamEnd(opaque, vbucket, flags);
@@ -1446,15 +1445,14 @@ static ENGINE_ERROR_CODE EvpDcpStreamEnd(gsl::not_null<ENGINE_HANDLE*> handle,
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpSnapshotMarker(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::snapshot_marker(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags) {
-    auto engine = acquireEngine(handle);
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->snapshotMarker(
@@ -1806,10 +1804,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    dcp_interface::get_failover_log = EvpDcpGetFailoverLog;
-    dcp_interface::stream_req = EvpDcpStreamReq;
-    dcp_interface::stream_end = EvpDcpStreamEnd;
-    dcp_interface::snapshot_marker = EvpDcpSnapshotMarker;
     dcp_interface::mutation = EvpDcpMutation;
     dcp_interface::deletion = EvpDcpDeletion;
     dcp_interface::deletion_v2 = EvpDcpDeletionV2;

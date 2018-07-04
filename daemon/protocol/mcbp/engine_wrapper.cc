@@ -504,11 +504,7 @@ ENGINE_ERROR_CODE dcpGetFailoverLog(Cookie& cookie,
                                     dcp_add_failover_log callback) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->get_failover_log(connection.getBucketEngineAsV0(),
-                                     &cookie,
-                                     opaque,
-                                     vbucket,
-                                     callback);
+    auto ret = dcp->get_failover_log(&cookie, opaque, vbucket, callback);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.get_failover_log returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -611,13 +607,8 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
                                     uint32_t flags) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->snapshot_marker(connection.getBucketEngineAsV0(),
-                                    &cookie,
-                                    opaque,
-                                    vbid,
-                                    startSeqno,
-                                    endSeqno,
-                                    flags);
+    auto ret = dcp->snapshot_marker(
+            &cookie, opaque, vbid, startSeqno, endSeqno, flags);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.snapshot_marker returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -632,8 +623,7 @@ ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
                                uint32_t flags) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->stream_end(
-            connection.getBucketEngineAsV0(), &cookie, opaque, vbucket, flags);
+    auto ret = dcp->stream_end(&cookie, opaque, vbucket, flags);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.stream_end returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -655,8 +645,7 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
                                dcp_add_failover_log callback) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->stream_req(connection.getBucketEngineAsV0(),
-                               &cookie,
+    auto ret = dcp->stream_req(&cookie,
                                flags,
                                opaque,
                                vbucket,

@@ -695,6 +695,35 @@ public:
                                    uint32_t opaque,
                                    uint16_t vbucket) override;
 
+    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
+                                 uint32_t flags,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno,
+                                 uint64_t* rollback_seqno,
+                                 dcp_add_failover_log callback) override;
+
+    ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       uint16_t vbucket,
+                                       dcp_add_failover_log callback) override;
+
+    ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      uint16_t vbucket,
+                                      uint64_t start_seqno,
+                                      uint64_t end_seqno,
+                                      uint32_t flags) override;
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -793,43 +822,6 @@ private:
     std::queue<const void*> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
-
-    static ENGINE_ERROR_CODE dcp_stream_req(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t flags,
-            uint32_t opaque,
-            uint16_t vbucket,
-            uint64_t start_seqno,
-            uint64_t end_seqno,
-            uint64_t vbucket_uuid,
-            uint64_t snap_start_seqno,
-            uint64_t snap_end_seqno,
-            uint64_t* rollback_seqno,
-            dcp_add_failover_log callback);
-
-    static ENGINE_ERROR_CODE dcp_get_failover_log(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint16_t vbucket,
-            dcp_add_failover_log callback);
-
-    static ENGINE_ERROR_CODE dcp_stream_end(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint16_t vbucket,
-            uint32_t flags);
-
-    static ENGINE_ERROR_CODE dcp_snapshot_marker(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint16_t vbucket,
-            uint64_t start_seqno,
-            uint64_t end_seqno,
-            uint32_t flags);
 
     static ENGINE_ERROR_CODE dcp_mutation(gsl::not_null<ENGINE_HANDLE*> handle,
                                           gsl::not_null<const void*> cookie,
@@ -1242,12 +1234,8 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    DcpIface::stream_req = dcp_stream_req;
     DcpIface::buffer_acknowledgement = dcp_buffer_acknowledgement;
     DcpIface::control = dcp_control;
-    DcpIface::get_failover_log = dcp_get_failover_log;
-    DcpIface::stream_end = dcp_stream_end;
-    DcpIface::snapshot_marker = dcp_snapshot_marker;
     DcpIface::mutation = dcp_mutation;
     DcpIface::deletion = dcp_deletion;
     DcpIface::deletion_v2 = dcp_deletion_v2;
@@ -1355,22 +1343,19 @@ ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t flags,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint64_t start_seqno,
-        uint64_t end_seqno,
-        uint64_t vbucket_uuid,
-        uint64_t snap_start_seqno,
-        uint64_t snap_end_seqno,
-        uint64_t* rollback_seqno,
-        dcp_add_failover_log callback) {
-    EWB_Engine* ewb = to_engine(handle);
-    auto stream = ewb->dcp_stream.find(cookie.get());
-    if (stream != ewb->dcp_stream.end()) {
+ENGINE_ERROR_CODE EWB_Engine::stream_req(gsl::not_null<const void*> cookie,
+                                         uint32_t flags,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vbucket_uuid,
+                                         uint64_t snap_start_seqno,
+                                         uint64_t snap_end_seqno,
+                                         uint64_t* rollback_seqno,
+                                         dcp_add_failover_log callback) {
+    auto stream = dcp_stream.find(cookie.get());
+    if (stream != dcp_stream.end()) {
         // This is a client of our internal streams.. just let it pass
         if (start_seqno == 1) {
             *rollback_seqno = 0;
@@ -1381,21 +1366,20 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(
         return ENGINE_SUCCESS;
     }
 
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->stream_req) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->stream_req(ewb->real_handle,
-                                                cookie,
-                                                flags,
-                                                opaque,
-                                                vbucket,
-                                                start_seqno,
-                                                end_seqno,
-                                                vbucket_uuid,
-                                                snap_start_seqno,
-                                                snap_end_seqno,
-                                                rollback_seqno,
-                                                callback);
+        return real_engine_dcp->stream_req(cookie,
+                                           flags,
+                                           opaque,
+                                           vbucket,
+                                           start_seqno,
+                                           end_seqno,
+                                           vbucket_uuid,
+                                           snap_start_seqno,
+                                           snap_end_seqno,
+                                           rollback_seqno,
+                                           callback);
     }
 }
 
@@ -1420,55 +1404,41 @@ ENGINE_ERROR_CODE EWB_Engine::close_stream(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_get_failover_log(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EWB_Engine::get_failover_log(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         dcp_add_failover_log callback) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->get_failover_log) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->get_failover_log(
-                ewb->real_handle, cookie, opaque, vbucket, callback);
+        return real_engine_dcp->get_failover_log(
+                cookie, opaque, vbucket, callback);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_stream_end(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint32_t flags) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->stream_end) {
+ENGINE_ERROR_CODE EWB_Engine::stream_end(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->stream_end(
-                ewb->real_handle, cookie, opaque, vbucket, flags);
+        return real_engine_dcp->stream_end(cookie, opaque, vbucket, flags);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_snapshot_marker(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint64_t start_seqno,
-        uint64_t end_seqno,
-        uint32_t flags) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->snapshot_marker) {
+ENGINE_ERROR_CODE EWB_Engine::snapshot_marker(gsl::not_null<const void*> cookie,
+                                              uint32_t opaque,
+                                              uint16_t vbucket,
+                                              uint64_t start_seqno,
+                                              uint64_t end_seqno,
+                                              uint32_t flags) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->snapshot_marker(ewb->real_handle,
-                                                     cookie,
-                                                     opaque,
-                                                     vbucket,
-                                                     start_seqno,
-                                                     end_seqno,
-                                                     flags);
+        return real_engine_dcp->snapshot_marker(
+                cookie, opaque, vbucket, start_seqno, end_seqno, flags);
     }
 }
 

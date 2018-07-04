@@ -153,6 +153,35 @@ struct mock_engine : public EngineIface, public DcpIface {
                                    uint32_t opaque,
                                    uint16_t vbucket) override;
 
+    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
+                                 uint32_t flags,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno,
+                                 uint64_t* rollback_seqno,
+                                 dcp_add_failover_log callback) override;
+
+    ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       uint16_t vbucket,
+                                       dcp_add_failover_log callback) override;
+
+    ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      uint16_t vbucket,
+                                      uint64_t start_seqno,
+                                      uint64_t end_seqno,
+                                      uint32_t flags) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
@@ -570,72 +599,54 @@ ENGINE_ERROR_CODE mock_engine::close_stream(gsl::not_null<const void*> cookie,
     return the_engine_dcp->close_stream(cookie, opaque, vbucket);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_stream_req(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t flags,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint64_t start_seqno,
-        uint64_t end_seqno,
-        uint64_t vbucket_uuid,
-        uint64_t snap_start_seqno,
-        uint64_t snap_end_seqno,
-        uint64_t* rollback_seqno,
-        dcp_add_failover_log callback) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->stream_req((ENGINE_HANDLE*)me->the_engine,
-                                          cookie,
-                                          flags,
-                                          opaque,
-                                          vbucket,
-                                          start_seqno,
-                                          end_seqno,
-                                          vbucket_uuid,
-                                          snap_start_seqno,
-                                          snap_end_seqno,
-                                          rollback_seqno,
-                                          callback);
+ENGINE_ERROR_CODE mock_engine::stream_req(gsl::not_null<const void*> cookie,
+                                          uint32_t flags,
+                                          uint32_t opaque,
+                                          uint16_t vbucket,
+                                          uint64_t start_seqno,
+                                          uint64_t end_seqno,
+                                          uint64_t vbucket_uuid,
+                                          uint64_t snap_start_seqno,
+                                          uint64_t snap_end_seqno,
+                                          uint64_t* rollback_seqno,
+                                          dcp_add_failover_log callback) {
+    return the_engine_dcp->stream_req(cookie,
+                                      flags,
+                                      opaque,
+                                      vbucket,
+                                      start_seqno,
+                                      end_seqno,
+                                      vbucket_uuid,
+                                      snap_start_seqno,
+                                      snap_end_seqno,
+                                      rollback_seqno,
+                                      callback);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_get_failover_log(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE mock_engine::get_failover_log(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         dcp_add_failover_log cb) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->get_failover_log(
-            (ENGINE_HANDLE*)me->the_engine, cookie, opaque, vbucket, cb);
+    return the_engine_dcp->get_failover_log(cookie, opaque, vbucket, cb);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_stream_end(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint32_t flags) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->stream_end(
-            (ENGINE_HANDLE*)me->the_engine, cookie, opaque, vbucket, flags);
+ENGINE_ERROR_CODE mock_engine::stream_end(gsl::not_null<const void*> cookie,
+                                          uint32_t opaque,
+                                          uint16_t vbucket,
+                                          uint32_t flags) {
+    return the_engine_dcp->stream_end(cookie, opaque, vbucket, flags);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_snapshot_marker(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE mock_engine::snapshot_marker(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->snapshot_marker((ENGINE_HANDLE*)me->the_engine,
-                                               cookie,
-                                               opaque,
-                                               vbucket,
-                                               start_seqno,
-                                               end_seqno,
-                                               flags);
+    return the_engine_dcp->snapshot_marker(
+            cookie, opaque, vbucket, start_seqno, end_seqno, flags);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_mutation(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -974,10 +985,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->stream_req = mock_dcp_stream_req;
-        me->get_failover_log = mock_dcp_get_failover_log;
-        me->stream_end = mock_dcp_stream_end;
-        me->snapshot_marker = mock_dcp_snapshot_marker;
         me->mutation = mock_dcp_mutation;
         me->deletion = mock_dcp_deletion;
         me->expiration = mock_dcp_expiration;

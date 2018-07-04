@@ -35,10 +35,6 @@
 class NoBucket : public ENGINE_HANDLE_V1, public dcp_interface {
 public:
     NoBucket() {
-        dcp_interface::get_failover_log = dcp_get_failover_log;
-        dcp_interface::stream_req = dcp_stream_req;
-        dcp_interface::stream_end = dcp_stream_end;
-        dcp_interface::snapshot_marker = dcp_snapshot_marker;
         dcp_interface::mutation = dcp_mutation;
         dcp_interface::deletion = dcp_deletion;
         dcp_interface::deletion_v2 = dcp_deletion_v2;
@@ -224,6 +220,46 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
+    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*>,
+                                 uint32_t,
+                                 uint32_t,
+                                 uint16_t,
+                                 uint64_t,
+                                 uint64_t,
+                                 uint64_t,
+                                 uint64_t,
+                                 uint64_t,
+                                 uint64_t*,
+                                 dcp_add_failover_log) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE get_failover_log(
+            gsl::not_null<const void*>,
+            uint32_t,
+            uint16_t,
+            ENGINE_ERROR_CODE (*)(vbucket_failover_t*,
+                                  size_t,
+                                  gsl::not_null<const void*>)) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*>,
+                                 uint32_t,
+                                 uint16_t,
+                                 uint32_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*>,
+                                      uint32_t,
+                                      uint16_t,
+                                      uint64_t,
+                                      uint64_t,
+                                      uint32_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -238,52 +274,9 @@ private:
     static bool set_item_info(gsl::not_null<ENGINE_HANDLE*>,
                               gsl::not_null<item*>,
                               gsl::not_null<const item_info*>) {
-        throw std::logic_error("NoBucket::set_item_info: no items should have"
-                                   " been allocated from this engine");
-    }
-
-    static ENGINE_ERROR_CODE dcp_stream_req(gsl::not_null<ENGINE_HANDLE*>,
-                                            gsl::not_null<const void*>,
-                                            uint32_t,
-                                            uint32_t,
-                                            uint16_t,
-                                            uint64_t,
-                                            uint64_t,
-                                            uint64_t,
-                                            uint64_t,
-                                            uint64_t,
-                                            uint64_t*,
-                                            dcp_add_failover_log) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE dcp_get_failover_log(
-            gsl::not_null<ENGINE_HANDLE*>,
-            gsl::not_null<const void*>,
-            uint32_t,
-            uint16_t,
-            ENGINE_ERROR_CODE (*)(vbucket_failover_t*,
-                                  size_t,
-                                  gsl::not_null<const void*>)) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE dcp_stream_end(gsl::not_null<ENGINE_HANDLE*>,
-                                            gsl::not_null<const void*>,
-                                            uint32_t,
-                                            uint16_t,
-                                            uint32_t) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE dcp_snapshot_marker(gsl::not_null<ENGINE_HANDLE*>,
-                                                 gsl::not_null<const void*>,
-                                                 uint32_t,
-                                                 uint16_t,
-                                                 uint64_t,
-                                                 uint64_t,
-                                                 uint32_t) {
-        return ENGINE_NO_BUCKET;
+        throw std::logic_error(
+                "NoBucket::set_item_info: no items should have"
+                " been allocated from this engine");
     }
 
     static ENGINE_ERROR_CODE dcp_mutation(gsl::not_null<ENGINE_HANDLE*>,
