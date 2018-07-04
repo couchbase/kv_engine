@@ -1318,11 +1318,10 @@ void EventuallyPersistentEngine::item_set_datatype(
     static_cast<Item*>(itm.get())->setDataType(datatype);
 }
 
-static ENGINE_ERROR_CODE EvpDcpStep(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::step(
         gsl::not_null<const void*> cookie,
         gsl::not_null<dcp_message_producers*> producers) {
-    auto engine = acquireEngine(handle);
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->step(producers);
@@ -1330,14 +1329,14 @@ static ENGINE_ERROR_CODE EvpDcpStep(
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpOpen(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    gsl::not_null<const void*> cookie,
-                                    uint32_t opaque,
-                                    uint32_t seqno,
-                                    uint32_t flags,
-                                    cb::const_char_buffer name,
-                                    cb::const_byte_buffer jsonExtra) {
-    return acquireEngine(handle)->dcpOpen(
+ENGINE_ERROR_CODE EventuallyPersistentEngine::open(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint32_t seqno,
+        uint32_t flags,
+        cb::const_char_buffer name,
+        cb::const_byte_buffer jsonExtra) {
+    return acquireEngine(this)->dcpOpen(
             cookie, opaque, seqno, flags, name, jsonExtra);
 }
 
@@ -1809,8 +1808,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    dcp_interface::step = EvpDcpStep;
-    dcp_interface::open = EvpDcpOpen;
     dcp_interface::add_stream = EvpDcpAddStream;
     dcp_interface::close_stream = EvpDcpCloseStream;
     dcp_interface::get_failover_log = EvpDcpGetFailoverLog;

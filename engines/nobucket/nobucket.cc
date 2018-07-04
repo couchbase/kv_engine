@@ -35,8 +35,6 @@
 class NoBucket : public ENGINE_HANDLE_V1, public dcp_interface {
 public:
     NoBucket() {
-        dcp_interface::step = dcp_step;
-        dcp_interface::open = dcp_open;
         dcp_interface::add_stream = dcp_add_stream;
         dcp_interface::close_stream = dcp_close_stream;
         dcp_interface::get_failover_log = dcp_get_failover_log;
@@ -198,6 +196,23 @@ public:
                 " been allocated from this engine");
     }
 
+    // DcpIface implementation ////////////////////////////////////////////////
+
+    ENGINE_ERROR_CODE step(
+            gsl::not_null<const void*>,
+            gsl::not_null<struct dcp_message_producers*>) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE open(gsl::not_null<const void*>,
+                           uint32_t,
+                           uint32_t,
+                           uint32_t,
+                           cb::const_char_buffer,
+                           cb::const_byte_buffer) override {
+        return ENGINE_NO_BUCKET;
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -214,23 +229,6 @@ private:
                               gsl::not_null<const item_info*>) {
         throw std::logic_error("NoBucket::set_item_info: no items should have"
                                    " been allocated from this engine");
-    }
-
-    static ENGINE_ERROR_CODE dcp_step(
-            gsl::not_null<ENGINE_HANDLE*>,
-            gsl::not_null<const void*>,
-            gsl::not_null<struct dcp_message_producers*>) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE dcp_open(gsl::not_null<ENGINE_HANDLE*>,
-                                      gsl::not_null<const void*>,
-                                      uint32_t,
-                                      uint32_t,
-                                      uint32_t,
-                                      cb::const_char_buffer,
-                                      cb::const_byte_buffer) {
-        return ENGINE_NO_BUCKET;
     }
 
     static ENGINE_ERROR_CODE dcp_add_stream(gsl::not_null<ENGINE_HANDLE*>,

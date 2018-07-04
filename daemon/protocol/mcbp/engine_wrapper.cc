@@ -580,13 +580,7 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
                           cb::const_byte_buffer collectionFilter) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->open(connection.getBucketEngineAsV0(),
-                         &cookie,
-                         opaque,
-                         seqno,
-                         flags,
-                         name,
-                         collectionFilter);
+    auto ret = dcp->open(&cookie, opaque, seqno, flags, name, collectionFilter);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.open returned ENGINE_DISCONNECT",
                     connection.getId(),

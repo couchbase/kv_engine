@@ -669,6 +669,23 @@ public:
         return real_engine->getMinCompressionRatio();
     }
 
+    ///////////////////////////////////////////////////////////////////////////
+    //             All of the methods used in the DCP interface              //
+    //                                                                       //
+    // We don't support mocking with the DCP interface yet, so all access to //
+    // the DCP interface will be proxied down to the underlying engine.      //
+    ///////////////////////////////////////////////////////////////////////////
+    ENGINE_ERROR_CODE step(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<struct dcp_message_producers*> producers) override;
+
+    ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
+                           uint32_t opaque,
+                           uint32_t seqno,
+                           uint32_t flags,
+                           cb::const_char_buffer name,
+                           cb::const_byte_buffer json) override;
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -767,25 +784,6 @@ private:
     std::queue<const void*> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
-
-    ///////////////////////////////////////////////////////////////////////////
-    //             All of the methods used in the DCP interface              //
-    //                                                                       //
-    // We don't support mocking with the DCP interface yet, so all access to //
-    // the DCP interface will be proxied down to the underlying engine.      //
-    ///////////////////////////////////////////////////////////////////////////
-    static ENGINE_ERROR_CODE dcp_step(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            gsl::not_null<struct dcp_message_producers*> producers);
-
-    static ENGINE_ERROR_CODE dcp_open(gsl::not_null<ENGINE_HANDLE*> handle,
-                                      gsl::not_null<const void*> cookie,
-                                      uint32_t opaque,
-                                      uint32_t seqno,
-                                      uint32_t flags,
-                                      cb::const_char_buffer name,
-                                      cb::const_byte_buffer json);
 
     static ENGINE_ERROR_CODE dcp_add_stream(
             gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1248,8 +1246,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    DcpIface::step = dcp_step;
-    DcpIface::open = dcp_open;
     DcpIface::stream_req = dcp_stream_req;
     DcpIface::add_stream = dcp_add_stream;
     DcpIface::close_stream = dcp_close_stream;
@@ -1303,13 +1299,11 @@ EWB_Engine::~EWB_Engine() {
     notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_step(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EWB_Engine::step(
         gsl::not_null<const void*> cookie,
         gsl::not_null<struct dcp_message_producers*> producers) {
-    EWB_Engine* ewb = to_engine(handle);
-    auto stream = ewb->dcp_stream.find(cookie);
-    if (stream != ewb->dcp_stream.end()) {
+    auto stream = dcp_stream.find(cookie);
+    if (stream != dcp_stream.end()) {
         auto& count = stream->second.second;
         // If the stream is enabled and we have data to send..
         if (stream->second.first && count > 0) {
@@ -1317,7 +1311,7 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_step(
             // send the same item back
             auto ret = producers->mutation(cookie,
                                            0xdeadbeef /*opqaue*/,
-                                           &ewb->dcp_mutation_item,
+                                           &dcp_mutation_item,
                                            0 /*vb*/,
                                            0 /*by_seqno*/,
                                            0 /*rev_seqno*/,
@@ -1331,22 +1325,18 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_step(
         }
         return ENGINE_EWOULDBLOCK;
     }
-
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->step) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
-    } else {
-        return ewb->real_engine_dcp->step(ewb->real_handle, cookie, producers);
     }
+    return real_engine_dcp->step(cookie, producers);
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_open(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       uint32_t seqno,
-                                       uint32_t flags,
-                                       cb::const_char_buffer name,
-                                       cb::const_byte_buffer json) {
-    EWB_Engine* ewb = to_engine(handle);
+ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint32_t seqno,
+                                   uint32_t flags,
+                                   cb::const_char_buffer name,
+                                   cb::const_byte_buffer json) {
     std::string nm = cb::to_string(name);
     if (nm.find("ewb_internal") == 0) {
         // Yeah, this is a request for the internal "magic" DCP stream
@@ -1355,20 +1345,19 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_open(gsl::not_null<ENGINE_HANDLE*> handle,
         auto idx = nm.rfind(":");
 
         if (idx != nm.npos) {
-            ewb->dcp_stream[cookie] =
+            dcp_stream[cookie] =
                     std::make_pair(false, std::stoull(nm.substr(idx + 1)));
         } else {
-            ewb->dcp_stream[cookie] =
+            dcp_stream[cookie] =
                     std::make_pair(false, std::numeric_limits<uint64_t>::max());
         }
         return ENGINE_SUCCESS;
     }
 
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->open) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->open(
-                ewb->real_handle, cookie, opaque, seqno, flags, name, json);
+        return real_engine_dcp->open(cookie, opaque, seqno, flags, name, json);
     }
 }
 

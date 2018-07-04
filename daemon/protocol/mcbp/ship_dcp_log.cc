@@ -670,9 +670,7 @@ void ship_dcp_log(Cookie& cookie) {
     c.addMsgHdr(true);
     cookie.setEwouldblock(false);
     auto ret = c.remapErrorCode(c.getBucket().getDcpIface()->step(
-            c.getBucketEngineAsV0(),
-            static_cast<const void*>(&c.getCookieObject()),
-            &producers));
+            static_cast<const void*>(&c.getCookieObject()), &producers));
 
     switch (ret) {
     case ENGINE_SUCCESS:

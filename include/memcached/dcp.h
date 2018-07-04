@@ -334,7 +334,6 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * Called from the memcached core for a DCP connection to allow it to
      * inject new messages on the stream.
      *
-     * @param handle reference to the engine itself
      * @param cookie a unique handle the engine should pass on to the
      *               message producers
      * @param producers functions the client may use to add messages to
@@ -348,19 +347,34 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *                          to send
      *
      */
-    ENGINE_ERROR_CODE(*step)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     gsl::not_null<dcp_message_producers*> producers);
+    virtual ENGINE_ERROR_CODE step(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<dcp_message_producers*> producers) = 0;
 
-    ENGINE_ERROR_CODE(*open)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint32_t seqno,
-     uint32_t flags,
-     cb::const_char_buffer name,
-     cb::const_byte_buffer jsonExtras);
+    /**
+     * Called from the memcached core to open a new DCP connection.
+     *
+     * @param cookie a unique handle the engine should pass on to the
+     *               message producers (typically representing the memcached
+     *               connection).
+     * @param opaque what to use as the opaque for this DCP connection.
+     * @param seqno Unused
+     * @param flags bitfield of flags to specify what to open. See DCP_OPEN_XXX
+     * @param name Identifier for this connection. Note that the name must be
+     *             unique; attempting to (re)connect with a name already in use
+     *             will disconnect the existing connection.
+     * @param jsonExtras Optional JSON string; which if non-empty can be used
+     *                   to further control how data is requested - for example
+     *                   to filter to specific collections.
+     * @return ENGINE_SUCCESS if the DCP connection was successfully opened,
+     *         otherwise error code indicating reason for the failure.
+     */
+    virtual ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint32_t seqno,
+                                   uint32_t flags,
+                                   cb::const_char_buffer name,
+                                   cb::const_byte_buffer jsonExtras) = 0;
 
     ENGINE_ERROR_CODE(*add_stream)
     (gsl::not_null<ENGINE_HANDLE*> handle,

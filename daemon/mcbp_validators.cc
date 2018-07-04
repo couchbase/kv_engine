@@ -106,7 +106,7 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (dcp == nullptr || dcp->open == nullptr) {
+    if (!dcp) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }

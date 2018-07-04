@@ -866,7 +866,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     uint32_t streamOpaque = opaque;
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
-    checkeq(dcp.open(h, cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER, name, {}),
+    checkeq(dcp.open(cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER, name, {}),
             ENGINE_SUCCESS,
             "Failed dcp producer open connection");
 
@@ -928,7 +928,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp.step(h, cookie, producers.get());
+        ENGINE_ERROR_CODE err = dcp.step(cookie, producers.get());
         switch (err) {
         case ENGINE_EWOULDBLOCK:
             // No data currently available - wait to be notified when

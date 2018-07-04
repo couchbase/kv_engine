@@ -131,6 +131,19 @@ struct mock_engine : public EngineIface, public DcpIface {
         return the_engine->getMinCompressionRatio();
     }
 
+    // DcpIface implementation ////////////////////////////////////////////////
+
+    ENGINE_ERROR_CODE step(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<dcp_message_producers*> producers) override;
+
+    ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
+                           uint32_t opaque,
+                           uint32_t seqno,
+                           uint32_t flags,
+                           cb::const_char_buffer name,
+                           cb::const_byte_buffer jsonExtras) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
@@ -508,31 +521,19 @@ bool mock_engine::get_item_info(gsl::not_null<const item*> item,
     return the_engine->get_item_info(item, item_info);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_step(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE mock_engine::step(
         gsl::not_null<const void*> cookie,
         gsl::not_null<dcp_message_producers*> producers) {
-    struct mock_engine *me = get_handle(handle);
-    auto& dcp = dynamic_cast<DcpIface&>(*me->the_engine);
-    return dcp.step((ENGINE_HANDLE*)me->the_engine, cookie, producers);
+    return the_engine_dcp->step(cookie, producers);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_open(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       uint32_t seqno,
-                                       uint32_t flags,
-                                       cb::const_char_buffer name,
-                                       cb::const_byte_buffer jsonExtras) {
-    struct mock_engine *me = get_handle(handle);
-    auto& dcp = dynamic_cast<DcpIface&>(*me->the_engine);
-    return dcp.open((ENGINE_HANDLE*)me->the_engine,
-                    cookie,
-                    opaque,
-                    seqno,
-                    flags,
-                    name,
-                    jsonExtras);
+ENGINE_ERROR_CODE mock_engine::open(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    uint32_t seqno,
+                                    uint32_t flags,
+                                    cb::const_char_buffer name,
+                                    cb::const_byte_buffer jsonExtras) {
+    return the_engine_dcp->open(cookie, opaque, seqno, flags, name, jsonExtras);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_add_stream(
@@ -971,8 +972,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->step = mock_dcp_step;
-        me->open = mock_dcp_open;
         me->add_stream = mock_dcp_add_stream;
         me->close_stream = mock_dcp_close_stream;
         me->stream_req = mock_dcp_stream_req;
