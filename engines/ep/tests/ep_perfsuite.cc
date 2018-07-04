@@ -865,14 +865,18 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     uint64_t vb_uuid = get_ull_stat(h, h1, uuid.c_str(), "failovers");
     uint32_t streamOpaque = opaque;
 
-    checkeq(h1->dcp.open(
-                    h, cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER, name, {}),
+    auto& dcp = dynamic_cast<DcpIface&>(*h);
+    checkeq(dcp.open(h, cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER, name, {}),
             ENGINE_SUCCESS,
             "Failed dcp producer open connection");
 
-    checkeq(h1->dcp.control(h, cookie, ++streamOpaque,
-                                "connection_buffer_size",
-                                strlen("connection_buffer_size"), "1024", 4),
+    checkeq(dcp.control(h,
+                        cookie,
+                        ++streamOpaque,
+                        "connection_buffer_size",
+                        strlen("connection_buffer_size"),
+                        "1024",
+                        4),
             ENGINE_SUCCESS,
             "Failed to establish connection buffer");
 
@@ -880,9 +884,13 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
 
         testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
-        checkeq(h1->dcp.control(h, cookie, ++streamOpaque,
-                                    "force_value_compression",
-                                    strlen("force_value_compression"), "true", 4),
+        checkeq(dcp.control(h,
+                            cookie,
+                            ++streamOpaque,
+                            "force_value_compression",
+                            strlen("force_value_compression"),
+                            "true",
+                            4),
                 ENGINE_SUCCESS,
                 "Failed to force value compression");
     }
@@ -890,10 +898,18 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     // We create a stream from 0 to MAX(seqno), and then rely on encountering the
     // sentinel document to know when to finish.
     uint64_t rollback = 0;
-    checkeq(h1->dcp.stream_req(h, cookie, 0, streamOpaque,
-                                   vbid, 0, std::numeric_limits<uint64_t>::max(),
-                                   vb_uuid, 0, 0, &rollback,
-                                   mock_dcp_add_failover_log),
+    checkeq(dcp.stream_req(h,
+                           cookie,
+                           0,
+                           streamOpaque,
+                           vbid,
+                           0,
+                           std::numeric_limits<uint64_t>::max(),
+                           vb_uuid,
+                           0,
+                           0,
+                           &rollback,
+                           mock_dcp_add_failover_log),
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
@@ -907,12 +923,12 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
     do {
         if (bytes_read > 512) {
             checkeq(ENGINE_SUCCESS,
-                    h1->dcp.buffer_acknowledgement(h, cookie, ++streamOpaque,
-                                                   vbid, bytes_read),
+                    dcp.buffer_acknowledgement(
+                            h, cookie, ++streamOpaque, vbid, bytes_read),
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
+        ENGINE_ERROR_CODE err = dcp.step(h, cookie, producers.get());
         switch (err) {
         case ENGINE_EWOULDBLOCK:
             // No data currently available - wait to be notified when

@@ -16,6 +16,7 @@
  */
 #include "engine_wrapper.h"
 
+#include <daemon/buckets.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
@@ -321,7 +322,8 @@ ENGINE_ERROR_CODE dcpAddStream(Cookie& cookie,
                                uint16_t vbid,
                                uint32_t flags) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.add_stream(
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->add_stream(
             connection.getBucketEngineAsV0(), &cookie, opaque, vbid, flags);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.add_stream returned ENGINE_DISCONNECT",
@@ -336,7 +338,8 @@ ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
                                            uint16_t vbid,
                                            uint32_t ackSize) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.buffer_acknowledgement(
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->buffer_acknowledgement(
             connection.getBucketEngineAsV0(), &cookie, opaque, vbid, ackSize);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING(
@@ -351,7 +354,8 @@ ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
                                  uint32_t opaque,
                                  uint16_t vbid) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.close_stream(
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->close_stream(
             connection.getBucketEngineAsV0(), &cookie, opaque, vbid);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.close_stream returned ENGINE_DISCONNECT",
@@ -368,14 +372,14 @@ ENGINE_ERROR_CODE dcpControl(Cookie& cookie,
                              const void* value,
                              uint32_t valueSize) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.control(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            key,
-            keySize,
-            value,
-            valueSize);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->control(connection.getBucketEngineAsV0(),
+                            &cookie,
+                            opaque,
+                            key,
+                            keySize,
+                            value,
+                            valueSize);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.control returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -396,19 +400,19 @@ ENGINE_ERROR_CODE dcpDeletion(Cookie& cookie,
                               uint64_t revSeqno,
                               cb::const_byte_buffer meta) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.deletion(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            key,
-            value,
-            privilegedPoolSize,
-            datatype,
-            cas,
-            vbid,
-            bySeqno,
-            revSeqno,
-            meta);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->deletion(connection.getBucketEngineAsV0(),
+                             &cookie,
+                             opaque,
+                             key,
+                             value,
+                             privilegedPoolSize,
+                             datatype,
+                             cas,
+                             vbid,
+                             bySeqno,
+                             revSeqno,
+                             meta);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.deletion returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -429,19 +433,19 @@ ENGINE_ERROR_CODE dcpDeletionV2(Cookie& cookie,
                                 uint64_t revSeqno,
                                 uint32_t deleteTime) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.deletion_v2(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            key,
-            value,
-            privilegedPoolSize,
-            datatype,
-            cas,
-            vbid,
-            bySeqno,
-            revSeqno,
-            deleteTime);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->deletion_v2(connection.getBucketEngineAsV0(),
+                                &cookie,
+                                opaque,
+                                key,
+                                value,
+                                privilegedPoolSize,
+                                datatype,
+                                cas,
+                                vbid,
+                                bySeqno,
+                                revSeqno,
+                                deleteTime);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.deletion_v2 returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -462,19 +466,19 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
                                 uint64_t revSeqno,
                                 cb::const_byte_buffer meta) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.expiration(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            key,
-            value,
-            privilegedPoolSize,
-            datatype,
-            cas,
-            vbid,
-            bySeqno,
-            revSeqno,
-            meta);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->expiration(connection.getBucketEngineAsV0(),
+                               &cookie,
+                               opaque,
+                               key,
+                               value,
+                               privilegedPoolSize,
+                               datatype,
+                               cas,
+                               vbid,
+                               bySeqno,
+                               revSeqno,
+                               meta);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.expiration returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -485,7 +489,8 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
 
 ENGINE_ERROR_CODE dcpFlush(Cookie& cookie, uint32_t opaque, uint16_t vbucket) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.flush(
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->flush(
             connection.getBucketEngineAsV0(), &cookie, opaque, vbucket);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.flush returned ENGINE_DISCONNECT",
@@ -500,12 +505,12 @@ ENGINE_ERROR_CODE dcpGetFailoverLog(Cookie& cookie,
                                     uint16_t vbucket,
                                     dcp_add_failover_log callback) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.get_failover_log(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            vbucket,
-            callback);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->get_failover_log(connection.getBucketEngineAsV0(),
+                                     &cookie,
+                                     opaque,
+                                     vbucket,
+                                     callback);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.get_failover_log returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -530,23 +535,23 @@ ENGINE_ERROR_CODE dcpMutation(Cookie& cookie,
                               cb::const_byte_buffer meta,
                               uint8_t nru) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.mutation(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            key,
-            value,
-            privilegedPoolSize,
-            datatype,
-            cas,
-            vbid,
-            flags,
-            bySeqno,
-            revSeqno,
-            expiration,
-            lockTime,
-            meta,
-            nru);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->mutation(connection.getBucketEngineAsV0(),
+                             &cookie,
+                             opaque,
+                             key,
+                             value,
+                             privilegedPoolSize,
+                             datatype,
+                             cas,
+                             vbid,
+                             flags,
+                             bySeqno,
+                             revSeqno,
+                             expiration,
+                             lockTime,
+                             meta,
+                             nru);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.mutation returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -557,8 +562,8 @@ ENGINE_ERROR_CODE dcpMutation(Cookie& cookie,
 
 ENGINE_ERROR_CODE dcpNoop(Cookie& cookie, uint32_t opaque) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.noop(
-            connection.getBucketEngineAsV0(), &cookie, opaque);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->noop(connection.getBucketEngineAsV0(), &cookie, opaque);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.noop returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -574,14 +579,14 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
                           cb::const_char_buffer name,
                           cb::const_byte_buffer collectionFilter) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.open(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            seqno,
-            flags,
-            name,
-            collectionFilter);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->open(connection.getBucketEngineAsV0(),
+                         &cookie,
+                         opaque,
+                         seqno,
+                         flags,
+                         name,
+                         collectionFilter);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.open returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -595,7 +600,8 @@ ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
                                      uint16_t vbid,
                                      vbucket_state_t state) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.set_vbucket_state(
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->set_vbucket_state(
             connection.getBucketEngineAsV0(), &cookie, opaque, vbid, state);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.set_vbucket_state returned ENGINE_DISCONNECT",
@@ -612,14 +618,14 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
                                     uint64_t endSeqno,
                                     uint32_t flags) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.snapshot_marker(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            vbid,
-            startSeqno,
-            endSeqno,
-            flags);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->snapshot_marker(connection.getBucketEngineAsV0(),
+                                    &cookie,
+                                    opaque,
+                                    vbid,
+                                    startSeqno,
+                                    endSeqno,
+                                    flags);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.snapshot_marker returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -633,7 +639,8 @@ ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
                                uint16_t vbucket,
                                uint32_t flags) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.stream_end(
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->stream_end(
             connection.getBucketEngineAsV0(), &cookie, opaque, vbucket, flags);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.stream_end returned ENGINE_DISCONNECT",
@@ -655,19 +662,19 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
                                uint64_t* rollbackSeqno,
                                dcp_add_failover_log callback) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.stream_req(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            flags,
-            opaque,
-            vbucket,
-            startSeqno,
-            endSeqno,
-            vbucketUuid,
-            snapStartSeqno,
-            snapEndSeqno,
-            rollbackSeqno,
-            callback);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->stream_req(connection.getBucketEngineAsV0(),
+                               &cookie,
+                               flags,
+                               opaque,
+                               vbucket,
+                               startSeqno,
+                               endSeqno,
+                               vbucketUuid,
+                               snapStartSeqno,
+                               snapEndSeqno,
+                               rollbackSeqno,
+                               callback);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.stream_req returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -684,15 +691,15 @@ ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
                                  cb::const_byte_buffer key,
                                  cb::const_byte_buffer eventData) {
     auto& connection = cookie.getConnection();
-    auto ret = connection.getBucketEngine()->dcp.system_event(
-            connection.getBucketEngineAsV0(),
-            &cookie,
-            opaque,
-            vbucket,
-            eventId,
-            bySeqno,
-            key,
-            eventData);
+    auto* dcp = connection.getBucket().getDcpIface();
+    auto ret = dcp->system_event(connection.getBucketEngineAsV0(),
+                                 &cookie,
+                                 opaque,
+                                 vbucket,
+                                 eventId,
+                                 bySeqno,
+                                 key,
+                                 eventData);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.system_event returned ENGINE_DISCONNECT",
                     connection.getId(),

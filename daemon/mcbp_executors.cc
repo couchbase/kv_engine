@@ -521,7 +521,8 @@ static void process_bin_dcp_response(Cookie& cookie) {
 
     c.enableDatatype(cb::mcbp::Feature::JSON);
 
-    if (!c.getBucketEngine()->dcp.response_handler) {
+    auto* dcp = c.getBucket().getDcpIface();
+    if (!dcp || !dcp->response_handler) {
         LOG_WARNING(
                 "{}: process_bin_dcp_response - response_handler is nullptr - "
                 "closing connection {}",
@@ -536,8 +537,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
             reinterpret_cast<const protocol_binary_response_header*>(
                     packet.data());
 
-    auto ret = c.getBucketEngine()->dcp.response_handler(
-            c.getBucketEngineAsV0(), &cookie, header);
+    auto ret = dcp->response_handler(c.getBucketEngineAsV0(), &cookie, header);
     auto remapErr = c.remapErrorCode(ret);
 
     if (remapErr == ENGINE_DISCONNECT) {

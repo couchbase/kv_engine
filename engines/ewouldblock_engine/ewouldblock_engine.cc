@@ -78,6 +78,7 @@
 #include <utility>
 
 #include <logger/logger.h>
+#include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
 #include <platform/cb_malloc.h>
@@ -176,7 +177,7 @@ static SERVER_HANDLE_V1 *get_wrapped_gsa() {
 }
 
 /** ewouldblock_engine class */
-class EWB_Engine : public EngineIface {
+class EWB_Engine : public EngineIface, public DcpIface {
 private:
     enum class Cmd {
         NONE,
@@ -288,6 +289,7 @@ public:
         }
 
         real_engine = real_handle;
+        real_engine_dcp = dynamic_cast<DcpIface*>(real_engine);
 
         engine_map[real_handle] = this;
         ENGINE_ERROR_CODE res =
@@ -690,6 +692,10 @@ public:
             real_handle; // TODO: Remove real_handle as same as real_engine now.
     ENGINE_HANDLE_V1* real_engine;
     engine_reference* real_engine_ref;
+
+    // Pointer to DcpIface for the underlying engine we are proxying; or
+    // nullptr if it doesn't implement DcpIface;
+    DcpIface* real_engine_dcp = nullptr;
 
     std::atomic_int clustermap_revno;
 
@@ -1242,26 +1248,25 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::dcp = {};
-    ENGINE_HANDLE_V1::dcp.step = dcp_step;
-    ENGINE_HANDLE_V1::dcp.open = dcp_open;
-    ENGINE_HANDLE_V1::dcp.stream_req = dcp_stream_req;
-    ENGINE_HANDLE_V1::dcp.add_stream = dcp_add_stream;
-    ENGINE_HANDLE_V1::dcp.close_stream = dcp_close_stream;
-    ENGINE_HANDLE_V1::dcp.buffer_acknowledgement = dcp_buffer_acknowledgement;
-    ENGINE_HANDLE_V1::dcp.control = dcp_control;
-    ENGINE_HANDLE_V1::dcp.get_failover_log = dcp_get_failover_log;
-    ENGINE_HANDLE_V1::dcp.stream_end = dcp_stream_end;
-    ENGINE_HANDLE_V1::dcp.snapshot_marker = dcp_snapshot_marker;
-    ENGINE_HANDLE_V1::dcp.mutation = dcp_mutation;
-    ENGINE_HANDLE_V1::dcp.deletion = dcp_deletion;
-    ENGINE_HANDLE_V1::dcp.deletion_v2 = dcp_deletion_v2;
-    ENGINE_HANDLE_V1::dcp.expiration = dcp_expiration;
-    ENGINE_HANDLE_V1::dcp.flush = dcp_flush;
-    ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
-    ENGINE_HANDLE_V1::dcp.noop = dcp_noop;
-    ENGINE_HANDLE_V1::dcp.response_handler = dcp_response_handler;
-    ENGINE_HANDLE_V1::dcp.system_event = dcp_system_event;
+    DcpIface::step = dcp_step;
+    DcpIface::open = dcp_open;
+    DcpIface::stream_req = dcp_stream_req;
+    DcpIface::add_stream = dcp_add_stream;
+    DcpIface::close_stream = dcp_close_stream;
+    DcpIface::buffer_acknowledgement = dcp_buffer_acknowledgement;
+    DcpIface::control = dcp_control;
+    DcpIface::get_failover_log = dcp_get_failover_log;
+    DcpIface::stream_end = dcp_stream_end;
+    DcpIface::snapshot_marker = dcp_snapshot_marker;
+    DcpIface::mutation = dcp_mutation;
+    DcpIface::deletion = dcp_deletion;
+    DcpIface::deletion_v2 = dcp_deletion_v2;
+    DcpIface::expiration = dcp_expiration;
+    DcpIface::flush = dcp_flush;
+    DcpIface::set_vbucket_state = dcp_set_vbucket_state;
+    DcpIface::noop = dcp_noop;
+    DcpIface::response_handler = dcp_response_handler;
+    DcpIface::system_event = dcp_system_event;
 
     ENGINE_HANDLE_V1::collections = {};
     ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
@@ -1327,10 +1332,10 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_step(
         return ENGINE_EWOULDBLOCK;
     }
 
-    if (ewb->real_engine->dcp.step == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->step) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.step(ewb->real_handle, cookie, producers);
+        return ewb->real_engine_dcp->step(ewb->real_handle, cookie, producers);
     }
 }
 
@@ -1359,16 +1364,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_open(gsl::not_null<ENGINE_HANDLE*> handle,
         return ENGINE_SUCCESS;
     }
 
-    if (ewb->real_engine->dcp.open == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->open) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.open(ewb->real_handle,
-                                          cookie,
-                                          opaque,
-                                          seqno,
-                                          flags,
-                                          name,
-                                          json);
+        return ewb->real_engine_dcp->open(
+                ewb->real_handle, cookie, opaque, seqno, flags, name, json);
     }
 }
 
@@ -1398,14 +1398,20 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(
         return ENGINE_SUCCESS;
     }
 
-    if (ewb->real_engine->dcp.stream_req == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->stream_req) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.stream_req(ewb->real_handle, cookie,
-                                                flags, opaque, vbucket,
-                                                start_seqno, end_seqno,
-                                                vbucket_uuid, snap_start_seqno,
-                                                snap_end_seqno, rollback_seqno,
+        return ewb->real_engine_dcp->stream_req(ewb->real_handle,
+                                                cookie,
+                                                flags,
+                                                opaque,
+                                                vbucket,
+                                                start_seqno,
+                                                end_seqno,
+                                                vbucket_uuid,
+                                                snap_start_seqno,
+                                                snap_end_seqno,
+                                                rollback_seqno,
                                                 callback);
     }
 }
@@ -1417,11 +1423,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_add_stream(
         uint16_t vbucket,
         uint32_t flags) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.add_stream == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->add_stream) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.add_stream(ewb->real_handle, cookie,
-                                                opaque, vbucket, flags);
+        return ewb->real_engine_dcp->add_stream(
+                ewb->real_handle, cookie, opaque, vbucket, flags);
     }
 }
 
@@ -1431,11 +1437,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_close_stream(
         uint32_t opaque,
         uint16_t vbucket) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.close_stream == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->close_stream) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.close_stream(ewb->real_handle, cookie,
-                                                opaque, vbucket);
+        return ewb->real_engine_dcp->close_stream(
+                ewb->real_handle, cookie, opaque, vbucket);
     }
 }
 
@@ -1446,14 +1452,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_get_failover_log(
         uint16_t vbucket,
         dcp_add_failover_log callback) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.get_failover_log == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->get_failover_log) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.get_failover_log(ewb->real_handle,
-                                                      cookie,
-                                                      opaque,
-                                                      vbucket,
-                                                      callback);
+        return ewb->real_engine_dcp->get_failover_log(
+                ewb->real_handle, cookie, opaque, vbucket, callback);
     }
 }
 
@@ -1464,11 +1467,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_stream_end(
         uint16_t vbucket,
         uint32_t flags) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.stream_end == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->stream_end) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.stream_end(ewb->real_handle, cookie,
-                                                opaque, vbucket, flags);
+        return ewb->real_engine_dcp->stream_end(
+                ewb->real_handle, cookie, opaque, vbucket, flags);
     }
 }
 
@@ -1481,12 +1484,15 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_snapshot_marker(
         uint64_t end_seqno,
         uint32_t flags) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.snapshot_marker == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->snapshot_marker) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.snapshot_marker(ewb->real_handle, cookie,
-                                                     opaque, vbucket,
-                                                     start_seqno, end_seqno,
+        return ewb->real_engine_dcp->snapshot_marker(ewb->real_handle,
+                                                     cookie,
+                                                     opaque,
+                                                     vbucket,
+                                                     start_seqno,
+                                                     end_seqno,
                                                      flags);
     }
 }
@@ -1508,14 +1514,25 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_mutation(gsl::not_null<ENGINE_HANDLE*> handle,
                                            cb::const_byte_buffer meta,
                                            uint8_t nru) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.mutation == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->mutation) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.mutation(ewb->real_handle, cookie, opaque,
-                                              key, value, priv_bytes, datatype,
-                                              cas, vbucket, flags, by_seqno,
-                                              rev_seqno, expiration, lock_time,
-                                              meta, nru);
+        return ewb->real_engine_dcp->mutation(ewb->real_handle,
+                                              cookie,
+                                              opaque,
+                                              key,
+                                              value,
+                                              priv_bytes,
+                                              datatype,
+                                              cas,
+                                              vbucket,
+                                              flags,
+                                              by_seqno,
+                                              rev_seqno,
+                                              expiration,
+                                              lock_time,
+                                              meta,
+                                              nru);
     }
 }
 
@@ -1532,12 +1549,20 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_deletion(gsl::not_null<ENGINE_HANDLE*> handle,
                                            uint64_t rev_seqno,
                                            cb::const_byte_buffer meta) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.deletion == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->deletion) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.deletion(ewb->real_handle, cookie, opaque,
-                                              key, value, priv_bytes, datatype,
-                                              cas, vbucket, by_seqno, rev_seqno,
+        return ewb->real_engine_dcp->deletion(ewb->real_handle,
+                                              cookie,
+                                              opaque,
+                                              key,
+                                              value,
+                                              priv_bytes,
+                                              datatype,
+                                              cas,
+                                              vbucket,
+                                              by_seqno,
+                                              rev_seqno,
                                               meta);
     }
 }
@@ -1556,10 +1581,10 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_deletion_v2(
         uint64_t rev_seqno,
         uint32_t delete_time) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.deletion_v2 == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->deletion_v2) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.deletion_v2(ewb->real_handle,
+        return ewb->real_engine_dcp->deletion_v2(ewb->real_handle,
                                                  cookie,
                                                  opaque,
                                                  key,
@@ -1588,12 +1613,20 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_expiration(
         uint64_t rev_seqno,
         cb::const_byte_buffer meta) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.expiration == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->expiration) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.expiration(ewb->real_handle, cookie, opaque,
-                                                key, value, priv_bytes, datatype,
-                                                cas, vbucket, by_seqno, rev_seqno,
+        return ewb->real_engine_dcp->expiration(ewb->real_handle,
+                                                cookie,
+                                                opaque,
+                                                key,
+                                                value,
+                                                priv_bytes,
+                                                datatype,
+                                                cas,
+                                                vbucket,
+                                                by_seqno,
+                                                rev_seqno,
                                                 meta);
     }
 }
@@ -1603,13 +1636,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_flush(gsl::not_null<ENGINE_HANDLE*> handle,
                                         uint32_t opaque,
                                         uint16_t vbucket) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.flush == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->flush) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.flush(ewb->real_handle,
-                                                cookie,
-                                                opaque,
-                                                vbucket);
+        return ewb->real_engine_dcp->flush(
+                ewb->real_handle, cookie, opaque, vbucket);
     }
 }
 
@@ -1620,14 +1651,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_set_vbucket_state(
         uint16_t vbucket,
         vbucket_state_t state) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.set_vbucket_state == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->set_vbucket_state) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.set_vbucket_state(ewb->real_handle,
-                                                cookie,
-                                                opaque,
-                                                vbucket,
-                                                state);
+        return ewb->real_engine_dcp->set_vbucket_state(
+                ewb->real_handle, cookie, opaque, vbucket, state);
     }
 }
 
@@ -1635,10 +1663,10 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_noop(gsl::not_null<ENGINE_HANDLE*> handle,
                                        gsl::not_null<const void*> cookie,
                                        uint32_t opaque) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.noop == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->noop) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.noop(ewb->real_handle, cookie, opaque);
+        return ewb->real_engine_dcp->noop(ewb->real_handle, cookie, opaque);
     }
 }
 
@@ -1649,14 +1677,12 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_buffer_acknowledgement(
         uint16_t vbucket,
         uint32_t buffer_bytes) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.buffer_acknowledgement == nullptr) {
+    if (!ewb->real_engine_dcp ||
+        !ewb->real_engine_dcp->buffer_acknowledgement) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.buffer_acknowledgement(ewb->real_handle,
-                                                            cookie,
-                                                            opaque,
-                                                            vbucket,
-                                                            buffer_bytes);
+        return ewb->real_engine_dcp->buffer_acknowledgement(
+                ewb->real_handle, cookie, opaque, vbucket, buffer_bytes);
     }
 }
 
@@ -1668,11 +1694,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_control(gsl::not_null<ENGINE_HANDLE*> handle,
                                           const void* value,
                                           uint32_t nvalue) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.control == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->control) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.control(ewb->real_handle, cookie,
-                                             opaque, key, nkey, value, nvalue);
+        return ewb->real_engine_dcp->control(
+                ewb->real_handle, cookie, opaque, key, nkey, value, nvalue);
     }
 }
 
@@ -1681,12 +1707,11 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_response_handler(
         gsl::not_null<const void*> cookie,
         const protocol_binary_response_header* response) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.response_handler == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->response_handler) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.response_handler(ewb->real_handle,
-                                                      cookie,
-                                                      response);
+        return ewb->real_engine_dcp->response_handler(
+                ewb->real_handle, cookie, response);
     }
 }
 
@@ -1700,10 +1725,10 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_system_event(
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
     EWB_Engine* ewb = to_engine(handle);
-    if (ewb->real_engine->dcp.response_handler == nullptr) {
+    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->system_event) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine->dcp.system_event(ewb->real_handle,
+        return ewb->real_engine_dcp->system_event(ewb->real_handle,
                                                   cookie,
                                                   opaque,
                                                   vbucket,

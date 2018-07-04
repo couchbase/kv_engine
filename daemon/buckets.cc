@@ -17,6 +17,7 @@
 #include "buckets.h"
 #include "mc_time.h"
 #include "stats.h"
+#include <memcached/dcp.h>
 #include <memcached/engine.h>
 
 Bucket::Bucket()
@@ -45,6 +46,19 @@ Bucket::Bucket(const Bucket& other)
     subjson_operation_times = other.subjson_operation_times;
     topkeys = other.topkeys;
     responseCounters = other.responseCounters;
+}
+
+DcpIface* Bucket::getDcpIface() const {
+    return bucketDcp;
+}
+
+EngineIface* Bucket::getEngine() const {
+    return engine;
+}
+
+void Bucket::setEngine(EngineIface* engine) {
+    Bucket::engine = engine;
+    bucketDcp = dynamic_cast<DcpIface*>(engine);
 }
 
 namespace BucketValidator {

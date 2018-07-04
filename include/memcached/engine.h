@@ -19,7 +19,6 @@
 #include "memcached/callback.h"
 #include "memcached/collections.h"
 #include "memcached/config_parser.h"
-#include "memcached/dcp.h"
 #include "memcached/dockey.h"
 #include "memcached/engine_common.h"
 #include "memcached/extension.h"
@@ -139,9 +138,8 @@ static const size_t default_max_item_size = 20 * 1024 * 1024;
 /**
  * Definition of the first version of the engine interface
  */
-struct EngineIface {
-    virtual ~EngineIface() {
-    }
+struct MEMCACHED_PUBLIC_CLASS EngineIface {
+    virtual ~EngineIface() = default;
 
     /**
      * Initialize an engine instance.
@@ -496,8 +494,6 @@ struct EngineIface {
      */
     virtual bool get_item_info(gsl::not_null<const item*> item,
                                gsl::not_null<item_info*> item_info) = 0;
-
-    struct dcp_interface dcp;
 
     /**
      * Set the current log level

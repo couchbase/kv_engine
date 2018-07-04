@@ -18,6 +18,8 @@
 #include "config.h"
 #include "nobucket.h"
 
+#include <memcached/dcp.h>
+
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
@@ -30,24 +32,24 @@
  * the connection to this bucket and it'll handle the appropriate
  * command.
  */
-class NoBucket : public ENGINE_HANDLE_V1 {
+class NoBucket : public ENGINE_HANDLE_V1, public dcp_interface {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::dcp.step = dcp_step;
-        ENGINE_HANDLE_V1::dcp.open = dcp_open;
-        ENGINE_HANDLE_V1::dcp.add_stream = dcp_add_stream;
-        ENGINE_HANDLE_V1::dcp.close_stream = dcp_close_stream;
-        ENGINE_HANDLE_V1::dcp.get_failover_log = dcp_get_failover_log;
-        ENGINE_HANDLE_V1::dcp.stream_req = dcp_stream_req;
-        ENGINE_HANDLE_V1::dcp.stream_end = dcp_stream_end;
-        ENGINE_HANDLE_V1::dcp.snapshot_marker = dcp_snapshot_marker;
-        ENGINE_HANDLE_V1::dcp.mutation = dcp_mutation;
-        ENGINE_HANDLE_V1::dcp.deletion = dcp_deletion;
-        ENGINE_HANDLE_V1::dcp.deletion_v2 = dcp_deletion_v2;
-        ENGINE_HANDLE_V1::dcp.expiration = dcp_expiration;
-        ENGINE_HANDLE_V1::dcp.flush = dcp_flush;
-        ENGINE_HANDLE_V1::dcp.set_vbucket_state = dcp_set_vbucket_state;
-        ENGINE_HANDLE_V1::dcp.system_event = dcp_system_event;
+        dcp_interface::step = dcp_step;
+        dcp_interface::open = dcp_open;
+        dcp_interface::add_stream = dcp_add_stream;
+        dcp_interface::close_stream = dcp_close_stream;
+        dcp_interface::get_failover_log = dcp_get_failover_log;
+        dcp_interface::stream_req = dcp_stream_req;
+        dcp_interface::stream_end = dcp_stream_end;
+        dcp_interface::snapshot_marker = dcp_snapshot_marker;
+        dcp_interface::mutation = dcp_mutation;
+        dcp_interface::deletion = dcp_deletion;
+        dcp_interface::deletion_v2 = dcp_deletion_v2;
+        dcp_interface::expiration = dcp_expiration;
+        dcp_interface::flush = dcp_flush;
+        dcp_interface::set_vbucket_state = dcp_set_vbucket_state;
+        dcp_interface::system_event = dcp_system_event;
         ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
         ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
     };

@@ -26,6 +26,7 @@
 #include <condition_variable>
 
 struct thread_stats;
+struct DcpIface;
 class TopKeys;
 
 enum class BucketState : uint8_t {
@@ -90,6 +91,17 @@ public:
      */
     Bucket(const Bucket& other);
 
+    /// @returns a pointer to the actual engine serving the request
+    EngineIface* getEngine() const;
+
+    void setEngine(EngineIface* engine);
+
+    /**
+     * @returns the DCP interface for the connected bucket, or nullptr if the
+     *          conencted bucket doesn't implement DCP.
+     */
+    DcpIface* getDcpIface() const;
+
     /**
      * Mutex protecting the state and refcount. (@todo move to std::mutex).
      */
@@ -127,11 +139,6 @@ public:
     /**
      * @todo add properties!
      */
-
-    /**
-     * Pointer to the actual engine serving the request
-     */
-    ENGINE_HANDLE_V1 *engine; /* Pointer to the bucket */
 
     /**
      * Statistics vector, one per front-end thread.
@@ -175,6 +182,15 @@ public:
      * The maximum document size for this bucket
      */
     size_t max_document_size;
+
+private:
+    EngineIface* engine;
+
+    /**
+     * The dcp interface for the connected bucket. May be null if the
+     * connected bucket doesn't support DCP.
+     */
+    DcpIface* bucketDcp{nullptr};
 };
 
 /**

@@ -1809,25 +1809,25 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::dcp.step = EvpDcpStep;
-    ENGINE_HANDLE_V1::dcp.open = EvpDcpOpen;
-    ENGINE_HANDLE_V1::dcp.add_stream = EvpDcpAddStream;
-    ENGINE_HANDLE_V1::dcp.close_stream = EvpDcpCloseStream;
-    ENGINE_HANDLE_V1::dcp.get_failover_log = EvpDcpGetFailoverLog;
-    ENGINE_HANDLE_V1::dcp.stream_req = EvpDcpStreamReq;
-    ENGINE_HANDLE_V1::dcp.stream_end = EvpDcpStreamEnd;
-    ENGINE_HANDLE_V1::dcp.snapshot_marker = EvpDcpSnapshotMarker;
-    ENGINE_HANDLE_V1::dcp.mutation = EvpDcpMutation;
-    ENGINE_HANDLE_V1::dcp.deletion = EvpDcpDeletion;
-    ENGINE_HANDLE_V1::dcp.deletion_v2 = EvpDcpDeletionV2;
-    ENGINE_HANDLE_V1::dcp.expiration = EvpDcpExpiration;
-    ENGINE_HANDLE_V1::dcp.flush = EvpDcpFlush;
-    ENGINE_HANDLE_V1::dcp.set_vbucket_state = EvpDcpSetVbucketState;
-    ENGINE_HANDLE_V1::dcp.noop = EvpDcpNoop;
-    ENGINE_HANDLE_V1::dcp.buffer_acknowledgement = EvpDcpBufferAcknowledgement;
-    ENGINE_HANDLE_V1::dcp.control = EvpDcpControl;
-    ENGINE_HANDLE_V1::dcp.response_handler = EvpDcpResponseHandler;
-    ENGINE_HANDLE_V1::dcp.system_event = EvpDcpSystemEvent;
+    dcp_interface::step = EvpDcpStep;
+    dcp_interface::open = EvpDcpOpen;
+    dcp_interface::add_stream = EvpDcpAddStream;
+    dcp_interface::close_stream = EvpDcpCloseStream;
+    dcp_interface::get_failover_log = EvpDcpGetFailoverLog;
+    dcp_interface::stream_req = EvpDcpStreamReq;
+    dcp_interface::stream_end = EvpDcpStreamEnd;
+    dcp_interface::snapshot_marker = EvpDcpSnapshotMarker;
+    dcp_interface::mutation = EvpDcpMutation;
+    dcp_interface::deletion = EvpDcpDeletion;
+    dcp_interface::deletion_v2 = EvpDcpDeletionV2;
+    dcp_interface::expiration = EvpDcpExpiration;
+    dcp_interface::flush = EvpDcpFlush;
+    dcp_interface::set_vbucket_state = EvpDcpSetVbucketState;
+    dcp_interface::noop = EvpDcpNoop;
+    dcp_interface::buffer_acknowledgement = EvpDcpBufferAcknowledgement;
+    dcp_interface::control = EvpDcpControl;
+    dcp_interface::response_handler = EvpDcpResponseHandler;
+    dcp_interface::system_event = EvpDcpSystemEvent;
     ENGINE_HANDLE_V1::collections.set_manifest = EvpCollectionsSetManifest;
     ENGINE_HANDLE_V1::collections.get_manifest = EvpCollectionsGetManifest;
 

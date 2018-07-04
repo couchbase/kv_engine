@@ -23,6 +23,7 @@
 #include "statwriter.h"
 #include "utility.h"
 
+#include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/vbucket.h>

@@ -16,15 +16,12 @@
  */
 #pragma once
 
-#ifndef MEMCACHED_ENGINE_H
-#error "Please include memcached/engine.h instead"
-#endif
-
 #include <memcached/dockey.h>
+#include <memcached/engine_common.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
-
+#include <memcached/visibility.h>
 
 /**
  * The message producers is used by the engine by the DCP producers
@@ -332,7 +329,7 @@ typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(
         size_t nentries,
         gsl::not_null<const void*> cookie);
 
-struct dcp_interface {
+struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Called from the memcached core for a DCP connection to allow it to
      * inject new messages on the stream.
@@ -624,3 +621,5 @@ struct dcp_interface {
      cb::const_byte_buffer key,
      cb::const_byte_buffer eventData);
 };
+
+using dcp_interface = DcpIface;

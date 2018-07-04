@@ -218,7 +218,7 @@ bool associate_bucket(Connection& connection, const char* name) {
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
             connection.setBucketIndex(gsl::narrow<int>(ii));
-            connection.setBucketEngine(b.engine);
+            connection.setBucketEngine(b.getEngine());
             found = true;
         }
     }
@@ -231,7 +231,7 @@ bool associate_bucket(Connection& connection, const char* name) {
             b.clients++;
         }
         connection.setBucketIndex(0);
-        connection.setBucketEngine(b.engine);
+        connection.setBucketEngine(b.getEngine());
     }
 
     return found;
@@ -245,7 +245,7 @@ void associate_initial_bucket(Connection& connection) {
     }
 
     connection.setBucketIndex(0);
-    connection.setBucketEngine(b.engine);
+    connection.setBucketEngine(b.getEngine());
 
     if (is_default_bucket_enabled()) {
         associate_bucket(connection, "default");
@@ -261,7 +261,7 @@ static void populate_log_level(void*) {
     for (auto& bucket : all_buckets) {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         if (bucket.state == BucketState::Ready) {
-            bucket.engine->set_log_level(val);
+            bucket.getEngine()->set_log_level(val);
         }
     }
 }
@@ -359,7 +359,7 @@ static void register_callback(ENGINE_HANDLE *eh,
             throw std::invalid_argument("register_callback: 'eh' must be non-NULL");
         }
         for (idx = 0; idx < all_buckets.size(); ++idx) {
-            if ((void *)eh == (void *)all_buckets[idx].engine) {
+            if ((void*)eh == (void*)all_buckets[idx].getEngine()) {
                 break;
             }
         }
@@ -1789,7 +1789,7 @@ void CreateBucketThread::create() {
             std::lock_guard<std::mutex> guard(bucket.mutex);
             bucket.state = BucketState::None;
             bucket.name[0] = '\0';
-            bucket.engine = nullptr;
+            bucket.setEngine(nullptr);
             delete bucket.topkeys;
             bucket.topkeys = nullptr;
         }
@@ -1803,7 +1803,7 @@ void CreateBucketThread::create() {
         return;
     }
 
-    bucket.engine = engine;
+    bucket.setEngine(engine);
     {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         bucket.state = BucketState::Initializing;
@@ -1843,7 +1843,7 @@ void CreateBucketThread::create() {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         bucket.state = BucketState::None;
         bucket.name[0] = '\0';
-        bucket.engine = nullptr;
+        bucket.setEngine(nullptr);
         delete bucket.topkeys;
         bucket.topkeys = nullptr;
 
@@ -1990,7 +1990,7 @@ void DestroyBucketThread::destroy() {
     LOG_INFO(
             "{} Delete bucket [{}]. Shut down the bucket", connection_id, name);
 
-    bucket.engine->destroy(force);
+    bucket.getEngine()->destroy(force);
 
     LOG_INFO("{} Delete bucket [{}]. Clean up allocated resources ",
              connection_id,
@@ -2007,7 +2007,7 @@ void DestroyBucketThread::destroy() {
     {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         bucket.state = BucketState::None;
-        bucket.engine = NULL;
+        bucket.setEngine(nullptr);
         bucket.name[0] = '\0';
         delete bucket.topkeys;
         bucket.responseCounters.fill(0);
@@ -2036,9 +2036,9 @@ static void initialize_buckets(void) {
     // To make the life easier for us in the code, index 0
     // in the array is "no bucket"
     auto &nobucket = all_buckets.at(0);
-    nobucket.engine = new_engine_instance(
-            BucketType::NoBucket, "<internal>", get_server_api);
-    cb_assert(nobucket.engine != nullptr);
+    nobucket.setEngine(new_engine_instance(
+            BucketType::NoBucket, "<internal>", get_server_api));
+    cb_assert(nobucket.getEngine());
     nobucket.type = BucketType::NoBucket;
     nobucket.state = BucketState::Ready;
 }
@@ -2069,7 +2069,7 @@ static void cleanup_buckets(void) {
         } while (waiting);
 
         if (bucket.state == BucketState::Ready) {
-            bucket.engine->destroy(false);
+            bucket.getEngine()->destroy(false);
             delete bucket.topkeys;
         }
     }

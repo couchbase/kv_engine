@@ -16,6 +16,7 @@
  */
 
 #include "ship_dcp_log.h"
+#include "daemon/buckets.h"
 #include "dcp_deletion.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
@@ -668,7 +669,7 @@ void ship_dcp_log(Cookie& cookie) {
     auto& c = cookie.getConnection();
     c.addMsgHdr(true);
     cookie.setEwouldblock(false);
-    auto ret = c.remapErrorCode(c.getBucketEngine()->dcp.step(
+    auto ret = c.remapErrorCode(c.getBucket().getDcpIface()->step(
             c.getBucketEngineAsV0(),
             static_cast<const void*>(&c.getCookieObject()),
             &producers));
