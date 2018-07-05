@@ -85,7 +85,7 @@ public:
 
     void addStats(ADD_STAT add_stat, const void* c) override;
 
-    void addTakeoverStats(ADD_STAT add_stat, const void *c, const VBucket& vb);
+    void addTakeoverStats(ADD_STAT add_stat, const void* c, const VBucket& vb);
 
     /* Returns a count of how many items are outstanding to be sent for this
      * stream's vBucket.

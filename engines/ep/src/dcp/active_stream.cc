@@ -137,36 +137,36 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
     std::unique_ptr<DcpResponse> response;
 
     switch (state_.load()) {
-        case StreamState::Pending:
-            break;
-        case StreamState::Backfilling:
-            response = backfillPhase(lh);
-            break;
-        case StreamState::InMemory:
-            response = inMemoryPhase();
-            break;
-        case StreamState::TakeoverSend:
-            response = takeoverSendPhase();
-            break;
-        case StreamState::TakeoverWait:
-            response = takeoverWaitPhase();
-            break;
-        case StreamState::Reading:
-            // Not valid for an active stream.
-            {
-                auto producer = producerPtr.lock();
-                std::string connHeader =
-                        producer ? producer->logHeader()
-                                 : "DCP (Producer): **Deleted conn**";
-                throw std::logic_error(
-                        "ActiveStream::next: Invalid state "
-                        "StreamReading for stream " +
-                        connHeader + " vb " + std::to_string(vb_));
-            }
-            break;
-        case StreamState::Dead:
-            response = deadPhase();
-            break;
+    case StreamState::Pending:
+        break;
+    case StreamState::Backfilling:
+        response = backfillPhase(lh);
+        break;
+    case StreamState::InMemory:
+        response = inMemoryPhase();
+        break;
+    case StreamState::TakeoverSend:
+        response = takeoverSendPhase();
+        break;
+    case StreamState::TakeoverWait:
+        response = takeoverWaitPhase();
+        break;
+    case StreamState::Reading:
+        // Not valid for an active stream.
+        {
+            auto producer = producerPtr.lock();
+            std::string connHeader =
+                    producer ? producer->logHeader()
+                             : "DCP (Producer): **Deleted conn**";
+            throw std::logic_error(
+                    "ActiveStream::next: Invalid state "
+                    "StreamReading for stream " +
+                    connHeader + " vb " + std::to_string(vb_));
+        }
+        break;
+    case StreamState::Dead:
+        response = deadPhase();
+        break;
     }
 
     itemsReady.store(response ? true : false);
@@ -202,7 +202,7 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
             pendingBackfill = true;
         }
         curChkSeqno = result.first;
-    } catch(std::exception& error) {
+    } catch (std::exception& error) {
         log(EXTENSION_LOG_WARNING,
             "(vb %" PRIu16 ") Failed to register cursor: %s",
             vb_,
@@ -299,9 +299,8 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
             queued_item qi(std::move(itm));
             std::unique_ptr<DcpResponse> resp(makeResponseFromItem(qi));
             auto producer = producerPtr.lock();
-            if (!producer ||
-                !producer->recordBackfillManagerBytesRead(
-                        resp->getApproximateSize(), force)) {
+            if (!producer || !producer->recordBackfillManagerBytesRead(
+                                     resp->getApproximateSize(), force)) {
                 // Deleting resp may also delete itm (which is owned by
                 // resp)
                 resp.reset();
@@ -378,7 +377,8 @@ void ActiveStream::setVBucketStateAckRecieved() {
     {
         /* Order in which the below 3 locks are acquired is important to avoid
            any potential lock inversion problems */
-        std::unique_lock<std::mutex> epVbSetLh(engine->getKVBucket()->getVbSetMutexLock());
+        std::unique_lock<std::mutex> epVbSetLh(
+                engine->getKVBucket()->getVbSetMutexLock());
         WriterLockHolder vbStateLh(vbucket->getStateLock());
         std::unique_lock<std::mutex> lh(streamMutex);
         if (isTakeoverWait()) {
@@ -393,12 +393,12 @@ void ActiveStream::setVBucketStateAckRecieved() {
                 transitionState(StreamState::TakeoverSend);
 
                 engine->getKVBucket()->setVBucketState_UNLOCKED(
-                                                        vb_,
-                                                        vbucket_state_dead,
-                                                        false /* transfer */,
-                                                        false /* notify_dcp */,
-                                                        epVbSetLh,
-                                                        &vbStateLh);
+                        vb_,
+                        vbucket_state_dead,
+                        false /* transfer */,
+                        false /* notify_dcp */,
+                        epVbSetLh,
+                        &vbStateLh);
 
                 log(EXTENSION_LOG_NOTICE,
                     "(vb %" PRIu16
@@ -510,8 +510,7 @@ std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase() {
 
 std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
     VBucketPtr vb = engine->getVBucket(vb_);
-    if (vb && takeoverStart != 0 &&
-        !vb->isTakeoverBackedUp() &&
+    if (vb && takeoverStart != 0 && !vb->isTakeoverBackedUp() &&
         (ep_current_time() - takeoverStart) > takeoverSendMaxTime) {
         vb->setTakeoverBackedUpState(true);
     }
@@ -576,34 +575,53 @@ bool ActiveStream::isCompressionEnabled() {
     return false;
 }
 
-void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
+void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
     Stream::addStats(add_stat, c);
 
     try {
         const int bsize = 1024;
         char buffer[bsize];
-        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_disk_items",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_backfill_disk_items",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer, backfillItems.disk, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_mem_items",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_backfill_mem_items",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer, backfillItems.memory, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_sent",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_backfill_sent",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer, backfillItems.sent, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_memory_phase",
-                         name_.c_str(), vb_);
+        checked_snprintf(
+                buffer, bsize, "%s:stream_%d_memory_phase", name_.c_str(), vb_);
         add_casted_stat(buffer, itemsFromMemoryPhase.load(), add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_last_sent_seqno",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_last_sent_snap_end_seqno",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_last_sent_snap_end_seqno",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer,
                         lastSentSnapEndSeqno.load(std::memory_order_relaxed),
-                        add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno",
-                         name_.c_str(), vb_);
+                        add_stat,
+                        c);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_last_read_seqno",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
         checked_snprintf(buffer,
                          bsize,
@@ -611,18 +629,27 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
                          name_.c_str(),
                          vb_);
         add_casted_stat(buffer, lastReadSeqnoUnSnapshotted.load(), add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_ready_queue_memory",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_items_ready",
-                         name_.c_str(), vb_);
-        add_casted_stat(buffer, itemsReady.load() ? "true" : "false", add_stat,
-                        c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_bytes",
-                         name_.c_str(), vb_);
+        checked_snprintf(
+                buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
+        add_casted_stat(
+                buffer, itemsReady.load() ? "true" : "false", add_stat, c);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_backfill_buffer_bytes",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_items",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_backfill_buffer_items",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
 
         checked_snprintf(buffer,
@@ -633,20 +660,25 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
         add_casted_stat(buffer, cursorRegistered, add_stat, c);
 
         if (isTakeoverSend() && takeoverStart != 0) {
-            checked_snprintf(buffer, bsize, "%s:stream_%d_takeover_since",
-                             name_.c_str(), vb_);
-            add_casted_stat(buffer, ep_current_time() - takeoverStart, add_stat,
-                            c);
+            checked_snprintf(buffer,
+                             bsize,
+                             "%s:stream_%d_takeover_since",
+                             name_.c_str(),
+                             vb_);
+            add_casted_stat(
+                    buffer, ep_current_time() - takeoverStart, add_stat, c);
         }
     } catch (std::exception& error) {
         LOG(EXTENSION_LOG_WARNING,
-            "ActiveStream::addStats: Failed to build stats: %s", error.what());
+            "ActiveStream::addStats: Failed to build stats: %s",
+            error.what());
     }
 
     filter.addStats(add_stat, c, name_, vb_);
 }
 
-void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
+void ActiveStream::addTakeoverStats(ADD_STAT add_stat,
+                                    const void* cookie,
                                     const VBucket& vb) {
     LockHolder lh(streamMutex);
 
@@ -673,7 +705,8 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie,
     }
     add_casted_stat("backfillRemaining",
                     backfillRemaining.load(std::memory_order_relaxed),
-                    add_stat, cookie);
+                    add_stat,
+                    cookie);
 
     size_t vb_items = vb.getNumItems();
     size_t chk_items = 0;
@@ -845,7 +878,9 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // sent over the DCP connection.
     if (item->getOperation() != queue_op::system_event) {
         auto cKey = Collections::DocKey::make(item->getKey(), currentSeparator);
-        if (shouldModifyItem(item, includeValue, includeXattributes,
+        if (shouldModifyItem(item,
+                             includeValue,
+                             includeXattributes,
                              isForceValueCompressionEnabled(),
                              isSnappyEnabled())) {
             auto finalItem = std::make_unique<Item>(*item);
@@ -856,7 +891,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                     if (!mcbp::datatype::is_snappy(finalItem->getDataType())) {
                         if (!finalItem->compressValue()) {
                             LOG(EXTENSION_LOG_WARNING,
-                                "Failed to snappy compress an uncompressed value");
+                                "Failed to snappy compress an uncompressed "
+                                "value");
                         }
                     }
                 }
@@ -1105,13 +1141,13 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     if ((flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) || reschedule) {
         uint64_t vbHighSeqno = static_cast<uint64_t>(vbucket->getHighSeqno());
         if (lastReadSeqno.load() > vbHighSeqno) {
-            throw std::logic_error("ActiveStream::scheduleBackfill_UNLOCKED: "
-                                   "lastReadSeqno (which is " +
-                                   std::to_string(lastReadSeqno.load()) +
-                                   " ) is greater than vbHighSeqno (which is " +
-                                   std::to_string(vbHighSeqno) + " ). " +
-                                   "for stream " + producer->logHeader() +
-                                   "; vb " + std::to_string(vb_));
+            throw std::logic_error(
+                    "ActiveStream::scheduleBackfill_UNLOCKED: "
+                    "lastReadSeqno (which is " +
+                    std::to_string(lastReadSeqno.load()) +
+                    " ) is greater than vbHighSeqno (which is " +
+                    std::to_string(vbHighSeqno) + " ). " + "for stream " +
+                    producer->logHeader() + "; vb " + std::to_string(vb_));
         }
         if (reschedule) {
             /* We need to do this for reschedule because in case of
@@ -1131,7 +1167,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                             lastReadSeqno.load(),
                             MustSendCheckpointEnd::NO);
             cursorRegistered = true;
-        } catch(std::exception& error) {
+        } catch (std::exception& error) {
             log(EXTENSION_LOG_WARNING,
                 "(vb %" PRIu16
                 ") Failed to register "
@@ -1142,13 +1178,13 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         }
 
         if (lastReadSeqno.load() > curChkSeqno) {
-            throw std::logic_error("ActiveStream::scheduleBackfill_UNLOCKED: "
-                                   "lastReadSeqno (which is " +
-                                   std::to_string(lastReadSeqno.load()) +
-                                   " ) is greater than curChkSeqno (which is " +
-                                   std::to_string(curChkSeqno) + " ). " +
-                                   "for stream " + producer->logHeader() +
-                                   "; vb " + std::to_string(vb_));
+            throw std::logic_error(
+                    "ActiveStream::scheduleBackfill_UNLOCKED: "
+                    "lastReadSeqno (which is " +
+                    std::to_string(lastReadSeqno.load()) +
+                    " ) is greater than curChkSeqno (which is " +
+                    std::to_string(curChkSeqno) + " ). " + "for stream " +
+                    producer->logHeader() + "; vb " + std::to_string(vb_));
         }
 
         /* We need to find the minimum seqno that needs to be backfilled in
@@ -1289,33 +1325,32 @@ bool ActiveStream::handleSlowStream() {
 
     bool status = false;
     switch (state_.load()) {
-        case StreamState::Backfilling:
-        case StreamState::InMemory:
-            /* Drop the existing cursor and set pending backfill */
-            status = dropCheckpointCursor_UNLOCKED();
-            pendingBackfill = true;
-            return status;
-        case StreamState::TakeoverSend:
-            /* To be handled later if needed */
-        case StreamState::TakeoverWait:
-            /* To be handled later if needed */
-        case StreamState::Dead:
-            /* To be handled later if needed */
-            return false;
-        case StreamState::Pending:
-        case StreamState::Reading: {
-            auto producer = producerPtr.lock();
-            std::string connHeader =
-                    producer ? producer->logHeader()
-                             : "DCP (Producer): **Deleted conn**";
-            throw std::logic_error(
-                    "ActiveStream::handleSlowStream: "
-                    "called with state " +
-                    to_string(state_.load()) +
-                    " "
-                    "for stream " +
-                    connHeader + "; vb " + std::to_string(vb_));
-        }
+    case StreamState::Backfilling:
+    case StreamState::InMemory:
+        /* Drop the existing cursor and set pending backfill */
+        status = dropCheckpointCursor_UNLOCKED();
+        pendingBackfill = true;
+        return status;
+    case StreamState::TakeoverSend:
+    /* To be handled later if needed */
+    case StreamState::TakeoverWait:
+    /* To be handled later if needed */
+    case StreamState::Dead:
+        /* To be handled later if needed */
+        return false;
+    case StreamState::Pending:
+    case StreamState::Reading: {
+        auto producer = producerPtr.lock();
+        std::string connHeader = producer ? producer->logHeader()
+                                          : "DCP (Producer): **Deleted conn**";
+        throw std::logic_error(
+                "ActiveStream::handleSlowStream: "
+                "called with state " +
+                to_string(state_.load()) +
+                " "
+                "for stream " +
+                connHeader + "; vb " + std::to_string(vb_));
+    }
     }
     return false;
 }
@@ -1359,50 +1394,52 @@ void ActiveStream::transitionState(StreamState newState) {
 
     bool validTransition = false;
     switch (state_.load()) {
-        case StreamState::Pending:
-            if (newState == StreamState::Backfilling ||
-                    newState == StreamState::Dead) {
-                validTransition = true;
-            }
-            break;
-        case StreamState::Backfilling:
-            if(newState == StreamState::InMemory ||
-               newState == StreamState::TakeoverSend ||
-               newState == StreamState::Dead) {
-                validTransition = true;
-            }
-            break;
-        case StreamState::InMemory:
-            if (newState == StreamState::Backfilling ||
-                    newState == StreamState::Dead) {
-                validTransition = true;
-            }
-            break;
-        case StreamState::TakeoverSend:
-            if (newState == StreamState::TakeoverWait ||
-                    newState == StreamState::Dead) {
-                validTransition = true;
-            }
-            break;
-        case StreamState::TakeoverWait:
-            if (newState == StreamState::TakeoverSend ||
-                    newState == StreamState::Dead) {
-                validTransition = true;
-            }
-            break;
-        case StreamState::Reading:
-            // Active stream should never be in READING state.
-            validTransition = false;
-            break;
-        case StreamState::Dead:
-            // Once DEAD, no other transitions should occur.
-            validTransition = false;
-            break;
+    case StreamState::Pending:
+        if (newState == StreamState::Backfilling ||
+            newState == StreamState::Dead) {
+            validTransition = true;
+        }
+        break;
+    case StreamState::Backfilling:
+        if (newState == StreamState::InMemory ||
+            newState == StreamState::TakeoverSend ||
+            newState == StreamState::Dead) {
+            validTransition = true;
+        }
+        break;
+    case StreamState::InMemory:
+        if (newState == StreamState::Backfilling ||
+            newState == StreamState::Dead) {
+            validTransition = true;
+        }
+        break;
+    case StreamState::TakeoverSend:
+        if (newState == StreamState::TakeoverWait ||
+            newState == StreamState::Dead) {
+            validTransition = true;
+        }
+        break;
+    case StreamState::TakeoverWait:
+        if (newState == StreamState::TakeoverSend ||
+            newState == StreamState::Dead) {
+            validTransition = true;
+        }
+        break;
+    case StreamState::Reading:
+        // Active stream should never be in READING state.
+        validTransition = false;
+        break;
+    case StreamState::Dead:
+        // Once DEAD, no other transitions should occur.
+        validTransition = false;
+        break;
     }
 
     if (!validTransition) {
-        throw std::invalid_argument("ActiveStream::transitionState:"
-                " newState (which is " + to_string(newState) +
+        throw std::invalid_argument(
+                "ActiveStream::transitionState:"
+                " newState (which is " +
+                to_string(newState) +
                 ") is not valid for current state (which is " +
                 to_string(state_.load()) + ")");
     }
@@ -1411,41 +1448,42 @@ void ActiveStream::transitionState(StreamState newState) {
     state_ = newState;
 
     switch (newState) {
-        case StreamState::Backfilling:
-            if (StreamState::Pending == oldState) {
-                scheduleBackfill_UNLOCKED(false /* reschedule */);
-            } else if (StreamState::InMemory == oldState) {
-                scheduleBackfill_UNLOCKED(true /* reschedule */);
-            }
-            break;
-        case StreamState::InMemory:
-            // Check if the producer has sent up till the last requested
-            // sequence number already, if not - move checkpoint items into
-            // the ready queue.
-            if (lastSentSeqno.load() >= end_seqno_) {
-                // Stream transitioning to DEAD state
-                endStream(END_STREAM_OK);
-                notifyStreamReady();
-            } else {
-                nextCheckpointItem();
-            }
-            break;
-        case StreamState::TakeoverSend:
-            takeoverStart = ep_current_time();
-            if (!nextCheckpointItem()) {
-                notifyStreamReady(true);
-            }
-            break;
-        case StreamState::Dead:
-            removeCheckpointCursor();
-            break;
-        case StreamState::TakeoverWait:
-        case StreamState::Pending:
-            break;
-        case StreamState::Reading:
-            throw std::logic_error("ActiveStream::transitionState:"
-                    " newState can't be " + to_string(newState) +
-                    "!");
+    case StreamState::Backfilling:
+        if (StreamState::Pending == oldState) {
+            scheduleBackfill_UNLOCKED(false /* reschedule */);
+        } else if (StreamState::InMemory == oldState) {
+            scheduleBackfill_UNLOCKED(true /* reschedule */);
+        }
+        break;
+    case StreamState::InMemory:
+        // Check if the producer has sent up till the last requested
+        // sequence number already, if not - move checkpoint items into
+        // the ready queue.
+        if (lastSentSeqno.load() >= end_seqno_) {
+            // Stream transitioning to DEAD state
+            endStream(END_STREAM_OK);
+            notifyStreamReady();
+        } else {
+            nextCheckpointItem();
+        }
+        break;
+    case StreamState::TakeoverSend:
+        takeoverStart = ep_current_time();
+        if (!nextCheckpointItem()) {
+            notifyStreamReady(true);
+        }
+        break;
+    case StreamState::Dead:
+        removeCheckpointCursor();
+        break;
+    case StreamState::TakeoverWait:
+    case StreamState::Pending:
+        break;
+    case StreamState::Reading:
+        throw std::logic_error(
+                "ActiveStream::transitionState:"
+                " newState can't be " +
+                to_string(newState) + "!");
     }
 }
 
@@ -1491,8 +1529,7 @@ void ActiveStream::log(EXTENSION_LOG_LEVEL severity,
     va_end(va);
 }
 
-bool ActiveStream::isCurrentSnapshotCompleted() const
-{
+bool ActiveStream::isCurrentSnapshotCompleted() const {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     // An atomic read of vbucket state without acquiring the
     // reader lock for state should suffice here.

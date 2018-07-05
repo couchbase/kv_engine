@@ -56,13 +56,11 @@ bool ActiveStreamCheckpointProcessorTask::run() {
             break;
         }
         iterations++;
-    } while(!queueEmpty()
-            && iterations < iterationsBeforeYield);
+    } while (!queueEmpty() && iterations < iterationsBeforeYield);
 
     // Now check if we were re-notified or there are still checkpoints
     bool expected = true;
-    if (notified.compare_exchange_strong(expected, false)
-        || !queueEmpty()) {
+    if (notified.compare_exchange_strong(expected, false) || !queueEmpty()) {
         // wakeUp, essentially yielding and allowing other tasks a go
         wakeUp();
     }

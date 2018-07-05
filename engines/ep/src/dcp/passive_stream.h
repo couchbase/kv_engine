@@ -46,7 +46,7 @@ public:
 
     virtual ~PassiveStream();
 
-    process_items_error_t processBufferedMessages(uint32_t &processed_bytes,
+    process_items_error_t processBufferedMessages(uint32_t& processed_bytes,
                                                   size_t batchSize);
 
     std::unique_ptr<DcpResponse> next() override;
@@ -63,7 +63,8 @@ public:
 
     void acceptStream(uint16_t status, uint32_t add_opaque);
 
-    void reconnectStream(VBucketPtr &vb, uint32_t new_opaque,
+    void reconnectStream(VBucketPtr& vb,
+                         uint32_t new_opaque,
                          uint64_t start_seqno);
 
     /*
@@ -80,7 +81,6 @@ public:
     static const size_t batchSize;
 
 protected:
-
     bool transitionState(StreamState newState);
 
     virtual ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
@@ -111,7 +111,6 @@ protected:
      */
     ENGINE_ERROR_CODE processBeginDeleteCollection(
             VBucket& vb, const CreateOrDeleteCollectionEvent& event);
-
 
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 
@@ -151,7 +150,8 @@ protected:
     bool cur_snapshot_ack;
 
     struct Buffer {
-        Buffer() : bytes(0) {}
+        Buffer() : bytes(0) {
+        }
 
         bool empty() const {
             LockHolder lh(bufMutex);
@@ -167,7 +167,8 @@ protected:
         /*
          * Caller must of locked bufMutex and pass as lh (not asserted)
          */
-        std::unique_ptr<DcpResponse> pop_front(std::unique_lock<std::mutex>& lh) {
+        std::unique_ptr<DcpResponse> pop_front(
+                std::unique_lock<std::mutex>& lh) {
             std::unique_ptr<DcpResponse> rval(std::move(messages.front()));
             messages.pop_front();
             bytes -= rval->getMessageSize();

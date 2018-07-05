@@ -95,7 +95,8 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
                                                  snap_end_seqno_));
 
     const char* type = (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER)
-        ? "takeover stream" : "stream";
+                               ? "takeover stream"
+                               : "stream";
     log(EXTENSION_LOG_NOTICE,
         "(vb %" PRId16 ") Attempting to add %s: opaque_:%" PRIu32
         ", "
@@ -160,7 +161,7 @@ void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
     }
 }
 
-void PassiveStream::reconnectStream(VBucketPtr &vb,
+void PassiveStream::reconnectStream(VBucketPtr& vb,
                                     uint32_t new_opaque,
                                     uint64_t start_seqno) {
     /* the stream should send a don't care vb_uuid if start_seqno is 0 */
@@ -200,7 +201,8 @@ void PassiveStream::reconnectStream(VBucketPtr &vb,
     notifyStreamReady();
 }
 
-ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dcpResponse) {
+ENGINE_ERROR_CODE PassiveStream::messageReceived(
+        std::unique_ptr<DcpResponse> dcpResponse) {
     if (!dcpResponse) {
         return ENGINE_EINVAL;
     }
@@ -227,7 +229,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
             return ENGINE_ERANGE;
         }
         last_seqno.store(*seqno);
-    } else if(dcpResponse->getEvent() == DcpResponse::Event::SnapshotMarker) {
+    } else if (dcpResponse->getEvent() == DcpResponse::Event::SnapshotMarker) {
         auto s = static_cast<SnapshotMarker*>(dcpResponse.get());
         uint64_t snapStart = s->getStartSeqno();
         uint64_t snapEnd = s->getEndSeqno();
@@ -325,8 +327,8 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dc
     return ENGINE_TMPFAIL;
 }
 
-process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed_bytes,
-                                                             size_t batchSize) {
+process_items_error_t PassiveStream::processBufferedMessages(
+        uint32_t& processed_bytes, size_t batchSize) {
     std::unique_lock<std::mutex> lh(buffer.bufMutex);
     uint32_t count = 0;
     uint32_t message_bytes = 0;
@@ -352,39 +354,40 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
         message_bytes = response->getMessageSize();
 
         switch (response->getEvent()) {
-            case DcpResponse::Event::Mutation:
-                ret = processMutation(static_cast<MutationResponse*>(response.get()));
-                break;
-            case DcpResponse::Event::Deletion:
-            case DcpResponse::Event::Expiration:
-                ret = processDeletion(static_cast<MutationResponse*>(response.get()));
-                break;
-            case DcpResponse::Event::SnapshotMarker:
-                processMarker(static_cast<SnapshotMarker*>(response.get()));
-                break;
-            case DcpResponse::Event::SetVbucket:
-                processSetVBucketState(static_cast<SetVBucketState*>(response.get()));
-                break;
-            case DcpResponse::Event::StreamEnd:
-                {
-                    LockHolder lh(streamMutex);
-                    transitionState(StreamState::Dead);
-                }
-                break;
-            case DcpResponse::Event::SystemEvent: {
-                    ret = processSystemEvent(
-                            *static_cast<SystemEventMessage*>(response.get()));
-                    break;
-                }
-            default:
-                log(EXTENSION_LOG_WARNING,
-                    "PassiveStream::processBufferedMessages:"
-                    "(vb %" PRIu16
-                    ") PassiveStream ignoring "
-                    "unknown message type %s",
-                    vb_,
-                    response->to_string());
-                continue;
+        case DcpResponse::Event::Mutation:
+            ret = processMutation(
+                    static_cast<MutationResponse*>(response.get()));
+            break;
+        case DcpResponse::Event::Deletion:
+        case DcpResponse::Event::Expiration:
+            ret = processDeletion(
+                    static_cast<MutationResponse*>(response.get()));
+            break;
+        case DcpResponse::Event::SnapshotMarker:
+            processMarker(static_cast<SnapshotMarker*>(response.get()));
+            break;
+        case DcpResponse::Event::SetVbucket:
+            processSetVBucketState(
+                    static_cast<SetVBucketState*>(response.get()));
+            break;
+        case DcpResponse::Event::StreamEnd: {
+            LockHolder lh(streamMutex);
+            transitionState(StreamState::Dead);
+        } break;
+        case DcpResponse::Event::SystemEvent: {
+            ret = processSystemEvent(
+                    *static_cast<SystemEventMessage*>(response.get()));
+            break;
+        }
+        default:
+            log(EXTENSION_LOG_WARNING,
+                "PassiveStream::processBufferedMessages:"
+                "(vb %" PRIu16
+                ") PassiveStream ignoring "
+                "unknown message type %s",
+                vb_,
+                response->to_string());
+            continue;
         }
 
         if (ret == ENGINE_TMPFAIL || ret == ENGINE_ENOMEM) {
@@ -664,8 +667,9 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
     cur_snapshot_start.store(marker->getStartSeqno());
     cur_snapshot_end.store(marker->getEndSeqno());
-    cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK) ?
-            Snapshot::Disk : Snapshot::Memory);
+    cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK)
+                                    ? Snapshot::Disk
+                                    : Snapshot::Memory);
 
     if (vb) {
         auto& ckptMgr = *vb->checkpointManager;
@@ -694,7 +698,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     engine->getKVBucket()->setVBucketState(vb_, state->getState(), true);
     {
-        LockHolder lh (streamMutex);
+        LockHolder lh(streamMutex);
         pushToReadyQ(std::make_unique<SetVBucketStateResponse>(opaque_,
                                                                ENGINE_SUCCESS));
     }
@@ -705,7 +709,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end.load()) {
         auto& ckptMgr = *vb->checkpointManager;
         if (cur_snapshot_type.load() == Snapshot::Disk &&
-                vb->isBackfillPhase()) {
+            vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
             const auto id = ckptMgr.getOpenCheckpointId() + 1;
             ckptMgr.checkAndAddNewCheckpoint(id, *vb);
@@ -734,7 +738,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     }
 }
 
-void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
+void PassiveStream::addStats(ADD_STAT add_stat, const void* c) {
     Stream::addStats(add_stat, c);
 
     try {
@@ -747,38 +751,54 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
             bufferItems = buffer.messages.size();
             bufferBytes = buffer.bytes;
         }
-        checked_snprintf(buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(),
-                         vb_);
+        checked_snprintf(
+                buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(), vb_);
         add_casted_stat(buf, bufferItems, add_stat, c);
-        checked_snprintf(buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(),
-                         vb_);
+        checked_snprintf(
+                buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(), vb_);
         add_casted_stat(buf, bufferBytes, add_stat, c);
-        checked_snprintf(buf, bsize, "%s:stream_%d_items_ready", name_.c_str(),
-                         vb_);
+        checked_snprintf(
+                buf, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
         add_casted_stat(buf, itemsReady.load() ? "true" : "false", add_stat, c);
-        checked_snprintf(buf, bsize, "%s:stream_%d_last_received_seqno",
-                         name_.c_str(), vb_);
+        checked_snprintf(buf,
+                         bsize,
+                         "%s:stream_%d_last_received_seqno",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buf, last_seqno.load(), add_stat, c);
-        checked_snprintf(buf, bsize, "%s:stream_%d_ready_queue_memory",
-                         name_.c_str(), vb_);
+        checked_snprintf(buf,
+                         bsize,
+                         "%s:stream_%d_ready_queue_memory",
+                         name_.c_str(),
+                         vb_);
         add_casted_stat(buf, getReadyQueueMemory(), add_stat, c);
 
-        checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type",
-                         name_.c_str(), vb_);
-        add_casted_stat(buf, ::to_string(cur_snapshot_type.load()),
-                        add_stat, c);
+        checked_snprintf(buf,
+                         bsize,
+                         "%s:stream_%d_cur_snapshot_type",
+                         name_.c_str(),
+                         vb_);
+        add_casted_stat(
+                buf, ::to_string(cur_snapshot_type.load()), add_stat, c);
 
         if (cur_snapshot_type.load() != Snapshot::None) {
-            checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_start",
-                             name_.c_str(), vb_);
+            checked_snprintf(buf,
+                             bsize,
+                             "%s:stream_%d_cur_snapshot_start",
+                             name_.c_str(),
+                             vb_);
             add_casted_stat(buf, cur_snapshot_start.load(), add_stat, c);
-            checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_end",
-                             name_.c_str(), vb_);
+            checked_snprintf(buf,
+                             bsize,
+                             "%s:stream_%d_cur_snapshot_end",
+                             name_.c_str(),
+                             vb_);
             add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
         }
     } catch (std::exception& error) {
         LOG(EXTENSION_LOG_WARNING,
-            "PassiveStream::addStats: Failed to build stats: %s", error.what());
+            "PassiveStream::addStats: Failed to build stats: %s",
+            error.what());
     }
 }
 
@@ -814,35 +834,35 @@ bool PassiveStream::transitionState(StreamState newState) {
 
     bool validTransition = false;
     switch (state_.load()) {
-        case StreamState::Pending:
-            if (newState == StreamState::Reading ||
-                    newState == StreamState::Dead) {
-                validTransition = true;
-            }
-            break;
+    case StreamState::Pending:
+        if (newState == StreamState::Reading || newState == StreamState::Dead) {
+            validTransition = true;
+        }
+        break;
 
-        case StreamState::Backfilling:
-        case StreamState::InMemory:
-        case StreamState::TakeoverSend:
-        case StreamState::TakeoverWait:
-            // Not valid for passive streams
-            break;
+    case StreamState::Backfilling:
+    case StreamState::InMemory:
+    case StreamState::TakeoverSend:
+    case StreamState::TakeoverWait:
+        // Not valid for passive streams
+        break;
 
-        case StreamState::Reading:
-            if (newState == StreamState::Pending ||
-                    newState == StreamState::Dead) {
-                validTransition = true;
-            }
-            break;
+    case StreamState::Reading:
+        if (newState == StreamState::Pending || newState == StreamState::Dead) {
+            validTransition = true;
+        }
+        break;
 
-        case StreamState::Dead:
-            // Once 'dead' shouldn't transition away from it.
-            break;
+    case StreamState::Dead:
+        // Once 'dead' shouldn't transition away from it.
+        break;
     }
 
     if (!validTransition) {
-        throw std::invalid_argument("PassiveStream::transitionState:"
-                " newState (which is" + to_string(newState) +
+        throw std::invalid_argument(
+                "PassiveStream::transitionState:"
+                " newState (which is" +
+                to_string(newState) +
                 ") is not valid for current state (which is " +
                 to_string(state_.load()) + ")");
     }
@@ -853,16 +873,16 @@ bool PassiveStream::transitionState(StreamState newState) {
 
 std::string PassiveStream::getEndStreamStatusStr(end_stream_status_t status) {
     switch (status) {
-        case END_STREAM_OK:
-            return "The stream closed as part of normal operation";
-        case END_STREAM_CLOSED:
-            return "The stream closed due to a close stream message";
-        case END_STREAM_DISCONNECTED:
-            return "The stream closed early because the conn was disconnected";
-        case END_STREAM_STATE:
-            return "The stream closed early because the vbucket state changed";
-        default:
-            break;
+    case END_STREAM_OK:
+        return "The stream closed as part of normal operation";
+    case END_STREAM_CLOSED:
+        return "The stream closed due to a close stream message";
+    case END_STREAM_DISCONNECTED:
+        return "The stream closed early because the conn was disconnected";
+    case END_STREAM_STATE:
+        return "The stream closed early because the vbucket state changed";
+    default:
+        break;
     }
     return std::string{"Status unknown: " + std::to_string(status) +
                        "; this should not have happened!"};
