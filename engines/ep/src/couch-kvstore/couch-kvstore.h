@@ -401,7 +401,7 @@ public:
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
-    ENGINE_ERROR_CODE readVBState(Db *db, uint16_t vbId);
+    ENGINE_ERROR_CODE readVBState(Db* db, uint16_t vbId);
 
     couchstore_error_t fetchDoc(Db* db,
                                 DocInfo* docinfo,

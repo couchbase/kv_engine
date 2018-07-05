@@ -322,9 +322,24 @@ void CouchKVStore::initialize() {
         DbHolder db(*this);
         errorCode = openDB(id, db, COUCHSTORE_OPEN_FLAG_RDONLY);
         if (errorCode == COUCHSTORE_SUCCESS) {
-            readVBState(db, id);
-            /* update stat */
-            ++st.numLoadedVb;
+            auto engineError = readVBState(db, id);
+            // We return ENGINE_EINVAL if something went wrong with the JSON
+            // parsing, all other error codes are acceptable at this point in
+            // the code
+            if (engineError != ENGINE_EINVAL) {
+                /* update stat */
+                ++st.numLoadedVb;
+            } else {
+                logger.log(
+                        EXTENSION_LOG_WARNING,
+                        "CouchKVStore::initialize: readVBState"
+                        " error:%s, name:%s/%" PRIu16 ".couch.%" PRIu64,
+                        cb::to_string(cb::to_engine_errc(engineError)).c_str(),
+                        dbname.c_str(),
+                        id,
+                        db.getFileRev());
+                cachedVBStates[id] = NULL;
+            }
         } else {
             logger.log(EXTENSION_LOG_WARNING,
                        "CouchKVStore::initialize: openDB"
@@ -2103,7 +2118,7 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
     }
 }
 
-ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
+ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, uint16_t vbId) {
     sized_buf id;
     LocalDoc *ldoc = NULL;
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
@@ -2161,7 +2176,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                        vbId,
                        statjson.c_str(),
                        e.what());
-            return couchErr2EngineErr(errCode);
+            return ENGINE_EINVAL;
         }
 
         auto vb_state = json.value("state", "");
@@ -2188,23 +2203,64 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
                        max_deleted_seqno.c_str());
         } else {
             state = VBucket::fromString(vb_state.c_str());
-            parseUint64(max_deleted_seqno, &maxDeletedSeqno);
-            parseUint64(checkpoint_id, &checkpointId);
+            if (!parseUint64(max_deleted_seqno, &maxDeletedSeqno)) {
+                logger.log(EXTENSION_LOG_WARNING,
+                           "CouchKVStore::readVBState: Failed to call "
+                           "parseUint64 on max_deleted_seqno, which has a "
+                           "value of: %s for vb:%" PRIu16,
+                           max_deleted_seqno.c_str(),
+                           vbId);
+                return ENGINE_EINVAL;
+            }
+            if (!parseUint64(checkpoint_id, &checkpointId)) {
+                logger.log(EXTENSION_LOG_WARNING,
+                           "CouchKVStore::readVBState: Failed to call "
+                           "parseUint64 on checkpoint_id, which has a value "
+                           "of: %s for vb:%" PRIu16,
+                           checkpoint_id.c_str(),
+                           vbId);
+                return ENGINE_EINVAL;
+            }
 
             if (snapStart == json.end()) {
                 lastSnapStart = gsl::narrow<uint64_t>(highSeqno);
             } else {
-                parseUint64(snapStart->get<std::string>(), &lastSnapStart);
+                if (!parseUint64(snapStart->get<std::string>(),
+                                 &lastSnapStart)) {
+                    logger.log(EXTENSION_LOG_WARNING,
+                               "CouchKVStore::readVBState: Failed to call "
+                               "parseUint64 on snapStart, which has a value "
+                               "of: %s for vb:%" PRIu16,
+                               (snapStart->get<std::string>()).c_str(),
+                               vbId);
+                    return ENGINE_EINVAL;
+                }
             }
 
             if (snapEnd == json.end()) {
                 lastSnapEnd = gsl::narrow<uint64_t>(highSeqno);
             } else {
-                parseUint64(snapEnd->get<std::string>(), &lastSnapEnd);
+                if (!parseUint64(snapEnd->get<std::string>(), &lastSnapEnd)) {
+                    logger.log(EXTENSION_LOG_WARNING,
+                               "CouchKVStore::readVBState: Failed to call "
+                               "parseUint64 on snapEnd, which has a value of: "
+                               "%s for vb:%" PRIu16,
+                               (snapEnd->get<std::string>()).c_str(),
+                               vbId);
+                    return ENGINE_EINVAL;
+                }
             }
 
             if (maxCasValue != json.end()) {
-                parseUint64(maxCasValue->get<std::string>(), &maxCas);
+                if (!parseUint64(maxCasValue->get<std::string>(), &maxCas)) {
+                    logger.log(EXTENSION_LOG_WARNING,
+                               "CouchKVStore::readVBState: Failed to call "
+                               "parseUint64 on maxCasValue, which has a value "
+                               "of: %s for vb:%" PRIu16,
+                               (maxCasValue->get<std::string>()).c_str(),
+                               vbId);
+                    return ENGINE_EINVAL;
+                }
 
                 // MB-17517: If the maxCas on disk was invalid then don't use it -
                 // instead rebuild from the items we load from disk (i.e. as per
@@ -2220,7 +2276,16 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
             }
 
             if (hlcCasEpoch != json.end()) {
-                parseInt64(hlcCasEpoch->get<std::string>(), &hlcCasEpochSeqno);
+                if (!parseInt64(hlcCasEpoch->get<std::string>(),
+                                &hlcCasEpochSeqno)) {
+                    logger.log(EXTENSION_LOG_WARNING,
+                               "CouchKVStore::readVBState: Failed to call "
+                               "parseInt64 on hlcCasEpoch, which has a value "
+                               "of: %s for vb:%" PRIu16,
+                               (hlcCasEpoch->get<std::string>()).c_str(),
+                               vbId);
+                    return ENGINE_EINVAL;
+                }
             }
 
             if (failover_json != json.end()) {
