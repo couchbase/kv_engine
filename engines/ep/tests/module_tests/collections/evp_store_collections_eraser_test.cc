@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 
 class CollectionsEraserTest
@@ -50,32 +51,29 @@ public:
 // Small numbers of items for easier debug
 TEST_P(CollectionsEraserTest, basic) {
     // add a collection
-    vb->updateFromManifest({R"({"uid":"0",)"
-                            R"("collections":[{"name":"$default", "uid":"0"},)"
-                            R"(               {"name":"dairy","uid":"1"}]})"});
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
     // add some items
-    store_item(vbid, {"dairy:milk", DocNamespace::Collections}, "nice");
-    store_item(vbid, {"dairy:butter", DocNamespace::Collections}, "lovely");
+    store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid, {"dairy:butter", CollectionEntry::dairy}, "lovely");
 
     flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
 
     EXPECT_EQ(2, vb->getNumItems());
 
     // Evict one of the keys, we should still erase it
-    evict_key(vbid, {"dairy:butter", DocNamespace::Collections});
+    evict_key(vbid, {"dairy:butter", CollectionEntry::dairy});
 
     // delete the collection
-    vb->updateFromManifest(
-            {R"({"uid":"0",)"
-             R"("collections":[{"name":"$default", "uid":"0"}]})"});
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
     // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists("dairy"));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
 
     runEraser();
 
@@ -85,19 +83,17 @@ TEST_P(CollectionsEraserTest, basic) {
 }
 
 TEST_P(CollectionsEraserTest, basic_2_collections) {
-    // add a collection
-    vb->updateFromManifest({R"({"uid":"0",)"
-                            R"("collections":[{"name":"$default", "uid":"0"},)"
-                            R"(               {"name":"fruit","uid":"1"},)"
-                            R"(               {"name":"dairy","uid":"1"}]})"});
+    // add two collections
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm.add(CollectionEntry::fruit)});
 
     flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
 
     // add some items
-    store_item(vbid, {"dairy:milk", DocNamespace::Collections}, "nice");
-    store_item(vbid, {"dairy:butter", DocNamespace::Collections}, "lovely");
-    store_item(vbid, {"fruit:apple", DocNamespace::Collections}, "nice");
-    store_item(vbid, {"fruit:apricot", DocNamespace::Collections}, "lovely");
+    store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid, {"dairy:butter", CollectionEntry::dairy}, "lovely");
+    store_item(vbid, {"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid, {"fruit:apricot", CollectionEntry::fruit}, "lovely");
 
     flush_vbucket_to_disk(vbid, 4);
 
@@ -105,12 +101,11 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 
     // delete the collections
     vb->updateFromManifest(
-            {R"({"uid":"0",)"
-             R"("collections":[{"name":"$default", "uid":"0"}]})"});
+            {cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)});
 
     // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists("dairy"));
-    EXPECT_TRUE(vb->lockCollections().exists("fruit"));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
 
@@ -118,37 +113,33 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 
     EXPECT_EQ(0, vb->getNumItems());
 
-    EXPECT_FALSE(vb->lockCollections().exists("dairy"));
-    EXPECT_FALSE(vb->lockCollections().exists("fruit"));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 }
 
 TEST_P(CollectionsEraserTest, basic_3_collections) {
-    // add a collection
-    vb->updateFromManifest({R"({"uid":"0",)"
-                            R"("collections":[{"name":"$default", "uid":"0"},)"
-                            R"(               {"name":"fruit","uid":"1"},)"
-                            R"(               {"name":"dairy","uid":"1"}]})"});
+    // Add two collections
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm.add(CollectionEntry::fruit)});
 
     flush_vbucket_to_disk(vbid, 2 /* 1x system */);
 
     // add some items
-    store_item(vbid, {"dairy:milk", DocNamespace::Collections}, "nice");
-    store_item(vbid, {"dairy:butter", DocNamespace::Collections}, "lovely");
-    store_item(vbid, {"fruit:apple", DocNamespace::Collections}, "nice");
-    store_item(vbid, {"fruit:apricot", DocNamespace::Collections}, "lovely");
+    store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid, {"dairy:butter", CollectionEntry::dairy}, "lovely");
+    store_item(vbid, {"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid, {"fruit:apricot", CollectionEntry::fruit}, "lovely");
 
     flush_vbucket_to_disk(vbid, 4 /* 2x items */);
 
     EXPECT_EQ(4, vb->getNumItems());
 
     // delete one of the 3 collections
-    vb->updateFromManifest({R"({"uid":"0",)"
-                            R"("collections":[{"name":"$default", "uid":"0"},)"
-                            R"(               {"name":"dairy","uid":"1"}]})"});
+    vb->updateFromManifest({cm.remove(CollectionEntry::fruit)});
 
     // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists("dairy"));
-    EXPECT_TRUE(vb->lockCollections().exists("fruit"));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
@@ -156,35 +147,34 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
 
     EXPECT_EQ(2, vb->getNumItems());
 
-    EXPECT_TRUE(vb->lockCollections().exists("dairy"));
-    EXPECT_FALSE(vb->lockCollections().exists("fruit"));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 }
 
 TEST_P(CollectionsEraserTest, basic_4_collections) {
-    // add a collection
-    vb->updateFromManifest({R"({"uid":"0",)"
-                            R"("collections":[{"name":"$default", "uid":"0"},)"
-                            R"(               {"name":"fruit","uid":"1"},)"
-                            R"(               {"name":"dairy","uid":"1"}]})"});
+    // Add two collections
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm.add(CollectionEntry::fruit)});
 
     flush_vbucket_to_disk(vbid, 2 /* 1x system */);
 
     // add some items
-    store_item(vbid, {"dairy:milk", DocNamespace::Collections}, "nice");
-    store_item(vbid, {"dairy:butter", DocNamespace::Collections}, "lovely");
-    store_item(vbid, {"fruit:apple", DocNamespace::Collections}, "nice");
-    store_item(vbid, {"fruit:apricot", DocNamespace::Collections}, "lovely");
+    store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid, {"dairy:butter", CollectionEntry::dairy}, "lovely");
+    store_item(vbid, {"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid, {"fruit:apricot", CollectionEntry::fruit}, "lovely");
 
     flush_vbucket_to_disk(vbid, 4 /* 2x items */);
 
-    // delete the collection and re-add a new dairy
-    vb->updateFromManifest({R"({"uid":"0",)"
-                            R"("collections":[{"name":"$default", "uid":"0"},)"
-                            R"(               {"name":"dairy","uid":"2"}]})"});
+    // delete the collections and re-add a new dairy
+    vb->updateFromManifest({cm.remove(CollectionEntry::fruit)
+                                    .remove(CollectionEntry::dairy)
+                                    .add(CollectionEntry::dairy2)});
 
     // Deleted, but still exists in the manifest
-    EXPECT_TRUE(vb->lockCollections().exists("dairy"));
-    EXPECT_TRUE(vb->lockCollections().exists("fruit"));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
 
     flush_vbucket_to_disk(vbid, 2 /* 1x system */);
 
@@ -192,8 +182,8 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
 
     EXPECT_EQ(0, vb->getNumItems());
 
-    EXPECT_TRUE(vb->lockCollections().exists("dairy"));
-    EXPECT_FALSE(vb->lockCollections().exists("fruit"));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
 }
 
 TEST_P(CollectionsEraserTest, default_Destroy) {
@@ -210,8 +200,8 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     EXPECT_EQ(4, vb->getNumItems());
 
     // delete the default collection
-    vb->updateFromManifest({R"({"uid":"0",)"
-                            R"("collections":[]})"});
+    CollectionsManifest cm;
+    vb->updateFromManifest({cm.remove(CollectionEntry::defaultC)});
 
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
@@ -220,9 +210,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     EXPECT_EQ(0, vb->getNumItems());
 
     // Add default back - so we don't get collection unknown errors
-    vb->updateFromManifest(
-            {R"({"uid":"0",)"
-             R"("collections":[{"name":"$default", "uid":"0"}]})"});
+    vb->updateFromManifest({cm.add(CollectionEntry::defaultC)});
 
     get_options_t options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |

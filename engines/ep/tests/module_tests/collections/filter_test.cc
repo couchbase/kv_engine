@@ -22,6 +22,7 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "stats.h"
+#include "tests/module_tests/collections/test_manifest.h"
 
 #include <gtest/gtest.h>
 
@@ -65,10 +66,8 @@ public:
  * Test invalid JSON formats as an input
  */
 TEST_F(CollectionsFilterTest, junk_in) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m(cm);
 
     std::vector<std::string> inputs = {"{}",
                                        R"({"collections":1})",
@@ -94,20 +93,17 @@ TEST_F(CollectionsFilterTest, junk_in) {
  * Test valid inputs to the filter.
  */
 TEST_F(CollectionsFilterTest, validation1) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m(cm.add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
 
     std::vector<std::string> inputs = {
             R"({"collections":["$default"]})",
             R"({"collections":["vegetable"]})",
             R"({"collections":["fruit", "meat"]})",
-            R"({"collections":[{"name":"vegetable","uid":"1"}]})",
-            R"({"collections":[{"name":"dairy","uid":"5"},{"name":"meat","uid":"3"}]})",
+            R"({"collections":[{"name":"vegetable","uid":"4"}]})",
+            R"({"collections":[{"name":"dairy","uid":"6"},{"name":"meat","uid":"2"}]})",
             R"({"collections":[{"name":"$default","uid":"0"}]})"};
 
     for (const auto& s : inputs) {
@@ -126,13 +122,10 @@ TEST_F(CollectionsFilterTest, validation1) {
  * such as unknown collections
  */
 TEST_F(CollectionsFilterTest, validation2) {
-    Collections::Manifest m(
-            R"({"revision":0,"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m(cm.add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
 
     std::vector<std::string> inputs = {
             // wrong name inputs
@@ -171,12 +164,12 @@ TEST_F(CollectionsFilterTest, validation2) {
  */
 TEST_F(CollectionsFilterTest, validation_no_default) {
     // m does not include $default
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(NoDefault{});
+    Collections::Manifest m(cm.add(CollectionEntry::vegetable)
+                                    .add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
+
     boost::optional<const std::string&> json;
     try {
         Collections::Filter f(json, &m);
@@ -210,13 +203,10 @@ TEST_F(CollectionsFilterTest, no_manifest) {
  * This creates a filter which contains a set of collections
  */
 TEST_F(CollectionsFilterTest, filter_basic1) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m(cm.add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
 
     std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
@@ -256,13 +246,10 @@ TEST_F(CollectionsFilterTest, filter_basic1) {
  * This creates a filter which is passthrough
  */
 TEST_F(CollectionsFilterTest, filter_basic2) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m(cm.add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
 
     std::string jsonFilter; // empty string creates a pass through
     boost::optional<const std::string&> json(jsonFilter);
@@ -285,13 +272,10 @@ TEST_F(CollectionsFilterTest, filter_basic2) {
  * Construct a valid Collections::Filter as if a legacy DCP producer was created
  */
 TEST_F(CollectionsFilterTest, filter_legacy) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m(cm.add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
 
     // No string...
     boost::optional<const std::string&> json;
@@ -323,25 +307,16 @@ class CollectionsVBFilterTest : public CollectionsFilterTest {};
  * collections has shifted.
  */
 TEST_F(CollectionsVBFilterTest, uid_mismatch) {
-    Collections::Manifest m1(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
-    Collections::Manifest m2(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"8"},
-                              {"name":"meat","uid":"99"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m1(cm.add(CollectionEntry::dairy));
+
+    CollectionsManifest cm2(CollectionEntry::vegetable2);
+    Collections::Manifest m2(cm2.add(CollectionEntry::dairy2));
 
     // Create the "producer" level filter so that we in theory produce at least
     // these collections
     std::string jsonFilter =
-            R"({"collections":[{"name":"meat","uid":"3"}, {"name":"vegetable","uid":"1"}]})";
+            R"({"collections":[{"name":"dairy","uid":"6"}, {"name":"vegetable","uid":"4"}]})";
     boost::optional<const std::string&> json(jsonFilter);
     // At this point the requested collections are valid for m1
     Collections::Filter f(json, &m1);
@@ -363,18 +338,12 @@ TEST_F(CollectionsVBFilterTest, uid_mismatch) {
  * i.e. they aren't writable so should never feature in a new VB::Filter
  */
 TEST_F(CollectionsVBFilterTest, deleted_collection) {
-    Collections::Manifest m1(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
-    Collections::Manifest m2(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m1(cm.add(CollectionEntry::meat)
+                                     .add(CollectionEntry::fruit)
+                                     .add(CollectionEntry::dairy));
+    Collections::Manifest m2(cm.remove(CollectionEntry::vegetable)
+                                     .remove(CollectionEntry::fruit));
 
     // Create the "producer" level filter so that we in theory produce at least
     // these collections
@@ -396,13 +365,10 @@ TEST_F(CollectionsVBFilterTest, deleted_collection) {
  * Create a filter with collections and check we allow what should be allowed.
  */
 TEST_F(CollectionsVBFilterTest, basic_allow) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m(cm.add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
 
     std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
     boost::optional<const std::string&> json(jsonFilter);
@@ -417,15 +383,15 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:bacon", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:bacon", CollectionEntry::meat}, 0, 0, nullptr, 0}));
 
     // No to these keys
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"dairy:milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"dairy:milk", CollectionEntry::dairy}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"vegetable:cabbage", DocNamespace::Collections},
+            {{"vegetable:cabbage", CollectionEntry::vegetable},
              0,
              0,
              nullptr,
@@ -437,10 +403,8 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
  * JSON filter is not initialised (because DCP open does not send a value).
  */
 TEST_F(CollectionsVBFilterTest, legacy_filter) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"meat","uid":"3"}]})");
+    CollectionsManifest cm(CollectionEntry::meat);
+    Collections::Manifest m(cm);
 
     boost::optional<const std::string&> json;
     Collections::Filter f(json, &m);
@@ -453,16 +417,16 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
 }
 
 /**
  * Create a passthrough filter and check it allows anything
  */
 TEST_F(CollectionsVBFilterTest, passthrough) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"meat","uid":"3"}]})");
+    CollectionsManifest cm(CollectionEntry::meat);
+    Collections::Manifest m(cm);
+
     std::string filterJson; // empty string
     boost::optional<const std::string&> json(filterJson);
     Collections::Filter f(json, &m);
@@ -475,26 +439,24 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"dairy:milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"dairy:milk", CollectionEntry::dairy}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"JUNK!!", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"JUNK!!", CollectionEntry::vegetable}, 0, 0, nullptr, 0}));
 }
 
 /**
  * Create a filter which blocks the default collection
  */
 TEST_F(CollectionsVBFilterTest, no_default) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(CollectionEntry::vegetable);
+    Collections::Manifest m(cm.add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
+
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -507,13 +469,13 @@ TEST_F(CollectionsVBFilterTest, no_default) {
     EXPECT_FALSE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"dairy:milk", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"dairy:milk", CollectionEntry::dairy}, 0, 0, nullptr, 0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"JUNK!!", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"JUNK!!", CollectionEntry::vegetable}, 0, 0, nullptr, 0}));
 }
 
 /**
@@ -521,12 +483,12 @@ TEST_F(CollectionsVBFilterTest, no_default) {
  * check ::checkAndUpdate works as expected
  */
 TEST_F(CollectionsVBFilterTest, remove1) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"vegetable","uid":"1"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+    CollectionsManifest cm(NoDefault{});
+    Collections::Manifest m(cm.add(CollectionEntry::vegetable)
+                                    .add(CollectionEntry::meat)
+                                    .add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy));
+
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -536,7 +498,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
 
     // Process a deletion of fruit
     Item deleteFruit{
@@ -545,10 +507,10 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     EXPECT_TRUE(vbf.checkAndUpdate(deleteFruit));
 
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"fruit:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
 
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
 
     // Process a deletion of meat
     Item deleteMeat{
@@ -565,12 +527,10 @@ TEST_F(CollectionsVBFilterTest, remove1) {
  * This test includes checking we can remove $default
  */
 TEST_F(CollectionsVBFilterTest, remove2) {
+    CollectionsManifest cm(CollectionEntry::meat);
     Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+            cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy));
+
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -590,18 +550,18 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
 
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
     // Process a deletion of meat
     Item deleteMeat{
             {"$collections:meat", DocNamespace::System}, 0, 0, nullptr, 0};
     deleteMeat.setDeleted();
     EXPECT_TRUE(vbf.checkAndUpdate(deleteMeat));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"meat:apple", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:apple", CollectionEntry::meat}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.empty()); // now empty
     EXPECT_FALSE(vbf.checkAndUpdate(deleteMeat)); // no more meat for you
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"meat:steak", DocNamespace::Collections}, 0, 0, nullptr, 0}));
+            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
 }
 
 /**
@@ -609,11 +569,9 @@ TEST_F(CollectionsVBFilterTest, remove2) {
  * This test creates a passthrough filter so everything is allowed.
  */
 TEST_F(CollectionsVBFilterTest, system_events1) {
-    Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"}]})");
+    CollectionsManifest cm(CollectionEntry::meat);
+    Collections::Manifest m(cm.add(CollectionEntry::fruit));
+
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -643,12 +601,10 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
  * This test creates a filter where only matching events are allowed
  */
 TEST_F(CollectionsVBFilterTest, system_events2) {
+    CollectionsManifest cm(CollectionEntry::meat);
     Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+            cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy));
+
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
@@ -679,12 +635,10 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
  * attached to - no system events at all are allowed.
  */
 TEST_F(CollectionsVBFilterTest, system_events3) {
+    CollectionsManifest cm(CollectionEntry::meat);
     Collections::Manifest m(
-            R"({"uid":"0",)"
-            R"("collections":[{"name":"$default","uid":"0"},
-                              {"name":"meat","uid":"3"},
-                              {"name":"fruit", "uid":"4"},
-                              {"name":"dairy","uid":"5"}]})");
+            cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy));
+
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 

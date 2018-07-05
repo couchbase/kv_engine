@@ -23,6 +23,7 @@
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "tests/mock/mock_global_task.h"
+#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
@@ -60,9 +61,8 @@ TEST_F(CollectionsTest, namespace_separation) {
     store_item(vbid, key, "value");
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the meat collection
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"},
-                                {"name":"meat", "uid":"1"}]})"});
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flush_vbucket_to_disk(vbid, 2);
 
@@ -87,7 +87,7 @@ TEST_F(CollectionsTest, collections_basic) {
     // Default collection is open for business
     store_item(vbid, {"key", DocNamespace::DefaultCollection}, "value");
     store_item(vbid,
-               {"meat:beef", DocNamespace::Collections},
+               {"meat:beef", CollectionEntry::meat},
                "value",
                0,
                {cb::engine_errc::unknown_collection});
@@ -95,15 +95,14 @@ TEST_F(CollectionsTest, collections_basic) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Add the meat collection
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"},
-                                {"name":"meat", "uid":"1"}]})"});
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
 
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flush_vbucket_to_disk(vbid, 2);
 
     // Now we can write to beef
-    store_item(vbid, {"meat:beef", DocNamespace::Collections}, "value");
+    store_item(vbid, {"meat:beef", CollectionEntry::meat}, "value");
 
     flush_vbucket_to_disk(vbid, 1);
 
@@ -113,24 +112,23 @@ TEST_F(CollectionsTest, collections_basic) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
     GetValue gv = store->get(
-            {"meat:beef", DocNamespace::Collections}, vbid, cookie, options);
+            {"meat:beef", CollectionEntry::meat}, vbid, cookie, options);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
     // A key in meat that doesn't exist
     gv = store->get(
-            {"meat:sausage", DocNamespace::Collections}, vbid, cookie, options);
+            {"meat:sausage", CollectionEntry::meat}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     // Begin the deletion
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"}]})"});
+    vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
 
     // We should have deleted the create marker
     flush_vbucket_to_disk(vbid, 1);
 
     // Access denied (although the item still exists)
     gv = store->get(
-            {"meat:beef", DocNamespace::Collections}, vbid, cookie, options);
+            {"meat:beef", CollectionEntry::meat}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 }
 
@@ -142,30 +140,26 @@ TEST_F(CollectionsTest, collections_basic) {
 TEST_F(CollectionsTest, MB_25344) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"},
-                                {"name":"dairy", "uid":"1"}]})"});
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
     auto item1 = make_item(
-            vbid, {"dairy:milk", DocNamespace::Collections}, "creamy", 0, 0);
+            vbid, {"dairy:milk", CollectionEntry::dairy}, "creamy", 0, 0);
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
     auto item2 = make_item(
-            vbid, {"dairy:cream", DocNamespace::Collections}, "creamy", 0, 0);
+            vbid, {"dairy:cream", CollectionEntry::dairy}, "creamy", 0, 0);
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"}]})"});
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
 
     // Re-add the dairy collection
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"},
-                                {"name":"dairy", "uid":"2"}]})"});
+    vb->updateFromManifest({cm.add(CollectionEntry::dairy2)});
 
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
@@ -192,16 +186,14 @@ TEST_F(CollectionsTest, MB_25344) {
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->unlockKey(item2.getKey(), vbid, 0, ep_current_time()));
 
-    EXPECT_EQ(
-            "collection_unknown",
-            store->validateKey(
-                    {"meat:sausage", DocNamespace::Collections}, vbid, item2));
+    EXPECT_EQ("collection_unknown",
+              store->validateKey(
+                      {"meat:sausage", CollectionEntry::meat}, vbid, item2));
     EXPECT_EQ("item_deleted", store->validateKey(item2.getKey(), vbid, item2));
 
-    EXPECT_EQ(
-            ENGINE_UNKNOWN_COLLECTION,
-            store->statsVKey(
-                    {"meat:sausage", DocNamespace::Collections}, vbid, cookie));
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              store->statsVKey(
+                      {"meat:sausage", CollectionEntry::meat}, vbid, cookie));
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->statsVKey(item2.getKey(), vbid, cookie));
 
@@ -264,25 +256,21 @@ TEST_F(CollectionsTest, MB_25344) {
 TEST_F(CollectionsTest, MB_25344_get) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"},
-                                {"name":"dairy", "uid":"1"}]})"});
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
     auto item1 = make_item(
-            vbid, {"dairy:milk", DocNamespace::Collections}, "creamy", 0, 0);
+            vbid, {"dairy:milk", CollectionEntry::dairy}, "creamy", 0, 0);
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"}]})"});
+    vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
 
     // Re-add the dairy collection
-    vb->updateFromManifest({R"({"uid":"0",
-                 "collections":[{"name":"$default", "uid":"0"},
-                                {"name":"dairy", "uid":"2"}]})"});
+    vb->updateFromManifest({cm.add(CollectionEntry::dairy2)});
 
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
@@ -294,7 +282,7 @@ TEST_F(CollectionsTest, MB_25344_get) {
 
     // Get deleted can't get it
     auto gv = store->get(
-            {"dairy:milk", DocNamespace::Collections}, vbid, cookie, options);
+            {"dairy:milk", CollectionEntry::dairy}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     options = static_cast<get_options_t>(QUEUE_BG_FETCH | HONOR_STATES |
@@ -303,11 +291,11 @@ TEST_F(CollectionsTest, MB_25344_get) {
 
     // Normal Get can't get it
     gv = store->get(
-            {"dairy:milk", DocNamespace::Collections}, vbid, cookie, options);
+            {"dairy:milk", CollectionEntry::dairy}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     // Same for getLocked
-    gv = store->getLocked({"dairy:milk", DocNamespace::Collections},
+    gv = store->getLocked({"dairy:milk", CollectionEntry::dairy},
                           vbid,
                           ep_current_time(),
                           10,
@@ -315,7 +303,7 @@ TEST_F(CollectionsTest, MB_25344_get) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     // Same for getAndUpdateTtl
-    gv = store->getAndUpdateTtl({"dairy:milk", DocNamespace::Collections},
+    gv = store->getAndUpdateTtl({"dairy:milk", CollectionEntry::dairy},
                                 vbid,
                                 cookie,
                                 ep_current_time() + 20);
@@ -526,22 +514,21 @@ public:
 // persisted collection state and should have the collection accessible.
 //
 TEST_F(CollectionsWarmupTest, warmup) {
+    CollectionsManifest cm;
+    cm.setUid(0xface2);
     {
         auto vb = store->getVBucket(vbid);
 
-        // Add the meat collection
-        vb->updateFromManifest({R"({"uid":"face1",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat","uid":"1"}]})"});
+        vb->updateFromManifest({cm.add(CollectionEntry::meat)});
 
         // Trigger a flush to disk. Flushes the meat create event
         flush_vbucket_to_disk(vbid, 1);
 
         // Now we can write to beef
-        store_item(vbid, {"meat:beef", DocNamespace::Collections}, "value");
+        store_item(vbid, {"meat:beef", CollectionEntry::meat}, "value");
         // But not dairy
         store_item(vbid,
-                   {"dairy:milk", DocNamespace::Collections},
+                   {"dairy:milk", CollectionEntry::dairy},
                    "value",
                    0,
                    {cb::engine_errc::unknown_collection});
@@ -552,11 +539,11 @@ TEST_F(CollectionsWarmupTest, warmup) {
     resetEngineAndWarmup();
 
     // validate the manifest uid comes back
-    EXPECT_EQ(0xface1,
+    EXPECT_EQ(0xface2,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 
     {
-        Item item({"meat:beef", DocNamespace::Collections},
+        Item item({"meat:beef", CollectionEntry::meat},
                   /*flags*/ 0,
                   /*exp*/ 0,
                   "rare",
@@ -567,7 +554,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
                   engine->storeInner(cookie, &item, cas, OPERATION_SET));
     }
     {
-        Item item({"dairy:milk", DocNamespace::Collections},
+        Item item({"dairy:milk", CollectionEntry::dairy},
                   /*flags*/ 0,
                   /*exp*/ 0,
                   "skimmed",
@@ -588,24 +575,22 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
         auto vb = store->getVBucket(vbid);
 
         // Add the dairy collection
-        vb->updateFromManifest({R"({"uid":"0",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"dairy","uid":"1"}]})"});
+        CollectionsManifest cm(CollectionEntry::dairy);
+        vb->updateFromManifest({cm});
 
         // Trigger a flush to disk. Flushes the dairy create event
         flush_vbucket_to_disk(vbid, 1);
 
         // Now we can write to dairy
-        store_item(vbid, {"dairy:milk", DocNamespace::Collections}, "creamy");
+        store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "creamy");
 
         // Now delete the dairy collection
-        vb->updateFromManifest({R"({"uid":"0",
-              "collections":[{"name":"$default", "uid":"0"}]})"});
+        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
 
         flush_vbucket_to_disk(vbid, 2);
 
         // This pushes an Item which doesn't flush but has consumed a seqno
-        vb->completeDeletion("dairy");
+        vb->completeDeletion(CollectionEntry::dairy);
 
         flush_vbucket_to_disk(vbid, 0); // 0 items but has written _local
 
@@ -626,9 +611,8 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         auto vb = store->getVBucket(vbid);
 
         // Add the meat collection
-        vb->updateFromManifest({R"({"uid":"0",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat","uid":"1"}]})"});
+        CollectionsManifest cm(CollectionEntry::meat);
+        vb->updateFromManifest({cm});
 
         // Trigger a flush to disk. Flushes the meat create event
         flush_vbucket_to_disk(vbid, 1);
@@ -636,14 +620,13 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         for (int ii = 0; ii < nitems; ii++) {
             // Now we can write to beef
             std::string key = "meat:" + std::to_string(ii);
-            store_item(vbid, {key, DocNamespace::Collections}, "value");
+            store_item(vbid, {key, CollectionEntry::meat}, "value");
         }
 
         flush_vbucket_to_disk(vbid, nitems);
 
         // Remove the meat collection
-        vb->updateFromManifest({R"({"uid":"0",
-              "collections":[{"name":"$default", "uid":"0"}]})"});
+        vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
 
         flush_vbucket_to_disk(vbid, 1);
 
@@ -664,9 +647,8 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         auto vb = store->getVBucket(vbid);
 
         // Add the meat collection
-        vb->updateFromManifest({R"({"uid":"0",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat","uid":"1"}]})"});
+        CollectionsManifest cm(CollectionEntry::meat);
+        vb->updateFromManifest({cm});
 
         // Trigger a flush to disk. Flushes the meat create event
         flush_vbucket_to_disk(vbid, 1);
@@ -679,8 +661,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         flush_vbucket_to_disk(vbid, nitems);
 
         // Remove the default collection
-        vb->updateFromManifest({R"({"uid":"0",
-              "collections":[{"name":"meat", "uid":"1"}]})"});
+        vb->updateFromManifest({cm.remove(CollectionEntry::defaultC)});
 
         flush_vbucket_to_disk(vbid, 1);
 
@@ -697,9 +678,9 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
         auto vb = store->getVBucket(vbid);
 
         // Add the meat collection
-        vb->updateFromManifest({R"({"uid":"face2",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat","uid":"1"}]})"});
+        CollectionsManifest cm;
+        cm.setUid(0xface2);
+        vb->updateFromManifest({cm.add(CollectionEntry::meat)});
 
         flush_vbucket_to_disk(vbid, 1);
     } // VBucketPtr scope ends
@@ -716,8 +697,9 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
         auto vb = store->getVBucket(vbid);
 
         // Delete the $default collection
-        vb->updateFromManifest({R"({"uid":"face2",
-              "collections":[]})"});
+        CollectionsManifest cm;
+        cm.setUid(0xface2);
+        vb->updateFromManifest({cm.remove(CollectionEntry::defaultC)});
 
         flush_vbucket_to_disk(vbid, 1);
     } // VBucketPtr scope ends
@@ -742,16 +724,15 @@ TEST_F(CollectionsManagerTest, basic) {
         store->setVBucketState(vb, vbucket_state_active, false);
     }
 
-    store->setCollections({R"({"uid":"0",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat", "uid":"1"}]})"});
+    CollectionsManifest cm(CollectionEntry::meat);
+    store->setCollections({cm});
 
     // Check all vbuckets got the collections
     for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
         auto vbp = store->getVBucket(vb);
         EXPECT_EQ(":", vbp->lockCollections().getSeparator());
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                {"meat:bacon", DocNamespace::Collections}));
+                {"meat:bacon", CollectionEntry::meat}));
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                 {"anykey", DocNamespace::DefaultCollection}));
     }
@@ -773,9 +754,8 @@ TEST_F(CollectionsManagerTest, basic2) {
         }
     }
 
-    store->setCollections({R"({"uid":"0",
-              "collections":[{"name":"$default", "uid":"0"},
-                             {"name":"meat", "uid":"1"}]})"});
+    CollectionsManifest cm(CollectionEntry::meat);
+    store->setCollections({cm});
 
     // Check all vbuckets got the collections
     for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
@@ -783,7 +763,7 @@ TEST_F(CollectionsManagerTest, basic2) {
         if (vbp->getState() == vbucket_state_active) {
             EXPECT_EQ(":", vbp->lockCollections().getSeparator());
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                    {"meat:bacon", DocNamespace::Collections}));
+                    {"meat:bacon", CollectionEntry::meat}));
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                     {"anykey", DocNamespace::DefaultCollection}));
         } else {
@@ -791,7 +771,7 @@ TEST_F(CollectionsManagerTest, basic2) {
             EXPECT_EQ(Collections::DefaultSeparator,
                       vbp->lockCollections().getSeparator());
             EXPECT_FALSE(vbp->lockCollections().doesKeyContainValidCollection(
-                    {"meat:bacon", DocNamespace::Collections}));
+                    {"meat:bacon", CollectionEntry::meat}));
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                     {"anykey", DocNamespace::DefaultCollection}));
         }
