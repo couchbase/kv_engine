@@ -870,8 +870,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
             ENGINE_SUCCESS,
             "Failed dcp producer open connection");
 
-    checkeq(dcp.control(h,
-                        cookie,
+    checkeq(dcp.control(cookie,
                         ++streamOpaque,
                         "connection_buffer_size",
                         strlen("connection_buffer_size"),
@@ -884,8 +883,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
 
         testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
-        checkeq(dcp.control(h,
-                            cookie,
+        checkeq(dcp.control(cookie,
                             ++streamOpaque,
                             "force_value_compression",
                             strlen("force_value_compression"),
@@ -923,7 +921,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
         if (bytes_read > 512) {
             checkeq(ENGINE_SUCCESS,
                     dcp.buffer_acknowledgement(
-                            h, cookie, ++streamOpaque, vbid, bytes_read),
+                            cookie, ++streamOpaque, vbid, bytes_read),
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }

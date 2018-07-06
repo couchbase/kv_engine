@@ -338,8 +338,7 @@ ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
                                            uint32_t ackSize) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->buffer_acknowledgement(
-            connection.getBucketEngineAsV0(), &cookie, opaque, vbid, ackSize);
+    auto ret = dcp->buffer_acknowledgement(&cookie, opaque, vbid, ackSize);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING(
                 "{}: {} dcp.buffer_acknowledgement returned ENGINE_DISCONNECT",
@@ -371,13 +370,7 @@ ENGINE_ERROR_CODE dcpControl(Cookie& cookie,
                              uint32_t valueSize) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->control(connection.getBucketEngineAsV0(),
-                            &cookie,
-                            opaque,
-                            key,
-                            keySize,
-                            value,
-                            valueSize);
+    auto ret = dcp->control(&cookie, opaque, key, keySize, value, valueSize);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.control returned ENGINE_DISCONNECT",
                     connection.getId(),

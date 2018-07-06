@@ -603,21 +603,29 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a buffer_ack message was received
      */
-    ENGINE_ERROR_CODE(*buffer_acknowledgement)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint32_t buffer_bytes);
+    virtual ENGINE_ERROR_CODE buffer_acknowledgement(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            uint16_t vbucket,
+            uint32_t buffer_bytes) = 0;
 
-    ENGINE_ERROR_CODE(*control)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     const void* key,
-     uint16_t nkey,
-     const void* value,
-     uint32_t nvalue);
+    /**
+     * Callback to the engine that a Control message was received.
+     *
+     * @param cookie The cookie representing the connection
+     * @param opaque The opaque field in the message (identifying the stream)
+     * @param key The control message name (ptr)
+     * @param nkey The control message name length
+     * @param value The control message value (ptr)
+     * @param nvalue The control message value length
+     * @return Standard engine error code.
+     */
+    virtual ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      const void* key,
+                                      uint16_t nkey,
+                                      const void* value,
+                                      uint32_t nvalue) = 0;
 
     ENGINE_ERROR_CODE(*response_handler)
     (gsl::not_null<ENGINE_HANDLE*> handle,

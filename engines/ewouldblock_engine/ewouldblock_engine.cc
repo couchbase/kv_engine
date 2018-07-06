@@ -788,6 +788,18 @@ public:
     ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
                            uint32_t opaque) override;
 
+    ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*> cookie,
+                                             uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint32_t buffer_bytes) override;
+
+    ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
+                              uint32_t opaque,
+                              const void* key,
+                              uint16_t nkey,
+                              const void* value,
+                              uint32_t nvalue) override;
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -886,21 +898,6 @@ private:
     std::queue<const void*> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
-
-    static ENGINE_ERROR_CODE dcp_buffer_acknowledgement(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint16_t vbucket,
-            uint32_t buffer_bytes);
-
-    static ENGINE_ERROR_CODE dcp_control(gsl::not_null<ENGINE_HANDLE*> handle,
-                                         gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         const void* key,
-                                         uint16_t nkey,
-                                         const void* value,
-                                         uint32_t nvalue);
 
     static ENGINE_ERROR_CODE dcp_response_handler(
             gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1224,8 +1221,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    DcpIface::buffer_acknowledgement = dcp_buffer_acknowledgement;
-    DcpIface::control = dcp_control;
     DcpIface::response_handler = dcp_response_handler;
     DcpIface::system_event = dcp_system_event;
 
@@ -1577,35 +1572,30 @@ ENGINE_ERROR_CODE EWB_Engine::noop(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_buffer_acknowledgement(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EWB_Engine::buffer_acknowledgement(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         uint32_t buffer_bytes) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp ||
-        !ewb->real_engine_dcp->buffer_acknowledgement) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->buffer_acknowledgement(
-                ewb->real_handle, cookie, opaque, vbucket, buffer_bytes);
+        return real_engine_dcp->buffer_acknowledgement(
+                cookie, opaque, vbucket, buffer_bytes);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_control(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          const void* key,
-                                          uint16_t nkey,
-                                          const void* value,
-                                          uint32_t nvalue) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->control) {
+ENGINE_ERROR_CODE EWB_Engine::control(gsl::not_null<const void*> cookie,
+                                      uint32_t opaque,
+                                      const void* key,
+                                      uint16_t nkey,
+                                      const void* value,
+                                      uint32_t nvalue) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->control(
-                ewb->real_handle, cookie, opaque, key, nkey, value, nvalue);
+        return real_engine_dcp->control(
+                cookie, opaque, key, nkey, value, nvalue);
     }
 }
 

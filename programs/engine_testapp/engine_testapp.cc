@@ -234,6 +234,18 @@ struct mock_engine : public EngineIface, public DcpIface {
     ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
                            uint32_t opaque) override;
 
+    ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*> cookie,
+                                             uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint32_t buffer_bytes) override;
+
+    ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
+                              uint32_t opaque,
+                              const void* key,
+                              uint16_t nkey,
+                              const void* value,
+                              uint32_t nvalue) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
@@ -833,28 +845,21 @@ ENGINE_ERROR_CODE mock_engine::noop(gsl::not_null<const void*> cookie,
     return the_engine_dcp->noop(cookie, opaque);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_control(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          const void* key,
-                                          uint16_t nkey,
-                                          const void* value,
-                                          uint32_t nvalue) {
-    struct mock_engine *me = get_handle(handle);
-    ENGINE_HANDLE* h = reinterpret_cast<ENGINE_HANDLE*>(me->the_engine);
-    return me->the_engine_dcp->control(
-            h, cookie, opaque, key, nkey, value, nvalue);
+ENGINE_ERROR_CODE mock_engine::control(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       const void* key,
+                                       uint16_t nkey,
+                                       const void* value,
+                                       uint32_t nvalue) {
+    return the_engine_dcp->control(cookie, opaque, key, nkey, value, nvalue);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_buffer_acknowledgement(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE mock_engine::buffer_acknowledgement(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         uint32_t bb) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->buffer_acknowledgement(
-            (ENGINE_HANDLE*)me->the_engine, cookie, opaque, vbucket, bb);
+    return the_engine_dcp->buffer_acknowledgement(cookie, opaque, vbucket, bb);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_response_handler(
@@ -1017,8 +1022,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
-        me->control = mock_dcp_control;
         me->response_handler = mock_dcp_response_handler;
         me->collections.set_manifest = mock_collections_set_manifest;
 

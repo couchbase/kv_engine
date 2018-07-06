@@ -561,7 +561,7 @@ static protocol_binary_response_status dcp_buffer_acknowledgement_validator(cons
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (dcp == nullptr || dcp->buffer_acknowledgement == nullptr) {
+    if (!dcp) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -585,7 +585,7 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (dcp == nullptr || dcp->control == nullptr) {
+    if (!dcp) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }

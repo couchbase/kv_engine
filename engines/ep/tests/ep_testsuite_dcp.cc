@@ -283,8 +283,7 @@ private:
 ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
         const std::string& name, const std::string& value) {
     auto dcp = requireDcpIface(h);
-    return dcp->control(h,
-                        cookie,
+    return dcp->control(cookie,
                         ++opaque,
                         name.c_str(),
                         name.size(),
@@ -332,7 +331,7 @@ void TestDcpConsumer::run(bool openConn) {
                 sleep(2);
                 delay_buffer_acking = false;
             }
-            dcp->buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
+            dcp->buffer_acknowledgement(cookie, ++opaque, 0, bytes_read);
             total_acked_bytes += bytes_read;
             bytes_read = 0;
         }
@@ -588,8 +587,7 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
     /* Set flow control buffer size */
     std::string flow_control_buf_sz(std::to_string(flow_control_buf_size));
     checkeq(ENGINE_SUCCESS,
-            dcp->control(h,
-                         cookie,
+            dcp->control(cookie,
                          ++opaque,
                          "connection_buffer_size",
                          22,
@@ -613,7 +611,7 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
 
     checkeq(ENGINE_SUCCESS,
             dcp->control(
-                    h, cookie, ++opaque, "enable_ext_metadata", 19, "true", 4),
+                    cookie, ++opaque, "enable_ext_metadata", 19, "true", 4),
             "Failed to enable xdcr extras");
 }
 
@@ -874,7 +872,7 @@ static void dcp_stream_from_producer_conn(ENGINE_HANDLE* h,
         if (bytes_read > 512) {
             checkeq(ENGINE_SUCCESS,
                     dcp->buffer_acknowledgement(
-                            h, cookie, ++opaque, 0, bytes_read),
+                            cookie, ++opaque, 0, bytes_read),
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
@@ -921,7 +919,7 @@ static void dcp_stream_from_producer_conn(ENGINE_HANDLE* h,
     } while (!done);
 
     /* Do buffer ack of the outstanding bytes */
-    dcp->buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
+    dcp->buffer_acknowledgement(cookie, ++opaque, 0, bytes_read);
     checkeq((end - start + 1), num_mutations, "Invalid number of mutations");
     if (expSnapStart) {
         checkge(last_snap_start_seqno,
@@ -1111,7 +1109,7 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         if (bytes_read > 512) {
             checkeq(ENGINE_SUCCESS,
                     dcp->buffer_acknowledgement(
-                            h, cookie, ++opaque, 0, bytes_read),
+                            cookie, ++opaque, 0, bytes_read),
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
@@ -1169,7 +1167,7 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     } while (!done);
 
     /* Do buffer ack of the outstanding bytes */
-    dcp->buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
+    dcp->buffer_acknowledgement(cookie, ++opaque, 0, bytes_read);
 }
 
 // Testcases //////////////////////////////////////////////////////////////////
@@ -1695,8 +1693,7 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const std::string param1_name("connection_buffer_size");
     const std::string param1_value("1024");
     checkeq(ENGINE_SUCCESS,
-            dcp->control(h,
-                         cookie,
+            dcp->control(cookie,
                          ++opaque,
                          param1_name.c_str(),
                          param1_name.size(),
@@ -1706,8 +1703,7 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const std::string param2_name("enable_noop");
     const std::string param2_value("true");
     checkeq(ENGINE_SUCCESS,
-            dcp->control(h,
-                         cookie,
+            dcp->control(cookie,
                          ++opaque,
                          param2_name.c_str(),
                          param2_name.size(),
@@ -1758,8 +1754,7 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
     const std::string param1_name("connection_buffer_size");
     const std::string param1_value("1024");
     checkeq(ENGINE_SUCCESS,
-            dcp->control(h,
-                         cookie,
+            dcp->control(cookie,
                          ++opaque,
                          param1_name.c_str(),
                          param1_name.size(),
@@ -1769,8 +1764,7 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
     const std::string param2_name("enable_noop");
     const std::string param2_value("true");
     checkeq(ENGINE_SUCCESS,
-            dcp->control(h,
-                         cookie,
+            dcp->control(cookie,
                          ++opaque,
                          param2_name.c_str(),
                          param2_name.size(),
@@ -4086,7 +4080,7 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
 
     checkeq(ENGINE_SUCCESS,
             dcp->control(
-                    h, cookie, ++opaque, "connection_buffer_size", 22, "0", 1),
+                    cookie, ++opaque, "connection_buffer_size", 22, "0", 1),
             "Failed to establish connection buffer");
     snprintf(status_buffer, sizeof(status_buffer),
              "eq_dcpq:%s:flow_control", name);
@@ -4094,13 +4088,8 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->control(h,
-                         cookie,
-                         ++opaque,
-                         "connection_buffer_size",
-                         22,
-                         "512",
-                         4),
+            dcp->control(
+                    cookie, ++opaque, "connection_buffer_size", 22, "512", 4),
             "Failed to establish connection buffer");
 
     snprintf(stats_buffer, sizeof(stats_buffer),
@@ -4110,13 +4099,8 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
             "Buffer Size did not get set");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->control(h,
-                         cookie,
-                         ++opaque,
-                         "connection_buffer_size",
-                         22,
-                         "1024",
-                         4),
+            dcp->control(
+                    cookie, ++opaque, "connection_buffer_size", 22, "1024", 4),
             "Failed to establish connection buffer");
 
     checkeq(1024, get_int_stat(h, h1, stats_buffer, "dcp"),
@@ -4125,7 +4109,7 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
     /* Set flow control buffer size to zero which implies disable it */
     checkeq(ENGINE_SUCCESS,
             dcp->control(
-                    h, cookie, ++opaque, "connection_buffer_size", 22, "0", 1),
+                    cookie, ++opaque, "connection_buffer_size", 22, "0", 1),
             "Failed to establish connection buffer");
     status = get_str_stat(h, h1, status_buffer, "dcp");
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
@@ -5548,8 +5532,7 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
                   ENGINE_SUCCESS,
           "Failed dcp producer open connection.");
 
-    check(dcp->control(h,
-                       cookie,
+    check(dcp->control(cookie,
                        ++opaque,
                        "connection_buffer_size",
                        strlen("connection_buffer_size"),

@@ -332,6 +332,22 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
+    ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*>,
+                                             uint32_t,
+                                             uint16_t,
+                                             uint32_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE control(gsl::not_null<const void*>,
+                              uint32_t,
+                              const void*,
+                              uint16_t,
+                              const void*,
+                              uint32_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
