@@ -910,7 +910,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
 
     bool done = false;
     uint32_t bytes_read = 0;
@@ -925,7 +925,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp.step(cookie, producers.get());
+        ENGINE_ERROR_CODE err = dcp.step(cookie, &producers);
         switch (err) {
         case ENGINE_EWOULDBLOCK:
             // No data currently available - wait to be notified when

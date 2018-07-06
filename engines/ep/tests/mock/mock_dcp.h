@@ -15,17 +15,12 @@
  *   limitations under the License.
  */
 
-#ifndef TESTS_MOCK_MOCH_dcp_H_
-#define TESTS_MOCK_MOCH_dcp_H_ 1
+#pragma once
 
 #include "config.h"
 
 #include <memcached/engine.h>
 #include <memcached/dcp.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 extern std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 
@@ -33,19 +28,25 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
                                             gsl::not_null<const void*> cookie);
 
-#ifdef __cplusplus
-}
-#endif
-
 void clear_dcp_data();
 
 class MockDcpMessageProducers : public dcp_message_producers {
 public:
+    MockDcpMessageProducers(EngineIface* engine = nullptr);
+
     ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
                                        uint16_t vbucket) override;
+
+    ENGINE_ERROR_CODE stream_req(uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno) override;
+
+    ENGINE_ERROR_CODE add_stream_rsp(uint32_t opaque,
+                                     uint32_t stream_opaque,
+                                     uint8_t status) override;
 };
-
-std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
-                                                         ENGINE_HANDLE_V1 *_h1);
-
-#endif  // TESTS_MOCK_MOCH_dcp_H_

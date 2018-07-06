@@ -21,22 +21,6 @@
 class Cookie;
 void ship_dcp_log(Cookie& c);
 
-ENGINE_ERROR_CODE dcp_message_stream_req(gsl::not_null<const void*> void_cookie,
-                                         uint32_t opaque,
-                                         uint16_t vbucket,
-                                         uint32_t flags,
-                                         uint64_t start_seqno,
-                                         uint64_t end_seqno,
-                                         uint64_t vbucket_uuid,
-                                         uint64_t snap_start_seqno,
-                                         uint64_t snap_end_seqno);
-
-ENGINE_ERROR_CODE dcp_message_add_stream_response(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint32_t dialogopaque,
-        uint8_t status);
-
 ENGINE_ERROR_CODE dcp_message_marker_response(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,

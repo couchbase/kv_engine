@@ -40,22 +40,18 @@ struct dcp_message_producers {
     virtual ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
                                                uint16_t vbucket) = 0;
 
-    ENGINE_ERROR_CODE(*stream_req)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint32_t flags,
-     uint64_t start_seqno,
-     uint64_t end_seqno,
-     uint64_t vbucket_uuid,
-     uint64_t snap_start_seqno,
-     uint64_t snap_end_seqno) = nullptr;
+    virtual ENGINE_ERROR_CODE stream_req(uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vbucket_uuid,
+                                         uint64_t snap_start_seqno,
+                                         uint64_t snap_end_seqno) = 0;
 
-    ENGINE_ERROR_CODE(*add_stream_rsp)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint32_t stream_opaque,
-     uint8_t status) = nullptr;
+    virtual ENGINE_ERROR_CODE add_stream_rsp(uint32_t opaque,
+                                             uint32_t stream_opaque,
+                                             uint8_t status) = 0;
 
     ENGINE_ERROR_CODE(*marker_rsp)
     (gsl::not_null<const void*> cookie,

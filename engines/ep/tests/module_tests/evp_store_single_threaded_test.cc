@@ -2604,9 +2604,7 @@ TEST_F(WarmupTest, produce_delete_times) {
     auto cookie = create_mock_cookie();
     auto producer =
             createDcpProducer(cookie, {}, false, IncludeDeleteTime::Yes);
-    auto producers = get_dcp_producers(
-            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+    MockDcpMessageProducers producers(engine.get());
 
     createDcpStream(*producer);
 
@@ -2615,12 +2613,12 @@ TEST_F(WarmupTest, produce_delete_times) {
 
     auto step = [this, producer, &producers](bool inMemory) {
         notifyAndStepToCheckpoint(*producer,
-                                  *producers,
+                                  producers,
                                   cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                                   inMemory);
 
         // Now step the producer to transfer the delete/tombstone
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     };
 
     step(false);
@@ -2761,9 +2759,7 @@ public:
                 *engine, cookie, "test_producer", 0, cb::const_byte_buffer{});
         producer->createCheckpointProcessorTask();
 
-        producers = get_dcp_producers(
-                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         auto vb = store->getVBuckets().getBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
         // 2. Mock active stream
@@ -3052,9 +3048,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
 
     producer->createCheckpointProcessorTask();
 
-    auto producers = get_dcp_producers(
-            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+    MockDcpMessageProducers producers(engine.get());
 
     producer->mockActiveStreamRequest(0, // flags
                                       1, // opaque
@@ -3073,9 +3067,9 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     flush_vbucket_to_disk(vbid, initialKeys.size());
 
     // 2) And receive them, client knows of k1,k2,k3,k4,k5
-    notifyAndStepToCheckpoint(*producer, *producers);
+    notifyAndStepToCheckpoint(*producer, producers);
     for (const auto& key : initialKeys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
         EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
         EXPECT_EQ(key, dcp_last_key);
         dcp_last_op = 0;
@@ -3100,7 +3094,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     mock_stream->handleSlowStream();
 
     // Kick the stream into backfill
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     // 6) Store more items (don't flush these)
     std::array<std::string, 2> extraKeys = {{"k3", "k4"}};
@@ -3119,7 +3113,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     // Stream is now dead
     EXPECT_FALSE(vb0Stream->isActive());
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
 
     // Stop Producer checkpoint processor task
@@ -3144,9 +3138,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
 
     producer->createCheckpointProcessorTask();
 
-    auto producers = get_dcp_producers(
-            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+    MockDcpMessageProducers producers(engine.get());
 
     // 1) First store k1/k2 (creating seq 1 and seq 2)
     std::array<std::string, 2> initialKeys = {{"k1", "k2"}};
@@ -3205,7 +3197,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
 
     EXPECT_FALSE(vb0Stream->isActive());
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
 
     // Stop Producer checkpoint processor task
@@ -3235,9 +3227,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
 
     producer->createCheckpointProcessorTask();
 
-    auto producers = get_dcp_producers(
-            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+    MockDcpMessageProducers producers(engine.get());
 
     uint64_t rollbackSeqno = 0;
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3269,10 +3259,10 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     runNextTask(lpAuxioQ);
 
     // Now drain all items before we proceed to complete
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
     for (const auto& key : keys) {
-        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
         EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
         EXPECT_EQ(key, dcp_last_key);
     }
@@ -3292,7 +3282,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     // However without the fix from MB-29541 this would return success, meaning
     // the front-end thread should sleep until notified the stream is ready.
     // However no notify will ever come if MB-29541 is not applied
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
 
     EXPECT_TRUE(vb0Stream->isTakeoverWait());
@@ -3304,7 +3294,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     message.response.opaque = 1;
     EXPECT_TRUE(producer->handleResponse(&message));
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
 
     EXPECT_TRUE(producer->handleResponse(&message));

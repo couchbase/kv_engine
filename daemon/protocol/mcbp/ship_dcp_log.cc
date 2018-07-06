@@ -63,8 +63,7 @@ ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque,
     return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_stream_req(gsl::not_null<const void*> void_cookie,
-                                         uint32_t opaque,
+ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
                                          uint16_t vbucket,
                                          uint32_t flags,
                                          uint64_t start_seqno,
@@ -72,7 +71,6 @@ ENGINE_ERROR_CODE dcp_message_stream_req(gsl::not_null<const void*> void_cookie,
                                          uint64_t vbucket_uuid,
                                          uint64_t snap_start_seqno,
                                          uint64_t snap_end_seqno) {
-    auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_stream_req packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -88,16 +86,12 @@ ENGINE_ERROR_CODE dcp_message_stream_req(gsl::not_null<const void*> void_cookie,
     packet.message.body.snap_start_seqno = ntohll(snap_start_seqno);
     packet.message.body.snap_end_seqno = ntohll(snap_end_seqno);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_add_stream_response(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint32_t dialogopaque,
-        uint8_t status) {
-    auto& c = cookie2connection(void_cookie);
-
+ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
+                                             uint32_t dialogopaque,
+                                             uint8_t status) {
     protocol_binary_response_dcp_add_stream packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode =
@@ -108,7 +102,7 @@ ENGINE_ERROR_CODE dcp_message_add_stream_response(
     packet.message.header.response.opaque = opaque;
     packet.message.body.opaque = ntohl(dialogopaque);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
 ENGINE_ERROR_CODE dcp_message_marker_response(

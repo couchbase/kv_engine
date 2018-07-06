@@ -932,6 +932,19 @@ public:
     ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
                                        uint16_t vbucket) override;
 
+    ENGINE_ERROR_CODE stream_req(uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags,
+                                 uint64_t start_seqno,
+                                 uint64_t end_seqno,
+                                 uint64_t vbucket_uuid,
+                                 uint64_t snap_start_seqno,
+                                 uint64_t snap_end_seqno) override;
+
+    ENGINE_ERROR_CODE add_stream_rsp(uint32_t opaque,
+                                     uint32_t stream_opaque,
+                                     uint8_t status) override;
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses

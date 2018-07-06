@@ -51,8 +51,6 @@ protocol_binary_datatype_t dcp_last_datatype;
 static ENGINE_HANDLE *engine_handle = nullptr;
 static ENGINE_HANDLE_V1 *engine_handle_v1 = nullptr;
 
-extern "C" {
-
 std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 
 ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
@@ -79,16 +77,14 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::get_failover_log(uint32_t opaque,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE mock_stream_req(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         uint16_t vbucket,
-                                         uint32_t flags,
-                                         uint64_t start_seqno,
-                                         uint64_t end_seqno,
-                                         uint64_t vbucket_uuid,
-                                         uint64_t snap_start_seqno,
-                                         uint64_t snap_end_seqno) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::stream_req(uint32_t opaque,
+                                                      uint16_t vbucket,
+                                                      uint32_t flags,
+                                                      uint64_t start_seqno,
+                                                      uint64_t end_seqno,
+                                                      uint64_t vbucket_uuid,
+                                                      uint64_t snap_start_seqno,
+                                                      uint64_t snap_end_seqno) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
     dcp_last_opaque = opaque;
@@ -103,11 +99,8 @@ static ENGINE_ERROR_CODE mock_stream_req(gsl::not_null<const void*> cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_add_stream_rsp(gsl::not_null<const void*> cookie,
-                                             uint32_t opaque,
-                                             uint32_t stream_opaque,
-                                             uint8_t status) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::add_stream_rsp(
+        uint32_t opaque, uint32_t stream_opaque, uint8_t status) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_ADD_STREAM;
     dcp_last_opaque = opaque;
@@ -381,6 +374,25 @@ static ENGINE_ERROR_CODE mock_get_error_map(gsl::not_null<const void*> cookie,
     dcp_last_op = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
     return ENGINE_SUCCESS;
 }
+
+MockDcpMessageProducers::MockDcpMessageProducers(EngineIface* engine) {
+    marker_rsp = mock_snapshot_marker_resp;
+    stream_end = mock_stream_end;
+    marker = mock_marker;
+    mutation = mock_mutation;
+    deletion = mock_deletion_V1;
+    deletion_v2 = mock_deletion_V2;
+    expiration = mock_expiration;
+    flush = mock_flush;
+    set_vbucket_state = mock_set_vbucket_state;
+    noop = mock_noop;
+    buffer_acknowledgement = mock_buffer_acknowledgement;
+    control = mock_control;
+    system_event = mock_system_event;
+    get_error_map = mock_get_error_map;
+
+    engine_handle = engine;
+    engine_handle_v1 = engine;
 }
 
 void clear_dcp_data() {
@@ -404,30 +416,4 @@ void clear_dcp_data() {
     dcp_last_vbucket_state = (vbucket_state_t)0;
     dcp_last_collection_len = 0;
     dcp_last_delete_time = 0;
-}
-
-std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
-                                                         ENGINE_HANDLE_V1 *_h1) {
-    auto producers = std::make_unique<MockDcpMessageProducers>();
-
-    producers->stream_req = mock_stream_req;
-    producers->add_stream_rsp = mock_add_stream_rsp;
-    producers->marker_rsp = mock_snapshot_marker_resp;
-    producers->stream_end = mock_stream_end;
-    producers->marker = mock_marker;
-    producers->mutation = mock_mutation;
-    producers->deletion = mock_deletion_V1;
-    producers->deletion_v2 = mock_deletion_V2;
-    producers->expiration = mock_expiration;
-    producers->flush = mock_flush;
-    producers->set_vbucket_state = mock_set_vbucket_state;
-    producers->noop = mock_noop;
-    producers->buffer_acknowledgement = mock_buffer_acknowledgement;
-    producers->control = mock_control;
-    producers->system_event = mock_system_event;
-    producers->get_error_map = mock_get_error_map;
-
-    engine_handle = _h;
-    engine_handle_v1 = _h1;
-    return producers;
 }

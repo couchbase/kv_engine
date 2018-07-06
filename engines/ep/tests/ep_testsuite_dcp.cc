@@ -43,9 +43,9 @@ gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine) {
 }
 
 void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
-    std::unique_ptr<dcp_message_producers> producers = get_dcp_producers(h, h1);
+    MockDcpMessageProducers producers(h);
     auto dcp = requireDcpIface(h);
-    ENGINE_ERROR_CODE err = dcp->step(cookie, producers.get());
+    ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
     check(err == ENGINE_SUCCESS || err == ENGINE_EWOULDBLOCK,
           "Expected success or engine_ewouldblock");
     if (err == ENGINE_EWOULDBLOCK) {
@@ -302,7 +302,7 @@ void TestDcpConsumer::run(bool openConn) {
     /* Open streams in the above open connection */
     openStreams();
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
 
     bool done = false;
     bool exp_all_items_streamed = true;
@@ -335,7 +335,7 @@ void TestDcpConsumer::run(bool openConn) {
             total_acked_bytes += bytes_read;
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp->step(cookie, producers.get());
+        ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
         if ((err == ENGINE_DISCONNECT) ||
             (stop_continuous_dcp_thread.load(std::memory_order_relaxed))) {
             done = true;
@@ -865,7 +865,7 @@ static void dcp_stream_from_producer_conn(ENGINE_HANDLE* h,
     uint64_t marker_end = 0;
     uint64_t num_mutations = 0;
     uint64_t last_snap_start_seqno = 0;
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
     auto dcp = requireDcpIface(h);
 
     do {
@@ -876,7 +876,7 @@ static void dcp_stream_from_producer_conn(ENGINE_HANDLE* h,
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp->step(cookie, producers.get());
+        ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -1102,7 +1102,7 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     uint64_t marker_end = 0;
     uint64_t num_mutations = 0;
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
     auto dcp = requireDcpIface(h);
 
     do {
@@ -1113,7 +1113,7 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                     "Failed to get dcp buffer ack");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = dcp->step(cookie, producers.get());
+        ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -1579,7 +1579,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
 
     /* Also check if we get control message indicating the flow control buffer
        size change from the consumer connections */
-    const auto producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
 
     for (auto i = max_conns / 2; i < max_conns; i++) {
         /* Check if the buffer size of all connections has changed */
@@ -1588,7 +1588,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
         checkeq(exp_buf_size, get_int_stat(h, h1, stat_name3.c_str(), "dcp"),
                 "Flow Control Buffer Size not correct");
         checkeq(ENGINE_SUCCESS,
-                dcp->step(cookie[i], producers.get()),
+                dcp->step(cookie[i], &producers),
                 "Pending flow control buffer change not processed");
         checkeq((uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_last_op,
                 "Flow ctl buf size change control message not received");
@@ -1713,10 +1713,10 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.time_travel(201);
 
-    const auto producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
     auto done = false;
     while (!done) {
-        if (dcp->step(cookie, producers.get()) == ENGINE_DISCONNECT) {
+        if (dcp->step(cookie, &producers) == ENGINE_DISCONNECT) {
             done = true;
         } else if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
             done = true;
@@ -1774,8 +1774,8 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
 
     testHarness.time_travel(201);
 
-    const auto producers(get_dcp_producers(h, h1));
-    while (dcp->step(cookie, producers.get()) != ENGINE_DISCONNECT) {
+    MockDcpMessageProducers producers(h);
+    while (dcp->step(cookie, &producers) != ENGINE_DISCONNECT) {
         if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
             // Producer opaques are hard coded to start from 10M
             checkeq(10000001, (int)dcp_last_opaque,
@@ -1813,16 +1813,16 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
     testHarness.time_travel(201);
     // No-op not recieved for 201 seconds. Should be ok.
-    const auto producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
     checkeq(ENGINE_EWOULDBLOCK,
-            dcp->step(cookie, producers.get()),
-            "Expected engine success");
+            dcp->step(cookie, &producers),
+            "Expected engine would block");
 
     testHarness.time_travel(200);
 
     // Message not recieved for over 400 seconds. Should disconnect.
     checkeq(ENGINE_DISCONNECT,
-            dcp->step(cookie, producers.get()),
+            dcp->step(cookie, &producers),
             "Expected engine disconnect");
     testHarness.destroy_cookie(cookie);
 
@@ -2798,7 +2798,7 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE* h,
 
     /* Set up a dcp producer conn and stream a few items. This will cause the
        stream to transition from pending -> backfill -> in-memory state */
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
 
     const void *cookie = testHarness.create_cookie();
     std::string conn_name = replicationStream ? "replication" : "unittest";
@@ -3014,7 +3014,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
                             mock_dcp_add_failover_log),
             "Failed to initiate stream request");
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
 
     bool done = false;
     int num_snapshot_markers = 0;
@@ -3022,7 +3022,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
     int num_set_vbucket_active = 0;
 
     do {
-        ENGINE_ERROR_CODE err = dcp->step(cookie, producers.get());
+        ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -5540,7 +5540,7 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
                        4) == ENGINE_SUCCESS,
           "Failed to establish connection buffer");
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    MockDcpMessageProducers producers(h);
     for (int i = 0; i < streams; i++) {
         uint64_t rollback = 0;
         check(dcp->stream_req(cookie,
@@ -5555,7 +5555,7 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
                               &rollback,
                               mock_dcp_add_failover_log) == ENGINE_SUCCESS,
               "Failed to initiate stream request");
-        dcp->step(cookie, producers.get());
+        dcp->step(cookie, &producers);
     }
 
     // Destroy the connection

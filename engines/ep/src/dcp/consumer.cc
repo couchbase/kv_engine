@@ -764,17 +764,18 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         case DcpResponse::Event::AddStream:
         {
             AddStreamResponse* as = static_cast<AddStreamResponse*>(resp.get());
-            ret = producers->add_stream_rsp(getCookie(), as->getOpaque(),
-                                            as->getStreamOpaque(),
-                                            as->getStatus());
+            ret = producers->add_stream_rsp(
+                    as->getOpaque(), as->getStreamOpaque(), as->getStatus());
             break;
         }
         case DcpResponse::Event::StreamReq:
         {
             StreamRequest* sr = static_cast<StreamRequest*>(resp.get());
-            ret = producers->stream_req(getCookie(), sr->getOpaque(),
-                                        sr->getVBucket(), sr->getFlags(),
-                                        sr->getStartSeqno(), sr->getEndSeqno(),
+            ret = producers->stream_req(sr->getOpaque(),
+                                        sr->getVBucket(),
+                                        sr->getFlags(),
+                                        sr->getStartSeqno(),
+                                        sr->getEndSeqno(),
                                         sr->getVBucketUUID(),
                                         sr->getSnapStartSeqno(),
                                         sr->getSnapEndSeqno());

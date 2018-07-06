@@ -468,8 +468,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
      */
     ASSERT_FALSE(producer->isCompressionEnabled());
 
-    auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
-                                       reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
+    MockDcpMessageProducers producers(engine);
 
     // Now, add 2 items
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item1, cookie));
@@ -508,19 +507,19 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
                                       DCPTest::fakeDcpAddFailoverLog));
 
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
     ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
     producer->getCheckpointSnapshotTask().run();
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     /* Stream the first mutation */
     protocol_binary_datatype_t expectedDataType =
             isXattr() ? PROTOCOL_BINARY_DATATYPE_XATTR
                       : PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(dcp_last_value.c_str(), decompressValue(value).c_str());
 
@@ -550,7 +549,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
     EXPECT_EQ(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
     /* Stream the second mutation */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
 
     value.assign(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(value.c_str(), dcp_last_value.c_str());
@@ -601,24 +600,22 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
                                       &rollbackSeqno,
                                       DCPTest::fakeDcpAddFailoverLog));
 
-    auto producers =
-            get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
-                              reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
+    MockDcpMessageProducers producers(engine);
     ASSERT_TRUE(producer->isCompressionEnabled());
 
     // Now, add the 3rd item. This item should be compressed
     EXPECT_EQ(ENGINE_SUCCESS, engine->getKVBucket()->set(*item, cookie));
 
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
     ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
     producer->getCheckpointSnapshotTask().run();
 
     /* Stream the snapshot marker */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
 
     /* Stream the 3rd mutation */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
 
     /**
      * Create a DCP response and check that a new item is created and
@@ -691,9 +688,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
                                       /*snap_end*/ ~0,
                                       &rollbackSeqno,
                                       DCPTest::fakeDcpAddFailoverLog));
-    auto producers =
-            get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
-                              reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
+    MockDcpMessageProducers producers(engine);
 
     ASSERT_TRUE(producer->isForceValueCompressionEnabled());
 
@@ -712,15 +707,15 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     EXPECT_LT(dcpResponse->getMessageSize(), keyAndValueMessageSize);
 
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
     ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
     producer->getCheckpointSnapshotTask().run();
 
     /* Stream the snapshot marker */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
 
     /* Stream the mutation */
-    ASSERT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     std::string value(qi->getValue()->getData(), qi->getValue()->valueSize());
     EXPECT_STREQ(decompressValue(dcp_last_value).c_str(), value.c_str());
     EXPECT_LT(dcp_last_packet_size, keyAndValueMessageSize);
@@ -761,8 +756,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     store_item(vbid, "key2", regularValue.c_str());
     store_item(vbid, "key3", compressibleValue.c_str());
 
-    auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
-                                       reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
+    MockDcpMessageProducers producers(engine);
 
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
@@ -779,12 +773,12 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     ASSERT_EQ(ENGINE_SUCCESS, err);
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
 
-    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
     ASSERT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
     producer->getCheckpointSnapshotTask().run();
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     uint64_t totalBytesSent = producer->getTotalBytesSent();
@@ -798,7 +792,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
      * sent should be incremented by a lesser value than the
      * total data size.
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(1, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
@@ -814,7 +808,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
      * the total data size should be incremented by exactly the
      * same amount as the total bytes sent
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(2, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
@@ -840,7 +834,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
                               PROTOCOL_BINARY_RAW_BYTES);
 
     ASSERT_FALSE(producer->isCompressionEnabled());
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(3, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytesSent);
     EXPECT_GT(producer->getTotalUncompressedDataSize(), totalUncompressedDataSize);
@@ -859,8 +853,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
     store_item(vbid, "key1", "value1");
     store_item(vbid, "key2", "value2");
-    auto producers = get_dcp_producers(reinterpret_cast<ENGINE_HANDLE*>(engine),
-                                       reinterpret_cast<ENGINE_HANDLE_V1*>(engine));
+    MockDcpMessageProducers producers(engine);
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
                                        /*opaque*/ 0,
@@ -875,14 +868,14 @@ TEST_P(StreamTest, test_verifyProducerStats) {
 
     EXPECT_EQ(ENGINE_SUCCESS, err);
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
 
     producer->getCheckpointSnapshotTask().run();
 
     /* Stream the snapshot marker first */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(0, producer->getItemsSent());
 
     uint64_t totalBytes = producer->getTotalBytesSent();
@@ -891,7 +884,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     /* Stream the first mutation. This should increment the
      * number of items and the total bytes sent.
      */
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(1, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
     totalBytes = producer->getTotalBytesSent();
@@ -899,10 +892,10 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     /* Now simulate a failure while trying to stream the next
      * mutation.
      */
-    auto mutation_callback = producers->mutation;
-    producers->mutation = mock_mutation_return_engine_e2big;
+    auto mutation_callback = producers.mutation;
+    producers.mutation = mock_mutation_return_engine_e2big;
 
-    EXPECT_EQ(ENGINE_E2BIG, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_E2BIG, producer->step(&producers));
 
     /* The number of items total bytes sent should remain the same */
     EXPECT_EQ(1, producer->getItemsSent());
@@ -910,9 +903,9 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     totalBytes = producer->getTotalBytesSent();
 
     /* Now stream the mutation again and the stats should have incremented */
-    producers->mutation = mutation_callback;
+    producers.mutation = mutation_callback;
 
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(2, producer->getItemsSent());
     EXPECT_GT(producer->getTotalBytesSent(), totalBytes);
 
@@ -1879,13 +1872,13 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    MockDcpMessageProducers producers(handle);
     producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers.get());
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
     EXPECT_EQ(ENGINE_SUCCESS, ret)
-            << "maybeSendNoop not returning ENGINE_WANT_MORE";
+    << "maybeSendNoop not returning ENGINE_WANT_MORE";
     EXPECT_TRUE(producer->getNoopPendingRecv())
             << "Not waiting for noop acknowledgement";
     EXPECT_NE(send_time, producer->getNoopSendTime())
@@ -1904,13 +1897,12 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
 
-    std::unique_ptr<dcp_message_producers> producers(
-            get_dcp_producers(handle, engine_v1));
+    MockDcpMessageProducers producers(engine);
     const auto send_time = ep_current_time();
     TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer->setNoopEnabled(true);
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers.get());
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
     // Check to see if a noop was sent i.e. returned ENGINE_WANT_MORE
     EXPECT_EQ(ENGINE_SUCCESS, ret)
             << "maybeSendNoop not returning ENGINE_WANT_MORE";
@@ -1918,7 +1910,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
             << "Not awaiting noop acknowledgement";
     EXPECT_NE(send_time, producer->getNoopSendTime())
             << "SendTime has not been updated";
-    ret = producer->maybeSendNoop(producers.get());
+    ret = producer->maybeSendNoop(&producers);
     // Check to see if a noop was not sent i.e. returned ENGINE_FAILED
     EXPECT_EQ(ENGINE_FAILED, ret)
         << "maybeSendNoop not returning ENGINE_FAILED";
@@ -1949,11 +1941,11 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    MockDcpMessageProducers producers(handle);
     producer->setNoopEnabled(false);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers.get());
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
     EXPECT_EQ(ENGINE_FAILED, ret)
     << "maybeSendNoop not returning ENGINE_FAILED";
     EXPECT_FALSE(producer->getNoopPendingRecv())
@@ -1974,11 +1966,11 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    MockDcpMessageProducers producers(handle);
     producer->setNoopEnabled(true);
     rel_time_t current_time = ep_current_time();
     producer->setNoopSendTime(current_time);
-    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(producers.get());
+    ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
     EXPECT_EQ(ENGINE_FAILED, ret)
     << "maybeSendNoop not returning ENGINE_FAILED";
     EXPECT_FALSE(producer->getNoopPendingRecv())
@@ -2212,9 +2204,8 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(opaque, vbid));
 
     /* Expect a stream end message */
-    std::unique_ptr<dcp_message_producers> fakeProducers(
-            get_dcp_producers(handle, engine_v1));
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(fakeProducers.get()));
+    MockDcpMessageProducers producers(handle);
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
     EXPECT_EQ(END_STREAM_CLOSED, dcp_last_flags);
 
@@ -2278,9 +2269,8 @@ TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
 
     /* Don't expect a stream end message (or any other message as the stream is
        closed) */
-    std::unique_ptr<dcp_message_producers> fakeProducers(
-            get_dcp_producers(handle, engine_v1));
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(fakeProducers.get()));
+    MockDcpMessageProducers producers(handle);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     /* Check that the stream is not found in the producer's stream map */
     EXPECT_FALSE(producer->findStream(vbid));
@@ -2465,7 +2455,7 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         const void* cookie = create_mock_cookie();
         // GetErrorMap negotiation performed only if NOOP is enabled
         engine->getConfiguration().setDcpEnableNoop(true);
-        auto producers = get_dcp_producers(handle, engine_v1);
+        MockDcpMessageProducers producers(engine);
 
         // Create a mock DcpConsumer
         MockDcpConsumer consumer(*engine, cookie, "test_consumer");
@@ -2478,12 +2468,12 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         // here, so this is just to let the test to work with all EP
         // configurations.
         if (engine->getConfiguration().getDcpFlowControlPolicy() != "none") {
-            ASSERT_EQ(ENGINE_SUCCESS, consumer.step(producers.get()));
+            ASSERT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
         }
 
         // The next call to step() is expected to start the GetErrorMap
         // negotiation
-        ASSERT_EQ(ENGINE_SUCCESS, consumer.step(producers.get()));
+        ASSERT_EQ(ENGINE_SUCCESS, consumer.step(&producers));
         ASSERT_EQ(2 /*PendingResponse*/,
                   static_cast<uint8_t>(consumer.getGetErrorMapState()));
 
@@ -2595,11 +2585,10 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     DcpConsumer* consumer = connMap.newConsumer(cookie, "mb_20716_consumer");
 
     // Move consumer into paused state (aka EWOULDBLOCK).
-    std::unique_ptr<dcp_message_producers> producers(
-            get_dcp_producers(handle, engine_v1));
+    MockDcpMessageProducers producers(handle);
     ENGINE_ERROR_CODE result;
     do {
-        result = consumer->step(producers.get());
+        result = consumer->step(&producers);
         handleProducerResponseIfStepBlocked(*consumer);
     } while (result == ENGINE_SUCCESS);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, result);
@@ -3291,8 +3280,7 @@ void ConnectionTest::processConsumerMutationsNearThreshold(
         engine->getConfiguration().setReplicationThrottleThreshold(100);
     }
 
-    std::unique_ptr<dcp_message_producers> dcpStepProducers(
-            get_dcp_producers(handle, engine_v1));
+    MockDcpMessageProducers producers(handle);
     if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
         (engine->getConfiguration().getEphemeralFullPolicy()) ==
                 "fail_new_data") {
@@ -3304,7 +3292,7 @@ void ConnectionTest::processConsumerMutationsNearThreshold(
         EXPECT_FALSE(consumer->isPaused());
 
         /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        EXPECT_EQ(ENGINE_DISCONNECT, consumer->step(dcpStepProducers.get()));
+        EXPECT_EQ(ENGINE_DISCONNECT, consumer->step(&producers));
     } else {
         uint32_t backfoffs = consumer->getNumBackoffs();
 
@@ -3321,7 +3309,7 @@ void ConnectionTest::processConsumerMutationsNearThreshold(
         /* In 'couchbase' buckets we buffer the replica items and indirectly
            throttle replication by not sending flow control acks to the
            producer. Hence we do not drop the connection here */
-        EXPECT_EQ(ENGINE_SUCCESS, consumer->step(dcpStepProducers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, consumer->step(&producers));
 
         /* Close stream before deleting the connection */
         EXPECT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
@@ -3367,9 +3355,7 @@ public:
         store->setVBucketState(vbid, vbucket_state_active, false);
         addItems(3);
 
-        producers = get_dcp_producers(
-                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         producer = std::make_shared<MockDcpProducer>(
                 *engine,
                 cookie,

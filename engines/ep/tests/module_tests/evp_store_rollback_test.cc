@@ -368,9 +368,10 @@ class RollbackDcpTest
           public ::testing::WithParamInterface<
                   std::tuple<std::string, std::string, std::string>> {
 public:
-    RollbackDcpTest()
-        : cookie(create_mock_cookie()),
-          producers(get_dcp_producers(nullptr, nullptr)) {
+    // Mock implementation of dcp_message_producers which ... TODO
+    class DcpProducers;
+
+    RollbackDcpTest() : cookie(create_mock_cookie()) {
     }
 
     void SetUp() override {
@@ -386,7 +387,6 @@ public:
         consumer = std::make_shared<MockDcpConsumer>(
                 *engine, cookie, "test_consumer");
         vb = store->getVBucket(vbid);
-        producers->stream_req = &RollbackDcpTest::streamRequest;
     }
 
     void TearDown() override {
@@ -428,31 +428,32 @@ public:
         uint64_t snap_end_seqno;
     } streamRequestData;
 
-    static ENGINE_ERROR_CODE streamRequest(
-            gsl::not_null<const void*> void_cookie,
-            uint32_t opaque,
-            uint16_t vbucket,
-            uint32_t flags,
-            uint64_t start_seqno,
-            uint64_t end_seqno,
-            uint64_t vbucket_uuid,
-            uint64_t snap_start_seqno,
-            uint64_t snap_end_seqno) {
-        streamRequestData = {true,
-                             opaque,
-                             vbucket,
-                             flags,
-                             start_seqno,
-                             end_seqno,
-                             vbucket_uuid,
-                             snap_start_seqno,
-                             snap_end_seqno};
+    class DcpProducers : public MockDcpMessageProducers {
+    public:
+        ENGINE_ERROR_CODE stream_req(uint32_t opaque,
+                                     uint16_t vbucket,
+                                     uint32_t flags,
+                                     uint64_t start_seqno,
+                                     uint64_t end_seqno,
+                                     uint64_t vbucket_uuid,
+                                     uint64_t snap_start_seqno,
+                                     uint64_t snap_end_seqno) override {
+            streamRequestData = {true,
+                                 opaque,
+                                 vbucket,
+                                 flags,
+                                 start_seqno,
+                                 end_seqno,
+                                 vbucket_uuid,
+                                 snap_start_seqno,
+                                 snap_end_seqno};
 
-        return ENGINE_SUCCESS;
-    }
+            return ENGINE_SUCCESS;
+        }
+    };
 
     void stepForStreamRequest(uint64_t startSeqno, uint64_t vbUUID) {
-        while (consumer->step(producers.get()) == ENGINE_SUCCESS) {
+        while (consumer->step(&producers) == ENGINE_SUCCESS) {
             handleProducerResponseIfStepBlocked(*consumer);
         }
         EXPECT_TRUE(streamRequestData.called);
@@ -517,7 +518,7 @@ public:
 
     const void* cookie;
     std::shared_ptr<MockDcpConsumer> consumer;
-    std::unique_ptr<dcp_message_producers> producers;
+    DcpProducers producers;
     VBucketPtr vb;
     vbucket_state_t vbStateAtRollback;
 };
@@ -644,9 +645,7 @@ public:
         SingleThreadedEPBucketTest::SetUp();
         store->setVBucketState(vbid, vbucket_state_active, false);
         vb = store->getVBucket(vbid);
-        producers = get_dcp_producers(
-                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         engine->setDcpConnMap(std::make_unique<MockDcpConnMap>(*engine));
     }
 

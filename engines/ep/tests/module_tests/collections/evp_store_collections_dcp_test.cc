@@ -53,9 +53,7 @@ public:
         SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
-        producers = get_dcp_producers(
-                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         createDcpObjects({/*no filter*/}, true /*collections on*/);
     }
     std::string getManifest(uint16_t vb) const {
@@ -145,9 +143,7 @@ public:
     void resetEngineAndWarmup(std::string new_config = "") {
         teardown();
         SingleThreadedKVBucketTest::resetEngineAndWarmup(new_config);
-        producers = get_dcp_producers(
-                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         cookieC = create_mock_cookie();
         cookieP = create_mock_cookie();
     }
@@ -610,9 +606,7 @@ public:
     void SetUp() override {
         config_string += "collections_prototype_enabled=true";
         SingleThreadedKVBucketTest::SetUp();
-        producers = get_dcp_producers(
-                reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
-                reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
     }
