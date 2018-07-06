@@ -1262,7 +1262,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
 /* Stream items from a DCP backfill */
 TEST_P(StreamTest, BackfillOnly) {
     /* Add 3 items */
-    int numItems = 3;
+    const size_t numItems = 3;
     addItemsAndRemoveCheckpoint(numItems);
 
     /* Set up a DCP stream for the backfill */
@@ -1285,24 +1285,31 @@ TEST_P(StreamTest, BackfillOnly) {
     // Ensure all GATs are done before evaluating the stream below
     thr.join();
 
-    /* Wait for the backfill task to complete */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (stream->getLastReadSeqno() < numItems) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
+    // Wait for the backfill task to have pushed all items to the Stream::readyQ
+    // Note: we expect 1 SnapshotMarker + numItems in the readyQ
+    std::chrono::microseconds uSleepTime(128);
+    auto& readyQ = stream->public_readyQ();
+    while (readyQ.size() < numItems + 1) {
+        uSleepTime = decayingSleep(uSleepTime);
     }
 
-    /* Verify that all items are read in the backfill */
-    EXPECT_EQ(numItems, stream->getNumBackfillItems());
+    // Check the content of readyQ
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
+    auto snapMarker =
+            dynamic_cast<SnapshotMarker&>(*stream->public_nextQueuedItem());
+    while (readyQ.size() > 0) {
+        auto item = stream->public_nextQueuedItem();
+        EXPECT_EQ(DcpResponse::Event::Mutation, item->getEvent());
+        auto seqno = item->getBySeqno().get();
+        EXPECT_GE(seqno, snapMarker.getStartSeqno());
+        EXPECT_LE(seqno, snapMarker.getEndSeqno());
+    }
 
-    /* Since backfill items are sitting in the readyQ, check if the stat is
-       updated correctly */
+    // Check that backfill stats have been updated correctly
+    EXPECT_EQ(numItems, stream->getNumBackfillItems());
     EXPECT_EQ(numItems, stream->getNumBackfillItemsRemaining());
 
     destroy_dcp_stream();
-    /* [TODO]: Expand the testcase to check if snapshot marker, all individual
-               items are read correctly */
 }
 
 /* Negative test case that checks whether the stream gracefully goes to
