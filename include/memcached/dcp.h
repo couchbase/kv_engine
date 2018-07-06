@@ -217,11 +217,9 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*set_vbucket_state)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     vbucket_state_t state) = nullptr;
+    virtual ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
+                                                uint16_t vbucket,
+                                                vbucket_state_t state) = 0;
 
     /**
      * Send a noop

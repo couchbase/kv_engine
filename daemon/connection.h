@@ -998,6 +998,10 @@ public:
 
     ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket) override;
 
+    ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
+                                        uint16_t vbucket,
+                                        vbucket_state_t state) override;
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses

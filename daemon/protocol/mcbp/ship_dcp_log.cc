@@ -412,12 +412,9 @@ ENGINE_ERROR_CODE Connection::flush(uint32_t opaque, uint16_t vbucket) {
     return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        vbucket_state_t state) {
-    auto& c = cookie2connection(void_cookie);
+ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
+                                                uint16_t vbucket,
+                                                vbucket_state_t state) {
     protocol_binary_request_dcp_set_vbucket_state packet = {};
 
     if (!is_valid_vbucket_state_t(state)) {
@@ -433,7 +430,7 @@ ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.body.state = uint8_t(state);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
 ENGINE_ERROR_CODE dcp_message_noop(gsl::not_null<const void*> void_cookie,

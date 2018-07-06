@@ -647,8 +647,8 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DcpResponse::Event::SetVbucket:
         {
             SetVBucketState* s = static_cast<SetVBucketState*>(resp.get());
-            ret = producers->set_vbucket_state(getCookie(), s->getOpaque(),
-                                               s->getVBucket(), s->getState());
+            ret = producers->set_vbucket_state(
+                    s->getOpaque(), s->getVBucket(), s->getState());
             break;
         }
         case DcpResponse::Event::SystemEvent: {
