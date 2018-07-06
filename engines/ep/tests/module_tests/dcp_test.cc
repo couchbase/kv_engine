@@ -853,6 +853,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
     store_item(vbid, "key1", "value1");
     store_item(vbid, "key2", "value2");
+
     MockDcpMessageProducers producers(engine);
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
@@ -892,8 +893,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     /* Now simulate a failure while trying to stream the next
      * mutation.
      */
-    auto mutation_callback = producers.mutation;
-    producers.mutation = mock_mutation_return_engine_e2big;
+    producers.setMutationStatus(ENGINE_E2BIG);
 
     EXPECT_EQ(ENGINE_E2BIG, producer->step(&producers));
 
@@ -903,7 +903,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     totalBytes = producer->getTotalBytesSent();
 
     /* Now stream the mutation again and the stats should have incremented */
-    producers.mutation = mutation_callback;
+    producers.setMutationStatus(ENGINE_SUCCESS);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
     EXPECT_EQ(2, producer->getItemsSent());

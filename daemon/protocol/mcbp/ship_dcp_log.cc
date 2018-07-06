@@ -168,8 +168,7 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
     return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
-                                       uint32_t opaque,
+ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                                        item* it,
                                        uint16_t vbucket,
                                        uint64_t by_seqno,
@@ -179,24 +178,20 @@ ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
                                        uint16_t nmeta,
                                        uint8_t nru,
                                        uint8_t collection_len) {
-    const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
-    auto& cookie = const_cast<Cookie&>(ccookie);
-    auto* c = &cookie.getConnection();
-
     // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{c->getBucketEngineAsV0()});
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngineAsV0()});
 
     item_info info;
-    if (!bucket_get_item_info(cookie, it, &info)) {
-        LOG_WARNING("{}: Failed to get item info", c->getId());
+    if (!bucket_get_item_info(getCookieObject(), it, &info)) {
+        LOG_WARNING("{}: Failed to get item info", getId());
         return ENGINE_FAILED;
     }
 
     char* root = reinterpret_cast<char*>(info.value[0].iov_base);
     cb::char_buffer buffer{root, info.value[0].iov_len};
 
-    if (!c->reserveItem(it)) {
-        LOG_WARNING("{}: Failed to grow item array", c->getId());
+    if (!reserveItem(it)) {
+        LOG_WARNING("{}: Failed to grow item array", getId());
         return ENGINE_FAILED;
     }
 
@@ -204,7 +199,7 @@ ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
     // the item.
     item.release();
     protocol_binary_request_dcp_mutation packet(
-            c->isDcpCollectionAware(),
+            isDcpCollectionAware(),
             opaque,
             vbucket,
             info.cas,
@@ -221,12 +216,12 @@ ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
             collection_len);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c->write->produce([&c, &packet, &info, &buffer, &meta, &nmeta, &ret](
-                              cb::byte_buffer wbuf) -> size_t {
+    write->produce([this, &packet, &info, &buffer, &meta, &nmeta, &ret](
+                           cb::byte_buffer wbuf) -> size_t {
 
         const size_t packetlen =
                 protocol_binary_request_dcp_mutation::getHeaderLength(
-                        c->isDcpCollectionAware());
+                        isDcpCollectionAware());
 
         if (wbuf.size() < (packetlen + nmeta)) {
             ret = ENGINE_E2BIG;
@@ -242,17 +237,17 @@ ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
         }
 
         // Add the header
-        c->addIov(wbuf.data(), packetlen);
+        addIov(wbuf.data(), packetlen);
 
         // Add the key
-        c->addIov(info.key, info.nkey);
+        addIov(info.key, info.nkey);
 
         // Add the value
-        c->addIov(buffer.buf, buffer.len);
+        addIov(buffer.buf, buffer.len);
 
         // Add the optional meta section
         if (nmeta > 0) {
-            c->addIov(wbuf.data() + packetlen, nmeta);
+            addIov(wbuf.data() + packetlen, nmeta);
         }
 
         return packetlen + nmeta;
@@ -261,16 +256,13 @@ ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
     return ret;
 }
 
-// Shared DCP_DELETION write function for the v1/v2 commands.
-static ENGINE_ERROR_CODE dcp_message_deletion(
-        Connection& c,
-        Cookie& cookie,
+ENGINE_ERROR_CODE Connection::deletionInner(
         const item_info& info,
         cb::const_byte_buffer packet,
         cb::const_byte_buffer extendedMeta) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c.write->produce([&c, &packet, &extendedMeta, &info, &ret](
-                             cb::byte_buffer buffer) -> size_t {
+    write->produce([this, &packet, &extendedMeta, &info, &ret](
+                           cb::byte_buffer buffer) -> size_t {
         if (buffer.size() < (packet.size() + extendedMeta.size())) {
             ret = ENGINE_E2BIG;
             return 0;
@@ -285,19 +277,19 @@ static ENGINE_ERROR_CODE dcp_message_deletion(
         }
 
         // Add the header
-        c.addIov(buffer.data(), packet.size());
+        addIov(buffer.data(), packet.size());
 
         // Add the key
-        c.addIov(info.key, info.nkey);
+        addIov(info.key, info.nkey);
 
         // Add the optional payload (xattr)
         if (info.nbytes > 0) {
-            c.addIov(info.value[0].iov_base, info.nbytes);
+            addIov(info.value[0].iov_base, info.nbytes);
         }
 
         // Add the optional meta section
         if (extendedMeta.size() > 0) {
-            c.addIov(buffer.data() + packet.size(), extendedMeta.size());
+            addIov(buffer.data() + packet.size(), extendedMeta.size());
         }
 
         return packet.size() + extendedMeta.size();
@@ -306,31 +298,25 @@ static ENGINE_ERROR_CODE dcp_message_deletion(
     return ret;
 }
 
-ENGINE_ERROR_CODE dcp_message_deletion_v1(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        item* it,
-        uint16_t vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        const void* meta,
-        uint16_t nmeta) {
-    const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
-    auto& cookie = const_cast<Cookie&>(ccookie);
-    auto& c = cookie.getConnection();
-
+ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
+                                       item* it,
+                                       uint16_t vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       const void* meta,
+                                       uint16_t nmeta) {
     // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{c.getBucketEngineAsV0()});
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngineAsV0()});
     item_info info;
-    if (!bucket_get_item_info(cookie, it, &info)) {
+    if (!bucket_get_item_info(getCookieObject(), it, &info)) {
         LOG_WARNING("{}: dcp_message_deletion_v1: Failed to get item info",
-                    c.getId());
+                    getId());
         return ENGINE_FAILED;
     }
 
-    if (!c.reserveItem(it)) {
+    if (!reserveItem(it)) {
         LOG_WARNING("{}: dcp_message_deletion_v1: Failed to grow item array",
-                    c.getId());
+                    getId());
         return ENGINE_FAILED;
     }
 
@@ -353,34 +339,28 @@ ENGINE_ERROR_CODE dcp_message_deletion_v1(
     cb::const_byte_buffer extendedMeta{reinterpret_cast<const uint8_t*>(meta),
                                        nmeta};
 
-    return dcp_message_deletion(c, cookie, info, packetBuffer, extendedMeta);
+    return deletionInner(info, packetBuffer, extendedMeta);
 }
 
-ENGINE_ERROR_CODE dcp_message_deletion_v2(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        gsl::not_null<item*> it,
-        uint16_t vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        uint32_t delete_time,
-        uint8_t collection_len) {
-    const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
-    auto& cookie = const_cast<Cookie&>(ccookie);
-    auto& c = cookie.getConnection();
-
+ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
+                                          gsl::not_null<item*> it,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          uint32_t delete_time,
+                                          uint8_t collection_len) {
     // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{c.getBucketEngineAsV0()});
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngineAsV0()});
     item_info info;
-    if (!bucket_get_item_info(cookie, it, &info)) {
+    if (!bucket_get_item_info(getCookieObject(), it, &info)) {
         LOG_WARNING("{}: dcp_message_deletion_v2: Failed to get item info",
-                    c.getId());
+                    getId());
         return ENGINE_FAILED;
     }
 
-    if (!c.reserveItem(it)) {
+    if (!reserveItem(it)) {
         LOG_WARNING("{}: dcp_message_deletion_v2: Failed to grow item array",
-                    c.getId());
+                    getId());
         return ENGINE_FAILED;
     }
 
@@ -399,16 +379,13 @@ ENGINE_ERROR_CODE dcp_message_deletion_v2(
                                                    delete_time,
                                                    collection_len);
 
-    return dcp_message_deletion(
-            c,
-            cookie,
+    return deletionInner(
             info,
             {reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)},
             {/*no extended meta in v2*/});
 }
 
-ENGINE_ERROR_CODE dcp_message_expiration(gsl::not_null<const void*> void_cookie,
-                                         uint32_t opaque,
+ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
                                          item* it,
                                          uint16_t vbucket,
                                          uint64_t by_seqno,
@@ -420,15 +397,11 @@ ENGINE_ERROR_CODE dcp_message_expiration(gsl::not_null<const void*> void_cookie,
      * EP engine don't use expiration, so we won't have tests for this
      * code. Add it back once we have people calling the method
      */
-    auto& c = cookie2connection(void_cookie);
-    cb::unique_item_ptr item(it, cb::ItemDeleter{c.getBucketEngineAsV0()});
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngineAsV0()});
     return ENGINE_ENOTSUP;
 }
 
-ENGINE_ERROR_CODE dcp_message_flush(gsl::not_null<const void*> void_cookie,
-                                    uint32_t opaque,
-                                    uint16_t vbucket) {
-    auto& c = cookie2connection(void_cookie);
+ENGINE_ERROR_CODE Connection::flush(uint32_t opaque, uint16_t vbucket) {
     protocol_binary_request_dcp_flush packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -436,7 +409,7 @@ ENGINE_ERROR_CODE dcp_message_flush(gsl::not_null<const void*> void_cookie,
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
 ENGINE_ERROR_CODE dcp_message_set_vbucket_state(

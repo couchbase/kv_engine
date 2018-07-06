@@ -1263,8 +1263,7 @@ ENGINE_ERROR_CODE EWB_Engine::step(
         if (stream->second.first && count > 0) {
             // This is using the internal dcp implementation which always
             // send the same item back
-            auto ret = producers->mutation(cookie,
-                                           0xdeadbeef /*opqaue*/,
+            auto ret = producers->mutation(0xdeadbeef /*opqaue*/,
                                            &dcp_mutation_item,
                                            0 /*vb*/,
                                            0 /*by_seqno*/,

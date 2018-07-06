@@ -64,4 +64,60 @@ public:
                              uint64_t start_seqno,
                              uint64_t end_seqno,
                              uint32_t flags) override;
+
+    ENGINE_ERROR_CODE mutation(uint32_t opaque,
+                               item* itm,
+                               uint16_t vbucket,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               uint32_t lock_time,
+                               const void* meta,
+                               uint16_t nmeta,
+                               uint8_t nru,
+                               uint8_t collection_len) override;
+
+    ENGINE_ERROR_CODE deletion(uint32_t opaque,
+                               item* itm,
+                               uint16_t vbucket,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               const void* meta,
+                               uint16_t nmeta) override;
+
+    ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
+                                  gsl::not_null<item*> itm,
+                                  uint16_t vbucket,
+                                  uint64_t by_seqno,
+                                  uint64_t rev_seqno,
+                                  uint32_t delete_time,
+                                  uint8_t collection_len) override;
+
+    ENGINE_ERROR_CODE expiration(uint32_t opaque,
+                                 item* itm,
+                                 uint16_t vbucket,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 const void* meta,
+                                 uint16_t nmeta,
+                                 uint8_t collection_len) override;
+
+    ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket) override;
+
+    // Change the status code returned from mutation() to the specified value.
+    void setMutationStatus(ENGINE_ERROR_CODE code);
+
+protected:
+    /// Helper method for deletion / deletion_v2
+    ENGINE_ERROR_CODE deletionInner(uint32_t opaque,
+                                    item* itm,
+                                    uint16_t vbucket,
+                                    uint64_t by_seqno,
+                                    uint64_t rev_seqno,
+                                    const void* meta,
+                                    uint16_t nmeta,
+                                    uint32_t deleteTime,
+                                    uint8_t collectionLen,
+                                    uint32_t extlen);
+
+    ENGINE_ERROR_CODE mutationStatus = ENGINE_SUCCESS;
 };

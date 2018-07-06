@@ -590,8 +590,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                 hotness = mutationResponse->getItem()->getNRUValue();
             }
 
-            ret = producers->mutation(getCookie(),
-                                      mutationResponse->getOpaque(),
+            ret = producers->mutation(mutationResponse->getOpaque(),
                                       itmCpy.release(),
                                       mutationResponse->getVBucket(),
                                       *mutationResponse->getBySeqno(),
@@ -613,7 +612,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             if (includeDeleteTime == IncludeDeleteTime::Yes ||
                 filter.allowSystemEvents()) {
                 ret = producers->deletion_v2(
-                        getCookie(),
                         mutationResponse->getOpaque(),
                         itmCpy.release(),
                         mutationResponse->getVBucket(),
@@ -626,8 +624,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                 if (mutationResponse->getExtMetaData()) {
                     meta = mutationResponse->getExtMetaData()->getExtMeta();
                 }
-                ret = producers->deletion(getCookie(),
-                                          mutationResponse->getOpaque(),
+                ret = producers->deletion(mutationResponse->getOpaque(),
                                           itmCpy.release(),
                                           mutationResponse->getVBucket(),
                                           *mutationResponse->getBySeqno(),

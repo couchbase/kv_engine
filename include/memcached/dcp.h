@@ -113,18 +113,16 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (*mutation)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     item* itm,
-     uint16_t vbucket,
-     uint64_t by_seqno,
-     uint64_t rev_seqno,
-     uint32_t lock_time,
-     const void* meta,
-     uint16_t nmeta,
-     uint8_t nru,
-     uint8_t collection_len) = nullptr;
+    virtual ENGINE_ERROR_CODE mutation(uint32_t opaque,
+                                       item* itm,
+                                       uint16_t vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t lock_time,
+                                       const void* meta,
+                                       uint16_t nmeta,
+                                       uint8_t nru,
+                                       uint8_t collection_len) = 0;
 
     /**
      * Send a deletion
@@ -140,15 +138,13 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (*deletion)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     item* itm,
-     uint16_t vbucket,
-     uint64_t by_seqno,
-     uint64_t rev_seqno,
-     const void* meta,
-     uint16_t nmeta) = nullptr;
+    virtual ENGINE_ERROR_CODE deletion(uint32_t opaque,
+                                       item* itm,
+                                       uint16_t vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       const void* meta,
+                                       uint16_t nmeta) = 0;
 
     /**
      * Send a deletion with delete_time or collections (or both)
@@ -166,15 +162,13 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*deletion_v2)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     gsl::not_null<item*> itm,
-     uint16_t vbucket,
-     uint64_t by_seqno,
-     uint64_t rev_seqno,
-     uint32_t delete_time,
-     uint8_t collection_len) = nullptr;
+    virtual ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
+                                          gsl::not_null<item*> itm,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          uint32_t delete_time,
+                                          uint8_t collection_len) = 0;
 
     /**
      * Send an expiration
@@ -191,16 +185,14 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE (*expiration)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     item* itm,
-     uint16_t vbucket,
-     uint64_t by_seqno,
-     uint64_t rev_seqno,
-     const void* meta,
-     uint16_t nmeta,
-     uint8_t collection_len) = nullptr;
+    virtual ENGINE_ERROR_CODE expiration(uint32_t opaque,
+                                         item* itm,
+                                         uint16_t vbucket,
+                                         uint64_t by_seqno,
+                                         uint64_t rev_seqno,
+                                         const void* meta,
+                                         uint16_t nmeta,
+                                         uint8_t collection_len) = 0;
 
     /**
      * Send a flush for a single vbucket
@@ -212,10 +204,7 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*flush)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket) = nullptr;
+    virtual ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket) = 0;
 
     /**
      * Send a state transition for a vbucket

@@ -158,18 +158,16 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_mutation(gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       item* itm,
-                                       uint16_t vbucket,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       uint32_t lock_time,
-                                       const void* meta,
-                                       uint16_t nmeta,
-                                       uint8_t nru,
-                                       uint8_t collectionLen) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
+                                                    item* itm,
+                                                    uint16_t vbucket,
+                                                    uint64_t by_seqno,
+                                                    uint64_t rev_seqno,
+                                                    uint32_t lock_time,
+                                                    const void* meta,
+                                                    uint16_t nmeta,
+                                                    uint8_t nru,
+                                                    uint8_t collectionLen) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_MUTATION;
@@ -198,21 +196,19 @@ static ENGINE_ERROR_CODE mock_mutation(gsl::not_null<const void*> cookie,
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(item);
     }
-    return ENGINE_SUCCESS;
+    return mutationStatus;
 }
 
-static ENGINE_ERROR_CODE mock_deletion(gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       item* itm,
-                                       uint16_t vbucket,
-                                       uint64_t by_seqno,
-                                       uint64_t rev_seqno,
-                                       const void* meta,
-                                       uint16_t nmeta,
-                                       uint32_t deleteTime,
-                                       uint8_t collectionLen,
-                                       uint32_t extlen) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(uint32_t opaque,
+                                                         item* itm,
+                                                         uint16_t vbucket,
+                                                         uint64_t by_seqno,
+                                                         uint64_t rev_seqno,
+                                                         const void* meta,
+                                                         uint16_t nmeta,
+                                                         uint32_t deleteTime,
+                                                         uint8_t collectionLen,
+                                                         uint32_t extlen) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_DELETION;
@@ -240,16 +236,14 @@ static ENGINE_ERROR_CODE mock_deletion(gsl::not_null<const void*> cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_deletion_V1(gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          item* itm,
-                                          uint16_t vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          const void* meta,
-                                          uint16_t nmeta) {
-    return mock_deletion(cookie,
-                         opaque,
+ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
+                                                    item* itm,
+                                                    uint16_t vbucket,
+                                                    uint64_t by_seqno,
+                                                    uint64_t rev_seqno,
+                                                    const void* meta,
+                                                    uint16_t nmeta) {
+    return deletionInner(opaque,
                          itm,
                          vbucket,
                          by_seqno,
@@ -261,16 +255,14 @@ static ENGINE_ERROR_CODE mock_deletion_V1(gsl::not_null<const void*> cookie,
                          protocol_binary_request_dcp_deletion::extlen);
 }
 
-static ENGINE_ERROR_CODE mock_deletion_V2(gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          gsl::not_null<item*> itm,
-                                          uint16_t vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t deleteTime,
-                                          uint8_t collectionLen) {
-    return mock_deletion(cookie,
-                         opaque,
+ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
+                                                       gsl::not_null<item*> itm,
+                                                       uint16_t vbucket,
+                                                       uint64_t by_seqno,
+                                                       uint64_t rev_seqno,
+                                                       uint32_t deleteTime,
+                                                       uint8_t collectionLen) {
+    return deletionInner(opaque,
                          itm,
                          vbucket,
                          by_seqno,
@@ -282,15 +274,14 @@ static ENGINE_ERROR_CODE mock_deletion_V2(gsl::not_null<const void*> cookie,
                          protocol_binary_request_dcp_deletion_v2::extlen);
 }
 
-static ENGINE_ERROR_CODE mock_expiration(gsl::not_null<const void*> cookie,
-                                         uint32_t,
-                                         item* itm,
-                                         uint16_t,
-                                         uint64_t,
-                                         uint64_t,
-                                         const void*,
-                                         uint16_t,
-                                         uint8_t) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t,
+                                                      item* itm,
+                                                      uint16_t,
+                                                      uint64_t,
+                                                      uint64_t,
+                                                      const void*,
+                                                      uint16_t,
+                                                      uint8_t) {
     clear_dcp_data();
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(itm);
@@ -298,12 +289,8 @@ static ENGINE_ERROR_CODE mock_expiration(gsl::not_null<const void*> cookie,
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE mock_flush(gsl::not_null<const void*> cookie,
-                                    uint32_t opaque,
-                                    uint16_t vbucket) {
-    (void) cookie;
-    (void) opaque;
-    (void) vbucket;
+ENGINE_ERROR_CODE MockDcpMessageProducers::flush(uint32_t opaque,
+                                                 uint16_t vbucket) {
     clear_dcp_data();
     return ENGINE_ENOTSUP;
 }
@@ -381,11 +368,6 @@ static ENGINE_ERROR_CODE mock_get_error_map(gsl::not_null<const void*> cookie,
 }
 
 MockDcpMessageProducers::MockDcpMessageProducers(EngineIface* engine) {
-    mutation = mock_mutation;
-    deletion = mock_deletion_V1;
-    deletion_v2 = mock_deletion_V2;
-    expiration = mock_expiration;
-    flush = mock_flush;
     set_vbucket_state = mock_set_vbucket_state;
     noop = mock_noop;
     buffer_acknowledgement = mock_buffer_acknowledgement;
@@ -395,6 +377,10 @@ MockDcpMessageProducers::MockDcpMessageProducers(EngineIface* engine) {
 
     engine_handle = engine;
     engine_handle_v1 = engine;
+}
+
+void MockDcpMessageProducers::setMutationStatus(ENGINE_ERROR_CODE code) {
+    mutationStatus = code;
 }
 
 void clear_dcp_data() {
