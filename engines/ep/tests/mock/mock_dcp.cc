@@ -73,11 +73,8 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
    return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_get_failover_log(
-        gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket) {
-    (void) cookie;
-    (void) opaque;
-    (void) vbucket;
+ENGINE_ERROR_CODE MockDcpMessageProducers::get_failover_log(uint32_t opaque,
+                                                            uint16_t vbucket) {
     clear_dcp_data();
     return ENGINE_ENOTSUP;
 }
@@ -411,9 +408,8 @@ void clear_dcp_data() {
 
 std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
                                                          ENGINE_HANDLE_V1 *_h1) {
-    std::unique_ptr<dcp_message_producers> producers(new dcp_message_producers);
+    auto producers = std::make_unique<MockDcpMessageProducers>();
 
-    producers->get_failover_log = mock_get_failover_log;
     producers->stream_req = mock_stream_req;
     producers->add_stream_rsp = mock_add_stream_rsp;
     producers->marker_rsp = mock_snapshot_marker_resp;

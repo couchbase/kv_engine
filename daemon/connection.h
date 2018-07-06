@@ -32,6 +32,7 @@
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <event.h>
+#include <memcached/dcp.h>
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
 #include <nlohmann/json_fwd.hpp>
@@ -84,7 +85,7 @@ const size_t MaxSavedConnectionId = 34;
 /**
  * The structure representing a connection in memcached.
  */
-class Connection {
+class Connection : public dcp_message_producers {
 public:
     enum class Priority : uint8_t {
         High,
@@ -96,7 +97,7 @@ public:
 
     Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc);
 
-    ~Connection();
+    ~Connection() override;
 
     /**
      * Return an identifier for this connection. To be backwards compatible
@@ -925,6 +926,11 @@ public:
         // Update the aggregated stat
         get_thread_stats(this)->conn_yields++;
     }
+
+    // Implementation of dcp_message_producers interface //////////////////////
+
+    ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
+                                       uint16_t vbucket) override;
 
 protected:
     /**

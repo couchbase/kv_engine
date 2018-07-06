@@ -39,6 +39,12 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
 
 void clear_dcp_data();
 
+class MockDcpMessageProducers : public dcp_message_producers {
+public:
+    ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
+                                       uint16_t vbucket) override;
+};
+
 std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
                                                          ENGINE_HANDLE_V1 *_h1);
 

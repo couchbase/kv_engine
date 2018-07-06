@@ -25,8 +25,8 @@
 struct DocKey;
 
 /**
- * The message producers is used by the engine by the DCP producers
- * to add messages into the DCP stream. Please look at the full
+ * The message producers are used by the engine's DCP producer
+ * to add messages into the DCP stream.  Please look at the full
  * DCP documentation to figure out the real meaning for all of the
  * messages.
  *
@@ -35,11 +35,10 @@ struct DocKey;
  * returns ENGINE_WANT_MORE.
  */
 struct dcp_message_producers {
-    /**
-     *
-     */
-    ENGINE_ERROR_CODE(*get_failover_log)
-    (gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket);
+    virtual ~dcp_message_producers() = default;
+
+    virtual ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
+                                               uint16_t vbucket) = 0;
 
     ENGINE_ERROR_CODE(*stream_req)
     (gsl::not_null<const void*> cookie,
@@ -50,19 +49,23 @@ struct dcp_message_producers {
      uint64_t end_seqno,
      uint64_t vbucket_uuid,
      uint64_t snap_start_seqno,
-     uint64_t snap_end_seqno);
+     uint64_t snap_end_seqno) = nullptr;
 
     ENGINE_ERROR_CODE(*add_stream_rsp)
     (gsl::not_null<const void*> cookie,
      uint32_t opaque,
      uint32_t stream_opaque,
-     uint8_t status);
+     uint8_t status) = nullptr;
 
     ENGINE_ERROR_CODE(*marker_rsp)
-    (gsl::not_null<const void*> cookie, uint32_t opaque, uint8_t status);
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint8_t status) = nullptr;
 
     ENGINE_ERROR_CODE(*set_vbucket_state_rsp)
-    (gsl::not_null<const void*> cookie, uint32_t opaque, uint8_t status);
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint8_t status) = nullptr;
 
     /**
      * Send a Stream End message
@@ -84,7 +87,7 @@ struct dcp_message_producers {
     (gsl::not_null<const void*> cookie,
      uint32_t opaque,
      uint16_t vbucket,
-     uint32_t flags);
+     uint32_t flags) = nullptr;
 
     /**
      * Send a marker
@@ -102,7 +105,7 @@ struct dcp_message_producers {
      uint16_t vbucket,
      uint64_t start_seqno,
      uint64_t end_seqno,
-     uint32_t flags);
+     uint32_t flags) = nullptr;
 
     /**
      * Send a Mutation
@@ -134,7 +137,7 @@ struct dcp_message_producers {
      const void* meta,
      uint16_t nmeta,
      uint8_t nru,
-     uint8_t collection_len);
+     uint8_t collection_len) = nullptr;
 
     /**
      * Send a deletion
@@ -158,7 +161,7 @@ struct dcp_message_producers {
      uint64_t by_seqno,
      uint64_t rev_seqno,
      const void* meta,
-     uint16_t nmeta);
+     uint16_t nmeta) = nullptr;
 
     /**
      * Send a deletion with delete_time or collections (or both)
@@ -184,7 +187,7 @@ struct dcp_message_producers {
      uint64_t by_seqno,
      uint64_t rev_seqno,
      uint32_t delete_time,
-     uint8_t collection_len);
+     uint8_t collection_len) = nullptr;
 
     /**
      * Send an expiration
@@ -210,7 +213,7 @@ struct dcp_message_producers {
      uint64_t rev_seqno,
      const void* meta,
      uint16_t nmeta,
-     uint8_t collection_len);
+     uint8_t collection_len) = nullptr;
 
     /**
      * Send a flush for a single vbucket
@@ -223,7 +226,9 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     ENGINE_ERROR_CODE(*flush)
-    (gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket);
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t vbucket) = nullptr;
 
     /**
      * Send a state transition for a vbucket
@@ -240,7 +245,7 @@ struct dcp_message_producers {
     (gsl::not_null<const void*> cookie,
      uint32_t opaque,
      uint16_t vbucket,
-     vbucket_state_t state);
+     vbucket_state_t state) = nullptr;
 
     /**
      * Send a noop
@@ -251,7 +256,7 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     ENGINE_ERROR_CODE(*noop)
-    (gsl::not_null<const void*> cookie, uint32_t opaque);
+    (gsl::not_null<const void*> cookie, uint32_t opaque) = nullptr;
 
     /**
      * Send a buffer acknowledgment
@@ -268,7 +273,7 @@ struct dcp_message_producers {
     (gsl::not_null<const void*> cookie,
      uint32_t opaque,
      uint16_t vbucket,
-     uint32_t buffer_bytes);
+     uint32_t buffer_bytes) = nullptr;
 
     /**
      * Send a control message to the other end
@@ -289,7 +294,7 @@ struct dcp_message_producers {
      const void* key,
      uint16_t nkey,
      const void* value,
-     uint32_t nvalue);
+     uint32_t nvalue) = nullptr;
 
     /**
      * Send a system event message to the other end
@@ -310,7 +315,7 @@ struct dcp_message_producers {
      mcbp::systemevent::id event,
      uint64_t bySeqno,
      cb::const_byte_buffer key,
-     cb::const_byte_buffer eventData);
+     cb::const_byte_buffer eventData) = nullptr;
 
     /*
      * Send a GetErrorMap message to the other end
@@ -322,7 +327,9 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     ENGINE_ERROR_CODE(*get_error_map)
-    (gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t version);
+    (gsl::not_null<const void*> cookie,
+     uint32_t opaque,
+     uint16_t version) = nullptr;
 };
 
 typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(

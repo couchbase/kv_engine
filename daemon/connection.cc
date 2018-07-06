@@ -22,6 +22,7 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
+#include "protocol/mcbp/ship_dcp_log.h"
 #include "runtime.h"
 #include "server_event.h"
 #include "statemachine_mcbp.h"
@@ -1205,6 +1206,28 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
       peername(cb::net::getpeername(socketDescriptor)),
       sockname(cb::net::getsockname(socketDescriptor)),
       stateMachine(*this) {
+    // TEMP: Once all of these functions are converted to virtual methods
+    // these assignments will not be necesary.
+    dcp_message_producers::stream_req = dcp_message_stream_req;
+    dcp_message_producers::add_stream_rsp = dcp_message_add_stream_response;
+    dcp_message_producers::marker_rsp = dcp_message_marker_response;
+    dcp_message_producers::set_vbucket_state_rsp =
+            dcp_message_set_vbucket_state_response;
+    dcp_message_producers::stream_end = dcp_message_stream_end;
+    dcp_message_producers::marker = dcp_message_marker;
+    dcp_message_producers::mutation = dcp_message_mutation;
+    dcp_message_producers::deletion = dcp_message_deletion_v1;
+    dcp_message_producers::deletion_v2 = dcp_message_deletion_v2;
+    dcp_message_producers::expiration = dcp_message_expiration;
+    dcp_message_producers::flush = dcp_message_flush;
+    dcp_message_producers::set_vbucket_state = dcp_message_set_vbucket_state;
+    dcp_message_producers::noop = dcp_message_noop;
+    dcp_message_producers::buffer_acknowledgement =
+            dcp_message_buffer_acknowledgement;
+    dcp_message_producers::control = dcp_message_control;
+    dcp_message_producers::system_event = dcp_message_system_event;
+    dcp_message_producers::get_error_map = dcp_message_get_error_map;
+
     setTcpNoDelay(ifc.tcp_nodelay);
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});

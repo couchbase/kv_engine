@@ -1852,22 +1852,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
 
-    struct dcp_message_producers producers = {nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              mock_noop_return_engine_e2big,
-                                              nullptr,
-                                              nullptr};
+    MockDcpMessageProducers producers;
+    producers.noop = mock_noop_return_engine_e2big;
 
     producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;

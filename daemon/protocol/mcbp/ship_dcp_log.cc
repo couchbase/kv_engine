@@ -51,12 +51,8 @@ static ENGINE_ERROR_CODE add_packet_to_pipe(Connection& c,
     return ret;
 }
 
-static ENGINE_ERROR_CODE dcp_message_get_failover_log(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint16_t vbucket) {
-    auto& c = cookie2connection(void_cookie);
-
+ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque,
+                                               uint16_t vbucket) {
     protocol_binary_request_dcp_get_failover_log packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -64,19 +60,18 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_stream_req(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint32_t flags,
-        uint64_t start_seqno,
-        uint64_t end_seqno,
-        uint64_t vbucket_uuid,
-        uint64_t snap_start_seqno,
-        uint64_t snap_end_seqno) {
+ENGINE_ERROR_CODE dcp_message_stream_req(gsl::not_null<const void*> void_cookie,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags,
+                                         uint64_t start_seqno,
+                                         uint64_t end_seqno,
+                                         uint64_t vbucket_uuid,
+                                         uint64_t snap_start_seqno,
+                                         uint64_t snap_end_seqno) {
     auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_stream_req packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -96,7 +91,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_add_stream_response(
+ENGINE_ERROR_CODE dcp_message_add_stream_response(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint32_t dialogopaque,
@@ -116,7 +111,7 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_marker_response(
+ENGINE_ERROR_CODE dcp_message_marker_response(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint8_t status) {
@@ -134,7 +129,7 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
+ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint8_t status) {
@@ -152,11 +147,10 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_stream_end(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint32_t flags) {
+ENGINE_ERROR_CODE dcp_message_stream_end(gsl::not_null<const void*> void_cookie,
+                                         uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags) {
     auto& c = cookie2connection(void_cookie);
 
     protocol_binary_request_dcp_stream_end packet = {};
@@ -172,13 +166,12 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_marker(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint64_t start_seqno,
-        uint64_t end_seqno,
-        uint32_t flags) {
+ENGINE_ERROR_CODE dcp_message_marker(gsl::not_null<const void*> void_cookie,
+                                     uint32_t opaque,
+                                     uint16_t vbucket,
+                                     uint64_t start_seqno,
+                                     uint64_t end_seqno,
+                                     uint32_t flags) {
     auto& c = cookie2connection(void_cookie);
 
     protocol_binary_request_dcp_snapshot_marker packet = {};
@@ -196,18 +189,17 @@ static ENGINE_ERROR_CODE dcp_message_marker(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_mutation(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        item* it,
-        uint16_t vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        uint32_t lock_time,
-        const void* meta,
-        uint16_t nmeta,
-        uint8_t nru,
-        uint8_t collection_len) {
+ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
+                                       uint32_t opaque,
+                                       item* it,
+                                       uint16_t vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t lock_time,
+                                       const void* meta,
+                                       uint16_t nmeta,
+                                       uint8_t nru,
+                                       uint8_t collection_len) {
     const auto& ccookie = *static_cast<const Cookie*>(void_cookie.get());
     auto& cookie = const_cast<Cookie&>(ccookie);
     auto* c = &cookie.getConnection();
@@ -335,7 +327,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(
     return ret;
 }
 
-static ENGINE_ERROR_CODE dcp_message_deletion_v1(
+ENGINE_ERROR_CODE dcp_message_deletion_v1(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         item* it,
@@ -385,7 +377,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion_v1(
     return dcp_message_deletion(c, cookie, info, packetBuffer, extendedMeta);
 }
 
-static ENGINE_ERROR_CODE dcp_message_deletion_v2(
+ENGINE_ERROR_CODE dcp_message_deletion_v2(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         gsl::not_null<item*> it,
@@ -436,16 +428,15 @@ static ENGINE_ERROR_CODE dcp_message_deletion_v2(
             {/*no extended meta in v2*/});
 }
 
-static ENGINE_ERROR_CODE dcp_message_expiration(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        item* it,
-        uint16_t vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        const void* meta,
-        uint16_t nmeta,
-        uint8_t collection_len) {
+ENGINE_ERROR_CODE dcp_message_expiration(gsl::not_null<const void*> void_cookie,
+                                         uint32_t opaque,
+                                         item* it,
+                                         uint16_t vbucket,
+                                         uint64_t by_seqno,
+                                         uint64_t rev_seqno,
+                                         const void* meta,
+                                         uint16_t nmeta,
+                                         uint8_t collection_len) {
     /*
      * EP engine don't use expiration, so we won't have tests for this
      * code. Add it back once we have people calling the method
@@ -455,10 +446,9 @@ static ENGINE_ERROR_CODE dcp_message_expiration(
     return ENGINE_ENOTSUP;
 }
 
-static ENGINE_ERROR_CODE dcp_message_flush(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint16_t vbucket) {
+ENGINE_ERROR_CODE dcp_message_flush(gsl::not_null<const void*> void_cookie,
+                                    uint32_t opaque,
+                                    uint16_t vbucket) {
     auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_flush packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -470,7 +460,7 @@ static ENGINE_ERROR_CODE dcp_message_flush(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
+ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint16_t vbucket,
@@ -494,8 +484,8 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_noop(
-        gsl::not_null<const void*> void_cookie, uint32_t opaque) {
+ENGINE_ERROR_CODE dcp_message_noop(gsl::not_null<const void*> void_cookie,
+                                   uint32_t opaque) {
     auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_noop packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -506,7 +496,7 @@ static ENGINE_ERROR_CODE dcp_message_noop(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
+ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         uint16_t vbucket,
@@ -525,13 +515,12 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
     return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
 }
 
-static ENGINE_ERROR_CODE dcp_message_control(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        const void* key,
-        uint16_t nkey,
-        const void* value,
-        uint32_t nvalue) {
+ENGINE_ERROR_CODE dcp_message_control(gsl::not_null<const void*> void_cookie,
+                                      uint32_t opaque,
+                                      const void* key,
+                                      uint16_t nkey,
+                                      const void* value,
+                                      uint32_t nvalue) {
     auto& c = cookie2connection(void_cookie);
     protocol_binary_request_dcp_control packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -568,14 +557,13 @@ static ENGINE_ERROR_CODE dcp_message_control(
     return ret;
 }
 
-static ENGINE_ERROR_CODE dcp_message_system_event(
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        mcbp::systemevent::id event,
-        uint64_t bySeqno,
-        cb::const_byte_buffer key,
-        cb::const_byte_buffer eventData) {
+ENGINE_ERROR_CODE dcp_message_system_event(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket,
+                                           mcbp::systemevent::id event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) {
     auto& c = cookie2connection(cookie);
 
     protocol_binary_request_dcp_system_event packet(
@@ -612,8 +600,9 @@ static ENGINE_ERROR_CODE dcp_message_system_event(
     return ret;
 }
 
-static ENGINE_ERROR_CODE dcp_message_get_error_map(
-        gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t version) {
+ENGINE_ERROR_CODE dcp_message_get_error_map(gsl::not_null<const void*> cookie,
+                                            uint32_t opaque,
+                                            uint16_t version) {
     auto& c = cookie2connection(cookie);
 
     protocol_binary_request_get_errmap packet = {};
@@ -646,31 +635,11 @@ static ENGINE_ERROR_CODE dcp_message_get_error_map(
 }
 
 void ship_dcp_log(Cookie& cookie) {
-    static struct dcp_message_producers producers = {
-            dcp_message_get_failover_log,
-            dcp_message_stream_req,
-            dcp_message_add_stream_response,
-            dcp_message_marker_response,
-            dcp_message_set_vbucket_state_response,
-            dcp_message_stream_end,
-            dcp_message_marker,
-            dcp_message_mutation,
-            dcp_message_deletion_v1,
-            dcp_message_deletion_v2,
-            dcp_message_expiration,
-            dcp_message_flush,
-            dcp_message_set_vbucket_state,
-            dcp_message_noop,
-            dcp_message_buffer_acknowledgement,
-            dcp_message_control,
-            dcp_message_system_event,
-            dcp_message_get_error_map};
-
     auto& c = cookie.getConnection();
     c.addMsgHdr(true);
     cookie.setEwouldblock(false);
-    auto ret = c.remapErrorCode(c.getBucket().getDcpIface()->step(
-            static_cast<const void*>(&c.getCookieObject()), &producers));
+    const auto ret =  c.remapErrorCode(c.getBucket().getDcpIface()->step(
+        static_cast<const void*>(&c.getCookieObject()), &c));
 
     switch (ret) {
     case ENGINE_SUCCESS:
