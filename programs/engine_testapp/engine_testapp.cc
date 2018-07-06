@@ -222,6 +222,18 @@ struct mock_engine : public EngineIface, public DcpIface {
                                  uint64_t rev_seqno,
                                  cb::const_byte_buffer meta) override;
 
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie,
+                            uint32_t opaque,
+                            uint16_t vbucket) override;
+
+    ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        vbucket_state_t state) override;
+
+    ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
+                           uint32_t opaque) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
@@ -254,10 +266,6 @@ static ENGINE_HANDLE* handle = NULL;
 
 static struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
     return (struct mock_engine*)handle;
-}
-
-static ENGINE_HANDLE* get_engine_from_handle(ENGINE_HANDLE* handle) {
-    return reinterpret_cast<ENGINE_HANDLE*>(get_handle(handle)->the_engine);
 }
 
 ENGINE_ERROR_CODE mock_engine::initialize(const char* config_str) {
@@ -795,42 +803,34 @@ ENGINE_ERROR_CODE mock_engine::expiration(gsl::not_null<const void*> cookie,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        uint32_t opaque,
-                                        uint16_t vbucket) {
+ENGINE_ERROR_CODE mock_engine::flush(gsl::not_null<const void*> cookie,
+                                     uint32_t opaque,
+                                     uint16_t vbucket) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
-    struct mock_engine* me = get_handle(handle);
-    auto& dcp = dynamic_cast<DcpIface&>(*me->the_engine);
-    auto engine_fn = std::bind(dcp.flush,
-                               get_engine_from_handle(handle),
+    auto engine_fn = std::bind(&DcpIface::flush,
+                               the_engine_dcp,
                                static_cast<const void*>(c),
                                opaque,
                                vbucket);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    ENGINE_ERROR_CODE ret =
+            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_set_vbucket_state(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE mock_engine::set_vbucket_state(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         vbucket_state_t state) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->set_vbucket_state(
-            (ENGINE_HANDLE*)me->the_engine, cookie, opaque, vbucket, state);
+    return the_engine_dcp->set_vbucket_state(cookie, opaque, vbucket, state);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_noop(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       uint32_t opaque) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->noop(
-            (ENGINE_HANDLE*)me->the_engine, cookie, opaque);
+ENGINE_ERROR_CODE mock_engine::noop(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque) {
+    return the_engine_dcp->noop(cookie, opaque);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_control(gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1017,9 +1017,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->DcpIface::flush = mock_dcp_flush;
-        me->set_vbucket_state = mock_dcp_set_vbucket_state;
-        me->noop = mock_dcp_noop;
         me->buffer_acknowledgement = mock_dcp_buffer_acknowledgement;
         me->control = mock_dcp_control;
         me->response_handler = mock_dcp_response_handler;

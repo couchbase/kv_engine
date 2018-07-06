@@ -165,6 +165,10 @@ public:
                                     cb::StoreIfPredicate predicate,
                                     DocumentState document_state) override;
 
+    // Need to explicilty import EngineIface::flush to avoid warning about
+    // DCPIface::flush hiding it.
+    using EngineIface::flush;
+
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
                                 ADD_STAT add_stat) override;
@@ -303,6 +307,18 @@ public:
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  cb::const_byte_buffer meta) override;
+
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie,
+                            uint32_t opaque,
+                            uint16_t vbucket) override;
+
+    ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        vbucket_state_t state) override;
+
+    ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
+                           uint32_t opaque) override;
 
     /**
      * Delete a given key and value from the engine.

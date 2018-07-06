@@ -35,8 +35,6 @@
 class NoBucket : public ENGINE_HANDLE_V1, public dcp_interface {
 public:
     NoBucket() {
-        dcp_interface::flush = dcp_flush;
-        dcp_interface::set_vbucket_state = dcp_set_vbucket_state;
         dcp_interface::system_event = dcp_system_event;
         ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
         ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
@@ -316,6 +314,24 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*>,
+                            uint32_t,
+                            uint16_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*>,
+                                        uint32_t,
+                                        uint16_t,
+                                        vbucket_state_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
+                           uint32_t opaque) override {
+        return ENGINE_NO_BUCKET;
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -333,22 +349,6 @@ private:
         throw std::logic_error(
                 "NoBucket::set_item_info: no items should have"
                 " been allocated from this engine");
-    }
-
-    static ENGINE_ERROR_CODE dcp_flush(gsl::not_null<ENGINE_HANDLE*>,
-                                       gsl::not_null<const void*>,
-                                       uint32_t,
-                                       uint16_t) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE dcp_set_vbucket_state(
-            gsl::not_null<ENGINE_HANDLE*>,
-            gsl::not_null<const void*>,
-            uint32_t,
-            uint16_t,
-            vbucket_state_t) {
-        return ENGINE_NO_BUCKET;
     }
 
     static ENGINE_ERROR_CODE dcp_system_event(

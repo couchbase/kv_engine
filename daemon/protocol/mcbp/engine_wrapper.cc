@@ -485,8 +485,7 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
 ENGINE_ERROR_CODE dcpFlush(Cookie& cookie, uint32_t opaque, uint16_t vbucket) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->flush(
-            connection.getBucketEngineAsV0(), &cookie, opaque, vbucket);
+    auto ret = dcp->flush(&cookie, opaque, vbucket);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.flush returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -553,7 +552,7 @@ ENGINE_ERROR_CODE dcpMutation(Cookie& cookie,
 ENGINE_ERROR_CODE dcpNoop(Cookie& cookie, uint32_t opaque) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->noop(connection.getBucketEngineAsV0(), &cookie, opaque);
+    auto ret = dcp->noop(&cookie, opaque);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.noop returned ENGINE_DISCONNECT",
                     connection.getId(),
@@ -585,8 +584,7 @@ ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
                                      vbucket_state_t state) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->set_vbucket_state(
-            connection.getBucketEngineAsV0(), &cookie, opaque, vbid, state);
+    auto ret = dcp->set_vbucket_state(&cookie, opaque, vbid, state);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.set_vbucket_state returned ENGINE_DISCONNECT",
                     connection.getId(),

@@ -6298,11 +6298,11 @@ static enum test_result test_mb19982(ENGINE_HANDLE *h,
 
         // And flip VB state (this can have a lock inversion with stats)
         checkeq(dcp->set_vbucket_state(
-                        h, cookie, stream_opaque, 0, vbucket_state_active),
+                        cookie, stream_opaque, 0, vbucket_state_active),
                 ENGINE_SUCCESS,
                 "failed to change to active");
         checkeq(dcp->set_vbucket_state(
-                        h, cookie, stream_opaque, 0, vbucket_state_replica),
+                        cookie, stream_opaque, 0, vbucket_state_replica),
                 ENGINE_SUCCESS,
                 "failed to change to replica");
     }

@@ -1563,11 +1563,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::expiration(
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpFlush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                     gsl::not_null<const void*> cookie,
-                                     uint32_t opaque,
-                                     uint16_t vbucket) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(
+        gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->flushall(opaque, vbucket);
@@ -1575,13 +1573,12 @@ static ENGINE_ERROR_CODE EvpDcpFlush(gsl::not_null<ENGINE_HANDLE*> handle,
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpSetVbucketState(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::set_vbucket_state(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         vbucket_state_t state) {
-    auto engine = acquireEngine(handle);
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->setVBucketState(opaque, vbucket, state);
@@ -1589,10 +1586,9 @@ static ENGINE_ERROR_CODE EvpDcpSetVbucketState(
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpNoop(gsl::not_null<ENGINE_HANDLE*> handle,
-                                    gsl::not_null<const void*> cookie,
-                                    uint32_t opaque) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::noop(
+        gsl::not_null<const void*> cookie, uint32_t opaque) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->noop(opaque);
@@ -1804,9 +1800,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    dcp_interface::flush = EvpDcpFlush;
-    dcp_interface::set_vbucket_state = EvpDcpSetVbucketState;
-    dcp_interface::noop = EvpDcpNoop;
     dcp_interface::buffer_acknowledgement = EvpDcpBufferAcknowledgement;
     dcp_interface::control = EvpDcpControl;
     dcp_interface::response_handler = EvpDcpResponseHandler;

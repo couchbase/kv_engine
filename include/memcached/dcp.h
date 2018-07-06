@@ -581,29 +581,24 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a flush message was received
      */
-    ENGINE_ERROR_CODE(*flush)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket);
+    virtual ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    uint16_t vbucket) = 0;
 
     /**
      * Callback to the engine that a set vbucket state message was received
      */
-    ENGINE_ERROR_CODE(*set_vbucket_state)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     vbucket_state_t state);
+    virtual ENGINE_ERROR_CODE set_vbucket_state(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            uint16_t vbucket,
+            vbucket_state_t state) = 0;
 
     /**
      * Callback to the engine that a NOOP message was received
      */
-    ENGINE_ERROR_CODE(*noop)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque);
+    virtual ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque) = 0;
 
     /**
      * Callback to the engine that a buffer_ack message was received

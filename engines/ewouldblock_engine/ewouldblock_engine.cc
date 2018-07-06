@@ -776,6 +776,18 @@ public:
                                  uint64_t rev_seqno,
                                  cb::const_byte_buffer meta) override;
 
+    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie,
+                            uint32_t opaque,
+                            uint16_t vbucket) override;
+
+    ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
+                                        uint32_t opaque,
+                                        uint16_t vbucket,
+                                        vbucket_state_t state) override;
+
+    ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
+                           uint32_t opaque) override;
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -874,22 +886,6 @@ private:
     std::queue<const void*> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
-
-    static ENGINE_ERROR_CODE dcp_flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       uint32_t opaque,
-                                       uint16_t vbucket);
-
-    static ENGINE_ERROR_CODE dcp_set_vbucket_state(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint16_t vbucket,
-            vbucket_state_t state);
-
-    static ENGINE_ERROR_CODE dcp_noop(gsl::not_null<ENGINE_HANDLE*> handle,
-                                      gsl::not_null<const void*> cookie,
-                                      uint32_t opaque);
 
     static ENGINE_ERROR_CODE dcp_buffer_acknowledgement(
             gsl::not_null<ENGINE_HANDLE*> handle,
@@ -1230,9 +1226,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     DcpIface::buffer_acknowledgement = dcp_buffer_acknowledgement;
     DcpIface::control = dcp_control;
-    DcpIface::flush = dcp_flush;
-    DcpIface::set_vbucket_state = dcp_set_vbucket_state;
-    DcpIface::noop = dcp_noop;
     DcpIface::response_handler = dcp_response_handler;
     DcpIface::system_event = dcp_system_event;
 
@@ -1552,42 +1545,35 @@ ENGINE_ERROR_CODE EWB_Engine::expiration(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_flush(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        uint32_t opaque,
-                                        uint16_t vbucket) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->flush) {
+ENGINE_ERROR_CODE EWB_Engine::flush(gsl::not_null<const void*> cookie,
+                                    uint32_t opaque,
+                                    uint16_t vbucket) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->flush(
-                ewb->real_handle, cookie, opaque, vbucket);
+        return real_engine_dcp->flush(cookie, opaque, vbucket);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_set_vbucket_state(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EWB_Engine::set_vbucket_state(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         uint16_t vbucket,
         vbucket_state_t state) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->set_vbucket_state) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->set_vbucket_state(
-                ewb->real_handle, cookie, opaque, vbucket, state);
+        return real_engine_dcp->set_vbucket_state(
+                cookie, opaque, vbucket, state);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_noop(gsl::not_null<ENGINE_HANDLE*> handle,
-                                       gsl::not_null<const void*> cookie,
-                                       uint32_t opaque) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->noop) {
+ENGINE_ERROR_CODE EWB_Engine::noop(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->noop(ewb->real_handle, cookie, opaque);
+        return real_engine_dcp->noop(cookie, opaque);
     }
 }
 
