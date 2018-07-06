@@ -627,20 +627,35 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                       const void* value,
                                       uint32_t nvalue) = 0;
 
-    ENGINE_ERROR_CODE(*response_handler)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     const protocol_binary_response_header* response);
+    /**
+     * Callback to the engine that a response message has been received.
+     * @param cookie The cookie representing the connection
+     * @param response The response which the server received.
+     * @return Standard engine error code.
+     */
+    virtual ENGINE_ERROR_CODE response_handler(
+            gsl::not_null<const void*> cookie,
+            const protocol_binary_response_header* response) = 0;
 
-    ENGINE_ERROR_CODE(*system_event)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     mcbp::systemevent::id event,
-     uint64_t bySeqno,
-     cb::const_byte_buffer key,
-     cb::const_byte_buffer eventData);
+    /**
+     * Callback to the engine that a system event message was received.
+     *
+     * @param cookie The cookie representing the connection
+     * @param opaque The opaque field in the message (identifying the stream)
+     * @param vbucket The vbucket identifier for this event.
+     * @param event The type of system event.
+     * @param bySeqno Sequence number of event.
+     * @param key The event name .
+     * @param eventData The event value.
+     * @return Standard engine error code.
+     */
+    virtual ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket,
+                                           mcbp::systemevent::id event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) = 0;
 };
 
 using dcp_interface = DcpIface;

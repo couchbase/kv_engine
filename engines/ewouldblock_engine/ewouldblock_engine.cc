@@ -800,6 +800,18 @@ public:
                               const void* value,
                               uint32_t nvalue) override;
 
+    ENGINE_ERROR_CODE response_handler(
+            gsl::not_null<const void*> cookie,
+            const protocol_binary_response_header* response) override;
+
+    ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket,
+                                   mcbp::systemevent::id event,
+                                   uint64_t bySeqno,
+                                   cb::const_byte_buffer key,
+                                   cb::const_byte_buffer eventData) override;
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -898,21 +910,6 @@ private:
     std::queue<const void*> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
-
-    static ENGINE_ERROR_CODE dcp_response_handler(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            const protocol_binary_response_header* response);
-
-    static ENGINE_ERROR_CODE dcp_system_event(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint16_t vbucket,
-            mcbp::systemevent::id event,
-            uint64_t bySeqno,
-            cb::const_byte_buffer key,
-            cb::const_byte_buffer eventData);
 
     static cb::engine_error collections_set_manifest(
             gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json);
@@ -1220,9 +1217,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     notify_io_thread(new NotificationThread(*this))
 {
     init_wrapped_api(gsa);
-
-    DcpIface::response_handler = dcp_response_handler;
-    DcpIface::system_event = dcp_system_event;
 
     ENGINE_HANDLE_V1::collections = {};
     ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
@@ -1599,40 +1593,28 @@ ENGINE_ERROR_CODE EWB_Engine::control(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_response_handler(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EWB_Engine::response_handler(
         gsl::not_null<const void*> cookie,
         const protocol_binary_response_header* response) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->response_handler) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->response_handler(
-                ewb->real_handle, cookie, response);
+        return real_engine_dcp->response_handler(cookie, response);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_system_event(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        mcbp::systemevent::id event,
-        uint64_t bySeqno,
-        cb::const_byte_buffer key,
-        cb::const_byte_buffer eventData) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->system_event) {
+ENGINE_ERROR_CODE EWB_Engine::system_event(gsl::not_null<const void*> cookie,
+                                           uint32_t opaque,
+                                           uint16_t vbucket,
+                                           mcbp::systemevent::id event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->system_event(ewb->real_handle,
-                                                  cookie,
-                                                  opaque,
-                                                  vbucket,
-                                                  event,
-                                                  bySeqno,
-                                                  key,
-                                                  eventData);
+        return real_engine_dcp->system_event(
+                cookie, opaque, vbucket, event, bySeqno, key, eventData);
     }
 }
 

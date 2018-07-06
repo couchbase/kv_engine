@@ -1624,11 +1624,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::control(
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpResponseHandler(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::response_handler(
         gsl::not_null<const void*> cookie,
         const protocol_binary_response_header* response) {
-    auto engine = acquireEngine(handle);
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         if (conn->handleResponse(response)) {
@@ -1638,15 +1637,15 @@ static ENGINE_ERROR_CODE EvpDcpResponseHandler(
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpSystemEvent(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           uint16_t vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::system_event(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        mcbp::systemevent::id event,
+        uint64_t bySeqno,
+        cb::const_byte_buffer key,
+        cb::const_byte_buffer eventData) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->systemEvent(
@@ -1799,8 +1798,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    dcp_interface::response_handler = EvpDcpResponseHandler;
-    dcp_interface::system_event = EvpDcpSystemEvent;
     ENGINE_HANDLE_V1::collections.set_manifest = EvpCollectionsSetManifest;
     ENGINE_HANDLE_V1::collections.get_manifest = EvpCollectionsGetManifest;
 

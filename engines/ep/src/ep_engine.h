@@ -332,6 +332,20 @@ public:
                               const void* value,
                               uint32_t nvalue) override;
 
+    ENGINE_ERROR_CODE response_handler(
+            gsl::not_null<const void*> cookie,
+            const protocol_binary_response_header* response) override;
+
+    ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket,
+                                   mcbp::systemevent::id event,
+                                   uint64_t bySeqno,
+                                   cb::const_byte_buffer key,
+                                   cb::const_byte_buffer eventData) override;
+
+    // End DcpIface ///////////////////////////////////////////////////////////
+
     /**
      * Delete a given key and value from the engine.
      *

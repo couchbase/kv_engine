@@ -58,7 +58,7 @@ void dcpHandleResponse(ENGINE_HANDLE* h,
                        const void* cookie,
                        protocol_binary_response_header* response) {
     auto dcp = requireDcpIface(h);
-    auto erroCode = dcp->response_handler(h, cookie, response);
+    auto erroCode = dcp->response_handler(cookie, response);
     check(erroCode == ENGINE_SUCCESS || erroCode == ENGINE_EWOULDBLOCK,
           "Expected 'success' or 'engine_ewouldblock'");
     if (erroCode == ENGINE_EWOULDBLOCK) {
@@ -3179,7 +3179,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(h, cookie, pkt),
+            dcp->response_handler(cookie, pkt),
             "Expected success");
     dcp_step(h, h1, cookie);
     cb_free(pkt);
@@ -3207,7 +3207,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
         checkeq(ENGINE_SUCCESS,
-                dcp->response_handler(h, cookie, pkt),
+                dcp->response_handler(cookie, pkt),
                 "Expected success");
         dcp_step(h, h1, cookie);
 
@@ -3788,7 +3788,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     memcpy(pkt->bytes + 24, &rollbackSeqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(h, cookie, pkt),
+            dcp->response_handler(cookie, pkt),
             "Expected success");
 
     do {
@@ -3814,7 +3814,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     memcpy(pkt->bytes + 22, &by_seqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(h, cookie, pkt),
+            dcp->response_handler(cookie, pkt),
             "Expected success");
     dcp_step(h, h1, cookie);
     cb_free(pkt);
@@ -3884,7 +3884,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(h, cookie, pkt1),
+            dcp->response_handler(cookie, pkt1),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
     dcp_step(h, h1, cookie);
@@ -3908,7 +3908,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(h, cookie, pkt2),
+            dcp->response_handler(cookie, pkt2),
             "Expected success");
 
     dcp_step(h, h1, cookie);
@@ -4001,7 +4001,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     memcpy(pkt1->bytes + headerlen, &rollbackPt, bodylen);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(h, cookie, pkt1),
+            dcp->response_handler(cookie, pkt1),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
     dcp_step(h, h1, cookie);
@@ -4022,7 +4022,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
     checkeq(ENGINE_SUCCESS,
-            dcp->response_handler(h, cookie, pkt2),
+            dcp->response_handler(cookie, pkt2),
             "Expected success");
     dcp_step(h, h1, cookie);
 

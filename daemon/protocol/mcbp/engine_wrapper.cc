@@ -660,14 +660,8 @@ ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
                                  cb::const_byte_buffer eventData) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->system_event(connection.getBucketEngineAsV0(),
-                                 &cookie,
-                                 opaque,
-                                 vbucket,
-                                 eventId,
-                                 bySeqno,
-                                 key,
-                                 eventData);
+    auto ret = dcp->system_event(
+            &cookie, opaque, vbucket, eventId, bySeqno, key, eventData);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.system_event returned ENGINE_DISCONNECT",
                     connection.getId(),

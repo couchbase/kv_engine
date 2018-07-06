@@ -246,6 +246,18 @@ struct mock_engine : public EngineIface, public DcpIface {
                               const void* value,
                               uint32_t nvalue) override;
 
+    ENGINE_ERROR_CODE response_handler(
+            gsl::not_null<const void*> cookie,
+            const protocol_binary_response_header* response) override;
+
+    ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket,
+                                   mcbp::systemevent::id event,
+                                   uint64_t bySeqno,
+                                   cb::const_byte_buffer key,
+                                   cb::const_byte_buffer eventData) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
@@ -862,13 +874,21 @@ ENGINE_ERROR_CODE mock_engine::buffer_acknowledgement(
     return the_engine_dcp->buffer_acknowledgement(cookie, opaque, vbucket, bb);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_response_handler(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+ENGINE_ERROR_CODE mock_engine::response_handler(
         gsl::not_null<const void*> cookie,
         const protocol_binary_response_header* response) {
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine_dcp->response_handler(
-            (ENGINE_HANDLE*)me->the_engine, cookie, response);
+    return the_engine_dcp->response_handler(cookie, response);
+}
+
+ENGINE_ERROR_CODE mock_engine::system_event(gsl::not_null<const void*> cookie,
+                                            uint32_t opaque,
+                                            uint16_t vbucket,
+                                            mcbp::systemevent::id event,
+                                            uint64_t bySeqno,
+                                            cb::const_byte_buffer key,
+                                            cb::const_byte_buffer eventData) {
+    return the_engine_dcp->system_event(
+            cookie, opaque, vbucket, event, bySeqno, key, eventData);
 }
 
 static cb::engine_error mock_collections_set_manifest(
@@ -1022,7 +1042,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->response_handler = mock_dcp_response_handler;
         me->collections.set_manifest = mock_collections_set_manifest;
 
         me->the_engine = (ENGINE_HANDLE_V1*)handle;
