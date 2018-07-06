@@ -29,7 +29,7 @@
 
 class EventuallyPersistentEngine;
 
-class EventuallyPersistentEngineTest : public ::testing::Test {
+class EventuallyPersistentEngineTest : virtual public ::testing::Test {
 public:
     EventuallyPersistentEngineTest() : bucketType("persistent") {
     }

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #pragma once
 
 #include "config.h"
+#include "bucket_logger.h"
 
 #include <memcached/extension.h>
 #include <platform/dynamic.h>
@@ -56,6 +57,9 @@ public:
 
     // Informs the Logger class of a change in the global log level.
     static void setGlobalLogLevel(EXTENSION_LOG_LEVEL level);
+
+    // Getter for the global log level
+    static EXTENSION_LOG_LEVEL getGlobalLogLevel();
 
     // Prefix to use for all messages.
     std::string prefix;

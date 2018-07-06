@@ -165,6 +165,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/bgfetcher.cc
             src/blob.cc
             src/bloomfilter.cc
+            src/bucket_logger.cc
             src/callbacks.cc
             src/checkpoint.cc
             src/checkpoint_config.cc
@@ -286,6 +287,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/atomic_unordered_map_test.cc
                    tests/module_tests/basic_ll_test.cc
                    tests/module_tests/bloomfilter_test.cc
+                   tests/module_tests/bucket_logger_engine_test.cc
+                   tests/module_tests/bucket_logger_test.cc
                    tests/module_tests/checkpoint_remover_test.h
                    tests/module_tests/checkpoint_remover_test.cc
                    tests/module_tests/checkpoint_test.h
@@ -344,7 +347,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    $<TARGET_OBJECTS:couchstore_test_fileops>
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
-                   ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc)
+                   ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc
+                   ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 
     TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
                                PUBLIC

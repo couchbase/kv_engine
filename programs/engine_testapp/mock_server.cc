@@ -30,6 +30,7 @@
 
 struct mock_extensions {
     EXTENSION_LOGGER_DESCRIPTOR *logger;
+    EXTENSION_SPDLOG_GETTER* spdlogGetter;
 };
 
 std::array<std::list<mock_callbacks>, MAX_ENGINE_EVENT_TYPE + 1> mock_event_handlers;
@@ -327,6 +328,10 @@ static EXTENSION_LOGGER_DESCRIPTOR* mock_get_logger(void) {
     return extensions.logger;
 }
 
+static EXTENSION_SPDLOG_GETTER* mock_file_logger(void) {
+    return extensions.spdlogGetter;
+}
+
 static EXTENSION_LOG_LEVEL mock_get_log_level(void) {
     return log_level;
 }
@@ -379,6 +384,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       callback_api.perform_callbacks = mock_perform_callbacks;
 
       log_api.get_logger = mock_get_logger;
+      log_api.get_spdlogger = mock_file_logger;
       log_api.get_level = mock_get_log_level;
       log_api.set_level = mock_set_log_level;
 
@@ -413,6 +419,7 @@ void init_mock_server() {
     process_started = time(0);
     cb::logger::createConsoleLogger();
     extensions.logger = &cb::logger::getLoggerDescriptor();
+    extensions.spdlogGetter = &cb::logger::getSpdloggerRef();
     log_level = EXTENSION_LOG_FATAL;
 
     session_cas = 0x0102030405060708;

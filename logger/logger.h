@@ -34,10 +34,10 @@
 #include "config.h"
 
 #include <logger/visibility.h>
+#include <spdlog/logger.h>
 
 #include <boost/optional/optional_fwd.hpp>
 #include <memcached/extension.h>
-#include <spdlog/logger.h>
 
 #include <string>
 
@@ -131,8 +131,23 @@ spdlog::logger* get();
 LOGGER_PUBLIC_API
 void reset();
 
+/**
+ * Get a reference to a function that takes a format string and args in printf
+ * style to print using the spdlog::logger
+ *
+ * @return Function pointer
+ */
 LOGGER_PUBLIC_API
 EXTENSION_LOGGER_DESCRIPTOR& getLoggerDescriptor();
+
+/**
+ * Get a reference to a function that returns a reference to the memcached
+ * spdlog::logger object
+ *
+ * @return Function pointer
+ */
+LOGGER_PUBLIC_API
+EXTENSION_SPDLOG_GETTER& getSpdloggerRef();
 
 /**
  * Convert a log level as being used by the memcached logger

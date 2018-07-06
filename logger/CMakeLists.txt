@@ -3,7 +3,8 @@ add_library(memcached_logger SHARED
             logger.cc
             spdlogger.cc
             custom_rotating_file_sink.cc
-            custom_rotating_file_sink.h)
+            custom_rotating_file_sink.h
+            logger_test_fixture.h)
 
 target_link_libraries(memcached_logger cJSON platform dirutils spdlog)
 set_target_properties(memcached_logger PROPERTIES SOVERSION 1.0.0)
@@ -18,7 +19,9 @@ install(TARGETS memcached_logger
         ARCHIVE DESTINATION lib)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
-    add_executable(memcached_logger_test logger_test.cc)
+    add_executable(memcached_logger_test
+                   logger_test.cc
+                   logger_test_fixture.cc)
     target_link_libraries(memcached_logger_test gtest gtest_main mcd_util memcached_logger dirutils)
     target_include_directories(memcached_logger_test INTERFACE PRIVATE ${Platform_SOURCE_DIR}/external)
     add_test(NAME memcached-spdlogger-test

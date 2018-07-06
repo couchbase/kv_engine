@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1979,9 +1979,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     name = configuration.getCouchBucket();
 
     if (config != nullptr) {
-        LOG(EXTENSION_LOG_NOTICE,
-            R"(EPEngine::initialize: using configuration:"%s")",
-            config);
+        EP_LOG_INFO(R"(EPEngine::initialize: using configuration:"{}")",
+                    config);
     }
 
     maxFailoverEntries = configuration.getMaxFailoverEntries();

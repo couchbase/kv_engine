@@ -1606,6 +1606,10 @@ static EXTENSION_LOGGER_DESCRIPTOR* get_logger(void)
     return settings.extensions.logger;
 }
 
+static EXTENSION_SPDLOG_GETTER* get_spdlogger() {
+    return settings.extensions.spdlogger;
+}
+
 static EXTENSION_LOG_LEVEL get_log_level() {
     return settings.getLogLevel();
 }
@@ -1672,6 +1676,7 @@ SERVER_HANDLE_V1* get_server_api() {
         server_cookie_api.set_error_context = cookie_set_error_context;
 
         server_log_api.get_logger = get_logger;
+        server_log_api.get_spdlogger = get_spdlogger;
         server_log_api.get_level = get_log_level;
         server_log_api.set_level = set_log_level;
 
@@ -2230,6 +2235,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     try {
         cb::logger::createConsoleLogger();
         settings.extensions.logger = &cb::logger::getLoggerDescriptor();
+        settings.extensions.spdlogger = &cb::logger::getSpdloggerRef();
     } catch (const std::exception& e) {
         std::cerr << "Failed to create logger object: " << e.what()
                   << std::endl;

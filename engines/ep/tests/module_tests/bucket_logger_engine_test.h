@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2018 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,13 +15,18 @@
  *   limitations under the License.
  */
 
-#include <daemon/settings.h>
-#include <gtest/gtest.h>
+#include "bucket_logger_test.h"
+#include "evp_engine_test.h"
 
-int main(int argc, char** argv) {
-    cb::logger::createConsoleLogger();
-    settings.extensions.logger = &cb::logger::getLoggerDescriptor();
-    settings.extensions.spdlogger = &cb::logger::getSpdloggerRef();
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+/**
+ * Unit tests for the BucketLogger class
+ *
+ * Contains engine related tests that check:
+ *      - the prefixing of the engine (bucket name) to engine threads
+ */
+class BucketLoggerEngineTest : public BucketLoggerTest,
+                               public EventuallyPersistentEngineTest {
+protected:
+    void SetUp() override;
+    void TearDown() override;
+};

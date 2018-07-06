@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,107 +15,17 @@
  *   limitations under the License.
  */
 
-#include "logger.h"
+#include "logger_test_fixture.h"
 
-#include <gtest/gtest.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
 #include <platform/cbassert.h>
-#include <platform/dirutils.h>
+
 #include <valgrind/valgrind.h>
 
 #ifndef WIN32
 #include <sys/resource.h>
 #endif
-
-class SpdloggerTest : public ::testing::Test {
-protected:
-/*
- * Unset a few environment variables which affect how the logger works.
- * unsetenv() is not supported on Windows.
- */
-#ifndef WIN32
-    static void SetUpTestCase() {
-        unsetenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE");
-        unsetenv("CB_MAXIMIZE_LOGGER_BUFFER_SIZE");
-    }
-#endif
-
-    void SetUp() override {
-        RemoveFiles();
-
-        // We don't want to deal with multiple files in the
-        // basic tests. Set the file size to 20MB
-        SetUpLogger(20 * 1024);
-    }
-
-    /**
-     * Set up the logger
-     *
-     * @param cyclesize - the size to use before switching file
-     */
-    void SetUpLogger(size_t cyclesize) {
-        cb::logger::Config config;
-        config.filename = filename;
-        config.cyclesize = cyclesize;
-        config.buffersize = 8192;
-        config.unit_test = true;
-        config.console = false;
-
-        const auto ret = cb::logger::initialize(config);
-        EXPECT_FALSE(ret) << ret.get();
-        cb::logger::get()->set_level(spdlog::level::level_enum::debug);
-    }
-
-    void RemoveFiles() {
-        files = cb::io::findFilesWithPrefix(filename);
-        for (const auto& file : files) {
-            cb::io::rmrf(file);
-        }
-    }
-
-    void TearDown() override {
-        cb::logger::shutdown();
-        RemoveFiles();
-    }
-
-    std::string getLogContents() {
-        files = cb::io::findFilesWithPrefix(filename);
-        std::string ret;
-
-        for (const auto& file : files) {
-            ret.append(cb::io::loadFile(file));
-        }
-
-        return ret;
-    }
-
-    std::vector<std::string> files;
-    const std::string filename{"spdlogger_test"};
-    const std::string openingHook = "---------- Opening logfile: ";
-    const std::string closingHook = "---------- Closing logfile";
-};
-
-/**
- * Helper function - counts how many times a string appears in a file.
- *
- * @param file the name of the file
- * @param msg the message to searc hfor
- * @return the number of times we found the message in the file
- */
-int countInFile(const std::string& file, const std::string& msg) {
-    const auto content = cb::io::loadFile(file);
-
-    const auto* begin = content.data();
-    const auto* end = begin + content.size();
-
-    int count = 0;
-    while ((begin = std::search(begin, end, msg.begin(), msg.end())) != end) {
-        ++count;
-        begin += msg.size();
-    }
-    return count;
-}
 
 /**
  * Test that the printf-style of the logger still works
@@ -205,7 +115,7 @@ protected:
     void SetUp() override {
         RemoveFiles();
         // Use a 2 k file size to make sure that we rotate :)
-        SetUpLogger(2048);
+        setUpLogger(spdlog::level::level_enum::debug, 2048);
     }
 };
 

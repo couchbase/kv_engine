@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "objectregistry.h"
 #include "utility.h"
 
+#include <memcached/extension.h>
 #include <cstdarg>
 #include <mutex>
 
@@ -106,11 +107,20 @@ void Logger::vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) con
 }
 
 void Logger::setLoggerAPI(SERVER_LOG_API* api) {
+    if (globalBucketLogger == nullptr) {
+        globalBucketLogger = std::make_unique<BucketLogger>(
+                api->get_spdlogger()->spdlogGetter());
+    }
+
     Logger::logger_api.store(api, std::memory_order_relaxed);
 }
 
 void Logger::setGlobalLogLevel(EXTENSION_LOG_LEVEL level) {
     Logger::global_log_level.store(level, std::memory_order_relaxed);
+}
+
+EXTENSION_LOG_LEVEL Logger::getGlobalLogLevel() {
+    return Logger::global_log_level.load(std::memory_order_relaxed);
 }
 
 std::atomic<SERVER_LOG_API*> Logger::logger_api;

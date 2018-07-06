@@ -1,6 +1,6 @@
 /* -*- MODE: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,12 +31,15 @@
 #include <cstdio>
 
 #ifndef WIN32
+#include <include/memcached/extension.h>
 #include <spdlog/sinks/ansicolor_sink.h>
+
 #endif
 
 static const std::string logger_name{"spdlog_file_logger"};
 
 static EXTENSION_LOGGER_DESCRIPTOR descriptor;
+static EXTENSION_SPDLOG_GETTER ref;
 
 /**
  * Custom log pattern which the loggers will use.
@@ -160,7 +163,7 @@ boost::optional<std::string> cb::logger::initialize(
         //   |__dist_sink_mt = Distribute log messages to multiple sinks
         //       |     |__custom_rotating_file_sink_mt = adds opening & closing
         //       |                                       hooks to the file
-        //       |__ (color)__stderr_sink_mt = Send log messages to consloe
+        //       |__ (color)__stderr_sink_mt = Send log messages to console
         //
         // When a new log message is being submitted to the file_logger it
         // is subject to the log level specified on the file_logger. If it
@@ -258,4 +261,10 @@ LOGGER_PUBLIC_API
 EXTENSION_LOGGER_DESCRIPTOR& cb::logger::getLoggerDescriptor() {
     descriptor.log = log;
     return descriptor;
+}
+
+LOGGER_PUBLIC_API
+EXTENSION_SPDLOG_GETTER& cb::logger::getSpdloggerRef() {
+    ref.spdlogGetter = get;
+    return ref;
 }
