@@ -376,7 +376,7 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (dcp == nullptr || dcp->mutation == nullptr) {
+    if (!dcp) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -434,9 +434,7 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (dcp == nullptr || dcp->deletion == nullptr ||
-        (cookie.getConnection().isDcpDeleteV2() &&
-         dcp->deletion_v2 == nullptr)) {
+    if (!dcp) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -467,7 +465,7 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
     auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (dcp == nullptr || dcp->expiration == nullptr) {
+    if (!dcp) {
         // The attached bucket does not support DCP
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }

@@ -252,6 +252,58 @@ public:
                                       uint64_t end_seqno,
                                       uint32_t flags) override;
 
+    ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint32_t flags,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               uint32_t expiration,
+                               uint32_t lock_time,
+                               cb::const_byte_buffer meta,
+                               uint8_t nru) override;
+
+    ENGINE_ERROR_CODE deletion(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               cb::const_byte_buffer meta) override;
+
+    ENGINE_ERROR_CODE deletion_v2(gsl::not_null<const void*> cookie,
+                                  uint32_t opaque,
+                                  const DocKey& key,
+                                  cb::const_byte_buffer value,
+                                  size_t priv_bytes,
+                                  uint8_t datatype,
+                                  uint64_t cas,
+                                  uint16_t vbucket,
+                                  uint64_t by_seqno,
+                                  uint64_t rev_seqno,
+                                  uint32_t delete_time) override;
+
+    ENGINE_ERROR_CODE expiration(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 const DocKey& key,
+                                 cb::const_byte_buffer value,
+                                 size_t priv_bytes,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 uint16_t vbucket,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 cb::const_byte_buffer meta) override;
+
     /**
      * Delete a given key and value from the engine.
      *

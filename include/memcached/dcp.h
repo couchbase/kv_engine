@@ -455,7 +455,6 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a mutation message was received
      *
-     * @param handle The handle to the engine
      * @param cookie The cookie representing the connection
      * @param opaque The opaque field in the message (identifying the stream)
      * @param key The documents key
@@ -474,28 +473,25 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param nru The engine's NRU value
      * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE(*mutation)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     const DocKey& key,
-     cb::const_byte_buffer value,
-     size_t priv_bytes,
-     uint8_t datatype,
-     uint64_t cas,
-     uint16_t vbucket,
-     uint32_t flags,
-     uint64_t by_seqno,
-     uint64_t rev_seqno,
-     uint32_t expiration,
-     uint32_t lock_time,
-     cb::const_byte_buffer meta,
-     uint8_t nru);
+    virtual ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       const DocKey& key,
+                                       cb::const_byte_buffer value,
+                                       size_t priv_bytes,
+                                       uint8_t datatype,
+                                       uint64_t cas,
+                                       uint16_t vbucket,
+                                       uint32_t flags,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t expiration,
+                                       uint32_t lock_time,
+                                       cb::const_byte_buffer meta,
+                                       uint8_t nru) = 0;
 
     /**
      * Callback to the engine that a deletion message was received
      *
-     * @param handle The handle to the engine
      * @param cookie The cookie representing the connection
      * @param opaque The opaque field in the message (identifying the stream)
      * @param key The documents key
@@ -510,24 +506,21 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param meta The documents meta
      * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE(*deletion)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     const DocKey& key,
-     cb::const_byte_buffer value,
-     size_t priv_bytes,
-     uint8_t datatype,
-     uint64_t cas,
-     uint16_t vbucket,
-     uint64_t by_seqno,
-     uint64_t rev_seqno,
-     cb::const_byte_buffer meta);
+    virtual ENGINE_ERROR_CODE deletion(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       const DocKey& key,
+                                       cb::const_byte_buffer value,
+                                       size_t priv_bytes,
+                                       uint8_t datatype,
+                                       uint64_t cas,
+                                       uint16_t vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       cb::const_byte_buffer meta) = 0;
 
     /**
      * Callback to the engine that a deletion_v2 message was received
      *
-     * @param handle The handle to the engine
      * @param cookie The cookie representing the connection
      * @param opaque The opaque field in the message (identifying the stream)
      * @param key The documents key
@@ -542,24 +535,23 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param delete_time The time of the delete
      * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE(*deletion_v2)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     const DocKey& key,
-     cb::const_byte_buffer value,
-     size_t priv_bytes,
-     uint8_t datatype,
-     uint64_t cas,
-     uint16_t vbucket,
-     uint64_t by_seqno,
-     uint64_t rev_seqno,
-     uint32_t delete_time);
+    virtual ENGINE_ERROR_CODE deletion_v2(gsl::not_null<const void*> cookie,
+                                          uint32_t opaque,
+                                          const DocKey& key,
+                                          cb::const_byte_buffer value,
+                                          size_t priv_bytes,
+                                          uint8_t datatype,
+                                          uint64_t cas,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          uint32_t delete_time) {
+        return ENGINE_ENOTSUP;
+    }
 
     /**
      * Callback to the engine that an expiration message was received
      *
-     * @param handle The handle to the engine
      * @param cookie The cookie representing the connection
      * @param opaque The opaque field in the message (identifying the stream)
      * @param key The documents key
@@ -574,19 +566,17 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param meta The documents meta
      * @return Standard engine error code.
      */
-    ENGINE_ERROR_CODE(*expiration)
-    (gsl::not_null<ENGINE_HANDLE*> handle,
-     gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     const DocKey& key,
-     cb::const_byte_buffer value,
-     size_t priv_bytes,
-     uint8_t datatype,
-     uint64_t cas,
-     uint16_t vbucket,
-     uint64_t by_seqno,
-     uint64_t rev_seqno,
-     cb::const_byte_buffer meta);
+    virtual ENGINE_ERROR_CODE expiration(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         const DocKey& key,
+                                         cb::const_byte_buffer value,
+                                         size_t priv_bytes,
+                                         uint8_t datatype,
+                                         uint64_t cas,
+                                         uint16_t vbucket,
+                                         uint64_t by_seqno,
+                                         uint64_t rev_seqno,
+                                         cb::const_byte_buffer meta) = 0;
 
     /**
      * Callback to the engine that a flush message was received

@@ -35,10 +35,6 @@
 class NoBucket : public ENGINE_HANDLE_V1, public dcp_interface {
 public:
     NoBucket() {
-        dcp_interface::mutation = dcp_mutation;
-        dcp_interface::deletion = dcp_deletion;
-        dcp_interface::deletion_v2 = dcp_deletion_v2;
-        dcp_interface::expiration = dcp_expiration;
         dcp_interface::flush = dcp_flush;
         dcp_interface::set_vbucket_state = dcp_set_vbucket_state;
         dcp_interface::system_event = dcp_system_event;
@@ -260,6 +256,66 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
+    ENGINE_ERROR_CODE mutation(gsl::not_null<const void*>,
+                               uint32_t,
+                               const DocKey&,
+                               cb::const_byte_buffer,
+                               size_t,
+                               uint8_t,
+                               uint64_t,
+                               uint16_t,
+                               uint32_t,
+                               uint64_t,
+                               uint64_t,
+                               uint32_t,
+                               uint32_t,
+                               cb::const_byte_buffer,
+                               uint8_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE deletion(gsl::not_null<const void*>,
+                               uint32_t,
+                               const DocKey&,
+                               cb::const_byte_buffer,
+                               size_t,
+                               uint8_t,
+                               uint64_t,
+                               uint16_t,
+                               uint64_t,
+                               uint64_t,
+                               cb::const_byte_buffer) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE deletion_v2(gsl::not_null<const void*>,
+                                  uint32_t,
+                                  const DocKey&,
+                                  cb::const_byte_buffer,
+                                  size_t,
+                                  uint8_t,
+                                  uint64_t,
+                                  uint16_t,
+                                  uint64_t,
+                                  uint64_t,
+                                  uint32_t) override {
+        return ENGINE_NO_BUCKET;
+    }
+
+    ENGINE_ERROR_CODE expiration(gsl::not_null<const void*>,
+                                 uint32_t,
+                                 const DocKey&,
+                                 cb::const_byte_buffer,
+                                 size_t,
+                                 uint8_t,
+                                 uint64_t,
+                                 uint16_t,
+                                 uint64_t,
+                                 uint64_t,
+                                 cb::const_byte_buffer) override {
+        return ENGINE_NO_BUCKET;
+    }
+
 private:
     /**
      * Convert the ENGINE_HANDLE to the underlying class type
@@ -277,70 +333,6 @@ private:
         throw std::logic_error(
                 "NoBucket::set_item_info: no items should have"
                 " been allocated from this engine");
-    }
-
-    static ENGINE_ERROR_CODE dcp_mutation(gsl::not_null<ENGINE_HANDLE*>,
-                                          gsl::not_null<const void*>,
-                                          uint32_t,
-                                          const DocKey&,
-                                          cb::const_byte_buffer,
-                                          size_t,
-                                          uint8_t,
-                                          uint64_t,
-                                          uint16_t,
-                                          uint32_t,
-                                          uint64_t,
-                                          uint64_t,
-                                          uint32_t,
-                                          uint32_t,
-                                          cb::const_byte_buffer,
-                                          uint8_t) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE dcp_deletion(gsl::not_null<ENGINE_HANDLE*>,
-                                          gsl::not_null<const void*>,
-                                          uint32_t,
-                                          const DocKey&,
-                                          cb::const_byte_buffer,
-                                          size_t,
-                                          uint8_t,
-                                          uint64_t,
-                                          uint16_t,
-                                          uint64_t,
-                                          uint64_t,
-                                          cb::const_byte_buffer) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE dcp_deletion_v2(gsl::not_null<ENGINE_HANDLE*>,
-                                             gsl::not_null<const void*>,
-                                             uint32_t,
-                                             const DocKey&,
-                                             cb::const_byte_buffer,
-                                             size_t,
-                                             uint8_t,
-                                             uint64_t,
-                                             uint16_t,
-                                             uint64_t,
-                                             uint64_t,
-                                             uint32_t) {
-        return ENGINE_NO_BUCKET;
-    }
-
-    static ENGINE_ERROR_CODE dcp_expiration(gsl::not_null<ENGINE_HANDLE*>,
-                                            gsl::not_null<const void*>,
-                                            uint32_t,
-                                            const DocKey&,
-                                            cb::const_byte_buffer,
-                                            size_t,
-                                            uint8_t,
-                                            uint64_t,
-                                            uint16_t,
-                                            uint64_t,
-                                            uint64_t,
-                                            cb::const_byte_buffer) {
-        return ENGINE_NO_BUCKET;
     }
 
     static ENGINE_ERROR_CODE dcp_flush(gsl::not_null<ENGINE_HANDLE*>,

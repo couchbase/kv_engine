@@ -182,6 +182,46 @@ struct mock_engine : public EngineIface, public DcpIface {
                                       uint64_t end_seqno,
                                       uint32_t flags) override;
 
+    ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint32_t flags,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               uint32_t expiration,
+                               uint32_t lock_time,
+                               cb::const_byte_buffer meta,
+                               uint8_t nru) override;
+
+    ENGINE_ERROR_CODE deletion(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               cb::const_byte_buffer meta) override;
+
+    ENGINE_ERROR_CODE expiration(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 const DocKey& key,
+                                 cb::const_byte_buffer value,
+                                 size_t priv_bytes,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 uint16_t vbucket,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 cb::const_byte_buffer meta) override;
+
     ENGINE_HANDLE_V1 *the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
@@ -649,27 +689,24 @@ ENGINE_ERROR_CODE mock_engine::snapshot_marker(
             cookie, opaque, vbucket, start_seqno, end_seqno, flags);
 }
 
-static ENGINE_ERROR_CODE mock_dcp_mutation(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           const DocKey& key,
-                                           cb::const_byte_buffer value,
-                                           size_t priv_bytes,
-                                           uint8_t datatype,
-                                           uint64_t cas,
-                                           uint16_t vbucket,
-                                           uint32_t flags,
-                                           uint64_t by_seqno,
-                                           uint64_t rev_seqno,
-                                           uint32_t expiration,
-                                           uint32_t lock_time,
-                                           cb::const_byte_buffer meta,
-                                           uint8_t nru) {
+ENGINE_ERROR_CODE mock_engine::mutation(gsl::not_null<const void*> cookie,
+                                        uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        uint16_t vbucket,
+                                        uint32_t flags,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        uint32_t expiration,
+                                        uint32_t lock_time,
+                                        cb::const_byte_buffer meta,
+                                        uint8_t nru) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
-    struct mock_engine* me = get_handle(handle);
-    auto& dcp = dynamic_cast<DcpIface&>(*me->the_engine);
-    auto engine_fn = std::bind(dcp.mutation,
-                               get_engine_from_handle(handle),
+    auto engine_fn = std::bind(&DcpIface::mutation,
+                               the_engine_dcp,
                                static_cast<const void*>(c),
                                opaque,
                                key,
@@ -692,23 +729,20 @@ static ENGINE_ERROR_CODE mock_dcp_mutation(gsl::not_null<ENGINE_HANDLE*> handle,
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_deletion(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           const DocKey& key,
-                                           cb::const_byte_buffer value,
-                                           size_t priv_bytes,
-                                           uint8_t datatype,
-                                           uint64_t cas,
-                                           uint16_t vbucket,
-                                           uint64_t by_seqno,
-                                           uint64_t rev_seqno,
-                                           cb::const_byte_buffer meta) {
+ENGINE_ERROR_CODE mock_engine::deletion(gsl::not_null<const void*> cookie,
+                                        uint32_t opaque,
+                                        const DocKey& key,
+                                        cb::const_byte_buffer value,
+                                        size_t priv_bytes,
+                                        uint8_t datatype,
+                                        uint64_t cas,
+                                        uint16_t vbucket,
+                                        uint64_t by_seqno,
+                                        uint64_t rev_seqno,
+                                        cb::const_byte_buffer meta) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
-    struct mock_engine* me = get_handle(handle);
-    auto& dcp = dynamic_cast<DcpIface&>(*me->the_engine);
-    auto engine_fn = std::bind(dcp.deletion,
-                               get_engine_from_handle(handle),
+    auto engine_fn = std::bind(&DcpIface::deletion,
+                               the_engine_dcp,
                                static_cast<const void*>(c),
                                opaque,
                                key,
@@ -721,30 +755,27 @@ static ENGINE_ERROR_CODE mock_dcp_deletion(gsl::not_null<ENGINE_HANDLE*> handle,
                                rev_seqno,
                                meta);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    ENGINE_ERROR_CODE ret =
+            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
-static ENGINE_ERROR_CODE mock_dcp_expiration(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        const DocKey& key,
-        cb::const_byte_buffer value,
-        size_t priv_bytes,
-        uint8_t datatype,
-        uint64_t cas,
-        uint16_t vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        cb::const_byte_buffer meta) {
+ENGINE_ERROR_CODE mock_engine::expiration(gsl::not_null<const void*> cookie,
+                                          uint32_t opaque,
+                                          const DocKey& key,
+                                          cb::const_byte_buffer value,
+                                          size_t priv_bytes,
+                                          uint8_t datatype,
+                                          uint64_t cas,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          cb::const_byte_buffer meta) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
-    struct mock_engine* me = get_handle(handle);
-    auto& dcp = dynamic_cast<DcpIface&>(*me->the_engine);
-    auto engine_fn = std::bind(dcp.expiration,
-                               get_engine_from_handle(handle),
+    auto engine_fn = std::bind(&DcpIface::expiration,
+                               the_engine_dcp,
                                static_cast<const void*>(c),
                                opaque,
                                key,
@@ -757,7 +788,8 @@ static ENGINE_ERROR_CODE mock_dcp_expiration(
                                rev_seqno,
                                meta);
 
-    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
+    ENGINE_ERROR_CODE ret =
+            call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);
 
     check_and_destroy_mock_connstruct(c, cookie);
     return ret;
@@ -985,9 +1017,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->mutation = mock_dcp_mutation;
-        me->deletion = mock_dcp_deletion;
-        me->expiration = mock_dcp_expiration;
         me->DcpIface::flush = mock_dcp_flush;
         me->set_vbucket_state = mock_dcp_set_vbucket_state;
         me->noop = mock_dcp_noop;

@@ -724,6 +724,58 @@ public:
                                       uint64_t end_seqno,
                                       uint32_t flags) override;
 
+    ENGINE_ERROR_CODE mutation(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint32_t flags,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               uint32_t expiration,
+                               uint32_t lock_time,
+                               cb::const_byte_buffer meta,
+                               uint8_t nru) override;
+
+    ENGINE_ERROR_CODE deletion(gsl::not_null<const void*> cookie,
+                               uint32_t opaque,
+                               const DocKey& key,
+                               cb::const_byte_buffer value,
+                               size_t priv_bytes,
+                               uint8_t datatype,
+                               uint64_t cas,
+                               uint16_t vbucket,
+                               uint64_t by_seqno,
+                               uint64_t rev_seqno,
+                               cb::const_byte_buffer meta) override;
+
+    ENGINE_ERROR_CODE deletion_v2(gsl::not_null<const void*> cookie,
+                                  uint32_t opaque,
+                                  const DocKey& key,
+                                  cb::const_byte_buffer value,
+                                  size_t priv_bytes,
+                                  uint8_t datatype,
+                                  uint64_t cas,
+                                  uint16_t vbucket,
+                                  uint64_t by_seqno,
+                                  uint64_t rev_seqno,
+                                  uint32_t delete_time) override;
+
+    ENGINE_ERROR_CODE expiration(gsl::not_null<const void*> cookie,
+                                 uint32_t opaque,
+                                 const DocKey& key,
+                                 cb::const_byte_buffer value,
+                                 size_t priv_bytes,
+                                 uint8_t datatype,
+                                 uint64_t cas,
+                                 uint16_t vbucket,
+                                 uint64_t by_seqno,
+                                 uint64_t rev_seqno,
+                                 cb::const_byte_buffer meta) override;
+
     static void handle_disconnect(const void* cookie,
                                   ENGINE_EVENT_TYPE type,
                                   const void* event_data,
@@ -822,64 +874,6 @@ private:
     std::queue<const void*> pending_io_ops;
 
     std::atomic<bool> stop_notification_thread;
-
-    static ENGINE_ERROR_CODE dcp_mutation(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          uint16_t vbucket,
-                                          uint32_t flags,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t expiration,
-                                          uint32_t lock_time,
-                                          cb::const_byte_buffer meta,
-                                          uint8_t nru);
-
-    static ENGINE_ERROR_CODE dcp_deletion(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          uint16_t vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          cb::const_byte_buffer meta);
-
-    static ENGINE_ERROR_CODE dcp_deletion_v2(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            const DocKey& key,
-            cb::const_byte_buffer value,
-            size_t priv_bytes,
-            uint8_t datatype,
-            uint64_t cas,
-            uint16_t vbucket,
-            uint64_t by_seqno,
-            uint64_t rev_seqno,
-            uint32_t delete_time);
-
-    static ENGINE_ERROR_CODE dcp_expiration(
-            gsl::not_null<ENGINE_HANDLE*> handle,
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            const DocKey& key,
-            cb::const_byte_buffer value,
-            size_t priv_bytes,
-            uint8_t datatype,
-            uint64_t cas,
-            uint16_t vbucket,
-            uint64_t by_seqno,
-            uint64_t rev_seqno,
-            cb::const_byte_buffer meta);
 
     static ENGINE_ERROR_CODE dcp_flush(gsl::not_null<ENGINE_HANDLE*> handle,
                                        gsl::not_null<const void*> cookie,
@@ -1236,10 +1230,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     DcpIface::buffer_acknowledgement = dcp_buffer_acknowledgement;
     DcpIface::control = dcp_control;
-    DcpIface::mutation = dcp_mutation;
-    DcpIface::deletion = dcp_deletion;
-    DcpIface::deletion_v2 = dcp_deletion_v2;
-    DcpIface::expiration = dcp_expiration;
     DcpIface::flush = dcp_flush;
     DcpIface::set_vbucket_state = dcp_set_vbucket_state;
     DcpIface::noop = dcp_noop;
@@ -1442,137 +1432,123 @@ ENGINE_ERROR_CODE EWB_Engine::snapshot_marker(gsl::not_null<const void*> cookie,
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_mutation(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           const DocKey& key,
-                                           cb::const_byte_buffer value,
-                                           size_t priv_bytes,
-                                           uint8_t datatype,
-                                           uint64_t cas,
-                                           uint16_t vbucket,
-                                           uint32_t flags,
-                                           uint64_t by_seqno,
-                                           uint64_t rev_seqno,
-                                           uint32_t expiration,
-                                           uint32_t lock_time,
-                                           cb::const_byte_buffer meta,
-                                           uint8_t nru) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->mutation) {
+ENGINE_ERROR_CODE EWB_Engine::mutation(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       const DocKey& key,
+                                       cb::const_byte_buffer value,
+                                       size_t priv_bytes,
+                                       uint8_t datatype,
+                                       uint64_t cas,
+                                       uint16_t vbucket,
+                                       uint32_t flags,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       uint32_t expiration,
+                                       uint32_t lock_time,
+                                       cb::const_byte_buffer meta,
+                                       uint8_t nru) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->mutation(ewb->real_handle,
-                                              cookie,
-                                              opaque,
-                                              key,
-                                              value,
-                                              priv_bytes,
-                                              datatype,
-                                              cas,
-                                              vbucket,
-                                              flags,
-                                              by_seqno,
-                                              rev_seqno,
-                                              expiration,
-                                              lock_time,
-                                              meta,
-                                              nru);
+        return real_engine_dcp->mutation(cookie,
+                                         opaque,
+                                         key,
+                                         value,
+                                         priv_bytes,
+                                         datatype,
+                                         cas,
+                                         vbucket,
+                                         flags,
+                                         by_seqno,
+                                         rev_seqno,
+                                         expiration,
+                                         lock_time,
+                                         meta,
+                                         nru);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_deletion(gsl::not_null<ENGINE_HANDLE*> handle,
-                                           gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           const DocKey& key,
-                                           cb::const_byte_buffer value,
-                                           size_t priv_bytes,
-                                           uint8_t datatype,
-                                           uint64_t cas,
-                                           uint16_t vbucket,
-                                           uint64_t by_seqno,
-                                           uint64_t rev_seqno,
-                                           cb::const_byte_buffer meta) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->deletion) {
+ENGINE_ERROR_CODE EWB_Engine::deletion(gsl::not_null<const void*> cookie,
+                                       uint32_t opaque,
+                                       const DocKey& key,
+                                       cb::const_byte_buffer value,
+                                       size_t priv_bytes,
+                                       uint8_t datatype,
+                                       uint64_t cas,
+                                       uint16_t vbucket,
+                                       uint64_t by_seqno,
+                                       uint64_t rev_seqno,
+                                       cb::const_byte_buffer meta) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->deletion(ewb->real_handle,
-                                              cookie,
-                                              opaque,
-                                              key,
-                                              value,
-                                              priv_bytes,
-                                              datatype,
-                                              cas,
-                                              vbucket,
-                                              by_seqno,
-                                              rev_seqno,
-                                              meta);
+        return real_engine_dcp->deletion(cookie,
+                                         opaque,
+                                         key,
+                                         value,
+                                         priv_bytes,
+                                         datatype,
+                                         cas,
+                                         vbucket,
+                                         by_seqno,
+                                         rev_seqno,
+                                         meta);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_deletion_v2(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        const DocKey& key,
-        cb::const_byte_buffer value,
-        size_t priv_bytes,
-        uint8_t datatype,
-        uint64_t cas,
-        uint16_t vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        uint32_t delete_time) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->deletion_v2) {
+ENGINE_ERROR_CODE EWB_Engine::deletion_v2(gsl::not_null<const void*> cookie,
+                                          uint32_t opaque,
+                                          const DocKey& key,
+                                          cb::const_byte_buffer value,
+                                          size_t priv_bytes,
+                                          uint8_t datatype,
+                                          uint64_t cas,
+                                          uint16_t vbucket,
+                                          uint64_t by_seqno,
+                                          uint64_t rev_seqno,
+                                          uint32_t delete_time) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->deletion_v2(ewb->real_handle,
-                                                 cookie,
-                                                 opaque,
-                                                 key,
-                                                 value,
-                                                 priv_bytes,
-                                                 datatype,
-                                                 cas,
-                                                 vbucket,
-                                                 by_seqno,
-                                                 rev_seqno,
-                                                 delete_time);
+        return real_engine_dcp->deletion_v2(cookie,
+                                            opaque,
+                                            key,
+                                            value,
+                                            priv_bytes,
+                                            datatype,
+                                            cas,
+                                            vbucket,
+                                            by_seqno,
+                                            rev_seqno,
+                                            delete_time);
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::dcp_expiration(
-        gsl::not_null<ENGINE_HANDLE*> handle,
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        const DocKey& key,
-        cb::const_byte_buffer value,
-        size_t priv_bytes,
-        uint8_t datatype,
-        uint64_t cas,
-        uint16_t vbucket,
-        uint64_t by_seqno,
-        uint64_t rev_seqno,
-        cb::const_byte_buffer meta) {
-    EWB_Engine* ewb = to_engine(handle);
-    if (!ewb->real_engine_dcp || !ewb->real_engine_dcp->expiration) {
+ENGINE_ERROR_CODE EWB_Engine::expiration(gsl::not_null<const void*> cookie,
+                                         uint32_t opaque,
+                                         const DocKey& key,
+                                         cb::const_byte_buffer value,
+                                         size_t priv_bytes,
+                                         uint8_t datatype,
+                                         uint64_t cas,
+                                         uint16_t vbucket,
+                                         uint64_t by_seqno,
+                                         uint64_t rev_seqno,
+                                         cb::const_byte_buffer meta) {
+    if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return ewb->real_engine_dcp->expiration(ewb->real_handle,
-                                                cookie,
-                                                opaque,
-                                                key,
-                                                value,
-                                                priv_bytes,
-                                                datatype,
-                                                cas,
-                                                vbucket,
-                                                by_seqno,
-                                                rev_seqno,
-                                                meta);
+        return real_engine_dcp->expiration(cookie,
+                                           opaque,
+                                           key,
+                                           value,
+                                           priv_bytes,
+                                           datatype,
+                                           cas,
+                                           vbucket,
+                                           by_seqno,
+                                           rev_seqno,
+                                           meta);
     }
 }
 

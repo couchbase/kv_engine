@@ -1461,28 +1461,28 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::snapshot_marker(
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpMutation(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        uint16_t vbucket,
-                                        uint32_t flags,
-                                        uint64_t by_seqno,
-                                        uint64_t rev_seqno,
-                                        uint32_t expiration,
-                                        uint32_t lock_time,
-                                        cb::const_byte_buffer meta,
-                                        uint8_t nru) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::mutation(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        uint16_t vbucket,
+        uint32_t flags,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t expiration,
+        uint32_t lock_time,
+        cb::const_byte_buffer meta,
+        uint8_t nru) {
     if (!mcbp::datatype::is_valid(datatype)) {
         LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
             " (DCPMutation)");
         return ENGINE_EINVAL;
     }
-    auto engine = acquireEngine(handle);
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->mutation(opaque, key, value, priv_bytes, datatype, cas,
@@ -1492,19 +1492,19 @@ static ENGINE_ERROR_CODE EvpDcpMutation(gsl::not_null<ENGINE_HANDLE*> handle,
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpDeletion(gsl::not_null<ENGINE_HANDLE*> handle,
-                                        gsl::not_null<const void*> cookie,
-                                        uint32_t opaque,
-                                        const DocKey& key,
-                                        cb::const_byte_buffer value,
-                                        size_t priv_bytes,
-                                        uint8_t datatype,
-                                        uint64_t cas,
-                                        uint16_t vbucket,
-                                        uint64_t by_seqno,
-                                        uint64_t rev_seqno,
-                                        cb::const_byte_buffer meta) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::deletion(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        uint16_t vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        cb::const_byte_buffer meta) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->deletion(opaque, key, value, priv_bytes, datatype, cas,
@@ -1513,19 +1513,19 @@ static ENGINE_ERROR_CODE EvpDcpDeletion(gsl::not_null<ENGINE_HANDLE*> handle,
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpDeletionV2(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          uint16_t vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          uint32_t delete_time) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::deletion_v2(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        uint16_t vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t delete_time) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->deletionV2(opaque,
@@ -1542,19 +1542,19 @@ static ENGINE_ERROR_CODE EvpDcpDeletionV2(gsl::not_null<ENGINE_HANDLE*> handle,
     return ENGINE_DISCONNECT;
 }
 
-static ENGINE_ERROR_CODE EvpDcpExpiration(gsl::not_null<ENGINE_HANDLE*> handle,
-                                          gsl::not_null<const void*> cookie,
-                                          uint32_t opaque,
-                                          const DocKey& key,
-                                          cb::const_byte_buffer value,
-                                          size_t priv_bytes,
-                                          uint8_t datatype,
-                                          uint64_t cas,
-                                          uint16_t vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          cb::const_byte_buffer meta) {
-    auto engine = acquireEngine(handle);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::expiration(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        const DocKey& key,
+        cb::const_byte_buffer value,
+        size_t priv_bytes,
+        uint8_t datatype,
+        uint64_t cas,
+        uint16_t vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        cb::const_byte_buffer meta) {
+    auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->expiration(opaque, key, value, priv_bytes, datatype, cas,
@@ -1804,10 +1804,6 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    dcp_interface::mutation = EvpDcpMutation;
-    dcp_interface::deletion = EvpDcpDeletion;
-    dcp_interface::deletion_v2 = EvpDcpDeletionV2;
-    dcp_interface::expiration = EvpDcpExpiration;
     dcp_interface::flush = EvpDcpFlush;
     dcp_interface::set_vbucket_state = EvpDcpSetVbucketState;
     dcp_interface::noop = EvpDcpNoop;

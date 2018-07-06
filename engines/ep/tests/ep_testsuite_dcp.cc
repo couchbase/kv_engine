@@ -830,8 +830,7 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         const DocKey docKey{key, DocNamespace::DefaultCollection};
         const cb::const_byte_buffer value{(uint8_t*)data.data(), data.size()};
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               opaque,
                               docKey,
                               value,
@@ -1027,8 +1026,7 @@ extern "C" {
 
             const std::string key = ss.str();
             const DocKey docKey{key, DocNamespace::DefaultCollection};
-            ctx->dcp->mutation(ctx->h,
-                               cookie,
+            ctx->dcp->mutation(cookie,
                                stream_opaque,
                                docKey,
                                {(const uint8_t*)"value", 5},
@@ -3271,8 +3269,7 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -3379,8 +3376,7 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -3403,8 +3399,7 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -3537,8 +3532,7 @@ static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
         const std::string key("key" + std::to_string(i));
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -3575,8 +3569,7 @@ static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
     const std::string key("key" + std::to_string(i));
     const DocKey docKey(key, DocNamespace::DefaultCollection);
     checkeq(ENGINE_KEY_ENOENT,
-            dcp->mutation(h,
-                          cookie,
+            dcp->mutation(cookie,
                           stream_opaque,
                           docKey,
                           {(const uint8_t*)"value", 5},
@@ -3665,8 +3658,7 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
         const std::string key("key" + std::to_string(i));
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -4502,8 +4494,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
     // Ensure that we don't accept invalid opaque values
     const DocKey docKey{key, DocNamespace::DefaultCollection};
     checkeq(ENGINE_KEY_ENOENT,
-            dcp->mutation(h,
-                          cookie,
+            dcp->mutation(cookie,
                           opaque + 1,
                           docKey,
                           {(const uint8_t*)data, dataLen},
@@ -4539,8 +4530,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
 
     // Consume an DCP mutation
     checkeq(ENGINE_SUCCESS,
-            dcp->mutation(h,
-                          cookie,
+            dcp->mutation(cookie,
                           opaque,
                           docKey,
                           {(const uint8_t*)data, dataLen},
@@ -4619,8 +4609,7 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     const DocKey docKey{key, DocNamespace::DefaultCollection};
     // verify that we don't accept invalid opaque id's
     checkeq(ENGINE_KEY_ENOENT,
-            dcp->deletion(h,
-                          cookie,
+            dcp->deletion(cookie,
                           opaque + 1,
                           docKey,
                           {},
@@ -4636,8 +4625,7 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     // Consume an DCP deletion
     checkeq(ENGINE_SUCCESS,
-            dcp->deletion(h,
-                          cookie,
+            dcp->deletion(cookie,
                           opaque,
                           docKey,
                           {},
@@ -5190,8 +5178,7 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
     for (int i = 5; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
         const DocKey docKey{key, DocNamespace::DefaultCollection};
-        checkeq(dcp->mutation(h,
-                              cookie,
+        checkeq(dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -5212,8 +5199,7 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
 
     // Send a mutation and a deletion both out-of-sequence
     const DocKey key{(const uint8_t*)"key", 3, DocNamespace::DefaultCollection};
-    checkeq(dcp->mutation(h,
-                          cookie,
+    checkeq(dcp->mutation(cookie,
                           stream_opaque,
                           key,
                           {(const uint8_t*)"val", 3},
@@ -5232,8 +5218,7 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
             "Mutation should've returned ERANGE!");
     const DocKey key5{(const uint8_t*)"key5", 4,
                       DocNamespace::DefaultCollection};
-    checkeq(dcp->deletion(h,
-                          cookie,
+    checkeq(dcp->deletion(cookie,
                           stream_opaque,
                           key5,
                           {},
@@ -5253,8 +5238,7 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
 
     const DocKey docKey20{(const uint8_t*)"key20", 5,
                           DocNamespace::DefaultCollection};
-    ENGINE_ERROR_CODE err = dcp->mutation(h,
-                                          cookie,
+    ENGINE_ERROR_CODE err = dcp->mutation(cookie,
                                           stream_opaque,
                                           docKey20,
                                           {(const uint8_t*)"val", 3},
@@ -5323,8 +5307,7 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
     for (int i = 1; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
         const DocKey docKey{key, DocNamespace::DefaultCollection};
-        checkeq(dcp->mutation(h,
-                              cookie1,
+        checkeq(dcp->mutation(cookie1,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -5377,8 +5360,7 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
     for (int i = 5; i <= 15; i++) {
         const std::string key("key_" + std::to_string(i));
         const DocKey docKey(key, DocNamespace::DefaultCollection);
-        ENGINE_ERROR_CODE err = dcp->mutation(h,
-                                              cookie2,
+        ENGINE_ERROR_CODE err = dcp->mutation(cookie2,
                                               stream_opaque,
                                               docKey,
                                               {(const uint8_t*)"val", 3},
@@ -5435,8 +5417,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(ENGINE_HANDLE* h,
     DocKey docKey{key, DocNamespace::DefaultCollection};
     cb::const_byte_buffer value{(const uint8_t*)"value", 5};
 
-    checkeq(dcp->mutation(h,
-                          cookie,
+    checkeq(dcp->mutation(cookie,
                           stream_opaque,
                           docKey,
                           value,
@@ -5454,8 +5435,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(ENGINE_HANDLE* h,
             ENGINE_EINVAL,
             "Mutation should have returned EINVAL!");
 
-    checkeq(dcp->deletion(h,
-                          cookie,
+    checkeq(dcp->deletion(cookie,
                           stream_opaque,
                           docKey,
                           {},
@@ -5502,8 +5482,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
         const std::string key("key" + std::to_string(i));
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -5822,8 +5801,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
         const std::string key{prefix + std::to_string(ii)};
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)value.c_str(), value.size()},
@@ -5848,8 +5826,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
     const std::string delete_key{prefix + "0"};
     const DocKey docKey{delete_key, DocNamespace::DefaultCollection};
     checkeq(ENGINE_SUCCESS,
-            dcp->deletion(h,
-                          cookie,
+            dcp->deletion(cookie,
                           stream_opaque,
                           docKey,
                           {},
@@ -6044,8 +6021,7 @@ static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
         const std::string key("key" + std::to_string(i));
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
@@ -6116,8 +6092,7 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
     const std::string key("key");
     const DocKey docKey(key, DocNamespace::DefaultCollection);
     checkeq(ENGINE_SUCCESS,
-            dcp->mutation(h,
-                          cookie,
+            dcp->mutation(cookie,
                           stream_opaque,
                           docKey,
                           {(const uint8_t*)"value", 5},
@@ -6304,8 +6279,7 @@ static enum test_result test_mb19982(ENGINE_HANDLE *h,
         const std::string key("key-" + std::to_string(i));
         const DocKey docKey(key, DocNamespace::DefaultCollection);
         checkeq(ENGINE_SUCCESS,
-                dcp->mutation(h,
-                              cookie,
+                dcp->mutation(cookie,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},

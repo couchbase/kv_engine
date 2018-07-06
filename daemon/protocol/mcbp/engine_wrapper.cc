@@ -399,8 +399,7 @@ ENGINE_ERROR_CODE dcpDeletion(Cookie& cookie,
                               cb::const_byte_buffer meta) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->deletion(connection.getBucketEngineAsV0(),
-                             &cookie,
+    auto ret = dcp->deletion(&cookie,
                              opaque,
                              key,
                              value,
@@ -432,8 +431,7 @@ ENGINE_ERROR_CODE dcpDeletionV2(Cookie& cookie,
                                 uint32_t deleteTime) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->deletion_v2(connection.getBucketEngineAsV0(),
-                                &cookie,
+    auto ret = dcp->deletion_v2(&cookie,
                                 opaque,
                                 key,
                                 value,
@@ -465,8 +463,7 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
                                 cb::const_byte_buffer meta) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->expiration(connection.getBucketEngineAsV0(),
-                               &cookie,
+    auto ret = dcp->expiration(&cookie,
                                opaque,
                                key,
                                value,
@@ -530,8 +527,7 @@ ENGINE_ERROR_CODE dcpMutation(Cookie& cookie,
                               uint8_t nru) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->mutation(connection.getBucketEngineAsV0(),
-                             &cookie,
+    auto ret = dcp->mutation(&cookie,
                              opaque,
                              key,
                              value,
