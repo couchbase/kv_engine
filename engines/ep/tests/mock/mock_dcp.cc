@@ -110,9 +110,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::add_stream_rsp(
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_snapshot_marker_resp(
-        gsl::not_null<const void*> cookie, uint32_t opaque, uint8_t status) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::marker_rsp(uint32_t opaque,
+                                                      uint8_t status) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     dcp_last_opaque = opaque;
@@ -121,11 +120,19 @@ static ENGINE_ERROR_CODE mock_snapshot_marker_resp(
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_stream_end(gsl::not_null<const void*> cookie,
-                                         uint32_t opaque,
-                                         uint16_t vbucket,
-                                         uint32_t flags) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state_rsp(
+        uint32_t opaque, uint8_t status) {
+    clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
+    dcp_last_opaque = opaque;
+    dcp_last_status = status;
+    dcp_last_packet_size = 24;
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(uint32_t opaque,
+                                                      uint16_t vbucket,
+                                                      uint32_t flags) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_END;
     dcp_last_opaque = opaque;
@@ -135,13 +142,11 @@ static ENGINE_ERROR_CODE mock_stream_end(gsl::not_null<const void*> cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_marker(gsl::not_null<const void*> cookie,
-                                     uint32_t opaque,
-                                     uint16_t vbucket,
-                                     uint64_t snap_start_seqno,
-                                     uint64_t snap_end_seqno,
-                                     uint32_t flags) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
+                                                  uint16_t vbucket,
+                                                  uint64_t snap_start_seqno,
+                                                  uint64_t snap_end_seqno,
+                                                  uint32_t flags) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     dcp_last_opaque = opaque;
@@ -376,9 +381,6 @@ static ENGINE_ERROR_CODE mock_get_error_map(gsl::not_null<const void*> cookie,
 }
 
 MockDcpMessageProducers::MockDcpMessageProducers(EngineIface* engine) {
-    marker_rsp = mock_snapshot_marker_resp;
-    stream_end = mock_stream_end;
-    marker = mock_marker;
     mutation = mock_mutation;
     deletion = mock_deletion_V1;
     deletion_v2 = mock_deletion_V2;

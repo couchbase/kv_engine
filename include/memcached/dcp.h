@@ -53,15 +53,10 @@ struct dcp_message_producers {
                                              uint32_t stream_opaque,
                                              uint8_t status) = 0;
 
-    ENGINE_ERROR_CODE(*marker_rsp)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint8_t status) = nullptr;
+    virtual ENGINE_ERROR_CODE marker_rsp(uint32_t opaque, uint8_t status) = 0;
 
-    ENGINE_ERROR_CODE(*set_vbucket_state_rsp)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint8_t status) = nullptr;
+    virtual ENGINE_ERROR_CODE set_vbucket_state_rsp(uint32_t opaque,
+                                                    uint8_t status) = 0;
 
     /**
      * Send a Stream End message
@@ -79,11 +74,9 @@ struct dcp_message_producers {
      *         ENGINE_EWOULDBLOCK if no data is available
      *         ENGINE_* for errors
      */
-    ENGINE_ERROR_CODE(*stream_end)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint32_t flags) = nullptr;
+    virtual ENGINE_ERROR_CODE stream_end(uint32_t opaque,
+                                         uint16_t vbucket,
+                                         uint32_t flags) = 0;
 
     /**
      * Send a marker
@@ -95,13 +88,11 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*marker)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint64_t start_seqno,
-     uint64_t end_seqno,
-     uint32_t flags) = nullptr;
+    virtual ENGINE_ERROR_CODE marker(uint32_t opaque,
+                                     uint16_t vbucket,
+                                     uint64_t start_seqno,
+                                     uint64_t end_seqno,
+                                     uint32_t flags) = 0;
 
     /**
      * Send a Mutation

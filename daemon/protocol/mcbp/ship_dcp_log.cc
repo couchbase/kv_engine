@@ -105,12 +105,7 @@ ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
     return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_marker_response(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint8_t status) {
-    auto& c = cookie2connection(void_cookie);
-
+ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque, uint8_t status) {
     protocol_binary_response_dcp_snapshot_marker packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode =
@@ -120,15 +115,11 @@ ENGINE_ERROR_CODE dcp_message_marker_response(
     packet.message.header.response.bodylen = 0;
     packet.message.header.response.opaque = opaque;
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint8_t status) {
-    auto& c = cookie2connection(void_cookie);
-
+ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
+                                                    uint8_t status) {
     protocol_binary_response_dcp_set_vbucket_state packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode =
@@ -138,15 +129,12 @@ ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
     packet.message.header.response.bodylen = 0;
     packet.message.header.response.opaque = opaque;
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_stream_end(gsl::not_null<const void*> void_cookie,
-                                         uint32_t opaque,
+ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
                                          uint16_t vbucket,
                                          uint32_t flags) {
-    auto& c = cookie2connection(void_cookie);
-
     protocol_binary_request_dcp_stream_end packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -157,17 +145,14 @@ ENGINE_ERROR_CODE dcp_message_stream_end(gsl::not_null<const void*> void_cookie,
     packet.message.header.request.vbucket = htons(vbucket);
     packet.message.body.flags = ntohl(flags);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_marker(gsl::not_null<const void*> void_cookie,
-                                     uint32_t opaque,
+ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
                                      uint16_t vbucket,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,
                                      uint32_t flags) {
-    auto& c = cookie2connection(void_cookie);
-
     protocol_binary_request_dcp_snapshot_marker packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -180,7 +165,7 @@ ENGINE_ERROR_CODE dcp_message_marker(gsl::not_null<const void*> void_cookie,
     packet.message.body.end_seqno = htonll(end_seqno);
     packet.message.body.flags = htonl(flags);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
 ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,

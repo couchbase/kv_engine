@@ -945,6 +945,21 @@ public:
                                      uint32_t stream_opaque,
                                      uint8_t status) override;
 
+    ENGINE_ERROR_CODE marker_rsp(uint32_t opaque, uint8_t status) override;
+
+    ENGINE_ERROR_CODE set_vbucket_state_rsp(uint32_t opaque,
+                                            uint8_t status) override;
+
+    ENGINE_ERROR_CODE stream_end(uint32_t opaque,
+                                 uint16_t vbucket,
+                                 uint32_t flags) override;
+
+    ENGINE_ERROR_CODE marker(uint32_t opaque,
+                             uint16_t vbucket,
+                             uint64_t start_seqno,
+                             uint64_t end_seqno,
+                             uint32_t flags) override;
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses

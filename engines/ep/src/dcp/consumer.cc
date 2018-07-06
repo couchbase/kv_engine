@@ -785,7 +785,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         {
             SetVBucketStateResponse* vs =
                     static_cast<SetVBucketStateResponse*>(resp.get());
-            ret = producers->set_vbucket_state_rsp(getCookie(), vs->getOpaque(),
+            ret = producers->set_vbucket_state_rsp(vs->getOpaque(),
                                                    vs->getStatus());
             break;
         }
@@ -793,8 +793,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         {
             SnapshotMarkerResponse* mr =
                     static_cast<SnapshotMarkerResponse*>(resp.get());
-            ret = producers->marker_rsp(getCookie(), mr->getOpaque(),
-                                        mr->getStatus());
+            ret = producers->marker_rsp(mr->getOpaque(), mr->getStatus());
             break;
         }
         default:

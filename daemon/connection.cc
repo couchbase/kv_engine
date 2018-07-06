@@ -1208,11 +1208,6 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
       stateMachine(*this) {
     // TEMP: Once all of these functions are converted to virtual methods
     // these assignments will not be necesary.
-    dcp_message_producers::marker_rsp = dcp_message_marker_response;
-    dcp_message_producers::set_vbucket_state_rsp =
-            dcp_message_set_vbucket_state_response;
-    dcp_message_producers::stream_end = dcp_message_stream_end;
-    dcp_message_producers::marker = dcp_message_marker;
     dcp_message_producers::mutation = dcp_message_mutation;
     dcp_message_producers::deletion = dcp_message_deletion_v1;
     dcp_message_producers::deletion_v2 = dcp_message_deletion_v2;

@@ -553,7 +553,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         {
             StreamEndResponse* se = static_cast<StreamEndResponse*>(resp.get());
             ret = producers->stream_end(
-                    getCookie(),
                     se->getOpaque(),
                     se->getVbucket(),
                     mapEndStreamStatus(getCookie(), se->getFlags()));
@@ -641,7 +640,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         case DcpResponse::Event::SnapshotMarker:
         {
             SnapshotMarker* s = static_cast<SnapshotMarker*>(resp.get());
-            ret = producers->marker(getCookie(), s->getOpaque(),
+            ret = producers->marker(s->getOpaque(),
                                     s->getVBucket(),
                                     s->getStartSeqno(),
                                     s->getEndSeqno(),
