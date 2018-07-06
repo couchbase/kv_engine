@@ -1091,9 +1091,12 @@ static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
 
 static enum test_result perf_dcp_latency_with_padded_json(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
-    return perf_dcp_latency_and_bandwidth(h, h1,
-                            "DCP In-memory (JSON-PADDED) [As_is vs. Compress]",
-                            Doc_format::JSON_PADDED, ITERATIONS / 10);
+    return perf_dcp_latency_and_bandwidth(
+            h,
+            h1,
+            "DCP In-memory (JSON-PADDED) [As_is vs. Compress]",
+            Doc_format::JSON_PADDED,
+            ITERATIONS / 20);
 }
 
 static enum test_result perf_dcp_latency_with_random_json(ENGINE_HANDLE *h,
