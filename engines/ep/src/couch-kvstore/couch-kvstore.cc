@@ -178,17 +178,6 @@ struct GetMultiCbCtx {
     vb_bgfetch_queue_t &fetches;
 };
 
-struct StatResponseCtx {
-public:
-    StatResponseCtx(std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &sm,
-                    uint16_t vb) : statMap(sm), vbId(vb) {
-        /* EMPTY */
-    }
-
-    std::map<std::pair<uint16_t, uint16_t>, vbucket_state> &statMap;
-    uint16_t vbId;
-};
-
 struct AllKeysCtx {
     AllKeysCtx(std::shared_ptr<Callback<const DocKey&>> callback, uint32_t cnt)
         : cb(callback), count(cnt) { }
