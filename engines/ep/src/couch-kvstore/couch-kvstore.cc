@@ -35,9 +35,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
-#include <fstream>
 #include <gsl/gsl>
-#include <iostream>
 #include <list>
 #include <map>
 #include <string>
@@ -603,61 +601,44 @@ std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
 
 void CouchKVStore::getPersistedStats(std::map<std::string,
                                      std::string> &stats) {
-    std::vector<char> buffer;
     std::string fname = dbname + "/stats.json";
-    if (access(fname.c_str(), R_OK) == -1) {
-        return ;
+    cb::io::sanitizePath(fname);
+    if (!cb::io::isFile(fname)) {
+        return;
     }
 
-    std::ifstream session_stats;
-    session_stats.exceptions (session_stats.failbit | session_stats.badbit);
+    std::string buffer;
     try {
-        session_stats.open(fname.c_str(), std::ios::binary);
-        session_stats.seekg(0, std::ios::end);
-        int flen = session_stats.tellg();
-        if (flen < 0) {
-            logger.log(EXTENSION_LOG_WARNING, "CouchKVStore::getPersistedStats:"
-                       " Error in session stats ifstream!!!");
-            session_stats.close();
-            return;
-        }
-        session_stats.seekg(0, std::ios::beg);
-        buffer.resize(flen + 1);
-        session_stats.read(buffer.data(), flen);
-        session_stats.close();
-        buffer[flen] = '\0';
-
-        nlohmann::json json;
-        try {
-            json = nlohmann::json::parse(buffer);
-        } catch (const nlohmann::json::exception&) {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "CouchKVStore::getPersistedStats:"
-                       " Failed to parse the session stats json doc!!!");
-            return;
-        }
-
-        if (!json.is_array()) {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "CouchKVStore::getPersistedStats:"
-                       " Parsed json is not an array!!!");
-            return;
-        }
-
-        for (const auto& elem : json) {
-            cb_assert(elem.size() == 1);
-            auto it = elem.begin();
-            stats[it.key()] = it.value();
-        }
-
-    } catch (const std::ifstream::failure &e) {
+        buffer = cb::io::loadFile(fname);
+    } catch (const std::exception& exception) {
         logger.log(EXTENSION_LOG_WARNING,
                    "CouchKVStore::getPersistedStats: Failed to load the engine "
-                   "session stats due to IO exception \"%s\"", e.what());
-    } catch (...) {
+                   "session stats due to IO exception \"%s\"",
+                   exception.what());
+        return;
+    }
+
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(buffer);
+    } catch (const nlohmann::json::exception&) {
         logger.log(EXTENSION_LOG_WARNING,
-                   "CouchKVStore::getPersistedStats: Failed to load the engine "
-                   "session stats due to IO exception");
+                   "CouchKVStore::getPersistedStats:"
+                   " Failed to parse the session stats json doc!!!");
+        return;
+    }
+
+    if (!json.is_array()) {
+        logger.log(EXTENSION_LOG_WARNING,
+                   "CouchKVStore::getPersistedStats:"
+                   " Parsed json is not an array!!!");
+        return;
+    }
+
+    for (const auto& elem : json) {
+        cb_assert(elem.size() == 1);
+        auto it = elem.begin();
+        stats[it.key()] = it.value();
     }
 }
 
