@@ -43,6 +43,14 @@ static inline bool may_accept_collections(const Cookie& cookie) {
     return cookie.getConnection().isDcpCollectionAware();
 }
 
+bool is_document_key_valid(const Cookie& cookie) {
+    const auto& req = cookie.getRequest(Cookie::PacketContent::Header);
+    if (cookie.getConnection().isCollectionsSupported()) {
+        return req.getKeylen() > sizeof(CollectionID);
+    }
+    return req.getKeylen() > 0;
+}
+
 static inline bool may_accept_dcp_deleteV2(const Cookie& cookie) {
     return cookie.getConnection().isDcpDeleteV2();
 }
@@ -292,8 +300,9 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
     const uint32_t bodylen{ntohl(req->message.header.request.bodylen)};
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        keylen == 0 || bodylen == 0 || (keylen + extlen) > bodylen ||
-        !mcbp::datatype::is_valid(datatype) || !may_accept_xattr(cookie)) {
+        !is_document_key_valid(cookie) || bodylen == 0 ||
+        (keylen + extlen) > bodylen || !mcbp::datatype::is_valid(datatype) ||
+        !may_accept_xattr(cookie)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -337,7 +346,7 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
             cookie.getPacketAsVoidPtr());
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.keylen == 0) {
+        !is_document_key_valid(cookie)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -367,7 +376,7 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
     uint32_t bodylen = ntohl(req->message.header.request.bodylen) - klen;
     bodylen -= req->message.header.request.extlen;
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.keylen == 0 || bodylen != 0 ||
+        !is_document_key_valid(cookie) || bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -660,7 +669,7 @@ static protocol_binary_response_status add_validator(const Cookie& cookie)
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 8 ||
-        req->message.header.request.keylen == 0 ||
+        !is_document_key_valid(cookie) ||
         req->message.header.request.cas != 0 ||
         mcbp::datatype::is_xattr(datatype) ||
         !mcbp::datatype::is_valid(datatype)) {
@@ -678,8 +687,7 @@ static protocol_binary_response_status set_replace_validator(const Cookie& cooki
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 8 ||
-        req->message.header.request.keylen == 0 ||
-        mcbp::datatype::is_xattr(datatype) ||
+        !is_document_key_valid(cookie) || mcbp::datatype::is_xattr(datatype) ||
         !mcbp::datatype::is_valid(datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -695,8 +703,7 @@ static protocol_binary_response_status append_prepend_validator(const Cookie& co
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
-        req->message.header.request.keylen == 0 ||
-        mcbp::datatype::is_xattr(datatype) ||
+        !is_document_key_valid(cookie) || mcbp::datatype::is_xattr(datatype) ||
         !mcbp::datatype::is_valid(datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -712,7 +719,7 @@ static protocol_binary_response_status get_validator(const Cookie& cookie)
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
-        klen == 0 || klen != blen ||
+        !is_document_key_valid(cookie) || klen != blen ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas != 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -728,8 +735,8 @@ static protocol_binary_response_status gat_validator(const Cookie& cookie) {
     uint32_t blen = ntohl(req->message.header.request.bodylen);
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 4 || klen == 0 ||
-        (klen + 4) != blen ||
+        req->message.header.request.extlen != 4 ||
+        !is_document_key_valid(cookie) || (klen + 4) != blen ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas != 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -747,7 +754,7 @@ static protocol_binary_response_status delete_validator(const Cookie& cookie)
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
-        klen == 0 || klen != blen ||
+        !is_document_key_valid(cookie) || klen != blen ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -781,8 +788,8 @@ static protocol_binary_response_status arithmetic_validator(const Cookie& cookie
     uint8_t extlen = req->message.header.request.extlen;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        extlen != 20 || klen == 0 || (klen + extlen) != blen ||
-        req->message.header.request.cas != 0 ||
+        extlen != 20 || !is_document_key_valid(cookie) ||
+        (klen + extlen) != blen || req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -1127,7 +1134,8 @@ static protocol_binary_response_status get_meta_validator(const Cookie& cookie)
     uint32_t blen = ntohl(req->message.header.request.bodylen);
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        extlen > 1 || klen == 0 || (klen + extlen) != blen ||
+        extlen > 1 || !is_document_key_valid(cookie) ||
+        (klen + extlen) != blen ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas != 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -1155,9 +1163,8 @@ static protocol_binary_response_status mutate_with_meta_validator(const Cookie& 
     const auto datatype = req->message.header.request.datatype;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        keylen == 0 || (keylen + extlen) > bodylen ||
-        !may_accept_xattr(cookie) ||
-        !mcbp::datatype::is_valid(datatype)) {
+        !is_document_key_valid(cookie) || (keylen + extlen) > bodylen ||
+        !may_accept_xattr(cookie) || !mcbp::datatype::is_valid(datatype)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -1211,7 +1218,8 @@ static protocol_binary_response_status get_locked_validator(const Cookie& cookie
     uint32_t blen = ntohl(req->message.header.request.bodylen);
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        klen == 0 || (klen + extlen) != blen || (extlen != 0 && extlen != 4) ||
+        !is_document_key_valid(cookie) || (klen + extlen) != blen ||
+        (extlen != 0 && extlen != 4) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas != 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -1230,7 +1238,7 @@ static protocol_binary_response_status unlock_validator(const Cookie& cookie)
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
-        klen == 0 || extlen != 0 || klen != blen ||
+        !is_document_key_valid(cookie) || extlen != 0 || klen != blen ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas == 0) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -1242,14 +1250,14 @@ static protocol_binary_response_status unlock_validator(const Cookie& cookie)
 static protocol_binary_response_status evict_key_validator(const Cookie& cookie)
 {
    auto& header = cookie.getHeader();
-    if (!header.isValid() || // Does the internal header fields add up?
-        header.getMagic() != PROTOCOL_BINARY_REQ || // It must be a request
-        header.getExtlen() != 0 || // extras is not allowed
-        header.getKeylen() == 0 || // must have key
-        header.getBodylen() != header.getKeylen() || // no value
-        header.getCas() != 0 || // Cas should not be set
-        header.getDatatype() != PROTOCOL_BINARY_RAW_BYTES) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+   if (!header.isValid() || // Does the internal header fields add up?
+       header.getMagic() != PROTOCOL_BINARY_REQ || // It must be a request
+       header.getExtlen() != 0 || // extras is not allowed
+       !is_document_key_valid(cookie) ||
+       header.getBodylen() != header.getKeylen() || // no value
+       header.getCas() != 0 || // Cas should not be set
+       header.getDatatype() != PROTOCOL_BINARY_RAW_BYTES) {
+       return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }

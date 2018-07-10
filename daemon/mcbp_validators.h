@@ -65,3 +65,6 @@ private:
                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
                              const Cookie&>, 0x100> commandChains;
 };
+
+/// @return true if the keylen represents a valid key for the connection
+bool is_document_key_valid(const Cookie& cookie);

@@ -23,6 +23,7 @@
 
 #include "connection.h"
 #include "cookie.h"
+#include "mcbp_validators.h"
 #include "subdocument_traits.h"
 
 #include "xattr/key_validator.h"
@@ -158,7 +159,7 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
     const uint32_t valuelen = bodylen - keylen - extlen - pathlen;
 
     if ((header->request.magic != PROTOCOL_BINARY_REQ) ||
-        (keylen == 0) || (valuelen > bodylen) ||
+        !is_document_key_valid(cookie) || (valuelen > bodylen) ||
         (pathlen > SUBDOC_PATH_MAX_LENGTH) ||
         (header->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -434,7 +435,7 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
     const size_t minimum_body_len = ntohs(req->request.keylen) + req->request.extlen + traits.min_value_len;
 
     if ((req->request.magic != PROTOCOL_BINARY_REQ) ||
-        (req->request.keylen == 0) ||
+        !is_document_key_valid(cookie) ||
         (req->request.bodylen < minimum_body_len) ||
         (req->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
