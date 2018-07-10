@@ -20,9 +20,8 @@
 #include "collections/collections_types.h"
 
 #include <JSON_checker.h>
-#include <cJSON.h>
-#include <cJSON_utils.h>
 #include <memcached/engine_error.h>
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <memory>
 
@@ -43,7 +42,7 @@
  *        manifest.
  * @throws invalid_argument for input errors (with detailed message)
  */
-Collections::Filter::Filter(boost::optional<const std::string&> jsonFilter,
+Collections::Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
                             const Manifest* manifest)
     : defaultAllowed(false),
       passthrough(false),
@@ -75,7 +74,7 @@ Collections::Filter::Filter(boost::optional<const std::string&> jsonFilter,
     // 2. defaultAllowed -  all $default items allowed
     // 3. systemEventsAllowed - the client will be informed of system events
     //    this is already set by the initializer list.
-    if (json.empty()) {
+    if (json.size() == 0) {
         passthrough = true;
         defaultAllowed = true;
         return;
@@ -85,14 +84,17 @@ Collections::Filter::Filter(boost::optional<const std::string&> jsonFilter,
                        json.size())) {
         throw cb::engine_error(cb::engine_errc::invalid_arguments,
                                "Filter::Filter input not valid jsonFilter:" +
-                                       jsonFilter.get());
+                                       cb::to_string(json));
     }
 
-    unique_cJSON_ptr cjson(cJSON_Parse(json.c_str()));
-    if (!cjson) {
+    nlohmann::json parsed;
+    try {
+        parsed = nlohmann::json::parse(json);
+    } catch (const nlohmann::json::exception& e) {
         throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                               "Filter::Filter cJSON cannot parse jsonFilter:" +
-                                       jsonFilter.get());
+                               "Filter::Filter cannot parse jsonFilter:" +
+                                       cb::to_string(json) +
+                                       " json::exception:" + e.what());
     }
 
     // Now before processing the JSON we must have a manifest. We cannot create
@@ -102,44 +104,36 @@ Collections::Filter::Filter(boost::optional<const std::string&> jsonFilter,
                                "Filter::Filter no manifest");
     }
 
-    // @todo null check manifest to go past this point. Will be done along with
-    // an appropriate error-code
-
-    auto jsonCollections = cJSON_GetObjectItem(cjson.get(), "collections");
     bool nameFound = false, uidFound = false;
-    if (!jsonCollections || jsonCollections->type != cJSON_Array) {
-        throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Filter::Filter cannot find collections:" +
-                        (!jsonCollections
-                                 ? "nullptr"
-                                 : std::to_string(jsonCollections->type)) +
-                        ", jsonFilter:" + jsonFilter.get());
-    } else {
-        for (int ii = 0; ii < cJSON_GetArraySize(jsonCollections); ii++) {
-            auto collection = cJSON_GetArrayItem(jsonCollections, ii);
-            if (!(collection && (collection->type == cJSON_String ||
-                                 collection->type == cJSON_Object))) {
-                throw cb::engine_error(
-                        cb::engine_errc::invalid_arguments,
-                        "Filter::Filter cannot find "
-                        "valid collection for index:" +
-                                std::to_string(ii) + ", collection:" +
-                                (!collection
-                                         ? "nullptr"
-                                         : std::to_string(collection->type)) +
-                                ", jsonFilter:" + jsonFilter.get());
-            } else {
-                if (collection->type == cJSON_String) {
+    try {
+        auto jsonCollections = parsed.at("collections");
+        if (!jsonCollections.is_array()) {
+            throw cb::engine_error(
+                    cb::engine_errc::invalid_arguments,
+                    "Filter::Filter collections is not an array, jsonFilter:" +
+                            cb::to_string(json));
+        } else {
+            for (const auto& entry : jsonCollections) {
+                if (entry.is_string()) {
                     // Can throw..
-                    addCollection(collection->valuestring, *manifest);
+                    addCollection(entry.get<std::string>(), *manifest);
                     nameFound = true;
-                } else {
-                    addCollection(collection, *manifest);
+                } else if (entry.is_object()) {
+                    addCollection(entry, *manifest);
                     uidFound = true;
+                } else {
+                    throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                                           "Filter::Filter found invalid array "
+                                           "entry jsonFilter:" +
+                                                   cb::to_string(json));
                 }
             }
         }
+    } catch (const nlohmann::json::exception& e) {
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Filter::Filter label 'collections' is not found, jsonFilter:" +
+                        cb::to_string(json) + " json::exception:" + e.what());
     }
 
     // Validate that the input hasn't mixed and matched name/uid vs name
@@ -148,15 +142,15 @@ Collections::Filter::Filter(boost::optional<const std::string&> jsonFilter,
         throw cb::engine_error(
                 cb::engine_errc::invalid_arguments,
                 "Filter::Filter mixed name/uid not allowed jsonFilter:" +
-                        jsonFilter.get());
+                        cb::to_string(json));
     }
     type = uidFound ? Type::NameUid : Type::Name;
 }
 
-void Collections::Filter::addCollection(const char* collection,
+void Collections::Filter::addCollection(const std::string& collection,
                                         const Manifest& manifest) {
     // Is this the default collection?
-    if (DefaultCollectionIdentifier == collection) {
+    if (DefaultCollectionIdentifier == collection.c_str()) {
         if (manifest.doesDefaultCollectionExist()) {
             defaultAllowed = true;
         } else {
@@ -164,48 +158,46 @@ void Collections::Filter::addCollection(const char* collection,
                                    "Filter::addCollection no $default");
         }
     } else {
-        auto itr = manifest.find(collection);
+        auto itr = manifest.find(collection.c_str());
         if (itr != manifest.end()) {
             filter.push_back({collection, {}});
         } else {
-            throw cb::engine_error(cb::engine_errc::unknown_collection,
-                                   "Filter::addCollection unknown collection:" +
-                                           std::string(collection));
+            throw cb::engine_error(
+                    cb::engine_errc::unknown_collection,
+                    "Filter::addCollection unknown collection:" + collection);
         }
     }
 }
 
-void Collections::Filter::addCollection(cJSON* object,
+void Collections::Filter::addCollection(const nlohmann::json& object,
                                         const Manifest& manifest) {
-    auto jsonName = cJSON_GetObjectItem(object, "name");
-    auto jsonUID = cJSON_GetObjectItem(object, "uid");
+    try {
+        auto name = object.at("name");
+        auto uid = object.at("uid");
 
-    if (!jsonName || jsonName->type != cJSON_String) {
+        if (!name.is_string() || !uid.is_string()) {
+            throw cb::engine_error(
+                    cb::engine_errc::invalid_arguments,
+                    "Filter::Filter invalid collection entry:" + object.dump());
+        }
+
+        auto entry = manifest.find({{name.get<std::string>()},
+                                    makeUid(uid.get<std::string>().c_str())});
+
+        if (entry == manifest.end()) {
+            throw cb::engine_error(
+                    cb::engine_errc::unknown_collection,
+                    "Filter::Filter: cannot add unknown collection:" +
+                            object.dump());
+        } else {
+            filter.push_back(
+                    {cb::to_string(entry->getName()), {entry->getUid()}});
+        }
+    } catch (const nlohmann::json::exception& e) {
         throw cb::engine_error(
                 cb::engine_errc::invalid_arguments,
-                "Filter::Filter invalid collection name:" +
-                        (!jsonName ? "nullptr"
-                                   : std::to_string(jsonName->type)));
-    }
-
-    if (!jsonUID || jsonUID->type != cJSON_String) {
-        throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Filter::Filter invalid collection uid:" +
-                        (!jsonUID ? "nullptr" : std::to_string(jsonUID->type)));
-    }
-
-    auto entry = manifest.find(
-            {{jsonName->valuestring}, makeUid(jsonUID->valuestring)});
-
-    if (entry == manifest.end()) {
-        throw cb::engine_error(
-                cb::engine_errc::unknown_collection,
-                "Filter::Filter: cannot add unknown collection:" +
-                        std::string(jsonName->valuestring) + ":" +
-                        std::string(jsonUID->valuestring));
-    } else {
-        filter.push_back({cb::to_string(entry->getName()), {entry->getUid()}});
+                "Filter::Filter invalid collection entry no name/uid entry:" +
+                        object.dump() + " json::exception:" + e.what());
     }
 }
 

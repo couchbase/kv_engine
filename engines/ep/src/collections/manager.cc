@@ -87,13 +87,10 @@ Collections::Filter Collections::Manager::makeFilter(
         uint32_t openFlags, cb::const_byte_buffer jsonExtra) const {
     // Lock manager updates
     std::lock_guard<std::mutex> lg(lock);
-    boost::optional<const std::string&> jsonFilter;
-    std::string json;
+    boost::optional<cb::const_char_buffer> jsonFilter;
     if (openFlags & DCP_OPEN_COLLECTIONS) {
-        // assign to std::string as cJSON needs guaranteed zero termination
-        json.assign(reinterpret_cast<const char*>(jsonExtra.data()),
-                    jsonExtra.size());
-        jsonFilter = json;
+        jsonFilter = {reinterpret_cast<const char*>(jsonExtra.data()),
+                      jsonExtra.size()};
     }
     return Collections::Filter(jsonFilter, current.get());
 }

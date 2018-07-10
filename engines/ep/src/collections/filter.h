@@ -20,7 +20,7 @@
 #include "collections/manifest.h"
 
 #include <boost/optional/optional.hpp>
-
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <vector>
 
@@ -85,13 +85,13 @@ public:
      *   understand collections) then only documents with
      *   DocNamespace::DefaultCollection are allowed.
      *
-     * @params jsonFilter an optional string as described above.
+     * @params jsonFilter an optional buffer as described above.
      * @params manifest pointer to the current manifest, can be null if no
      *         manifest has been set.
      * @throws invalid_argument if the JSON is invalid or contains unknown
      *         collections.
      */
-    Filter(boost::optional<const std::string&> jsonFilter,
+    Filter(boost::optional<cb::const_char_buffer> jsonFilter,
            const Manifest* manifest);
 
     /**
@@ -154,13 +154,13 @@ private:
      * Private helper to examine the given collection name against the manifest
      * and add to internal container or throw an exception
      */
-    void addCollection(const char* collection, const Manifest& manifest);
+    void addCollection(const std::string& collection, const Manifest& manifest);
 
     /**
      * Private helper to examine the given collection object against the
      * manifest and add to internal container or throw an exception
      */
-    void addCollection(cJSON* object, const Manifest& manifest);
+    void addCollection(const nlohmann::json& object, const Manifest& manifest);
 
     /// A container of named collections to allow, can be empty.
     container filter;
