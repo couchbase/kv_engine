@@ -325,6 +325,7 @@ void MemcachedConnection::connect() {
     }
 
     if (sock == INVALID_SOCKET) {
+        auto error = cb::net::get_socket_error();
         std::string msg("Failed to connect to: ");
         if (family == AF_INET || family == AF_UNSPEC) {
             if (host.empty()) {
@@ -340,7 +341,7 @@ void MemcachedConnection::connect() {
             }
         }
         msg.append(std::to_string(port));
-        throw std::runtime_error(msg);
+        throw std::system_error(error, std::system_category(), msg);
     }
 }
 
