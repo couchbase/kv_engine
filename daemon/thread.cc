@@ -302,6 +302,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
          * run one time to set up the correct mask in libevent
          */
         c->setAiostat(status);
+        c->setEwouldblock(false);
         c->setNumEvents(1);
         run_event_loop(c, EV_READ | EV_WRITE);
     }
@@ -348,16 +349,12 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
                 json);
     }
 
-    int notify;
-
     LOG_DEBUG("notify_io_complete: Got notify from {}, status {}",
               cookie.getConnection().getId(),
               status);
 
-    notify = add_conn_to_pending_io_list(&cookie.getConnection(), status);
-
     /* kick the thread in the butt */
-    if (notify) {
+    if (add_conn_to_pending_io_list(&cookie.getConnection(), status)) {
         notify_thread(*thr);
     }
 }

@@ -488,31 +488,7 @@ bool conn_send_data(Connection& connection) {
     return ret;
 }
 
-bool conn_pending_close(Connection& connection) {
-    if (!connection.isSocketClosed()) {
-        throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
-    }
-    LOG_DEBUG("Awaiting clients to release the cookie (pending close for {})",
-              (void*)&connection);
-    /*
-     * tell the DCP connection that we're disconnecting it now,
-     * but give it a grace period
-     */
-    connection.propagateDisconnect();
-
-    if (connection.getRefcount() > 1) {
-        return false;
-    }
-
-    connection.setState(McbpStateMachine::State::immediate_close);
-    return true;
-}
-
 bool conn_immediate_close(Connection& connection) {
-    if (!connection.isSocketClosed()) {
-        throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
-    }
-
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
         auto* port_instance =
@@ -520,11 +496,15 @@ bool conn_immediate_close(Connection& connection) {
         if (port_instance) {
             --port_instance->curr_conns;
         } else {
-            throw std::logic_error("null port_instance");
+            // There isn't any point of throwing an exception here, as it would
+            // just put us back in the "closing path" of the connection.
+            // Instead just log it
+            LOG_WARNING(
+                    "{}: conn_immediate_close: Failed to map parent port: {}",
+                    connection.getId(),
+                    connection.toJSON().dump());
         }
     }
-
-    connection.propagateDisconnect();
 
     disassociate_bucket(connection);
 
@@ -535,8 +515,10 @@ bool conn_immediate_close(Connection& connection) {
         // just put us back in the "closing path" of the connection.
         // Instead just log it
         LOG_WARNING(
-                "conn_immediate_close: unable to obtain non-NULL thread from "
-                "connection");
+                "{}: conn_immediate_close: unable to obtain non-NULL thread "
+                "from connection: {}",
+                connection.getId(),
+                connection.toJSON().dump());
     } else {
         // remove from pending-io list
         std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
@@ -551,9 +533,12 @@ bool conn_immediate_close(Connection& connection) {
     return false;
 }
 
+bool conn_pending_close(Connection& connection) {
+    return connection.close();
+}
+
 bool conn_closing(Connection& connection) {
-    connection.close();
-    return true;
+    return connection.close();
 }
 
 /** sentinal state used to represent a 'destroyed' connection which will

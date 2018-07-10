@@ -414,8 +414,12 @@ public:
      * or the cookies we'll enter the "pending close" state to wait for
      * these operations to complete before changing state to immediate
      * close.
+     *
+     * @return true if the state machinery could be continued, false if
+     *              we'd need external input in order to continue to drive
+     *              the state machinery
      */
-    void close();
+    bool close();
 
     /**
      * fire ON_DISCONNECT for all of the cookie objects (in case the

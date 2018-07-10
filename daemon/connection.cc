@@ -1362,30 +1362,48 @@ void Connection::runEventLoop(short which) {
     conn_return_buffers(this);
 }
 
-void Connection::close() {
+bool Connection::close() {
     bool ewb = false;
     for (auto& cookie : cookies) {
         if (cookie) {
             if (cookie->isEwouldblock()) {
                 ewb = true;
+            } else {
+                cookie->reset();
             }
-            cookie->reset();
         }
     }
 
-    // We don't want any network notifications anymore..
-    unregisterEvent();
-    safe_close(socketDescriptor);
-    socketDescriptor = INVALID_SOCKET;
+    if (getState() == McbpStateMachine::State::closing) {
+        // We don't want any network notifications anymore..
+        if (registered_in_libevent) {
+            unregisterEvent();
+        }
 
-    // Release all reserved items!
-    releaseReservedItems();
+        // Shut down the read end of the socket to avoid more data
+        // to arrive
+        shutdown(socketDescriptor, SHUT_RD);
+
+        // Release all reserved items!
+        releaseReservedItems();
+    }
+
+    // Notify interested parties that the connection is currently being
+    // disconnected
+    propagateDisconnect();
+
+    if (isDCP()) {
+        // DCP channels work a bit different.. they use the refcount
+        // to track if it has a reference in the engine
+        ewb = false;
+    }
 
     if (refcount > 1 || ewb) {
         setState(McbpStateMachine::State::pending_close);
-    } else {
-        setState(McbpStateMachine::State::immediate_close);
+        return false;
     }
+    setState(McbpStateMachine::State::immediate_close);
+    return true;
 }
 
 void Connection::propagateDisconnect() const {
