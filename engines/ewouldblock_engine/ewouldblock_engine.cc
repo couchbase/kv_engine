@@ -1322,12 +1322,9 @@ ENGINE_ERROR_CODE EWB_Engine::dcp_step(
                                            0 /*nru*/,
                                            0 /*collection_len*/);
             --count;
-            if (ret == ENGINE_SUCCESS) {
-                return ENGINE_WANT_MORE;
-            }
             return ret;
         }
-        return ENGINE_SUCCESS;
+        return ENGINE_EWOULDBLOCK;
     }
 
     if (ewb->real_engine->dcp.step == nullptr) {

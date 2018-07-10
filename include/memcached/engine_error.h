@@ -54,8 +54,6 @@ enum class engine_errc {
     would_block = 0x07,
     /** The data is too big for the engine */
     too_big = 0x08,
-    /** The engine want more data if the frontend have more data available. */
-    want_more = 0x09,
     /** Tell the server to disconnect this client */
     disconnect = 0x0a,
     /** Access control violations */
@@ -157,7 +155,6 @@ typedef enum {
     ENGINE_ENOTSUP = int(cb::engine_errc::not_supported),
     ENGINE_EWOULDBLOCK = int(cb::engine_errc::would_block),
     ENGINE_E2BIG = int(cb::engine_errc::too_big),
-    ENGINE_WANT_MORE = int(cb::engine_errc::want_more),
     ENGINE_DISCONNECT = int(cb::engine_errc::disconnect),
     ENGINE_EACCESS = int(cb::engine_errc::no_access),
     ENGINE_NOT_MY_VBUCKET = int(cb::engine_errc::not_my_vbucket),

@@ -719,9 +719,6 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
 
     ENGINE_ERROR_CODE ret;
     if ((ret = flowControl.handleFlowCtl(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
         return ret;
     }
 
@@ -730,57 +727,36 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     // accordingly in 'handleNoop()', so 'handleGetErrorMap()' *must* execute
     // before 'handleNoop()'.
     if ((ret = handleGetErrorMap(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
         return ret;
     }
 
     if ((ret = handleNoop(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
         return ret;
     }
 
     if ((ret = handlePriority(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
         return ret;
     }
 
     if ((ret = handleExtMetaData(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
         return ret;
     }
 
     if ((ret = supportCursorDropping(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
         return ret;
     }
 
     if ((ret = supportHifiMFU(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
         return ret;
     }
 
     if ((ret = sendStreamEndOnClientStreamClose(producers)) != ENGINE_FAILED) {
-        if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
-        }
         return ret;
     }
 
     auto resp = getNextItem();
-    if (resp == NULL) {
-        return ENGINE_SUCCESS;
+    if (resp == nullptr) {
+        return ENGINE_EWOULDBLOCK;
     }
 
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
@@ -827,9 +803,6 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     }
     ObjectRegistry::onSwitchThread(epe);
 
-    if (ret == ENGINE_SUCCESS) {
-        return ENGINE_WANT_MORE;
-    }
     return ret;
 }
 
@@ -1326,7 +1299,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
 
     // We have to wait for the GetErrorMap response before proceeding
     if (getErrorMapState == GetErrorMapState::PendingResponse) {
-        return ENGINE_SUCCESS;
+        return ENGINE_EWOULDBLOCK;
     }
 
     return ENGINE_FAILED;

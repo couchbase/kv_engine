@@ -286,7 +286,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
             {"meat:bacon", DocNamespace::Collections}));
 
     // Now step the producer to transfer the collection creation
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
     // 1. Replica now knows the collection
     EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
@@ -299,14 +299,14 @@ TEST_F(CollectionsDcpTest, test_dcp) {
     notifyAndStepToCheckpoint();
 
     // Now step the producer to transfer the collection deletion
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
     // 3. Replica now blocking access to meat
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
             {"meat:bacon", DocNamespace::Collections}));
 
     // Now step the producer, no more collection events
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
 void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
@@ -318,7 +318,7 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
 
     int creates = 0, deletes = 0, mutations = 0;
     // step until done
-    while (ENGINE_WANT_MORE == producer->step(producers.get())) {
+    while (producer->step(producers.get()) == ENGINE_SUCCESS) {
         if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT) {
             switch (dcp_last_system_event) {
             case mcbp::systemevent::id::CreateCollection:
@@ -658,7 +658,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     notifyAndStepToCheckpoint();
 
     // SystemEvent createCollection
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
     EXPECT_EQ("dairy", dcp_last_key);
 
@@ -678,12 +678,12 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // Now step DCP to transfer keys, only two keys are expected as all "meat"
     // keys are filtered
     for (auto& key : expectedKeys) {
-        EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
         EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
         EXPECT_EQ(key, dcp_last_key);
     }
     // And no more
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 
     flush_vbucket_to_disk(vbid, 7);
 
@@ -728,12 +728,12 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     notifyAndStepToCheckpoint();
 
     // SystemEvent createCollection for dairy is expected
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
     EXPECT_EQ("dairy", dcp_last_key);
 
     // And no more for this stream - no meat
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 
     // and new mutations?
     store_item(vbid, {"meat::one1", DocNamespace::Collections}, "value");
@@ -767,12 +767,12 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
     // Now step into the items of which we expect to see only anykey
     notifyAndStepToCheckpoint();
 
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
     EXPECT_EQ("anykey", dcp_last_key);
 
     // And no more
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
 TEST_F(CollectionsFilteredDcpTest, stream_closes) {
@@ -795,7 +795,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     // close once we transfer DeleteCollection
 
     // Now step the producer to transfer the collection creation
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
     // Not dead yet...
     EXPECT_TRUE(vb0Stream->isActive());
@@ -808,16 +808,16 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     notifyAndStepToCheckpoint();
 
     // Now step the producer to transfer the collection deletion
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
     // Done... collection deletion of meat has closed the stream
     EXPECT_FALSE(vb0Stream->isActive());
 
     // Now step the producer to transfer the close stream
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
     // And no more
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
 /**
@@ -858,7 +858,7 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     // And no more
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
 /**
@@ -902,7 +902,7 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes2) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     // And no more
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
 TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
@@ -941,5 +941,5 @@ TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     // And no more
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }

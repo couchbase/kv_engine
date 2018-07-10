@@ -64,8 +64,6 @@ std::string cb::to_string(cb::engine_errc code) {
         return "would block";
     case cb::engine_errc::too_big:
         return "too big";
-    case cb::engine_errc::want_more:
-        return "want more";
     case cb::engine_errc::disconnect:
         return "disconnect";
     case cb::engine_errc::no_access:
@@ -124,7 +122,6 @@ cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
         case ENGINE_ENOTSUP: return cb::engine_errc::not_supported;
         case ENGINE_EWOULDBLOCK: return cb::engine_errc::would_block;
         case ENGINE_E2BIG: return cb::engine_errc::too_big;
-        case ENGINE_WANT_MORE: return cb::engine_errc::want_more;
         case ENGINE_DISCONNECT: return cb::engine_errc::disconnect;
         case ENGINE_EACCESS: return cb::engine_errc::no_access;
         case ENGINE_NOT_MY_VBUCKET: return cb::engine_errc::not_my_vbucket;

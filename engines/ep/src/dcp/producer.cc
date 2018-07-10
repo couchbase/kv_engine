@@ -518,7 +518,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     } else {
         resp = getNextItem();
         if (!resp) {
-            return ENGINE_SUCCESS;
+            return ENGINE_EWOULDBLOCK;
         }
     }
 
@@ -697,7 +697,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     }
 
     lastSendTime = ep_current_time();
-    return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+    return ret;
 }
 
 ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
@@ -1239,13 +1239,13 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
         ObjectRegistry::onSwitchThread(epe);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = ENGINE_WANT_MORE;
             noopCtx.pendingRecv = true;
             noopCtx.sendTime = ep_current_time();
             lastSendTime = noopCtx.sendTime;
         }
-      return ret;
+        return ret;
     }
+
     // We have already sent a noop and are awaiting a receive or
     // the time interval has not passed.  In either case continue
     // without sending a noop.

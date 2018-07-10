@@ -664,26 +664,26 @@ void ship_dcp_log(Cookie& cookie) {
             dcp_message_control,
             dcp_message_system_event,
             dcp_message_get_error_map};
-    ENGINE_ERROR_CODE ret;
 
     auto& c = cookie.getConnection();
     c.addMsgHdr(true);
     cookie.setEwouldblock(false);
-    ret = c.getBucketEngine()->dcp.step(
+    auto ret = c.remapErrorCode(c.getBucketEngine()->dcp.step(
             c.getBucketEngineAsV0(),
             static_cast<const void*>(&c.getCookieObject()),
-            &producers);
-    if (ret == ENGINE_SUCCESS) {
-        /* the engine don't have more data to send at this moment */
-        cookie.setEwouldblock(true);
-    } else if (ret == ENGINE_WANT_MORE) {
+            &producers));
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
         /* The engine got more data it wants to send */
-        ret = ENGINE_SUCCESS;
         c.setState(McbpStateMachine::State::send_data);
         c.setWriteAndGo(McbpStateMachine::State::ship_log);
-    }
-
-    if (ret != ENGINE_SUCCESS) {
+        break;
+    case ENGINE_EWOULDBLOCK:
+        /* the engine don't have more data to send at this moment */
+        cookie.setEwouldblock(true);
+        break;
+    default:
         LOG_WARNING(
                 "{}: ship_dcp_log - step returned {} - closing connection {}",
                 c.getId(),

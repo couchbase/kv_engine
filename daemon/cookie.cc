@@ -446,8 +446,8 @@ void Cookie::logResponse(ENGINE_ERROR_CODE code) const {
         return;
     }
 
-    if (code == ENGINE_EWOULDBLOCK || code == ENGINE_WANT_MORE) {
-        // These are temporary states
+    if (code == ENGINE_EWOULDBLOCK) {
+        // This is a temporary state
         return;
     }
 

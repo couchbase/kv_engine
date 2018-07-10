@@ -914,7 +914,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
         }
         ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
         switch (err) {
-        case ENGINE_SUCCESS:
+        case ENGINE_EWOULDBLOCK:
             // No data currently available - wait to be notified when
             // more available.
             testHarness.lock_cookie(cookie);
@@ -922,7 +922,7 @@ static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
             testHarness.unlock_cookie(cookie);
             break;
 
-        case ENGINE_WANT_MORE:
+        case ENGINE_SUCCESS:
             switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:

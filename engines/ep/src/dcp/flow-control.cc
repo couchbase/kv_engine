@@ -67,7 +67,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
                                      buf_size.c_str(),
                                      buf_size.length());
             ObjectRegistry::onSwitchThread(epe);
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+            return ret;
         } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
             lh.unlock();
             /* Send a buffer ack when at least 20% of the buffer is drained */
@@ -80,7 +80,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             lastBufferAck = ep_current_time();
             ackedBytes.fetch_add(ackable_bytes);
             freedBytes.fetch_sub(ackable_bytes);
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+            return ret;
         } else if (ackable_bytes > 0 &&
                    (ep_current_time() - lastBufferAck) > 5) {
             lh.unlock();
@@ -94,7 +94,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             lastBufferAck = ep_current_time();
             ackedBytes.fetch_add(ackable_bytes);
             freedBytes.fetch_sub(ackable_bytes);
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
+            return ret;
         } else {
             lh.unlock();
         }

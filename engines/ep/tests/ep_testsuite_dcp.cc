@@ -36,9 +36,9 @@
 void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
     std::unique_ptr<dcp_message_producers> producers = get_dcp_producers(h, h1);
     ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
-    check(err == ENGINE_SUCCESS || err == ENGINE_WANT_MORE,
-            "Expected success or engine_want_more");
-    if (err == ENGINE_SUCCESS) {
+    check(err == ENGINE_SUCCESS || err == ENGINE_EWOULDBLOCK,
+          "Expected success or engine_ewouldblock");
+    if (err == ENGINE_EWOULDBLOCK) {
         clear_dcp_data();
     }
 }
@@ -48,9 +48,9 @@ void dcpHandleResponse(ENGINE_HANDLE* h,
                        const void* cookie,
                        protocol_binary_response_header* response) {
     auto erroCode = h1->dcp.response_handler(h, cookie, response);
-    check(erroCode == ENGINE_SUCCESS || erroCode == ENGINE_WANT_MORE,
-          "Expected 'success' or 'engine want more'");
-    if (erroCode == ENGINE_SUCCESS) {
+    check(erroCode == ENGINE_SUCCESS || erroCode == ENGINE_EWOULDBLOCK,
+          "Expected 'success' or 'engine_ewouldblock'");
+    if (erroCode == ENGINE_EWOULDBLOCK) {
         clear_dcp_data();
     }
 }
@@ -1536,7 +1536,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
         const auto stat_name3("eq_dcpq:" + name4 + ":max_buffer_bytes");
         checkeq(exp_buf_size, get_int_stat(h, h1, stat_name3.c_str(), "dcp"),
                 "Flow Control Buffer Size not correct");
-        checkeq(ENGINE_WANT_MORE, h1->dcp.step(h, cookie[i], producers.get()),
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.step(h, cookie[i], producers.get()),
                 "Pending flow control buffer change not processed");
         checkeq((uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_last_op,
                 "Flow ctl buf size change control message not received");
@@ -1743,8 +1744,9 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
     testHarness.time_travel(201);
     // No-op not recieved for 201 seconds. Should be ok.
     const auto producers(get_dcp_producers(h, h1));
-    checkeq(ENGINE_SUCCESS, h1->dcp.step(h, cookie, producers.get()),
-            "Expected engine success");
+    checkeq(ENGINE_EWOULDBLOCK,
+            h1->dcp.step(h, cookie, producers.get()),
+            "Expected engine_ewouldblock");
 
     testHarness.time_travel(200);
 

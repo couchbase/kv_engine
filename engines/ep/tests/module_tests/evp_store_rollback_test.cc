@@ -452,7 +452,7 @@ public:
     }
 
     void stepForStreamRequest(uint64_t startSeqno, uint64_t vbUUID) {
-        while (consumer->step(producers.get()) == ENGINE_WANT_MORE) {
+        while (consumer->step(producers.get()) == ENGINE_SUCCESS) {
             handleProducerResponseIfStepBlocked(*consumer);
         }
         EXPECT_TRUE(streamRequestData.called);
@@ -721,17 +721,17 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     producer->notifySeqnoAvailable(vb->getId(), vb->getHighSeqno());
 
     // Step which will notify the snapshot task
-    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
 
     // Now call run on the snapshot task to move checkpoint into DCP stream
     producer->getCheckpointSnapshotTask().run();
 
     // snapshot marker
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
 
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
 
     auto kvb = engine->getKVBucket();
@@ -742,7 +742,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     // The stream should now be dead
     EXPECT_FALSE(stream->isActive()) << "Stream should be dead";
 
-    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op)
             << "stream should have received a STREAM_END";
 

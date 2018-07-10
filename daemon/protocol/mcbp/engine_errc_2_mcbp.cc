@@ -59,10 +59,6 @@ protocol_binary_response_status mcbp::to_status(cb::engine_errc code) {
         throw std::logic_error(
             "mcbp::to_status: would_block is not a legal error code to send to the user");
 
-    case engine_errc::want_more:
-        throw std::logic_error(
-            "mcbp::to_status: want_more is not a legal error code to send to the user");
-
     case engine_errc::disconnect:
         throw std::logic_error(
             "mcbp::to_status: disconnect is not a legal error code to send to the user");
@@ -131,11 +127,6 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         throw std::logic_error(
                 "mcbp::to_status: would_block is not a legal error code to "
                 "send to the user");
-
-    case engine_errc::want_more:
-        throw std::logic_error(
-                "mcbp::to_status: want_more is not a legal error code to send "
-                "to the user");
 
     case engine_errc::disconnect:
         throw std::logic_error(

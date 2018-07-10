@@ -78,7 +78,9 @@ struct dcp_message_producers {
      *              1 = Something happened on the vbucket causing
      *                  us to abort it.
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
+     *         ENGINE_EWOULDBLOCK if no data is available
+     *         ENGINE_* for errors
      */
     ENGINE_ERROR_CODE(*stream_end)
     (gsl::not_null<const void*> cookie,

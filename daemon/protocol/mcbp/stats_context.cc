@@ -1000,7 +1000,6 @@ ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
         state = State::DoStats;
         return command_exit_code;
     case ENGINE_DISCONNECT:
-    case ENGINE_WANT_MORE:
         // We don't send these responses back so we will not store
         // stats for these.
         break;
