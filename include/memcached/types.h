@@ -1,5 +1,4 @@
-#ifndef MEMCACHED_TYPES_H
-#define MEMCACHED_TYPES_H 1
+#pragma once
 
 #include <boost/optional/optional.hpp>
 #include <stdint.h>
@@ -12,7 +11,6 @@
 #include <sys/uio.h>
 #endif
 
-#include "engine_error.h"
 #include "vbucket.h"
 
 /**
@@ -143,5 +141,3 @@ using ExpiryLimit = boost::optional<std::chrono::seconds>;
 
 static const ExpiryLimit NoExpiryLimit{};
 }
-
-#endif /* MEMCACHED_TYPES_H */

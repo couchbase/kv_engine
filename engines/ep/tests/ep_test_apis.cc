@@ -1304,7 +1304,7 @@ void sendDcpAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     pkt.response.status = htons(status);
     pkt.response.opaque = opaque;
 
-    auto& dcp = dynamic_cast<dcp_interface&>(*h);
+    auto& dcp = dynamic_cast<DcpIface&>(*h);
     check(dcp.response_handler(cookie, &pkt) == ENGINE_SUCCESS,
           "Expected success");
 }

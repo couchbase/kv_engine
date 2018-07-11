@@ -32,7 +32,7 @@
  * the connection to this bucket and it'll handle the appropriate
  * command.
  */
-class NoBucket : public ENGINE_HANDLE_V1, public dcp_interface {
+class NoBucket : public ENGINE_HANDLE_V1, public DcpIface {
 public:
     NoBucket() {
         ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;

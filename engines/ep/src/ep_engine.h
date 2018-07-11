@@ -92,8 +92,7 @@ private:
 /**
  * memcached engine interface to the KVBucket.
  */
-class EventuallyPersistentEngine : public ENGINE_HANDLE_V1,
-                                   public dcp_interface {
+class EventuallyPersistentEngine : public ENGINE_HANDLE_V1, public DcpIface {
     friend class LookupCallback;
 public:
     ENGINE_ERROR_CODE initialize(const char* config) override;

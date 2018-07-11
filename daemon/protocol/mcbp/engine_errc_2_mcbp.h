@@ -14,6 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include <memcached/engine_error.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 

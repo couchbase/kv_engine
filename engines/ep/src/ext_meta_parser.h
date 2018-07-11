@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include <memcached/engine_error.h>
 #include <memcached/types.h>
 
 #include <utility>

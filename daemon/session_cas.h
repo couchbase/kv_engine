@@ -16,9 +16,10 @@
  */
 #pragma once
 
+#include <memcached/engine_error.h>
+#include <memcached/types.h>
 #include <cstdint>
 #include <mutex>
-#include <memcached/types.h>
 
 /**
  * Structure to save ns_server's session cas token.

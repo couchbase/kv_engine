@@ -16,8 +16,9 @@
  */
 #pragma once
 
-#include <memcached/engine_common.h>
 #include "task.h"
+#include <memcached/engine_common.h>
+#include <memcached/engine_error.h>
 
 class Connection;
 

@@ -16,12 +16,13 @@
  */
 #pragma once
 
-#include <memcached/dockey.h>
-#include <memcached/engine_common.h>
+#include <memcached/engine_error.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
 #include <memcached/visibility.h>
+
+struct DocKey;
 
 /**
  * The message producers is used by the engine by the DCP producers
@@ -657,5 +658,3 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) = 0;
 };
-
-using dcp_interface = DcpIface;

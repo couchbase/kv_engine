@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <memcached/engine_error.h>
 #include <memcached/types.h>
 
 /**

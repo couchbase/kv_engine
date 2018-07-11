@@ -18,6 +18,7 @@
 #include <inttypes.h>
 
 #include <memcached/config_parser.h>
+#include <memcached/engine_error.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/rbac.h>
 #include <memcached/types.h>
