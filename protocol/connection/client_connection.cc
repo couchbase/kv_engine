@@ -343,6 +343,36 @@ void MemcachedConnection::connect() {
         msg.append(std::to_string(port));
         throw std::system_error(error, std::system_category(), msg);
     }
+
+    bool unitTests = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
+    if (!ssl && unitTests) {
+        // Enable LINGER with zero timeout. This changes the
+        // behaviour of close() - any unsent data will be
+        // discarded, and the connection will be immediately
+        // closed with a RST, and is immediately destroyed.  This
+        // has the advantage that the socket doesn't enter
+        // TIME_WAIT; and hence doesn't consume an emphemeral port
+        // until it times out (default 60s).
+        //
+        // By using LINGER we (hopefully!) avoid issues in CV jobs
+        // where ephemeral ports are exhausted and hence tests
+        // intermittently fail. One minor downside the RST
+        // triggers a warning in the server side logs: 'read
+        // error: Connection reset by peer'.
+        //
+        // Note that this isn't enabled for SSL sockets, which don't
+        // appear to be happy with having the underlying socket closed
+        // immediately; I suspect due to the additional out-of-band
+        // messages SSL may send/recv in addition to normal traffic.
+        struct linger sl;
+        sl.l_onoff = 1;
+        sl.l_linger = 0;
+        cb::net::setsockopt(sock,
+                            SOL_SOCKET,
+                            SO_LINGER,
+                            reinterpret_cast<const void*>(&sl),
+                            sizeof(sl));
+    }
 }
 
 void MemcachedConnection::sendBufferSsl(cb::const_byte_buffer buf) {
