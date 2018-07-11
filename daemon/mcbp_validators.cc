@@ -56,9 +56,10 @@ static inline std::string get_peer_description(const Cookie& cookie) {
  *****************************************************************************/
 
 /**
- * Verify that the cookie meets the common DCP restrictions. For now
- * the only restriction is that the connection cannot be set into the
- * unordered execution mode.
+ * Verify that the cookie meets the common DCP restrictions:
+ *
+ * a) The connected engine supports DCP
+ * b) The connection cannot be set into the unordered execution mode.
  *
  * In the future it should be extended to verify that the various DCP
  * commands is only sent on a connection which is set up as a DCP
@@ -68,6 +69,12 @@ static inline std::string get_peer_description(const Cookie& cookie) {
  */
 static protocol_binary_response_status verify_common_dcp_restrictions(
         const Cookie& cookie) {
+    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
+    if (!dcp) {
+        // The attached bucket does not support DCP
+        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    }
+
     const auto& connection = cookie.getConnection();
     if (connection.allowUnorderedExecution()) {
         LOG_WARNING(
@@ -103,14 +110,6 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     const auto mask = DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER |
                       DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_NO_VALUE |
                       DCP_OPEN_COLLECTIONS | DCP_OPEN_INCLUDE_DELETE_TIMES;
@@ -131,7 +130,6 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
                 get_peer_description(cookie));
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -146,14 +144,6 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     const auto flags = ntohl(req->message.body.flags);
@@ -174,7 +164,6 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
         }
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -190,15 +179,6 @@ static protocol_binary_response_status dcp_close_stream_validator(const Cookie& 
         /* INCORRECT FORMAT */
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -213,15 +193,6 @@ static protocol_binary_response_status dcp_get_failover_log_validator(const Cook
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -236,15 +207,6 @@ static protocol_binary_response_status dcp_stream_req_validator(const Cookie& co
         /* INCORRECT FORMAT */
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -259,15 +221,6 @@ static protocol_binary_response_status dcp_stream_end_validator(const Cookie& co
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -282,15 +235,6 @@ static protocol_binary_response_status dcp_snapshot_marker_validator(const Cooki
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -312,15 +256,6 @@ static protocol_binary_response_status dcp_system_event_validator(
     if (!mcbp::systemevent::validate(ntohl(req->message.body.event))) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -372,15 +307,6 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
         !is_valid_xattr_blob(req->message.header)) {
         return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -430,15 +356,6 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
     if (extlen != expectedExtlen) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -461,15 +378,6 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
                           may_accept_collections(cookie))) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -484,15 +392,6 @@ static protocol_binary_response_status dcp_flush_validator(const Cookie& cookie)
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -511,15 +410,6 @@ static protocol_binary_response_status dcp_set_vbucket_state_validator(const Coo
     if (req->message.body.state < 1 || req->message.body.state > 4) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -534,15 +424,6 @@ static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -557,15 +438,6 @@ static protocol_binary_response_status dcp_buffer_acknowledgement_validator(cons
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -581,15 +453,6 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-
-    // We could do these tests before checking the packet, but
-    // it feels cleaner to validate the packet first.
-    auto* dcp = cookie.getConnection().getBucket().getDcpIface();
-    if (!dcp) {
-        // The attached bucket does not support DCP
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-    }
-
     return verify_common_dcp_restrictions(cookie);
 }
 
