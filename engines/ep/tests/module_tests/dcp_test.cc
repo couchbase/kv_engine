@@ -1287,17 +1287,18 @@ TEST_P(StreamTest, BackfillOnly) {
 
     // Wait for the backfill task to have pushed all items to the Stream::readyQ
     // Note: we expect 1 SnapshotMarker + numItems in the readyQ
+    // Note: we need to access the readyQ under streamLock while the backfill
+    //     task is running
     std::chrono::microseconds uSleepTime(128);
-    auto& readyQ = stream->public_readyQ();
-    while (readyQ.size() < numItems + 1) {
+    while (stream->public_readyQSize() < numItems + 1) {
         uSleepTime = decayingSleep(uSleepTime);
     }
 
     // Check the content of readyQ
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
-    auto snapMarker =
-            dynamic_cast<SnapshotMarker&>(*stream->public_nextQueuedItem());
-    while (readyQ.size() > 0) {
+    auto front = stream->public_nextQueuedItem();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, front->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*front);
+    while (stream->public_readyQSize() > 0) {
         auto item = stream->public_nextQueuedItem();
         EXPECT_EQ(DcpResponse::Event::Mutation, item->getEvent());
         auto seqno = item->getBySeqno().get();

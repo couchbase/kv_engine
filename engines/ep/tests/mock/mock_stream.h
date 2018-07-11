@@ -78,7 +78,13 @@ public:
         return readyQ;
     }
 
+    size_t public_readyQSize() {
+        LockHolder lh(streamMutex);
+        return readyQ.size();
+    }
+
     std::unique_ptr<DcpResponse> public_nextQueuedItem() {
+        LockHolder lh(streamMutex);
         return nextQueuedItem();
     }
 
