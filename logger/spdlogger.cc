@@ -205,13 +205,17 @@ boost::optional<std::string> cb::logger::initialize(
         }
 
         spdlog::drop(logger_name);
-        file_logger =
-                spdlog::create_async(logger_name,
-                                     sink,
-                                     buffersz,
-                                     spdlog::async_overflow_policy::block_retry,
-                                     nullptr,
-                                     std::chrono::milliseconds(200));
+        if (logger_settings.unit_test) {
+            file_logger = spdlog::create(logger_name, sink);
+        } else {
+            file_logger = spdlog::create_async(
+                    logger_name,
+                    sink,
+                    buffersz,
+                    spdlog::async_overflow_policy::block_retry,
+                    nullptr,
+                    std::chrono::milliseconds(200));
+        }
     } catch (const spdlog::spdlog_ex& ex) {
         std::string msg =
                 std::string{"Log initialization failed: "} + ex.what();
