@@ -17,10 +17,6 @@
 
 #include "config.h"
 
-#ifdef _MSC_VER
-#define PATH_MAX MAX_PATH
-#endif
-
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,7 +26,6 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
-#include <platform/checked_snprintf.h>
 #include <platform/dirutils.h>
 #include <algorithm>
 #include <cctype>
@@ -1577,11 +1572,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames,
         size_t secondDot = filename.rfind(".");
         std::string nameKey = filename.substr(0, secondDot);
         size_t firstDot = nameKey.rfind(".");
-#ifdef _MSC_VER
-        size_t firstSlash = nameKey.rfind("\\");
-#else
-        size_t firstSlash = nameKey.rfind("/");
-#endif
+        size_t firstSlash = nameKey.rfind(DIRECTORY_SEPARATOR_CHARACTER);
 
         std::string revNumStr = filename.substr(secondDot + 1);
         char *ptr = NULL;
@@ -2782,22 +2773,18 @@ void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
         throw std::logic_error("CouchKVStore::unlinkCouchFile: Not valid on a "
                 "read-only object.");
     }
-    char fname[PATH_MAX];
-    try {
-        checked_snprintf(fname, sizeof(fname), "%s/%d.couch.%" PRIu64,
-                         dbname.c_str(), vbucket, fRev);
-    } catch (std::exception&) {
-        LOG(EXTENSION_LOG_WARNING,
-            "CouchKVStore::unlinkCouchFile: Failed to build filename:%s",
-            fname);
-        return;
-    }
 
-    if (remove(fname) == -1) {
+    std::string fname = dbname + "/" + std::to_string(vbucket) + ".couch." +
+                        std::to_string(fRev);
+    cb::io::sanitizePath(fname);
+    if (remove(fname.c_str()) == -1) {
         logger.log(EXTENSION_LOG_WARNING,
                    "CouchKVStore::unlinkCouchFile: remove error:%u, "
-                   "vb:%" PRIu16 ", rev:%" PRIu64 ", fname:%s", errno, vbucket,
-                   fRev, fname);
+                   "vb:%" PRIu16 ", rev:%" PRIu64 ", fname:%s",
+                   errno,
+                   vbucket,
+                   fRev,
+                   fname.c_str());
 
         if (errno != ENOENT) {
             std::string file_str = fname;
