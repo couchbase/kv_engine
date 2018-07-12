@@ -18,13 +18,10 @@
 #include "collections/vbucket_manifest_entry.h"
 
 SystemEvent Collections::VB::ManifestEntry::completeDeletion() {
-    if (isExclusiveDeleting()) {
+    if (isDeleting()) {
         // All items from any generation of the collection gone, so delete the
         // collection metadata
         return SystemEvent::DeleteCollectionHard;
-    } else if (isOpenAndDeleting()) {
-        resetEndSeqno(); // reset the end to the special seqno and return soft
-        return SystemEvent::DeleteCollectionSoft;
     }
     throwException<std::logic_error>(__FUNCTION__, "invalid state");
 }

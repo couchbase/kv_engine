@@ -50,32 +50,12 @@ public:
         return itr->second.isOpen();
     }
 
-    bool isExclusiveOpen(CollectionID identifier) const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier);
-        return itr->second.isExclusiveOpen();
-    }
 
     bool isDeleting(CollectionID identifier) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         expect_true(exists_UNLOCKED(identifier));
         auto itr = map.find(identifier);
         return itr->second.isDeleting();
-    }
-
-    bool isExclusiveDeleting(CollectionID identifier) const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier);
-        return itr->second.isExclusiveDeleting();
-    }
-
-    bool isOpenAndDeleting(CollectionID identifier) const {
-        std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier);
-        return itr->second.isOpenAndDeleting();
     }
 
     size_t size() const {
@@ -304,21 +284,6 @@ public:
         return active.isDeleting(identifier) && replica.isDeleting(identifier);
     }
 
-    bool isExclusiveOpen(CollectionID identifier) {
-        return active.isExclusiveOpen(identifier) &&
-               replica.isExclusiveOpen(identifier);
-    }
-
-    bool isExclusiveDeleting(CollectionID identifier) {
-        return active.isExclusiveDeleting(identifier) &&
-               replica.isExclusiveDeleting(identifier);
-    }
-
-    bool isOpenAndDeleting(CollectionID identifier) {
-        return active.isOpenAndDeleting(identifier) &&
-               replica.isOpenAndDeleting(identifier);
-    }
-
     bool checkSize(size_t s) {
         return active.size() == s && replica.size() == s;
     }
@@ -440,7 +405,6 @@ public:
                     }
                     break;
                 }
-                case SystemEvent::DeleteCollectionSoft:
                 case SystemEvent::DeleteCollectionHard:
                     // DCP doesn't transmit these events, but to improve test
                     // coverage call completeDeletion on the replica only in
@@ -501,7 +465,7 @@ TEST_F(VBucketManifestTest, collectionExists) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", CollectionEntry::vegetable}));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
 }
 
 TEST_F(VBucketManifestTest, defaultCollectionExists) {
@@ -527,21 +491,21 @@ TEST_F(VBucketManifestTest, add_delete_in_one_update) {
 
 TEST_F(VBucketManifestTest, updates) {
     EXPECT_TRUE(manifest.checkSize(1));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::defaultC));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::defaultC));
 
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::fruit)));
     EXPECT_TRUE(manifest.checkSize(3));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::fruit));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::fruit));
 
     EXPECT_TRUE(manifest.update(
             cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.checkSize(5));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::meat));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
 }
 
 TEST_F(VBucketManifestTest, updates2) {
@@ -555,8 +519,8 @@ TEST_F(VBucketManifestTest, updates2) {
     EXPECT_TRUE(manifest.update(
             cm.remove(CollectionEntry::meat).remove(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.checkSize(5));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::meat));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
 
     // But vegetable is accessible, the others are locked out
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -579,11 +543,11 @@ TEST_F(VBucketManifestTest, updates3) {
     CollectionsManifest cm2(NoDefault{});
     EXPECT_TRUE(manifest.update(cm2));
     EXPECT_TRUE(manifest.checkSize(5));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::defaultC));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::vegetable));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::fruit));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::meat));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::defaultC));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::fruit));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
 
     // But vegetable is accessible, the others are 'locked' out
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
@@ -603,7 +567,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
     auto seqno = manifest.getLastSeqno(); // seqno of the vegetable addition
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", CollectionEntry::vegetable}));
 
@@ -619,7 +583,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
     seqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", CollectionEntry::vegetable}));
 
@@ -648,7 +612,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
 TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", CollectionEntry::vegetable}));
 
@@ -656,7 +620,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
     auto seqno = manifest.getLastSeqno();
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", CollectionEntry::vegetable}));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
@@ -672,14 +636,14 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", CollectionEntry::vegetable}));
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
     EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isExclusiveDeleting(CollectionEntry::vegetable));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", CollectionEntry::vegetable}));
 
@@ -697,7 +661,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(manifest.checkSize(2));
 
     // No longer OpenAndDeleting, now ExclusiveOpen
-    EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             {"vegetable:carrot", CollectionEntry::vegetable2}));

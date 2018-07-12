@@ -501,9 +501,6 @@ std::string Manifest::serialToJson(const Item& collectionsEventItem) {
         // Collection start/end (create/delete)
         json << serial->toJsonCreateOrDelete(collectionsEventItem.isDeleted(),
                                              collectionsEventItem.getBySeqno());
-    } else if (se == SystemEvent::DeleteCollectionSoft) {
-        // Collection delete completed, but collection has been recreated
-        json << serial->toJsonResetEnd();
     }
 
     json << "]}";

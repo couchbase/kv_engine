@@ -98,34 +98,6 @@ public:
     }
 
     /**
-     * A collection can be open whilst at the same time a previous incarnation
-     * of it is being deleted.
-     * isOpenAndDeleted returns true for exactly this case
-     */
-    bool isOpenAndDeleting() const {
-        return isOpen() && isDeleting();
-    }
-
-    /**
-     * A collection can be open whilst at the same time a previous incarnation
-     * of it is being deleted.
-     * Exclusively Open is true only when there is no deletion in progress.
-     */
-    bool isExclusiveOpen() const {
-        return isOpen() && !isDeleting();
-    }
-
-    /**
-     * A collection can be open whilst at the same time a previous incarnation
-     * of it is being deleted.
-     * Exclusively Deleting means that there was no re-addition of the
-     * collection, it is only deleting.
-     */
-    bool isExclusiveDeleting() const {
-        return !isOpen() && isDeleting();
-    }
-
-    /**
      * Inform the collection that all items of the collection up to endSeqno
      * have been deleted.
      *

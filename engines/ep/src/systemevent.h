@@ -52,18 +52,7 @@ enum class SystemEvent : uint32_t {
      * fully removes the collection and also deleted the special marker document
      * created by CreateCollection.
      */
-    DeleteCollectionHard,
-
-    /**
-     * The DeleteCollectionSoft system event is generated when a VBucket has
-     * completed the deletion of all items of a collection *but*  a
-     * collection of the same name was added back during the deletion. The soft
-     * delete carries data to the flusher so we can persist a JSON manifest that
-     * only updates the end-seqno of the deleted collection entry. The soft
-     * delete also deleted the special marker document created by
-     * CreateCollection.
-     */
-    DeleteCollectionSoft,
+    DeleteCollectionHard
 };
 
 static inline std::string to_string(const SystemEvent se) {
@@ -72,8 +61,6 @@ static inline std::string to_string(const SystemEvent se) {
         return "Collection";
     case SystemEvent::DeleteCollectionHard:
         return "DeleteCollectionHard";
-    case SystemEvent::DeleteCollectionSoft:
-        return "DeleteCollectionSoft";
     }
     throw std::invalid_argument("to_string(SystemEvent) unknown " +
                                 std::to_string(int(se)));

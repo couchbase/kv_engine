@@ -114,8 +114,7 @@ bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
             return filter.count(collection) > 0;
         }
     }
-    case SystemEvent::DeleteCollectionHard:
-    case SystemEvent::DeleteCollectionSoft: {
+    case SystemEvent::DeleteCollectionHard: {
         return false;
     }
     default: {

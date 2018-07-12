@@ -52,7 +52,6 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
         // $collection:<collection-id>
         key = Collections::SystemEventPrefixWithSeparator + keyExtra;
         break;
-    case SystemEvent::DeleteCollectionSoft:
     case SystemEvent::DeleteCollectionHard: {
         // $collections_delete:<collection-id>
         key = Collections::DeleteKey + keyExtra;
@@ -105,8 +104,7 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
         saveCollectionsManifestItem(item); // Updates manifest
         return ProcessStatus::Continue; // And flushes an item
     }
-    case SystemEvent::DeleteCollectionHard:
-    case SystemEvent::DeleteCollectionSoft: {
+    case SystemEvent::DeleteCollectionHard: {
         saveCollectionsManifestItem(item); // Updates manifest
         return ProcessStatus::Skip; // But skips flushing the item
     }
@@ -140,10 +138,9 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
             case SystemEvent::Collection:
                 return ProcessStatus::Continue;
             case SystemEvent::DeleteCollectionHard:
-            case SystemEvent::DeleteCollectionSoft: {
-                // Delete H/S do not replicate
+                // DeleteHard does not replicate
                 return ProcessStatus::Skip;
-            }
+
             }
         }
     }
@@ -163,7 +160,6 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                                 {item->getData(), item->getNBytes()}))};
     }
     case SystemEvent::DeleteCollectionHard:
-    case SystemEvent::DeleteCollectionSoft:
         break;
     }
 
