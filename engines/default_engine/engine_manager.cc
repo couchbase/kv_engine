@@ -31,6 +31,7 @@
 #include <memory>
 
 static std::unique_ptr<EngineManager> engineManager;
+static std::mutex createLock;
 
 EngineManager::EngineManager()
   : scrubberTask(*this),
@@ -159,7 +160,6 @@ void EngineManager::notifyScrubComplete(struct default_engine* engine,
 }
 
 EngineManager& getEngineManager() {
-    static std::mutex createLock;
     if (engineManager.get() == nullptr) {
         std::lock_guard<std::mutex> lg(createLock);
         if (engineManager.get() == nullptr) {
@@ -188,4 +188,6 @@ void engine_manager_shutdown() {
     // but then we could recreate the object on accident by calling
     // one of the other functions which in turn call getEngineManager()
     getEngineManager().shutdown();
+    std::lock_guard<std::mutex> lg(createLock);
+    engineManager.reset();
 }

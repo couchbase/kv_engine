@@ -380,6 +380,7 @@ void clear_dcp_data() {
     dcp_last_vbucket_uuid = 0;
     dcp_last_snap_start_seqno = 0;
     dcp_last_snap_end_seqno = 0;
+    dcp_last_byseqno = 0;
     dcp_last_meta.clear();
     dcp_last_value.clear();
     dcp_last_key.clear();

@@ -31,11 +31,14 @@
 #include "ext_meta_parser.h"
 #include "item.h"
 
-#define check(expr, msg) \
-    static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __FILE__, __LINE__))
+#define check(expr, msg)                               \
+    do {                                               \
+        if (!(expr)) {                                 \
+            abort_msg(#expr, msg, __FILE__, __LINE__); \
+        }                                              \
+    } while (0)
 
-extern "C" bool abort_msg(const char *expr, const char *msg,
-                          const char *file, int line) CB_ATTR_NORETURN;
+void abort_msg(const char* expr, const char* msg, const char* file, int line);
 
 #ifdef __cplusplus
 extern "C" {

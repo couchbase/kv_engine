@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef TESTS_EP_TESTSUITE_COMMON_H_
-#define TESTS_EP_TESTSUITE_COMMON_H_
+#pragma once
 
 #include "config.h"
 
@@ -303,5 +302,3 @@ bool isTapEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
 void checkPersistentBucketTempItems(ENGINE_HANDLE* h,
                                     ENGINE_HANDLE_V1* h1,
                                     int exp);
-
-#endif /* TESTS_EP_TESTSUITE_COMMON_H_ */

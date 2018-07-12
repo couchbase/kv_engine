@@ -1122,10 +1122,9 @@ static void store_engine_specific(const void *cookie, void *engine_data) {
     get_mock_server_api()->cookie->store_engine_specific(cookie, engine_data);
 }
 
-static int execute_test(engine_test_t test,
-                        const char *engine,
-                        const char *default_cfg)
-{
+static test_result execute_test(engine_test_t test,
+                                const char* engine,
+                                const char* default_cfg) {
     enum test_result ret = PENDING;
     cb_assert(test.tfun != NULL || test.api_v2.tfun != NULL);
     bool test_api_1 = test.tfun != NULL;
@@ -1246,6 +1245,8 @@ static int execute_test(engine_test_t test,
         if (handle) {
             destroy_bucket(handle, handle_v1, false);
         }
+        handle = nullptr;
+        handle_v1 = nullptr;
 
         destroy_mock_event_callbacks();
         stop_your_engine();
@@ -1255,7 +1256,7 @@ static int execute_test(engine_test_t test,
         }
     }
 
-    return (int)ret;
+    return ret;
 }
 
 static void setup_alarm_handler() {
@@ -1281,71 +1282,6 @@ static void clear_test_timeout() {
     alarm(0);
     alarmed = 0;
 #endif
-}
-
-/* Spawn a new process, wait for it to exit and return it's exit code.
- * @param argc Number of elements in argv; must be at least 1 (argv[0]
- *             specifies the name of the executable to run).
- * @param argv NULL-terminated array of arguments to the process; with
- *             the first element being the executable to run.
- */
-static int spawn_and_wait(int argc, char* const argv[]) {
-#ifdef WIN32
-    STARTUPINFO sinfo;
-    PROCESS_INFORMATION pinfo;
-    memset(&sinfo, 0, sizeof(sinfo));
-    memset(&pinfo, 0, sizeof(pinfo));
-    sinfo.cb = sizeof(sinfo);
-
-    char commandline[1024];
-    cb_assert(argc > 0);
-    char* offset = commandline;
-    for (int i = 0; i < argc; i++) {
-        offset += sprintf(offset, "%s ", argv[i]);
-    }
-
-    if (!CreateProcess(argv[0], commandline, NULL, NULL, FALSE, 0,
-                       NULL, NULL, &sinfo, &pinfo)) {
-        std::cerr << "Failed to start process: " << cb_strerror() << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    WaitForSingleObject(pinfo.hProcess, INFINITE);
-
-    // Get exit code
-    DWORD exit_code;
-    GetExitCodeProcess(pinfo.hProcess, &exit_code);
-
-    // remap some of the error codes:
-    if (exit_code == EXIT_FAILURE || exit_code == 3) {
-        // according to https://msdn.microsoft.com/en-us/library/k089yyh0.aspx
-        // abort() will call _exit(3) if no handler is called
-        exit_code = int(FAIL);
-    } else if (exit_code == 255) {
-        // If you click the "terminate program" button in the dialog
-        // opened that allows you debug a program, 255 is returned
-        exit_code = int(DIED);
-    }
-
-    // Close process and thread handles.
-    CloseHandle(pinfo.hProcess);
-    CloseHandle(pinfo.hThread);
-
-    return exit_code;
-#else
-    pid_t pid = fork();
-    cb_assert(pid != -1);
-
-    if (pid == 0) {
-        /* Child */
-        cb_assert(execvp(argv[0], argv) != -1);
-        // Not reachable, but keep the compiler happy
-        return -1;
-    } else {
-        int status;
-        waitpid(pid, &status, 0);
-        return status;
-    }
-#endif // !WIN32
 }
 
 static void teardown_testsuite(cb_dlhandle_t handle, const char* test_suite) {
@@ -1406,7 +1342,7 @@ int main(int argc, char **argv) {
         void* voidptr;
     } my_setup_suite;
 
-    cb::logger::createBlackholeLogger();
+    cb::logger::createConsoleLogger();
     cb_initialize_sockets();
 
     AllocHooks::initialize();
@@ -1610,38 +1546,15 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (test_case_id != -1) {
-        int exit_code = 0;
-
-        if (test_case_id >= num_cases) {
-            fprintf(stderr, "Invalid test case id specified\n");
-            exit_code = EXIT_FAILURE;
-        } else if (testcases[test_case_id].tfun || testcases[test_case_id].api_v2.tfun) {
-            // check there's a test to run, some modules need cleaning up of dead tests
-            // if all modules are fixed, this else if can be removed.
-            exit_code = execute_test(testcases[test_case_id], engine, engine_args);
-        } else {
-            exit_code = PENDING; // ignored tests would always return PENDING
-        }
-        disconnect_all_mock_connections();
-        teardown_testsuite(handle, test_suite);
-        cb_dlclose(handle);
-        exit(exit_code);
-    }
-
-    // Setup child argv; same as parent plus additional "-C" "X" arguments.
-    std::vector<std::string> child_args;
-    for (int ii = 0; ii < argc; ii++) {
-        child_args.push_back(argv[ii]);
-    }
-    child_args.push_back("-C");
-    // Expand the child_args to contain space for the numeric argument to '-C'
-    child_args.push_back("X");
-
     do {
         int i;
         bool need_newline = false;
         for (i = 0; testcases[i].name; i++) {
+            // If a specific test was chosen, skip all other tests.
+            if (test_case_id != -1 && i != test_case_id) {
+                continue;
+            }
+
             int error = 0;
             if (test_case_regex && !std::regex_search(testcases[i].name,
                                                       *test_case_regex)) {
@@ -1666,38 +1579,33 @@ int main(int argc, char **argv) {
 
             {
                 enum test_result ecode = FAIL;
-                int rc;
-
-                // Setup args for this test instance.
-                child_args[argc + 1] = std::to_string(i);
-
-                // Need to convert to C-style argv. +1 for null terminator.
-                std::vector<char*> child_argv(child_args.size() + 1);
-                for (size_t i = 0; i < child_args.size(); i++) {
-                    child_argv[i] = &child_args[i][0];
-                }
 
                 for (int attempt = 0;
                      (attempt < attempts) && ((ecode != SUCCESS) &&
                                               (ecode != SUCCESS_AFTER_RETRY));
                      attempt++) {
                     auto start = ProcessClock::now();
-                    rc = spawn_and_wait(argc + 2, child_argv.data());
+                    if (testcases[i].tfun || testcases[i].api_v2.tfun) {
+                        // check there's a test to run, some modules need
+                        // cleaning up of dead tests if all modules are fixed,
+                        // this else if can be removed.
+                        try {
+                            ecode = execute_test(
+                                    testcases[i], engine, engine_args);
+                        } catch (const TestExpectationFailed&) {
+                            ecode = FAIL;
+                        } catch (...) {
+                            // This is a non-test exception (i.e. not an
+                            // explicit test check which failed) - mark as
+                            // "died".
+                            ecode = DIED;
+                        }
+                    } else {
+                        ecode = PENDING; // ignored tests would always return
+                                         // PENDING
+                    }
                     auto stop = ProcessClock::now();
 
-#ifdef WIN32
-                    ecode = (enum test_result)rc;
-#else
-                    if (WIFEXITED(rc)) {
-                        ecode = (enum test_result)WEXITSTATUS(rc);
-#ifdef WCOREDUMP
-                    } else if (WIFSIGNALED(rc) && WCOREDUMP(rc)) {
-                        ecode = CORE;
-#endif
-                    } else {
-                        ecode = DIED;
-                    }
-#endif
                     /* If we only got SUCCESS after one or more
                        retries, change result to
                        SUCCESS_AFTER_RETRY */

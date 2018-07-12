@@ -66,13 +66,6 @@ void dcpHandleResponse(ENGINE_HANDLE* h,
     }
 }
 
-/* This is a flag that indicates the continuous dcp thread to come out of
-   loop that keeps calling dcp->step().
-   To be set only by the (parent) thread spawning the continuous_dcp_thread.
-   To be checked by continuous_dcp_thread.
-   (This approach seems safer than calling pthread_cancel()) */
-static std::atomic<bool> stop_continuous_dcp_thread(false);
-
 static bool wait_started(false);
 
 struct SeqnoRange {
@@ -201,6 +194,10 @@ public:
 
     void run(bool openConn = true);
 
+    // Stop the thread if it is running. This is safe to be called from
+    // a different thread to the thread calling run().
+    void stop();
+
     /**
      * This method just opens a DCP connection. Note it does not open a stream
      * and does not call the dcp step function to get all the items from the
@@ -278,6 +275,9 @@ private:
     ENGINE_HANDLE_V1* h1;
     gsl::not_null<DcpIface*> dcp;
     std::vector<int> nruCounter;
+
+    // Flag used by run() to check if it should continue to execute.
+    std::atomic<bool> done{false};
 };
 
 ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
@@ -304,7 +304,6 @@ void TestDcpConsumer::run(bool openConn) {
 
     MockDcpMessageProducers producers(h);
 
-    bool done = false;
     bool exp_all_items_streamed = true;
     size_t num_stream_ends_received = 0;
     uint32_t bytes_read = 0;
@@ -336,8 +335,7 @@ void TestDcpConsumer::run(bool openConn) {
             bytes_read = 0;
         }
         ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
-        if ((err == ENGINE_DISCONNECT) ||
-            (stop_continuous_dcp_thread.load(std::memory_order_relaxed))) {
+        if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
             const uint16_t vbid = dcp_last_vbucket;
@@ -571,6 +569,10 @@ void TestDcpConsumer::run(bool openConn) {
                 get_ull_stat(h, h1, stats_buffer, "dcp"),
                 "Buffer Size did not get set correctly");
     }
+}
+
+void TestDcpConsumer::stop() {
+    this->done = true;
 }
 
 void TestDcpConsumer::openConnection(uint32_t flags) {
@@ -957,6 +959,7 @@ struct continuous_dcp_ctx {
     uint16_t vbid;
     const std::string &name;
     uint64_t start_seqno;
+    std::unique_ptr<TestDcpConsumer> dcpConsumer;
 };
 
 //Forward declaration required for dcp_thread_func
@@ -1083,9 +1086,10 @@ extern "C" {
         ctx.snapshot = {cdc->start_seqno, cdc->start_seqno};
         ctx.skip_verification = true;
 
-        TestDcpConsumer tdc(cdc->name, cdc->cookie, cdc->h, cdc->h1);
-        tdc.addStreamCtx(ctx);
-        tdc.run();
+        cdc->dcpConsumer = std::make_unique<TestDcpConsumer>(
+                cdc->name, cdc->cookie, cdc->h, cdc->h1);
+        cdc->dcpConsumer->addStreamCtx(ctx);
+        cdc->dcpConsumer->run();
     }
 }
 
@@ -2482,7 +2486,6 @@ static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
 
     /* We want to stream items till end and keep the stream open. Then we want
        to verify the stream is still open */
-    stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
     struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
@@ -2508,7 +2511,7 @@ static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
 
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
-    stop_continuous_dcp_thread.store(true, std::memory_order_relaxed);
+    cdc.dcpConsumer->stop();
     testHarness.notify_io_complete(cookie, ENGINE_SUCCESS);
     cb_assert(cb_join_thread(dcp_thread) == 0);
     testHarness.destroy_cookie(cookie);
@@ -2584,7 +2587,6 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
        to verify the stream is still open */
     const void *cookie1 = testHarness.create_cookie();
     const std::string conn_name1("unittest1");
-    stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
     struct continuous_dcp_ctx cdc = {h, h1, cookie1, 0, conn_name1, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
@@ -2618,7 +2620,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
-    stop_continuous_dcp_thread.store(true, std::memory_order_relaxed);
+    cdc.dcpConsumer->stop();
     testHarness.notify_io_complete(cookie1, ENGINE_SUCCESS);
     cb_assert(cb_join_thread(dcp_thread) == 0);
 
@@ -2661,7 +2663,6 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
 
     /* We want to stream items till end and keep the stream open. We want to
        verify if the DCP cursor has moved to new open checkpoint */
-    stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
     struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 20};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
@@ -2690,7 +2691,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
 
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
-    stop_continuous_dcp_thread.store(true, std::memory_order_relaxed);
+    cdc.dcpConsumer->stop();
     testHarness.notify_io_complete(cookie, ENGINE_SUCCESS);
     cb_assert(cb_join_thread(dcp_thread) == 0);
     testHarness.destroy_cookie(cookie);
@@ -5925,7 +5926,6 @@ static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     // Set up a DcpTestConsumer that would remain in in-memory mode
-    stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
     struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0) == 0);

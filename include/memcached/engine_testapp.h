@@ -22,6 +22,15 @@ enum test_result {
     SKIPPED_UNDER_ROCKSDB = 25
 };
 
+/**
+ * Exception thrown by the checkXX() functions if a test expecation fails.
+ *
+ * Note this deliberately doesn't inherit from std::exception; so it shouldn't
+ * be caught by any catch() statements in the engine and is propogated
+ * back to the test harness.
+ */
+struct MEMCACHED_PUBLIC_CLASS TestExpectationFailed {};
+
 typedef struct test engine_test_t;
 
 using PreLinkFunction = std::function<void(item_info&)>;

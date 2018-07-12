@@ -1693,10 +1693,10 @@ void set_degraded_mode(ENGINE_HANDLE *h,
     }
 }
 
-bool abort_msg(const char *expr, const char *msg, const char *file, int line) {
+void abort_msg(const char* expr, const char* msg, const char* file, int line) {
     fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
             file, line, msg, expr);
-    abort();
+    throw TestExpectationFailed();
 }
 
 /* Helper function to validate the return from store() */

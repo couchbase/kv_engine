@@ -419,7 +419,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
 
 void init_mock_server() {
     process_started = time(0);
-    cb::logger::createConsoleLogger();
+    time_travel_offset = 0;
     extensions.logger = &cb::logger::getLoggerDescriptor();
     extensions.spdlogGetter = &cb::logger::getSpdloggerRef();
     log_level = EXTENSION_LOG_FATAL;
