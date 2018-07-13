@@ -602,39 +602,28 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
             ${Memcached_BINARY_DIR}/engine_testapp
             -E $<TARGET_FILE:ep>
             -T $<TARGET_FILE:${name}>)
-        ADD_TEST(NAME ${name}.value_eviction.comp_off
-                 COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>dbname=./${name}.value_eviction.comp_off.db")
         ADD_TEST(NAME ${name}.value_eviction.comp_passive
                  COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>dbname=./${name}.value_eviction.comp_passive.db")
         ADD_TEST(NAME ${name}.value_eviction.comp_active
                  COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>dbname=./${name}.value_eviction.comp_active.db")
-        ADD_TEST(NAME ${name}.full_eviction.comp_off
-                 COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>item_eviction_policy=full_eviction\
-$<SEMICOLON>dbname=./${name}.full_eviction.comp_off.db")
         ADD_TEST(NAME ${name}.full_eviction.comp_passive
                  COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>item_eviction_policy=full_eviction\
 $<SEMICOLON>dbname=./${name}.full_eviction.comp_passive.db")
         ADD_TEST(NAME ${name}.full_eviction.comp_active
                  COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>item_eviction_policy=full_eviction\
 $<SEMICOLON>dbname=./${name}.full_eviction.comp_active.db")
-        SET_TESTS_PROPERTIES(${name}.value_eviction.comp_off PROPERTIES TIMEOUT ${timeout})
         SET_TESTS_PROPERTIES(${name}.value_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
         SET_TESTS_PROPERTIES(${name}.value_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
-        SET_TESTS_PROPERTIES(${name}.full_eviction.comp_off PROPERTIES TIMEOUT ${timeout})
         SET_TESTS_PROPERTIES(${name}.full_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
         SET_TESTS_PROPERTIES(${name}.full_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
 
         IF (NOT arg_SKIP_EPHEMERAL)
-            ADD_TEST(NAME ${name}.ephemeral.comp_off
-                     COMMAND ${_cmdline} -v -e "compression_mode=off$<SEMICOLON>bucket_type=ephemeral\
-$<SEMICOLON>dbname=./${name}.ephemeral.comp_off.db")
             ADD_TEST(NAME ${name}.ephemeral.comp_passive
                      COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>bucket_type=ephemeral\
 $<SEMICOLON>dbname=./${name}.ephemeral.comp_passive.db")
             ADD_TEST(NAME ${name}.ephemeral.comp_active
                      COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>bucket_type=ephemeral\
 $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
-            SET_TESTS_PROPERTIES(${name}.ephemeral.comp_off PROPERTIES TIMEOUT ${timeout})
             SET_TESTS_PROPERTIES(${name}.ephemeral.comp_passive PROPERTIES TIMEOUT ${timeout})
             SET_TESTS_PROPERTIES(${name}.ephemeral.comp_active PROPERTIES TIMEOUT ${timeout})
         ENDIF ()
