@@ -3425,8 +3425,18 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 }
 #endif
 
+// Test that when a bucket is populated in full-eviction mode; but
+// later changed to value-eviction mode, if there isn't sufficient
+// memory to load all item metadata we return NOMEM to the
+// ENABLE_TRAFFIC command.
 static enum test_result test_warmup_oom(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     if (!isWarmupEnabled(h, h1)) {
+        return SKIPPED;
+    }
+
+    // Requires memory tracking for us to be able to correctly monitor memory
+    // usage.
+    if (!get_bool_stat(h, h1, "ep_mem_tracker_enabled")) {
         return SKIPPED;
     }
 
@@ -7696,9 +7706,14 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("test set_param message", test_set_param_message, test_setup,
                  teardown, "chk_remover_stime=1;max_size=6291456", prepare, cleanup),
-        TestCase("test warmup oom value eviction", test_warmup_oom, test_setup,
-                 teardown, "item_eviction_policy=full_eviction",
-                 prepare, cleanup),
+
+        TestCase("test warmup oom",
+                 test_warmup_oom,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare_full_eviction,
+                 cleanup),
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,
