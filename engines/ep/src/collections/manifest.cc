@@ -19,7 +19,7 @@
 #include "collections/collections_types.h"
 
 #include <JSON_checker.h>
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <gsl/gsl>
 
 #include <cstring>
@@ -28,97 +28,96 @@
 
 namespace Collections {
 
-Manifest::Manifest(const std::string& json, size_t maxNumberOfCollections)
+Manifest::Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections)
     : defaultCollectionExists(false), uid(0) {
     if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),
                        json.size())) {
         throw std::invalid_argument("Manifest::Manifest input not valid json:" +
-                                    json);
+                                    cb::to_string(json));
     }
-
-    unique_cJSON_ptr cjson(cJSON_Parse(json.c_str()));
-    if (!cjson) {
+    nlohmann::json parsed;
+    try {
+        parsed = nlohmann::json::parse(json);
+    } catch (const nlohmann::json::exception& e) {
         throw std::invalid_argument(
-                "Manifest::Manifest cJSON cannot parse json:" + json);
+                "Manifest::Manifest cJSON cannot parse json:" +
+                cb::to_string(json) + ", e:" + e.what());
     }
 
-    // Read the UID e.g. "uid" : "5fa1"
-    auto* jsonUid =
-            getJsonObject(cjson.get(), CollectionUidKey, CollectionUidType);
-    uid = makeUid(jsonUid->valuestring);
+    // Read the Manifest UID e.g. "uid" : "5fa1"
+    auto jsonUid = getJsonObject(parsed, CollectionUidKey, CollectionUidType);
+    uid = makeUid(jsonUid.get<std::string>());
 
-    auto jsonCollections =
-            getJsonObject(cjson.get(), CollectionsKey, CollectionsType);
+    auto collections = getJsonObject(parsed, CollectionsKey, CollectionsType);
 
-    size_t count = gsl::narrow<size_t>(cJSON_GetArraySize(jsonCollections));
-    if (count > maxNumberOfCollections) {
+    if (collections.size() > maxNumberOfCollections) {
         throw std::invalid_argument(
                 "Manifest::Manifest too many collections count:" +
-                std::to_string(count));
+                std::to_string(collections.size()));
     }
 
-    for (size_t ii = 0; ii < count; ii++) {
-        auto collection =
-                cJSON_GetArrayItem(jsonCollections, gsl::narrow<int>(ii));
-        throwIfNullOrWrongType(
-                std::string(CollectionsKey) + ":" + std::to_string(ii),
-                collection,
-                cJSON_Object);
+    for (const auto& collection : collections) {
+        throwIfWrongType(std::string(CollectionsKey),
+                         collection,
+                         nlohmann::json::value_t::object);
 
-        auto* name = getJsonObject(
+        auto name = getJsonObject(
                 collection, CollectionNameKey, CollectionNameType);
-        auto* uid =
+        auto uid =
                 getJsonObject(collection, CollectionUidKey, CollectionUidType);
 
-        if (validCollection(name->valuestring)) {
-            if (find(name->valuestring) != collections.end()) {
+        if (validCollection(name.get<std::string>())) {
+            if (find(name.get<std::string>()) != this->collections.end()) {
                 throw std::invalid_argument(
                         "Manifest::Manifest duplicate collection name:" +
-                        std::string(name->valuestring));
+                        name.get<std::string>());
             }
-            uid_t uidValue = makeUid(uid->valuestring);
-            enableDefaultCollection(name->valuestring);
-            collections.push_back({name->valuestring, uidValue});
+            uid_t uidValue = makeUid(uid.get<std::string>());
+            enableDefaultCollection(name.get<std::string>());
+            this->collections.push_back({name.get<std::string>(), uidValue});
         } else {
             throw std::invalid_argument(
                     "Manifest::Manifest invalid collection name:" +
-                    std::string(name->valuestring));
+                    name.get<std::string>());
         }
     }
 }
 
-cJSON* Manifest::getJsonObject(cJSON* json, const char* key, int expectedType) {
-    auto* rv = cJSON_GetObjectItem(json, key);
-    throwIfNullOrWrongType(key, rv, expectedType);
-    return rv;
-}
-
-void Manifest::throwIfNullOrWrongType(const std::string& errorKey,
-                                      cJSON* cJsonHandle,
-                                      int expectedType) {
-    if (!cJsonHandle || cJsonHandle->type != expectedType) {
-        throw std::invalid_argument(
-                "Manifest: cannot find valid " + errorKey + ": " +
-                (!cJsonHandle
-                         ? "nullptr"
-                         : "wrong type:" + std::to_string(cJsonHandle->type)));
+nlohmann::json Manifest::getJsonObject(const nlohmann::json& object,
+                                       const std::string& key,
+                                       nlohmann::json::value_t expectedType) {
+    try {
+        auto rv = object.at(key);
+        throwIfWrongType(key, rv, expectedType);
+        return rv;
+    } catch (const nlohmann::json::exception& e) {
+        throw std::invalid_argument("Manifest: cannot find key:" + key +
+                                    ", e:" + e.what());
     }
 }
 
-void Manifest::enableDefaultCollection(const char* name) {
-    if (std::strncmp(name,
-                     DefaultCollectionIdentifier.data(),
-                     DefaultCollectionIdentifier.size()) == 0) {
+void Manifest::throwIfWrongType(const std::string& errorKey,
+                                const nlohmann::json& object,
+                                nlohmann::json::value_t expectedType) {
+    if (object.type() != expectedType) {
+        throw std::invalid_argument("Manifest: wrong type for key:" + errorKey +
+                                    ", " + object.dump());
+    }
+}
+
+void Manifest::enableDefaultCollection(const std::string& name) {
+    if (name.compare(DefaultCollectionIdentifier.data()) == 0) {
         defaultCollectionExists = true;
     }
 }
 
-bool Manifest::validCollection(const char* collection) {
+bool Manifest::validCollection(const std::string& collection) {
     // Current validation is to just check the prefix to ensure
     // 1. $default is the only $ prefixed collection.
     // 2. _ is not allowed as the first character.
 
-    if (collection[0] == '$' && !(DefaultCollectionIdentifier == collection)) {
+    if (collection[0] == '$' &&
+        !(collection.compare(DefaultCollectionIdentifier.data()) == 0)) {
         return false;
     }
     return collection[0] != '_';

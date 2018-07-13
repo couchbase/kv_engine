@@ -2475,10 +2475,7 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
-cb::engine_error KVBucket::setCollections(cb::const_char_buffer json) {
-    // cJSON can't accept a size so we must create a string
-    std::string manifest(json.data(), json.size());
-
+cb::engine_error KVBucket::setCollections(cb::const_char_buffer manifest) {
     // Inhibit VB state changes whilst updating the vbuckets
     LockHolder lh(vbsetMutex);
 

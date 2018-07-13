@@ -54,6 +54,18 @@ using uid_t = uint64_t;
 uid_t makeUid(const char* uid);
 
 /**
+ * Return a uid from a std::string
+ * A valid uid is a std::string where each character satisfies std::isxdigit
+ * and can be converted to a uid_t by std::strtoull.
+ *
+ * @param uid std::string
+ * @throws std::invalid_argument if uid is invalid
+ */
+static inline uid_t makeUid(const std::string& uid) {
+    return makeUid(uid.c_str());
+}
+
+/**
  * Interface definition for the a collection identifier - a pair of name and UID
  * Forces compile time dispatch for the 3 required methods.
  * getUid, getName and isDefaultCollection

@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <cJSON.h>
+#include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cstdint>
 #include <string>
@@ -68,11 +68,15 @@ public:
     /*
      * Create a manifest from json.
      * Validates the json as per SET_COLLECTIONS rules.
-     * @param json a string containing the JSON data
+     * @param json a buffer containing the JSON manifest data
      * @param maxNumberOfCollections an upper limit on the number of collections
      *        allowed, defaults to 1000.
      */
-    Manifest(const std::string& json, size_t maxNumberOfCollections = 1000);
+    Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections = 1000);
+
+    Manifest(const std::string& json, size_t maxNumberOfCollections = 1000)
+        : Manifest(cb::const_char_buffer{json}, maxNumberOfCollections) {
+    }
 
     bool doesDefaultCollectionExist() const {
         return defaultCollectionExists;
@@ -110,9 +114,9 @@ public:
     }
 
     /// @todo enhance filters with UIDs - this find remains for Filter code
-    container::const_iterator find(const char* name) const {
+    container::const_iterator find(const std::string& name) const {
         return std::find_if(begin(), end(), [name](const Identifier& entry) {
-            return entry.getName() == name;
+            return entry.getName() == name.c_str();
         });
     }
 
@@ -131,39 +135,41 @@ private:
      * Set defaultCollectionExists to true if name matches $default
      * @param name C-string collection name
      */
-    void enableDefaultCollection(const char* name);
+    void enableDefaultCollection(const std::string& name);
 
     /**
      * Get json sub-object from the json object for key and check the type.
      * @param json The parent object in which to find key.
      * @param key The key to look for.
      * @param expectedType The type the found object must be.
-     * @return A cJSON object for key.
+     * @return A json object for key.
      * @throws std::invalid_argument if key is not found or the wrong type.
      */
-    cJSON* getJsonObject(cJSON* json, const char* key, int expectedType);
+    nlohmann::json getJsonObject(const nlohmann::json& object,
+                                 const std::string& key,
+                                 nlohmann::json::value_t expectedType);
 
     /**
      * Constructor helper function, throws invalid_argument with a string
-     * indicating if the cJSON struct is nullptr or not the expectedType.
+     * indicating if the expectedType.
      *
-     * @param errorKey the JSON key associated with the cJSON struct
-     * @param cJsonHandle the struct handed back by cJSON functions
-     * @param expectedType the cJSON type we expect cJsonHandle to be
-     * @throws std::invalid_argument if cJsonHandle is null or !expectedType
+     * @param errorKey the JSON key being looked up
+     * @param object object to check
+     * @param expectedType the type we expect object to be
+     * @throws std::invalid_argument if !expectedType
      */
-    static void throwIfNullOrWrongType(const std::string& errorKey,
-                                       cJSON* cJsonHandle,
-                                       int expectedType);
+    static void throwIfWrongType(const std::string& errorKey,
+                                 const nlohmann::json& object,
+                                 nlohmann::json::value_t expectedType);
 
     /**
-     * Check if the C-string represents a legal collection name.
+     * Check if the std::string represents a legal collection name.
      * Current validation is to ensure we block creation of _ prefixed
      * collections and only accept $default for $ prefixed names.
      *
-     * @param collection a C-string representing a collection name.
+     * @param collection a std::string representing a collection name.
      */
-    static bool validCollection(const char* collection);
+    static bool validCollection(const std::string& collection);
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
@@ -173,11 +179,14 @@ private:
 
     // strings used in JSON parsing
     static constexpr char const* CollectionsKey = "collections";
-    static constexpr int CollectionsType = cJSON_Array;
+    static constexpr nlohmann::json::value_t CollectionsType =
+            nlohmann::json::value_t::array;
     static constexpr char const* CollectionNameKey = "name";
-    static constexpr int CollectionNameType = cJSON_String;
+    static constexpr nlohmann::json::value_t CollectionNameType =
+            nlohmann::json::value_t::string;
     static constexpr char const* CollectionUidKey = "uid";
-    static constexpr int CollectionUidType = cJSON_String;
+    static constexpr nlohmann::json::value_t CollectionUidType =
+            nlohmann::json::value_t::string;
 };
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);

@@ -26,7 +26,7 @@ Collections::Manager::Manager() {
 }
 
 cb::engine_error Collections::Manager::update(KVBucket& bucket,
-                                              const std::string& json) {
+                                              cb::const_char_buffer manifest) {
     std::unique_lock<std::mutex> ul(lock, std::try_to_lock);
     if (!ul.owns_lock()) {
         // Make concurrent updates fail, in realiy there should only be one
@@ -39,7 +39,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
     // Construct a newManifest (will throw if JSON was illegal)
     try {
         newManifest =
-                std::make_unique<Manifest>(json,
+                std::make_unique<Manifest>(manifest,
                                            bucket.getEPEngine()
                                                    .getConfiguration()
                                                    .getCollectionsMaxSize());
@@ -49,7 +49,8 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
             e.what());
         return cb::engine_error(
                 cb::engine_errc::invalid_arguments,
-                "Collections::Manager::update manifest json invalid:" + json);
+                "Collections::Manager::update manifest json invalid:" +
+                        cb::to_string(manifest));
     }
 
     current = std::move(newManifest);

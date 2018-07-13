@@ -181,8 +181,9 @@ void Collections::Filter::addCollection(const nlohmann::json& object,
                     "Filter::Filter invalid collection entry:" + object.dump());
         }
 
-        auto entry = manifest.find({{name.get<std::string>()},
-                                    makeUid(uid.get<std::string>().c_str())});
+        auto entry = manifest.find(
+                Identifier{{name.get<std::string>()},
+                           makeUid(uid.get<std::string>().c_str())});
 
         if (entry == manifest.end()) {
             throw cb::engine_error(

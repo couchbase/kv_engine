@@ -47,10 +47,10 @@ public:
      * are failed with TMPFAIL as in reality there should be 1 admin connection.
      *
      * @param bucket the bucket receiving a set-collections command.
-     * @param json the json manifest form a set-collections command.
+     * @param manifest the json manifest form a set-collections command.
      * @returns engine_error indicating why the update failed.
      */
-    cb::engine_error update(KVBucket& bucket, const std::string& json);
+    cb::engine_error update(KVBucket& bucket, cb::const_char_buffer manifest);
 
     /**
      * Retrieve the current manifest
