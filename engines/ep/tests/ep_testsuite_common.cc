@@ -478,16 +478,15 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 bool isCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
-    return (isPassiveCompressionEnabled(h, h1) ||
-            isActiveCompressionEnabled(h, h1));
+    return h->getCompressionMode() != BucketCompressionMode::Off;
 }
 
 bool isActiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
-    return get_str_stat(h, h1, "ep_compression_mode") == "active";
+    return h->getCompressionMode() == BucketCompressionMode::Active;
 }
 
 bool isPassiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
-    return get_str_stat(h, h1, "ep_compression_mode") == "passive";
+    return h->getCompressionMode() == BucketCompressionMode::Passive;
 }
 
 bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
