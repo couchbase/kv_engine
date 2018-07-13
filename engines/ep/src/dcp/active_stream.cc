@@ -666,9 +666,8 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
                     buffer, ep_current_time() - takeoverStart, add_stat, c);
         }
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "ActiveStream::addStats: Failed to build stats: %s",
-            error.what());
+        EP_LOG_WARN("ActiveStream::addStats: Failed to build stats: {}",
+                    error.what());
     }
 
     filter.addStats(add_stat, c, name_, vb_);
@@ -886,17 +885,18 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                 if (isForceValueCompressionEnabled()) {
                     if (!mcbp::datatype::is_snappy(finalItem->getDataType())) {
                         if (!finalItem->compressValue()) {
-                            LOG(EXTENSION_LOG_WARNING,
-                                "Failed to snappy compress an uncompressed "
-                                "value");
+                            EP_LOG_WARN(
+                                    "Failed to snappy compress an uncompressed "
+                                    "value");
                         }
                     }
                 }
             } else {
                 if (mcbp::datatype::is_snappy(finalItem->getDataType())) {
                     if (!finalItem->decompressValue()) {
-                        LOG(EXTENSION_LOG_WARNING,
-                            "Failed to snappy uncompress a compressed value");
+                        EP_LOG_WARN(
+                                "Failed to snappy uncompress a compressed "
+                                "value");
                     }
                 }
             }

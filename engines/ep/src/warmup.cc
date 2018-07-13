@@ -389,12 +389,12 @@ static bool batchWarmupCallback(uint16_t vbId,
                     // NB: callback will delete the GetValue's Item
                     c->cb.callback(val);
                 } else {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Warmup failed to load data for vBucket = %d"
-                        " key{%s} error = %X",
-                        vbId,
-                        items.first.c_str(),
-                        val.getStatus());
+                    EP_LOG_WARN(
+                            "Warmup failed to load data for vBucket = {}"
+                            " key{{{}}} error = {}",
+                            vbId,
+                            items.first.c_str(),
+                            val.getStatus());
                     c->error++;
                 }
 
@@ -427,13 +427,13 @@ static bool warmupCallback(void *arg, uint16_t vb, const DocKey& key)
             cookie->cb.callback(cb);
             cookie->loaded++;
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Warmup failed to load data "
-                "for vb:%" PRIu16 ", key{%.*s}, error:%X",
-                vb,
-                int(key.size()),
-                key.data(),
-                cb.getStatus());
+            EP_LOG_WARN(
+                    "Warmup failed to load data "
+                    "for vb:{}, key{{{}}}, error:{}",
+                    vb,
+                    key.size(),
+                    key.data(),
+                    cb.getStatus());
             cookie->error++;
         }
 
@@ -474,11 +474,9 @@ const char* WarmupState::getStateDescription(State st) const {
 
 void WarmupState::transition(State to, bool allowAnystate) {
     if (allowAnystate || legalTransition(to)) {
-        std::stringstream ss;
-        ss << "Warmup transition from state \""
-           << getStateDescription(state.load()) << "\" to \""
-           << getStateDescription(to) << "\"";
-        LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
+        EP_LOG_DEBUG("Warmup transition from state \"{}\" to \"{}\"",
+                     getStateDescription(state.load()),
+                     getStateDescription(to));
         state.store(to);
     } else {
         // Throw an exception to make it possible to test the logic ;)
@@ -571,24 +569,26 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 if (retry == 2) {
                     if (hasPurged) {
                         if (++stats.warmOOM == 1) {
-                            LOG(EXTENSION_LOG_WARNING,
-                                "Warmup dataload failure: max_size too low.");
+                            EP_LOG_WARN(
+                                    "Warmup dataload failure: max_size too "
+                                    "low.");
                         }
                     } else {
-                        LOG(EXTENSION_LOG_WARNING,
-                            "Emergency startup purge to free space for load.");
+                        EP_LOG_WARN(
+                                "Emergency startup purge to free space for "
+                                "load.");
                         purge();
                     }
                 } else {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Cannot store an item after emergency purge.");
+                    EP_LOG_WARN("Cannot store an item after emergency purge.");
                     ++stats.warmOOM;
                 }
                 break;
             case MutationStatus::InvalidCas:
-                LOG(EXTENSION_LOG_DEBUG,
-                    "Value changed in memory before restore from disk. "
-                    "Ignored disk value for: key{%s}.", i->getKey().c_str());
+                EP_LOG_DEBUG(
+                        "Value changed in memory before restore from disk. "
+                        "Ignored disk value for: key{{{}}}.",
+                        i->getKey().c_str());
                 ++stats.warmDups;
                 succeeded = true;
                 break;
@@ -637,14 +637,13 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         if (epstore.getWarmup()->setComplete()) {
             epstore.getWarmup()->setWarmupTime();
             epstore.warmupCompleted();
-            LOG(EXTENSION_LOG_NOTICE, "Warmup completed in %s",
-                cb::time2text(std::chrono::nanoseconds(
-                        epstore.getWarmup()->getTime())).c_str());
-
+            EP_LOG_INFO("Warmup completed in {}",
+                        cb::time2text(std::chrono::nanoseconds(
+                                epstore.getWarmup()->getTime())));
         }
-        LOG(EXTENSION_LOG_NOTICE,
-            "Engine warmup is complete, request to stop "
-            "loading remaining database");
+        EP_LOG_INFO(
+                "Engine warmup is complete, request to stop "
+                "loading remaining database");
         setStatus(ENGINE_ENOMEM);
     } else {
         setStatus(ENGINE_SUCCESS);
@@ -890,9 +889,9 @@ void Warmup::processCreateVBucketsComplete() {
     std::unique_lock<std::mutex> lock(pendingSetVBStateCookiesMutex);
     createVBucketsComplete = true;
     if (!pendingSetVBStateCookies.empty()) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "Warmup::processCreateVBucketsComplete unblocking %zu cookie(s)",
-            pendingSetVBStateCookies.size());
+        EP_LOG_INFO(
+                "Warmup::processCreateVBucketsComplete unblocking {} cookie(s)",
+                pendingSetVBStateCookies.size());
         while (!pendingSetVBStateCookies.empty()) {
             const void* c = pendingSetVBStateCookies.front();
             pendingSetVBStateCookies.pop_front();
@@ -1000,8 +999,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
         if (success) {
             transition(WarmupState::State::CheckForAccessLog);
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to dump keys, falling back to full dump");
+            EP_LOG_WARN("Failed to dump keys, falling back to full dump");
             transition(WarmupState::State::LoadingKVPairs);
         }
     }
@@ -1019,8 +1017,8 @@ void Warmup::checkForAccessLog()
         std::lock_guard<std::mutex> lock(warmupStart.mutex);
         metadata.store(ProcessClock::now() - warmupStart.time);
     }
-    LOG(EXTENSION_LOG_NOTICE, "metadata loaded in %s",
-        cb::time2text(std::chrono::nanoseconds(metadata.load())).c_str());
+    EP_LOG_INFO("metadata loaded in {}",
+                cb::time2text(std::chrono::nanoseconds(metadata.load())));
 
     if (store.maybeEnableTraffic()) {
         transition(WarmupState::State::Done);
@@ -1072,8 +1070,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
             }
         } catch (MutationLog::ReadException &e) {
             corruptAccessLog = true;
-            LOG(EXTENSION_LOG_WARNING, "Error reading warmup access log:  %s",
-                    e.what());
+            EP_LOG_WARN("Error reading warmup access log:  {}", e.what());
         }
     }
 
@@ -1091,18 +1088,16 @@ void Warmup::loadingAccessLog(uint16_t shardId)
                 }
             } catch (MutationLog::ReadException &e) {
                 corruptAccessLog = true;
-                LOG(EXTENSION_LOG_WARNING, "Error reading old access log:  %s",
-                        e.what());
+                EP_LOG_WARN("Error reading old access log:  {}", e.what());
             }
         }
     }
 
     size_t numItems = store.getEPEngine().getEpStats().warmedUpValues;
     if (success && numItems) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "%" PRIu64 " items loaded from access log, completed in %s",
-            uint64_t(numItems),
-            cb::time2text(ProcessClock::now() - stTime).c_str());
+        EP_LOG_INFO("{} items loaded from access log, completed in {}",
+                    uint64_t(numItems),
+                    cb::time2text(ProcessClock::now() - stTime));
     } else {
         size_t estimatedCount= store.getEPEngine().getEpStats().warmedUpKeys;
         setEstimatedWarmupCount(estimatedCount);
@@ -1153,13 +1148,15 @@ size_t Warmup::doWarmup(MutationLog& lf,
 
     size_t total = harvester.total();
     setEstimatedWarmupCount(total);
-    LOG(EXTENSION_LOG_DEBUG, "Completed log read in %s with %ld entries",
-        cb::time2text(log_load_duration).c_str(), total);
+    EP_LOG_DEBUG("Completed log read in {} with {} entries",
+                 cb::time2text(log_load_duration),
+                 total);
 
-    LOG(EXTENSION_LOG_DEBUG,
-        "Populated log in %s with(l: %ld, s: %ld, e: %ld)",
-        cb::time2text(log_apply_duration).c_str(), cookie.loaded, cookie.skipped,
-        cookie.error);
+    EP_LOG_DEBUG("Populated log in {} with(l: {}, s: {}, e: {})",
+                 cb::time2text(log_apply_duration),
+                 cookie.loaded,
+                 cookie.skipped,
+                 cookie.error);
 
     return cookie.loaded;
 }
@@ -1280,8 +1277,8 @@ void Warmup::done()
     if (setComplete()) {
         setWarmupTime();
         store.warmupCompleted();
-        LOG(EXTENSION_LOG_NOTICE, "warmup completed in %s",
-            cb::time2text(std::chrono::nanoseconds(warmup.load())).c_str());
+        EP_LOG_INFO("warmup completed in {}",
+                    cb::time2text(std::chrono::nanoseconds(warmup.load())));
     }
 }
 

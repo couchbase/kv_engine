@@ -102,10 +102,8 @@ static int64_t SeekFile(file_handle_t fd, const std::string &fname,
     }
 
     if (li.LowPart == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
-        std::stringstream ss;
-        ss << "FATAL: SetFilePointer failed " << fname << ": " <<
-              cb_strerror();
-        LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
+        EP_LOG_WARN(
+                "FATAL: SetFilePointer failed {}: {}", fname, cb_strerror());
         li.QuadPart = -1;
     }
 
@@ -200,9 +198,7 @@ static int64_t SeekFile(file_handle_t fd, const std::string &fname,
     }
 
     if (ret < 0) {
-        LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
-            fname.c_str(),
-            strerror(errno));
+        EP_LOG_WARN("FATAL: lseek failed '{}': {}", fname, strerror(errno));
     }
     return ret;
 }
@@ -242,9 +238,10 @@ static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
             nbytes -= written;
             buf += written;
         } catch (std::system_error&) {
-            LOG(EXTENSION_LOG_WARNING,
-                "writeFully: Failed to write to mutation log with error: %s",
-                cb_strerror().c_str());
+            EP_LOG_WARN(
+                    "writeFully: Failed to write to mutation log with error: "
+                    "{}",
+                    cb_strerror());
 
             return false;
         }
@@ -280,12 +277,12 @@ MutationLog::MutationLog(const std::string &path,
 MutationLog::~MutationLog() {
     std::stringstream ss;
     ss << *this;
-    LOG(EXTENSION_LOG_NOTICE, "%s", ss.str().c_str());
-    LOG(EXTENSION_LOG_NOTICE, "MutationLog::~MutationLog flush");
+    EP_LOG_INFO("{}", ss.str());
+    EP_LOG_INFO("MutationLog::~MutationLog flush");
     flush();
-    LOG(EXTENSION_LOG_NOTICE, "MutationLog::~MutationLog close");
+    EP_LOG_INFO("MutationLog::~MutationLog close");
     close();
-    LOG(EXTENSION_LOG_NOTICE, "MutationLog::~MutationLog done");
+    EP_LOG_INFO("MutationLog::~MutationLog done");
 }
 
 void MutationLog::disable() {
@@ -371,8 +368,8 @@ bool MutationLog::writeInitialBlock() {
                             headerBlock.blockSize() * headerBlock.blockCount())
                              - 1, false);
     if (seek_result < 0) {
-        LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
-            getLogFile().c_str(), strerror(errno));
+        EP_LOG_WARN(
+                "FATAL: lseek failed '{}': {}", getLogFile(), strerror(errno));
         return false;
     }
 
@@ -392,8 +389,11 @@ void MutationLog::readInitialBlock() {
     ssize_t bytesread = pread(file, buf.data(), sizeof(buf), 0);
 
     if (bytesread != sizeof(buf)) {
-        LOG(EXTENSION_LOG_WARNING, "FATAL: initial block read failed"
-                "'%s': %s", getLogFile().c_str(), strerror(errno));
+        EP_LOG_WARN(
+                "FATAL: initial block read failed"
+                "'{}': {}",
+                getLogFile(),
+                strerror(errno));
         throw ShortReadException();
     }
 
@@ -457,14 +457,16 @@ bool MutationLog::prepareWrites() {
         }
         int64_t unaligned_bytes = seek_result % blockSize;
         if (unaligned_bytes != 0) {
-            LOG(EXTENSION_LOG_WARNING,
-                "WARNING: filesize %" PRId64 " not block aligned '%s': %s",
-                seek_result, getLogFile().c_str(), strerror(errno));
+            EP_LOG_WARN("WARNING: filesize {} not block aligned '{}': {}",
+                        seek_result,
+                        getLogFile(),
+                        strerror(errno));
             if (blockSize < (size_t)seek_result) {
                 if (SeekFile(file, getLogFile(),
                     seek_result - unaligned_bytes, false) < 0) {
-                    LOG(EXTENSION_LOG_WARNING, "FATAL: lseek failed '%s': %s",
-                            getLogFile().c_str(), strerror(errno));
+                    EP_LOG_WARN("FATAL: lseek failed '{}': {}",
+                                getLogFile(),
+                                strerror(errno));
                     return false;
                 }
             } else {
@@ -541,8 +543,7 @@ void MutationLog::open(bool _readOnly) {
     }
     if (size && size < static_cast<int64_t>(MIN_LOG_HEADER_SIZE)) {
         try {
-            LOG(EXTENSION_LOG_WARNING, "WARNING: Corrupted access log '%s'",
-                    getLogFile().c_str());
+            EP_LOG_WARN("WARNING: Corrupted access log '{}'", getLogFile());
             reset();
             return;
         } catch (ShortReadException &) {
@@ -602,14 +603,14 @@ bool MutationLog::reset() {
     close();
 
     if (remove(getLogFile().c_str()) == -1) {
-        LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to remove '%s': %s",
-            getLogFile().c_str(), strerror(errno));
+        EP_LOG_WARN("FATAL: Failed to remove '{}': {}",
+                    getLogFile(),
+                    strerror(errno));
         return false;
     }
 
     open();
-    LOG(EXTENSION_LOG_INFO, "Reset a mutation log '%s' successfully.",
-        getLogFile().c_str());
+    EP_LOG_DEBUG("Reset a mutation log '{}' successfully.", getLogFile());
     return true;
 }
 
@@ -639,19 +640,17 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
 
     if (rename(mlog.getLogFile().c_str(), getLogFile().c_str()) != 0) {
         open();
-        std::stringstream ss;
-        ss <<
-        "Unable to rename a mutation log \"" << mlog.getLogFile() << "\" "
-           << "to \"" << getLogFile() << "\": " << strerror(errno);
-        LOG(EXTENSION_LOG_WARNING, "%s!!! Reopened the old log file",
-            ss.str().c_str());
+        EP_LOG_WARN("Unable to rename a mutation log \"{}\" to \"{}\": {}",
+                    mlog.getLogFile(),
+                    getLogFile(),
+                    strerror(errno));
         return false;
     }
 
     open();
-    LOG(EXTENSION_LOG_INFO,
-        "Renamed a mutation log \"%s\" to \"%s\" and reopened it",
-        mlog.getLogFile().c_str(), getLogFile().c_str());
+    EP_LOG_DEBUG("Renamed a mutation log \"{}\" to \"{}\" and reopened it",
+                 mlog.getLogFile(),
+                 getLogFile());
     return true;
 }
 
@@ -684,8 +683,7 @@ bool MutationLog::flush() {
         } else {
             /* write to the mutation log failed. Disable the log */
             disabled = true;
-            LOG(EXTENSION_LOG_WARNING,
-                "Disabling access log due to write failures");
+            EP_LOG_WARN("Disabling access log due to write failures");
             return false;
         }
     }
@@ -921,8 +919,11 @@ void MutationLog::iterator::nextBlock() {
         return;
     }
     if (bytesread != (ssize_t)(log->header().blockSize())) {
-        LOG(EXTENSION_LOG_WARNING, "FATAL: too few bytes read in access log"
-                "'%s': %s", log->getLogFile().c_str(), strerror(errno));
+        EP_LOG_WARN(
+                "FATAL: too few bytes read in access log"
+                "'{}': {}",
+                log->getLogFile(),
+                strerror(errno));
         throw ShortReadException();
     }
     offset += bytesread;

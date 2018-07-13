@@ -45,16 +45,16 @@ public:
             } else if (cb::const_char_buffer(value) == "fail_new_data") {
                 bucket.disableItemPager();
             } else {
-                LOG(EXTENSION_LOG_WARNING,
-                    "EphemeralValueChangedListener: Invalid value '%s' for "
-                    "'ephemeral_full_policy - ignoring.",
-                    value);
+                EP_LOG_WARN(
+                        "EphemeralValueChangedListener: Invalid value '{}' for "
+                        "'ephemeral_full_policy - ignoring.",
+                        value);
             }
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "EphemeralValueChangedListener: Failed to change value for "
-                "unknown key '%s'",
-                key.c_str());
+            EP_LOG_WARN(
+                    "EphemeralValueChangedListener: Failed to change value for "
+                    "unknown key '{}'",
+                    key);
         }
     }
 
@@ -66,10 +66,10 @@ public:
             // Any non-negative value will be picked up by the Task the
             // next time it runs.
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "EphemeralValueChangedListener: Failed to change value for "
-                "unknown key '%s'",
-                key.c_str());
+            EP_LOG_WARN(
+                    "EphemeralValueChangedListener: Failed to change value for "
+                    "unknown key '{}'",
+                    key);
         }
     }
 
@@ -78,10 +78,10 @@ public:
             // Cancel and re-schedule the task to pick up the new interval.
             bucket.enableTombstonePurgerTask();
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "EphemeralValueChangedListener: Failed to change value for "
-                "unknown key '%s'",
-                key.c_str());
+            EP_LOG_WARN(
+                    "EphemeralValueChangedListener: Failed to change value for "
+                    "unknown key '{}'",
+                    key);
         }
     }
 
@@ -347,11 +347,10 @@ bool EphemeralBucket::NotifyHighPriorityReqTask::run() {
     }
 
     for (auto& notify : notifyQ) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "%s for cookie :%p and status %d",
-            getDescription().c_str(),
-            notify.first,
-            notify.second);
+        EP_LOG_INFO("{} for cookie :{} and status {}",
+                    getDescription(),
+                    notify.first,
+                    notify.second);
         engine->notifyIOComplete(notify.first, notify.second);
     }
 

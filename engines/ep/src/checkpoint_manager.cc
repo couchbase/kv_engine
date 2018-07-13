@@ -16,6 +16,8 @@
  */
 
 #include "checkpoint_manager.h"
+
+#include "bucket_logger.h"
 #include "checkpoint.h"
 #include "ep_time.h"
 #include "pre_link_document_context.h"
@@ -97,13 +99,13 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
         }
 
         checkpointList.back()->setId(id);
-        LOG(EXTENSION_LOG_INFO,
-            "Set the current open checkpoint id to %" PRIu64
-            " for vbucket %d, bySeqno is %" PRId64 ", max is %" PRId64,
-            id,
-            vbucketId,
-            (*ckpt_start)->getBySeqno(),
-            static_cast<int64_t>(lastBySeqno));
+        EP_LOG_DEBUG(
+                "Set the current open checkpoint id to {} for vb:{} bySeqno is "
+                "{}, max is {}",
+                id,
+                vbucketId,
+                (*ckpt_start)->getBySeqno(),
+                lastBySeqno);
     }
 }
 
@@ -121,9 +123,10 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
         closeOpenCheckpoint_UNLOCKED();
     }
 
-    LOG(EXTENSION_LOG_INFO, "Create a new open checkpoint %" PRIu64
-        " for vbucket %" PRIu16 " at seqno:%" PRIu64,
-        id, vbucketId, snapStartSeqno);
+    EP_LOG_DEBUG("Create a new open checkpoint {} for vb:{} at seqno:{}",
+                 id,
+                 vbucketId,
+                 snapStartSeqno);
 
     bool was_empty = checkpointList.empty() ? true : false;
     auto checkpoint = std::make_unique<Checkpoint>(stats, id, snapStartSeqno,
@@ -195,10 +198,11 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
     }
 
     auto& cur_ckpt = checkpointList.back();
-    LOG(EXTENSION_LOG_INFO, "Close the open checkpoint %" PRIu64
-        " for vbucket:%" PRIu16 " seqnos:{%" PRIu64 ",%" PRIu64 "}",
-        cur_ckpt->getId(), vbucketId, cur_ckpt->getLowSeqno(),
-        cur_ckpt->getHighSeqno());
+    EP_LOG_DEBUG("Close the open checkpoint {} for vb:{} seqnos:{{{},{}}}",
+                 cur_ckpt->getId(),
+                 vbucketId,
+                 cur_ckpt->getLowSeqno(),
+                 cur_ckpt->getHighSeqno());
 
     // This item represents the end of the current open checkpoint and is sent
     // to the slave node.
@@ -320,9 +324,9 @@ bool CheckpointManager::removeCursor_UNLOCKED(const std::string &name) {
         return false;
     }
 
-    LOG(EXTENSION_LOG_INFO,
-        "Remove the checkpoint cursor with the name \"%s\" from vbucket %d",
-        name.c_str(), vbucketId);
+    EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from vb:{}",
+                 name,
+                 vbucketId);
 
     // We can simply remove the cursor's name from the checkpoint to which it
     // currently belongs,
@@ -766,11 +770,12 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     LockHolder lh(queueLock);
     cursor_index::iterator it = connCursors.find(name);
     if (it == connCursors.end()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "getAllItemsForCursor(): Cursor \"%s\" not found in the checkpoint "
-            "manager on vb:%" PRIu16,
-            name.c_str(),
-            vbucketId);
+        EP_LOG_WARN(
+                "getAllItemsForCursor(): Cursor \"{}\" not found in the "
+                "checkpoint "
+                "manager on vb:{}",
+                name,
+                vbucketId);
         return {};
     }
 
@@ -807,15 +812,15 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         result.range.end = (*cursor.currentCheckpoint)->getSnapshotEndSeqno();
     }
 
-    LOG(EXTENSION_LOG_DEBUG,
-        "CheckpointManager::getAllItemsForCursor() "
-        "cursor:%s result:{#items:%" PRIu64 " range:{%" PRIu64 ", %" PRIu64
-        "} moreAvailable:%s}",
-        name.c_str(),
-        uint64_t(itemCount),
-        result.range.start,
-        result.range.end,
-        result.moreAvailable ? "true" : "false");
+    EP_LOG_DEBUG(
+            "CheckpointManager::getAllItemsForCursor() "
+            "cursor:{} result:{{#items:{} range:{{{}, {}}} "
+            "moreAvailable:{}}}",
+            name,
+            uint64_t(itemCount),
+            result.range.start,
+            result.range.end,
+            result.moreAvailable ? "true" : "false");
 
     cursor.numVisits++;
 
@@ -827,21 +832,20 @@ queued_item CheckpointManager::nextItem(const std::string &name,
     LockHolder lh(queueLock);
     cursor_index::iterator it = connCursors.find(name);
     if (it == connCursors.end()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "The cursor with name \"%s\" is not found in the checkpoint of "
-            "vbucket"
-            "%d.",
-            name.c_str(),
-            vbucketId);
+        EP_LOG_WARN(
+                "The cursor with name \"{}\" is not found in the checkpoint of "
+                "vb:{}.",
+                name,
+                vbucketId);
         queued_item qi(new Item(DocKey("", DocNamespace::System), 0xffff,
                                 queue_op::empty, 0, 0));
         return qi;
     }
     if (checkpointList.back()->getId() == 0) {
-        LOG(EXTENSION_LOG_INFO,
-            "VBucket %d is still in backfill phase that doesn't allow "
-            " the cursor to fetch an item from it's current checkpoint",
-            vbucketId);
+        EP_LOG_DEBUG(
+                "vb:{} is still in backfill phase that doesn't allow "
+                " the cursor to fetch an item from it's current checkpoint",
+                vbucketId);
         queued_item qi(new Item(DocKey("", DocNamespace::System), 0xffff,
                                 queue_op::empty, 0, 0));
         return qi;
@@ -999,20 +1003,21 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
         if (numItems >= offset) {
             remains = numItems - offset;
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "For cursor \"%s\" the offset %zu is greater than  "
-                "numItems %zu on vb:%" PRIu16,
-                name.c_str(),
-                offset,
-                numItems.load(),
-                vbucketId);
+            EP_LOG_WARN(
+                    "For cursor \"{}\" the offset {} is greater than  "
+                    "numItems {} on vb:{}",
+                    name,
+                    offset,
+                    numItems.load(),
+                    vbucketId);
         }
     } else {
-        LOG(EXTENSION_LOG_WARNING,
-            "getNumItemsForCursor_UNLOCKED(): Cursor \"%s\" not found in the "
-            "checkpoint manager on vb:%" PRIu16,
-            name.c_str(),
-            vbucketId);
+        EP_LOG_WARN(
+                "getNumItemsForCursor_UNLOCKED(): Cursor \"{}\" not found in "
+                "the "
+                "checkpoint manager on vb:{}",
+                name,
+                vbucketId);
     }
     return remains;
 }
@@ -1520,9 +1525,10 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
             }
         }
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "CheckpointManager::addStats: An error occurred while adding stats: %s",
-            error.what());
+        EP_LOG_WARN(
+                "CheckpointManager::addStats: An error occurred while adding "
+                "stats: {}",
+                error.what());
     }
 }
 

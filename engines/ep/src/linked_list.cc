@@ -17,6 +17,7 @@
 
 #include "linked_list.h"
 
+#include "bucket_logger.h"
 #include "stats.h"
 
 #include <mutex>
@@ -92,12 +93,12 @@ SequenceList::UpdateStatus BasicLinkedList::updateListElem(
 std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
 BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     if ((start > end) || (start <= 0)) {
-        LOG(EXTENSION_LOG_WARNING,
-            "BasicLinkedList::rangeRead(): "
-            "(vb:%d) ERANGE: start %" PRIi64 " > end %" PRIi64,
-            vbid,
-            start,
-            end);
+        EP_LOG_WARN(
+                "BasicLinkedList::rangeRead(): "
+                "(vb:{}) ERANGE: start {} > end {}",
+                vbid,
+                start,
+                end);
         return std::make_tuple(ENGINE_ERANGE, std::vector<UniqueItemPtr>(), 0);
     }
 
@@ -108,12 +109,12 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
         std::lock_guard<std::mutex> listWriteLg(getListWriteLock());
         std::lock_guard<SpinLock> lh(rangeLock);
         if (start > highSeqno) {
-            LOG(EXTENSION_LOG_WARNING,
-                "BasicLinkedList::rangeRead(): "
-                "(vb:%d) ERANGE: start %" PRIi64 " > highSeqno %" PRIi64,
-                vbid,
-                start,
-                static_cast<seqno_t>(highSeqno));
+            EP_LOG_WARN(
+                    "BasicLinkedList::rangeRead(): "
+                    "(vb:{}) ERANGE: start {} > highSeqno {}",
+                    vbid,
+                    start,
+                    static_cast<seqno_t>(highSeqno));
             /* If the request is for an invalid range, return before iterating
                through the list */
             return std::make_tuple(
@@ -171,12 +172,12 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
                             Perhaps do backfilling partially (that is
                             backfill ==> stream; backfill ==> stream ..so on )?
              */
-            LOG(EXTENSION_LOG_WARNING,
-                "BasicLinkedList::rangeRead(): "
-                "(vb %d) ENOMEM while trying to copy "
-                "item with seqno %" PRIi64 "before streaming it",
-                vbid,
-                currSeqno);
+            EP_LOG_WARN(
+                    "BasicLinkedList::rangeRead(): "
+                    "(vb:{}) ENOMEM while trying to copy "
+                    "item with seqno {}before streaming it",
+                    vbid,
+                    currSeqno);
             return std::make_tuple(
                     ENGINE_ENOMEM, std::vector<UniqueItemPtr>(), 0);
         }
@@ -502,13 +503,15 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     itrRange = SeqRange(currIt->getBySeqno(),
                         list.seqList.back().getBySeqno() + 1);
 
-    EXTENSION_LOG_LEVEL severity =
-            isBackfill ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
-    LOG(severity,
-        "vb:%" PRIu16 " Created range iterator from %" PRIi64 "to %" PRIi64,
-        list.vbid,
-        curr(),
-        end());
+    spdlog::level::level_enum severity =
+            isBackfill ? spdlog::level::level_enum::info
+                       : spdlog::level::level_enum::debug;
+
+    EP_LOG_FMT(severity,
+               "vb:{} Created range iterator from {} to {}",
+               list.vbid,
+               curr(),
+               end());
 }
 
 BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
@@ -517,9 +520,10 @@ BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
         /* we must reset the list readRange only if the list iterator still owns
            the read lock on the list */
         list.readRange.reset();
-        EXTENSION_LOG_LEVEL severity =
-                isBackfill ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
-        LOG(severity, "vb:%" PRIu16 " Releasing the range iterator", list.vbid);
+        spdlog::level::level_enum severity =
+                isBackfill ? spdlog::level::level_enum::info
+                           : spdlog::level::level_enum::debug;
+        EP_LOG_FMT(severity, "vb:{} Releasing the range iterator", list.vbid);
     }
     /* As readLockHolder goes out of scope here, it will automatically release
        the snapshot read lock on the linked list */
@@ -567,9 +571,10 @@ void BasicLinkedList::RangeIteratorLL::incrOperatorHelper() {
            iterator client that does not delete the iterator obj will not end up
            holding the list readRange lock forever */
         list.readRange.reset();
-        EXTENSION_LOG_LEVEL severity =
-                isBackfill ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
-        LOG(severity, "vb:%" PRIu16 " Releasing the range iterator", list.vbid);
+        spdlog::level::level_enum severity =
+                isBackfill ? spdlog::level::level_enum::info
+                           : spdlog::level::level_enum::debug;
+        EP_LOG_FMT(severity, "vb:{} Releasing the range iterator", list.vbid);
         readLockHolder.unlock();
 
         /* Update the begin to end() so the client can see that the iteration

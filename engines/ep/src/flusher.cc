@@ -50,18 +50,15 @@ void Flusher::wait(void) {
     auto startt = ProcessClock::now();
     while (_state != State::Stopped) {
         if (!ExecutorPool::get()->wake(taskId)) {
-            std::stringstream ss;
-            ss << "Flusher::wait: taskId: " << taskId << " has vanished!";
-            LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
+            EP_LOG_WARN("Flusher::wait: taskId: {} has vanished!", taskId);
             break;
         }
         usleep(1000);
     }
     auto endt = ProcessClock::now();
     if ((endt - startt).count() > 1000) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "Flusher::wait: had to wait %s for shutdown",
-            cb::time2text(endt - startt).c_str());
+        EP_LOG_INFO("Flusher::wait: had to wait {} for shutdown",
+                    cb::time2text(endt - startt));
     }
 }
 
@@ -124,17 +121,16 @@ const char* Flusher::stateName(State st) const {
 
 bool Flusher::transitionState(State to) {
     if (!forceShutdownReceived && !validTransition(to)) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Flusher::transitionState: invalid transition _state:%s, to:%s",
-            stateName(_state),
-            stateName(to));
+        EP_LOG_WARN(
+                "Flusher::transitionState: invalid transition _state:{}, to:{}",
+                stateName(_state),
+                stateName(to));
         return false;
     }
 
-    LOG(EXTENSION_LOG_DEBUG,
-        "Flusher::transitionState: from %s to %s",
-        stateName(_state),
-        stateName(to));
+    EP_LOG_DEBUG("Flusher::transitionState: from {} to {}",
+                 stateName(_state),
+                 stateName(to));
 
     _state = to;
     return true;
@@ -145,7 +141,7 @@ const char* Flusher::stateName() const {
 }
 
 void Flusher::initialize() {
-    LOG(EXTENSION_LOG_DEBUG, "Flusher::initialize: initializing");
+    EP_LOG_DEBUG("Flusher::initialize: initializing");
     transitionState(State::Running);
 }
 
@@ -160,10 +156,9 @@ void Flusher::schedule_UNLOCKED() {
 void Flusher::start() {
     LockHolder lh(taskMutex);
     if (taskId) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Flusher::start: double start in flusher task id %" PRIu64 ": %s",
-            uint64_t(taskId.load()),
-            stateName());
+        EP_LOG_WARN("Flusher::start: double start in flusher task id {}: {}",
+                    uint64_t(taskId.load()),
+                    stateName());
         return;
     }
     schedule_UNLOCKED();
@@ -210,10 +205,10 @@ bool Flusher::step(GlobalTask *task) {
         return true;
 
     case State::Stopping:
-        LOG(EXTENSION_LOG_DEBUG,
-            "Flusher::step: stopping flusher (write of all dirty items)");
+        EP_LOG_DEBUG(
+                "Flusher::step: stopping flusher (write of all dirty items)");
         completeFlush();
-        LOG(EXTENSION_LOG_DEBUG, "Flusher::step: stopped");
+        EP_LOG_DEBUG("Flusher::step: stopped");
         transitionState(State::Stopped);
         return false;
 
@@ -278,8 +273,7 @@ void Flusher::flushVB(void) {
     }
 
     if (hpVbs.empty() && lpVbs.empty()) {
-        LOG(EXTENSION_LOG_INFO,
-            "Flusher::flushVB: Trying to flush but no vbuckets exist");
+        EP_LOG_DEBUG("Flusher::flushVB: Trying to flush but no vbuckets exist");
         return;
     } else if (!hpVbs.empty()) {
         uint16_t vbid = hpVbs.front();

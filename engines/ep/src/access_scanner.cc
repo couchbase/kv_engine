@@ -62,21 +62,21 @@ public:
         log = std::make_unique<MutationLog>(next, conf.getAlogBlockSize());
         log->open();
         if (!log->isOpen()) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to open access log: '%s'",
-                next.c_str());
+            EP_LOG_WARN("Failed to open access log: '{}'", next);
             log.reset();
         } else {
-            LOG(EXTENSION_LOG_NOTICE, "Attempting to generate new access file "
-                "'%s'", next.c_str());
+            EP_LOG_INFO(
+                    "Attempting to generate new access file "
+                    "'{}'",
+                    next);
         }
     }
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
         if (log && v.isResident()) {
             if (v.isExpired(startTime) || v.isDeleted()) {
-                LOG(EXTENSION_LOG_INFO,
-                    "INFO: Skipping expired/deleted item: %" PRIu64,
-                    v.getBySeqno());
+                EP_LOG_DEBUG("Skipping expired/deleted item: {}",
+                             v.getBySeqno());
             } else {
                 accessed.push_back(StoredDocKey(v.getKey()));
                 return ++items_scanned < items_to_scan;
@@ -129,44 +129,59 @@ public:
                             ProcessClock::now() - taskStart));
 
             if (num_items == 0) {
-                LOG(EXTENSION_LOG_NOTICE, "The new access log file is empty. "
-                    "Delete it without replacing the current access log...");
+                EP_LOG_INFO(
+                        "The new access log file is empty. "
+                        "Delete it without replacing the current access "
+                        "log...");
                 remove(next.c_str());
                 updateStateFinalizer(true);
                 return;
             }
 
             if (access(prev.c_str(), F_OK) == 0 && remove(prev.c_str()) == -1){
-                LOG(EXTENSION_LOG_WARNING, "Failed to remove access log file "
-                    "'%s': %s", prev.c_str(), strerror(errno));
+                EP_LOG_WARN(
+                        "Failed to remove access log file "
+                        "'{}': {}",
+                        prev,
+                        strerror(errno));
                 remove(next.c_str());
                 updateStateFinalizer(true);
                 return;
             }
-            LOG(EXTENSION_LOG_NOTICE, "Removed old access log file: '%s'",
-                prev.c_str());
+            EP_LOG_INFO("Removed old access log file: '{}'", prev);
             if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(),
                                                           prev.c_str()) == -1){
-                LOG(EXTENSION_LOG_WARNING, "Failed to rename access log file "
-                    "from '%s' to '%s': %s", name.c_str(), prev.c_str(),
-                    strerror(errno));
+                EP_LOG_WARN(
+                        "Failed to rename access log file "
+                        "from '{}' to '{}': {}",
+                        name,
+                        prev,
+                        strerror(errno));
                 remove(next.c_str());
                 updateStateFinalizer(true);
                 return;
             }
-            LOG(EXTENSION_LOG_NOTICE, "Renamed access log file from '%s' to "
-                "'%s'", name.c_str(), prev.c_str());
+            EP_LOG_INFO(
+                    "Renamed access log file from '{}' to "
+                    "'{}'",
+                    name,
+                    prev);
             if (rename(next.c_str(), name.c_str()) == -1) {
-                LOG(EXTENSION_LOG_WARNING, "Failed to rename access log file "
-                    "from '%s' to '%s': %s", next.c_str(), name.c_str(),
-                    strerror(errno));
+                EP_LOG_WARN(
+                        "Failed to rename access log file "
+                        "from '{}' to '{}': {}",
+                        next,
+                        name,
+                        strerror(errno));
                 remove(next.c_str());
                 updateStateFinalizer(true);
                 return;
             }
-            LOG(EXTENSION_LOG_NOTICE, "New access log file '%s' created with "
-                "%" PRIu64 " keys", name.c_str(),
-                static_cast<uint64_t>(num_items));
+            EP_LOG_INFO(
+                    "New access log file '{}' created with "
+                    "{} keys",
+                    name,
+                    static_cast<uint64_t>(num_items));
             updateStateFinalizer(true);
         }
     }
@@ -302,9 +317,12 @@ bool AccessScanner::run() {
                 std::string name(alogPath + "." + std::to_string(i));
                 std::string prev(name + ".old");
 
-                LOG(EXTENSION_LOG_NOTICE, "Deleting access log files '%s' and "
-                    "'%s' as resident ratio is over %" PRIu8,
-                    name.c_str(), prev.c_str(), residentRatioThreshold);
+                EP_LOG_INFO(
+                        "Deleting access log files '{}' and "
+                        "'{}' as resident ratio is over {}",
+                        name,
+                        prev,
+                        residentRatioThreshold);
 
                 /* Remove .old shard access log file */
                 deleteAlogFile(prev);
@@ -343,8 +361,7 @@ std::chrono::microseconds AccessScanner::maxExpectedDuration() {
 
 void AccessScanner::deleteAlogFile(const std::string& fileName) {
     if (access(fileName.c_str(), F_OK) == 0 && remove(fileName.c_str()) == -1) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to remove '%s': %s",
-            fileName.c_str(), strerror(errno));
+        EP_LOG_WARN("Failed to remove '{}': {}", fileName, strerror(errno));
     }
 }
 
@@ -370,11 +387,12 @@ void AccessScanner::createAndScheduleTask(const size_t shard) {
         task->setMaxExpectedDuration(std::chrono::milliseconds(500));
         ExecutorPool::get()->schedule(task);
     } catch (const std::exception& e) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Error creating Item Access Scanner task: '%s'. Please verify the "
-            "location specified for the access logs is valid and exists. "
-            "Current location is set at: '%s'",
-            e.what(),
-            conf.getAlogPath().c_str());
+        EP_LOG_WARN(
+                "Error creating Item Access Scanner task: '{}'. Please verify "
+                "the "
+                "location specified for the access logs is valid and exists. "
+                "Current location is set at: '{}'",
+                e.what(),
+                conf.getAlogPath());
     }
 }

@@ -20,6 +20,7 @@
 #include <chrono>
 #include <queue>
 
+#include "bucket_logger.h"
 #include "common.h"
 #include "executorpool.h"
 #include "executorthread.h"
@@ -51,7 +52,7 @@ void ExecutorThread::start() {
         throw std::runtime_error(ss.str().c_str());
     }
 
-    LOG(EXTENSION_LOG_INFO, "%s: Started", name.c_str());
+    EP_LOG_DEBUG("{}: Started", name);
 }
 
 void ExecutorThread::stop(bool wait) {
@@ -62,15 +63,15 @@ void ExecutorThread::stop(bool wait) {
     state = EXECUTOR_SHUTDOWN;
 
     if (!wait) {
-        LOG(EXTENSION_LOG_NOTICE, "%s: Stopping", name.c_str());
+        EP_LOG_INFO("{}: Stopping", name);
         return;
     }
     cb_join_thread(thread);
-    LOG(EXTENSION_LOG_NOTICE, "%s: Stopped", name.c_str());
+    EP_LOG_INFO("{}: Stopped", name);
 }
 
 void ExecutorThread::run() {
-    LOG(EXTENSION_LOG_DEBUG, "Thread %s running..", getName().c_str());
+    EP_LOG_DEBUG("Thread {} running..", getName());
 
     for (uint8_t tick = 1;; tick++) {
         resetCurrentTask();
@@ -123,23 +124,22 @@ void ExecutorThread::run() {
                         task_type_t::NONIO_TASK_IDX &&
                 scheduleOverhead > std::chrono::seconds(1)) {
                 auto description = currentTask->getDescription();
-                LOG(EXTENSION_LOG_WARNING,
-                    "Slow scheduling for NON_IO task '%.*s' on thread %s. "
-                    "Schedule overhead: %s",
-                    int(description.size()),
-                    description.data(),
-                    getName().c_str(),
-                    cb::time2text(scheduleOverhead).c_str());
+                EP_LOG_WARN(
+                        "Slow scheduling for NON_IO task '{}*s' on thread {}. "
+                        "Schedule overhead: {}",
+                        int(description.size()),
+                        description.data(),
+                        getName(),
+                        cb::time2text(scheduleOverhead));
             }
             updateTaskStart();
 
             const auto curTaskDescr = currentTask->getDescription();
-            LOG(EXTENSION_LOG_DEBUG,
-                "%s: Run task \"%.*s\" id %" PRIu64,
-                getName().c_str(),
-                int(curTaskDescr.size()),
-                curTaskDescr.data(),
-                uint64_t(currentTask->getId()));
+            EP_LOG_DEBUG("{}: Run task \"{}*s\" id {}",
+                         getName(),
+                         int(curTaskDescr.size()),
+                         curTaskDescr.data(),
+                         uint64_t(currentTask->getId()));
 
             // Now Run the Task ....
             currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
@@ -157,12 +157,11 @@ void ExecutorThread::run() {
             // so the bucket name is included in the Log message.
             if (runtime > currentTask->maxExpectedDuration()) {
                 auto description = currentTask->getDescription();
-                LOG(EXTENSION_LOG_WARNING,
-                    "Slow runtime for '%.*s' on thread %s: %s",
-                    int(description.size()),
-                    description.data(),
-                    getName().c_str(),
-                    cb::time2text(runtime).c_str());
+                EP_LOG_WARN("Slow runtime for '{}*s' on thread {}: {}",
+                            int(description.size()),
+                            description.data(),
+                            getName(),
+                            cb::time2text(runtime));
             }
 
             // Check if task is run once or needs to be rescheduled..
@@ -180,18 +179,16 @@ void ExecutorThread::run() {
                 if (new_waketime < getWaketime()) {
                     setWaketime(new_waketime);
                 }
-                LOG(EXTENSION_LOG_DEBUG,
-                    "%s: Reschedule a task"
-                    " \"%.*s\" id %" PRIu64 "[%" PRIu64 " %" PRIu64 " |%" PRIu64
-                    "]",
-                    name.c_str(),
-                    int(curTaskDescr.size()),
-                    curTaskDescr.data(),
-                    uint64_t(currentTask->getId()),
-                    uint64_t(to_ns_since_epoch(new_waketime).count()),
-                    uint64_t(to_ns_since_epoch(currentTask->getWaketime())
-                                     .count()),
-                    uint64_t(to_ns_since_epoch(getWaketime()).count()));
+                EP_LOG_DEBUG(
+                        "{}: Reschedule a task"
+                        " \"{}*s\" id {}[{} {} |{}]",
+                        name,
+                        int(curTaskDescr.size()),
+                        curTaskDescr.data(),
+                        currentTask->getId(),
+                        to_ns_since_epoch(new_waketime).count(),
+                        to_ns_since_epoch(currentTask->getWaketime()).count(),
+                        to_ns_since_epoch(getWaketime()).count());
             }
             manager->doneWork(taskType);
         }

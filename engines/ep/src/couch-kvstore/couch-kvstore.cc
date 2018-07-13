@@ -754,9 +754,11 @@ static int notify_expired_item(DocInfo& info,
             using namespace cb::compression;
 
             if (!inflate(Algorithm::Snappy, {item.buf, item.size}, inflated)) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "time_purge_hook: failed to inflate document with seqno %" PRIu64 ""
-                    "revno: %" PRIu64, info.db_seq, info.rev_seq);
+                EP_LOG_WARN(
+                        "time_purge_hook: failed to inflate document with "
+                        "seqno {} revno: {}",
+                        info.db_seq,
+                        info.rev_seq);
                 return COUCHSTORE_ERROR_CORRUPT;
             }
             // Now remove snappy bit
@@ -795,9 +797,8 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
     DbInfo infoDb;
     auto err = couchstore_db_info(d, &infoDb);
     if (err != COUCHSTORE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "time_purge_hook: couchstore_db_info() failed: %s",
-            couchstore_strerror(err));
+        EP_LOG_WARN("time_purge_hook: couchstore_db_info() failed: {}",
+                    couchstore_strerror(err));
         return err;
     }
 
@@ -836,8 +837,9 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                  * expiry time
                  */
                 if (!exptime) {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "time_purge_hook: tombstone found with an expiry time of 0");
+                    EP_LOG_WARN(
+                            "time_purge_hook: tombstone found with an"
+                            " expiry time of 0");
                 }
 
                 if (exptime < ctx->compactConfig.purge_before_ts &&
@@ -859,8 +861,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
                     ret = notify_expired_item(*info, *metadata, item,
                                              *ctx, currtime);
                 } catch (const std::bad_alloc&) {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "time_purge_hook: memory allocation failed");
+                    EP_LOG_WARN("time_purge_hook: memory allocation failed");
                     return COUCHSTORE_ERROR_ALLOC_FAIL;
                 }
 
@@ -881,10 +882,12 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
             ctx->bloomFilterCallback->callback(
                     ctx->compactConfig.db_file_id, key, deleted);
         } catch (std::runtime_error& re) {
-            LOG(EXTENSION_LOG_WARNING,
-                "time_purge_hook: exception occurred when invoking the "
-                "bloomfilter callback on vbucket:%" PRIu16
-                " - Details: %s", ctx->compactConfig.db_file_id, re.what());
+            EP_LOG_WARN(
+                    "time_purge_hook: exception occurred when invoking the "
+                    "bloomfilter callback on vb:{}"
+                    " - Details: {}",
+                    ctx->compactConfig.db_file_id,
+                    re.what());
         }
     }
 
@@ -897,10 +900,12 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     try {
         result = compactDBInternal(hook_ctx, edit_docinfo_hook);
     } catch(std::logic_error& le) {
-        LOG(EXTENSION_LOG_WARNING,
-            "CouchKVStore::compactDB: exception while performing "
-            "compaction for vbucket:%" PRIu16
-            " - Details: %s", hook_ctx->compactConfig.db_file_id, le.what());
+        EP_LOG_WARN(
+                "CouchKVStore::compactDB: exception while performing "
+                "compaction for vb:{}"
+                " - Details: {}",
+                hook_ctx->compactConfig.db_file_id,
+                le.what());
     }
     if (!result) {
         ++st.numCompactionFailure;
@@ -1154,10 +1159,9 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId,
         }
     }
 
-    LOG(EXTENSION_LOG_DEBUG,
-        "CouchKVStore::snapshotVBucket: Snapshotted vbucket:%" PRIu16 " state:%s",
-        vbucketId,
-        vbstate.toJSON().c_str());
+    EP_LOG_DEBUG("CouchKVStore::snapshotVBucket: Snapshotted vb:{} state:{}",
+                 vbucketId,
+                 vbstate.toJSON());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             ProcessClock::now() - start));
@@ -1271,12 +1275,12 @@ ScanContext* CouchKVStore::initScanContext(
         logger.log(EXTENSION_LOG_WARNING,
                    "CouchKVStore::initScanContext: couchstore_db_info error:%s",
                    couchstore_strerror(errorCode));
-        LOG(EXTENSION_LOG_WARNING,
-            "CouchKVStore::initScanContext: Failed to read DB info for "
-            "backfill. vb:%" PRIu16 " rev:%" PRIu64 " error: %s",
-            vbid,
-            db.getFileRev(),
-            couchstore_strerror(errorCode));
+        EP_LOG_WARN(
+                "CouchKVStore::initScanContext: Failed to read DB info for "
+                "backfill. vb:{} rev:{} error: {}",
+                vbid,
+                db.getFileRev(),
+                couchstore_strerror(errorCode));
         return NULL;
     }
 
@@ -1284,14 +1288,13 @@ ScanContext* CouchKVStore::initScanContext(
     errorCode = couchstore_changes_count(
             db, startSeqno, std::numeric_limits<uint64_t>::max(), &count);
     if (errorCode != COUCHSTORE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "CouchKVStore::initScanContext:Failed to obtain changes "
-            "count for vb:%" PRIu16 " rev:%" PRIu64 " start_seqno:%" PRIu64
-            " error: %s",
-            vbid,
-            db.getFileRev(),
-            startSeqno,
-            couchstore_strerror(errorCode));
+        EP_LOG_WARN(
+                "CouchKVStore::initScanContext:Failed to obtain changes "
+                "count for vb:{} rev:{} start_seqno:{} error: {}",
+                vbid,
+                db.getFileRev(),
+                startSeqno,
+                couchstore_strerror(errorCode));
         return NULL;
     }
 

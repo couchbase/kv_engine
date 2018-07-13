@@ -264,8 +264,11 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     auto stream = findStream(vbucket);
     if (stream) {
         if(stream->isActive()) {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot add stream because "
-                "one already exists", logHeader(), vbucket);
+            EP_LOG_WARN(
+                    "{} (vb:{}) Cannot add stream because "
+                    "one already exists",
+                    logHeader(),
+                    vbucket);
             return ENGINE_KEY_EEXISTS;
         } else {
             streams.erase(vbucket);
@@ -314,8 +317,11 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
     auto stream = findStream(vbucket);
     if (!stream) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because no "
-            "stream exists for this vbucket", logHeader(), vbucket);
+        EP_LOG_WARN(
+                "{} (vb:{}) Cannot close stream because no "
+                "stream exists for this vbucket",
+                logHeader(),
+                vbucket);
         return ENGINE_KEY_ENOENT;
     }
 
@@ -337,37 +343,35 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
 
     auto stream = findStream(vbucket);
     if (!stream) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s (vb %d) End stream received but no such stream for this "
-            "vBucket",
-            logHeader(),
-            vbucket);
+        EP_LOG_WARN(
+                "{} (vb:{}) End stream received but no such stream for this "
+                "vBucket",
+                logHeader(),
+                vbucket);
         return ENGINE_KEY_ENOENT;
     }
 
     if (!stream->isActive()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s (vb %d) End stream received but stream is not active",
-            logHeader(),
-            vbucket);
+        EP_LOG_WARN("{} (vb:{}) End stream received but stream is not active",
+                    logHeader(),
+                    vbucket);
         return ENGINE_KEY_ENOENT;
     }
 
     if (stream->getOpaque() != opaque) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s (vb %d) End stream received with opaque %d but expected %d",
-            logHeader(),
-            vbucket,
-            opaque,
-            stream->getOpaque());
+        EP_LOG_WARN(
+                "{} (vb:{}) End stream received with opaque {} but expected {}",
+                logHeader(),
+                vbucket,
+                opaque,
+                stream->getOpaque());
         return ENGINE_KEY_ENOENT;
     }
 
-    LOG(EXTENSION_LOG_NOTICE,
-        "%s (vb %d) End stream received with reason %d",
-        logHeader(),
-        vbucket,
-        flags);
+    EP_LOG_INFO("{} (vb:{}) End stream received with reason {}",
+                logHeader(),
+                vbucket,
+                flags);
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     try {
@@ -411,8 +415,11 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
     }
 
     if (bySeqno == 0) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid sequence number(0) "
-            "for mutation!", logHeader(), vbucket);
+        EP_LOG_WARN(
+                "{} (vb:{}) Invalid sequence number(0) "
+                "for mutation!",
+                logHeader(),
+                vbucket);
         return ENGINE_EINVAL;
     }
 
@@ -552,8 +559,11 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     }
 
     if (bySeqno == 0) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid sequence number(0)"
-            "for deletion!", logHeader(), vbucket);
+        EP_LOG_WARN(
+                "{} (vb:{}) Invalid sequence number(0)"
+                "for deletion!",
+                logHeader(),
+                vbucket);
         return ENGINE_EINVAL;
     }
 
@@ -639,9 +649,13 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
     }
 
     if (start_seqno > end_seqno) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid snapshot marker "
-            "received, snap_start (%" PRIu64 ") <= snap_end (%" PRIu64 ")",
-            logHeader(), vbucket, start_seqno, end_seqno);
+        EP_LOG_WARN(
+                "{} (vb:{}) Invalid snapshot marker "
+                "received, snap_start ({}) <= snap_end ({})",
+                logHeader(),
+                vbucket,
+                start_seqno,
+                end_seqno);
         return ENGINE_EINVAL;
     }
 
@@ -797,8 +811,11 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
             break;
         }
         default:
-            LOG(EXTENSION_LOG_WARNING, "%s Unknown consumer event (%d), "
-                "disconnecting", logHeader(), int(resp->getEvent()));
+            EP_LOG_WARN(
+                    "{} Unknown consumer event ({}), "
+                    "disconnecting",
+                    logHeader(),
+                    int(resp->getEvent()));
             ret = ENGINE_DISCONNECT;
     }
     ObjectRegistry::onSwitchThread(epe);
@@ -829,14 +846,17 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
     if (opcode == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ) {
         opaque_map::iterator oitr = opaqueMap_.find(opaque);
         if (oitr == opaqueMap_.end()) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Received response with opaque %" PRIu32 " and that opaque "
-                "does not exist in opaqueMap", opaque);
+            EP_LOG_WARN(
+                    "Received response with opaque {} and that opaque "
+                    "does not exist in opaqueMap",
+                    opaque);
             return false;
         } else if (!isValidOpaque(opaque, oitr->second.second)) {
-            LOG(EXTENSION_LOG_WARNING, "Received response with opaque %" PRIu32
-                " and that stream does not exist for vb:%" PRIu16,
-                opaque, oitr->second.second);
+            EP_LOG_WARN(
+                    "Received response with opaque {} and that stream does not "
+                    "exist for vb:{}",
+                    opaque,
+                    oitr->second.second);
             return false;
         }
         const auto* pkt = reinterpret_cast<
@@ -850,9 +870,12 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
 
         if (status == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
             if (bodylen != sizeof(uint64_t)) {
-                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Received rollback "
-                    "request with incorrect bodylen of %" PRIu64 ", disconnecting",
-                    logHeader(), vbid, bodylen);
+                EP_LOG_WARN(
+                        "{} (vb:{}) Received rollback "
+                        "request with incorrect bodylen of {}, disconnecting",
+                        logHeader(),
+                        vbid,
+                        bodylen);
                 return false;
             }
             uint64_t rollbackSeqno = 0;
@@ -862,9 +885,12 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         }
 
         if (((bodylen % 16) != 0 || bodylen == 0) && status == ENGINE_SUCCESS) {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d)Got a stream response with a "
-                "bad failover log (length %" PRIu64 "), disconnecting",
-                logHeader(), vbid, bodylen);
+            EP_LOG_WARN(
+                    "{} (vb:{})Got a stream response with a "
+                    "bad failover log (length {}), disconnecting",
+                    logHeader(),
+                    vbid,
+                    bodylen);
             return false;
         }
 
@@ -883,8 +909,11 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         return true;
     }
 
-    LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
-        "disconnecting", logHeader(), opcode);
+    EP_LOG_WARN(
+            "{} Trying to handle an unknown response {}, "
+            "disconnecting",
+            logHeader(),
+            opcode);
 
     return false;
 }
@@ -896,32 +925,33 @@ bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
     auto stream = findStream(vbid);
 
     if (!(vb && stream)) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s (vb %d) handleRollbackResponse: vb:%s, stream:%s",
-            logHeader(),
-            vbid,
-            vb.get() ? "ok" : "nullptr",
-            stream.get() ? "ok" : "nullptr");
+        EP_LOG_WARN("{} (vb:{}) handleRollbackResponse: vb:{}, stream:{}",
+                    logHeader(),
+                    vbid,
+                    vb.get() ? "ok" : "nullptr",
+                    stream.get() ? "ok" : "nullptr");
         return false;
     }
 
     auto entries = vb->failovers->getNumEntries();
     if (rollbackSeqno == 0 && entries > 1) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "%s (vb %d) Received rollback request. Rollback to 0 yet have %ld "
-            "entries remaining. Retrying with previous failover entry",
-            logHeader(),
-            vbid,
-            entries);
+        EP_LOG_INFO(
+                "{} (vb:{}) Received rollback request. Rollback to 0 yet have "
+                "{} "
+                "entries remaining. Retrying with previous failover entry",
+                logHeader(),
+                vbid,
+                entries);
         vb->failovers->removeLatestEntry();
 
         stream->streamRequest(vb->failovers->getLatestEntry().vb_uuid);
     } else {
-        LOG(EXTENSION_LOG_NOTICE,
-            "%s (vb %d) Received rollback request. Rolling back to seqno:%" PRIu64,
-            logHeader(),
-            vbid,
-            rollbackSeqno);
+        EP_LOG_INFO(
+                "{} (vb:{}) Received rollback request. Rolling back to "
+                "seqno:{}",
+                logHeader(),
+                vbid,
+                rollbackSeqno);
         ExTask task = std::make_shared<RollbackTask>(
                 &engine_, opaque, vbid, rollbackSeqno, shared_from_this());
         ExecutorPool::get()->schedule(task);
@@ -1183,19 +1213,30 @@ void DcpConsumer::streamAccepted(uint32_t opaque,
                 KVBucketIface* kvBucket = engine_.getKVBucket();
                 kvBucket->scheduleVBStatePersist(vbucket);
             }
-            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Add stream for opaque %" PRIu32
-                " %s with error code %d", logHeader(), vbucket, opaque,
-                status == ENGINE_SUCCESS ? "succeeded" : "failed", status);
+            EP_LOG_DEBUG(
+                    "{} (vb:{}) Add stream for opaque {} {} with error code {}",
+                    logHeader(),
+                    vbucket,
+                    opaque,
+                    status == ENGINE_SUCCESS ? "succeeded" : "failed",
+                    status);
             stream->acceptStream(status, add_opaque);
         } else {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Trying to add stream, but "
-                "none exists (opaque: %" PRIu32 ", add_opaque: %" PRIu32 ")",
-                logHeader(), vbucket, opaque, add_opaque);
+            EP_LOG_WARN(
+                    "{} (vb:{}) Trying to add stream, but "
+                    "none exists (opaque: {}, add_opaque: {})",
+                    logHeader(),
+                    vbucket,
+                    opaque,
+                    add_opaque);
         }
         opaqueMap_.erase(opaque);
     } else {
-        LOG(EXTENSION_LOG_WARNING, "%s No opaque found for add stream response "
-            "with opaque %" PRIu32, logHeader(), opaque);
+        EP_LOG_WARN(
+                "{} No opaque found for add stream response "
+                "with opaque {}",
+                logHeader(),
+                opaque);
     }
 }
 
@@ -1222,9 +1263,12 @@ void DcpConsumer::closeStreamDueToVbStateChange(uint16_t vbucket,
                                                 vbucket_state_t state) {
     auto it = streams.erase(vbucket);
     if (it.second) {
-        LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") State changed to "
-            "%s, closing passive stream!",
-            logHeader(), vbucket, VBucket::toString(state));
+        EP_LOG_DEBUG(
+                "{} (vb:{}) State changed to "
+                "{}, closing passive stream!",
+                logHeader(),
+                vbucket,
+                VBucket::toString(state));
         auto& stream = it.first;
         uint32_t bytesCleared = stream->setDead(END_STREAM_STATE);
         flowControl.incrFreedBytes(bytesCleared);
@@ -1272,12 +1316,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
 
     const auto now = ep_current_time();
     if ((now - lastMessageTime) > dcpIdleTimeout.count()) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "%s Disconnecting because a message has not been received for "
-            "%" PRIu64 "s. lastMessageTime:%" PRIu32,
-            logHeader(),
-            uint64_t(dcpIdleTimeout.count()),
-            (now - lastMessageTime));
+        EP_LOG_INFO(
+                "{} Disconnecting because a message has not been received for "
+                "{}s. lastMessageTime:{}",
+                logHeader(),
+                uint64_t(dcpIdleTimeout.count()),
+                (now - lastMessageTime));
         return ENGINE_DISCONNECT;
     }
 

@@ -170,23 +170,23 @@ bool KVStore::snapshotStats(const std::map<std::string,
 
     FILE *new_stats = fopen(next_fname.c_str(), "w");
     if (new_stats == nullptr) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "Failed to open the engine stats "
-            "file \"%s\" due to an error \"%s\"; Not critical because new "
-            "stats will be dumped later, please ignore.",
-            next_fname.c_str(),
-            strerror(errno));
+        EP_LOG_INFO(
+                "Failed to open the engine stats "
+                "file \"{}\" due to an error \"{}\"; Not critical because new "
+                "stats will be dumped later, please ignore.",
+                next_fname.c_str(),
+                strerror(errno));
         return false;
     }
 
     bool rv = true;
     if (fprintf(new_stats, "%s\n", stats_buf.str().c_str()) < 0) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "Failed to write the engine stats to "
-            "file \"%s\" due to an error \"%s\"; Not critical because new "
-            "stats will be dumped later, please ignore.",
-            next_fname.c_str(),
-            strerror(errno));
+        EP_LOG_INFO(
+                "Failed to write the engine stats to "
+                "file \"{}\" due to an error \"{}\"; Not critical because new "
+                "stats will be dumped later, please ignore.",
+                next_fname.c_str(),
+                strerror(errno));
         rv = false;
     }
     fclose(new_stats);
@@ -195,21 +195,23 @@ bool KVStore::snapshotStats(const std::map<std::string,
         std::string old_fname = dbname + "/stats.json.old";
         std::string stats_fname = dbname + "/stats.json";
         if (access(old_fname.c_str(), F_OK) == 0 && remove(old_fname.c_str()) != 0) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to remove '%s': %s",
-                old_fname.c_str(), strerror(errno));
+            EP_LOG_WARN(
+                    "Failed to remove '{}': {}", old_fname, strerror(errno));
             remove(next_fname.c_str());
             rv = false;
         } else if (access(stats_fname.c_str(), F_OK) == 0 &&
                    rename(stats_fname.c_str(), old_fname.c_str()) != 0) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to rename '%s' to '%s': %s",
-                stats_fname.c_str(), old_fname.c_str(), strerror(errno));
+            EP_LOG_WARN("Failed to rename '{}' to '{}': {}",
+                        stats_fname,
+                        old_fname,
+                        strerror(errno));
             remove(next_fname.c_str());
             rv = false;
         } else if (rename(next_fname.c_str(), stats_fname.c_str()) != 0) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to rename '%s' to '%s': %s",
-                next_fname.c_str(), stats_fname.c_str(), strerror(errno));
+            EP_LOG_WARN("Failed to rename '{}' to '{}': {}",
+                        next_fname,
+                        stats_fname,
+                        strerror(errno));
             remove(next_fname.c_str());
             rv = false;
         }

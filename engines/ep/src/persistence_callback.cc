@@ -17,6 +17,7 @@
 
 #include "persistence_callback.h"
 
+#include "bucket_logger.h"
 #include "item.h"
 #include "stats.h"
 
@@ -76,25 +77,25 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
                                                      TrackReference::No,
                                                      QueueExpired::Yes);
             if (v) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "PersistenceCallback::callback: Persisting on "
-                    "vb:%" PRIu16 ", seqno:%" PRIu64 " returned 0 updates",
-                    queuedItem->getVBucketId(),
-                    v->getBySeqno());
+                EP_LOG_WARN(
+                        "PersistenceCallback::callback: Persisting on "
+                        "vb:{}, seqno:{} returned 0 updates",
+                        queuedItem->getVBucketId(),
+                        v->getBySeqno());
             } else {
-                LOG(EXTENSION_LOG_WARNING,
-                    "PersistenceCallback::callback: Error persisting, a key"
-                    "is missing from vb:%" PRIu16,
-                    queuedItem->getVBucketId());
+                EP_LOG_WARN(
+                        "PersistenceCallback::callback: Error persisting, a key"
+                        "is missing from vb:{}",
+                        queuedItem->getVBucketId());
             }
 
             vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
             --epCtx.stats.diskQueueSize;
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "PersistenceCallback::callback: Fatal error in persisting "
-                "SET on vb:%" PRIu16,
-                queuedItem->getVBucketId());
+            EP_LOG_WARN(
+                    "PersistenceCallback::callback: Fatal error in persisting "
+                    "SET on vb:{}",
+                    queuedItem->getVBucketId());
             redirty(epCtx.stats, vbucket);
         }
     }
@@ -123,10 +124,10 @@ void PersistenceCallback::callback(TransactionContext& txCtx, int& value) {
         // may now remove it from the hash table.
         vbucket.deletedOnDiskCbk(*queuedItem, (value > 0));
     } else {
-        LOG(EXTENSION_LOG_WARNING,
-            "PersistenceCallback::callback: Fatal error in persisting "
-            "DELETE on vb:%" PRIu16,
-            queuedItem->getVBucketId());
+        EP_LOG_WARN(
+                "PersistenceCallback::callback: Fatal error in persisting "
+                "DELETE on vb:{}",
+                queuedItem->getVBucketId());
         redirty(epCtx.stats, vbucket);
     }
 }

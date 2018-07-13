@@ -95,10 +95,11 @@ public:
         } else if (key.compare("warmup_min_items_threshold") == 0) {
             stats.warmupNumReadCap.store(static_cast<double>(value) / 100.0);
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "StatsValueChangeListener(size_t) failed to change value for "
-                "unknown variable, %s",
-                key.c_str());
+            EP_LOG_WARN(
+                    "StatsValueChangeListener(size_t) failed to change value "
+                    "for "
+                    "unknown variable, {}",
+                    key);
         }
     }
 
@@ -106,10 +107,11 @@ public:
         if (key.compare("mem_used_merge_threshold_percent") == 0) {
             stats.setMemUsedMergeThresholdPercent(value);
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "StatsValueChangeListener(float) failed to change value for "
-                "unknown variable, %s",
-                key.c_str());
+            EP_LOG_WARN(
+                    "StatsValueChangeListener(float) failed to change value "
+                    "for "
+                    "unknown variable, {}",
+                    key);
         }
     }
 
@@ -152,9 +154,7 @@ public:
         } else if (key.compare("max_ttl") == 0) {
             store.setMaxTtl(value);
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to change value for unknown variable, %s",
-                key.c_str());
+            EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
     }
 
@@ -471,14 +471,14 @@ void KVBucket::deinitialize() {
 }
 
 KVBucket::~KVBucket() {
-    LOG(EXTENSION_LOG_NOTICE, "Deleting vb_mutexes");
-    LOG(EXTENSION_LOG_NOTICE, "Deleting defragmenterTask");
+    EP_LOG_INFO("Deleting vb_mutexes");
+    EP_LOG_INFO("Deleting defragmenterTask");
     defragmenterTask.reset();
-    LOG(EXTENSION_LOG_NOTICE, "Deleting itemCompressorTask");
+    EP_LOG_INFO("Deleting itemCompressorTask");
     itemCompressorTask.reset();
-    LOG(EXTENSION_LOG_NOTICE, "Deleting itemFreqDecayerTask");
+    EP_LOG_INFO("Deleting itemFreqDecayerTask");
     itemFreqDecayerTask.reset();
-    LOG(EXTENSION_LOG_NOTICE, "Deleted KvBucket.");
+    EP_LOG_INFO("Deleted KvBucket.");
 }
 
 const Flusher* KVBucket::getFlusher(uint16_t shardId) {
@@ -521,12 +521,12 @@ void KVBucket::getValue(Item& it) {
 
     if (gv.getStatus() != ENGINE_SUCCESS) {
         // Cannot continue to pre_expiry, log this failed get and return
-        LOG(EXTENSION_LOG_WARNING,
-            "KVBucket::getValue failed get for item vb:%" PRIu16
-            ", it.seqno:%" PRIi64 ", status:%d",
-            it.getVBucketId(),
-            it.getBySeqno(),
-            gv.getStatus());
+        EP_LOG_WARN(
+                "KVBucket::getValue failed get for item vb:{}, it.seqno:{}, "
+                "status:{}",
+                it.getVBucketId(),
+                it.getBySeqno(),
+                gv.getStatus());
         return;
     } else if (!gv.item->isDeleted()) {
         it.replaceValue(gv.item->getValue().get());
@@ -636,8 +636,10 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
             return ENGINE_EWOULDBLOCK;
         }
     } else if (vb->isTakeoverBackedUp()) {
-        LOG(EXTENSION_LOG_DEBUG, "(vb %u) Returned TMPFAIL to a set op"
-                ", becuase takeover is lagging", vb->getId());
+        EP_LOG_DEBUG(
+                "(vb:{}) Returned TMPFAIL to a set op"
+                ", becuase takeover is lagging",
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -671,8 +673,10 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
             return ENGINE_EWOULDBLOCK;
         }
     } else if (vb->isTakeoverBackedUp()) {
-        LOG(EXTENSION_LOG_DEBUG, "(vb %u) Returned TMPFAIL to a add op"
-                ", becuase takeover is lagging", vb->getId());
+        EP_LOG_DEBUG(
+                "(vb:{}) Returned TMPFAIL to a add op"
+                ", becuase takeover is lagging",
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -761,13 +765,13 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(uint16_t vbid,
     // MB-25197: we shouldn't process setVBState if warmup hasn't yet loaded
     // the vbucket state data.
     if (cookie && shouldSetVBStateBlock(cookie)) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "KVBucket::setVBucketState blocking vb:%" PRIu16
-            ", to:%s, transfer:%d, cookie:%p",
-            vbid,
-            VBucket::toString(to),
-            transfer,
-            cookie);
+        EP_LOG_INFO(
+                "KVBucket::setVBucketState blocking vb:{}, to:{}, transfer:{}, "
+                "cookie:{}",
+                vbid,
+                VBucket::toString(to),
+                transfer,
+                cookie);
         return ENGINE_EWOULDBLOCK;
     }
 
@@ -827,13 +831,13 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
             vb->failovers->createEntry(highSeqno);
 
             auto entry = vb->failovers->getLatestEntry();
-            LOG(EXTENSION_LOG_NOTICE,
-                "KVBucket::setVBucketState: vb:%" PRIu16
-                " created new failover entry with "
-                "uuid:%" PRIu64 " and seqno:%" PRIu64,
-                vbid,
-                entry.vb_uuid,
-                entry.by_seqno);
+            EP_LOG_INFO(
+                    "KVBucket::setVBucketState: vb:{} created new failover "
+                    "entry with "
+                    "uuid:{} and seqno:{}",
+                    vbid,
+                    entry.vb_uuid,
+                    entry.by_seqno);
         }
 
         if (oldstate == vbucket_state_pending &&
@@ -901,9 +905,10 @@ void KVBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
     VBucketPtr vb = getVBucket(vbid);
 
     if (!vb) {
-        LOG(EXTENSION_LOG_WARNING,
-            "EPStore::scheduleVBStatePersist: vb:%" PRIu16
-            " does not not exist. Unable to schedule persistence.", vbid);
+        EP_LOG_WARN(
+                "EPStore::scheduleVBStatePersist: vb:{} does not not exist. "
+                "Unable to schedule persistence.",
+                vbid);
         return;
     }
 
@@ -947,8 +952,7 @@ ENGINE_ERROR_CODE KVBucket::checkForDBExistence(DBFileId db_file_id) {
             return ENGINE_NOT_MY_VBUCKET;
         }
     } else {
-        LOG(EXTENSION_LOG_WARNING,
-            "Unknown backend specified for db file id: %d", db_file_id);
+        EP_LOG_WARN("Unknown backend specified for db file id: {}", db_file_id);
         return ENGINE_FAILED;
     }
 
@@ -1297,13 +1301,12 @@ void KVBucket::completeBGFetch(const DocKey& key,
                     vb->completeBGFetchForSingleItem(key, item, startTime);
             engine.notifyIOComplete(item.cookie, status);
         } else {
-            LOG(EXTENSION_LOG_INFO,
-                "vb:%" PRIu16
-                " file was deleted in the "
-                "middle of a bg fetch for key{%.*s}",
-                vbucket,
-                int(key.size()),
-                key.data());
+            EP_LOG_DEBUG(
+                    "vb:{} file was deleted in the "
+                    "middle of a bg fetch for key{{{}}}",
+                    vbucket,
+                    int(key.size()),
+                    key.data());
             engine.notifyIOComplete(cookie, ENGINE_NOT_MY_VBUCKET);
         }
     }
@@ -1323,25 +1326,24 @@ void KVBucket::completeBGFetchMulti(uint16_t vbId,
                     key, *fetched_item, startTime);
             engine.notifyIOComplete(fetched_item->cookie, status);
         }
-        LOG(EXTENSION_LOG_DEBUG,
-            "EP Store completes %" PRIu64
-            " of batched background fetch "
-            "for vBucket = %d endTime = %" PRIu64,
-            uint64_t(fetchedItems.size()),
-            vbId,
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                    ProcessClock::now().time_since_epoch())
-                    .count());
+        EP_LOG_DEBUG(
+                "EP Store completes {} of batched background fetch "
+                "for vBucket = {} endTime = {}",
+                uint64_t(fetchedItems.size()),
+                vbId,
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                        ProcessClock::now().time_since_epoch())
+                        .count());
     } else {
         for (const auto& item : fetchedItems) {
             engine.notifyIOComplete(item.second->cookie,
                                     ENGINE_NOT_MY_VBUCKET);
         }
-        LOG(EXTENSION_LOG_WARNING,
-            "EP Store completes %d of batched background fetch for "
-            "for vBucket = %d that is already deleted",
-            (int)fetchedItems.size(),
-            vbId);
+        EP_LOG_WARN(
+                "EP Store completes {} of batched background fetch for "
+                "for vBucket = {} that is already deleted",
+                (int)fetchedItems.size(),
+                vbId);
     }
 }
 
@@ -1499,8 +1501,10 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
             return ENGINE_NOT_MY_VBUCKET;
         }
     } else if (vb->isTakeoverBackedUp()) {
-        LOG(EXTENSION_LOG_DEBUG, "(vb %u) Returned TMPFAIL to a setWithMeta op"
-                ", becuase takeover is lagging", vb->getId());
+        EP_LOG_DEBUG(
+                "(vb:{}) Returned TMPFAIL to a setWithMeta op"
+                ", becuase takeover is lagging",
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -1722,8 +1726,10 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
             return ENGINE_EWOULDBLOCK;
         }
     } else if (vb->isTakeoverBackedUp()) {
-        LOG(EXTENSION_LOG_DEBUG, "(vb %u) Returned TMPFAIL to a delete op"
-                ", becuase takeover is lagging", vb->getId());
+        EP_LOG_DEBUG(
+                "(vb:{}) Returned TMPFAIL to a delete op"
+                ", becuase takeover is lagging",
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
     { // collections read scope
@@ -1774,10 +1780,10 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
             return ENGINE_NOT_MY_VBUCKET;
         }
     } else if (vb->isTakeoverBackedUp()) {
-        LOG(EXTENSION_LOG_DEBUG,
-            "(vb %u) Returned TMPFAIL to a deleteWithMeta op"
-            ", becuase takeover is lagging",
-            vb->getId());
+        EP_LOG_DEBUG(
+                "(vb:{}) Returned TMPFAIL to a deleteWithMeta op"
+                ", becuase takeover is lagging",
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -1817,12 +1823,10 @@ void KVBucket::reset() {
             vb->checkpointManager->clear(vb->getState());
             vb->resetStats();
             vb->setPersistedSnapshot(0, 0);
-            LOG(EXTENSION_LOG_NOTICE,
-                "KVBucket::reset(): Successfully flushed vb:%" PRIu16,
-                vbid);
+            EP_LOG_INFO("KVBucket::reset(): Successfully flushed vb:{}", vbid);
         }
     }
-    LOG(EXTENSION_LOG_NOTICE, "KVBucket::reset(): Successfully flushed bucket");
+    EP_LOG_INFO("KVBucket::reset(): Successfully flushed bucket");
 }
 
 void KVBucket::setDeleteAllComplete() {
@@ -1854,13 +1858,13 @@ void KVBucket::warmupCompleted() {
                 LockHolder lh(accessScanner.mutex);
                 accessScanner.enabled = true;
             }
-            LOG(EXTENSION_LOG_NOTICE, "Access Scanner task enabled");
+            EP_LOG_INFO("Access Scanner task enabled");
             size_t smin = engine.getConfiguration().getAlogSleepTime();
             setAccessScannerSleeptime(smin, true);
         } else {
             LockHolder lh(accessScanner.mutex);
             accessScanner.enabled = false;
-            LOG(EXTENSION_LOG_NOTICE, "Access Scanner task disabled");
+            EP_LOG_INFO("Access Scanner task disabled");
         }
 
         Configuration &config = engine.getConfiguration();
@@ -1891,27 +1895,33 @@ bool KVBucket::maybeEnableTraffic()
     double maxSize = static_cast<double>(stats.getMaxDataSize());
 
     if (memoryUsed  >= stats.mem_low_wat) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "Total memory use reached to the low water mark, stop warmup"
-            ": memoryUsed (%f) >= low water mark (%" PRIu64 ")",
-            memoryUsed, uint64_t(stats.mem_low_wat.load()));
+        EP_LOG_INFO(
+                "Total memory use reached to the low water mark, stop warmup"
+                ": memoryUsed ({}) >= low water mark ({})",
+                memoryUsed,
+                uint64_t(stats.mem_low_wat.load()));
         return true;
     } else if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
-        LOG(EXTENSION_LOG_NOTICE,
+        EP_LOG_INFO(
                 "Enough MB of data loaded to enable traffic"
-                ": memoryUsed (%f) > (maxSize(%f) * warmupMemUsedCap(%f))",
-                 memoryUsed, maxSize, stats.warmupMemUsedCap.load());
+                ": memoryUsed ({}) > (maxSize({}) * warmupMemUsedCap({}))",
+                memoryUsed,
+                maxSize,
+                stats.warmupMemUsedCap.load());
         return true;
     } else if (eviction_policy == VALUE_ONLY &&
                stats.warmedUpValues >=
                                (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
-        LOG(EXTENSION_LOG_NOTICE,
-            "Enough number of items loaded to enable traffic (value eviction)"
-            ": warmedUpValues(%" PRIu64 ") >= (warmedUpKeys(%" PRIu64 ") * "
-            "warmupNumReadCap(%f))",  uint64_t(stats.warmedUpValues.load()),
-            uint64_t(stats.warmedUpKeys.load()), stats.warmupNumReadCap.load());
+        EP_LOG_INFO(
+                "Enough number of items loaded to enable traffic (value "
+                "eviction)"
+                ": warmedUpValues({}) >= (warmedUpKeys({}) * "
+                "warmupNumReadCap({}))",
+                uint64_t(stats.warmedUpValues.load()),
+                uint64_t(stats.warmedUpKeys.load()),
+                stats.warmupNumReadCap.load());
         return true;
     } else if (eviction_policy == FULL_EVICTION &&
                stats.warmedUpValues >=
@@ -1920,12 +1930,14 @@ bool KVBucket::maybeEnableTraffic()
         // In case of FULL EVICTION, warmed up keys always matches the number
         // of warmed up values, therefore for honoring the min_item threshold
         // in this scenario, we can consider warmup's estimated item count.
-        LOG(EXTENSION_LOG_NOTICE,
-            "Enough number of items loaded to enable traffic (full eviction)"
-            ": warmedUpValues(%" PRIu64 ") >= (warmup est items(%" PRIu64 ") * "
-            "warmupNumReadCap(%f))",  uint64_t(stats.warmedUpValues.load()),
-            uint64_t(warmupTask->getEstimatedItemCount()),
-            stats.warmupNumReadCap.load());
+        EP_LOG_INFO(
+                "Enough number of items loaded to enable traffic (full "
+                "eviction)"
+                ": warmedUpValues({}) >= (warmup est items({}) * "
+                "warmupNumReadCap({}))",
+                uint64_t(stats.warmedUpValues.load()),
+                uint64_t(warmupTask->getEstimatedItemCount()),
+                stats.warmupNumReadCap.load());
         return true;
     }
     return false;
@@ -1950,10 +1962,10 @@ void KVBucket::stopWarmup(void)
 {
     // forcefully stop current warmup task
     if (isWarmingUp()) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "Stopping warmup while engine is loading "
-            "data from underlying storage, shutdown = %s",
-            stats.isShutdown ? "yes" : "no");
+        EP_LOG_INFO(
+                "Stopping warmup while engine is loading "
+                "data from underlying storage, shutdown = {}",
+                stats.isShutdown ? "yes" : "no");
         warmupTask->stop();
     }
 }
@@ -1987,9 +1999,11 @@ void KVBucket::setExpiryPagerSleeptime(size_t val) {
                 &engine, stats, expiryPager.sleeptime);
         expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
-        LOG(EXTENSION_LOG_DEBUG, "Expiry pager disabled, "
-                                 "enabling it will make exp_pager_stime (%lu)"
-                                 "to go into effect!", val);
+        EP_LOG_DEBUG(
+                "Expiry pager disabled, "
+                "enabling it will make exp_pager_stime ({})"
+                "to go into effect!",
+                val);
     }
 }
 
@@ -2001,9 +2015,11 @@ void KVBucket::setExpiryPagerTasktime(ssize_t val) {
                 &engine, stats, expiryPager.sleeptime, val);
         expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
-        LOG(EXTENSION_LOG_DEBUG, "Expiry pager disabled, "
-                                 "enabling it will make exp_pager_stime (%lu)"
-                                 "to go into effect!", val);
+        EP_LOG_DEBUG(
+                "Expiry pager disabled, "
+                "enabling it will make exp_pager_stime ({})"
+                "to go into effect!",
+                val);
     }
 }
 
@@ -2017,7 +2033,7 @@ void KVBucket::enableExpiryPager() {
                 &engine, stats, expiryPager.sleeptime);
         expiryPager.task = ExecutorPool::get()->schedule(expTask);
     } else {
-        LOG(EXTENSION_LOG_DEBUG, "Expiry Pager already enabled!");
+        EP_LOG_DEBUG("Expiry Pager already enabled!");
     }
 }
 
@@ -2027,7 +2043,7 @@ void KVBucket::disableExpiryPager() {
         ExecutorPool::get()->cancel(expiryPager.task);
         expiryPager.enabled = false;
     } else {
-        LOG(EXTENSION_LOG_DEBUG, "Expiry Pager already disabled!");
+        EP_LOG_DEBUG("Expiry Pager already disabled!");
     }
 }
 
@@ -2078,11 +2094,12 @@ void KVBucket::enableAccessScannerTask() {
                                                     true);
             accessScanner.task = ExecutorPool::get()->schedule(task);
         } else {
-            LOG(EXTENSION_LOG_NOTICE, "Did not enable access scanner task, "
-                                      "as alog_sleep_time is set to zero!");
+            EP_LOG_INFO(
+                    "Did not enable access scanner task, "
+                    "as alog_sleep_time is set to zero!");
         }
     } else {
-        LOG(EXTENSION_LOG_DEBUG, "Access scanner already enabled!");
+        EP_LOG_DEBUG("Access scanner already enabled!");
     }
 }
 
@@ -2093,7 +2110,7 @@ void KVBucket::disableAccessScannerTask() {
         accessScanner.sleeptime = 0;
         accessScanner.enabled = false;
     } else {
-        LOG(EXTENSION_LOG_DEBUG, "Access scanner already disabled!");
+        EP_LOG_DEBUG("Access scanner already disabled!");
     }
 }
 
@@ -2326,9 +2343,8 @@ TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     }
 
     if (!vb.getVB()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16 " Aborting rollback as the vbucket was not found",
-            vbid);
+        EP_LOG_WARN("vb:{} Aborting rollback as the vbucket was not found",
+                    vbid);
         return TaskStatus::Abort;
     }
 
@@ -2359,15 +2375,13 @@ TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
             engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
             return TaskStatus::Complete;
         }
-        LOG(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16 " Aborting rollback as reset of the vbucket failed",
-            vbid);
+        EP_LOG_WARN("vb:{} Aborting rollback as reset of the vbucket failed",
+                    vbid);
         return TaskStatus::Abort;
     } else {
-        LOG(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16 " Rollback not supported on the vbucket state %s",
-            vbid,
-            VBucket::toString(vb->getState()));
+        EP_LOG_WARN("vb:{} Rollback not supported on the vbucket state {}",
+                    vbid,
+                    VBucket::toString(vb->getState()));
         return TaskStatus::Abort;
     }
 }

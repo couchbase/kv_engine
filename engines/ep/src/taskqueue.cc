@@ -16,9 +16,10 @@
  */
 #include "config.h"
 
-#include "taskqueue.h"
+#include "bucket_logger.h"
 #include "executorpool.h"
 #include "executorthread.h"
+#include "taskqueue.h"
 
 #include <cmath>
 
@@ -29,7 +30,7 @@ TaskQueue::TaskQueue(ExecutorPool *m, task_type_t t, const char *nm) :
 }
 
 TaskQueue::~TaskQueue() {
-    LOG(EXTENSION_LOG_INFO, "Task Queue killing %s", name.c_str());
+    EP_LOG_DEBUG("Task Queue killing {}", name);
 }
 
 const std::string TaskQueue::getName() const {
@@ -216,12 +217,11 @@ void TaskQueue::_schedule(ExTask &task) {
 
         futureQueue.push(task);
 
-        LOG(EXTENSION_LOG_DEBUG,
-            "%s: Schedule a task \"%.*s\" id %" PRIu64,
-            name.c_str(),
-            int(task->getDescription().size()),
-            task->getDescription().data(),
-            uint64_t(task->getId()));
+        EP_LOG_DEBUG("{}: Schedule a task \"{}*s\" id {}",
+                     name,
+                     task->getDescription().size(),
+                     task->getDescription(),
+                     task->getId());
 
         sleepQ = manager->getSleepQ(queueType);
         _doWake_UNLOCKED(numToWake);
@@ -244,12 +244,11 @@ void TaskQueue::_wake(ExTask &task) {
     size_t readyCount = 1;
     {
         LockHolder lh(mutex);
-        LOG(EXTENSION_LOG_DEBUG,
-            "%s: Wake a task \"%.*s\" id %" PRIu64,
-            name.c_str(),
-            int(task->getDescription().size()),
-            task->getDescription().data(),
-            uint64_t(task->getId()));
+        EP_LOG_DEBUG("{}: Wake a task \"{}*s\" id {}",
+                     name,
+                     task->getDescription().size(),
+                     task->getDescription(),
+                     task->getId());
 
         std::queue<ExTask> notReady;
         // Wake thread-count-serialized tasks too

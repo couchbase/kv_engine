@@ -55,7 +55,7 @@ bool ItemCompressorTask::run(void) {
         }
         ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
            << " mem_used=" << stats.getEstimatedTotalMemoryUsed();
-        LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
+        EP_LOG_DEBUG("{}", ss.str());
 
         // Prepare the underlying visitor.
         auto& visitor = getItemCompressorVisitor();
@@ -95,7 +95,7 @@ bool ItemCompressorTask::run(void) {
            << visitor.getVisitedCount() << " visited documents."
            << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
            << ".Sleeping for " << getSleepTime() << " seconds.";
-        LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
+        EP_LOG_DEBUG("{}", ss.str());
 
         // Delete(reset) visitor if it finished.
         if (completed) {

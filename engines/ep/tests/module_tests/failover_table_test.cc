@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 
+#include <engines/ep/src/bucket_logger.h>
 #include <limits>
 
 typedef std::list<failover_entry_t> table_t;
@@ -489,50 +490,46 @@ TEST(FailoverTableTest, rollback_log_messages) {
 
     uint64_t vb_uuid = table.getLatestEntry().vb_uuid;
 
-    LOG(EXTENSION_LOG_WARNING,
-        "%s",
-        table.needsRollback(10,
-                            0,
-                            0,
-                            0,
-                            0,
-                            20,
-                            false /*strictVbUuidMatch*/,
-                            &rollback_seqno)
-                .second.c_str());
-    LOG(EXTENSION_LOG_WARNING,
-        "%s",
-        table.needsRollback(10,
-                            0,
-                            0,
-                            0,
-                            0,
-                            0,
-                            false /*strictVbUuidMatch*/,
-                            &rollback_seqno)
-                .second.c_str());
-    LOG(EXTENSION_LOG_WARNING,
-        "%s",
-        table.needsRollback(10,
-                            0,
-                            vb_uuid,
-                            0,
-                            100,
-                            0,
-                            false /*strictVbUuidMatch*/,
-                            &rollback_seqno)
-                .second.c_str());
-    LOG(EXTENSION_LOG_WARNING,
-        "%s",
-        table.needsRollback(10,
-                            15,
-                            vb_uuid,
-                            20,
-                            100,
-                            0,
-                            false /*strictVbUuidMatch*/,
-                            &rollback_seqno)
-                .second.c_str());
+    EP_LOG_WARN("{}",
+                table.needsRollback(10,
+                                    0,
+                                    0,
+                                    0,
+                                    0,
+                                    20,
+                                    false /*strictVbUuidMatch*/,
+                                    &rollback_seqno)
+                        .second);
+    EP_LOG_WARN("{}",
+                table.needsRollback(10,
+                                    0,
+                                    0,
+                                    0,
+                                    0,
+                                    0,
+                                    false /*strictVbUuidMatch*/,
+                                    &rollback_seqno)
+                        .second);
+    EP_LOG_WARN("{}",
+                table.needsRollback(10,
+                                    0,
+                                    vb_uuid,
+                                    0,
+                                    100,
+                                    0,
+                                    false /*strictVbUuidMatch*/,
+                                    &rollback_seqno)
+                        .second);
+    EP_LOG_WARN("{}",
+                table.needsRollback(10,
+                                    15,
+                                    vb_uuid,
+                                    20,
+                                    100,
+                                    0,
+                                    false /*strictVbUuidMatch*/,
+                                    &rollback_seqno)
+                        .second);
 }
 
 TEST(FailoverTableTest, test_max_capacity) {

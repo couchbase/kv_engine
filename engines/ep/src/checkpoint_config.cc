@@ -118,11 +118,12 @@ bool CheckpointConfig::validateCheckpointMaxItemsParam(
         size_t checkpoint_max_items) {
     if (checkpoint_max_items < MIN_CHECKPOINT_ITEMS ||
         checkpoint_max_items > MAX_CHECKPOINT_ITEMS) {
-        std::stringstream ss;
-        ss << "New checkpoint_max_items param value " << checkpoint_max_items
-           << " is not ranged between the min allowed value "
-           << MIN_CHECKPOINT_ITEMS << " and max value " << MAX_CHECKPOINT_ITEMS;
-        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
+        EP_LOG_WARN(
+                "New checkpoint_max_items param value {} is not ranged "
+                "between the min allowed value {} and max value {}",
+                checkpoint_max_items,
+                MIN_CHECKPOINT_ITEMS,
+                MAX_CHECKPOINT_ITEMS);
         return false;
     }
     return true;
@@ -131,12 +132,12 @@ bool CheckpointConfig::validateCheckpointMaxItemsParam(
 bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
     if (checkpoint_period < MIN_CHECKPOINT_PERIOD ||
         checkpoint_period > MAX_CHECKPOINT_PERIOD) {
-        std::stringstream ss;
-        ss << "New checkpoint_period param value " << checkpoint_period
-           << " is not ranged between the min allowed value "
-           << MIN_CHECKPOINT_PERIOD << " and max value "
-           << MAX_CHECKPOINT_PERIOD;
-        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
+        EP_LOG_WARN(
+                "New checkpoint_period param value {} is not ranged "
+                "between the min allowed value {} and max value {}",
+                checkpoint_period,
+                MIN_CHECKPOINT_PERIOD,
+                MAX_CHECKPOINT_PERIOD);
         return false;
     }
     return true;
@@ -145,12 +146,12 @@ bool CheckpointConfig::validateCheckpointPeriodParam(size_t checkpoint_period) {
 bool CheckpointConfig::validateMaxCheckpointsParam(size_t max_checkpoints) {
     if (max_checkpoints < DEFAULT_MAX_CHECKPOINTS ||
         max_checkpoints > MAX_CHECKPOINTS_UPPER_BOUND) {
-        std::stringstream ss;
-        ss << "New max_checkpoints param value " << max_checkpoints
-           << " is not ranged between the min allowed value "
-           << DEFAULT_MAX_CHECKPOINTS << " and max value "
-           << MAX_CHECKPOINTS_UPPER_BOUND;
-        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
+        EP_LOG_WARN(
+                "New max_checkpoints param value {} is not ranged "
+                "betweeen the min allowed value {} and max value {}",
+                max_checkpoints,
+                DEFAULT_MAX_CHECKPOINTS,
+                MAX_CHECKPOINTS_UPPER_BOUND);
         return false;
     }
     return true;

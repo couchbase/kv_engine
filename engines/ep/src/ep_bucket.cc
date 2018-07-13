@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -103,10 +103,12 @@ bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
     try {
         num_deletes = store.getROUnderlying(vbucketId)->getNumPersistedDeletes(vbucketId);
     } catch (std::runtime_error& re) {
-        LOG(EXTENSION_LOG_WARNING,
-            "BloomFilterCallback::initTempFilter: runtime error while getting "
-            "number of persisted deletes for vbucket: %" PRIu16
-            "Details: %s", vbucketId, re.what());
+        EP_LOG_WARN(
+                "BloomFilterCallback::initTempFilter: runtime error while "
+                "getting "
+                "number of persisted deletes for vbucket: {}Details: {}",
+                vbucketId,
+                re.what());
         return false;
     }
 
@@ -184,9 +186,7 @@ public:
         if (key == "flusher_batch_split_trigger") {
             bucket.setFlusherBatchSplitTrigger(value);
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to change value for unknown variable, %s\n",
-                key.c_str());
+            EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
     }
 
@@ -195,9 +195,7 @@ public:
         if (key == "retain_erroneous_tombstones") {
             bucket.setRetainErroneousTombstones(value);
         } else  {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to change value for unknown variable, %s\n",
-                key.c_str());
+            EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
     }
 
@@ -236,8 +234,9 @@ bool EPBucket::initialize() {
     enableItemPager();
 
     if (!startBgFetcher()) {
-        LOG(EXTENSION_LOG_FATAL,
-           "EPBucket::initialize: Failed to create and start bgFetchers");
+        EP_LOG_CRITICAL(
+                "EPBucket::initialize: Failed to create and start "
+                "bgFetchers");
         return false;
     }
     startFlusher();
@@ -296,8 +295,9 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
             while (!rwUnderlying->begin(
                     std::make_unique<EPTransactionContext>(stats, *vb))) {
                 ++stats.beginFailed;
-                LOG(EXTENSION_LOG_WARNING, "Failed to start a transaction!!! "
-                    "Retry in 1 sec ...");
+                EP_LOG_WARN(
+                        "Failed to start a transaction!!! "
+                        "Retry in 1 sec ...");
                 sleep(1);
             }
             rwUnderlying->optimizeWrites(items);
@@ -420,7 +420,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
                 }
 
                 if (vb->setBucketCreation(false)) {
-                    LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
+                    EP_LOG_DEBUG("vb:{} created", vbid);
                 }
             }
 
@@ -434,7 +434,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
-                    LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
+                    EP_LOG_DEBUG("vb:{} created", vbid);
                 }
             }
 
@@ -497,8 +497,8 @@ void EPBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
 
     while (!kvstore.commit(collectionsManifest)) {
         ++stats.commitFailed;
-        LOG(EXTENSION_LOG_WARNING,
-            "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
+        EP_LOG_WARN(
+                "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");
         sleep(1);
     }
 
@@ -523,10 +523,10 @@ void EPBucket::startFlusher() {
 void EPBucket::stopFlusher() {
     for (const auto& shard : vbMap.shards) {
         auto* flusher = shard->getFlusher();
-        LOG(EXTENSION_LOG_NOTICE,
-            "Attempting to stop the flusher for "
-            "shard:%" PRIu16,
-            shard->getId());
+        EP_LOG_INFO(
+                "Attempting to stop the flusher for "
+                "shard:{}",
+                shard->getId());
         bool rv = flusher->stop(stats.forceShutdown);
         if (rv && !stats.forceShutdown) {
             flusher->wait();
@@ -539,11 +539,11 @@ bool EPBucket::pauseFlusher() {
     for (const auto& shard : vbMap.shards) {
         auto* flusher = shard->getFlusher();
         if (!flusher->pause()) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Attempted to pause flusher in state "
-                "[%s], shard = %d",
-                flusher->stateName(),
-                shard->getId());
+            EP_LOG_WARN(
+                    "Attempted to pause flusher in state "
+                    "[{}], shard = {}",
+                    flusher->stateName(),
+                    shard->getId());
             rv = false;
         }
     }
@@ -555,11 +555,11 @@ bool EPBucket::resumeFlusher() {
     for (const auto& shard : vbMap.shards) {
         auto* flusher = shard->getFlusher();
         if (!flusher->resume()) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Attempted to resume flusher in state [%s], "
-                "shard = %" PRIu16,
-                flusher->stateName(),
-                shard->getId());
+            EP_LOG_WARN(
+                    "Attempted to resume flusher in state [{}], "
+                    "shard = {}",
+                    flusher->stateName(),
+                    shard->getId());
             rv = false;
         }
     }
@@ -578,9 +578,8 @@ bool EPBucket::startBgFetcher() {
     for (const auto& shard : vbMap.shards) {
         BgFetcher* bgfetcher = shard->getBgFetcher();
         if (bgfetcher == NULL) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to start bg fetcher for shard %" PRIu16,
-                shard->getId());
+            EP_LOG_WARN("Failed to start bg fetcher for shard {}",
+                        shard->getId());
             return false;
         }
         bgfetcher->start();
@@ -592,14 +591,12 @@ void EPBucket::stopBgFetcher() {
     for (const auto& shard : vbMap.shards) {
         BgFetcher* bgfetcher = shard->getBgFetcher();
         if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Shutting down engine while there are still pending data "
-                "read for shard %" PRIu16 " from database storage",
-                shard->getId());
+            EP_LOG_WARN(
+                    "Shutting down engine while there are still pending data "
+                    "read for shard {} from database storage",
+                    shard->getId());
         }
-        LOG(EXTENSION_LOG_NOTICE,
-            "Stopping bg fetcher for shard:%" PRIu16,
-            shard->getId());
+        EP_LOG_INFO("Stopping bg fetcher for shard:{}", shard->getId());
         bgfetcher->stop();
     }
 }
@@ -635,16 +632,14 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid,
 
     ExecutorPool::get()->schedule(task);
 
-    LOG(EXTENSION_LOG_DEBUG,
-        "Scheduled compaction task %" PRIu64
-        " on db %d,"
-        "purge_before_ts = %" PRIu64 ", purge_before_seq = %" PRIu64
-        ", dropdeletes = %d",
-        uint64_t(task->getId()),
-        c.db_file_id,
-        c.purge_before_ts,
-        c.purge_before_seq,
-        c.drop_deletes);
+    EP_LOG_DEBUG(
+            "Scheduled compaction task {} on db {},"
+            "purge_before_ts = {}, purge_before_seq = {}, dropdeletes = {}",
+            uint64_t(task->getId()),
+            c.db_file_id,
+            c.purge_before_ts,
+            c.purge_before_seq,
+            c.drop_deletes);
 
     return ENGINE_EWOULDBLOCK;
 }
@@ -741,24 +736,23 @@ void EPBucket::compactInternal(const CompactionConfig& config,
         vb->setPurgeSeqno(ctx.max_purged_seq);
     }
 
-    LOG(EXTENSION_LOG_NOTICE,
-        "Compaction of db file id: %d completed (%s). "
-        "tombstones_purged:%" PRIu64 ", collection_items_erased:%" PRIu64
-        ", pre{size:%" PRIu64 ", items:%" PRIu64 ", deleted_items:%" PRIu64
-        ", purge_seqno:%" PRIu64 "}, post{size:%" PRIu64 ", items:%" PRIu64
-        ", deleted_items:%" PRIu64 ", purge_seqno:%" PRIu64 "}",
-        config.db_file_id,
-        result ? "ok" : "failed",
-        ctx.stats.tombstonesPurged,
-        ctx.stats.collectionsItemsPurged,
-        ctx.stats.pre.size,
-        ctx.stats.pre.items,
-        ctx.stats.pre.deletedItems,
-        ctx.stats.pre.purgeSeqno,
-        ctx.stats.post.size,
-        ctx.stats.post.items,
-        ctx.stats.post.deletedItems,
-        ctx.stats.post.purgeSeqno);
+    EP_LOG_INFO(
+            "Compaction of db file id: {} completed ({}). "
+            "tombstones_purged:{}, collection_items_erased:{}, "
+            "pre{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}, "
+            "post{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}",
+            config.db_file_id,
+            result ? "ok" : "failed",
+            ctx.stats.tombstonesPurged,
+            ctx.stats.collectionsItemsPurged,
+            ctx.stats.pre.size,
+            ctx.stats.pre.items,
+            ctx.stats.pre.deletedItems,
+            ctx.stats.pre.purgeSeqno,
+            ctx.stats.post.size,
+            ctx.stats.post.items,
+            ctx.stats.post.deletedItems,
+            ctx.stats.post.purgeSeqno);
 }
 
 bool EPBucket::doCompact(const CompactionConfig& config,
@@ -874,9 +868,10 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
                 checked_snprintf(buf, sizeof(buf), "vb_%d:file_size", vbid);
                 add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
             } catch (std::exception& error) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "DiskStatVisitor::visitBucket: Failed to build stat: %s",
-                    error.what());
+                EP_LOG_WARN(
+                        "DiskStatVisitor::visitBucket: Failed to build stat: "
+                        "{}",
+                        error.what());
             }
         }
 
@@ -1014,9 +1009,9 @@ public:
         } else if (gcb.getStatus() == ENGINE_KEY_ENOENT) {
             removeDeletedDoc(*vb, itm->getKey());
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "EPDiskRollbackCB::callback:Unexpected Error Status: %d",
-                gcb.getStatus());
+            EP_LOG_WARN(
+                    "EPDiskRollbackCB::callback:Unexpected Error Status: {}",
+                    gcb.getStatus());
         }
     }
 

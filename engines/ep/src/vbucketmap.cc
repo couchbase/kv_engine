@@ -52,16 +52,12 @@ ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
     if (vb->getId() < size) {
         getShardByVbId(vb->getId())->setBucket(vb);
         ++vbStateCount[vb->getState()];
-        LOG(EXTENSION_LOG_INFO,
-            "Mapped new vbucket %d in state %s",
-            vb->getId(),
-            VBucket::toString(vb->getState()));
+        EP_LOG_DEBUG("Mapped new vb:{} in state {}",
+                     vb->getId(),
+                     VBucket::toString(vb->getState()));
         return ENGINE_SUCCESS;
     }
-    LOG(EXTENSION_LOG_WARNING,
-        "Cannot create vb %" PRIu16 ", max vbuckets is %" PRIu16,
-        vb->getId(),
-        size);
+    EP_LOG_WARN("Cannot create vb:{}, max vbuckets is {}", vb->getId(), size);
     return ENGINE_ERANGE;
 }
 

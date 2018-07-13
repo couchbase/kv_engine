@@ -639,9 +639,8 @@ ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
                                 event.getCollectionID(),
                                 event.getBySeqno());
     } catch (std::exception& e) {
-        LOG(EXTENSION_LOG_WARNING,
-            "PassiveStream::processCreateCollection exception %s",
-            e.what());
+        EP_LOG_WARN("PassiveStream::processCreateCollection exception {}",
+                    e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;
@@ -654,9 +653,8 @@ ENGINE_ERROR_CODE PassiveStream::processBeginDeleteCollection(
                                         event.getCollectionID(),
                                         event.getBySeqno());
     } catch (std::exception& e) {
-        LOG(EXTENSION_LOG_WARNING,
-            "PassiveStream::processBeginDeleteCollection exception %s",
-            e.what());
+        EP_LOG_WARN("PassiveStream::processBeginDeleteCollection exception {}",
+                    e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;
@@ -796,9 +794,8 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void* c) {
             add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
         }
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "PassiveStream::addStats: Failed to build stats: %s",
-            error.what());
+        EP_LOG_WARN("PassiveStream::addStats: Failed to build stats: {}",
+                    error.what());
     }
 }
 

@@ -76,9 +76,8 @@ EPVBucket::EPVBucket(id_type i,
 
 EPVBucket::~EPVBucket() {
     if (!pendingBGFetches.empty()) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Have %ld pending BG fetches while destroying vbucket",
-            pendingBGFetches.size());
+        EP_LOG_WARN("Have {} pending BG fetches while destroying vbucket",
+                    pendingBGFetches.size());
     }
 }
 
@@ -166,11 +165,9 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                 } else {
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Failed background fetch for vb:%" PRIu16
-                        ", seqno:%" PRIu64,
-                        getId(),
-                        v->getBySeqno());
+                    EP_LOG_WARN("Failed background fetch for vb:{}, seqno:{}",
+                                getId(),
+                                v->getBySeqno());
                     status = ENGINE_TMPFAIL;
                 }
             }
@@ -371,11 +368,11 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
         } else {
             // underlying kvstore couldn't fetch requested data
             // log returned error and notify TMPFAIL to client
-            LOG(EXTENSION_LOG_WARNING,
-                "VBucket::completeStatsVKey: "
-                "Failed background fetch for vb:%" PRIu16 ", seqno:%" PRIu64,
-                getId(),
-                v->getBySeqno());
+            EP_LOG_WARN(
+                    "VBucket::completeStatsVKey: "
+                    "Failed background fetch for vb:{}, seqno:{}",
+                    getId(),
+                    v->getBySeqno());
         }
     }
 }
@@ -397,11 +394,11 @@ void EPVBucket::addStats(bool details, ADD_STAT add_stat, const void* c) {
             addStat("db_data_size", fileInfo.spaceUsed, add_stat, c);
             addStat("db_file_size", fileInfo.fileSize, add_stat, c);
         } catch (std::runtime_error& e) {
-            LOG(EXTENSION_LOG_WARNING,
-                "VBucket::addStats: Exception caught during getDbFileInfo "
-                "for vb:%" PRIu16 " - what(): %s",
-                getId(),
-                e.what());
+            EP_LOG_WARN(
+                    "VBucket::addStats: Exception caught during getDbFileInfo "
+                    "for vb:{} - what(): {}",
+                    getId(),
+                    e.what());
         }
     }
 }
@@ -546,9 +543,8 @@ void EPVBucket::bgFetch(const DocKey& key,
         if (getShard()) {
             getShard()->getBgFetcher()->notifyBGEvent();
         }
-        LOG(EXTENSION_LOG_DEBUG,
-            "Queued a background fetch, now at %" PRIu64,
-            uint64_t(bgfetch_size));
+        EP_LOG_DEBUG("Queued a background fetch, now at {}",
+                     uint64_t(bgfetch_size));
     } else {
         ++stats.numRemainingBgJobs;
         stats.maxRemainingBgJobs.store(
@@ -558,9 +554,8 @@ void EPVBucket::bgFetch(const DocKey& key,
         ExTask task = std::make_shared<SingleBGFetcherTask>(
                 &engine, key, getId(), cookie, isMeta, bgFetchDelay, false);
         iom->schedule(task);
-        LOG(EXTENSION_LOG_DEBUG,
-            "Queued a background fetch, now at %" PRIu64,
-            uint64_t(stats.numRemainingBgJobs.load()));
+        EP_LOG_DEBUG("Queued a background fetch, now at {}",
+                     uint64_t(stats.numRemainingBgJobs.load()));
     }
 }
 

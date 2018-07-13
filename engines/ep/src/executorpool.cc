@@ -266,13 +266,13 @@ void ExecutorPool::startWork(task_type_t taskType) {
                 std::to_string(taskType) + "}");
     } else {
         ++curWorkers[taskType];
-        LOG(EXTENSION_LOG_DEBUG,
-            "Taking up work in task "
-            "type:{%" PRIu32 "} "
-            "current:{%" PRIu16 "}, max:{%" PRIu16 "}",
-            taskType,
-            curWorkers[taskType].load(),
-            numWorkers[taskType].load());
+        EP_LOG_DEBUG(
+                "Taking up work in task "
+                "type:{{{}}} "
+                "current:{{{}}}, max:{{{}}}",
+                taskType,
+                curWorkers[taskType].load(),
+                numWorkers[taskType].load());
     }
 }
 
@@ -284,10 +284,9 @@ void ExecutorPool::doneWork(task_type_t taskType) {
     } else {
         --curWorkers[taskType];
         // Record that a thread is done working on a particular queue type
-        LOG(EXTENSION_LOG_DEBUG,
-            "Done with task type:{%" PRIu32 "} capacity:{%" PRIu16 "}",
-            taskType,
-            numWorkers[taskType].load());
+        EP_LOG_DEBUG("Done with task type:{{{}}} capacity:{{{}}}",
+                     taskType,
+                     numWorkers[taskType].load());
     }
 }
 
@@ -295,18 +294,16 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     LockHolder lh(tMutex);
     std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
-        LOG(EXTENSION_LOG_DEBUG, "Task id %" PRIu64 " not found",
-            uint64_t(taskId));
+        EP_LOG_DEBUG("Task id {} not found", uint64_t(taskId));
         return false;
     }
 
     ExTask task = itr->second.first;
-    LOG(EXTENSION_LOG_DEBUG,
-        "Cancel task %s id %" PRIu64 " on bucket %s %s",
-        task->getDescription().c_str(),
-        uint64_t(task->getId()),
-        task->getTaskable().getName().c_str(),
-        eraseTask ? "final erase" : "!");
+    EP_LOG_DEBUG("Cancel task {} id {} on bucket {} {}",
+                 task->getDescription(),
+                 task->getId(),
+                 task->getTaskable().getName(),
+                 eraseTask ? "final erase" : "!");
 
     task->cancel(); // must be idempotent, just set state to dead
 
@@ -384,8 +381,10 @@ TaskQueue* ExecutorPool::_getTaskQueue(const Taskable& t,
     curNumThreads = threadQ.size();
 
     if (!bucketPriority) {
-        LOG(EXTENSION_LOG_WARNING, "Trying to schedule task for unregistered "
-            "bucket %s", t.getName().c_str());
+        EP_LOG_WARN(
+                "Trying to schedule task for unregistered "
+                "bucket {}",
+                t.getName());
         return q;
     }
 
@@ -463,15 +462,15 @@ void ExecutorPool::_registerTaskable(Taskable& taskable) {
         taskQ = &lpTaskQ;
         whichQset = &isLowPrioQset;
         queueName = "LowPrioQ_";
-        LOG(EXTENSION_LOG_NOTICE, "Taskable %s registered with low priority",
-            taskable.getName().c_str());
+        EP_LOG_INFO("Taskable {} registered with low priority",
+                    taskable.getName());
     } else {
         taskable.setWorkloadPriority(HIGH_BUCKET_PRIORITY);
         taskQ = &hpTaskQ;
         whichQset = &isHiPrioQset;
         queueName = "HiPrioQ_";
-        LOG(EXTENSION_LOG_NOTICE, "Taskable %s registered with high priority",
-            taskable.getName().c_str());
+        EP_LOG_INFO("Taskable {} registered with high priority",
+                    taskable.getName());
     }
 
     {
@@ -522,11 +521,10 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
             return 0;
         }
 
-        LOG(EXTENSION_LOG_NOTICE,
-            "Adjusting threads of type:%s from:%" PRIu64 " to:%" PRIu64,
-            typeName.c_str(),
-            uint64_t(numItems),
-            uint64_t(desiredNumItems));
+        EP_LOG_INFO("Adjusting threads of type:{} from:{} to:{}",
+                    typeName,
+                    numItems,
+                    desiredNumItems);
 
         if (numItems < desiredNumItems) {
             // If we want to increase the number of threads, they must be
@@ -630,11 +628,10 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
             TaskQueue *q = itr->second.second;
             if (task->getTaskable().getGID() == taskGID &&
                 (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
-                LOG(EXTENSION_LOG_NOTICE,
-                    "Stopping Task id %" PRIu64 " %s %s",
-                    uint64_t(task->getId()),
-                    task->getTaskable().getName().c_str(),
-                    task->getDescription().c_str());
+                EP_LOG_INFO("Stopping Task id {} {} {}",
+                            uint64_t(task->getId()),
+                            task->getTaskable().getName(),
+                            task->getDescription());
                 // If force flag is set during shutdown, cancel all tasks
                 // without considering the blockShutdown status of the task.
                 if (force || !task->blockShutdown) {
@@ -663,9 +660,9 @@ bool ExecutorPool::stopTaskGroup(task_gid_t taskGID,
 }
 
 void ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
-
-    LOG(EXTENSION_LOG_NOTICE, "Unregistering %s taskable %s",
-            (numBuckets == 1)? "last" : "", taskable.getName().c_str());
+    EP_LOG_INFO("Unregistering {} taskable {}",
+                (numBuckets == 1) ? "last" : "",
+                taskable.getName());
 
     _stopTaskGroup(taskable.getGID(), NO_TASK_TYPE, force);
 
@@ -777,9 +774,8 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
             }
         }
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "ExecutorPool::doTaskQStat: Failed to build stats: %s",
-            error.what());
+        EP_LOG_WARN("ExecutorPool::doTaskQStat: Failed to build stats: {}",
+                    error.what());
     }
     ObjectRegistry::onSwitchThread(epe);
 }
@@ -814,8 +810,7 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
         add_casted_stat(statname, to_ns_since_epoch(t->getCurTime()).count(),
                         add_stat, cookie);
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "addWorkerStats: Failed to build stats: %s", error.what());
+        EP_LOG_WARN("addWorkerStats: Failed to build stats: {}", error.what());
     }
 }
 

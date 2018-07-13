@@ -92,10 +92,9 @@ bool EphTombstoneHTCleaner::run() {
                         getDeletedPurgeAge()));
         bucketPosition = bucket.startPosition();
 
-        LOG(EXTENSION_LOG_INFO,
-            "%s starting with purge age:%" PRIu64 "s",
-            getDescription().data(),
-            uint64_t(getDeletedPurgeAge()));
+        EP_LOG_DEBUG("{} starting with purge age:{}s",
+                     getDescription(),
+                     uint64_t(getDeletedPurgeAge()));
     }
 
     // Prepare the underlying visitor.
@@ -122,15 +121,15 @@ bool EphTombstoneHTCleaner::run() {
 
     // Completed a full pass. Sleep ourselves, and wakeup the StaleItemDeleter
     // task to complete the purge.
-    LOG(EXTENSION_LOG_INFO,
-        "%s %s. Took %" PRIu64 " ms. Visited %" PRIu64 " items, marked %" PRIu64
-        " items as stale. Sleeping for %" PRIu64 " seconds.",
-        getDescription().data(),
-        completed ? "completed" : "paused",
-        uint64_t(duration_ms.count()),
-        uint64_t(visitor.getVisitedCount()),
-        uint64_t(visitor.getNumItemsMarkedStale()),
-        uint64_t(getSleepTime()));
+    EP_LOG_DEBUG(
+            "{} {}. Took {} ms. Visited {} items, marked {} items as stale. "
+            "Sleeping for {} seconds.",
+            getDescription(),
+            completed ? "completed" : "paused",
+            uint64_t(duration_ms.count()),
+            uint64_t(visitor.getVisitedCount()),
+            uint64_t(visitor.getNumItemsMarkedStale()),
+            uint64_t(getSleepTime()));
 
     snooze(getSleepTime());
     staleItemDeleterTask->wakeUp();
@@ -245,7 +244,7 @@ bool EphTombstoneStaleItemDeleter::run() {
                 std::make_unique<EphemeralVBucket::StaleItemDeleter>();
         bucketPosition = bucket.startPosition();
 
-        LOG(EXTENSION_LOG_INFO, "%s starting", getDescription().data());
+        EP_LOG_DEBUG("{} starting", getDescription());
     }
 
     // Create a StaleItemDeleter, and run across all VBuckets.
@@ -270,12 +269,11 @@ bool EphTombstoneStaleItemDeleter::run() {
         return true;
     }
 
-    LOG(EXTENSION_LOG_INFO,
-        "%s %s. Deleted %" PRIu64 " items. Took %" PRIu64 "ms.",
-        getDescription().data(),
-        completed ? "completed" : "paused",
-        uint64_t(staleItemDeleteVbVisitor->getNumItemsDeleted()),
-        uint64_t(duration_ms.count()));
+    EP_LOG_DEBUG("{} {}. Deleted {} items. Took {}ms.",
+                 getDescription(),
+                 completed ? "completed" : "paused",
+                 staleItemDeleteVbVisitor->getNumItemsDeleted(),
+                 duration_ms.count());
 
     // Completed a full pass, sleep forever - rely on the HTCleaner task to
     // wake us.

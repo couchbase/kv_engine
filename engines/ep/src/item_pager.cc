@@ -303,12 +303,12 @@ PagingVisitor::PagingVisitor(KVBucket& s,
         store.deleteExpiredItems(expired, ExpireBy::Pager);
 
         if (numEjected() > 0) {
-            LOG(EXTENSION_LOG_INFO, "Paged out %ld values", numEjected());
+            EP_LOG_DEBUG("Paged out {} values", numEjected());
         }
 
         size_t num_expired = expired.size();
         if (num_expired > 0) {
-            LOG(EXTENSION_LOG_INFO, "Purged %ld expired items", num_expired);
+            EP_LOG_DEBUG("Purged {} expired items", num_expired);
         }
 
         ejected = 0;
@@ -473,10 +473,9 @@ bool ItemPager::run(void) {
 
         double toKill = (current - static_cast<double>(lower)) / current;
 
-        std::stringstream ss;
-        ss << "Using " << stats.getEstimatedTotalMemoryUsed()
-           << " bytes of memory, paging out %0f%% of items." << std::endl;
-        LOG(EXTENSION_LOG_INFO, ss.str().c_str(), (toKill*100.0));
+        EP_LOG_DEBUG("Using {} bytes of memory, paging out {} of items.",
+                     stats.getEstimatedTotalMemoryUsed(),
+                     (toKill * 100.0));
 
         // compute active vbuckets evicition bias factor
         Configuration& cfg = engine.getConfiguration();

@@ -73,12 +73,12 @@ bool DcpProducer::BufferLog::insert(size_t bytes) {
 
 void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
     if (bytes > bytesOutstanding) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "%s Attempting to release %" PRIu64
-            " bytes which is greater than bytesOutstanding:%" PRIu64,
-            producer.logHeader(),
-            uint64_t(bytes),
-            uint64_t(bytesOutstanding));
+        EP_LOG_INFO(
+                "{} Attempting to release {} bytes which is greater than "
+                "bytesOutstanding:{}",
+                producer.logHeader(),
+                uint64_t(bytes),
+                uint64_t(bytesOutstanding));
     }
 
     bytesOutstanding -= bytes;
@@ -96,14 +96,14 @@ bool DcpProducer::BufferLog::pauseIfFull() {
 void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
     ReaderLockHolder rlh(logLock);
     if (getState_UNLOCKED() == Full) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "%s Unable to notify paused connection because "
-            "DcpProducer::BufferLog is full; ackedBytes:%" PRIu64
-            ", bytesSent:%" PRIu64 ", maxBytes:%" PRIu64,
-            producer.logHeader(),
-            uint64_t(ackedBytes),
-            uint64_t(bytesOutstanding),
-            uint64_t(maxBytes));
+        EP_LOG_INFO(
+                "{} Unable to notify paused connection because "
+                "DcpProducer::BufferLog is full; ackedBytes:{}"
+                ", bytesSent:{}, maxBytes:{}",
+                producer.logHeader(),
+                uint64_t(ackedBytes),
+                uint64_t(bytesOutstanding),
+                uint64_t(maxBytes));
     } else {
         producer.notifyPaused(true);
     }
@@ -117,14 +117,14 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
         ackedBytes += bytes;
 
         if (state == Full) {
-            LOG(EXTENSION_LOG_NOTICE,
-                "%s Notifying paused connection now that "
-                "DcpProducer::BufferLog is no longer full; ackedBytes:%" PRIu64
-                ", bytesSent:%" PRIu64 ", maxBytes:%" PRIu64,
-                producer.logHeader(),
-                uint64_t(ackedBytes),
-                uint64_t(bytesOutstanding),
-                uint64_t(maxBytes));
+            EP_LOG_INFO(
+                    "{} Notifying paused connection now that "
+                    "DcpProducer::BufferLog is no longer full; ackedBytes:{}"
+                    ", bytesSent:{}, maxBytes:{}",
+                    producer.logHeader(),
+                    uint64_t(ackedBytes),
+                    uint64_t(bytesOutstanding),
+                    uint64_t(maxBytes));
             producer.notifyPaused(true);
         }
     }
@@ -262,8 +262,11 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "this vbucket doesn't exist", logHeader(), vbucket);
+        EP_LOG_WARN(
+                "{} (vb:{}) Stream request failed because "
+                "this vbucket doesn't exist",
+                logHeader(),
+                vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
 
@@ -272,36 +275,51 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     if ((includeXattrs == IncludeXattrs::Yes) || collectionsEnabled) {
         if (!noopCtx.enabled &&
             engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
-            LOG(EXTENSION_LOG_WARNING,
-                "%s (vb %" PRIu16 ") noop is mandatory for v5 features like "
-                "xattrs and collections", logHeader(), vbucket);
+            EP_LOG_WARN(
+                    "{} (vb:{}) noop is mandatory for v5 features like "
+                    "xattrs and collections",
+                    logHeader(),
+                    vbucket);
             return ENGINE_ENOTSUP;
         }
     }
 
     if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
         (vb->getState() != vbucket_state_active)) {
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Stream request failed because "
-            "the vbucket is in %s state, only active vbuckets were requested",
-            logHeader(), vbucket, vb->toString(vb->getState()));
+        EP_LOG_INFO(
+                "{} (vb:{}) Stream request failed because "
+                "the vbucket is in {} state, only active vbuckets were "
+                "requested",
+                logHeader(),
+                vbucket,
+                vb->toString(vb->getState()));
         return ENGINE_NOT_MY_VBUCKET;
     }
 
     if (!notifyOnly && start_seqno > end_seqno) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the start seqno (%" PRIu64 ") is larger than the end seqno "
-            "(%" PRIu64 "); "
-            "Incorrect params passed by the DCP client",
-            logHeader(), vbucket, start_seqno, end_seqno);
+        EP_LOG_WARN(
+                "{} (vb:{}) Stream request failed because "
+                "the start seqno ({}) is larger than the end seqno "
+                "({}); "
+                "Incorrect params passed by the DCP client",
+                logHeader(),
+                vbucket,
+                start_seqno,
+                end_seqno);
         return ENGINE_ERANGE;
     }
 
     if (!notifyOnly && !(snap_start_seqno <= start_seqno &&
         start_seqno <= snap_end_seqno)) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the snap start seqno (%" PRIu64 ") <= start seqno (%" PRIu64 ")"
-            " <= snap end seqno (%" PRIu64 ") is required", logHeader(), vbucket,
-            snap_start_seqno, start_seqno, snap_end_seqno);
+        EP_LOG_WARN(
+                "{} (vb:{}) Stream request failed because "
+                "the snap start seqno ({}) <= start seqno ({})"
+                " <= snap end seqno ({}) is required",
+                logHeader(),
+                vbucket,
+                snap_start_seqno,
+                start_seqno,
+                snap_end_seqno);
         return ENGINE_ERANGE;
     }
 
@@ -314,9 +332,11 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         if (it.second) {
             auto& stream = it.first;
             if (stream->isActive()) {
-                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
-                    " because a stream already exists for this vbucket",
-                    logHeader(), vbucket);
+                EP_LOG_WARN(
+                        "{} (vb:{}) Stream request failed"
+                        " because a stream already exists for this vbucket",
+                        logHeader(),
+                        vbucket);
                 return ENGINE_KEY_EEXISTS;
             } else {
                 streams.erase(vbucket, guard);
@@ -347,21 +367,21 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                          rollback_seqno);
 
     if (need_rollback.first) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s (vb %d) Stream request requires rollback to seqno:%" PRIu64
-            " because %s. Client requested"
-            " seqnos:{%" PRIu64 ",%" PRIu64 "}"
-            " snapshot:{%" PRIu64 ",%" PRIu64 "}"
-            " uuid:%" PRIu64,
-            logHeader(),
-            vbucket,
-            *rollback_seqno,
-            need_rollback.second.c_str(),
-            start_seqno,
-            end_seqno,
-            snap_start_seqno,
-            snap_end_seqno,
-            vbucket_uuid);
+        EP_LOG_WARN(
+                "{} (vb:{}) Stream request requires rollback to seqno:{} "
+                "because {}. Client requested"
+                " seqnos:{{{},{}}}"
+                " snapshot:{{{},{}}}"
+                " uuid:{}",
+                logHeader(),
+                vbucket,
+                *rollback_seqno,
+                need_rollback.second,
+                start_seqno,
+                end_seqno,
+                snap_start_seqno,
+                snap_end_seqno,
+                vbucket_uuid);
         return ENGINE_ROLLBACK;
     }
 
@@ -377,25 +397,38 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     }
 
     if (!notifyOnly && start_seqno > end_seqno) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the start seqno (%" PRIu64 ") is larger than the end seqno (%"
-            PRIu64 "), stream request flags %d, vb_uuid %" PRIu64
-            ", snapStartSeqno %" PRIu64 ", snapEndSeqno %" PRIu64
-            "; should have rolled back instead",
-            logHeader(), vbucket, start_seqno, end_seqno, flags, vbucket_uuid,
-            snap_start_seqno, snap_end_seqno);
+        EP_LOG_WARN(
+                "{} (vb:{}) Stream request failed because "
+                "the start seqno ({}) is larger than the end seqno ({}"
+                "), stream request flags {}, vb_uuid {}, snapStartSeqno {}, "
+                "snapEndSeqno {}; should have rolled back instead",
+                logHeader(),
+                vbucket,
+                start_seqno,
+                end_seqno,
+                flags,
+                vbucket_uuid,
+                snap_start_seqno,
+                snap_end_seqno);
         return ENGINE_ERANGE;
     }
 
     if (!notifyOnly && start_seqno > static_cast<uint64_t>(vb->getHighSeqno()))
     {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the start seqno (%" PRIu64 ") is larger than the vb highSeqno (%"
-            PRId64 "), stream request flags is %d, vb_uuid %" PRIu64
-            ", snapStartSeqno %" PRIu64 ", snapEndSeqno %" PRIu64
-            "; should have rolled back instead",
-            logHeader(), vbucket, start_seqno, vb->getHighSeqno(), flags,
-            vbucket_uuid, snap_start_seqno, snap_end_seqno);
+        EP_LOG_WARN(
+                "{} (vb:{}) Stream request failed because "
+                "the start seqno ({}) is larger than the vb highSeqno "
+                "({}" PRId64
+                "), stream request flags is {}, vb_uuid {}, snapStartSeqno {}, "
+                "snapEndSeqno {}; should have rolled back instead",
+                logHeader(),
+                vbucket,
+                start_seqno,
+                vb->getHighSeqno(),
+                flags,
+                vbucket_uuid,
+                snap_start_seqno,
+                snap_end_seqno);
         return ENGINE_ERANGE;
     }
 
@@ -442,17 +475,22 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     {
         ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_dead) {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-                    "this vbucket is in dead state", logHeader(), vbucket);
+            EP_LOG_WARN(
+                    "{} (vb:{}) Stream request failed because "
+                    "this vbucket is in dead state",
+                    logHeader(),
+                    vbucket);
             return ENGINE_NOT_MY_VBUCKET;
         }
 
         // Given being in a backfill state is only a temporary failure
         // we do all hard errors first.
         if (vb->checkpointManager->getOpenCheckpointId() == 0) {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
+            EP_LOG_WARN(
+                    "{} (vb:{}) Stream request failed"
                     "because this vbucket is in backfill state",
-                    logHeader(), vbucket);
+                    logHeader(),
+                    vbucket);
             return ENGINE_TMPFAIL;
         }
 
@@ -474,8 +512,12 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                     getCookie());
     ObjectRegistry::onSwitchThread(epe);
     if (rv != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
-            "stream request due to error %d", logHeader(), vbucket, rv);
+        EP_LOG_WARN(
+                "{} (vb:{}) Couldn't add failover log to "
+                "stream request due to error {}",
+                logHeader(),
+                vbucket,
+                rv);
     }
 
     notifyStreamReady(vbucket);
@@ -657,9 +699,11 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         default:
         {
-            LOG(EXTENSION_LOG_WARNING, "%s Unexpected dcp event (%s), "
-                "disconnecting", logHeader(),
-                resp->to_string());
+            EP_LOG_WARN(
+                    "{} Unexpected dcp event ({}), "
+                    "disconnecting",
+                    logHeader(),
+                    resp->to_string());
             ret = ENGINE_DISCONNECT;
             break;
         }
@@ -711,8 +755,10 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             return ENGINE_SUCCESS;
         }
     } else if (strncmp(param, "stream_buffer_size", nkey) == 0) {
-        LOG(EXTENSION_LOG_WARNING, "%s The ctrl parameter stream_buffer_size is"
-            "not supported by this engine", logHeader());
+        EP_LOG_WARN(
+                "{} The ctrl parameter stream_buffer_size is"
+                "not supported by this engine",
+                logHeader());
         return ENGINE_ENOTSUP;
     } else if (strncmp(param, "enable_noop", nkey) == 0) {
         if (valueStr == "true") {
@@ -768,13 +814,16 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
                 noopCtx.dcpNoopTxInterval = std::chrono::seconds(noopInterval);
                 return ENGINE_SUCCESS;
             } else {
-                LOG(EXTENSION_LOG_WARNING, "%s The ctrl parameter "
-                    "set_noop_interval is being set to %" PRIu32 " seconds."
-                    "This is not a multiple of the connectionManagerInterval "
-                    "of %" PRIu64 " seconds, and so is not supported.",
-                    logHeader(), noopInterval,
-                    uint64_t(engine_.getConfiguration().
-                             getConnectionManagerInterval()));
+                EP_LOG_WARN(
+                        "{} The ctrl parameter "
+                        "set_noop_interval is being set to {} seconds."
+                        "This is not a multiple of the "
+                        "connectionManagerInterval "
+                        "of {} seconds, and so is not supported.",
+                        logHeader(),
+                        noopInterval,
+                        uint64_t(engine_.getConfiguration()
+                                         .getConnectionManagerInterval()));
                 return ENGINE_EINVAL;
             }
         }
@@ -800,8 +849,10 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         return ENGINE_SUCCESS;
     }
 
-    LOG(EXTENSION_LOG_WARNING, "%s Invalid ctrl parameter '%s' for %s",
-        logHeader(), valueStr.c_str(), keyStr.c_str());
+    EP_LOG_WARN("{} Invalid ctrl parameter '{}' for {}",
+                logHeader(),
+                valueStr,
+                keyStr);
 
     return ENGINE_EINVAL;
 }
@@ -856,8 +907,11 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         }
     }
 
-    LOG(EXTENSION_LOG_WARNING, "%s Trying to handle an unknown response %d, "
-        "disconnecting", logHeader(), opcode);
+    EP_LOG_WARN(
+            "{} Trying to handle an unknown response {}, "
+            "disconnecting",
+            logHeader(),
+            opcode);
 
     return false;
 }
@@ -876,13 +930,19 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
     ENGINE_ERROR_CODE ret;
     if (!stream) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because no "
-            "stream exists for this vbucket", logHeader(), vbucket);
+        EP_LOG_WARN(
+                "{} (vb:{}) Cannot close stream because no "
+                "stream exists for this vbucket",
+                logHeader(),
+                vbucket);
         return ENGINE_KEY_ENOENT;
     } else {
         if (!stream->isActive()) {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because "
-                "stream is already marked as dead", logHeader(), vbucket);
+            EP_LOG_WARN(
+                    "{} (vb:{}) Cannot close stream because "
+                    "stream is already marked as dead",
+                    logHeader(),
+                    vbucket);
             ret = ENGINE_KEY_ENOENT;
         } else {
             stream->setDead(END_STREAM_CLOSED);
@@ -995,14 +1055,19 @@ void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
             as->addTakeoverStats(add_stat, c, vb);
             return;
         }
-        LOG(EXTENSION_LOG_WARNING, "%s (vb:%" PRIu16 ") "
-            "DcpProducer::addTakeoverStats Stream type is %s and not the "
-            "expected Active",
-            logHeader(), vb.getId(), to_string(stream->getType()).c_str());
+        EP_LOG_WARN(
+                "{} (vb:{}) "
+                "DcpProducer::addTakeoverStats Stream type is {} and not the "
+                "expected Active",
+                logHeader(),
+                vb.getId(),
+                to_string(stream->getType()));
     } else {
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb:%" PRIu16 ") "
-            "DcpProducer::addTakeoverStats Unable to find stream",
-            logHeader(), vb.getId());
+        EP_LOG_INFO(
+                "{} (vb:{}) "
+                "DcpProducer::addTakeoverStats Unable to find stream",
+                logHeader(),
+                vb.getId());
     }
     // Error path - return status of does_not_exist to ensure rebalance does not
     // hang.
@@ -1029,9 +1094,12 @@ void DcpProducer::closeStreamDueToVbStateChange(uint16_t vbucket,
                                                 vbucket_state_t state) {
     auto stream = findStream(vbucket);
     if (stream) {
-        LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") State changed to "
-            "%s, closing active stream!",
-            logHeader(), vbucket, VBucket::toString(state));
+        EP_LOG_DEBUG(
+                "{} (vb:{}) State changed to "
+                "{}, closing active stream!",
+                logHeader(),
+                vbucket,
+                VBucket::toString(state));
         stream->setDead(END_STREAM_STATE);
     }
 }
@@ -1039,13 +1107,12 @@ void DcpProducer::closeStreamDueToVbStateChange(uint16_t vbucket,
 void DcpProducer::closeStreamDueToRollback(uint16_t vbucket) {
     auto stream = findStream(vbucket);
     if (stream) {
-        LOG(EXTENSION_LOG_INFO,
-            "%s (vb %" PRIu16
-            ") Rollback occurred,"
-            "closing %s stream (downstream must rollback too)",
-            logHeader(),
-            vbucket,
-            to_string(stream->getType()).c_str());
+        EP_LOG_DEBUG(
+                "{} (vb:{}) Rollback occurred,"
+                "closing {} stream (downstream must rollback too)",
+                logHeader(),
+                vbucket,
+                to_string(stream->getType()));
         stream->setDead(END_STREAM_ROLLBACK);
     }
 }
@@ -1186,20 +1253,19 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
     const auto now = ep_current_time();
     std::chrono::seconds elapsedTime(now - lastReceiveTime);
     if (noopCtx.enabled && elapsedTime > noopCtx.dcpIdleTimeout) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "%s Disconnecting because a message has not been received for DCP "
-            "idle timeout (which is"
-            "%" PRIu64 "s). Sent last message %" PRIu32
-            "s ago, received last message %" PRIu64
-            "s ago. noopCtx {now - sendTime:%" PRIu32 ", opaque: %" PRIu32
-            ", pendingRecv:%s}",
-            logHeader(),
-            uint64_t(noopCtx.dcpIdleTimeout.count()),
-            (now - lastSendTime),
-            uint64_t(elapsedTime.count()),
-            (now - noopCtx.sendTime),
-            noopCtx.opaque,
-            noopCtx.pendingRecv ? "true" : "false");
+        EP_LOG_INFO(
+                "{} Disconnecting because a message has not been received for "
+                "DCP "
+                "idle timeout (which is"
+                "{}s). Sent last message {}s ago, received last message {}s "
+                "ago. noopCtx {now - sendTime:{}, opaque: {}, pendingRecv:{}}",
+                logHeader(),
+                uint64_t(noopCtx.dcpIdleTimeout.count()),
+                (now - lastSendTime),
+                uint64_t(elapsedTime.count()),
+                (now - noopCtx.sendTime),
+                noopCtx.opaque,
+                noopCtx.pendingRecv ? "true" : "false");
         return ENGINE_DISCONNECT;
     }
     // Returning ENGINE_FAILED means ignore and continue

@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "ep_time.h"
@@ -53,8 +54,7 @@ void CheckpointCursor::decrOffset(size_t decr) {
         offset.fetch_sub(decr);
     } else {
         offset = 0;
-        LOG(EXTENSION_LOG_INFO, "%s cursor offset is negative. Reset it to 0.",
-            name.c_str());
+        EP_LOG_DEBUG("{} cursor offset is negative. Reset it to 0.", name);
     }
 }
 
@@ -104,9 +104,9 @@ Checkpoint::Checkpoint(EPStats& st,
 }
 
 Checkpoint::~Checkpoint() {
-    LOG(EXTENSION_LOG_INFO,
-        "Checkpoint %" PRIu64 " for vbucket %d is purged from memory",
-        checkpointId, vbucketId);
+    EP_LOG_DEBUG("Checkpoint {} for vb:{} is purged from memory",
+                 checkpointId,
+                 vbucketId);
     stats.coreLocal.get()->memOverhead.fetch_sub(memorySize());
 }
 
@@ -266,10 +266,10 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
     size_t numNewItems = 0;
     size_t newEntryMemOverhead = 0;
 
-    LOG(EXTENSION_LOG_INFO,
-        "Collapse the checkpoint %" PRIu64 " into the checkpoint %" PRIu64
-        " for vbucket %d",
-        pPrevCheckpoint->getId(), checkpointId, vbucketId);
+    EP_LOG_DEBUG("Collapse the checkpoint {} into the checkpoint {} for vb:{}",
+                 pPrevCheckpoint->getId(),
+                 checkpointId,
+                 vbucketId);
 
     CheckpointQueue::iterator itr = toWrite.begin();
     uint64_t seqno = pPrevCheckpoint->getMutationIdForKey(Checkpoint::DummyKey, true);

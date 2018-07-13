@@ -48,8 +48,7 @@ bool DefragmenterTask::run(void) {
 
         // Print start status.
         std::stringstream ss;
-        ss << getDescription() << " for bucket '"
-           << engine->getName() << "'";
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
         if (epstore_position == engine->getKVBucket()->startPosition()) {
             ss << " starting. ";
         } else {
@@ -59,7 +58,7 @@ bool DefragmenterTask::run(void) {
         ss << " Using chunk_duration=" << getChunkDuration().count() << " ms."
            << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
            << ", mapped_bytes=" << getMappedBytes();
-        LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
+        EP_LOG_DEBUG("{}", ss.str());
 
         // Disable thread-caching (as we are about to defragment, and hence don't
         // want any of the new Blobs in tcache).
@@ -95,8 +94,7 @@ bool DefragmenterTask::run(void) {
 
         // Print status.
         ss.str("");
-        ss << getDescription() << " for bucket '"
-           << engine->getName() << "'";
+        ss << getDescription() << " for bucket '" << engine->getName() << "'";
         if (completed) {
             ss << " finished.";
         } else {
@@ -111,7 +109,7 @@ bool DefragmenterTask::run(void) {
            << " mem_used=" << stats.getEstimatedTotalMemoryUsed()
            << ", mapped_bytes=" << getMappedBytes() << ". Sleeping for "
            << getSleepTime() << " seconds.";
-        LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
+        EP_LOG_DEBUG("{}", ss.str());
 
         // Delete(reset) visitor if it finished.
         if (completed) {

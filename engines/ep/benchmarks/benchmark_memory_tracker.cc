@@ -19,6 +19,7 @@
 #include <objectregistry.h>
 #include <utility.h>
 
+#include <engines/ep/src/bucket_logger.h>
 #include <algorithm>
 
 std::atomic<BenchmarkMemoryTracker*> BenchmarkMemoryTracker::instance;
@@ -71,14 +72,14 @@ BenchmarkMemoryTracker::BenchmarkMemoryTracker(
 }
 void BenchmarkMemoryTracker::connectHooks() {
     if (hooks_api.add_new_hook(&NewHook)) {
-        LOG(EXTENSION_LOG_DEBUG, "Registered add hook");
+        EP_LOG_DEBUG("Registered add hook");
         if (hooks_api.add_delete_hook(&DeleteHook)) {
-            LOG(EXTENSION_LOG_DEBUG, "Registered delete hook");
+            EP_LOG_DEBUG("Registered delete hook");
             return;
         }
         hooks_api.remove_new_hook(&NewHook);
     }
-    LOG(EXTENSION_LOG_WARNING, "Failed to register allocator hooks");
+    EP_LOG_WARN("Failed to register allocator hooks");
 }
 void BenchmarkMemoryTracker::NewHook(const void* ptr, size_t) {
     if (ptr != NULL) {

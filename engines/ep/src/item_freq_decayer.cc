@@ -54,8 +54,7 @@ bool ItemFreqDecayerTask::run(void) {
 
     // Print start status.
     std::stringstream ss;
-    ss << getDescription() << " for bucket '" << engine->getName()
-       << "'";
+    ss << getDescription() << " for bucket '" << engine->getName() << "'";
     if (epstore_position == engine->getKVBucket()->startPosition()) {
         ss << " starting. ";
     } else {
@@ -63,7 +62,7 @@ bool ItemFreqDecayerTask::run(void) {
         ss << prAdapter->getHashtablePosition() << ".";
     }
     ss << " Using chunk_duration=" << getChunkDuration().count() << " ms.";
-    LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
+    EP_LOG_DEBUG("{}", ss.str());
 
     // Prepare the underlying visitor.
     auto& visitor = getItemFreqDecayerVisitor();
@@ -82,8 +81,7 @@ bool ItemFreqDecayerTask::run(void) {
 
     // Print status.
     ss.str("");
-    ss << getDescription() << " for bucket '" << engine->getName()
-       << "'";
+    ss << getDescription() << " for bucket '" << engine->getName() << "'";
     if (completed) {
         ss << " finished.";
     } else {
@@ -93,7 +91,7 @@ bool ItemFreqDecayerTask::run(void) {
             std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     ss << " Took " << duration.count() << " us. to visit "
        << visitor.getVisitedCount() << " documents.";
-    LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
+    EP_LOG_DEBUG("{}", ss.str());
 
     // Delete(reset) visitor and allow to be notified if it finished.
     if (completed) {

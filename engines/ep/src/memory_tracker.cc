@@ -22,6 +22,7 @@
 #include <string>
 #include <utility>
 
+#include "bucket_logger.h"
 #include "memory_tracker.h"
 #include "objectregistry.h"
 #include "utility.h"
@@ -105,15 +106,15 @@ MemoryTracker::MemoryTracker(const ALLOCATOR_HOOKS_API& hooks_api_)
 
 void MemoryTracker::connectHooks() {
     if (getenv("EP_NO_MEMACCOUNT") != NULL) {
-        LOG(EXTENSION_LOG_NOTICE, "Memory allocation tracking disabled");
+        EP_LOG_INFO("Memory allocation tracking disabled");
         return;
     }
     stats.ext_stats.resize(hooks_api.get_extra_stats_size());
 
     if (hooks_api.add_new_hook(&NewHook)) {
-        LOG(EXTENSION_LOG_DEBUG, "Registered add hook");
+        EP_LOG_DEBUG("Registered add hook");
         if (hooks_api.add_delete_hook(&DeleteHook)) {
-            LOG(EXTENSION_LOG_DEBUG, "Registered delete hook");
+            EP_LOG_DEBUG("Registered delete hook");
             tracking = true;
             updateStats();
             if (cb_create_named_thread(&statsThreadId,
@@ -126,7 +127,7 @@ void MemoryTracker::connectHooks() {
         }
         hooks_api.remove_new_hook(&NewHook);
     }
-    LOG(EXTENSION_LOG_WARNING, "Failed to register allocator hooks");
+    EP_LOG_WARN("Failed to register allocator hooks");
 }
 
 MemoryTracker::~MemoryTracker() {

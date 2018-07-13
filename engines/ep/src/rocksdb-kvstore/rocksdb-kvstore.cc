@@ -729,11 +729,9 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
         }
     }
 
-    LOG(EXTENSION_LOG_DEBUG,
-        "RocksDBKVStore::snapshotVBucket: Snapshotted vbucket:%" PRIu16
-        " state:%s",
-        vbucketId,
-        vbstate.toJSON().c_str());
+    EP_LOG_DEBUG("RocksDBKVStore::snapshotVBucket: Snapshotted vb:{} state:{}",
+                 vbucketId,
+                 vbstate.toJSON());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             ProcessClock::now() - start));

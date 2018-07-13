@@ -20,6 +20,7 @@
 #include <platform/checked_snprintf.h>
 
 #include "atomic.h"
+#include "bucket_logger.h"
 #include "failover-table.h"
 #include "statwriter.h"
 
@@ -273,8 +274,8 @@ void FailoverTable::addStats(const void* cookie, uint16_t vbid,
             entrycounter++;
         }
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "FailoverTable::addStats: Failed to build stats: %s", error.what());
+        EP_LOG_WARN("FailoverTable::addStats: Failed to build stats: {}",
+                    error.what());
     }
 }
 
@@ -334,9 +335,9 @@ bool FailoverTable::loadFromJSON(const std::string& json) {
     try {
         parsed = nlohmann::json::parse(json);
     } catch (const nlohmann::json::exception& e) {
-        LOG(EXTENSION_LOG_WARNING,
-            "FailoverTable::loadFromJSON: Failed to parse JSON string: %s",
-            e.what());
+        EP_LOG_WARN(
+                "FailoverTable::loadFromJSON: Failed to parse JSON string: {}",
+                e.what());
         return false;
     }
 

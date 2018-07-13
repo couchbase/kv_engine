@@ -58,7 +58,7 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
 }
 
 DcpConnMap::~DcpConnMap() {
-    LOG(EXTENSION_LOG_NOTICE, "Deleted dcpConnMap_");
+    EP_LOG_INFO("Deleted dcpConnMap_");
 }
 
 DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
@@ -72,9 +72,10 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
     const auto& iter = map_.find(cookie);
     if (iter != map_.end()) {
         iter->second->setDisconnect();
-        LOG(EXTENSION_LOG_NOTICE,
-            "Failed to create Dcp Consumer because connection "
-            "(%p) already exists.", cookie);
+        EP_LOG_INFO(
+                "Failed to create Dcp Consumer because connection "
+                "({}) already exists.",
+                cookie);
         return nullptr;
     }
 
@@ -84,10 +85,13 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
      */
     for (const auto& cookieToConn : map_) {
         if (cookieToConn.second->getName() == conn_name) {
-            LOG(EXTENSION_LOG_NOTICE,
-                "%s Disconnecting existing Dcp Consumer %p as it has the same "
-                "name as a new connection %p",
-                cookieToConn.second->logHeader(), cookieToConn.first, cookie);
+            EP_LOG_INFO(
+                    "{} Disconnecting existing Dcp Consumer {} as it has the "
+                    "same "
+                    "name as a new connection {}",
+                    cookieToConn.second->logHeader(),
+                    cookieToConn.first,
+                    cookie);
             cookieToConn.second->setDisconnect();
         }
     }
@@ -95,7 +99,7 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
     std::shared_ptr<DcpConsumer> dc =
             std::make_shared<DcpConsumer>(engine, cookie, conn_name);
     auto* result = dc.get();
-    LOG(EXTENSION_LOG_INFO, "%s Connection created", dc->logHeader());
+    EP_LOG_DEBUG("{} Connection created", dc->logHeader());
     map_[cookie] = std::move(dc);
     return result;
 }
@@ -105,9 +109,11 @@ bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(uint16_t vbucket) {
         auto* dcpConsumer =
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer && dcpConsumer->isStreamPresent(vbucket)) {
-            LOG(EXTENSION_LOG_DEBUG, "(vb %d) A DCP passive stream "
-                "is already exists for the vbucket in connection: %s",
-                vbucket, dcpConsumer->logHeader());
+            EP_LOG_DEBUG(
+                    "(vb:{}) A DCP passive stream "
+                    "is already exists for the vbucket in connection: {}",
+                    vbucket,
+                    dcpConsumer->logHeader());
             return true;
         }
     }
@@ -122,9 +128,11 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
     LockHolder lh(connsLock);
     /* Check if a stream (passive) for the vbucket is already present */
     if (isPassiveStreamConnected_UNLOCKED(vbucket)) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Failing to add passive stream, "
-            "as one already exists for the vbucket!",
-            conn.logHeader(), vbucket);
+        EP_LOG_WARN(
+                "{} (vb:{}) Failing to add passive stream, "
+                "as one already exists for the vbucket!",
+                conn.logHeader(),
+                vbucket);
         return ENGINE_KEY_EEXISTS;
     }
 
@@ -143,9 +151,10 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
     const auto& iter = map_.find(cookie);
     if (iter != map_.end()) {
         iter->second->setDisconnect();
-        LOG(EXTENSION_LOG_NOTICE,
-            "Failed to create Dcp Producer because connection "
-            "(%p) already exists.", cookie);
+        EP_LOG_INFO(
+                "Failed to create Dcp Producer because connection "
+                "({}) already exists.",
+                cookie);
         return nullptr;
     }
 
@@ -155,10 +164,13 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
      */
     for (const auto& cookieToConn : map_) {
         if (cookieToConn.second->getName() == conn_name) {
-            LOG(EXTENSION_LOG_NOTICE,
-                "%s Disconnecting existing Dcp Producer %p as it has the same "
-                "name as a new connection %p",
-                cookieToConn.second->logHeader(), cookieToConn.first, cookie);
+            EP_LOG_INFO(
+                    "{} Disconnecting existing Dcp Producer {} as it has the "
+                    "same "
+                    "name as a new connection {}",
+                    cookieToConn.second->logHeader(),
+                    cookieToConn.first,
+                    cookie);
             cookieToConn.second->setDisconnect();
         }
     }
@@ -169,7 +181,7 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
                                                   flags,
                                                   std::move(filter),
                                                   true /*startTask*/);
-    LOG(EXTENSION_LOG_INFO, "%s Connection created", producer->logHeader());
+    EP_LOG_DEBUG("{} Connection created", producer->logHeader());
     auto* result = producer.get();
     map_[cookie] = std::move(producer);
 
@@ -177,7 +189,7 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
 }
 
 void DcpConnMap::shutdownAllConnections() {
-    LOG(EXTENSION_LOG_NOTICE, "Shutting down dcp connections!");
+    EP_LOG_INFO("Shutting down dcp connections!");
 
     if (connNotifier_ != NULL) {
         connNotifier_->stop();
@@ -427,7 +439,7 @@ void DcpConnMap::decrNumActiveSnoozingBackfills()
             return;
         }
     }
-    LOG(EXTENSION_LOG_WARNING, "ActiveSnoozingBackfills already zero!!!");
+    EP_LOG_WARN("ActiveSnoozingBackfills already zero!!!");
 }
 
 void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
@@ -445,8 +457,7 @@ void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
                          std::min(max, static_cast<size_t>(numBackfillsThreshold)));
         newMaxActive = backfills.maxActiveSnoozing;
     }
-    LOG(EXTENSION_LOG_DEBUG, "Max active snoozing backfills set to %" PRIu16,
-        newMaxActive);
+    EP_LOG_DEBUG("Max active snoozing backfills set to {}", newMaxActive);
 }
 
 void DcpConnMap::addStats(ADD_STAT add_stat, const void *c) {

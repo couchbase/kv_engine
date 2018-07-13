@@ -20,6 +20,7 @@
 #include "ep_engine.h"
 #include "kv_bucket.h"
 
+#include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
@@ -160,8 +161,9 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
         uint8_t datatype,
         uint16_t vbucket) {
     if (!mcbp::datatype::is_valid(datatype)) {
-        LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
-            " (ItemAllocate)");
+        EP_LOG_WARN(
+                "Invalid value for datatype "
+                " (ItemAllocate)");
         return cb::makeEngineErrorItemPair(cb::engine_errc::invalid_arguments);
     }
 
@@ -475,17 +477,17 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             stats.timingLog = NULL;
             delete old;
             if (strcmp(valz, "off") == 0) {
-                LOG(EXTENSION_LOG_INFO, "Disabled timing log.");
+                EP_LOG_DEBUG("Disabled timing log.");
             } else {
                 std::ofstream* tmp(new std::ofstream(valz));
                 if (tmp->good()) {
-                    LOG(EXTENSION_LOG_INFO,
-                        "Logging detailed timings to ``%s''.", valz);
+                    EP_LOG_DEBUG("Logging detailed timings to ``{}''.", valz);
                     stats.timingLog = tmp;
                 } else {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Error setting detailed timing log to ``%s'':  %s",
-                        valz, strerror(errno));
+                    EP_LOG_WARN(
+                            "Error setting detailed timing log to ``{}'':  {}",
+                            valz,
+                            strerror(errno));
                     delete tmp;
                 }
             }
@@ -691,12 +693,11 @@ protocol_binary_response_status EventuallyPersistentEngine::setVbucketParam(
         } else if (strcmp(keyz, "max_cas") == 0) {
             uint64_t v = std::strtoull(valz, nullptr, 10);
             checkNumeric(valz);
-            LOG(EXTENSION_LOG_WARNING,
-                "setVbucketParam: max_cas:%" PRIu64
-                " "
-                "vb:%" PRIu16,
-                v,
-                vbucket);
+            EP_LOG_WARN(
+                    "setVbucketParam: max_cas:{} "
+                    "vb:{}",
+                    v,
+                    vbucket);
             if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
                 rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 msg = "Not my vbucket";
@@ -727,10 +728,9 @@ static protocol_binary_response_status evictKey(
     size_t keylen = ntohs(req->message.header.request.keylen);
     uint16_t vbucket = ntohs(request->request.vbucket);
 
-    LOG(EXTENSION_LOG_DEBUG,
-        "Manually evicting object with key %s",
-        cb::logtags::tagUserData(std::string{(const char*)keyPtr, keylen})
-                .c_str());
+    EP_LOG_DEBUG(
+            "Manually evicting object with key {}",
+            cb::logtags::tagUserData(std::string{(const char*)keyPtr, keylen}));
     msg_size = 0;
     auto rv = e->evictKey(DocKey(keyPtr, keylen, docNamespace), vbucket, msg);
     if (rv == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ||
@@ -901,9 +901,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
             e->storeEngineSpecific(cookie, e);
         } else {
             e->storeEngineSpecific(cookie, NULL);
-            LOG(EXTENSION_LOG_INFO,
-                "Completed sync deletion of vbucket %u",
-                (unsigned)vbucket);
+            EP_LOG_DEBUG("Completed sync deletion of vb:{}", vbucket);
             err = ENGINE_SUCCESS;
         }
     } else {
@@ -911,35 +909,37 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     }
     switch (err) {
     case ENGINE_SUCCESS:
-        LOG(EXTENSION_LOG_NOTICE,
-            "Deletion of vbucket %d was completed.", vbucket);
+        EP_LOG_INFO("Deletion of vb:{} was completed.", vbucket);
         break;
     case ENGINE_NOT_MY_VBUCKET:
-        LOG(EXTENSION_LOG_WARNING, "Deletion of vbucket %d failed "
-            "because the vbucket doesn't exist!!!", vbucket);
+        EP_LOG_WARN(
+                "Deletion of vb:{} failed "
+                "because the vbucket doesn't exist!!!",
+                vbucket);
         res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         break;
     case ENGINE_EINVAL:
-        LOG(EXTENSION_LOG_WARNING,
-            "Deletion of vbucket %d failed "
-            "because the vbucket is not in a dead state",
-            vbucket);
+        EP_LOG_WARN(
+                "Deletion of vb:{} failed "
+                "because the vbucket is not in a dead state",
+                vbucket);
         e->setErrorContext(
                 cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
         res = PROTOCOL_BINARY_RESPONSE_EINVAL;
         break;
     case ENGINE_EWOULDBLOCK:
-        LOG(EXTENSION_LOG_NOTICE, "Request for vbucket %d deletion is in"
+        EP_LOG_INFO(
+                "Request for vb:{} deletion is in"
                 " EWOULDBLOCK until the database file is removed from disk",
-            vbucket);
+                vbucket);
         e->storeEngineSpecific(cookie, req);
         return ENGINE_EWOULDBLOCK;
     default:
-        LOG(EXTENSION_LOG_WARNING,
-            "Deletion of vbucket %d failed "
-            "because of unknown reasons",
-            vbucket);
+        EP_LOG_WARN(
+                "Deletion of vb:{} failed "
+                "because of unknown reasons",
+                vbucket);
         e->setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
@@ -1015,10 +1015,9 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
 
     if (ntohs(req->message.header.request.keylen) > 0 ||
         req->message.header.request.extlen != 24) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Compaction received bad ext/key len %d/%d.",
-            req->message.header.request.extlen,
-            ntohs(req->message.header.request.keylen));
+        EP_LOG_WARN("Compaction received bad ext/key len {}/{}.",
+                    req->message.header.request.extlen,
+                    ntohs(req->message.header.request.keylen));
         e->setErrorContext(cookie, "Key and correct extras required");
         return sendResponse(response, NULL, 0, NULL, 0, NULL,
                             0,
@@ -1050,41 +1049,41 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         break;
     case ENGINE_NOT_MY_VBUCKET:
         --stats.pendingCompactions;
-        LOG(EXTENSION_LOG_WARNING,
-            "Compaction of db file id: %d failed "
-            "because the db file doesn't exist!!!",
-            compactionConfig.db_file_id);
+        EP_LOG_WARN(
+                "Compaction of db file id: {} failed "
+                "because the db file doesn't exist!!!",
+                compactionConfig.db_file_id);
         res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         break;
     case ENGINE_EINVAL:
         --stats.pendingCompactions;
-        LOG(EXTENSION_LOG_WARNING,
-            "Compaction of db file id: %d failed "
-            "because of an invalid argument",
-            compactionConfig.db_file_id);
+        EP_LOG_WARN(
+                "Compaction of db file id: {} failed "
+                "because of an invalid argument",
+                compactionConfig.db_file_id);
         res = PROTOCOL_BINARY_RESPONSE_EINVAL;
         break;
     case ENGINE_EWOULDBLOCK:
-        LOG(EXTENSION_LOG_NOTICE,
-            "Compaction of db file id: %d scheduled "
-            "(awaiting completion).",
-            compactionConfig.db_file_id);
+        EP_LOG_INFO(
+                "Compaction of db file id: {} scheduled "
+                "(awaiting completion).",
+                compactionConfig.db_file_id);
         e->storeEngineSpecific(cookie, req);
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:
-        LOG(EXTENSION_LOG_WARNING,
-            "Request to compact db file id: %d hit"
-            " a temporary failure and may need to be retried",
-            compactionConfig.db_file_id);
+        EP_LOG_WARN(
+                "Request to compact db file id: {} hit"
+                " a temporary failure and may need to be retried",
+                compactionConfig.db_file_id);
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
         res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         break;
     default:
         --stats.pendingCompactions;
-        LOG(EXTENSION_LOG_WARNING,
-            "Compaction of db file id: %d failed "
-            "because of unknown reasons",
-            compactionConfig.db_file_id);
+        EP_LOG_WARN(
+                "Compaction of db file id: {} failed "
+                "because of unknown reasons",
+                compactionConfig.db_file_id);
         e->setErrorContext(cookie, "Failed to compact db file.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         break;
@@ -1406,9 +1405,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
         auto* producer = dynamic_cast<DcpProducer*>(conn);
         // GetFailoverLog not supported for DcpConsumer
         if (!producer) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Disconnecting - This connection doesn't support the dcp get "
-                "failover log API");
+            EP_LOG_WARN(
+                    "Disconnecting - This connection doesn't support the dcp "
+                    "get "
+                    "failover log API");
             return ENGINE_DISCONNECT;
         }
         producer->setLastReceiveTime(ep_current_time());
@@ -1418,11 +1418,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
     }
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s (vb %d) Get Failover Log failed because this vbucket doesn't "
-            "exist",
-            conn ? conn->logHeader() : "MCBP-Connection",
-            vbucket);
+        EP_LOG_WARN(
+                "{} (vb:{}) Get Failover Log failed because this vbucket "
+                "doesn't "
+                "exist",
+                conn ? conn->logHeader() : "MCBP-Connection",
+                vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
     auto failoverEntries = vb->failovers->getFailoverLog();
@@ -1478,8 +1479,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::mutation(
         cb::const_byte_buffer meta,
         uint8_t nru) {
     if (!mcbp::datatype::is_valid(datatype)) {
-        LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
-            " (DCPMutation)");
+        EP_LOG_WARN(
+                "Invalid value for datatype "
+                " (DCPMutation)");
         return ENGINE_EINVAL;
     }
     auto engine = acquireEngine(this);
@@ -1970,8 +1972,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     resetStats();
     if (config != nullptr) {
         if (!configuration.parseConfiguration(config, serverApi)) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to parse the configuration config "
-                "during bucket initialization.  config=%s", config);
+            EP_LOG_WARN(
+                    "Failed to parse the configuration config "
+                    "during bucket initialization.  config={}",
+                    config);
             return ENGINE_FAILED;
         }
     }
@@ -1990,8 +1994,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
             configuration.getMutationMemThreshold());
 
     if (configuration.getMaxSize() == 0) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Invalid configuration: max_size must be a non-zero value");
+        EP_LOG_WARN("Invalid configuration: max_size must be a non-zero value");
         return ENGINE_FAILED;
     }
 
@@ -2031,8 +2034,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
                                   configuration.getMaxNumShards());
     if ((unsigned int)workload->getNumShards() >
                                               configuration.getMaxVbuckets()) {
-        LOG(EXTENSION_LOG_WARNING, "Invalid configuration: Shards must be "
-            "equal or less than max number of vbuckets");
+        EP_LOG_WARN(
+                "Invalid configuration: Shards must be "
+                "equal or less than max number of vbuckets");
         return ENGINE_FAILED;
     }
 
@@ -2076,9 +2080,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     // record engine initialization time
     startupTime.store(ep_real_time());
 
-    LOG(EXTENSION_LOG_NOTICE,
-        "EP Engine: Initialization of %s bucket complete",
-        configuration.getBucketType().c_str());
+    EP_LOG_INFO("EP Engine: Initialization of {} bucket complete",
+                configuration.getBucketType());
 
     setCompressionMode(configuration.getCompressionMode());
 
@@ -2387,10 +2390,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
     if (lock_timeout == 0) {
         lock_timeout = default_timeout;
     } else if (lock_timeout > static_cast<uint32_t>(getGetlMaxTimeout())) {
-        LOG(EXTENSION_LOG_WARNING,
-            "EventuallyPersistentEngine::get_locked: "
-            "Illegal value for lock timeout specified %u. "
-            "Using default value: %u", lock_timeout, default_timeout);
+        EP_LOG_WARN(
+                "EventuallyPersistentEngine::get_locked: "
+                "Illegal value for lock timeout specified {}. "
+                "Using default value: {}",
+                lock_timeout,
+                default_timeout);
         lock_timeout = default_timeout;
     }
 
@@ -3119,8 +3124,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
                                     VBucket::toString(vb->getInitialState()),
                                     add_stat, cookie);
                 } catch (std::exception& error) {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "addVBStats: Failed building stats: %s", error.what());
+                    EP_LOG_WARN("addVBStats: Failed building stats: {}",
+                                error.what());
                 }
             } else {
                 vb->addStats(detailsRequested, add_stat, cookie);
@@ -3176,9 +3181,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
                 add_casted_stat(buf, VBucket::toString(vb->getState()),
                                 add_stat, cookie);
             } catch (std::exception& error) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "StatVBucketVisitor::visitBucket: Failed to build stat: %s",
-                    error.what());
+                EP_LOG_WARN(
+                        "StatVBucketVisitor::visitBucket: Failed to build "
+                        "stat: {}",
+                        error.what());
             }
 
             HashTableDepthStatVisitor depthVisitor;
@@ -3221,9 +3227,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
                                  vbid);
                 add_casted_stat(buf, depthVisitor.memUsed, add_stat, cookie);
             } catch (std::exception& error) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "StatVBucketVisitor::visitBucket: Failed to build stat: %s",
-                    error.what());
+                EP_LOG_WARN(
+                        "StatVBucketVisitor::visitBucket: Failed to build "
+                        "stat: {}",
+                        error.what());
             }
         }
 
@@ -3344,9 +3351,10 @@ public:
                 add_casted_stat(buf, result.first, add_stat, cookie);
             }
         } catch (std::exception& error) {
-            LOG(EXTENSION_LOG_WARNING,
-                "StatCheckpointVisitor::addCheckpointStat: error building stats: %s",
-                error.what());
+            EP_LOG_WARN(
+                    "StatCheckpointVisitor::addCheckpointStat: error building "
+                    "stats: {}",
+                    error.what());
         }
     }
 
@@ -3548,8 +3556,7 @@ static void showConnAggStat(const std::string &prefix,
         add_casted_stat(statname, counter->conn_totalUncompressedDataSize, add_stat, cookie);
 
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "showConnAggStat: Failed to build stats: %s", error.what());
+        EP_LOG_WARN("showConnAggStat: Failed to build stats: {}", error.what());
     }
 }
 
@@ -3651,9 +3658,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
 
     if (fetchLookupResult(cookie, it)) {
         if (!validate) {
-            LOG(EXTENSION_LOG_DEBUG,
-                "Found lookup results for non-validating key "
-                "stat call. Would have leaked");
+            EP_LOG_DEBUG(
+                    "Found lookup results for non-validating key "
+                    "stat call. Would have leaked");
             it.reset();
         }
     } else if (validate) {
@@ -3677,12 +3684,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
             } else {
                 valid.assign("ram_but_not_disk");
             }
-            LOG(EXTENSION_LOG_DEBUG,
-                "doKeyStats key %s is %s",
-                cb::logtags::tagUserData(
-                        std::string{(const char*)key.data(), key.size()})
-                        .c_str(),
-                valid.c_str());
+            EP_LOG_DEBUG("doKeyStats key {} is {}",
+                         cb::logtags::tagUserData(std::string{
+                                 (const char*)key.data(), key.size()}),
+                         valid);
         }
         add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
         add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
@@ -3897,8 +3902,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
                             cookie, add_stat);
 
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "doWorkloadStats: Error building stats: %s", error.what());
+        EP_LOG_WARN("doWorkloadStats: Error building stats: {}", error.what());
     }
 
     return ENGINE_SUCCESS;
@@ -3943,8 +3947,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
                          vb->getId());
         add_casted_stat(buffer, range.end, add_stat, cookie);
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "addSeqnoVbStats: error building stats: %s", error.what());
+        EP_LOG_WARN("addSeqnoVbStats: error building stats: {}", error.what());
     }
 }
 
@@ -3954,11 +3957,10 @@ void EventuallyPersistentEngine::addLookupResult(const void* cookie,
     auto it = lookups.find(cookie);
     if (it != lookups.end()) {
         if (it->second != NULL) {
-            LOG(EXTENSION_LOG_DEBUG,
-                "Cleaning up old lookup result for '%s'",
-                it->second->getKey().data());
+            EP_LOG_DEBUG("Cleaning up old lookup result for '{}'",
+                         it->second->getKey().data());
         } else {
-            LOG(EXTENSION_LOG_DEBUG, "Cleaning up old null lookup result");
+            EP_LOG_DEBUG("Cleaning up old null lookup result");
         }
         lookups.erase(it);
     }
@@ -4041,9 +4043,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
             TracerStopwatch(cookie, cb::tracing::TraceCode::GETSTATS));
 
     if (stat_key != NULL) {
-        LOG(EXTENSION_LOG_DEBUG, "stats %.*s", nkey, stat_key);
+        EP_LOG_DEBUG("stats {}*s", nkey, stat_key);
     } else {
-        LOG(EXTENSION_LOG_DEBUG, "stats engine");
+        EP_LOG_DEBUG("stats engine");
     }
 
     const std::string statKey(stat_key, nkey);
@@ -4259,12 +4261,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 
         DocKey key(data + offset, keylen, docNamespace);
         offset += keylen;
-        LOG(EXTENSION_LOG_DEBUG,
-            "Observing key %s in vb:%" PRIu16,
-            cb::logtags::tagUserData(
-                    std::string{(const char*)key.data(), key.size()})
-                    .c_str(),
-            vb_id);
+        EP_LOG_DEBUG("Observing key {} in vb:{}",
+                     cb::logtags::tagUserData(
+                             std::string{(const char*)key.data(), key.size()}),
+                     vb_id);
 
         // Get key stats
         uint16_t keystatus = 0;
@@ -4340,8 +4340,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     memcpy(&vb_uuid, data, sizeof(uint64_t));
     vb_uuid = ntohll(vb_uuid);
 
-    LOG(EXTENSION_LOG_DEBUG, "Observing vbucket: %d with uuid: %" PRIu64,
-                             vb_id, vb_uuid);
+    EP_LOG_DEBUG("Observing vbucket: {} with uuid: {}", vb_id, vb_uuid);
 
     VBucketPtr vb = kvBucket->getVBucket(vb_id);
 
@@ -4505,29 +4504,31 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
 
                     case HighPriorityVBReqStatus::NotSupported:
                         status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-                        LOG(EXTENSION_LOG_WARNING,
-                          "EventuallyPersistentEngine::handleCheckpointCmds(): "
-                          "High priority async chk request "
-                          "for vb:%" PRIu16 " is NOT supported" ,
-                          vbucket);
+                        EP_LOG_WARN(
+                                "EventuallyPersistentEngine::"
+                                "handleCheckpointCmds(): "
+                                "High priority async chk request "
+                                "for vb:{} is NOT supported",
+                                vbucket);
                         break;
 
                     case HighPriorityVBReqStatus::RequestNotScheduled:
                         /* 'HighPriorityVBEntry' was not added, hence just
                            return success */
-                        LOG(EXTENSION_LOG_NOTICE,
-                          "EventuallyPersistentEngine::handleCheckpointCmds(): "
-                          "Did NOT add high priority async chk request "
-                          "for vb:%" PRIu16,
-                          vbucket);
+                        EP_LOG_INFO(
+                                "EventuallyPersistentEngine::"
+                                "handleCheckpointCmds(): "
+                                "Did NOT add high priority async chk request "
+                                "for vb:{}",
+                                vbucket);
 
                         break;
                     }
                 } else {
                     storeEngineSpecific(cookie, NULL);
-                    LOG(EXTENSION_LOG_INFO,
-                        "Checkpoint %" PRIu64 " persisted for vbucket %d.",
-                        chk_id, vbucket);
+                    EP_LOG_DEBUG("Checkpoint {} persisted for vb:{}",
+                                 chk_id,
+                                 vbucket);
                 }
             }
         }
@@ -4584,32 +4585,31 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
 
                 case HighPriorityVBReqStatus::NotSupported:
                     status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
-                    LOG(EXTENSION_LOG_WARNING,
-                        "EventuallyPersistentEngine::handleSeqnoCmds(): "
-                        "High priority async seqno request "
-                        "for vb:%" PRIu16 " is NOT supported",
-                        vbucket);
+                    EP_LOG_WARN(
+                            "EventuallyPersistentEngine::handleSeqnoCmds(): "
+                            "High priority async seqno request "
+                            "for vb:{} is NOT supported",
+                            vbucket);
                     break;
 
                 case HighPriorityVBReqStatus::RequestNotScheduled:
                     /* 'HighPriorityVBEntry' was not added, hence just return
                        success */
-                    LOG(EXTENSION_LOG_NOTICE,
-                        "EventuallyPersistentEngine::handleSeqnoCmds(): "
-                        "Did NOT add high priority async seqno request "
-                        "for vb:%" PRIu16 ", Persisted seqno %" PRIu64
-                        " > requested seqno %" PRIu64,
-                        vbucket,
-                        persisted_seqno,
-                        seqno);
+                    EP_LOG_INFO(
+                            "EventuallyPersistentEngine::handleSeqnoCmds(): "
+                            "Did NOT add high priority async seqno request "
+                            "for vb:{}, Persisted seqno {} > requested seqno "
+                            "{}",
+                            vbucket,
+                            persisted_seqno,
+                            seqno);
                     break;
                 }
             }
         } else {
             storeEngineSpecific(cookie, NULL);
-            LOG(EXTENSION_LOG_INFO,
-                "Sequence number %" PRIu64 " persisted for vbucket %d.",
-                seqno, vbucket);
+            EP_LOG_DEBUG(
+                    "Sequence number {} persisted for vb:{}", seqno, vbucket);
         }
     }
 
@@ -4787,11 +4787,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     if (vallen > maxItemSize) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Item value size %ld for setWithMeta is bigger "
-            "than the max size %ld allowed!!!",
-            vallen,
-            maxItemSize);
+        EP_LOG_WARN(
+                "Item value size {} for setWithMeta is bigger "
+                "than the max size {} allowed!!!",
+                vallen,
+                maxItemSize);
         return sendErrorResponse(response,
                                  PROTOCOL_BINARY_RESPONSE_E2BIG,
                                  0,
@@ -5224,18 +5224,23 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
 
     const auto conn = dcpConnMap_->findByName(dcpName);
     if (!conn) {
-        LOG(EXTENSION_LOG_INFO,"doDcpVbTakeoverStats - cannot find "
-            "connection %s for vb:%" PRIu16, dcpName.c_str(), vbid);
+        EP_LOG_DEBUG(
+                "doDcpVbTakeoverStats - cannot find "
+                "connection {} for vb:{}",
+                dcpName,
+                vbid);
         size_t vb_items = vb->getNumItems();
 
         size_t del_items = 0;
         try {
             del_items = kvBucket->getNumPersistedDeletes(vbid);
         } catch (std::runtime_error& e) {
-            LOG(EXTENSION_LOG_WARNING,
-                "doDcpVbTakeoverStats: exception while getting num "
-                "persisted deletes for vbucket:%" PRIu16 " - treating as 0 "
-                "deletes. Details: %s", vbid, e.what());
+            EP_LOG_WARN(
+                    "doDcpVbTakeoverStats: exception while getting num "
+                    "persisted deletes for vb:{} - treating as 0 "
+                    "deletes. Details: {}",
+                    vbid,
+                    e.what());
         }
         size_t chk_items =
                 vb_items > 0 ? vb->checkpointManager->getNumOpenChkItems() : 0;
@@ -5256,8 +5261,11 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
           * DcpProducer.  But just in case it does happen log the event and
           * return ENGINE_KEY_ENOENT.
           */
-        LOG(EXTENSION_LOG_WARNING, "doDcpVbTakeoverStats: connection %s for "
-            "vb:%" PRIu16 " is not a DcpProducer", dcpName.c_str(), vbid);
+        EP_LOG_WARN(
+                "doDcpVbTakeoverStats: connection {} for "
+                "vb:{} is not a DcpProducer",
+                dcpName,
+                vbid);
         return ENGINE_KEY_ENOENT;
     }
 
@@ -5527,7 +5535,7 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     }
 
     if (keylen == 0) {
-        LOG(EXTENSION_LOG_WARNING, "No key passed as argument for getAllKeys");
+        EP_LOG_WARN("No key passed as argument for getAllKeys");
         return ENGINE_EINVAL;
     }
     const uint8_t* keyPtr = (request->bytes + sizeof(request->bytes) + extlen);
@@ -5558,7 +5566,7 @@ void EventuallyPersistentEngine::setDCPPriority(const void* cookie,
 void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
                                                   ENGINE_ERROR_CODE status) {
     if (cookie == NULL) {
-        LOG(EXTENSION_LOG_WARNING, "Tried to signal a NULL cookie!");
+        EP_LOG_WARN("Tried to signal a NULL cookie!");
     } else {
         BlockTimer bt(&stats.notifyIOHisto);
         EventuallyPersistentEngine* epe =
@@ -5601,8 +5609,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
 
 
     if (getEngineSpecific(cookie) != NULL) {
-        LOG(EXTENSION_LOG_WARNING, "Cannot open DCP connection as another"
-            " connection exists on the same socket");
+        EP_LOG_WARN(
+                "Cannot open DCP connection as another"
+                " connection exists on the same socket");
         return ENGINE_DISCONNECT;
     }
 
@@ -5629,11 +5638,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
                     getKVBucket()->getCollectionsManager().makeFilter(
                             flags, jsonExtra));
         } catch (const cb::engine_error& e) {
-            LOG(EXTENSION_LOG_NOTICE,
-                "EPEngine::dcpOpen: failed to create a filter error:%d, "
-                "what:%s",
-                ENGINE_ERROR_CODE(e.code().value()),
-                e.what());
+            EP_LOG_INFO(
+                    "EPEngine::dcpOpen: failed to create a filter error:{}, "
+                    "what:{}",
+                    ENGINE_ERROR_CODE(e.code().value()),
+                    e.what());
             return ENGINE_ERROR_CODE(e.code().value());
         }
     } else {
@@ -5641,15 +5650,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     }
 
     if (handler == nullptr) {
-        LOG(EXTENSION_LOG_WARNING, "EPEngine::dcpOpen: failed to create a handler");
+        EP_LOG_WARN("EPEngine::dcpOpen: failed to create a handler");
         return ENGINE_DISCONNECT;
     }
 
     // Success creating dcp object which has stored the cookie, now reserve it.
     if (reserveCookie(cookie) != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Cannot create DCP connection because cookie "
-            "cannot be reserved");
+        EP_LOG_WARN(
+                "Cannot create DCP connection because cookie "
+                "cannot be reserved");
         return ENGINE_DISCONNECT;
     }
 
@@ -5675,7 +5684,7 @@ ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {
     void* specific = getEngineSpecific(cookie);
     ConnHandler* handler = reinterpret_cast<ConnHandler*>(specific);
     if (!handler) {
-        LOG(EXTENSION_LOG_WARNING, "Invalid streaming connection");
+        EP_LOG_WARN("Invalid streaming connection");
     }
     return handler;
 }
@@ -5706,7 +5715,8 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
 }
 
 void EventuallyPersistentEngine::handleDeleteBucket(const void *cookie) {
-    LOG(EXTENSION_LOG_NOTICE, "Shutting down all DCP connections in "
+    EP_LOG_INFO(
+            "Shutting down all DCP connections in "
             "preparation for bucket deletion.");
     dcpConnMap_->shutdownAllConnections();
 }
@@ -5717,7 +5727,7 @@ protocol_binary_response_status EventuallyPersistentEngine::stopFlusher(
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     *msg = NULL;
     if (!kvBucket->pauseFlusher()) {
-        LOG(EXTENSION_LOG_INFO, "Unable to stop flusher");
+        EP_LOG_DEBUG("Unable to stop flusher");
         *msg = "Flusher not running.";
         rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -5730,7 +5740,7 @@ protocol_binary_response_status EventuallyPersistentEngine::startFlusher(
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     *msg = NULL;
     if (!kvBucket->resumeFlusher()) {
-        LOG(EXTENSION_LOG_INFO, "Unable to start flusher");
+        EP_LOG_DEBUG("Unable to start flusher");
         *msg = "Flusher not shut down.";
         rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -5934,7 +5944,7 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     if (kvBucket) {
         kvBucket->deinitialize();
     }
-    LOG(EXTENSION_LOG_NOTICE, "~EPEngine: Completed deinitialize.");
+    EP_LOG_INFO("~EPEngine: Completed deinitialize.");
     delete workload;
     delete checkpointConfig;
     /* Unique_ptr(s) are deleted in the reverse order of the initialization */
@@ -5994,12 +6004,11 @@ void EventuallyPersistentEngine::setCompressionMode(
     try {
         compressionMode = parseCompressionMode(compressModeStr);
         if (oldCompressionMode != compressionMode) {
-            LOG(EXTENSION_LOG_WARNING,
-                R"(Transitioning from "%s"->"%s" compression mode)",
-                to_string(oldCompressionMode).c_str(),
-                compressModeStr.c_str());
+            EP_LOG_WARN(R"(Transitioning from "{}"->"{}" compression mode)",
+                        to_string(oldCompressionMode),
+                        compressModeStr);
         }
     } catch (const std::invalid_argument& e) {
-        LOG(EXTENSION_LOG_WARNING, "%s", e.what());
+        EP_LOG_WARN("{}", e.what());
     }
 }

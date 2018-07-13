@@ -70,14 +70,14 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
                  "#itemsToFetch",
                  itemsToFetch.size());
     ProcessClock::time_point startTime(ProcessClock::now());
-    LOG(EXTENSION_LOG_DEBUG,
-        "BgFetcher is fetching data, vb:%" PRIu16 " numDocs:%" PRIu64 " "
-        "startTime:%" PRIu64,
-        vbId,
-        uint64_t(itemsToFetch.size()),
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-                startTime.time_since_epoch())
-                .count());
+    EP_LOG_DEBUG(
+            "BgFetcher is fetching data, vb:{} numDocs:{} "
+            "startTime:{}",
+            vbId,
+            itemsToFetch.size(),
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                    startTime.time_since_epoch())
+                    .count());
 
     shard->getROUnderlying()->getMulti(vbId, itemsToFetch);
 

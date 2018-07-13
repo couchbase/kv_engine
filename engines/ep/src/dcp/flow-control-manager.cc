@@ -48,18 +48,18 @@ void DcpFlowControlManager::setBufSizeWithinBounds(DcpConsumer *consumerConn,
      range */
     if (bufSize < config.getDcpConnBufferSize()) {
         bufSize = config.getDcpConnBufferSize();
-        LOG(EXTENSION_LOG_INFO,
-            "%s Conn flow control buffer is set to "
-            "minimum, bucket size: %zu",
-            consumerConn->logHeader(),
-            engine_.getEpStats().getMaxDataSize());
+        EP_LOG_DEBUG(
+                "{} Conn flow control buffer is set to "
+                "minimum, bucket size: {}",
+                consumerConn->logHeader(),
+                engine_.getEpStats().getMaxDataSize());
     } else if (bufSize > config.getDcpConnBufferSizeMax()) {
         bufSize = config.getDcpConnBufferSizeMax();
-        LOG(EXTENSION_LOG_INFO,
-            "%s Conn flow control buffer is set to "
-            "maximum, bucket size: %zu",
-            consumerConn->logHeader(),
-            engine_.getEpStats().getMaxDataSize());
+        EP_LOG_DEBUG(
+                "{} Conn flow control buffer is set to "
+                "maximum, bucket size: {}",
+                consumerConn->logHeader(),
+                engine_.getEpStats().getMaxDataSize());
     }
 }
 
@@ -114,17 +114,19 @@ size_t DcpFlowControlManagerDynamic::newConsumerConn(DcpConsumer *consumerConn)
     {
         /* Setting to default minimum size */
         bufferSize = config.getDcpConnBufferSize();
-        LOG(EXTENSION_LOG_INFO, "%s Conn flow control buffer is set to"
-            "minimum, as aggr memory used for flow control buffers across"
-            "all consumers is %zu and is above the threshold (%f) * (%zu)",
-            consumerConn->logHeader(),
-            aggrDcpConsumerBufferSize.load(std::memory_order_relaxed),
-            dcpConnBufferSizeThreshold,
-            engine_.getEpStats().getMaxDataSize());
+        EP_LOG_DEBUG(
+                "{} Conn flow control buffer is set to"
+                "minimum, as aggr memory used for flow control buffers across"
+                "all consumers is {} and is above the threshold ({}) * ({})",
+                consumerConn->logHeader(),
+                aggrDcpConsumerBufferSize.load(std::memory_order_relaxed),
+                dcpConnBufferSizeThreshold,
+                engine_.getEpStats().getMaxDataSize());
     }
     aggrDcpConsumerBufferSize += bufferSize;
-    LOG(EXTENSION_LOG_INFO, "%s Conn flow control buffer is %zu",
-        consumerConn->logHeader(), bufferSize);
+    EP_LOG_DEBUG("{} Conn flow control buffer is {}",
+                 consumerConn->logHeader(),
+                 bufferSize);
     return bufferSize;
 }
 
@@ -167,8 +169,9 @@ size_t DcpFlowControlManagerAggressive::newConsumerConn(
     /* Make sure that the flow control buffer size is within a max and min
      range */
     setBufSizeWithinBounds(consumerConn, bufferSize);
-    LOG(EXTENSION_LOG_INFO, "%s Conn flow control buffer is %zu",
-        consumerConn->logHeader(), bufferSize);
+    EP_LOG_DEBUG("{} Conn flow control buffer is {}",
+                 consumerConn->logHeader(),
+                 bufferSize);
 
     /* resize all flow control buffers */
     resizeBuffers_UNLOCKED(bufferSize);
@@ -197,8 +200,9 @@ void DcpFlowControlManagerAggressive::handleDisconnect(
             /* Make sure that the flow control buffer size is within a max and
              min range */
             setBufSizeWithinBounds(consumerConn, bufferSize);
-            LOG(EXTENSION_LOG_INFO, "%s Conn flow control buffer is %zu",
-                consumerConn->logHeader(), bufferSize);
+            EP_LOG_DEBUG("{} Conn flow control buffer is {}",
+                         consumerConn->logHeader(),
+                         bufferSize);
         }
     }
 

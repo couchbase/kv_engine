@@ -164,8 +164,9 @@ void BackfillManager::schedule(VBucket& vb,
     if (engine.getDcpConnMap().canAddBackfillToActiveQ()) {
         activeBackfills.push_back(std::move(backfill));
     } else {
-        LOG(EXTENSION_LOG_NOTICE, "Backfill for %s vb:%d is pending",
-            stream->getName().c_str(), vb.getId());
+        EP_LOG_INFO("Backfill for {} vb:{} is pending",
+                    stream->getName(),
+                    vb.getId());
         pendingBackfills.push_back(std::move(backfill));
     }
 
@@ -269,8 +270,9 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     if (engine.getKVBucket()->isMemoryUsageTooHigh()) {
-        LOG(EXTENSION_LOG_NOTICE, "DCP backfilling task temporarily suspended "
-            "because the current memory usage is too high");
+        EP_LOG_INFO(
+                "DCP backfilling task temporarily suspended "
+                "because the current memory usage is too high");
         return backfill_snooze;
     }
 
@@ -332,8 +334,10 @@ backfill_status_t BackfillManager::backfill() {
                         std::make_pair(ep_current_time(), std::move(backfill)));
             } else {
                 lh.unlock();
-                LOG(EXTENSION_LOG_WARNING, "Deleting the backfill, as vbucket %d "
-                    "seems to have been deleted!", vbid);
+                EP_LOG_WARN(
+                        "Deleting the backfill, as vb:{}"
+                        "seems to have been deleted!",
+                        vbid);
                 backfill->cancel();
                 engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
             }

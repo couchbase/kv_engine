@@ -24,8 +24,8 @@
 
 #include <platform/checked_snprintf.h>
 
+#include <engines/ep/src/bucket_logger.h>
 #include <memory>
-
 
 const char* to_string(Stream::Snapshot type) {
     switch (type) {
@@ -163,11 +163,14 @@ std::unique_ptr<DcpResponse> Stream::popFromReadyQ(void) {
         if (respSize <= readyQueueMemory.load(std::memory_order_relaxed)) {
             readyQueueMemory.fetch_sub(respSize, std::memory_order_relaxed);
         } else {
-            LOG(EXTENSION_LOG_DEBUG, "readyQ size for stream %s (vb %d)"
-                "underflow, likely wrong stat calculation! curr size: %" PRIu64
-                "; new size: %d",
-                name_.c_str(), getVBucket(),
-                readyQueueMemory.load(std::memory_order_relaxed), respSize);
+            EP_LOG_DEBUG(
+                    "readyQ size for stream {} (vb:{})"
+                    "underflow, likely wrong stat calculation! curr size: "
+                    "{}; new size: {}",
+                    name_.c_str(),
+                    getVBucket(),
+                    readyQueueMemory.load(std::memory_order_relaxed),
+                    respSize);
             readyQueueMemory.store(0, std::memory_order_relaxed);
         }
 
@@ -210,8 +213,8 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
                          vb_);
         add_casted_stat(buffer, to_string(state_.load()), add_stat, c);
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Stream::addStats: Failed to build stats: %s", error.what());
+        EP_LOG_WARN("Stream::addStats: Failed to build stats: {}",
+                    error.what());
     }
 }
 

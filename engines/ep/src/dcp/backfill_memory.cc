@@ -38,14 +38,15 @@ backfill_status_t DCPBackfillMemory::run() {
     if (!evb && !stream) {
         /* We don't have to close the stream here. Task doing vbucket state
          change should handle stream closure */
-        LOG(EXTENSION_LOG_WARNING,
-            "DCPBackfillMemory::run(): "
-            "(vb:%d) running backfill ended prematurely as the associated %s "
-            "is deleted; start seqno:%" PRIi64 ", end seqno:%" PRIi64,
-            getVBucketId(),
-            evb ? "vbucket" : "stream",
-            startSeqno,
-            endSeqno);
+        EP_LOG_WARN(
+                "DCPBackfillMemory::run(): "
+                "(vb:{}) running backfill ended prematurely as the associated "
+                "{} "
+                "is deleted; start seqno:{}, end seqno:{}",
+                getVBucketId(),
+                evb ? "vbucket" : "stream",
+                startSeqno,
+                endSeqno);
         return backfill_finished;
     }
 
@@ -54,13 +55,14 @@ backfill_status_t DCPBackfillMemory::run() {
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */
-        LOG(EXTENSION_LOG_WARNING,
-            "DCPBackfillMemory::run(): "
-            "(vb:%d) running backfill ended prematurely with vb in dead state; "
-            "start seqno:%" PRIi64 ", end seqno:%" PRIi64,
-            getVBucketId(),
-            startSeqno,
-            endSeqno);
+        EP_LOG_WARN(
+                "DCPBackfillMemory::run(): "
+                "(vb:{}) running backfill ended prematurely with vb in dead "
+                "state; "
+                "start seqno:{}, end seqno:{}",
+                getVBucketId(),
+                startSeqno,
+                endSeqno);
         return backfill_finished;
     }
 
@@ -73,16 +75,16 @@ backfill_status_t DCPBackfillMemory::run() {
 
     /* Handle any failures */
     if (status != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "DCPBackfillMemory::run(): "
-            "(vb:%d) running backfill failed with error %d ; "
-            "start seqno:%" PRIi64 ", end seqno:%" PRIi64
-            ". "
-            "Hence closing the stream",
-            getVBucketId(),
-            status,
-            startSeqno,
-            endSeqno);
+        EP_LOG_WARN(
+                "DCPBackfillMemory::run(): "
+                "(vb:{}) running backfill failed with error {} ; "
+                "start seqno:{}, end seqno:{}"
+                ". "
+                "Hence closing the stream",
+                getVBucketId(),
+                status,
+                startSeqno,
+                endSeqno);
         /* Close the stream, DCP clients can retry */
         stream->setDead(END_STREAM_BACKFILL_FAIL);
         return backfill_finished;
@@ -130,13 +132,14 @@ backfill_status_t DCPBackfillMemoryBuffered::run() {
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */
-        LOG(EXTENSION_LOG_WARNING,
-            "DCPBackfillMemoryBuffered::run(): "
-            "(vb:%d) running backfill ended prematurely with vb in dead state; "
-            "start seqno:%" PRIi64 ", end seqno:%" PRIi64,
-            getVBucketId(),
-            startSeqno,
-            endSeqno);
+        EP_LOG_WARN(
+                "DCPBackfillMemoryBuffered::run(): "
+                "(vb:{}) running backfill ended prematurely with vb in dead "
+                "state; "
+                "start seqno:{}, end seqno:{}",
+                getVBucketId(),
+                startSeqno,
+                endSeqno);
         return backfill_finished;
     }
 
@@ -172,11 +175,11 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
 
     auto stream = streamPtr.lock();
     if (!stream) {
-        LOG(EXTENSION_LOG_WARNING,
-            "DCPBackfillMemoryBuffered::create(): "
-            "(vb:%d) backfill create ended prematurely as the associated "
-            "stream is deleted by the producer conn ",
-            getVBucketId());
+        EP_LOG_WARN(
+                "DCPBackfillMemoryBuffered::create(): "
+                "(vb:{}) backfill create ended prematurely as the associated "
+                "stream is deleted by the producer conn ",
+                getVBucketId());
         transitionState(BackfillState::Done);
         return backfill_finished;
     }
@@ -254,11 +257,11 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
 
     auto stream = streamPtr.lock();
     if (!stream) {
-        LOG(EXTENSION_LOG_WARNING,
-            "DCPBackfillMemoryBuffered::scan(): "
-            "(vb:%d) backfill create ended prematurely as the associated "
-            "stream is deleted by the producer conn ",
-            getVBucketId());
+        EP_LOG_WARN(
+                "DCPBackfillMemoryBuffered::scan(): "
+                "(vb:{}) backfill create ended prematurely as the associated "
+                "stream is deleted by the producer conn ",
+                getVBucketId());
         transitionState(BackfillState::Done);
         return backfill_finished;
     }
@@ -319,12 +322,12 @@ void DCPBackfillMemoryBuffered::complete(bool cancelled) {
 
     auto stream = streamPtr.lock();
     if (!stream) {
-        LOG(EXTENSION_LOG_WARNING,
-            "DCPBackfillMemoryBuffered::complete(): "
-            "(vb:%d) backfill create ended prematurely as the associated "
-            "stream is deleted by the producer conn; %s",
-            getVBucketId(),
-            cancelled ? "cancelled" : "finished");
+        EP_LOG_WARN(
+                "DCPBackfillMemoryBuffered::complete(): "
+                "(vb:{}) backfill create ended prematurely as the associated "
+                "stream is deleted by the producer conn; {}",
+                getVBucketId(),
+                cancelled ? "cancelled" : "finished");
         transitionState(BackfillState::Done);
         return;
     }
