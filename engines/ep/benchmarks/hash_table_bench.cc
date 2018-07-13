@@ -34,12 +34,16 @@ public:
              Configuration().getHtLocks()) {
     }
 
-    void SetUp(benchmark::State&) {
-        ht.resize(numItems);
+    void SetUp(benchmark::State& state) {
+        if (state.thread_index == 0) {
+            ht.resize(numItems);
+        }
     }
 
-    void TearDown(benchmark::State&) {
-        ht.clear();
+    void TearDown(benchmark::State& state) {
+        if (state.thread_index == 0) {
+            ht.clear();
+        }
     }
 
     std::vector<Item> createItems(std::string prefix) {
@@ -58,7 +62,35 @@ public:
     EPStats stats;
     HashTable ht;
     const size_t numItems = 10000;
+    /// Shared vector of items for tests which want to use the same
+    /// data across multiple threads.
+    std::vector<Item> sharedItems;
 };
+
+// Benchmark finding items in the HashTable.
+BENCHMARK_DEFINE_F(HashTableBench, Find)(benchmark::State& state) {
+    // Populate the HashTable with numItems.
+    if (state.thread_index == 0) {
+        sharedItems = createItems("benchmark_thread_" +
+                                  std::to_string(state.thread_index) + "::");
+        for (auto& item : sharedItems) {
+            ASSERT_EQ(MutationStatus::WasClean, ht.set(item));
+        }
+    }
+
+    // Benchmark - find them.
+    size_t iteration = 0;
+    while (state.KeepRunning()) {
+        auto& key = sharedItems[iteration++ % numItems].getKey();
+        {
+            auto hbl = ht.getLockedBucket(key);
+            benchmark::DoNotOptimize(ht.unlocked_find(key,
+                                                      hbl.getBucketNum(),
+                                                      WantsDeleted::No,
+                                                      TrackReference::Yes));
+        }
+    }
+}
 
 // Benchmark inserting an item into the HashTable.
 BENCHMARK_DEFINE_F(HashTableBench, Insert)(benchmark::State& state) {
@@ -126,6 +158,7 @@ BENCHMARK_DEFINE_F(HashTableBench, Delete)(benchmark::State& state) {
     }
 }
 
+BENCHMARK_REGISTER_F(HashTableBench, Find)->ThreadPerCpu();
 BENCHMARK_REGISTER_F(HashTableBench, Insert)->ThreadPerCpu();
 BENCHMARK_REGISTER_F(HashTableBench, Replace)->ThreadPerCpu();
 BENCHMARK_REGISTER_F(HashTableBench, Delete)->ThreadPerCpu();
