@@ -1535,7 +1535,7 @@ static enum test_result test_multiple_vb_compactions(ENGINE_HANDLE *h,
     }
 
     std::vector<std::string> keys;
-    for (int j = 0; j < 20000; ++j) {
+    for (int j = 0; j < 100; ++j) {
         std::stringstream ss;
         ss << "key" << j;
         std::string key(ss.str());
@@ -1600,7 +1600,7 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
     }
 
     std::vector<std::string> keys;
-    for (int j = 0; j < 10000; ++j) {
+    for (int j = 0; j < 100; ++j) {
         std::stringstream ss;
         ss << "key" << j;
         std::string key(ss.str());
