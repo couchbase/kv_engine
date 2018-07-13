@@ -398,10 +398,14 @@ public:
     }
 
     /// Set the frequency counter value to the input value
-    void setFreqCounterValue(uint16_t newValue);
+    void setFreqCounterValue(uint16_t newValue) {
+        value.unsafeGetPointer().setTag(newValue);
+    }
 
     /// Gets the frequency counter value
-    uint16_t getFreqCounterValue() const;
+    uint16_t getFreqCounterValue() const {
+        return value.get().getTag();
+    }
 
     static uint64_t nextCas(void) {
         return ProcessClock::now().time_since_epoch().count() + (++casCounter);

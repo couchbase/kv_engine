@@ -356,13 +356,3 @@ item_info to_item_info(const ItemMetaData& itemMeta,
 
     return info;
 }
-
-void Item::setFreqCounterValue(uint16_t newValue) {
-    auto taggedPtr = value.get();
-    taggedPtr.setTag(newValue);
-    value.reset(taggedPtr);
-}
-
-uint16_t Item::getFreqCounterValue() const {
-    return value.get().getTag();
-}

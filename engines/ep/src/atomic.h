@@ -316,6 +316,20 @@ public:
         return value;
     }
 
+    /**
+     * Returns a reference to the owned pointer.
+     *
+     * WARNING WARNING WARNING
+     *
+     * This function is inheritly unsafe; as it exposes the internal
+     * managed pointer. Incorrect use of this could lead to memory
+     * leaks, crashes etc.  Unless you really know what you're doing
+     * don't use this!
+     */
+    Pointer& unsafeGetPointer() {
+        return value;
+    }
+
     rcptr_type& operator=(const rcptr_type& other) {
         reset(other);
         return *this;

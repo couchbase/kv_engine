@@ -140,16 +140,6 @@ uint8_t StoredValue::getNRUValue() const {
     return getNru();
 }
 
-void StoredValue::setFreqCounterValue(uint16_t newValue) {
-    auto taggedPtr = value.get();
-    taggedPtr.setTag(newValue);
-    value.reset(taggedPtr);
-}
-
-uint16_t StoredValue::getFreqCounterValue() const {
-    return value.get().getTag();
-}
-
 void StoredValue::restoreValue(const Item& itm) {
     if (isTempInitialItem() || isTempDeletedItem()) {
         cas = itm.getCas();
