@@ -18,11 +18,15 @@
 #include "bucket_logger_engine_test.h"
 
 #include <engines/ep/src/bucket_logger.h>
+#include <engines/ep/src/logger.h>
 
 void BucketLoggerEngineTest::SetUp() {
     // Write to a different file in case other parent class fixtures are
     // running in parallel
     filename = "spdlogger_engine_test";
+
+    // Store the oldLogLevel for tearDown
+    oldLogLevel = Logger::getGlobalLogLevel();
 
     // Set up the logger with a greater file size so logs are output to a
     // single file

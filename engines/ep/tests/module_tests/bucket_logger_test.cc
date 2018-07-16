@@ -41,13 +41,7 @@ void BucketLoggerTest::TearDown() {
     // This is important as later tests will call code that logs information
     // and we do not want to create hundreds of files
     cb::logger::createBlackholeLogger();
-    get_mock_server_api()->log->set_level(EXTENSION_LOG_INFO);
-    // MB-30485:
-    // Undefined Sanitizer: bucket_logger_test.cc:44:42: runtime error: load of
-    // value 3200171710, which is not a valid value for type
-    // 'EXTENSION_LOG_LEVEL'
-    //
-    // get_mock_server_api()->log->set_level(oldLogLevel);
+    get_mock_server_api()->log->set_level(oldLogLevel);
     Logger::setLoggerAPI(get_mock_server_api()->log);
     globalBucketLogger = std::make_unique<BucketLogger>(cb::logger::get());
 }

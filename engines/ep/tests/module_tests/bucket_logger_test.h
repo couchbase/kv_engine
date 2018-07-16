@@ -35,7 +35,6 @@ protected:
     void setUpLogger(const spdlog::level::level_enum level,
                      const size_t cyclesize = 20 * 1024) override;
 
-private:
     // Old logging level so we can reset the logger in TearDown
     EXTENSION_LOG_LEVEL oldLogLevel;
 };
