@@ -399,8 +399,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
 }
 
 const DocKey Cookie::getRequestKey() const {
-    auto key = getRequest().getKey();
-    return DocKey{key.data(), key.size(), connection.getDocNamespace()};
+    return connection.makeDocKey(getRequest().getKey());
 }
 
 std::string Cookie::getPrintableRequestKey() const {

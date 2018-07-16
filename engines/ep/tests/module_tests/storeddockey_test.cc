@@ -251,14 +251,14 @@ TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
 TEST_P(StoredDocKeyTest, getObjectSize) {
     auto key1 = SerialisedDocKey::make({"key_of_15_chars", GetParam()});
 
-    // Should be 15 bytes plus 1 byte namespace and 1 byte for length.
-    EXPECT_EQ(15 + 1 + 1, key1->getObjectSize());
+    // Should be 15 bytes plus 4 byte CID and 1 byte for length.
+    EXPECT_EQ(15 + 4 + 1, key1->getObjectSize());
 }
 
+// Test params includes our labelled collections that have 'special meaning' and
+// one normal collection ID (100)
 static std::vector<DocNamespace> allDocNamespaces = {
-        {DocNamespace::DefaultCollection,
-         DocNamespace::Collections,
-         DocNamespace::System}};
+        {DocNamespace::DefaultCollection, DocNamespace::System, 100}};
 
 INSTANTIATE_TEST_CASE_P(
         DocNamespace,
@@ -266,14 +266,16 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Combine(::testing::ValuesIn(allDocNamespaces),
                            ::testing::ValuesIn(allDocNamespaces)), );
 
+// Test params includes our labelled types that have 'special meaning' and
+// one normal collection ID (100)
 INSTANTIATE_TEST_CASE_P(DocNamespace,
                         StoredDocKeyTest,
                         ::testing::Values(DocNamespace::DefaultCollection,
-                                          DocNamespace::Collections,
-                                          DocNamespace::System), );
+                                          DocNamespace::System,
+                                          100), );
 
 INSTANTIATE_TEST_CASE_P(DocNamespace,
                         SerialisedDocKeyTest,
                         ::testing::Values(DocNamespace::DefaultCollection,
-                                          DocNamespace::Collections,
-                                          DocNamespace::System), );
+                                          DocNamespace::System,
+                                          100), );

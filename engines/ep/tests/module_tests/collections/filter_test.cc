@@ -99,12 +99,9 @@ TEST_F(CollectionsFilterTest, validation1) {
                                     .add(CollectionEntry::dairy));
 
     std::vector<std::string> inputs = {
-            R"({"collections":["$default"]})",
-            R"({"collections":["vegetable"]})",
-            R"({"collections":["fruit", "meat"]})",
-            R"({"collections":[{"name":"vegetable","uid":"4"}]})",
-            R"({"collections":[{"name":"dairy","uid":"6"},{"name":"meat","uid":"2"}]})",
-            R"({"collections":[{"name":"$default","uid":"0"}]})"};
+            R"({"collections":["0"]})",
+            R"({"collections":["2"]})",
+            R"({"collections":["3", "4"]})"};
 
     for (const auto& s : inputs) {
         boost::optional<cb::const_char_buffer> json(s);
@@ -118,8 +115,7 @@ TEST_F(CollectionsFilterTest, validation1) {
 }
 
 /**
- * Test valid JSON formats to the filter, but they are contain invalid content
- * such as unknown collections
+ * Test valid JSON formats to the filter, but they contain invalid content
  */
 TEST_F(CollectionsFilterTest, validation2) {
     CollectionsManifest cm(CollectionEntry::vegetable);
@@ -128,21 +124,9 @@ TEST_F(CollectionsFilterTest, validation2) {
                                     .add(CollectionEntry::dairy));
 
     std::vector<std::string> inputs = {
-            // wrong name inputs
-            R"({"collections":["cheese"]})",
-            R"({"collections":["fruit","beer"]})",
-            R"({"collections":["$dufault"]})",
             // wrong UID inputs
-            R"({"collections":[{"name":"vegetable","uid":"2"}]})",
-            R"({"collections":[{"name":"meat","uid":"1"}]})",
-            R"({"collections":[{"name":"vegetable","uid":"1"},{"name":"dairy","uid":"9"}]})",
-            // wrong name and UID inputs
-            R"({"collections":[{"name":"vugetable","uid":"2"}]})",
-            R"({"collections":[{"name":"getable","uid":"1"}]})",
-            R"({"collections":[{"name":"vegetable","uid":"1"},{"name":"fairy","uid":"5"}]})",
-
-            // cannot mix name/uid and name
-            R"({"collections":[{"name":"vegetable","uid":"1"}, "cheese"]})",
+            R"({"collections":["8"]})", // one unknown CID
+            R"({"collections":["4","22"]})" // one known, one unknown
     };
 
     for (const auto& s : inputs) {
@@ -208,7 +192,7 @@ TEST_F(CollectionsFilterTest, filter_basic1) {
                                     .add(CollectionEntry::fruit)
                                     .add(CollectionEntry::dairy));
 
-    std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
+    std::string jsonFilter = R"({"collections":["0", "4", "3"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
     Collections::Filter f(json, &m);
 
@@ -225,20 +209,9 @@ TEST_F(CollectionsFilterTest, filter_basic1) {
     EXPECT_EQ(2, f.getFilter().size());
 
     auto list = f.getFilter();
-    EXPECT_TRUE(std::find_if(
-                        std::begin(list),
-                        std::end(list),
-                        [](const std::pair<std::string,
-                                           boost::optional<Collections::uid_t>>&
-                                   item) { return item.first == "fruit"; }) !=
-                list.end());
-    EXPECT_TRUE(std::find_if(
-                        std::begin(list),
-                        std::end(list),
-                        [](const std::pair<std::string,
-                                           boost::optional<Collections::uid_t>>&
-                                   item) { return item.first == "meat"; }) !=
-                list.end());
+    // Expect to find collections with CID 4 and 3
+    EXPECT_TRUE(list.count(4) > 0);
+    EXPECT_TRUE(list.count(3) > 0);
 }
 
 /**
@@ -292,10 +265,6 @@ TEST_F(CollectionsFilterTest, filter_legacy) {
 
     // The actual filter "list" stores nothing
     EXPECT_EQ(0, f.getFilter().size());
-
-    // Is not a name or name-uid filter
-    EXPECT_FALSE(f.isNameFilter());
-    EXPECT_FALSE(f.isNameUidFilter());
 }
 
 class CollectionsVBFilterTest : public CollectionsFilterTest {};
@@ -316,7 +285,7 @@ TEST_F(CollectionsVBFilterTest, uid_mismatch) {
     // Create the "producer" level filter so that we in theory produce at least
     // these collections
     std::string jsonFilter =
-            R"({"collections":[{"name":"dairy","uid":"6"}, {"name":"vegetable","uid":"4"}]})";
+            R"({"collections":["4", "6"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
     // At this point the requested collections are valid for m1
     Collections::Filter f(json, &m1);
@@ -347,7 +316,7 @@ TEST_F(CollectionsVBFilterTest, deleted_collection) {
 
     // Create the "producer" level filter so that we in theory produce at least
     // these collections
-    std::string jsonFilter = R"({"collections":["vegetable", "fruit"]})";
+    std::string jsonFilter = R"({"collections":["3", "4"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
     Collections::Filter f(json, &m1);
 
@@ -370,7 +339,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
                                     .add(CollectionEntry::fruit)
                                     .add(CollectionEntry::dairy));
 
-    std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
+    std::string jsonFilter = R"({"collections":["0", "2", "3"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
     Collections::Filter f(json, &m);
 
@@ -460,7 +429,7 @@ TEST_F(CollectionsVBFilterTest, no_default) {
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
-    std::string jsonFilter = R"({"collections":["fruit", "meat"]})";
+    std::string jsonFilter = R"({"collections":["2", "3"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
     Collections::Filter f(json, &m);
 
@@ -492,7 +461,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
-    std::string jsonFilter = R"({"collections":["fruit", "meat"]})";
+    std::string jsonFilter = R"({"collections":["2", "3"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     Collections::Filter f(json, &m);
@@ -501,10 +470,11 @@ TEST_F(CollectionsVBFilterTest, remove1) {
             {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
 
     // Process a deletion of fruit
-    Item deleteFruit{
-            {"$collections:fruit", DocNamespace::System}, 0, 0, nullptr, 0};
-    deleteFruit.setDeleted();
-    EXPECT_TRUE(vbf.checkAndUpdate(deleteFruit));
+    EXPECT_TRUE(
+            vbf.checkAndUpdate(*vbm.createSystemEvent(SystemEvent::Collection,
+                                                      CollectionEntry::fruit,
+                                                      true /*delete*/,
+                                                      {})));
 
     EXPECT_FALSE(vbf.checkAndUpdate(
             {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
@@ -513,12 +483,13 @@ TEST_F(CollectionsVBFilterTest, remove1) {
             {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
 
     // Process a deletion of meat
-    Item deleteMeat{
-            {"$collections:meat", DocNamespace::System}, 0, 0, nullptr, 0};
-    deleteMeat.setDeleted();
-    EXPECT_TRUE(vbf.checkAndUpdate(deleteMeat));
+    auto deleteMeat = vbm.createSystemEvent(SystemEvent::Collection,
+                                            CollectionEntry::meat,
+                                            true /*delete*/,
+                                            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
     EXPECT_TRUE(vbf.empty()); // now empty
-    EXPECT_FALSE(vbf.checkAndUpdate(deleteMeat)); // no more meat for you
+    EXPECT_FALSE(vbf.checkAndUpdate(*deleteMeat)); // no more meat for you
 }
 
 /**
@@ -534,7 +505,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
-    std::string jsonFilter = R"({"collections":["$default", "meat"]})";
+    std::string jsonFilter = R"({"collections":["0", "2"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     Collections::Filter f(json, &m);
@@ -542,24 +513,26 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
     // Process a deletion of $default
-    Item deleteDefault{
-            {"$collections:$default", DocNamespace::System}, 0, 0, nullptr, 0};
-    deleteDefault.setDeleted();
-    EXPECT_TRUE(vbf.checkAndUpdate(deleteDefault));
+    EXPECT_TRUE(
+            vbf.checkAndUpdate(*vbm.createSystemEvent(SystemEvent::Collection,
+                                                      CollectionEntry::defaultC,
+                                                      true /*delete*/,
+                                                      {})));
     EXPECT_FALSE(vbf.checkAndUpdate(
             {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
 
     EXPECT_TRUE(vbf.checkAndUpdate(
             {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
     // Process a deletion of meat
-    Item deleteMeat{
-            {"$collections:meat", DocNamespace::System}, 0, 0, nullptr, 0};
-    deleteMeat.setDeleted();
-    EXPECT_TRUE(vbf.checkAndUpdate(deleteMeat));
+    auto deleteMeat = vbm.createSystemEvent(SystemEvent::Collection,
+                                            CollectionEntry::meat,
+                                            true /*delete*/,
+                                            {});
+    EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
     EXPECT_FALSE(vbf.checkAndUpdate(
             {{"meat:apple", CollectionEntry::meat}, 0, 0, nullptr, 0}));
     EXPECT_TRUE(vbf.empty()); // now empty
-    EXPECT_FALSE(vbf.checkAndUpdate(deleteMeat)); // no more meat for you
+    EXPECT_FALSE(vbf.checkAndUpdate(*deleteMeat)); // no more meat for you
     EXPECT_FALSE(vbf.checkAndUpdate(
             {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
 }
@@ -609,24 +582,23 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     vbm.wlock().update(vb, m);
 
     // only events for default and meat are allowed
-    std::string jsonFilter = R"({"collections":["$default", "meat"]})";
+    std::string jsonFilter = R"({"collections":["0", "2"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
 
     // meat system event is allowed by the meat filter
-    EXPECT_TRUE(vbf.checkAndUpdate(
-            *SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {})));
+    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
+            SystemEvent::Collection, CollectionEntry::meat, false, {})));
 
     // $default system event is allowed by the filter
-    EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$default", 0, {})));
+    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
+            SystemEvent::Collection, CollectionEntry::defaultC, false, {})));
 
     // dairy system event is not allowed by the filter
-    EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "dairy", 0, {})));
-
+    EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
+            SystemEvent::Collection, CollectionEntry::dairy, false, {})));
 }
 
 /**

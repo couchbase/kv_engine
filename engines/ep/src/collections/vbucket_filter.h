@@ -25,7 +25,7 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
+#include <unordered_set>
 
 class SystemEventMessage;
 
@@ -87,8 +87,8 @@ public:
         }
 
         // The presence of $default is a simple check against defaultAllowed
-        if (item.getKey().getDocNamespace() ==
-                    DocNamespace::DefaultCollection &&
+        if (item.getKey().getCollectionID() ==
+                    CollectionID::DefaultCollection &&
             defaultAllowed) {
             return true;
         }
@@ -132,8 +132,7 @@ protected:
      */
     void remove(const Item& item);
 
-    using Container = ::std::unordered_map<cb::const_char_buffer,
-                                           std::unique_ptr<std::string>>;
+    using Container = ::std::unordered_set<CollectionID>;
     Container filter;
     bool defaultAllowed;
     bool passthrough;

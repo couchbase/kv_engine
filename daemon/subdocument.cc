@@ -504,9 +504,8 @@ static bool subdoc_fetch(Cookie& cookie,
                          uint64_t cas) {
     if (!ctx.fetchedItem && !ctx.needs_new_doc) {
         if (ret == ENGINE_SUCCESS) {
-            DocKey get_key(reinterpret_cast<const uint8_t*>(key),
-                           keylen,
-                           cookie.getConnection().getDocNamespace());
+            auto get_key = cookie.getConnection().makeDocKey(
+                    {reinterpret_cast<const uint8_t*>(key), keylen});
             DocStateFilter state = DocStateFilter::Alive;
             if (ctx.do_allow_deleted_docs) {
                 state = DocStateFilter::AliveOrDeleted;
@@ -1233,8 +1232,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         if (ret == ENGINE_SUCCESS) {
             context.out_doc_len = context.in_doc.len;
-            DocKey allocate_key(reinterpret_cast<const uint8_t*>(key),
-                                keylen, connection.getDocNamespace());
+            auto allocate_key = cookie.getConnection().makeDocKey(
+                    {reinterpret_cast<const uint8_t*>(key), keylen});
 
             const size_t priv_bytes =
                 cb::xattr::get_system_xattr_size(context.in_datatype,
@@ -1304,9 +1303,8 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     auto new_op = context.needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
     if (context.do_delete_doc && context.no_sys_xattrs) {
         new_cas = context.in_cas;
-        DocKey docKey(reinterpret_cast<const uint8_t*>(key),
-                      keylen,
-                      connection.getDocNamespace());
+        auto docKey = connection.makeDocKey(
+                {reinterpret_cast<const uint8_t*>(key), keylen});
         ret = bucket_remove(cookie, docKey, new_cas, vbucket, mdt);
     } else {
         ret = bucket_store(cookie,

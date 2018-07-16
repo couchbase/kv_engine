@@ -343,11 +343,16 @@ public:
         Connection::collections_support = collections_support;
     }
 
-    DocNamespace getDocNamespace() const {
+    DocKey makeDocKey(cb::const_byte_buffer key) {
         if (isCollectionsSupported()) {
-            return DocNamespace::Collections;
+            auto cid = *reinterpret_cast<const CollectionIDNetworkOrder*>(
+                    key.data());
+            return DocKey{key.data() + sizeof(CollectionID),
+                          key.size() - sizeof(CollectionID),
+                          cid.to_host()};
         } else {
-            return DocNamespace::DefaultCollection;
+            return DocKey{
+                    key.data(), key.size(), DocNamespace::DefaultCollection};
         }
     }
 
@@ -480,16 +485,11 @@ public:
      * If the connection is dcp aware and the passed length is not zero, then
      * the document belongs to a collection.
      * @param collectionLength the length sent by the producer
-     * @return the DocNamespace (DefaultCollection or Collections)
+     * @return the DocNamespace (DefaultCollection until MB-30397 is fixed)
      */
-    DocNamespace getDocNamespaceForDcpMessage(uint8_t collectionLength) const {
-        DocNamespace ns = DocNamespace::DefaultCollection;
-        if (isDcpCollectionAware() && collectionLength != 0) {
-            // Collection aware DCP sends non-zero collectionLength for
-            // documents that belong to a collection.
-            ns = DocNamespace::Collections;
-        }
-        return ns;
+    CollectionID getDocNamespaceForDcpMessage(uint8_t collectionLength) const {
+        // @todo MB-30397, Collection by-ID needs changes
+        return CollectionID::DefaultCollection;
     }
 
     bool isDcpNoValue() const {

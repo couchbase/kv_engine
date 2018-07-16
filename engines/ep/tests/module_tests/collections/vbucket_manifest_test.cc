@@ -37,44 +37,44 @@ public:
     MockVBManifest(const std::string& json) : Collections::VB::Manifest(json) {
     }
 
-    bool exists(Collections::Identifier identifier) const {
+    bool exists(CollectionID identifier) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         return exists_UNLOCKED(identifier);
     }
 
-    bool isOpen(Collections::Identifier identifier) const {
+    bool isOpen(CollectionID identifier) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier.getName());
-        return itr->second->isOpen();
+        auto itr = map.find(identifier);
+        return itr->second.isOpen();
     }
 
-    bool isExclusiveOpen(Collections::Identifier identifier) const {
+    bool isExclusiveOpen(CollectionID identifier) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier.getName());
-        return itr->second->isExclusiveOpen();
+        auto itr = map.find(identifier);
+        return itr->second.isExclusiveOpen();
     }
 
-    bool isDeleting(Collections::Identifier identifier) const {
+    bool isDeleting(CollectionID identifier) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier.getName());
-        return itr->second->isDeleting();
+        auto itr = map.find(identifier);
+        return itr->second.isDeleting();
     }
 
-    bool isExclusiveDeleting(Collections::Identifier identifier) const {
+    bool isExclusiveDeleting(CollectionID identifier) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier.getName());
-        return itr->second->isExclusiveDeleting();
+        auto itr = map.find(identifier);
+        return itr->second.isExclusiveDeleting();
     }
 
-    bool isOpenAndDeleting(Collections::Identifier identifier) const {
+    bool isOpenAndDeleting(CollectionID identifier) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
         expect_true(exists_UNLOCKED(identifier));
-        auto itr = map.find(identifier.getName());
-        return itr->second->isOpenAndDeleting();
+        auto itr = map.find(identifier);
+        return itr->second.isOpenAndDeleting();
     }
 
     size_t size() const {
@@ -82,14 +82,14 @@ public:
         return map.size();
     }
 
-    bool compareEntry(const Collections::VB::ManifestEntry& entry) const {
+    bool compareEntry(CollectionID id,
+                      const Collections::VB::ManifestEntry& entry) const {
         std::lock_guard<cb::ReaderLock> readLock(rwlock.reader());
-        if (exists_UNLOCKED(entry.getIdentifier())) {
-            auto itr = map.find(entry.getCollectionName());
-            const auto& myEntry = *itr->second;
+        if (exists_UNLOCKED(id)) {
+            auto itr = map.find(id);
+            const auto& myEntry = itr->second;
             return myEntry.getStartSeqno() == entry.getStartSeqno() &&
-                   myEntry.getEndSeqno() == entry.getEndSeqno() &&
-                   myEntry.getUid() == entry.getUid();
+                   myEntry.getEndSeqno() == entry.getEndSeqno();
         }
         return false;
     }
@@ -101,7 +101,7 @@ public:
         }
         // Check all collections match
         for (const auto& e : map) {
-            if (!rhs.compareEntry(*e.second)) {
+            if (!rhs.compareEntry(e.first, e.second)) {
                 return false;
             }
         }
@@ -142,9 +142,9 @@ public:
     }
 
 protected:
-    bool exists_UNLOCKED(Collections::Identifier identifier) const {
-        auto itr = map.find(identifier.getName());
-        return itr != map.end() && itr->second->getUid() == identifier.getUid();
+    bool exists_UNLOCKED(CollectionID identifier) const {
+        auto itr = map.find(identifier);
+        return itr != map.end();
     }
 
     void expect_true(bool in) const {
@@ -203,7 +203,7 @@ public:
               /*newSeqnoCb*/ nullptr,
               config,
               VALUE_ONLY),
-          lastCompleteDeletionArgs({}, 0) {
+          lastCompleteDeletionArgs(0) {
     }
 
     ::testing::AssertionResult update(const std::string& json) {
@@ -241,10 +241,9 @@ public:
         return checkJson(*manifest);
     }
 
-    ::testing::AssertionResult completeDeletion(
-            Collections::Identifier identifier) {
+    ::testing::AssertionResult completeDeletion(CollectionID identifier) {
         try {
-            active.wlock().completeDeletion(vbA, identifier.getName());
+            active.wlock().completeDeletion(vbA, identifier);
             lastCompleteDeletionArgs = identifier;
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
@@ -296,25 +295,25 @@ public:
         return ::testing::AssertionSuccess();
     }
 
-    bool isOpen(Collections::Identifier identifier) {
+    bool isOpen(CollectionID identifier) {
         return active.isOpen(identifier) && replica.isOpen(identifier);
     }
 
-    bool isDeleting(Collections::Identifier identifier) {
+    bool isDeleting(CollectionID identifier) {
         return active.isDeleting(identifier) && replica.isDeleting(identifier);
     }
 
-    bool isExclusiveOpen(Collections::Identifier identifier) {
+    bool isExclusiveOpen(CollectionID identifier) {
         return active.isExclusiveOpen(identifier) &&
                replica.isExclusiveOpen(identifier);
     }
 
-    bool isExclusiveDeleting(Collections::Identifier identifier) {
+    bool isExclusiveDeleting(CollectionID identifier) {
         return active.isExclusiveDeleting(identifier) &&
                replica.isExclusiveDeleting(identifier);
     }
 
-    bool isOpenAndDeleting(Collections::Identifier identifier) {
+    bool isOpenAndDeleting(CollectionID identifier) {
         return active.isOpenAndDeleting(identifier) &&
                replica.isOpenAndDeleting(identifier);
     }
@@ -427,17 +426,15 @@ public:
                 case SystemEvent::Collection: {
                     if (qi->isDeleted()) {
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaBeginDelete(
-                                vbR,
-                                dcpData.manifestUid,
-                                {dcpData.id.getName(), dcpData.id.getUid()},
-                                qi->getBySeqno());
+                        replica.wlock().replicaBeginDelete(vbR,
+                                                           dcpData.manifestUid,
+                                                           dcpData.cid,
+                                                           qi->getBySeqno());
                     } else {
-                        replica.wlock().replicaAdd(
-                                vbR,
-                                dcpData.manifestUid,
-                                {dcpData.id.getName(), dcpData.id.getUid()},
-                                qi->getBySeqno());
+                        replica.wlock().replicaAdd(vbR,
+                                                   dcpData.manifestUid,
+                                                   dcpData.cid,
+                                                   qi->getBySeqno());
                     }
                     break;
                 }
@@ -451,8 +448,8 @@ public:
                     // e.g. Delete hard, the serialised manifest doesn't have
                     // the collection:rev we pass through, hence why we cache
                     // the collection:rev data in lastCompleteDeletionArgs
-                    replica.wlock().completeDeletion(
-                            vbR, lastCompleteDeletionArgs.getName());
+                    replica.wlock().completeDeletion(vbR,
+                                                     lastCompleteDeletionArgs);
                     break;
                 }
             }
@@ -487,7 +484,7 @@ public:
     EPVBucket vbA;
     EPVBucket vbR;
     int64_t lastSeqno;
-    Collections::Identifier lastCompleteDeletionArgs;
+    CollectionID lastCompleteDeletionArgs;
 
     static const int64_t snapEnd{200};
 };
@@ -521,9 +518,9 @@ TEST_F(VBucketManifestTest, add_delete_in_one_update) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)
                                         .add(CollectionEntry::vegetable2)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:cucumber", CollectionEntry::vegetable}));
+            {"vegetable:cucumber", CollectionEntry::vegetable2}));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
-    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
 }
 
 TEST_F(VBucketManifestTest, updates) {
@@ -632,15 +629,16 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
     auto oldSeqno = seqno;
     auto newSeqno = manifest.getLastSeqno();
-    EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isOpenAndDeleting(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.checkSize(3));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            {"vegetable:carrot", CollectionEntry::vegetable2}));
 
     // Now we expect older vegetables to be deleting and newer not to be.
     EXPECT_FALSE(manifest.isLogicallyDeleted(
-            {"vegetable:carrot", CollectionEntry::vegetable}, newSeqno));
+            {"vegetable:carrot", CollectionEntry::vegetable2}, newSeqno));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
             {"vegetable:carrot", CollectionEntry::vegetable}, oldSeqno));
 }
@@ -685,11 +683,12 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
 
     // add vegetable:2
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
-    EXPECT_TRUE(manifest.checkSize(2));
-    EXPECT_TRUE(manifest.isOpenAndDeleting(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.checkSize(3));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            {"vegetable:carrot", CollectionEntry::vegetable2}));
 
     // finally remove vegetable:1
     EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
@@ -699,7 +698,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(manifest.isExclusiveOpen(CollectionEntry::vegetable2));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            {"vegetable:carrot", CollectionEntry::vegetable2}));
 }
 
 TEST_F(VBucketManifestTest, invalidDeletes) {
@@ -708,18 +707,11 @@ TEST_F(VBucketManifestTest, invalidDeletes) {
     // Delete vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
 
-    // Invalid.
-    EXPECT_FALSE(manifest.completeDeletion({"unknown", 1}));
-    EXPECT_FALSE(manifest.completeDeletion({"$default", 1}));
+    // Invalid CID
+    EXPECT_FALSE(manifest.completeDeletion(100));
+    EXPECT_FALSE(manifest.completeDeletion(500));
 
     EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
-
-    // Delete $default
-    EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
-
-    // Add $default
-    EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::defaultC)));
-    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::defaultC));
 }
 
 // Check that a deleting collection doesn't keep adding system events
@@ -814,7 +806,7 @@ TEST_F(VBucketManifestTestEndSeqno, singleDelete) {
             {"vegetable:sprout", DocNamespace::DefaultCollection}, 1));
     EXPECT_FALSE(manifest.isLogicallyDeleted(
             {"vegetable:sprout", DocNamespace::DefaultCollection}, 2));
-    EXPECT_TRUE(manifest.completeDeletion({"$default", 0}));
+    EXPECT_TRUE(manifest.completeDeletion(CollectionID::DefaultCollection));
     EXPECT_TRUE(
             manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
@@ -865,7 +857,8 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
         auto rh = manifest.active.lock(
                 {"vegetable:v1", CollectionEntry::vegetable});
         EXPECT_TRUE(rh.valid());
-        EXPECT_EQ(CollectionEntry::vegetable, rh.getKey().getDocNamespace());
+        EXPECT_EQ(CollectionEntry::vegetable.getId(),
+                  rh.getKey().getDocNamespace());
         EXPECT_STREQ("vegetable:v1",
                      reinterpret_cast<const char*>(rh.getKey().data()));
     }
@@ -875,7 +868,8 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
         EXPECT_FALSE(rh.valid());
 
         // cached the key
-        EXPECT_EQ(CollectionEntry::fruit, rh.getKey().getDocNamespace());
+        EXPECT_EQ(CollectionEntry::fruit.getId(),
+                  rh.getKey().getDocNamespace());
         EXPECT_STREQ("fruit:v1",
                      reinterpret_cast<const char*>(rh.getKey().data()));
     }
@@ -886,14 +880,16 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
                 {"vegetable:v1", CollectionEntry::vegetable});
         EXPECT_FALSE(rh.valid());
 
-        EXPECT_EQ(CollectionEntry::vegetable, rh.getKey().getDocNamespace());
+        EXPECT_EQ(CollectionEntry::vegetable.getId(),
+                  rh.getKey().getDocNamespace());
         EXPECT_STREQ("vegetable:v1",
                      reinterpret_cast<const char*>(rh.getKey().data()));
     }
     {
         auto rh = manifest.active.lock({"fruit:v1", CollectionEntry::fruit});
         EXPECT_FALSE(rh.valid());
-        EXPECT_EQ(CollectionEntry::fruit, rh.getKey().getDocNamespace());
+        EXPECT_EQ(CollectionEntry::fruit.getId(),
+                  rh.getKey().getDocNamespace());
         EXPECT_STREQ("fruit:v1",
                      reinterpret_cast<const char*>(rh.getKey().data()));
     }

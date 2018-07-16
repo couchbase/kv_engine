@@ -55,7 +55,8 @@ CacheCallback::CacheCallback(EventuallyPersistentEngine& e,
 boost::optional<GetValue> CacheCallback::get(VBucket& vb,
                                              CacheLookup& lookup,
                                              ActiveStream& stream) {
-    auto collectionsRHandle = vb.lockCollections(lookup.getKey());
+    auto collectionsRHandle =
+            vb.lockCollections(lookup.getKey(), true /*system allowed*/);
     // Check with collections if this key should be loaded, status EEXISTS is
     // the only way to inform the scan to not continue with this key.
     if (!collectionsRHandle.valid() ||

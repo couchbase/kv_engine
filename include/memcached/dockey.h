@@ -18,8 +18,13 @@
 
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 
 #include <platform/sized_buffer.h>
+#include <platform/socket.h>
+
+class CollectionIDNetworkOrder;
 
 /**
  * DocNamespace "Document Namespace"
@@ -44,11 +49,74 @@
  * DocNamespace values are persisted ot the database and thus are fully
  * described now ready for future use.
  */
-enum class DocNamespace : uint8_t {
-    DefaultCollection = 0,
-    Collections = 1,
-    System = 2
+class CollectionID {
+public:
+    /// To allow KV to move legacy data into a collection, reserve 0
+    static constexpr uint32_t DefaultCollection = 0;
+
+    /// To allow KV to weave system things into the users namespace, reserve 1
+    static constexpr uint32_t System = 1;
+
+    CollectionID() : value(DefaultCollection) {
+    }
+
+    CollectionID(uint32_t value) : value(value) {
+    }
+
+    operator uint32_t() const {
+        return value;
+    }
+
+    bool isDefaultCollection() const {
+        return value == DefaultCollection;
+    }
+
+    /// Get network byte order of the value
+    CollectionIDNetworkOrder to_network() const;
+
+    std::string to_string() const {
+        std::stringstream sstream;
+        sstream << "0x" << std::hex << value;
+        return sstream.str();
+    }
+
+private:
+    uint32_t value;
 };
+
+/**
+ * NetworkByte order version of CollectionID - limited interface for small areas
+ * of code which deal with a network byte order CID
+ */
+class CollectionIDNetworkOrder {
+public:
+    CollectionIDNetworkOrder(CollectionID v) : value(htonl(uint32_t(v))) {
+    }
+
+    CollectionID to_host() const {
+        return CollectionID(ntohl(value));
+    }
+
+private:
+    uint32_t value;
+};
+
+inline CollectionIDNetworkOrder CollectionID::to_network() const {
+    return {*this};
+}
+
+namespace std {
+template <>
+struct hash<CollectionID> {
+    std::size_t operator()(const CollectionID& k) const {
+        return std::hash<uint32_t>()(k);
+    }
+};
+
+} // namespace std
+
+/// To allow manageable patches during updates to Collections, allow both names
+using DocNamespace = CollectionID;
 
 template <class T>
 struct DocKeyInterface {
@@ -58,6 +126,10 @@ struct DocKeyInterface {
 
     const uint8_t* data() const {
         return static_cast<const T*>(this)->data();
+    }
+
+    CollectionID getCollectionID() const {
+        return static_cast<const T*>(this)->getCollectionID();
     }
 
     DocNamespace getDocNamespace() const {
@@ -72,7 +144,7 @@ protected:
     uint32_t hash(size_t bytes) const {
         uint32_t h = 5381;
 
-        h = ((h << 5) + h) ^ uint32_t(getDocNamespace());
+        h = ((h << 5) + h) ^ getCollectionID();
 
         for (size_t i = 0; i < bytes; i++) {
             h = ((h << 5) + h) ^ uint32_t(data()[i]);
@@ -91,22 +163,22 @@ struct DocKey : DocKeyInterface<DocKey> {
     /**
      * Standard constructor - creates a view onto key/nkey
      */
-    DocKey(const uint8_t* key, size_t nkey, DocNamespace ins)
-        : buffer(key, nkey), doc_namespace(ins) {
+    DocKey(const uint8_t* key, size_t nkey, CollectionID ins)
+        : buffer(key, nkey), collectionID(ins) {
     }
 
     /**
      * C-string constructor - only for use with null terminated strings and
      * creates a view onto key/strlen(key).
      */
-    DocKey(const char* key, DocNamespace ins)
+    DocKey(const char* key, CollectionID ins)
         : DocKey(reinterpret_cast<const uint8_t*>(key), std::strlen(key), ins) {
     }
 
     /**
      * const_char_buffer constructor, views the data()/size() of the key
      */
-    DocKey(const cb::const_char_buffer& key, DocNamespace ins)
+    DocKey(const cb::const_char_buffer& key, CollectionID ins)
         : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
                  key.size(),
                  ins) {
@@ -116,13 +188,13 @@ struct DocKey : DocKeyInterface<DocKey> {
      * Disallow rvalue strings as we would view something which would soon be
      * out of scope.
      */
-    DocKey(const std::string&& key, DocNamespace ins) = delete;
+    DocKey(const std::string&& key, CollectionID ins) = delete;
 
     template <class T>
     DocKey(const DocKeyInterface<T>& key) {
         buffer.len = key.size();
         buffer.buf = key.data();
-        doc_namespace = key.getDocNamespace();
+        collectionID = key.getCollectionID();
     }
 
     const uint8_t* data() const {
@@ -134,10 +206,14 @@ struct DocKey : DocKeyInterface<DocKey> {
     }
 
     DocNamespace getDocNamespace() const {
-        return doc_namespace;
+        return collectionID;
+    }
+
+    CollectionID getCollectionID() const {
+        return collectionID;
     }
 
 private:
     cb::const_byte_buffer buffer;
-    DocNamespace doc_namespace;
+    CollectionID collectionID;
 };

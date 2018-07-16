@@ -79,3 +79,8 @@ void CollectionsManifest::updateUid() {
 std::string CollectionsManifest::toJson() const {
     return json.dump();
 }
+
+void CollectionsManifest::setUid(const std::string& uid) {
+    this->uid = strtoull(uid.c_str(), nullptr, 16);
+    updateUid();
+}

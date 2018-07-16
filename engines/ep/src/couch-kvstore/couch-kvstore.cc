@@ -154,13 +154,14 @@ static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
 
 static DocKey makeDocKey(const sized_buf buf, bool restoreNamespace) {
     if (restoreNamespace) {
-        return DocKey(reinterpret_cast<const uint8_t*>(&buf.buf[1]),
-                      buf.size - 1,
-                      DocNamespace(buf.buf[0]));
+        return DocKey(reinterpret_cast<const uint8_t*>(
+                              &buf.buf[sizeof(CollectionID)]),
+                      buf.size - sizeof(CollectionID),
+                      *reinterpret_cast<CollectionID*>(buf.buf));
     } else {
         return DocKey(reinterpret_cast<const uint8_t*>(buf.buf),
                       buf.size,
-                      DocNamespace::DefaultCollection);
+                      CollectionID::DefaultCollection);
     }
 }
 

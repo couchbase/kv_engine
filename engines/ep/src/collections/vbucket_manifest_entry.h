@@ -31,74 +31,16 @@ namespace VB {
 /**
  * The Collections::VB::ManifestEntry stores the data a collection
  * needs from a vbucket's perspective.
- * - The Collections::Manifest revision
+ * - The CollectionID
  * - The seqno lifespace of the collection
- *
- * Additionally this object is designed for use by Collections::VB::Manifest,
- * this is why the object stores a pointer to a std::string collection name,
- * rather than including the entire object std::string.
- * Thus a std::map can map from cb::const_char_buffer, ManifestEntry, where
- * the buffer refers to the key we own via the pointer.
  */
 class ManifestEntry {
 public:
-    ManifestEntry(Identifier identifier, int64_t _startSeqno, int64_t _endSeqno)
-        : collectionName(std::make_unique<std::string>(
-                  identifier.getName().data(), identifier.getName().size())),
-          uid(identifier.getUid()),
-          startSeqno(-1),
-          endSeqno(-1) {
+    ManifestEntry(int64_t _startSeqno, int64_t _endSeqno)
+        : startSeqno(-1), endSeqno(-1) {
         // Setters validate the start/end range is valid
         setStartSeqno(_startSeqno);
         setEndSeqno(_endSeqno);
-    }
-
-    ManifestEntry(const ManifestEntry& rhs)
-        : collectionName(
-                  std::make_unique<std::string>(rhs.collectionName->c_str())),
-          uid(rhs.uid),
-          startSeqno(rhs.startSeqno),
-          endSeqno(rhs.endSeqno) {
-    }
-
-    ManifestEntry(ManifestEntry&& rhs)
-        : collectionName(std::move(rhs.collectionName)),
-          uid(rhs.uid),
-          startSeqno(rhs.startSeqno),
-          endSeqno(rhs.endSeqno) {
-    }
-
-    ManifestEntry& operator=(ManifestEntry&& rhs) {
-        std::swap(collectionName, rhs.collectionName);
-        uid = rhs.uid;
-        startSeqno = rhs.startSeqno;
-        endSeqno = rhs.endSeqno;
-        return *this;
-    }
-
-    ManifestEntry& operator=(const ManifestEntry& rhs) {
-        collectionName.reset(new std::string(rhs.collectionName->c_str()));
-        uid = rhs.uid;
-        startSeqno = rhs.startSeqno;
-        endSeqno = rhs.endSeqno;
-        return *this;
-    }
-
-    const std::string& getCollectionName() const {
-        return *collectionName;
-    }
-
-    /**
-     * @return const_char_buffer initialised with address/size of the internal
-     *         collection-name string data.
-     */
-    cb::const_char_buffer getCharBuffer() const {
-        return cb::const_char_buffer(collectionName->data(),
-                                     collectionName->size());
-    }
-
-    Identifier getIdentifier() const {
-        return {getCharBuffer(), getUid()};
     }
 
     int64_t getStartSeqno() const {
@@ -136,14 +78,6 @@ public:
 
     void resetEndSeqno() {
         endSeqno = StoredValue::state_collection_open;
-    }
-
-    uid_t getUid() const {
-        return uid;
-    }
-
-    void setUid(uid_t uid) {
-        this->uid = uid;
     }
 
     /**
@@ -225,17 +159,6 @@ private:
                                      const std::string& error) const {
         throw exception(getExceptionString(thrower, error));
     }
-
-    /**
-     * An entry has a name that is heap allocated... this is due to the
-     * way ManifestEntry objects are stored in the VB::Manifest
-     */
-    std::unique_ptr<std::string> collectionName;
-
-    /**
-     * The uid of the collection
-     */
-    uid_t uid;
 
     /**
      * Collection life-time is recorded as the seqno the collection was added

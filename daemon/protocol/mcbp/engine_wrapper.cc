@@ -30,8 +30,9 @@ ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
     const void* const_ptr = static_cast<const void*>(cookie.getPacket().data());
     auto* ptr = const_cast<void*>(const_ptr);
     auto* req = reinterpret_cast<protocol_binary_request_header*>(ptr);
+    // @todo: MB-30402 collections broken if enabled
     auto ret = c.getBucketEngine()->unknown_command(
-            &cookie, req, response, c.getDocNamespace());
+            &cookie, req, response, DocNamespace::DefaultCollection);
     if (ret == ENGINE_DISCONNECT) {
         const auto request = cookie.getRequest();
         LOG_WARNING("{}: {} {} return ENGINE_DISCONNECT",

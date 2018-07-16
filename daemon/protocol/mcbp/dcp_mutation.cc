@@ -37,17 +37,9 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
     auto body_offset = protocol_binary_request_dcp_mutation::getHeaderLength(
             connection.isDcpCollectionAware());
 
-    // Namespace defaults to DefaultCollection for legacy DCP
-    DocNamespace ns = DocNamespace::DefaultCollection;
-    if (connection.isDcpCollectionAware() &&
-        req->message.body.collection_len != 0) {
-        // Collection aware DCP sends non-zero collection_len for documents that
-        // are in collections.
-        ns = DocNamespace::Collections;
-    }
-
     const uint16_t nkey = ntohs(req->message.header.request.keylen);
-    const DocKey key{req->bytes + body_offset, nkey, ns};
+    // @todo: MB-30397 collections broken if enabled
+    const auto key = connection.makeDocKey({req->bytes + body_offset, nkey});
 
     const auto opaque = req->message.header.request.opaque;
     const auto datatype = req->message.header.request.datatype;

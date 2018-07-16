@@ -23,10 +23,12 @@
 
 namespace Collections {
 
-uid_t makeUid(const char* uid) {
-    if (std::strlen(uid) == 0 || std::strlen(uid) > 16) {
+uid_t makeUid(const char* uid, size_t len) {
+    if (std::strlen(uid) == 0 || std::strlen(uid) > len) {
         throw std::invalid_argument(
-                "Collections::convertUid uid must be > 0 and <= 16 characters: "
+                "Collections::makeUid uid must be > 0 and <=" +
+                std::to_string(len) +
+                " characters: "
                 "strlen(uid):" +
                 std::to_string(std::strlen(uid)));
     }
@@ -36,23 +38,13 @@ uid_t makeUid(const char* uid) {
         if (uid[ii] == 0) {
             break;
         } else if (!std::isxdigit(uid[ii])) {
-            throw std::invalid_argument("Collections::convertUid: uid:" +
+            throw std::invalid_argument("Collections::makeUid: uid:" +
                                         std::string(uid) + ", index:" +
                                         std::to_string(ii) + " fails isxdigit");
         }
     }
 
-    return std::strtoull(uid, nullptr, 16);
-}
-
-std::string to_string(const Identifier& identifier) {
-    return cb::to_string(identifier.getName()) + ":" +
-           std::to_string(identifier.getUid());
-}
-
-std::ostream& operator<<(std::ostream& os, const Identifier& identifier) {
-    os << to_string(identifier);
-    return os;
+    return std::strtoul(uid, nullptr, 16);
 }
 
 } // end namespace Collections

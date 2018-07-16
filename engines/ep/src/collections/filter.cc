@@ -16,7 +16,6 @@
  */
 
 #include "collections/filter.h"
-#include "collections/collections_dockey.h"
 #include "collections/collections_types.h"
 
 #include <JSON_checker.h>
@@ -44,10 +43,7 @@
  */
 Collections::Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
                             const Manifest* manifest)
-    : defaultAllowed(false),
-      passthrough(false),
-      systemEventsAllowed(true),
-      type(Type::NoFilter) {
+    : defaultAllowed(false), passthrough(false), systemEventsAllowed(true) {
     // If the jsonFilter is not initialised we are building a filter for a
     // legacy DCP stream, one which could only ever support $default
     if (!jsonFilter.is_initialized()) {
@@ -104,7 +100,6 @@ Collections::Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
                                "Filter::Filter no manifest");
     }
 
-    bool nameFound = false, uidFound = false;
     try {
         auto jsonCollections = parsed.at("collections");
         if (!jsonCollections.is_array()) {
@@ -114,18 +109,13 @@ Collections::Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
                             cb::to_string(json));
         } else {
             for (const auto& entry : jsonCollections) {
-                if (entry.is_string()) {
-                    // Can throw..
-                    addCollection(entry.get<std::string>(), *manifest);
-                    nameFound = true;
-                } else if (entry.is_object()) {
-                    addCollection(entry, *manifest);
-                    uidFound = true;
+                if (!entry.is_string()) {
+                    throw cb::engine_error(
+                            cb::engine_errc::invalid_arguments,
+                            "Filter::Filter found invalid entry jsonFilter:" +
+                                    cb::to_string(json));
                 } else {
-                    throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                                           "Filter::Filter found invalid array "
-                                           "entry jsonFilter:" +
-                                                   cb::to_string(json));
+                    addCollection(entry, *manifest);
                 }
             }
         }
@@ -135,70 +125,32 @@ Collections::Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
                 "Filter::Filter label 'collections' is not found, jsonFilter:" +
                         cb::to_string(json) + " json::exception:" + e.what());
     }
-
-    // Validate that the input hasn't mixed and matched name/uid vs name
-    // require one or the other.
-    if (uidFound && nameFound) {
-        throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Filter::Filter mixed name/uid not allowed jsonFilter:" +
-                        cb::to_string(json));
-    }
-    type = uidFound ? Type::NameUid : Type::Name;
-}
-
-void Collections::Filter::addCollection(const std::string& collection,
-                                        const Manifest& manifest) {
-    // Is this the default collection?
-    if (DefaultCollectionIdentifier == collection.c_str()) {
-        if (manifest.doesDefaultCollectionExist()) {
-            defaultAllowed = true;
-        } else {
-            throw cb::engine_error(cb::engine_errc::unknown_collection,
-                                   "Filter::addCollection no $default");
-        }
-    } else {
-        auto itr = manifest.find(collection.c_str());
-        if (itr != manifest.end()) {
-            filter.push_back({collection, {}});
-        } else {
-            throw cb::engine_error(
-                    cb::engine_errc::unknown_collection,
-                    "Filter::addCollection unknown collection:" + collection);
-        }
-    }
 }
 
 void Collections::Filter::addCollection(const nlohmann::json& object,
                                         const Manifest& manifest) {
-    try {
-        auto name = object.at("name");
-        auto uid = object.at("uid");
-
-        if (!name.is_string() || !uid.is_string()) {
-            throw cb::engine_error(
-                    cb::engine_errc::invalid_arguments,
-                    "Filter::Filter invalid collection entry:" + object.dump());
+    // Require that the requested collection exists in the manifest.
+    // DCP cannot filter an unknown collection.
+    auto uid = makeCollectionID(object.get<std::string>());
+    bool collectionFound = false;
+    for (const auto& entry : manifest) {
+        if (entry.first == uid) {
+            collectionFound = true;
+            break;
         }
+    }
 
-        auto entry = manifest.find(
-                Identifier{{name.get<std::string>()},
-                           makeUid(uid.get<std::string>().c_str())});
-
-        if (entry == manifest.end()) {
-            throw cb::engine_error(
-                    cb::engine_errc::unknown_collection,
-                    "Filter::Filter: cannot add unknown collection:" +
-                            object.dump());
-        } else {
-            filter.push_back(
-                    {cb::to_string(entry->getName()), {entry->getUid()}});
-        }
-    } catch (const nlohmann::json::exception& e) {
+    if (!collectionFound) {
         throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Filter::Filter invalid collection entry no name/uid entry:" +
-                        object.dump() + " json::exception:" + e.what());
+                cb::engine_errc::unknown_collection,
+                "Filter::Filter: cannot add unknown collection:" +
+                        std::to_string(uid));
+    } else {
+        if (uid.isDefaultCollection()) {
+            defaultAllowed = true;
+        } else {
+            filter.insert(uid);
+        }
     }
 }
 
@@ -212,24 +164,10 @@ std::ostream& Collections::operator<<(std::ostream& os,
        << ": passthrough:" << filter.passthrough
        << ", defaultAllowed:" << filter.defaultAllowed
        << ", systemEventsAllowed:" << filter.systemEventsAllowed;
-    switch (filter.getType()) {
-    case Collections::Filter::Type::NoFilter:
-        os << ", type:no-filter";
-        break;
-    case Collections::Filter::Type::Name:
-        os << ", type:name";
-        break;
-    case Collections::Filter::Type::NameUid:
-        os << ", type:name-uid";
-        break;
-    }
     os << ", filter.size:" << filter.filter.size() << std::endl;
+    os << ", filter.entries:";
     for (const auto& entry : filter.filter) {
-        os << entry.first;
-        if (entry.second.is_initialized()) {
-            os << ":" << entry.second.get();
-        }
-        os << std::endl;
+        os << entry << ", ";
     }
     return os;
 }

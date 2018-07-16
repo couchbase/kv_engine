@@ -83,7 +83,7 @@ TYPED_TEST(ValueTest, getObjectSize) {
     // for 'key', 1 byte for length of key and 1 byte for StoredDocKey
     // namespace.
     EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
-                      /*namespace*/ 1,
+                      /*collection-ID*/ 4,
               this->sv->getObjectSize());
 }
 
@@ -156,7 +156,7 @@ TYPED_TEST(ValueTest, StoredValueUncompressibleReallocateGivesSameSize) {
 TYPED_TEST(ValueTest, metaDataSize) {
     // Check metadata size reports correctly.
     EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
-                      /*namespace*/ 1,
+                      /*collection-ID*/ 4,
               this->sv->metaDataSize());
 }
 
@@ -188,7 +188,7 @@ TYPED_TEST(ValueTest, valuelenDeletedWithoutValue) {
 TYPED_TEST(ValueTest, size) {
     // Check size reports correctly.
     EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
-              /*namespace*/ 1 + /*valuelen*/ 5,
+                      /*collection-ID*/ 4 + /*valuelen*/ 5,
               this->sv->size());
 }
 
@@ -326,7 +326,7 @@ TEST(StoredValueTest, expectedSize) {
     EXPECT_EQ(56, sizeof(StoredValue))
             << "Unexpected change in StoredValue fixed size";
     auto key = makeStoredDocKey("k");
-    EXPECT_EQ(59, StoredValue::getRequiredStorage(key))
+    EXPECT_EQ(62, StoredValue::getRequiredStorage(key))
             << "Unexpected change in StoredValue storage size for key: " << key;
 }
 
@@ -340,7 +340,7 @@ TEST_F(OrderedStoredValueTest, expectedSize) {
             << "Unexpected change in OrderedStoredValue fixed size";
 
     auto key = makeStoredDocKey("k");
-    EXPECT_EQ(75, OrderedStoredValue::getRequiredStorage(key))
+    EXPECT_EQ(78, OrderedStoredValue::getRequiredStorage(key))
             << "Unexpected change in OrderedStoredValue storage size for key: "
             << key;
 }

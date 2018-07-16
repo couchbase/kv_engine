@@ -132,12 +132,10 @@ TEST_F(CollectionsTest, collections_basic) {
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 }
 
-// Test demonstrates issue logged as MB_25344, when we delete a collection
-// and then happen to perform a mutation against a new rev of the collection
-// we may encounter the key which is pending deletion and then fail when we
-// shouldn't. In this test the final add should logically work, but fails as the
-// old key is found.
-TEST_F(CollectionsTest, MB_25344) {
+// BY-ID update: This test was created for MB-25344 and is no longer relevant as
+// we cannot 'hit' a logically deleted key from the front-end. This test has
+// been adjusted to still provide some value.
+TEST_F(CollectionsTest, unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
@@ -161,20 +159,20 @@ TEST_F(CollectionsTest, MB_25344) {
     // Re-add the dairy collection
     vb->updateFromManifest({cm.add(CollectionEntry::dairy2)});
 
-    // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(vbid, 1);
+    // Trigger a flush to disk. Flushes the dairy2 create event, dairy delete.
+    flush_vbucket_to_disk(vbid, 2);
 
-    // Expect that we can add item1 again, even though it is still present
+    // Expect that we cannot add item1 again, item1 has no collection
     item1.setCas(0);
-    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, store->add(item1, cookie));
 
-    // Replace should fail
-    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item2, cookie));
+    // Replace should fail, item2 has no collection
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, store->replace(item2, cookie));
 
-    // Delete should fail
+    // Delete should fail, item2 has no collection
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->deleteItem(item2.getKey(),
                                 cas,
                                 vbid,
@@ -182,43 +180,41 @@ TEST_F(CollectionsTest, MB_25344) {
                                 nullptr,
                                 mutation_descr));
 
-    // Unlock should fail enoent rather than an unlock error
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    // Unlock should fail 'unknown-col' rather than an unlock error
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->unlockKey(item2.getKey(), vbid, 0, ep_current_time()));
 
     EXPECT_EQ("collection_unknown",
               store->validateKey(
                       {"meat:sausage", CollectionEntry::meat}, vbid, item2));
-    EXPECT_EQ("item_deleted", store->validateKey(item2.getKey(), vbid, item2));
+    EXPECT_EQ("collection_unknown",
+              store->validateKey(item2.getKey(), vbid, item2));
 
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->statsVKey(
                       {"meat:sausage", CollectionEntry::meat}, vbid, cookie));
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->statsVKey(item2.getKey(), vbid, cookie));
 
     // GetKeyStats
     struct key_stats ks;
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->getKeyStats(
                       item2.getKey(), vbid, cookie, ks, WantsDeleted::No));
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->getKeyStats(
                       item2.getKey(), vbid, cookie, ks, WantsDeleted::Yes));
-    EXPECT_TRUE(ks.logically_deleted);
 
     uint32_t deleted = 0;
     uint8_t dtype = 0;
     ItemMetaData meta;
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->getMetaData(
                       item2.getKey(), vbid, nullptr, meta, deleted, dtype));
 
-    // Prior to making deleteWithMeta isLogicallyDeleted aware, this would be
-    // success.
     cas = 0;
     meta.cas = 1;
-    EXPECT_EQ(ENGINE_KEY_ENOENT,
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->deleteWithMeta(item2.getKey(),
                                     cas,
                                     nullptr,
@@ -234,9 +230,7 @@ TEST_F(CollectionsTest, MB_25344) {
                                     nullptr,
                                     false));
 
-    // Prior to making setWithMeta isLogicallyDeleted aware, this would conflict
-    // with the dead key - it should succeed
-    EXPECT_EQ(ENGINE_SUCCESS,
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->setWithMeta(item2,
                                  0,
                                  nullptr,
@@ -248,12 +242,10 @@ TEST_F(CollectionsTest, MB_25344) {
                                  GenerateCas::No));
 }
 
-// Test demonstrates issue logged as MB_25344, when we delete a collection
-// and then happen to perform a mutation against a new rev of the collection
-// we may encounter the key which is pending deletion and then fail when we
-// shouldn't. In this test the final get should fail even though it does find
-// a matching key
-TEST_F(CollectionsTest, MB_25344_get) {
+// BY-ID update: This test was created for MB-25344 and is no longer relevant as
+// we cannot 'hit' a logically deleted key from the front-end. This test has
+// been adjusted to still provide some value.
+TEST_F(CollectionsTest, GET_unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
@@ -272,8 +264,8 @@ TEST_F(CollectionsTest, MB_25344_get) {
     // Re-add the dairy collection
     vb->updateFromManifest({cm.add(CollectionEntry::dairy2)});
 
-    // Trigger a flush to disk. Flushes the dairy create event.
-    flush_vbucket_to_disk(vbid, 1);
+    // Trigger a flush to disk. Flushes the dairy2 create event, dairy delete
+    flush_vbucket_to_disk(vbid, 2);
 
     // The dairy:2 collection is empty
     get_options_t options = static_cast<get_options_t>(
@@ -283,7 +275,7 @@ TEST_F(CollectionsTest, MB_25344_get) {
     // Get deleted can't get it
     auto gv = store->get(
             {"dairy:milk", CollectionEntry::dairy}, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 
     options = static_cast<get_options_t>(QUEUE_BG_FETCH | HONOR_STATES |
                                          TRACK_REFERENCE | DELETE_TEMP |
@@ -292,7 +284,7 @@ TEST_F(CollectionsTest, MB_25344_get) {
     // Normal Get can't get it
     gv = store->get(
             {"dairy:milk", CollectionEntry::dairy}, vbid, cookie, options);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 
     // Same for getLocked
     gv = store->getLocked({"dairy:milk", CollectionEntry::dairy},
@@ -300,14 +292,14 @@ TEST_F(CollectionsTest, MB_25344_get) {
                           ep_current_time(),
                           10,
                           cookie);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 
     // Same for getAndUpdateTtl
     gv = store->getAndUpdateTtl({"dairy:milk", CollectionEntry::dairy},
                                 vbid,
                                 cookie,
                                 ep_current_time() + 20);
-    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 }
 
 class CollectionsFlushTest : public CollectionsTest {
@@ -320,15 +312,14 @@ public:
 
 private:
     std::string createCollectionAndFlush(const std::string& json,
-                                         const std::string& collection,
+                                         CollectionID collection,
                                          int items);
     std::string deleteCollectionAndFlush(const std::string& json,
-                                         const std::string& collection,
+                                         CollectionID collection,
                                          int items);
-    std::string completeDeletionAndFlush(const std::string& collection,
-                                         int items);
+    std::string completeDeletionAndFlush(CollectionID collection, int items);
 
-    void storeItems(const std::string& collection, DocNamespace ns, int items);
+    void storeItems(CollectionID collection, int items);
 
     /**
      * Create manifest object from jsonManifest and validate if we can write to
@@ -339,7 +330,7 @@ private:
      * @return true if the collection can be written
      */
     static bool canWrite(const std::string& jsonManifest,
-                         const std::string& collection);
+                         CollectionID collection);
 
     /**
      * Create manifest object from jsonManifest and validate if we cannot write
@@ -350,55 +341,54 @@ private:
      * @return true if the collection cannot be written
      */
     static bool cannotWrite(const std::string& jsonManifest,
-                            const std::string& collection);
+                            CollectionID collection);
 };
 
-void CollectionsFlushTest::storeItems(const std::string& collection,
-                                      DocNamespace ns,
-                                      int items) {
+void CollectionsFlushTest::storeItems(CollectionID collection, int items) {
     for (int ii = 0; ii < items; ii++) {
-        std::string key = collection + ":" + std::to_string(ii);
-        store_item(vbid, {key, ns}, "value");
+        std::string key = "key" + std::to_string(ii);
+        store_item(vbid, {key, collection}, "value");
     }
 }
 
 std::string CollectionsFlushTest::createCollectionAndFlush(
-        const std::string& json, const std::string& collection, int items) {
+        const std::string& json, CollectionID collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     vb->updateFromManifest(json);
-    storeItems(collection, DocNamespace::Collections, items);
+    storeItems(collection, items);
     flush_vbucket_to_disk(vbid, 1 + items); // create event + items
     return getManifest(vbid);
 }
 
 std::string CollectionsFlushTest::deleteCollectionAndFlush(
-        const std::string& json, const std::string& collection, int items) {
+        const std::string& json, CollectionID collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
-    storeItems(collection, DocNamespace::Collections, items);
+    storeItems(collection, items);
     vb->updateFromManifest(json);
     flush_vbucket_to_disk(vbid, 1 + items); // del(create event) + items
     return getManifest(vbid);
 }
 
 std::string CollectionsFlushTest::completeDeletionAndFlush(
-        const std::string& collection, int items) {
+        CollectionID collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     vb->completeDeletion(collection);
-    storeItems("defaultcollection", DocNamespace::DefaultCollection, items);
+
+    // Default is still ok
+    storeItems(CollectionID::DefaultCollection, items);
     flush_vbucket_to_disk(vbid, items); // just the items
     return getManifest(vbid);
 }
 
 bool CollectionsFlushTest::canWrite(const std::string& jsonManifest,
-                                    const std::string& collection) {
+                                    CollectionID collection) {
     Collections::VB::Manifest manifest(jsonManifest);
-    std::string key = collection + ":";
-    return manifest.lock().doesKeyContainValidCollection(
-            {key, DocNamespace::Collections});
+    std::string key = std::to_string(collection);
+    return manifest.lock().doesKeyContainValidCollection({key, collection});
 }
 
 bool CollectionsFlushTest::cannotWrite(const std::string& jsonManifest,
-                                       const std::string& collection) {
+                                       CollectionID collection) {
     return !canWrite(jsonManifest, collection);
 }
 
@@ -415,6 +405,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
         std::function<bool(const std::string&)> validator;
     };
 
+    CollectionsManifest cm(CollectionEntry::meat);
     using std::placeholders::_1;
     // Setup the test using a vector of functions to run
     std::vector<testFuctions> test{
@@ -422,61 +413,67 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
             {// 0
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
-                       R"({"uid":"0",
-                         "collections":[{"name":"$default", "uid":"0"},
-                                        {"name":"meat", "uid":"1"}]})",
-                       "meat",
+                       cm,
+                       CollectionEntry::meat,
                        items),
-             std::bind(&CollectionsFlushTest::canWrite, _1, "meat")},
+             std::bind(&CollectionsFlushTest::canWrite,
+                       _1,
+                       CollectionEntry::meat)},
 
             {// 1
              std::bind(&CollectionsFlushTest::deleteCollectionAndFlush,
                        this,
-                       R"({"uid":"0",
-                         "collections":[{"name":"$default", "uid":"0"}]})",
-                       "meat",
+                       cm.remove(CollectionEntry::meat),
+                       CollectionEntry::meat,
                        items),
-             std::bind(&CollectionsFlushTest::cannotWrite, _1, "meat")},
+             std::bind(&CollectionsFlushTest::cannotWrite,
+                       _1,
+                       CollectionEntry::meat)},
             {// 2
              std::bind(&CollectionsFlushTest::completeDeletionAndFlush,
                        this,
-                       "meat",
+                       CollectionEntry::meat,
                        items),
-             std::bind(&CollectionsFlushTest::cannotWrite, _1, "meat")},
+             std::bind(&CollectionsFlushTest::cannotWrite,
+                       _1,
+                       CollectionEntry::meat)},
 
             // Final 4 steps - add,delete,add,complete for the fruit collection
             {// 3
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
-                       R"({"uid":"0",
-                         "collections":[{"name":"$default", "uid":"0"},
-                                        {"name":"fruit", "uid":"3"}]})",
-                       "fruit",
+                       cm.add(CollectionEntry::dairy),
+                       CollectionEntry::dairy,
                        items),
-             std::bind(&CollectionsFlushTest::canWrite, _1, "fruit")},
+             std::bind(&CollectionsFlushTest::canWrite,
+                       _1,
+                       CollectionEntry::dairy)},
             {// 4
              std::bind(&CollectionsFlushTest::deleteCollectionAndFlush,
                        this,
-                       R"({"uid":"0",
-                         "collections":[{"name":"$default", "uid":"0"}]})",
-                       "fruit",
+                       cm.remove(CollectionEntry::dairy),
+                       CollectionEntry::dairy,
                        items),
-             std::bind(&CollectionsFlushTest::cannotWrite, _1, "fruit")},
+             std::bind(&CollectionsFlushTest::cannotWrite,
+                       _1,
+                       CollectionEntry::dairy)},
             {// 5
              std::bind(&CollectionsFlushTest::createCollectionAndFlush,
                        this,
-                       R"({"uid":"0",
-                         "collections":[{"name":"$default", "uid":"0"},
-                                        {"name":"fruit", "uid":"5"}]})",
-                       "fruit",
+                       cm.add(CollectionEntry::dairy2),
+                       CollectionEntry::dairy2,
                        items),
-             std::bind(&CollectionsFlushTest::canWrite, _1, "fruit")},
+             std::bind(&CollectionsFlushTest::canWrite,
+                       _1,
+                       CollectionEntry::dairy2)},
             {// 6
              std::bind(&CollectionsFlushTest::completeDeletionAndFlush,
                        this,
-                       "fruit",
+                       CollectionEntry::dairy,
                        items),
-             std::bind(&CollectionsFlushTest::canWrite, _1, "fruit")}};
+             std::bind(&CollectionsFlushTest::canWrite,
+                       _1,
+                       CollectionEntry::dairy2)}};
 
     std::string m1;
     int step = 0;

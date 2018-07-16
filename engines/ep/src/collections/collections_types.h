@@ -17,7 +17,9 @@
 
 #pragma once
 
+#include <memcached/dockey.h>
 #include <platform/sized_buffer.h>
+#include <gsl/gsl>
 
 namespace Collections {
 
@@ -26,14 +28,11 @@ const char* const _DefaultCollectionIdentifier = "$default";
 static cb::const_char_buffer DefaultCollectionIdentifier(
         _DefaultCollectionIdentifier);
 
-// The default separator we will use for identifying collections in keys.
-const char* const DefaultSeparator = ":";
-
 // SystemEvent keys or parts which will be made into keys
 const char* const SystemSeparator = ":"; // Note this never changes
 const char* const SystemEventPrefix = "$collections";
 const char* const SystemEventPrefixWithSeparator = "$collections:";
-const char* const DeleteKey = "$collections:delete:";
+const char* const DeleteKey = "$collections_delete:";
 
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";
@@ -44,18 +43,19 @@ const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 using uid_t = uint64_t;
 
 /**
- * Return a uid from a C-string.
- * A valid uid is a C-string where each character satisfies std::isxdigit
+ * Return a uid_t from a C-string.
+ * A valid uid_t is a C-string where each character satisfies std::isxdigit
  * and can be converted to a uid_t by std::strtoull.
  *
  * @param uid C-string uid
+ * @param len a length for validation purposes
  * @throws std::invalid_argument if uid is invalid
  */
-uid_t makeUid(const char* uid);
+uid_t makeUid(const char* uid, size_t len = 16);
 
 /**
- * Return a uid from a std::string
- * A valid uid is a std::string where each character satisfies std::isxdigit
+ * Return a uid_t from a std::string
+ * A valid uid_t is a std::string where each character satisfies std::isxdigit
  * and can be converted to a uid_t by std::strtoull.
  *
  * @param uid std::string
@@ -66,56 +66,29 @@ static inline uid_t makeUid(const std::string& uid) {
 }
 
 /**
- * Interface definition for the a collection identifier - a pair of name and UID
- * Forces compile time dispatch for the 3 required methods.
- * getUid, getName and isDefaultCollection
+ * Return a CollectionID from a C-string.
+ * A valid CollectionID is a C-string where each character satisfies
+ * std::isxdigit and can be converted to a CollectionID by std::strtoul.
+ *
+ * @param uid C-string uid
+ * @throws std::invalid_argument if uid is invalid
  */
-template <class T>
-class IdentifierInterface {
-public:
-    /// @returns the UID for this identifier
-    uid_t getUid() const {
-        return static_cast<const T*>(this)->getUid();
-    }
-
-    /// @returns the name for this identifier
-    cb::const_char_buffer getName() const {
-        return static_cast<const T*>(this)->getName();
-    }
-
-    /// @returns true if the identifer's name matches the default name
-    bool isDefaultCollection() const {
-        return getName() == DefaultCollectionIdentifier;
-    }
-};
+static inline CollectionID makeCollectionID(const char* uid) {
+    // CollectionID is 8 characters max and smaller than a uid_t
+    return gsl::narrow_cast<CollectionID>(makeUid(uid, 8));
+}
 
 /**
- * A collection may exist concurrently, where one maybe open and the others
- * are in the process of being erased. This class carries the information for
- * locating the correct "generation" of a collection.
+ * Return a CollectionID from a std::string
+ * A valid CollectionID is a std::string where each character satisfies
+ * std::isxdigit and can be converted to a CollectionID by std::strtoul
+ *
+ * @param uid std::string
+ * @throws std::invalid_argument if uid is invalid
  */
-class Identifier : public IdentifierInterface<Identifier> {
-public:
-    Identifier(cb::const_char_buffer name, uid_t uid) : name(name), uid(uid) {
-    }
-
-    template <class T>
-    Identifier(const IdentifierInterface<T>& identifier)
-        : name(identifier.getName()), uid(identifier.getUid()) {
-    }
-
-    cb::const_char_buffer getName() const {
-        return name;
-    }
-
-    uid_t getUid() const {
-        return uid;
-    }
-
-private:
-    cb::const_char_buffer name;
-    uid_t uid;
-};
+static inline CollectionID makeCollectionID(const std::string& uid) {
+    return makeCollectionID(uid.c_str());
+}
 
 /**
  * All of the data a DCP system event message will carry.
@@ -125,8 +98,8 @@ private:
 struct SystemEventData {
     /// UID of manifest which triggered the event
     Collections::uid_t manifestUid;
-    /// Identifier of the affected collection (name and UID).
-    Identifier id;
+    /// Identifier of the affected collection
+    CollectionID cid;
 };
 
 /**
@@ -137,12 +110,9 @@ struct SystemEventData {
 struct SystemEventDCPData {
     /// The manifest uid stored in network byte order ready for sending
     Collections::uid_t manifestUid;
-    /// The collection uid stored in network byte order ready for sending
-    Collections::uid_t collectionUid;
+    /// The collection id stored in network byte order ready for sending
+    CollectionIDNetworkOrder cid;
 };
 
-std::string to_string(const Identifier& identifier);
-
-std::ostream& operator<<(std::ostream& os, const Identifier& identifier);
 
 } // end namespace Collections

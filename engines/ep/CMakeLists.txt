@@ -293,7 +293,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/checkpoint_remover_test.cc
                    tests/module_tests/checkpoint_test.h
                    tests/module_tests/checkpoint_test.cc
-                   tests/module_tests/collections/collection_dockey_test.cc
                    tests/module_tests/collections/evp_store_collections_dcp_test.cc
                    tests/module_tests/collections/evp_store_collections_eraser_test.cc
                    tests/module_tests/collections/evp_store_collections_test.cc

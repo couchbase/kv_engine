@@ -32,13 +32,13 @@ class SerialisedDocKey;
 /**
  * StoredDocKey is a container for key data
  *
- * Internally an n byte key is stored in a n + 1 std::string.
+ * Internally an n byte key is stored in a n + sizeof(CollectionID) std::string.
  *  a) We zero terminate so that data() is safe for printing as a c-string.
- *  b) We store the DocNamespace in byte 0 (duplicated in parent class DocKey).
- *    This is because StoredDocKey typically ends up being written to disk and
- *    the DocNamespace forms part of the on-disk key. Pre-allocating space
- *    for the DocNamespace means storage components don't have to create a
- *    new buffer into which we layout DocNamespace and key data.
+ *  b) We store the CollectionID in byte 0:3. This is because StoredDocKey
+ *    typically ends up being written to disk and the CollectionID forms part
+ *    of the on-disk key. Accounting and for for the CollectionID means storage
+ *    components don't have to create a new buffer into which they can layout
+ *    CollectionID and key data.
  */
 class StoredDocKey : public DocKeyInterface<StoredDocKey> {
 public:
@@ -58,8 +58,7 @@ public:
         keydata.resize(nkey + namespaceBytes);
         keydata.replace(
                 namespaceBytes, nkey, reinterpret_cast<const char*>(key), nkey);
-        keydata[0] = static_cast<std::underlying_type<DocNamespace>::type>(
-                docNamespace);
+        std::memcpy(&keydata[0], &docNamespace, sizeof(docNamespace));
     }
 
     /**
@@ -103,7 +102,11 @@ public:
     }
 
     DocNamespace getDocNamespace() const {
-        return DocNamespace(keydata[0]);
+        return getCollectionID();
+    }
+
+    CollectionID getCollectionID() const {
+        return *reinterpret_cast<const CollectionID*>(&keydata[0]);
     }
 
     const char* c_str() const {
@@ -149,14 +152,14 @@ public:
     }
 
 protected:
-    static const size_t namespaceBytes = sizeof(DocNamespace);
+    static const size_t namespaceBytes = sizeof(CollectionID);
     std::string keydata;
 };
 
 std::ostream& operator<<(std::ostream& os, const StoredDocKey& key);
 
-static_assert(sizeof(DocNamespace) == sizeof(uint8_t),
-              "StoredDocKey: DocNamespace is too large");
+static_assert(sizeof(CollectionID) == sizeof(uint32_t),
+              "StoredDocKey: CollectionID has changed size");
 
 /**
  * A hash function for StoredDocKey so they can be used in std::map and friends.
@@ -201,12 +204,16 @@ public:
     }
 
     DocNamespace getDocNamespace() const {
-        return docNamespace;
+        return getCollectionID();
+    }
+
+    CollectionID getCollectionID() const {
+        return collectionID;
     }
 
     bool operator==(const DocKey rhs) const {
         return size() == rhs.size() &&
-               getDocNamespace() == rhs.getDocNamespace() &&
+               getCollectionID() == rhs.getCollectionID() &&
                std::memcmp(data(), rhs.data(), size()) == 0;
     }
 
@@ -254,7 +261,7 @@ protected:
     friend class MutationLogEntryV2;
     friend class StoredValue;
 
-    SerialisedDocKey() : length(0), docNamespace(), bytes() {
+    SerialisedDocKey() : collectionID(), length(0), bytes() {
     }
 
     /**
@@ -264,7 +271,7 @@ protected:
      * @param key a DocKey to be stored
      */
     SerialisedDocKey(const DocKey key)
-        : length(0), docNamespace(key.getDocNamespace()) {
+        : collectionID(key.getCollectionID()), length(0) {
         if (key.size() > std::numeric_limits<uint8_t>::max()) {
             throw std::length_error(
                     "SerialisedDocKey(const DocKey key) " +
@@ -285,9 +292,9 @@ protected:
         return sizeof(SerialisedDocKey) + len - sizeof(SerialisedDocKey().bytes);
     }
 
+    CollectionID collectionID;
     uint8_t length;
-    DocNamespace docNamespace;
-    uint8_t bytes[1];
+    uint8_t bytes[3]; // Explicitly include the padding
 };
 
 std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key);

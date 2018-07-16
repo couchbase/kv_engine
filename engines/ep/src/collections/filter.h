@@ -22,7 +22,7 @@
 #include <boost/optional/optional.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
-#include <vector>
+#include <unordered_set>
 
 namespace Collections {
 
@@ -39,38 +39,30 @@ namespace Collections {
  *  2. A "pass-through filter", which means nothing is filtered, allowing for
  *     example full vbucket replication to occur, i.e. every item and event of
  *     every collection is allowed.
- *  3. A "filter", only items and events of named collections are allowed.
+ *  3. A "filter", only items and events of specific collections are allowed.
  *
- * Because DCP construction is a two-step operation, first create DcpProducer
- * second create stream(s), and between those two steps collections could be
- * deleted, the stream cannot police the producer's filter contents as a
- * collection mis-match due to legitimate deletion cannot be distinguished from
- * junk-input. Hence the construction of the Collections::Filter performs
- * validation that the object is sensible with respect to the bucket's
- * collections configuration. For example, a legacy filter should not be created
- * if the bucket has removed the $default collection. The same logic applies to
- * a proper filter, all named collections must be known at the time of creation.
+ * DCP construction is a two-step operation, 1) create DcpProducer
+ * 2) create VBucket stream(s). Between steps 1 and 2 collections could be
+ * deleted, and as such creating filtered DCP is two steps. The construction of
+ * the Collections::Filter performs validation that the input is sensible with
+ * respect to the bucket's current collection configuration. For example, a
+ * legacy filter should not be created if the bucket has removed the $default
+ * collection. The same logic applies to a full filter, all collections must be
+ * known at the time of creation. Of course once validation checks have passed
+ * the state can change, hence the stream construction relies on the VB::Filter
+ * to manage the stream inline with the data.
  *
- * When creating a "filter" two flavours of JSON input are valid:
- * Streaming from zero (i.e. you don't know the UID)
- *   {"collections" : ["name1", "name2", ...]}
+ * When creating a Filter the JSON input specifies the Collection IDs to be
+ * streamed which should match the Collection IDs from the Manifest. 0 is
+ * allowed.
  *
- * Streaming from non-zero seqno (you need the correct uid):
- *   {"collections" : [{"name":"name1", "uid":"xxx"},
- *                     {"name":"name2", "uid":"yyy"}, ...]}
+ *   {"collections" : ["23", "61", ...]}
  *
  */
 class Filter {
 public:
-    /// a name with an optional UID
-    using container =
-            std::vector<std::pair<std::string, boost::optional<uid_t>>>;
-
-    enum class Type {
-        NoFilter, // No filter was defined
-        Name, // Filter is name-only
-        NameUid // Filter contains name:uid entries
-    };
+    /// Store the uid of requested collections
+    using container = std::unordered_set<CollectionID>;
 
     /**
      * Construct a Collections::Filter using an optional JSON document
@@ -95,8 +87,8 @@ public:
            const Manifest* manifest);
 
     /**
-     * Get the list of collections the filter knows about. Can be empty
-     * @returns std::vector of std::string, maybe empty for a passthrough filter
+     * Get the set of collections the filter knows about. Can be empty
+     * @returns std::unordered_set of uid_t or empty for a passthrough filter
      */
     const container& getFilter() const {
         return filter;
@@ -124,38 +116,11 @@ public:
     }
 
     /**
-     * @return the Type the Filter was created from
-     */
-    Type getType() const {
-        return type;
-    }
-
-    /**
-     * @return true if the Filter uses name only entries
-     */
-    bool isNameFilter() const {
-        return getType() == Type::Name;
-    }
-
-    /**
-     * @return true if the Filter uses name only entries
-     */
-    bool isNameUidFilter() const {
-        return getType() == Type::NameUid;
-    }
-
-    /**
      * Dump this to std::cerr
      */
     void dump() const;
 
 private:
-    /**
-     * Private helper to examine the given collection name against the manifest
-     * and add to internal container or throw an exception
-     */
-    void addCollection(const std::string& collection, const Manifest& manifest);
-
     /**
      * Private helper to examine the given collection object against the
      * manifest and add to internal container or throw an exception
@@ -171,9 +136,6 @@ private:
     bool passthrough;
     /// Should system events be allowed?
     bool systemEventsAllowed;
-
-    /// The type of filter that was configured
-    Type type;
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
 };

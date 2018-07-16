@@ -25,7 +25,123 @@
 namespace Collections {
 namespace VB {
 
-class SerialisedManifestEntry;
+class SerialisedManifestEntry {
+public:
+    /**
+     * Object is not copyable or movable
+     */
+    SerialisedManifestEntry(const SerialisedManifestEntry& other) = delete;
+    SerialisedManifestEntry(SerialisedManifestEntry&& other) = delete;
+
+    static size_t getObjectSize() {
+        return sizeof(SerialisedManifestEntry);
+    }
+
+    CollectionID getCollectionID() const {
+        return cid;
+    }
+
+    void setCollectionID(CollectionID cid) {
+        this->cid = cid;
+    }
+
+    const SerialisedManifestEntry* nextEntry() const {
+        return const_cast<SerialisedManifestEntry*>(this)->nextEntry();
+    }
+
+    SerialisedManifestEntry* nextEntry() {
+        return this + 1;
+    }
+
+    std::string toJson() const {
+        return toJson(startSeqno, endSeqno);
+    }
+
+    std::string toJsonCreateOrDelete(bool isCollectionDelete,
+                                     int64_t correctedSeqno) const {
+        if (isCollectionDelete) {
+            return toJson(startSeqno, correctedSeqno);
+        }
+        return toJson(correctedSeqno, endSeqno);
+    }
+
+    std::string toJsonResetEnd() const {
+        return toJson(startSeqno, StoredValue::state_collection_open);
+    }
+
+private:
+    friend Collections::VB::Manifest;
+    static SerialisedManifestEntry* make(
+            SerialisedManifestEntry* address,
+            CollectionID collection,
+            const Collections::VB::ManifestEntry& me,
+            cb::char_buffer out) {
+        return new (address) SerialisedManifestEntry(collection, me, out);
+    }
+
+    static SerialisedManifestEntry* make(SerialisedManifestEntry* address,
+                                         CollectionID identifier,
+                                         cb::char_buffer out) {
+        return new (address) SerialisedManifestEntry(identifier, out);
+    }
+
+    SerialisedManifestEntry(CollectionID collection,
+                            const Collections::VB::ManifestEntry& me,
+                            cb::char_buffer out) {
+        tryConstruction(out, collection, me.getStartSeqno(), me.getEndSeqno());
+    }
+
+    SerialisedManifestEntry(CollectionID identifier, cb::char_buffer out) {
+        tryConstruction(out, identifier, 0, StoredValue::state_collection_open);
+    }
+
+    /**
+     * throw an exception if the construction of a serialised object overflows
+     * the memory allocation represented by out.
+     *
+     * @param out The buffer we are writing to
+     * @param identifier The Identifier of the collection to save in this entry
+     * @param startSeqno The startSeqno value to be used
+     * @param endSeqno The endSeqno value to be used
+     * @throws std::length_error if the function would write outside of out's
+     *         bounds.
+     */
+    void tryConstruction(cb::char_buffer out,
+                         CollectionID identifier,
+                         int64_t startSeqno,
+                         int64_t endSeqno) {
+        if (!((out.data() + out.size()) >=
+              (reinterpret_cast<char*>(this) + getObjectSize()))) {
+            throw std::length_error(
+                    "SerialisedManifestEntry::tryConstruction exceeds the "
+                    "buffer of size " +
+                    std::to_string(out.size()));
+        }
+        this->cid = identifier;
+        this->startSeqno = startSeqno;
+        this->endSeqno = endSeqno;
+    }
+
+    /**
+     * Return a std::string JSON representation of this object with the callers
+     * chosen startSeqno/endSeqno (based on isDelete)
+     *
+     * @param _startSeqno The startSeqno value to be used
+     * @param _endSeqno The endSeqno value to be used
+     * @return A std::string JSON object for this object.
+     */
+    std::string toJson(int64_t _startSeqno, int64_t _endSeqno) const {
+        std::stringstream json;
+        json << R"({"uid":")" << std::hex << cid << "\"," << std::dec
+             << R"("startSeqno":")" << _startSeqno << "\","
+             << R"("endSeqno":")" << _endSeqno << "\"}";
+        return json.str();
+    }
+
+    CollectionID cid;
+    int64_t startSeqno;
+    int64_t endSeqno;
+};
 
 /**
  * A VB::Manifest is serialised into an Item when it is updated. The
@@ -68,21 +184,24 @@ public:
      */
     void calculateFinalEntryOffest(const SerialisedManifestEntry* sme) {
         finalEntryOffset =
-                reinterpret_cast<const char*>(sme) - getManifestEntryBuffer();
+                reinterpret_cast<const char*>(sme) -
+                reinterpret_cast<const char*>(getManifestEntryBuffer());
+        // Convert byte offset into an array index
+        finalEntryOffset /= sizeof(SerialisedManifestEntry);
     }
 
     /**
      * Return a non const pointer to where the entries can be written
      */
-    char* getManifestEntryBuffer() {
-        return reinterpret_cast<char*>(this + 1);
+    SerialisedManifestEntry* getManifestEntryBuffer() {
+        return reinterpret_cast<SerialisedManifestEntry*>(this + 1);
     }
 
     /**
      * Return a const pointer from where the entries can be read
      */
-    const char* getManifestEntryBuffer() const {
-        return reinterpret_cast<const char*>(this + 1);
+    const SerialisedManifestEntry* getManifestEntryBuffer() const {
+        return reinterpret_cast<const SerialisedManifestEntry*>(this + 1);
     }
 
     /**
@@ -102,7 +221,6 @@ public:
     }
 
 private:
-
     friend Collections::VB::Manifest;
     static SerialisedManifest* make(char* address,
                                     uid_t manifestUid,
@@ -130,169 +248,6 @@ private:
     uint32_t itemCount;
     uint32_t finalEntryOffset;
     uid_t manifestUid;
-};
-
-class SerialisedManifestEntry {
-public:
-    /**
-     * Object is not copyable or movable
-     */
-    SerialisedManifestEntry(const SerialisedManifestEntry& other) = delete;
-    SerialisedManifestEntry(SerialisedManifestEntry&& other) = delete;
-
-    static size_t getObjectSize(size_t collectionNameLen) {
-        return sizeof(SerialisedManifestEntry) + collectionNameLen;
-    }
-
-    size_t getObjectSize() const {
-        return getObjectSize(getCollectionNameLen());
-    }
-
-    uid_t getUid() const {
-        return uid;
-    }
-
-    void setUid(uid_t uid) {
-        this->uid = uid;
-    }
-
-    /**
-     * @return the entry's collection name as a const char buffer
-     */
-    cb::const_char_buffer getCollectionName() const {
-        return {getCollectionNamePtr(), size_t(collectionNameLen)};
-    }
-
-    size_t getCollectionNameLen() const {
-        return collectionNameLen;
-    }
-
-    const char* nextEntry() const {
-        return reinterpret_cast<const char*>(this) + getObjectSize();
-    }
-
-    char* nextEntry() {
-        return const_cast<char*>(
-                static_cast<const SerialisedManifestEntry*>(this)->nextEntry());
-    }
-
-    std::string toJson() const {
-        return toJson(startSeqno, endSeqno);
-    }
-
-    std::string toJsonCreateOrDelete(bool isCollectionDelete,
-                                     int64_t correctedSeqno) const {
-        if (isCollectionDelete) {
-            return toJson(startSeqno, correctedSeqno);
-        }
-        return toJson(correctedSeqno, endSeqno);
-    }
-
-    std::string toJsonResetEnd() const {
-        return toJson(startSeqno, StoredValue::state_collection_open);
-    }
-
-private:
-    friend Collections::VB::Manifest;
-    static SerialisedManifestEntry* make(
-            char* address,
-            const Collections::VB::ManifestEntry& me,
-            cb::char_buffer out) {
-        return new (address) SerialisedManifestEntry(me, out);
-    }
-
-    static SerialisedManifestEntry* make(char* address,
-                                         Identifier identifier,
-                                         cb::char_buffer out) {
-        return new (address) SerialisedManifestEntry(identifier, out);
-    }
-
-    SerialisedManifestEntry(const Collections::VB::ManifestEntry& me,
-                            cb::char_buffer out) {
-        tryConstruction(
-                out, me.getIdentifier(), me.getStartSeqno(), me.getEndSeqno());
-    }
-
-    SerialisedManifestEntry(Identifier identifier, cb::char_buffer out) {
-        tryConstruction(out, identifier, 0, StoredValue::state_collection_open);
-    }
-
-    /**
-     * The collection name is stored in memory allocated after this object.
-     *
-     * @return pointer to the collection name, located at the address after
-     *         'this'.
-     */
-    char* getCollectionNamePtr() {
-        return reinterpret_cast<char*>(this + 1);
-    }
-
-    /**
-     * The collection name is stored in memory allocated after this object.
-     *
-     * @return const pointer to the collection name, located at the address
-     *         after 'this'.
-     */
-    const char* getCollectionNamePtr() const {
-        return reinterpret_cast<const char*>(this + 1);
-    }
-
-    /**
-     * throw an exception if the construction of a serialised object overflows
-     * the memory allocation represented by out.
-     *
-     * @param out The buffer we are writing to
-     * @param identifier The Identifier of the collection to save in this entry
-     * @param startSeqno The startSeqno value to be used
-     * @param endSeqno The endSeqno value to be used
-     * @throws std::length_error if the function would write outside of out's
-     *         bounds.
-     */
-    void tryConstruction(cb::char_buffer out,
-                         Identifier identifier,
-                         int64_t startSeqno,
-                         int64_t endSeqno) {
-        if (!((out.data() + out.size()) >=
-              (reinterpret_cast<char*>(this) +
-               getObjectSize(identifier.getName().size())))) {
-            throw std::length_error(
-                    "SerialisedManifestEntry::tryConstruction with collection "
-                    "size " +
-                    std::to_string(identifier.getName().size()) +
-                    " exceeds the buffer of size " +
-                    std::to_string(out.size()));
-        }
-        this->uid = identifier.getUid();
-        this->startSeqno = startSeqno;
-        this->endSeqno = endSeqno;
-        this->collectionNameLen = identifier.getName().size();
-        std::memcpy(getCollectionNamePtr(),
-                    identifier.getName().data(),
-                    this->collectionNameLen);
-    }
-
-    /**
-     * Return a std::string JSON representation of this object with the callers
-     * chosen startSeqno/endSeqno (based on isDelete)
-     *
-     * @param _startSeqno The startSeqno value to be used
-     * @param _endSeqno The endSeqno value to be used
-     * @return A std::string JSON object for this object.
-     */
-    std::string toJson(int64_t _startSeqno, int64_t _endSeqno) const {
-        std::stringstream json;
-        json << R"({"name":")"
-             << std::string(getCollectionNamePtr(), collectionNameLen)
-             << R"(","uid":")" << std::hex << uid << "\"," << std::dec
-             << R"("startSeqno":")" << _startSeqno << "\","
-             << R"("endSeqno":")" << _endSeqno << "\"}";
-        return json.str();
-    }
-
-    int32_t collectionNameLen;
-    uid_t uid;
-    int64_t startSeqno;
-    int64_t endSeqno;
 };
 
 static_assert(std::is_standard_layout<SerialisedManifestEntry>::value,

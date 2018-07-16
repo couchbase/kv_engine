@@ -43,40 +43,56 @@ std::unique_ptr<Item> SystemEventFactory::make(
     return item;
 }
 
-std::unique_ptr<Item> SystemEventFactory::make(const DocKey& key,
-                                               SystemEvent se) {
-    if (key.getDocNamespace() != DocNamespace::System) {
-        throw std::invalid_argument(
-                "SystemEventFactory::::make cannot use key with namespace: " +
-                std::to_string(int(key.getDocNamespace())));
-    }
-
-    auto item = std::make_unique<Item>(key,
-                                       uint32_t(se) /*flags*/,
-                                       0 /*exptime*/,
-                                       nullptr, /*no data to copy-in*/
-                                       0);
-
-    return item;
-}
-
 // Build a key using the separator so we can split it if needed
 std::string SystemEventFactory::makeKey(SystemEvent se,
                                         const std::string& keyExtra) {
     std::string key;
     switch (se) {
     case SystemEvent::Collection:
-        // $collection:<collection-name>
+        // $collection:<collection-id>
         key = Collections::SystemEventPrefixWithSeparator + keyExtra;
         break;
     case SystemEvent::DeleteCollectionSoft:
     case SystemEvent::DeleteCollectionHard: {
-        // $collections:delete:<collection-name>
+        // $collections_delete:<collection-id>
         key = Collections::DeleteKey + keyExtra;
         break;
     }
     }
     return key;
+}
+
+//
+// Locate the 'keyExtra' data by locating our separator character and returning
+// a byte_buffer of the data
+//
+const cb::const_byte_buffer::iterator SystemEventFactory::findKeyExtra(
+        const DocKey& key, const std::string& separator) {
+    if (key.size() == 0 || separator.size() == 0 ||
+        separator.size() > key.size()) {
+        return nullptr;
+    }
+
+    auto rv = std::search(key.data(),
+                          key.data() + key.size(),
+                          separator.begin(),
+                          separator.end());
+    if (rv != (key.data() + key.size())) {
+        return rv + separator.size();
+    }
+    return nullptr;
+}
+
+// Reverse what makeKey did so we get 'keyExtra' back
+cb::const_byte_buffer SystemEventFactory::getKeyExtra(const DocKey& key) {
+    const uint8_t* collection = findKeyExtra(key, Collections::SystemSeparator);
+    if (collection) {
+        return {collection,
+                gsl::narrow<uint8_t>(key.size() - (collection - key.data()))};
+    } else {
+        throw std::invalid_argument("DocKey::make incorrect namespace:" +
+                                    std::to_string(int(key.getDocNamespace())));
+    }
 }
 
 ProcessStatus SystemEventFlush::process(const queued_item& item) {

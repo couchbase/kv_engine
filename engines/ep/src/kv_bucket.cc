@@ -2503,7 +2503,7 @@ bool KVBucket::collectionsEraseKey(uint16_t vbid,
                                    int64_t bySeqno,
                                    bool deleted) {
     auto vb = getVBucket(vbid);
-    boost::optional<cb::const_char_buffer> completedCollection;
+    boost::optional<CollectionID> completedCollection;
     if (!vb) {
         return false;
     }
@@ -2513,14 +2513,10 @@ bool KVBucket::collectionsEraseKey(uint16_t vbid,
         if (collectionsRHandle.isLogicallyDeleted(key, bySeqno)) {
             vb->removeKey(key, bySeqno);
 
-            // Update item count for non-system collections.
-            switch (key.getDocNamespace()) {
-            case DocNamespace::DefaultCollection:
-            case DocNamespace::Collections:
+            // Update item count for real collections (System is not a
+            // collection)
+            if (key.getDocNamespace() != DocNamespace::System) {
                 vb->decrNumTotalItems();
-                break;
-            case DocNamespace::System:
-                break;
             }
         } else {
             return false;

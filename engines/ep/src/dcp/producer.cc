@@ -399,16 +399,6 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_ERANGE;
     }
 
-    if (!notifyOnly && filter.isNameFilter() && start_seqno != 0) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s (vb %d) Stream request failed because a name only filter is "
-            "present and a non-zero start_seqno:%" PRIu64 ", is requested",
-            logHeader(),
-            vbucket,
-            start_seqno);
-        return ENGINE_EINVAL;
-    }
-
     std::shared_ptr<Stream> s;
     if (notifyOnly) {
         s = std::make_shared<NotifierStream>(&engine_,

@@ -66,19 +66,21 @@ Manifest::Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections)
         auto uid =
                 getJsonObject(collection, CollectionUidKey, CollectionUidType);
 
-        if (validCollection(name.get<std::string>())) {
-            if (find(name.get<std::string>()) != this->collections.end()) {
+        CollectionID uidValue = makeCollectionID(uid.get<std::string>());
+        auto nameValue = name.get<std::string>();
+        if (validCollection(nameValue) && validUid(uidValue)) {
+            if (this->collections.count(uidValue) > 0) {
                 throw std::invalid_argument(
-                        "Manifest::Manifest duplicate collection name:" +
-                        name.get<std::string>());
+                        "Manifest::Manifest duplicate cid:" +
+                        uidValue.to_string() + ", name:" + nameValue);
             }
-            uid_t uidValue = makeUid(uid.get<std::string>());
-            enableDefaultCollection(name.get<std::string>());
-            this->collections.push_back({name.get<std::string>(), uidValue});
+
+            enableDefaultCollection(uidValue);
+            this->collections.emplace(uidValue, nameValue);
         } else {
             throw std::invalid_argument(
-                    "Manifest::Manifest invalid collection name:" +
-                    name.get<std::string>());
+                    "Manifest::Manifest invalid collection entry:" + nameValue +
+                    " cid:" + uidValue.to_string());
         }
     }
 }
@@ -105,8 +107,8 @@ void Manifest::throwIfWrongType(const std::string& errorKey,
     }
 }
 
-void Manifest::enableDefaultCollection(const std::string& name) {
-    if (name.compare(DefaultCollectionIdentifier.data()) == 0) {
+void Manifest::enableDefaultCollection(CollectionID identifier) {
+    if (identifier == CollectionID::DefaultCollection) {
         defaultCollectionExists = true;
     }
 }
@@ -115,24 +117,29 @@ bool Manifest::validCollection(const std::string& collection) {
     // Current validation is to just check the prefix to ensure
     // 1. $default is the only $ prefixed collection.
     // 2. _ is not allowed as the first character.
-
     if (collection[0] == '$' &&
-        !(collection.compare(DefaultCollectionIdentifier.data()) == 0)) {
+        (collection.compare(DefaultCollectionIdentifier.data()) != 0)) {
         return false;
     }
     return collection[0] != '_';
 }
 
+bool Manifest::validUid(CollectionID identifier) {
+    // We reserve system
+    return identifier != CollectionID::System;
+}
+
 std::string Manifest::toJson() const {
     std::stringstream json;
     json << R"({"uid":")" << std::hex << uid << R"(","collections":[)";
-    for (size_t ii = 0; ii < collections.size(); ii++) {
-        json << R"({"name":")" << collections[ii].getName().data()
-             << R"(","uid":")" << std::hex << collections[ii].getUid()
-             << R"("})";
+    size_t ii = 0;
+    for (const auto& collection : collections) {
+        json << R"({"name":")" << collection.second << R"(","uid":")"
+             << std::hex << collection.first << R"("})";
         if (ii != collections.size() - 1) {
             json << ",";
         }
+        ii++;
     }
     json << "]}";
     return json.str();
@@ -147,7 +154,8 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
        << ", collections.size:" << manifest.collections.size() << std::endl;
     for (const auto& entry : manifest.collections) {
-        os << "collection:{" << entry << "}\n";
+        os << "collection:{" << std::hex << entry.first << "," << entry.second
+           << "}\n";
     }
     return os;
 }

@@ -42,36 +42,27 @@ constexpr char dairy2[] = "dairy";
 
 // For building CollectionEntry we need a UID
 namespace CollectionUid {
-constexpr Collections::uid_t defaultC = 0;
-constexpr Collections::uid_t meat = 2;
-constexpr Collections::uid_t fruit = 3;
-constexpr Collections::uid_t vegetable = 4;
-constexpr Collections::uid_t vegetable2 = 5;
-constexpr Collections::uid_t dairy = 6;
-constexpr Collections::uid_t dairy2 = 7;
+const CollectionID defaultC = 0;
+const CollectionID meat = 2;
+const CollectionID fruit = 3;
+const CollectionID vegetable = 4;
+const CollectionID vegetable2 = 5;
+const CollectionID dairy = 6;
+const CollectionID dairy2 = 7;
 } // namespace CollectionUid
 
 namespace CollectionEntry {
 struct Entry {
     std::string name;
-    Collections::uid_t uid;
+    CollectionID uid;
 
-    // Define the ID of a collection to be its name
-    std::string getId() const {
-        return name;
+    // Define the ID of a collection to be its CollectionID
+    CollectionID getId() const {
+        return uid;
     }
 
-    operator Collections::Identifier() const {
-        return {name, uid};
-    }
-
-    operator cb::const_char_buffer() const {
-        return {name};
-    }
-
-    // Any newly define collection has a namespace of Collections
-    operator DocNamespace() const {
-        return DocNamespace::Collections;
+    operator CollectionID() const {
+        return uid;
     }
 };
 
@@ -120,6 +111,8 @@ public:
     void setUid(Collections::uid_t uid) {
         this->uid = uid;
     }
+
+    void setUid(const std::string& uid);
 
     /// Most interfaces require std::string manifest
     operator std::string() const {

@@ -16,7 +16,6 @@
  */
 
 #include "collections/vbucket_filter.h"
-#include "collections/collections_dockey.h"
 #include "collections/filter.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/response.h"
@@ -49,55 +48,34 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
         }
     }
 
-    for (const auto& c : filter.getFilter()) {
-        bool validFilterEntry = false;
-        if (c.second.is_initialized()) {
-            // strict name/uid lookup
-            validFilterEntry = rh.isCollectionOpen(Identifier{
-                    {c.first.data(), c.first.size()}, c.second.get()});
-        } else {
-            // just name lookup
-            validFilterEntry = rh.isCollectionOpen(
-                    cb::const_char_buffer{c.first.data(), c.first.size()});
-        }
-
-        if (validFilterEntry) {
-            auto m = std::make_unique<std::string>(c.first);
-            cb::const_char_buffer b{m->data(), m->size()};
-            this->filter.emplace(b, std::move(m));
+    for (const auto& collection : filter.getFilter()) {
+        // lookup by ID
+        if (rh.isCollectionOpen(collection)) {
+            this->filter.insert(collection);
         } else {
             // The VB::Manifest doesn't have the collection, or the collection
             // is deleted
-            if (c.second.is_initialized()) {
-                LOG(EXTENSION_LOG_NOTICE,
-                    "VB::Filter::Filter: dropping collection:%s:%" PRIu64
-                    " as it's not open",
-                    c.first.c_str(),
-                    c.second.get());
-            } else {
-                LOG(EXTENSION_LOG_NOTICE,
-                    "VB::Filter::Filter: dropping collection:%s as it's not "
-                    "open",
-                    c.first.c_str());
-            }
+            LOG(EXTENSION_LOG_NOTICE,
+                "VB::Filter::Filter: dropping collection:%" PRIx32
+                "as it's not open",
+                uint32_t(collection));
         }
     }
 }
 
 bool Collections::VB::Filter::checkAndUpdateSlow(const Item& item) {
     bool allowed = false;
-    if (item.getKey().getDocNamespace() == DocNamespace::Collections &&
-        !filter.empty()) {
-        // Collections require a look up in the filter
-        const auto cKey = Collections::DocKey::make(item.getKey());
-        allowed = filter.count(cKey.getCollection());
-    } else if (item.getKey().getDocNamespace() == DocNamespace::System) {
+
+    if (item.getKey().getCollectionID() == DocNamespace::System) {
         allowed = allowSystemEvent(item);
 
         if (item.isDeleted()) {
             remove(item);
         }
+    } else {
+        allowed = filter.count(item.getKey().getCollectionID());
     }
+
     return allowed;
 }
 
@@ -106,11 +84,12 @@ void Collections::VB::Filter::remove(const Item& item) {
         return;
     }
 
-    const auto cKey = Collections::DocKey::make(item.getKey());
-    if (cKey.getKey() == DefaultCollectionIdentifier) {
+    CollectionID collection =
+            VB::Manifest::getCollectionIDFromKey(item.getKey());
+    if (collection == CollectionID::DefaultCollection) {
         defaultAllowed = false;
     } else {
-        filter.erase(cKey.getKey());
+        filter.erase(collection);
     }
 }
 
@@ -122,17 +101,17 @@ bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
     if (!systemEventsAllowed) {
         return false;
     }
-
     switch (SystemEvent(item.getFlags())) {
     case SystemEvent::Collection: {
-        const auto cKey = Collections::DocKey::make(item.getKey());
-        if ((cKey.getKey() == DefaultCollectionIdentifier && defaultAllowed) ||
+        CollectionID collection =
+                VB::Manifest::getCollectionIDFromKey(item.getKey());
+        if ((collection == CollectionID::DefaultCollection && defaultAllowed) ||
             passthrough) {
             return true;
         } else {
             // These events are sent only if they relate to a collection in the
             // filter
-            return filter.count(cKey.getKey()) > 0;
+            return filter.count(collection) > 0;
         }
     }
     case SystemEvent::DeleteCollectionHard:
@@ -197,8 +176,8 @@ std::ostream& Collections::VB::operator<<(
        << ", systemEventsAllowed:" << filter.systemEventsAllowed;
 
     os << ", filter.size:" << filter.filter.size() << std::endl;
-    for (auto& m : filter.filter) {
-        os << *m.second << std::endl;
+    for (auto& cid : filter.filter) {
+        os << std::hex << cid << "," << std::endl;
     }
     return os;
 }

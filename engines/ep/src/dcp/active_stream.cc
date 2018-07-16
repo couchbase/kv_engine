@@ -874,7 +874,6 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     // Note: This function is hot - it is called for every item to be
     // sent over the DCP connection.
     if (item->getOperation() != queue_op::system_event) {
-        auto cKey = Collections::DocKey::make(item->getKey());
         if (shouldModifyItem(item,
                              includeValue,
                              includeXattributes,
@@ -911,7 +910,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                     includeValue,
                     includeXattributes,
                     includeDeleteTime,
-                    cKey.getCollectionLen());
+                    0 /* @todo MB-30397 - DCP for collections*/);
         }
 
         // Item unmodified - construct response from original.
@@ -921,7 +920,7 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                 includeValue,
                 includeXattributes,
                 includeDeleteTime,
-                cKey.getCollectionLen());
+                0 /* @todo MB-30397 - DCP for collections*/);
     }
     return SystemEventProducerMessage::make(opaque_, item);
 }

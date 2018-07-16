@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "collections/collections_dockey.h"
 #include "collections/collections_types.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest_entry.h"
@@ -50,7 +49,7 @@ namespace VB {
  * This class is intended to be thread-safe when accessed through the read
  * or write handles (providing RAII locking).
  *
- * Access to the class is peformed by the ReadHandle and WriteHandle classes
+ * Access to the class is performed by the ReadHandle and WriteHandle classes
  * which perform RAII locking on the manifest's internal lock. A user of the
  * manifest is required to hold the correct handle for the required scope to
  * to ensure any actions they take based upon a collection's existence are
@@ -65,6 +64,8 @@ namespace VB {
  */
 class Manifest {
 public:
+    using container = ::std::unordered_map<CollectionID, ManifestEntry>;
+
     /**
      * RAII read locking for access to the Manifest.
      */
@@ -87,7 +88,7 @@ public:
          * - If the key applies to a collection, the collection must exist and
          *   must not be in the process of deletion.
          */
-        bool doesKeyContainValidCollection(::DocKey key) const {
+        bool doesKeyContainValidCollection(DocKey key) const {
             return manifest.doesKeyContainValidCollection(key);
         }
 
@@ -98,26 +99,21 @@ public:
          *
          * @return true if the key belongs to a deleted collection.
          */
-        bool isLogicallyDeleted(::DocKey key, int64_t seqno) const {
+        bool isLogicallyDeleted(DocKey key, int64_t seqno) const {
             return manifest.isLogicallyDeleted(key, seqno);
         }
 
         /**
-         * Function intended for use by the KVBucketr collection's eraser code.
+         * Function intended for use by the collection's eraser code, i.e. when
+         * processing the by-seqno index
          *
          * @return if the key indicates that we've now hit the end of
-         *         a deleted collection and should call completeDeletion, then
-         *         the return value is initialised with the collection which is
-         *         to be deleted. If the key does not indicate the end, the
-         *         return value is an empty char buffer.
+         *         a deleted collection seqno-span the return value tells the
+         *         caller to call completeDeletion, an ID is returned. else
+         *         return uninitialised
          */
-        boost::optional<cb::const_char_buffer> shouldCompleteDeletion(
-                ::DocKey key) const {
+        boost::optional<CollectionID> shouldCompleteDeletion(DocKey key) const {
             return manifest.shouldCompleteDeletion(key);
-        }
-
-        DocKey makeCollectionsDocKey(::DocKey key) const {
-            return Collections::DocKey::make(key);
         }
 
         /**
@@ -130,22 +126,15 @@ public:
         /**
          * @returns true if collection is open, false if not or unknown
          */
-        bool isCollectionOpen(cb::const_char_buffer collection) const {
-            return manifest.isCollectionOpen(collection);
-        }
-
-        /**
-         * @returns true if collection is open, false if not or unknown
-         */
-        bool isCollectionOpen(Identifier identifier) const {
+        bool isCollectionOpen(CollectionID identifier) const {
             return manifest.isCollectionOpen(identifier);
         }
 
         /**
          * @return true if the collection exists in the internal container
          */
-        bool exists(cb::const_char_buffer collection) const {
-            return manifest.exists(collection);
+        bool exists(CollectionID identifier) const {
+            return manifest.exists(identifier);
         }
 
         /// @return the manifest UID that last updated this vb::manifest
@@ -154,7 +143,7 @@ public:
         }
 
         /**
-         * Dump the manifest to std::cerr
+         * Dump this VB::Manifest to std::cerr
          */
         void dump() const {
             std::cerr << manifest << std::endl;
@@ -168,24 +157,13 @@ public:
     };
 
     /**
-     * Map from a 'string_view' to an entry.
-     * The key points to data stored in the value (which is actually a pointer
-     * to a value to remove issues where objects move).
-     * Using the string_view as the key allows faster lookups, the caller
-     * need not heap allocate.
-     */
-    using container = ::std::unordered_map<cb::const_char_buffer,
-                                           std::unique_ptr<ManifestEntry>>;
-
-    /**
      * CachingReadHandle provides a limited set of functions to allow various
-     * functional paths in KV-engine to perform collection 'legality' checks
-     * with minimal key scans and map lookups.
+     * functional paths in KV-engine to perform multiple collection 'legality'
+     * checks with one map lookup.
      *
      * The pattern is that the caller creates a CachingReadHandle and during
-     * creation of the object, the key is scanned for a collection and then
-     * an attempt to find a manifest entry is made, the result of which is
-     * stored.
+     * creation of the object, the collection entry is located (or not) and
+     * the data cached
      *
      * The caller next can check if the read handle represents a valid
      * collection, allowing code to return 'unknown_collection'.
@@ -200,8 +178,18 @@ public:
      */
     class CachingReadHandle : private ReadHandle {
     public:
-        CachingReadHandle(const Manifest& m, cb::RWLock& lock, ::DocKey key)
-            : ReadHandle(m, lock), itr(m.getManifestEntry(key)), key(key) {
+        /**
+         * @param allowSystem true if system keys are allowed (the KV
+         *        internal keys like create collection). A frontend operation
+         *        should not be allowed, whereas a disk backfill is allowed
+         */
+        CachingReadHandle(const Manifest& m,
+                          cb::RWLock& lock,
+                          DocKey key,
+                          bool allowSystem)
+            : ReadHandle(m, lock),
+              itr(m.getManifestEntry(key, allowSystem)),
+              key(key) {
         }
 
         /**
@@ -210,7 +198,7 @@ public:
          */
         bool valid() const {
             if (iteratorValid()) {
-                return itr->second->isOpen();
+                return itr->second.isOpen();
             }
             return false;
         }
@@ -218,14 +206,14 @@ public:
         /**
          * @return the key used in construction
          */
-        ::DocKey getKey() const {
+        DocKey getKey() const {
             return key;
         }
 
         /**
-         * @return true if the seqno is logically deleted. Return of true would
-         *         mean that this seqno is below the start seqno of the
-         *         collection used in construction of this read handle instance.
+         * @param a seqno to check, the seqno should belong to the document
+         *        identified by the key returned by ::getKey()
+         * @return true if the key@seqno is logically deleted.
          */
         bool isLogicallyDeleted(int64_t seqno) const {
             return manifest.isLogicallyDeleted(itr, seqno);
@@ -237,7 +225,7 @@ public:
         }
 
         /**
-         * Dump the manifest to std::cerr
+         * Dump this VB::Manifest to std::cerr
          */
         void dump() {
             std::cerr << manifest << std::endl;
@@ -253,15 +241,15 @@ public:
                 const Manifest::CachingReadHandle& readHandle);
 
         /**
-         * An iterator for the key's collection, or end if the key has no valid
-         * collection.
+         * An iterator for the key's collection, or end() if the key has no
+         * valid collection.
          */
         container::const_iterator itr;
 
         /**
          * The key used in construction of this handle.
          */
-        ::DocKey key;
+        DocKey key;
     };
 
     /**
@@ -294,18 +282,14 @@ public:
         }
 
         /**
-         * Complete the deletion of a collection.
-         *
-         * Lookup the collection name and determine the deletion actions.
-         * A collection could of been added again during a background delete so
-         * completeDeletion may just update the state or fully drop all
-         * knowledge of the collection.
+         * Complete the deletion of a collection, that is all data has been
+         * erased and now the collection meta data can be erased
          *
          * @param vb The VBucket in which the deletion is occurring.
-         * @param collection The collection that has finished being deleted.
+         * @param identifier The collection that has finished being deleted.
          */
-        void completeDeletion(::VBucket& vb, cb::const_char_buffer collection) {
-            manifest.completeDeletion(vb, collection);
+        void completeDeletion(::VBucket& vb, CollectionID identifier) {
+            manifest.completeDeletion(vb, identifier);
         }
 
         /**
@@ -315,12 +299,12 @@ public:
          *
          * @param vb The vbucket to add the collection to.
          * @param manifestUid the uid of the manifest which made the change
-         * @param identifier Identifier of the new collection.
+         * @param identifier CID for the collection being added.
          * @param startSeqno The start-seqno assigned to the collection.
          */
         void replicaAdd(::VBucket& vb,
                         uid_t manifestUid,
-                        Identifier identifier,
+                        CollectionID identifier,
                         int64_t startSeqno) {
             manifest.addCollection(
                     vb, manifestUid, identifier, OptionalSeqno{startSeqno});
@@ -333,19 +317,19 @@ public:
          *
          * @param vb The vbucket to begin collection deletion on.
          * @param manifestUid the uid of the manifest which made the change
-         * @param identifier Identifier of the deleted collection.
+         * @param identifier CID for the collection being removed.
          * @param endSeqno The end-seqno assigned to the end collection.
          */
         void replicaBeginDelete(::VBucket& vb,
                                 uid_t manifestUid,
-                                Identifier identifier,
+                                CollectionID identifier,
                                 int64_t endSeqno) {
             manifest.beginCollectionDelete(
                     vb, manifestUid, identifier, OptionalSeqno{endSeqno});
         }
 
         /**
-         * Dump the manifest to std::cerr
+         * Dump this VB::Manifest to std::cerr
          */
         void dump() {
             std::cerr << manifest << std::endl;
@@ -382,8 +366,8 @@ public:
         return {*this, rwlock};
     }
 
-    CachingReadHandle lock(::DocKey key) const {
-        return {*this, rwlock, key};
+    CachingReadHandle lock(DocKey key, bool allowSystem = false) const {
+        return {*this, rwlock, key, allowSystem};
     }
 
     WriteHandle wlock() {
@@ -397,7 +381,7 @@ public:
      *
      * When the Item was created it did not have a seqno for the collection
      * entry being modified, this function will return JSON data with the
-     * missing seqno 'patched' with the Item's seqno.
+     * missing seqno 'patched' with the 'collectionsEventItem's seqno.
      *
      * @param collectionsEventItem an Item created to represent a collection
      *        event. The value of which is converted to JSON.
@@ -406,7 +390,7 @@ public:
     static std::string serialToJson(const Item& collectionsEventItem);
 
     /**
-     * Get the system event collection create/deleye data from a SystemEvent
+     * Get the system event collection create/delete data from a SystemEvent
      * Item's value. This returns the information that DCP needs to create a
      * DCPSystemEvent packet for the create/delete.
      *
@@ -420,6 +404,35 @@ public:
     static SystemEventData getSystemEventData(
             cb::const_char_buffer serialisedManifest);
 
+    /**
+     * For creation of collection SystemEvents - The SystemEventFactory
+     * glues the CollectionID into the event key (so create of x doesn't
+     * collide with create of y). This method basically reverses
+     * makeCollectionIdIntoString so we can get a CollectionID from a
+     * SystemEvent key
+     *
+     * @param key DocKey from a SystemEvent
+     * @return the ID which was in the event
+     */
+    static CollectionID getCollectionIDFromKey(const DocKey& key);
+
+    /**
+     * Create a SystemEvent Item, the Item's value will contain data for later
+     * consumption by serialToJson
+     *
+     * @param se SystemEvent to create.
+     * @param identifier The CollectionID of the collection which is changing.
+     * @param deleted If the Item should be marked deleted.
+     * @param seqno An optional sequence number. If a seqno is specified, the
+     *        returned item will have its bySeqno set to seqno.
+     *
+     * @returns unique_ptr to a new Item that represents the requested
+     *          SystemEvent.
+     */
+    std::unique_ptr<Item> createSystemEvent(SystemEvent se,
+                                            CollectionID identifier,
+                                            bool deleted,
+                                            OptionalSeqno seqno) const;
 
 private:
 
@@ -453,13 +466,13 @@ private:
      *
      * @param vb The vbucket to add the collection to.
      * @param manifestUid the uid of the manifest which made the change
-     * @param identifier Identifier of the new collection.
+     * @param identifier CollectionID of the new collection.
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
     void addCollection(::VBucket& vb,
                        uid_t manifestUid,
-                       Identifier identifier,
+                       CollectionID identifier,
                        OptionalSeqno optionalSeqno);
 
     /**
@@ -467,29 +480,24 @@ private:
      *
      * @param vb The vbucket to begin collection deletion on.
      * @param manifestUid the uid of the manifest which made the change
-     * @param identifier Identifier of the deleted collection.
+     * @param identifier CollectionID of the deleted collection.
      * @param revision manifest revision which started the deletion.
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
     void beginCollectionDelete(::VBucket& vb,
                                uid_t manifestUid,
-                               Identifier identifier,
+                               CollectionID identifier,
                                OptionalSeqno optionalSeqno);
 
     /**
-     * Complete the deletion of a collection.
+     * Complete the deletion of a collection, that is all data has been
+     * erased and now the collection meta data can be erased
      *
-     * Lookup the collection name and determine the deletion actions.
-     * A collection could of been added again during a background delete so
-     * completeDeletion may just update the state or fully drop all knowledge of
-     * the collection.
-     *
-     * @param vb The VBucket in which the deletion is occuring.
-     * @param identifier Identifier of the collection that has finished being
-     *        deleted.
+     * @param vb The VBucket in which the deletion is occurring.
+     * @param identifier The collection that has finished being deleted.
      */
-    void completeDeletion(::VBucket& vb, cb::const_char_buffer collection);
+    void completeDeletion(::VBucket& vb, CollectionID identifier);
 
     /**
      * Does the key contain a valid collection?
@@ -500,8 +508,7 @@ private:
      * - If the key applies to a collection, the collection must exist and must
      *   not be in the process of deletion.
      */
-    bool doesKeyContainValidCollection(const ::DocKey& key) const;
-
+    bool doesKeyContainValidCollection(const DocKey& key) const;
 
     /**
      * Given a key and it's seqno, the manifest can determine if that key
@@ -510,12 +517,12 @@ private:
      *
      * @return true if the key belongs to a deleted collection.
      */
-    bool isLogicallyDeleted(const ::DocKey& key, int64_t seqno) const;
+    bool isLogicallyDeleted(const DocKey& key, int64_t seqno) const;
 
     /**
      * Perform the job of isLogicallyDeleted, but with an iterator for the
-     * manifest container instead of a key. This means no new key scan and
-     * map lookup is performed.
+     * manifest container instead of a key. This means no map lookup is
+     * performed.
      *
      *  @return true if the seqno/entry represents a logically deleted
      *          collection.
@@ -524,18 +531,14 @@ private:
                             int64_t seqno) const;
 
     /**
-     * Function intended for use by the collection eraser code, checking
-     * keys/seqno in seqno order.
+     * Function intended for use by the collection's eraser code.
      *
-     * @return if the key@seqno indicates that we've now hit the end of
-     *         a deleted collection and should call completeDeletion, then
-     *         the return value is initialised with the collection of the
-     *         key (the value to which we pass to completeDeletion). If the
-     *         key@seqno does not indicate the end, the return value is an
-     *         empty char buffer.
+     * @return if the key indicates that we've now hit the end of
+     *         a deleted collection and should call completeDeletion the
+     *         collectionId, else return uninitialised
      */
-    boost::optional<cb::const_char_buffer> shouldCompleteDeletion(
-            const ::DocKey& key) const;
+    boost::optional<CollectionID> shouldCompleteDeletion(
+            const DocKey& key) const;
 
     /**
      * @returns true/false if $default exists
@@ -547,22 +550,10 @@ private:
     /**
      * @returns true if the collection isOpen - false if not (or doesn't exist)
      */
-    bool isCollectionOpen(cb::const_char_buffer collection) const {
-        auto itr = map.find(collection);
+    bool isCollectionOpen(CollectionID identifier) const {
+        auto itr = map.find(identifier);
         if (itr != map.end()) {
-            return itr->second->isOpen();
-        }
-        return false;
-    }
-
-    /**
-     * @returns true if the collection isOpen - false if not (or doesn't exist)
-     */
-    bool isCollectionOpen(Identifier identifier) const {
-        auto itr = map.find(identifier.getName());
-        if (itr != map.end()) {
-            return itr->second->getUid() == identifier.getUid() &&
-                   itr->second->isOpen();
+            return itr->second.isOpen();
         }
         return false;
     }
@@ -570,8 +561,8 @@ private:
     /**
      * @return true if the collection exists in the internal container
      */
-    bool exists(cb::const_char_buffer collection) const {
-        return map.count(collection) > 0;
+    bool exists(CollectionID identifier) const {
+        return map.count(identifier) > 0;
     }
 
     container::const_iterator end() const {
@@ -582,7 +573,8 @@ private:
      * Get a manifest entry for the collection associated with the key. Can
      * return map.end() for unknown collections.
      */
-    container::const_iterator getManifestEntry(const ::DocKey& key) const;
+    container::const_iterator getManifestEntry(const DocKey& key,
+                                               bool allowSystem) const;
 
     /// @return the manifest UID that last updated this vb::manifest
     uid_t getManifestUid() const {
@@ -594,23 +586,23 @@ protected:
      * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number for the point in 'time' it was created.
      *
-     * @param identifier Identifier of the collection to add.
+     * @param identifier CollectionID of the collection to add.
      * @return a non const reference to the new/updated ManifestEntry so the
      *         caller can set the correct seqno.
      */
-    ManifestEntry& addCollectionEntry(Identifier identifier);
+    ManifestEntry& addCollectionEntry(CollectionID identifier);
 
     /**
      * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number span covering it.
      *
-     * @param identifier Identifier of the collection to add.
+     * @param identifier CollectionID of the collection to add.
      * @param startSeqno The seqno where the collection begins
      * @param endSeqno The seqno where it ends (can be the special open marker)
      * @return a non const reference to the new ManifestEntry so the caller can
      *         set the correct seqno.
      */
-    ManifestEntry& addNewCollectionEntry(Identifier identifier,
+    ManifestEntry& addNewCollectionEntry(CollectionID identifier,
                                          int64_t startSeqno,
                                          int64_t endSeqno);
 
@@ -621,10 +613,10 @@ protected:
      * After "begin" delete a collection can be added again or fully deleted
      * by the completeDeletion method.
      *
-     * @param identifier Identifier of the collection to delete.
+     * @param identifier CollectionID of the collection to delete.
      * @return a reference to the updated ManifestEntry
      */
-    ManifestEntry& beginDeleteCollectionEntry(Identifier identifier);
+    ManifestEntry& beginDeleteCollectionEntry(CollectionID identifier);
 
     /**
      * Process a Collections::Manifest to determine if collections need adding
@@ -639,27 +631,8 @@ protected:
      *          those which should be deleted.
      */
     using processResult =
-            std::pair<std::vector<Collections::Manifest::Identifier>,
-                      std::vector<Collections::Manifest::Identifier>>;
+            std::pair<std::vector<CollectionID>, std::vector<CollectionID>>;
     processResult processManifest(const Collections::Manifest& manifest) const;
-
-    /**
-     * Create a SystemEvent Item, the Item's value will contain data for later
-     * consumption by serialToJson
-     *
-     * @param se SystemEvent to create.
-     * @param identifier The Identifier of the collection which is changing.
-     * @param deleted If the Item should be marked deleted.
-     * @param seqno An optional sequence number. If a seqno is specified, the
-     *        returned item will have its bySeqno set to seqno.
-     *
-     * @returns unique_ptr to a new Item that represents the requested
-     *          SystemEvent.
-     */
-    std::unique_ptr<Item> createSystemEvent(SystemEvent se,
-                                            Identifier identifier,
-                                            bool deleted,
-                                            OptionalSeqno seqno) const;
 
     /**
      * Create an Item that carries a system event and queue it to the vb
@@ -667,7 +640,7 @@ protected:
      *
      * @param vb The vbucket onto which the Item is queued.
      * @param se The SystemEvent to create and queue.
-     * @param identifier The Identifier of the collection being added/deleted.
+     * @param identifier The CollectionID of the collection being added/deleted.
      * @param deleted If the Item created should be marked as deleted.
      * @param seqno An optional seqno which if set will be assigned to the
      *        system event.
@@ -676,7 +649,7 @@ protected:
      */
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
-                             Identifier identifier,
+                             CollectionID identifier,
                              bool deleted,
                              OptionalSeqno seqno) const;
 
@@ -684,12 +657,11 @@ protected:
      * Obtain how many bytes of storage are needed for a serialised copy
      * of this object including the size of the modified collection.
      *
-     * @param collection The name of the collection being changed. It's size is
-     *        included in the returned value.
+     * @param identifier The ID of the collection being changed.
      * @returns how many bytes will be needed to serialise the manifest and
      *          the collection being changed.
      */
-    size_t getSerialisedDataSize(cb::const_char_buffer collection) const;
+    size_t getSerialisedDataSize(CollectionID identifier) const;
 
     /**
      * Obtain how many bytes of storage are needed for a serialised copy
@@ -706,10 +678,10 @@ protected:
      *
      * @param out A buffer for the data to be written into.
      * @param revision The Manifest revision we are processing
-     * @param identifier The Identifier of the collection being added/deleted
+     * @param identifier The CollectionID of the collection being added/deleted
      */
     void populateWithSerialisedData(cb::char_buffer out,
-                                    Identifier identifier) const;
+                                    CollectionID identifier) const;
 
     /**
      * @returns the string for the given key from the cJSON object.
@@ -721,6 +693,16 @@ protected:
      * @param seqno an endSeqno for a deleted collection
      */
     void trackEndSeqno(int64_t seqno);
+
+    /**
+     * For creation of collection SystemEvents - The SystemEventFactory
+     * glues the CollectionID into the event key (so create of x doesn't
+     * collide with create of y). This method yields the 'keyExtra' parameter
+     *
+     * @param collection The value to turn into a string
+     * @return the keyExtra parameter to be passed to SystemEventFactory
+     */
+    static std::string makeCollectionIdIntoString(CollectionID collection);
 
     /**
      * Return a string for use in throwException, returns:

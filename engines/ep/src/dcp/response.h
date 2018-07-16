@@ -571,10 +571,6 @@ public:
         return item->getVBucketId();
     }
 
-    cb::const_char_buffer getKey() const override {
-        return key;
-    }
-
     /**
      * @returns a size representing approximately the memory used, in this case
      * the item's size.
@@ -584,14 +580,9 @@ public:
     }
 
 protected:
-    SystemEventProducerMessage(uint32_t opaque,
-                               const queued_item& itm,
-                               cb::const_char_buffer _key)
-        : SystemEventMessage(opaque), key(_key), item(itm) {
+    SystemEventProducerMessage(uint32_t opaque, const queued_item& itm)
+        : SystemEventMessage(opaque), item(itm) {
     }
-
-    // This refers to the key of the event which is in the item body
-    cb::const_char_buffer key;
 
     queued_item item;
 };
@@ -601,8 +592,13 @@ public:
     CollectionsProducerMessage(uint32_t opaque,
                                const queued_item& itm,
                                const Collections::SystemEventData& data)
-        : SystemEventProducerMessage(opaque, itm, data.id.getName()),
-          eventData{htonll(data.manifestUid), htonll(data.id.getUid())} {
+        : SystemEventProducerMessage(opaque, itm),
+          eventData{htonll(data.manifestUid), data.cid.to_network()} {
+    }
+
+    // Collections system event have no key data, all is in the event data
+    cb::const_char_buffer getKey() const override {
+        return {/*no key*/};
     }
 
     cb::const_byte_buffer getEventData() const override {
@@ -611,6 +607,7 @@ public:
     }
 
 private:
+    /// Stores uid of manifest and cid of affected collection in network order
     Collections::SystemEventDCPData eventData;
 };
 
@@ -650,27 +647,23 @@ public:
     }
 
     /**
-     * @return the Collection::Collection data (key and uid)
+     * @return the CollectionID of the event
      */
-    Collections::Identifier getCollection() const {
-        return {event.getKey(), getUid()};
+    CollectionID getCollectionID() const {
+        const auto* dcpData =
+                reinterpret_cast<const Collections::SystemEventDCPData*>(
+                        event.getEventData().data());
+        return dcpData->cid.to_host();
     }
 
     /**
      * @return manifest uid which triggered the create or delete
      */
     Collections::uid_t getManifestUid() const {
-        return ntohll(*reinterpret_cast<const Collections::uid_t*>(
-                event.getEventData().data()));
-    }
-
-protected:
-    /**
-     * @return collection uid of the created or deleted collection
-     */
-    Collections::uid_t getUid() const {
-        return ntohll(*reinterpret_cast<const Collections::uid_t*>(
-                event.getEventData().data() + sizeof(Collections::uid_t)));
+        const auto* dcpData =
+                reinterpret_cast<const Collections::SystemEventDCPData*>(
+                        event.getEventData().data());
+        return ntohll(dcpData->manifestUid);
     }
 };
 

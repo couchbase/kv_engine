@@ -21,7 +21,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <string>
-#include <vector>
+#include <unordered_map>
 
 #include "collections/collections_types.h"
 
@@ -36,34 +36,6 @@ namespace Collections {
  */
 class Manifest {
 public:
-    // Manifest::Identifier stores/owns name
-    class Identifier : public IdentifierInterface<Identifier> {
-    public:
-        Identifier(const std::string& name, uid_t uid) : name(name), uid(uid) {
-        }
-
-        template <class T>
-        Identifier(const IdentifierInterface<T>& identifier)
-            : name(identifier.getName().data(), identifier.getName().size()),
-              uid(identifier.getUid()) {
-        }
-
-        cb::const_char_buffer getName() const {
-            return {name};
-        }
-
-        uid_t getUid() const {
-            return uid;
-        }
-
-        bool operator==(const Collections::Identifier& rhs) const {
-            return rhs.getName() == name.c_str() && rhs.getUid() == uid;
-        }
-
-    private:
-        std::string name;
-        uid_t uid;
-    };
 
     /*
      * Create a manifest from json.
@@ -82,7 +54,8 @@ public:
         return defaultCollectionExists;
     }
 
-    using container = std::vector<Identifier>;
+    // This manifest object stores CID to name mappings
+    using container = std::unordered_map<CollectionID, std::string>;
 
     container::const_iterator begin() const {
         return collections.begin();
@@ -96,28 +69,16 @@ public:
         return collections.size();
     }
 
-    /// return the UID of the Manifest
+    /// @return the unique ID of the Manifest which constructed this
     uid_t getUid() const {
         return uid;
     }
 
     /**
-     * Try and find an identifier in this Manifest (name/uid match)
      * @return iterator to the matching entry or end() if not found.
      */
-    container::const_iterator find(
-            const Collections::Identifier& identifier) const {
-        return std::find_if(
-                begin(), end(), [identifier](const Identifier& entry) {
-                    return entry == identifier;
-                });
-    }
-
-    /// @todo enhance filters with UIDs - this find remains for Filter code
-    container::const_iterator find(const std::string& name) const {
-        return std::find_if(begin(), end(), [name](const Identifier& entry) {
-            return entry.getName() == name.c_str();
-        });
+    container::const_iterator find(CollectionID cid) const {
+        return collections.find(cid);
     }
 
     /**
@@ -132,10 +93,11 @@ public:
 
 private:
     /**
-     * Set defaultCollectionExists to true if name matches $default
-     * @param name C-string collection name
+     * Set defaultCollectionExists to true if identifier matches
+     * CollectionID::DefaultCollection
+     * @param identifier ID to check
      */
-    void enableDefaultCollection(const std::string& name);
+    void enableDefaultCollection(CollectionID identifier);
 
     /**
      * Get json sub-object from the json object for key and check the type.
@@ -170,6 +132,11 @@ private:
      * @param collection a std::string representing a collection name.
      */
     static bool validCollection(const std::string& collection);
+
+    /**
+     * Check if the identifier is valid
+     */
+    static bool validUid(CollectionID identifier);
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 

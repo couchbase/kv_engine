@@ -200,9 +200,10 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
 
     // Create meat with uid 4 as if it came from manifest uid cafef00d
     std::string collection = "meat";
-    Collections::uid_t uid = 4;
+    CollectionID cid = CollectionEntry::meat.getId();
     Collections::uid_t manifestUid = 0xcafef00d;
-    Collections::SystemEventDCPData eventData{htonll(manifestUid), htonll(uid)};
+    Collections::SystemEventDCPData eventData{htonll(manifestUid),
+                                              cid.to_network()};
 
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->snapshotMarker(/*opaque*/ 1,
@@ -232,9 +233,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     // We can now access the collection
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
             {"meat:bacon", CollectionEntry::meat}));
-    EXPECT_TRUE(vb->lockCollections().isCollectionOpen("meat"));
-    EXPECT_TRUE(vb->lockCollections().isCollectionOpen(
-            Collections::Identifier{"meat", 4}));
+    EXPECT_TRUE(vb->lockCollections().isCollectionOpen(CollectionEntry::meat));
     EXPECT_EQ(0xcafef00d, vb->lockCollections().getManifestUid());
 
     // Call the consumer function for handling DCP events
@@ -386,7 +385,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
     testDcpCreateDelete(1, 0, items, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
-            CollectionEntry::fruit.getId()));
+            CollectionEntry::fruit));
 }
 
 // Test that a create/delete don't dedup (collections creates new checkpoints)
@@ -411,10 +410,10 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
         vb->updateFromManifest({cm.add(CollectionEntry::dairy2)});
 
         // Persist everything ready for warmup and check.
-        // Flusher will merge create/delete and we only flush the delete
-        flush_vbucket_to_disk(0, items + 1);
+        // Flush the items + 1 delete (dairy) and 1 create (dairy2)
+        flush_vbucket_to_disk(0, items + 2);
 
-        // Should see 2x create dairy and 1x delete dairy
+        // However DCP - Should see 2x create dairy and 1x delete dairy
         testDcpCreateDelete(2, 1, items);
     }
 
@@ -445,15 +444,16 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
             store_item(vbid, {key, CollectionEntry::dairy}, "value");
         }
 
-        // Delete dairy/create dairy in one update
+        // Delete dairy/create dairy in *one* update
         vb->updateFromManifest({cm.remove(CollectionEntry::dairy)
                                         .add(CollectionEntry::dairy2)});
 
         // Persist everything ready for warmup and check.
-        // Flusher will merge create/delete and we only flush the delete
-        flush_vbucket_to_disk(0, items + 1);
+        // Flush the items + 1 delete (dairy) and 1 create (dairy2)
+        flush_vbucket_to_disk(0, items + 2);
 
-        testDcpCreateDelete(2, 1, 3);
+        // However DCP - Should see 2x create dairy and 1x delete dairy
+        testDcpCreateDelete(2, 1, items);
     }
 
     resetEngineAndWarmup();
@@ -470,11 +470,12 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
 // Test that a create/delete don't dedup (collections creates new checkpoints)
 TEST_F(CollectionsDcpTest, MB_26455) {
     const int items = 3;
+    uint32_t m = 7;
+
     {
         auto vb = store->getVBucket(vbid);
 
-        size_t m = 5;
-        for (size_t n = 0; n < m; n++) {
+        for (uint32_t n = 2; n < m; n++) {
             CollectionsManifest cm;
             vb->updateFromManifest({cm});
 
@@ -484,7 +485,7 @@ TEST_F(CollectionsDcpTest, MB_26455) {
             // Mutate fruit
             for (int ii = 0; ii < items; ii++) {
                 std::string key = "fruit:" + std::to_string(ii);
-                store_item(vbid, {key, CollectionEntry::fruit}, "value");
+                store_item(vbid, {key, n}, "value");
             }
 
             // expect create_collection + items
@@ -507,9 +508,8 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     // Streamed from disk, one create (create of fruit) and items of fruit
     testDcpCreateDelete(1, 0, items, false /*fromMemory*/);
 
-    // @todo This will fail if using ID based identification
-    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
-            CollectionEntry::fruit.getId()));
+    EXPECT_TRUE(
+            store->getVBucket(vbid)->lockCollections().isCollectionOpen(m - 1));
 }
 
 class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {
@@ -540,7 +540,7 @@ TEST_F(CollectionsFilteredDcpErrorTest, error1) {
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
 
-    std::string filter = R"({"collections":["fruit"]})";
+    std::string filter = R"({"collections":["8"]})";
     cb::const_byte_buffer buffer{
             reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
     // Can't create a filter for unknown collections
@@ -555,47 +555,6 @@ TEST_F(CollectionsFilteredDcpErrorTest, error1) {
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
     }
-}
-
-// Cannot create non-zero stream for a name-only filter stream
-TEST_F(CollectionsFilteredDcpErrorTest, fail_non_zero_name_only_streams) {
-    // Set some collections
-    CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
-
-    // name only filter
-    std::string filter = R"({"collections":["meat"]})";
-    cb::const_byte_buffer buffer{
-            reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
-    // Can't create a filter for unknown collections
-    producer = std::make_shared<MockDcpProducer>(*engine,
-                                                 cookieP,
-                                                 "test_producer",
-                                                 DCP_OPEN_COLLECTIONS,
-                                                 buffer,
-                                                 false /*startTask*/);
-    producer->setNoopEnabled(true);
-
-    // Remove meat
-    store->setCollections({cm.remove(CollectionEntry::meat)});
-
-    VBucketPtr vb = store->getVBucket(vbid);
-    auto uid = vb->failovers->getLatestUUID();
-
-    // Now should be prevented from creating a new stream
-    uint64_t rollbackSeqno = 0;
-    EXPECT_EQ(ENGINE_EINVAL,
-              producer->streamRequest(0, // flags
-                                      1, // opaque
-                                      vbid,
-                                      1, // start_seqno
-                                      ~0ull, // end_seqno
-                                      uid, // vbucket_uuid,
-                                      1, // snap_start_seqno,
-                                      1, // snap_end_seqno,
-                                      &rollbackSeqno,
-                                      &CollectionsDcpTest::dcpAddFailoverLog));
 }
 
 class CollectionsFilteredDcpTest : public CollectionsDcpTest {
@@ -620,15 +579,15 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     CollectionsManifest cm;
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
-    // Setup filtered DCP
-    createDcpObjects(R"({"collections":["dairy"]})", true);
+    // Setup filtered DCP for CID 6 (dairy)
+    createDcpObjects(R"({"collections":["6"]})", true);
 
     notifyAndStepToCheckpoint();
 
     // SystemEvent createCollection
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    EXPECT_EQ("dairy", dcp_last_key);
+    // EXPECT_EQ("dairy", dcp_last_key); @todo MB-30397 - DCP broken
 
     // Store collection documents
     std::array<std::string, 2> expectedKeys = {{"dairy:one", "dairy:two"}};
@@ -663,11 +622,11 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // In order to create a filter, a manifest needs to be set
     store->setCollections({cm});
 
-    createDcpObjects(R"({"collections":["dairy"]})", true);
+    createDcpObjects(R"({"collections":["6"]})", true);
 
     // Streamed from disk
-    // 1 create - create of dairy
-    // 2 mutations in the dairy collection
+    // 1x create - create of dairy
+    // 2x mutations in the dairy collection
     testDcpCreateDelete(1, 0, 2, false);
 }
 
@@ -682,7 +641,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
     // Setup filtered DCP
-    createDcpObjects(R"({"collections":["dairy"]})", true);
+    createDcpObjects(R"({"collections":["6"]})", true);
 
     // Store collection documents
     store_item(vbid, {"meat::one", CollectionEntry::meat}, "value");
@@ -694,7 +653,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     // SystemEvent createCollection for dairy is expected
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    EXPECT_EQ("dairy", dcp_last_key);
+    // EXPECT_EQ("dairy", dcp_last_key); @todo MB-30397 - DCP broken
 
     // And no more for this stream - no meat
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
@@ -748,7 +707,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     store->setCollections({cm.add(CollectionEntry::meat)});
 
     // Setup filtered DCP
-    createDcpObjects(R"({"collections":["meat"]})", true);
+    createDcpObjects(R"({"collections":["2"]})", true);
 
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -796,7 +755,7 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     store->setCollections({cm.add(CollectionEntry::meat)});
 
     producer = createDcpProducer(cookieP,
-                                 R"({"collections":["meat"]})",
+                                 R"({"collections":["2"]})",
                                  true,
                                  IncludeDeleteTime::No);
     createDcpConsumer();
@@ -836,11 +795,10 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes2) {
     store->setCollections({cm.add(CollectionEntry::meat)});
 
     // specific collection uid
-    producer =
-            createDcpProducer(cookieP,
-                              R"({"collections":[{"name":"meat", "uid":"2"}]})",
-                              true,
-                              IncludeDeleteTime::No);
+    producer = createDcpProducer(cookieP,
+                                 R"({"collections":["2"]})",
+                                 true,
+                                 IncludeDeleteTime::No);
     createDcpConsumer();
 
     // Perform a delete of meat

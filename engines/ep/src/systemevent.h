@@ -98,11 +98,22 @@ public:
                                       size_t itemSize,
                                       OptionalSeqno seqno);
 
-    static std::unique_ptr<Item> make(const DocKey& key, SystemEvent se);
+    /**
+     * Retrieve the 'keyExtra' from a SystemEvent Item's key created by
+     * SystemEventFactory make
+     * @param key the DocKey of the SystemEvent
+     * @return a byte_buffer which should contain the 'keyExtra' data originally
+     *  passed to make
+     */
+    static cb::const_byte_buffer getKeyExtra(const DocKey& key);
 
 private:
     static std::string makeKey(SystemEvent se,
                                const std::string& keyExtra);
+
+    /// helper method for getKeyExtra
+    static const cb::const_byte_buffer::iterator findKeyExtra(
+            const DocKey& key, const std::string& separator);
 };
 
 enum class ProcessStatus { Skip, Continue };

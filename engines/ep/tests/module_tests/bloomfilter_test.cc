@@ -80,9 +80,10 @@ TEST_P(BloomFilterDocKeyTest, check_maybeKeyExist) {
     }
 }
 
-static std::vector<DocNamespace> allDocNamespaces = {{DocNamespace::DefaultCollection,
-                                                      DocNamespace::Collections,
-                                                      DocNamespace::System}};
+// Test params includes our labelled collections that have 'special meaning' and
+// one normal collection ID (100)
+static std::vector<DocNamespace> allDocNamespaces = {
+        {DocNamespace::DefaultCollection, DocNamespace::System, 100}};
 
 INSTANTIATE_TEST_CASE_P(
         DocNamespace,

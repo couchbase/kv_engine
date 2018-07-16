@@ -16,37 +16,36 @@ known collection would move the known collection to exclusive deleting.
 
 Collections state changes:
 ```
-        ●
-        │┌────────────────────────┐
-        ├┤ Collection is created  │
-        │└────────────────────────┘
-        ▼
-   .─────────.
-  /           \
- :  exclusive  : ◀──────────────────────────────┐
- :    open     :                                │
-  \           /                                 │
-    ─────────                                   │
-        │                                       │┌─────────────────────────┐
-        │                                       ├┤Collection (old revision)│
-        │                                       ││  is completely deleted  │
-        │┌────────────────────────┐             ││   (all items removed)   │
-        ├┤ Collection is deleted  │             │└─────────────────────────┘
-        │└────────────────────────┘             │
-        ▼                                       │
-  .─────────.                                  .─────────.
- /           \                                /           \
-:  exclusive  : ────────────┬──────────────▶ :  open and   :
-:  deleting   : ┌───────────┴─────────────┐  :  deleting   :
- \           /  │ Collection of same name │   \           /
-   ─────────    │(new revision) is created│     ─────────
-        │       └─────────────────────────┘
-        │
-        │┌───────────────────────────┐
-        ├┤ Collection is completely  │
-        ││deleted (all items removed)│
-        │└───────────────────────────┘
-        ●
+               ●
+               │┌────────────────────────┐
+               ├┤ Collection is created  │
+               │└────────────────────────┘
+               ▼
+          .─────────.
+         /           \
+        :    open     :
+         \           /
+           ─────────
+               │
+               │
+               │
+               │┌────────────────────────┐
+               ├┤ Collection is deleted  │
+               │└────────────────────────┘
+               ▼
+         .─────────.
+        /           \
+       :  deleting   :
+        \           /
+          ─────────
+               │
+               │
+               │
+               │┌───────────────────────────┐
+               ├┤ Collection is completely  │
+               ││deleted (all items removed)│
+               │└───────────────────────────┘
+               ●
 ```
 
 ## State diagram with SystemEvents
@@ -62,37 +61,35 @@ A SystemEvent can be created and for some use-cases, deleted. For collections
 the end of a collection is denoted by a deleted Collection event.
 
 ```
-                          ●
-                          │
- ┌───────────────────────┐│
- │      Collection       ├┤
- └───────────────────────┘▼
-                     .─────────.
-                    /           \
-                   :  exclusive  : ◀──────────────────────────────┐
-                   :    open     :                                │
-                    \           /                                 │
-                      ─────────                                   │
-                          │                                       │
-                          │                                       │
-                          │                                       │
-                          │                                       │
-┌────────────────────────┐│                                       │┌─────────────────────────┐
-│  Collection [deleted]  ├┤                                       ├┤  DeleteCollectionSoft   │
-└────────────────────────┘▼          ┌───────────────────────┐    │└─────────────────────────┘
-                    .─────────.      │       Collection      │   .─────────.
-                   /           \     └───────────┬───────────┘  /           \
-                  :  exclusive  : ───────────────┴───────────▶ :  open and   :
-                  :  deleting   :                              :  deleting   :
-                   \           /                                \           /
-                     ─────────                                    ─────────
-                          │
-                          │┌────────────────────────┐
-                          ├┤  DeleteCollectionHard  │
-                          │└────────────────────────┘
-                          │
-                          │
-                          ●
+                                  ●
+                                  │
+         ┌───────────────────────┐│
+         │      Collection       ├┤
+         └───────────────────────┘▼
+                             .─────────.
+                            /           \
+                           :    open     :
+                            \           /
+                              ─────────
+                                  │
+                                  │
+                                  │
+                                  │
+        ┌────────────────────────┐│
+        │  Collection [deleted]  ├┤
+        └────────────────────────┘▼
+                            .─────────.
+                           /           \
+                          :  deleting   :
+                           \           /
+                             ─────────
+                                  │
+                                  │┌────────────────────────┐
+                                  ├┤  DeleteCollectionHard  │
+                                  │└────────────────────────┘
+                                  │
+                                  │
+                                  ●
 ```
 
 ## Collection States and Sequence Numbers
@@ -103,18 +100,16 @@ collection.
 For example, when a collection is created we record the sequence number at which
 we queue the create SystemEvent. And when a collection is deleted we record the
 sequence number at which we queue the delete SystemEvent. This gives us a
-sequence number life-time of a collection.
+sequence number life-span of each collection.
 
 * Each collection has a `start_seqno` and an `end_seqno`.
 * The `end_seqno` is permitted to have a special value of -6, this value means there is no end.
 
 ### Determining states from the seqno start/end:
-* Exclusive Open
-  * `end_seqno < start_seqno`
-* Exclusive Deleting
-  * `end_seqno > start_seqno`
-* Open and Deleting
-  * `end_seqno > 0 && end_seqno < start_seqno`
+* Open
+  * `end_seqno == -6`
+* Deleting
+  * `end_seqno != -6`
 
 ## VBucket JSON manifest
 
@@ -130,8 +125,8 @@ document).
 ```
 {
    "collections":[
-      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","uid":"1","start_seqno":"13012","end_seqno":"-6"},
+      {"uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"uid":"1","start_seqno":"13012","end_seqno":"-6"},
     ]
 }
 ```
@@ -149,39 +144,32 @@ SystemEvent is stored in the flags field as an int.
 
 ### SystemEvent Identification
 
-Consider the 'fruit' collection.
+Consider a collection with an id of 0x4c456771 (this is an ID deliberately in the printable ascii range):
 
-* Creating a fruit collection generates the following Item.
-  * event = `SystemEvent::Collection`, key = `$collection::fruit`, deleted = false
-  * The value must at least store the UID of the collection.
+* Creating the collection generates the following Item.
+  * event = `SystemEvent::Collection`, key = `$collection:LEgq`, deleted = false
 * Logically deleting the fruit collection generates the following Item.
-  * event = `SystemEvent::Collection`, key = `$collection::fruit`, deleted = true
-* If all data of a collection is deleted but the collection has been added back (with a new UID)
-  * event = `SystemEvent::DeleteCollectionSoft`, key = `$collection::fruit`, deleted = false
+  * event = `SystemEvent::Collection`, key = `$collection:LEgq`, deleted = true
 * If all data of a collection is deleted
-  * event = `SystemEvent::DeleteCollectionHard`, key = `$collection::fruit`, deleted = false
+  * event = `SystemEvent::DeleteCollectionHard`, key = `$collection:LEgq`, deleted = false
 
 ### SystemEvent flushing actions
 
 SystemEvents are treated differently by the flusher.
 
 * `Collection`
-  * Sets or Deletes a document called `$collection::fruit` with a value that at least contains the UID
+  * Sets or Deletes a document called `$collection:LEgq` with a value that at least contains the UID
   * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest)
-* `DeleteCollectionSoft`
-  * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest) so that the collection remains but now with no endSeqno
 * `DeleteCollectionHard`
-  * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest) so that the collection metadata is all gone
+  * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest) so that the collection's metadata is all gone
 
 ### SystemEvent DCP actions
 
 SystemEvents are treated differently by the ActiveStream.
 
 * `Collection`
-  * `!isDeleted` Sends DcpSystem event message containing mcbp::CreateCollection, `key="fruit"` and `value="$UID"` (the value of UID)
-  * `isDeleted` Sends DcpSystem event message containing mcbp::DeleteCollection, `key="fruit"` and `value="$UID"` (the value of UID)
-* `DeleteCollectionSoft`
-  * Ignored by DCP
+  * `!isDeleted` Sends DcpSystem event message containing mcbp::CreateCollection, `value="manifest-uid, collection-ID"`
+  * `isDeleted` Sends DcpSystem event message containing mcbp::DeleteCollection, `value="manifest-uid, collection-ID"`
 * `DeleteCollectionHard`
   * Ignored by DCP
 
@@ -189,86 +177,36 @@ SystemEvents are treated differently by the ActiveStream.
 
 ### create/delete
 
-1. Start with `$default=exclusive open`
+1. Start with `0=open`
 2. Receive (assume VB high-seqno is 200)
 
-   `{"collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"1"}]}`
+   `{"collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"4c456771"}]}`
 
-  * `$default=exclusive open, fruit=exclusive open`
-  * stores a document `$collection::fruit` at seqno 201 with a value at least containing 1.
+  * `0=open, 4c456771=open`
+  * stores a document `$collection:LEgq` at seqno 201
   * _local/collections_manifest
    ```
   {"collections":[
-      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","uid":"1","start_seqno":"201","end_seqno":"-6"}]}
+      {"uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"uid":"4c456771","start_seqno":"201","end_seqno":"-6"}]}
    ```
 3. Receive (assume VB high-seqno is now 430)
 
    `{"collections":[{"name":"$default", "uid":"0"}]}`
 
-  * `$default=exclusive open, fruit=exclusive deleting`
-  * note the creation of a deleted(SystemEvent::Collection) will trigger a background scrub of the collection's items.
+  * `0=open, 4c456771=deleting`
+  * note the creation of a deleted(SystemEvent::Collection) will trigger a background erase of the collection's items.
   * _local/collections_manifest
    ```
   {"collections":[
-      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","uid":"1","start_seqno":"201","end_seqno":"431"}]}
+      {"uid":"0","start_seqno":"1","end_seqno":"-6"},
+      {"uid":"4c456771","start_seqno":"201","end_seqno":"431"}]}
    ```
+4. When the background delete of 4c456771 is complete and assuming VB high-seqno is now 561
 
-4. When the background delete of fruit is complete and assuming VB high-seqno is now 561
-
-  * `$default=exclusive open`
-  * _local/collections_manifest (now fruit is deleted 'hard')
-   ```
-  {"collections":[
-      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"}]}
-   ```
-
-### create/delete/create
-
-1. Start with `$default=exclusive open`
-2. Receive (assume VB high-seqno is 836)
-
-   `{"collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"1"}]}`
-
-  * `$default=exclusive open, fruit=exclusive open`
-  * stored a document `$collection::fruit` at seqno 837
-  * _local/collections_manifest
+  * `0=open`
+  * _local/collections_manifest (now 4c456771 is deleted 'hard')
    ```
   {"collections":[
-      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","uid":"1","start_seqno":"837","end_seqno":"-6"}]}
-   ```
-3. Receive (assume VB high-seqno = 919)
-
-   `{"collections":[{"name":"$default", "uid":"0"}]}`
-
-  * `$default=exclusive open, fruit=exclusive deleting`
-  * note the creation of a deleted(SystemEvent::Collection) will trigger a background scrub of the collection's items.
-  * _local/collections_manifest
-   ```
-  {"collections":[
-      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","uid":"1","start_seqno":"837","end_seqno":"920"}]}
-   ```
-4. Receive (before the background delete completes, VB high-seqno = 1617)
-
-   `{"collections":[{"name":"$default", "uid":"0"}, {"name":"fruit","uid":"2"}]}`
-
-  * `$default=exclusive open, fruit=open and deleting`
-  * store a document `$collection::fruit` at seqno 1618 with value at least containing the UID of 2
-  * _local/collections_manifest
-   ```
-  {"collections":[
-      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","uid":"3","start_seqno":"1618","end_seqno":"920"}]}
-   ```
-5. When the background delete of fruit is complete and assuming VB high-seqno = 2010
-
-  * `$default=exclusive open, fruit=exclusive open`
-  * _local/collections_manifest (now fruit is deleted 'soft')
-   ```
-  {"collections":[
-      {"name":"$default","uid":"0","start_seqno":"1","end_seqno":"-6"},
-      {"name":"fruit","uid":"3","start_seqno":"1618","end_seqno":"-6"}]}
+      {"uid":"0","start_seqno":"1","end_seqno":"-6"}]}
    ```

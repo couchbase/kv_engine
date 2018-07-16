@@ -79,7 +79,7 @@ TEST_P(CollectionsEraserTest, basic) {
 
     EXPECT_EQ(0, vb->getNumItems());
 
-    EXPECT_FALSE(vb->lockCollections().exists("dairy"));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
 }
 
 TEST_P(CollectionsEraserTest, basic_2_collections) {
@@ -176,7 +176,7 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
 
-    flush_vbucket_to_disk(vbid, 2 /* 1x system */);
+    flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
 
     runEraser();
 

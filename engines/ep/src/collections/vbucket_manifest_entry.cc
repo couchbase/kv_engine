@@ -40,9 +40,7 @@ std::string Collections::VB::ManifestEntry::getExceptionString(
 std::ostream& Collections::VB::operator<<(
         std::ostream& os,
         const Collections::VB::ManifestEntry& manifestEntry) {
-    os << "ManifestEntry: collection:" << manifestEntry.getCollectionName()
-       << ", uid:" << manifestEntry.getUid()
-       << ", startSeqno:" << manifestEntry.getStartSeqno()
+    os << "ManifestEntry: startSeqno:" << manifestEntry.getStartSeqno()
        << ", endSeqno:" << manifestEntry.getEndSeqno();
     return os;
 }
