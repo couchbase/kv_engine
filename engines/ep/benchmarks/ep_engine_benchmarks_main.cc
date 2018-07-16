@@ -18,6 +18,8 @@
 #include <programs/engine_testapp/mock_server.h>
 
 #include <benchmark/benchmark.h>
+#include <engines/ep/src/bucket_logger.h>
+#include <logger/logger.h>
 
 #include "ep_time.h"
 
@@ -34,6 +36,7 @@ int main(int argc, char** argv) {
     putenv(allow_no_stats_env);
     mock_init_alloc_hooks();
     init_mock_server();
+    globalBucketLogger = std::make_unique<BucketLogger>(cb::logger::get());
     initialize_time_functions(get_mock_server_api()->core);
     ::benchmark::Initialize(&argc, argv);
     /*

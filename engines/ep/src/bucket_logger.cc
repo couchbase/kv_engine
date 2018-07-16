@@ -28,23 +28,34 @@ BucketLogger::BucketLogger(spdlog::logger* logger)
 }
 
 void BucketLogger::_sink_it(spdlog::details::log_msg& msg) {
-    EventuallyPersistentEngine* engine =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    // Get the engine pointer for logging the bucket name.
+    // Normally we would wish to stop tracking memory at this point to avoid
+    // tracking any allocations or de-allocations done by the logging library
+    // such as buffer allocations, or by ourselves in formatting the string.
+    // However, as this method is overriden from an spdlog instance,
+    // allocations have already been made and tracked as part of formatting
+    // this message (from the BucketLogger->log() call to this point). There
+    // is little point spending the overhead to switch thread to avoid
+    // tracking the allocations of our custom formatting as this is the
+    // case. Memory is not allocated in actually logging the message, this is
+    // done at creation of the logger where we allocate a fixed size buffer.
+    // As such, we don't have to worry about the tracking implications of
+    // allocation on the calling thread and de-allocation on the processing
+    // worker thread when using the async mode.
+    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+
     std::string fmtString;
 
     // Prepend the engine name
     if (engine) {
         fmtString = '(' + std::string(engine->getName().c_str()) + ") " +
                     msg.raw.c_str();
-        spdLogger->log(msg.level, fmtString);
     } else {
         fmtString.append("(No Engine) ");
         fmtString.append(msg.raw.c_str());
-
-        spdLogger->log(msg.level, fmtString);
     }
 
-    ObjectRegistry::onSwitchThread(engine);
+    spdLogger->log(msg.level, fmtString);
 }
 
 std::unique_ptr<BucketLogger> globalBucketLogger;

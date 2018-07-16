@@ -62,8 +62,12 @@ int main(int argc, char **argv) {
     init_mock_server();
     const auto log_level =
             verbose_logging ? EXTENSION_LOG_DEBUG : EXTENSION_LOG_FATAL;
+    const auto spd_log_level = verbose_logging
+                                       ? spdlog::level::level_enum::debug
+                                       : spdlog::level::level_enum::critical;
     get_mock_server_api()->log->set_level(log_level);
     Logger::setLoggerAPI(get_mock_server_api()->log);
+    globalBucketLogger->set_level(spd_log_level);
 
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
