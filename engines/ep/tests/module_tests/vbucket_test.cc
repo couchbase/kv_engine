@@ -224,9 +224,8 @@ GetValue VBucketTest::public_getAndUpdateTtl(const DocKey& key,
     auto hbl = lockAndFind(key);
     GetValue gv;
     MutationStatus status;
-    auto rh = vbucket->lockCollections(key);
-    std::tie(status, gv) =
-            vbucket->processGetAndUpdateTtl(hbl.first, hbl.second, exptime, rh);
+    std::tie(status, gv) = vbucket->processGetAndUpdateTtl(
+            key, hbl.first, hbl.second, exptime);
     return gv;
 }
 
