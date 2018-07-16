@@ -44,8 +44,9 @@ public:
      * @param k  The shard to which this background fetcher belongs
      * @param st reference to statistics
      */
-    BgFetcher(KVBucket* s, KVShard* k, EPStats &st) :
-        store(s), shard(k), taskId(0), stats(st), pendingFetch(false) {}
+    BgFetcher(KVBucket& s, KVShard& k, EPStats& st)
+        : store(s), shard(k), taskId(0), stats(st), pendingFetch(false) {
+    }
 
     /**
      * Construct a BgFetcher
@@ -79,8 +80,8 @@ private:
     /// been woken.
     void wakeUpTaskIfSnoozed();
 
-    KVBucket* store;
-    KVShard* shard;
+    KVBucket& store;
+    KVShard& shard;
     size_t taskId;
     std::mutex queueMutex;
     EPStats &stats;

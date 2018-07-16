@@ -30,7 +30,7 @@
 #include <vector>
 
 BgFetcher::BgFetcher(KVBucket& s, KVShard& k)
-    : BgFetcher(&s, &k, s.getEPEngine().getEpStats()) {
+    : BgFetcher(s, k, s.getEPEngine().getEpStats()) {
 }
 
 BgFetcher::~BgFetcher() {
@@ -47,7 +47,7 @@ BgFetcher::~BgFetcher() {
 void BgFetcher::start() {
     ExecutorPool* iom = ExecutorPool::get();
     auto task =
-            std::make_shared<MultiBGFetcherTask>(&(store->getEPEngine()), this);
+            std::make_shared<MultiBGFetcherTask>(&(store.getEPEngine()), this);
     this->setTaskId(task->getId());
     iom->schedule(task);
 }
@@ -88,7 +88,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
                     startTime.time_since_epoch())
                     .count());
 
-    shard->getROUnderlying()->getMulti(vbId, itemsToFetch);
+    shard.getROUnderlying()->getMulti(vbId, itemsToFetch);
 
     std::vector<bgfetched_item_t> fetchedItems;
     for (const auto& fetch : itemsToFetch) {
@@ -103,7 +103,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
     }
 
     if (fetchedItems.size() > 0) {
-        store->completeBGFetchMulti(vbId, fetchedItems, startTime);
+        store.completeBGFetchMulti(vbId, fetchedItems, startTime);
         stats.getMultiHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         std::chrono::steady_clock::now() - startTime),
@@ -141,8 +141,9 @@ bool BgFetcher::run(GlobalTask *task) {
     }
 
     size_t num_fetched_items = 0;
+
     for (const auto vbId : bg_vbs) {
-        VBucketPtr vb = shard->getBucket(vbId);
+        VBucketPtr vb = shard.getBucket(vbId);
         if (vb) {
             // Requeue the bg fetch task if vbucket DB file is not created yet.
             if (vb->isBucketCreation()) {
@@ -167,8 +168,8 @@ bool BgFetcher::run(GlobalTask *task) {
 }
 
 bool BgFetcher::pendingJob() const {
-    for (const auto vbid : shard->getVBuckets()) {
-        VBucketPtr vb = shard->getBucket(vbid);
+    for (const auto vbid : shard.getVBuckets()) {
+        VBucketPtr vb = shard.getBucket(vbid);
         if (vb && vb->hasPendingBGFetchItems()) {
             return true;
         }

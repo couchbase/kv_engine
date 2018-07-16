@@ -50,7 +50,7 @@ class Manager;
  * bucket_type parameter), defaulting to EPBucket if no bucket_type is
  * specified.
  */
-class KVBucketTest : public ::testing::Test {
+class KVBucketTest : virtual public ::testing::Test {
 public:
     void SetUp() override;
 

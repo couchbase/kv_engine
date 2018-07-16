@@ -221,14 +221,6 @@ void VBucketTest::public_incrementBackfillQueueSize() {
     vbucket->stats.vbBackfillQueueSize++;
 }
 
-size_t EPVBucketTest::public_queueBGFetchItem(
-        const DocKey& key,
-        std::unique_ptr<VBucketBGFetchItem> fetchItem,
-        BgFetcher* bgFetcher) {
-    return dynamic_cast<EPVBucket&>(*vbucket).queueBGFetchItem(
-            key, std::move(fetchItem), bgFetcher);
-}
-
 class BlobTest : public Blob {
 public:
     BlobTest() : Blob(0,0) {}
@@ -243,22 +235,6 @@ TEST(BlobTest, basicAllocationSize){
     // Expected to be 9 because 3 bytes of the data member array will not
     // be allocated because they will not be used.
     EXPECT_EQ(BlobTest::getAllocationSize(0), 9);
-}
-
-// Measure performance of VBucket::getBGFetchItems - queue and then get
-// 10,000 items from the vbucket.
-TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
-    BgFetcher fetcher(/*store*/ nullptr, /*shard*/ nullptr, this->global_stats);
-
-    for (unsigned int ii = 0; ii < 100000; ii++) {
-        auto fetchItem = std::make_unique<VBucketBGFetchItem>(cookie,
-                                                              /*isMeta*/ false);
-        this->public_queueBGFetchItem(
-                makeStoredDocKey(std::to_string(ii)),
-                std::move(fetchItem),
-                &fetcher);
-    }
-    auto items = this->vbucket->getBGFetchItems();
 }
 
 // Check the existence of bloom filter after performing a
@@ -765,16 +741,4 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(FULL_EVICTION),
         [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
             return "FULL_EVICTION";
-        });
-
-INSTANTIATE_TEST_CASE_P(
-        FullAndValueEviction,
-        EPVBucketTest,
-        ::testing::Values(VALUE_ONLY, FULL_EVICTION),
-        [](const ::testing::TestParamInfo<item_eviction_policy_t>& info) {
-            if (info.param == VALUE_ONLY) {
-                return "VALUE_ONLY";
-            } else {
-                return "FULL_EVICTION";
-            }
         });

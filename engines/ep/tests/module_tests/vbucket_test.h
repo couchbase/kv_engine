@@ -49,8 +49,8 @@ public:
  * Templated on the Item Eviction policy to use.
  */
 class VBucketTest
-        : public ::testing::Test,
-          public ::testing::WithParamInterface<item_eviction_policy_t> {
+    : virtual public ::testing::Test,
+      public ::testing::WithParamInterface<item_eviction_policy_t> {
 protected:
     void SetUp();
 
@@ -106,12 +106,4 @@ protected:
     CheckpointConfig checkpoint_config;
     Configuration config;
     const void* cookie = {};
-};
-
-class EPVBucketTest : public VBucketTest {
-protected:
-    size_t public_queueBGFetchItem(
-            const DocKey& key,
-            std::unique_ptr<VBucketBGFetchItem> fetchItem,
-            BgFetcher* bgFetcher);
 };
