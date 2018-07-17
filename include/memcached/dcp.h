@@ -242,11 +242,9 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*buffer_acknowledgement)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t vbucket,
-     uint32_t buffer_bytes) = nullptr;
+    virtual ENGINE_ERROR_CODE buffer_acknowledgement(uint32_t opaque,
+                                                     uint16_t vbucket,
+                                                     uint32_t buffer_bytes) = 0;
 
     /**
      * Send a control message to the other end

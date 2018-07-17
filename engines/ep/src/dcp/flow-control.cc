@@ -74,8 +74,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             uint64_t opaque = consumerConn->incrOpaqueCounter();
             EventuallyPersistentEngine *epe =
                                     ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->buffer_acknowledgement(consumerConn->getCookie(),
-                                                    opaque, 0, ackable_bytes);
+            ret = producers->buffer_acknowledgement(opaque, 0, ackable_bytes);
             ObjectRegistry::onSwitchThread(epe);
             lastBufferAck = ep_current_time();
             ackedBytes.fetch_add(ackable_bytes);
@@ -88,8 +87,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             uint64_t opaque = consumerConn->incrOpaqueCounter();
             EventuallyPersistentEngine *epe =
                                     ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->buffer_acknowledgement(consumerConn->getCookie(),
-                                                    opaque, 0, ackable_bytes);
+            ret = producers->buffer_acknowledgement(opaque, 0, ackable_bytes);
             ObjectRegistry::onSwitchThread(epe);
             lastBufferAck = ep_current_time();
             ackedBytes.fetch_add(ackable_bytes);

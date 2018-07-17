@@ -443,12 +443,9 @@ ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
     return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
-        gsl::not_null<const void*> void_cookie,
-        uint32_t opaque,
-        uint16_t vbucket,
-        uint32_t buffer_bytes) {
-    auto& c = cookie2connection(void_cookie);
+ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
+                                                     uint16_t vbucket,
+                                                     uint32_t buffer_bytes) {
     protocol_binary_request_dcp_buffer_acknowledgement packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -459,7 +456,7 @@ ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
     packet.message.header.request.bodylen = ntohl(4);
     packet.message.body.buffer_bytes = ntohl(buffer_bytes);
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
 ENGINE_ERROR_CODE dcp_message_control(gsl::not_null<const void*> void_cookie,

@@ -1003,6 +1003,10 @@ public:
                                         vbucket_state_t state) override;
     ENGINE_ERROR_CODE noop(uint32_t opaque) override;
 
+    ENGINE_ERROR_CODE buffer_acknowledgement(uint32_t opaque,
+                                             uint16_t vbucket,
+                                             uint32_t buffer_bytes) override;
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
