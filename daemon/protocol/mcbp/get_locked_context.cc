@@ -104,7 +104,7 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
     connection.addIov(&info.flags, sizeof(info.flags));
     // Add the value
     connection.addIov(payload.buf, payload.len);
-    connection.setState(McbpStateMachine::State::send_data);
+    connection.setState(StateMachine::State::send_data);
 
     STATS_INCR(&connection, cmd_lock);
     update_topkeys(cookie);

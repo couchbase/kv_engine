@@ -23,7 +23,7 @@
 #include "log_macros.h"
 #include "settings.h"
 #include "ssl_context.h"
-#include "statemachine_mcbp.h"
+#include "statemachine.h"
 #include "stats.h"
 #include "task.h"
 
@@ -433,9 +433,9 @@ public:
      */
     void propagateDisconnect() const;
 
-    void setState(McbpStateMachine::State next_state);
+    void setState(StateMachine::State next_state);
 
-    McbpStateMachine::State getState() const {
+    StateMachine::State getState() const {
         return stateMachine.getCurrentState();
     }
 
@@ -619,11 +619,11 @@ public:
      */
     TryReadResult tryReadNetwork();
 
-    const McbpStateMachine::State getWriteAndGo() const {
+    const StateMachine::State getWriteAndGo() const {
         return write_and_go;
     }
 
-    void setWriteAndGo(McbpStateMachine::State write_and_go) {
+    void setWriteAndGo(StateMachine::State write_and_go) {
         Connection::write_and_go = write_and_go;
     }
 
@@ -1214,7 +1214,7 @@ protected:
     /**
      * The state machine we're currently using
      */
-    McbpStateMachine stateMachine;
+    StateMachine stateMachine;
 
     /** Is this connection used by a DCP connection? */
     bool dcp = false;
@@ -1260,7 +1260,7 @@ protected:
     short currentEvent = 0;
 
     /** which state to go into after finishing current write */
-    McbpStateMachine::State write_and_go = McbpStateMachine::State::new_cmd;
+    StateMachine::State write_and_go = StateMachine::State::new_cmd;
 
     /* data for the mwrite state */
     std::vector<iovec> iov;

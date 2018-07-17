@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "statemachine_mcbp.h"
+#include "statemachine.h"
 
 #include "buckets.h"
 #include "connection.h"
@@ -31,52 +31,7 @@
 #include <platform/strerror.h>
 #include <gsl/gsl>
 
-static bool conn_new_cmd(Connection& connection);
-static bool conn_waiting(Connection& connection);
-static bool conn_read_packet_header(Connection& connection);
-static bool conn_parse_cmd(Connection& connection);
-static bool conn_read_packet_body(Connection& connection);
-static bool conn_closing(Connection& connection);
-static bool conn_pending_close(Connection& connection);
-static bool conn_immediate_close(Connection& connection);
-static bool conn_destroyed(Connection& connection);
-static bool conn_execute(Connection& connection);
-static bool conn_send_data(Connection& connection);
-static bool conn_ship_log(Connection& connection);
-
-typedef bool (*TaskFunction)(Connection& connection);
-
-static TaskFunction stateToFunc(McbpStateMachine::State state) {
-    switch (state) {
-    case McbpStateMachine::State::new_cmd:
-        return conn_new_cmd;
-    case McbpStateMachine::State::waiting:
-        return conn_waiting;
-    case McbpStateMachine::State::read_packet_header:
-        return conn_read_packet_header;
-    case McbpStateMachine::State::parse_cmd:
-        return conn_parse_cmd;
-    case McbpStateMachine::State::read_packet_body:
-        return conn_read_packet_body;
-    case McbpStateMachine::State::closing:
-        return conn_closing;
-    case McbpStateMachine::State::pending_close:
-        return conn_pending_close;
-    case McbpStateMachine::State::immediate_close:
-        return conn_immediate_close;
-    case McbpStateMachine::State::destroyed:
-        return conn_destroyed;
-    case McbpStateMachine::State::execute:
-        return conn_execute;
-    case McbpStateMachine::State::send_data:
-        return conn_send_data;
-    case McbpStateMachine::State::ship_log:
-        return conn_ship_log;
-    }
-    throw std::invalid_argument("stateToFunc(): invalid state");
-}
-
-void McbpStateMachine::setCurrentState(State task) {
+void StateMachine::setCurrentState(State task) {
     // Moving to the same state is legal
     if (task == currentState) {
         return;
@@ -99,38 +54,38 @@ void McbpStateMachine::setCurrentState(State task) {
     currentState = task;
 }
 
-const char* McbpStateMachine::getStateName(State state) const {
+const char* StateMachine::getStateName(State state) const {
     switch (state) {
-    case McbpStateMachine::State::new_cmd:
+    case StateMachine::State::new_cmd:
         return "new_cmd";
-    case McbpStateMachine::State::waiting:
+    case StateMachine::State::waiting:
         return "waiting";
-    case McbpStateMachine::State::read_packet_header:
+    case StateMachine::State::read_packet_header:
         return "read_packet_header";
-    case McbpStateMachine::State::parse_cmd:
+    case StateMachine::State::parse_cmd:
         return "parse_cmd";
-    case McbpStateMachine::State::read_packet_body:
+    case StateMachine::State::read_packet_body:
         return "read_packet_body";
-    case McbpStateMachine::State::closing:
+    case StateMachine::State::closing:
         return "closing";
-    case McbpStateMachine::State::pending_close:
+    case StateMachine::State::pending_close:
         return "pending_close";
-    case McbpStateMachine::State::immediate_close:
+    case StateMachine::State::immediate_close:
         return "immediate_close";
-    case McbpStateMachine::State::destroyed:
+    case StateMachine::State::destroyed:
         return "destroyed";
-    case McbpStateMachine::State::execute:
+    case StateMachine::State::execute:
         return "execute";
-    case McbpStateMachine::State::send_data:
+    case StateMachine::State::send_data:
         return "send_data";
-    case McbpStateMachine::State::ship_log:
+    case StateMachine::State::ship_log:
         return "ship_log";
     }
 
-    return "McbpStateMachine::getStateName: Invalid state";
+    return "StateMachine::getStateName: Invalid state";
 }
 
-bool McbpStateMachine::isIdleState() const {
+bool StateMachine::isIdleState() const {
     switch (currentState) {
     case State::read_packet_header:
     case State::read_packet_body:
@@ -147,25 +102,51 @@ bool McbpStateMachine::isIdleState() const {
     case State::execute:
         return false;
     }
-    throw std::logic_error("McbpStateMachine::isIdleState: Invalid state");
+    throw std::logic_error("StateMachine::isIdleState: Invalid state");
 }
 
-bool McbpStateMachine::execute() {
-    return stateToFunc(currentState)(connection);
+bool StateMachine::execute() {
+    switch (currentState) {
+    case StateMachine::State::new_cmd:
+        return conn_new_cmd();
+    case StateMachine::State::waiting:
+        return conn_waiting();
+    case StateMachine::State::read_packet_header:
+        return conn_read_packet_header();
+    case StateMachine::State::parse_cmd:
+        return conn_parse_cmd();
+    case StateMachine::State::read_packet_body:
+        return conn_read_packet_body();
+    case StateMachine::State::closing:
+        return conn_closing();
+    case StateMachine::State::pending_close:
+        return conn_pending_close();
+    case StateMachine::State::immediate_close:
+        return conn_immediate_close();
+    case StateMachine::State::destroyed:
+        return conn_destroyed();
+    case StateMachine::State::execute:
+        return conn_execute();
+    case StateMachine::State::send_data:
+        return conn_send_data();
+    case StateMachine::State::ship_log:
+        return conn_ship_log();
+    }
+    throw std::invalid_argument("execute(): invalid state");
 }
 
 /**
  * Ship DCP log to the other end. This state differs with all other states
  * in the way that it support full duplex dialog. We're listening to both read
  * and write events from libevent most of the time. If a read event occurs we
- * switch to the conn_read state to read and execute the input message (that would
- * be an ack message from the other side). If a write event occurs we continue to
- * send DCP log to the other end.
+ * switch to the conn_read state to read and execute the input message (that
+ * would be an ack message from the other side). If a write event occurs we
+ * continue to send DCP log to the other end.
  * @param c the DCP connection to drive
  * @return true if we should continue to process work for this connection, false
  *              if we should start processing events for other connections.
  */
-bool conn_ship_log(Connection& connection) {
+bool StateMachine::conn_ship_log() {
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -181,7 +162,7 @@ bool conn_ship_log(Connection& connection) {
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
             try_read_mcbp_command(connection);
         } else {
-            connection.setState(McbpStateMachine::State::read_packet_header);
+            connection.setState(StateMachine::State::read_packet_header);
         }
 
         /* we're going to process something.. let's proceed */
@@ -214,13 +195,13 @@ bool conn_ship_log(Connection& connection) {
                 "settings, closing connection {}",
                 connection.getId(),
                 connection.getDescription());
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
     }
 
     return cont;
 }
 
-bool conn_waiting(Connection& connection) {
+bool StateMachine::conn_waiting() {
     if (is_bucket_dying(connection) || connection.processServerEvents()) {
         return true;
     }
@@ -232,14 +213,14 @@ bool conn_waiting(Connection& connection) {
                 "{}",
                 connection.getId(),
                 connection.getDescription());
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         return true;
     }
-    connection.setState(McbpStateMachine::State::read_packet_header);
+    connection.setState(StateMachine::State::read_packet_header);
     return false;
 }
 
-bool conn_read_packet_header(Connection& connection) {
+bool StateMachine::conn_read_packet_header() {
     if (is_bucket_dying(connection) || connection.processServerEvents()) {
         return true;
     }
@@ -247,13 +228,13 @@ bool conn_read_packet_header(Connection& connection) {
     auto res = connection.tryReadNetwork();
     switch (res) {
     case Connection::TryReadResult::NoDataReceived:
-        connection.setState(McbpStateMachine::State::waiting);
+        connection.setState(StateMachine::State::waiting);
         break;
     case Connection::TryReadResult::DataReceived:
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
-            connection.setState(McbpStateMachine::State::parse_cmd);
+            connection.setState(StateMachine::State::parse_cmd);
         } else {
-            connection.setState(McbpStateMachine::State::waiting);
+            connection.setState(StateMachine::State::waiting);
         }
         break;
     case Connection::TryReadResult::SocketClosed:
@@ -267,7 +248,7 @@ bool conn_read_packet_header(Connection& connection) {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         break;
     case Connection::TryReadResult::MemoryError: /* Failed to allocate more
                                                     memory */
@@ -278,7 +259,7 @@ bool conn_read_packet_header(Connection& connection) {
     return true;
 }
 
-bool conn_parse_cmd(Connection& connection) {
+bool StateMachine::conn_parse_cmd() {
     // Parse the data in the input pipe and prepare the cookie for execution.
     // If all data is available we'll move over to the execution phase,
     // otherwise we'll wait for the data to arrive
@@ -286,7 +267,7 @@ bool conn_parse_cmd(Connection& connection) {
     return true;
 }
 
-bool conn_new_cmd(Connection& connection) {
+bool StateMachine::conn_new_cmd() {
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -307,11 +288,11 @@ bool conn_new_cmd(Connection& connection) {
 
         connection.shrinkBuffers();
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
-            connection.setState(McbpStateMachine::State::parse_cmd);
+            connection.setState(StateMachine::State::parse_cmd);
         } else if (connection.isSslEnabled()) {
-            connection.setState(McbpStateMachine::State::read_packet_header);
+            connection.setState(StateMachine::State::read_packet_header);
         } else {
-            connection.setState(McbpStateMachine::State::waiting);
+            connection.setState(StateMachine::State::waiting);
         }
     } else {
         connection.yield();
@@ -336,7 +317,7 @@ bool conn_new_cmd(Connection& connection) {
                         "libevent settings, closing connection {}",
                         connection.getId(),
                         connection.getDescription());
-                connection.setState(McbpStateMachine::State::closing);
+                connection.setState(StateMachine::State::closing);
                 return true;
             }
         }
@@ -346,7 +327,7 @@ bool conn_new_cmd(Connection& connection) {
     return true;
 }
 
-bool conn_execute(Connection& connection) {
+bool StateMachine::conn_execute() {
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -362,7 +343,7 @@ bool conn_execute(Connection& connection) {
     // We've executed the packet, and given that we're not blocking we
     // we should move over to the next state. Just do a sanity check
     // for that.
-    if (connection.getState() == McbpStateMachine::State::execute) {
+    if (connection.getState() == StateMachine::State::execute) {
         throw std::logic_error(
                 "conn_execute: Should leave conn_execute for !EWOULDBLOCK");
     }
@@ -383,7 +364,7 @@ bool conn_execute(Connection& connection) {
     return true;
 }
 
-bool conn_read_packet_body(Connection& connection) {
+bool StateMachine::conn_read_packet_body() {
     if (is_bucket_dying(connection)) {
         return true;
     }
@@ -395,8 +376,8 @@ bool conn_read_packet_body(Connection& connection) {
     }
 
     // We need to get more data!!!
-    auto res = connection.read->produce(
-            [&connection](cb::byte_buffer buffer) -> ssize_t {
+    auto res =
+            connection.read->produce([this](cb::byte_buffer buffer) -> ssize_t {
                 return connection.recv(reinterpret_cast<char*>(buffer.data()),
                                        buffer.size());
             });
@@ -413,7 +394,7 @@ bool conn_read_packet_body(Connection& connection) {
                              cb::const_byte_buffer{input.data(),
                                                    sizeof(cb::mcbp::Request) +
                                                            req->getBodylen()});
-            connection.setState(McbpStateMachine::State::execute);
+            connection.setState(StateMachine::State::execute);
         }
 
         return true;
@@ -421,7 +402,7 @@ bool conn_read_packet_body(Connection& connection) {
 
     if (res == 0) { /* end of stream */
         // Note: we do not log a clean connection shutdown
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         return true;
     }
 
@@ -434,7 +415,7 @@ bool conn_read_packet_body(Connection& connection) {
                     "connection {}",
                     connection.getId(),
                     connection.getDescription());
-            connection.setState(McbpStateMachine::State::closing);
+            connection.setState(StateMachine::State::closing);
             return true;
         }
 
@@ -450,11 +431,11 @@ bool conn_read_packet_body(Connection& connection) {
                 connection.getDescription(),
                 errormsg);
 
-    connection.setState(McbpStateMachine::State::closing);
+    connection.setState(StateMachine::State::closing);
     return true;
 }
 
-bool conn_send_data(Connection& connection) {
+bool StateMachine::conn_send_data() {
     bool ret = true;
 
     switch (connection.transmit()) {
@@ -488,7 +469,7 @@ bool conn_send_data(Connection& connection) {
     return ret;
 }
 
-bool conn_immediate_close(Connection& connection) {
+bool StateMachine::conn_immediate_close() {
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
         auto* port_instance =
@@ -528,22 +509,22 @@ bool conn_immediate_close(Connection& connection) {
     // Set the connection to the sentinal state destroyed and return
     // false to break out of the event loop (and have the the framework
     // delete the connection object).
-    connection.setState(McbpStateMachine::State::destroyed);
+    connection.setState(StateMachine::State::destroyed);
 
     return false;
 }
 
-bool conn_pending_close(Connection& connection) {
+bool StateMachine::conn_pending_close() {
     return connection.close();
 }
 
-bool conn_closing(Connection& connection) {
+bool StateMachine::conn_closing() {
     return connection.close();
 }
 
 /** sentinal state used to represent a 'destroyed' connection which will
  *  actually be freed at the end of the event loop. Always returns false.
  */
-bool conn_destroyed(Connection&) {
+bool StateMachine::conn_destroyed() {
     return false;
 }

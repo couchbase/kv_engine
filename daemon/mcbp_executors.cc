@@ -136,7 +136,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
                       .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
             cookie.sendDynamicBuffer();
         } else {
-            connection.setState(McbpStateMachine::State::new_cmd);
+            connection.setState(StateMachine::State::new_cmd);
         }
         update_topkeys(cookie);
         break;
@@ -145,7 +145,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
         cookie.setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         break;
     default:
         // Release the dynamic buffer.. it may be partial..
@@ -158,7 +158,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
  * We received a noop response.. just ignore it
  */
 static void process_bin_noop_response(Cookie& cookie) {
-    cookie.getConnection().setState(McbpStateMachine::State::new_cmd);
+    cookie.getConnection().setState(StateMachine::State::new_cmd);
 }
 
 static void add_set_replace_executor(Cookie& cookie,
@@ -236,7 +236,7 @@ static void quit_executor(Cookie& cookie) {
     LOG_DEBUG("{}: quit_executor - closing connection {}",
               connection.getId(),
               connection.getDescription());
-    connection.setWriteAndGo(McbpStateMachine::State::closing);
+    connection.setWriteAndGo(StateMachine::State::closing);
 }
 
 static void quitq_executor(Cookie& cookie) {
@@ -244,7 +244,7 @@ static void quitq_executor(Cookie& cookie) {
     LOG_DEBUG("{}: quitq_executor - closing connection {}",
               connection.getId(),
               connection.getDescription());
-    connection.setState(McbpStateMachine::State::closing);
+    connection.setState(StateMachine::State::closing);
 }
 
 static void sasl_list_mech_executor(Cookie& cookie) {
@@ -374,7 +374,7 @@ static void ioctl_get_executor(Cookie& cookie) {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         break;
     default:
         cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(remapErr)));
@@ -414,7 +414,7 @@ static void ioctl_set_executor(Cookie& cookie) {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         break;
     default:
         cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(remapErr)));
@@ -541,7 +541,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
                 "closing connection {}",
                 c.getId(),
                 c.getDescription());
-        c.setState(McbpStateMachine::State::closing);
+        c.setState(StateMachine::State::closing);
         return;
     }
 
@@ -561,9 +561,9 @@ static void process_bin_dcp_response(Cookie& cookie) {
                     c.getId(),
                     c.getDescription());
         }
-        c.setState(McbpStateMachine::State::closing);
+        c.setState(StateMachine::State::closing);
     } else {
-        c.setState(McbpStateMachine::State::ship_log);
+        c.setState(StateMachine::State::ship_log);
     }
 }
 
@@ -750,7 +750,7 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
         audit_command_access_failed(cookie);
 
         if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {
-            c->setState(McbpStateMachine::State::closing);
+            c->setState(StateMachine::State::closing);
             return;
         } else {
             cookie.sendResponse(cb::mcbp::Status::Eaccess);
@@ -798,7 +798,7 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
                     ss.str());
             audit_invalid_packet(cookie);
             cookie.sendResponse(cb::mcbp::Status(result));
-            c->setWriteAndGo(McbpStateMachine::State::closing);
+            c->setWriteAndGo(StateMachine::State::closing);
             return;
         }
 
@@ -806,7 +806,7 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
         return;
     case cb::rbac::PrivilegeAccess::Stale:
         if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
-            c->setState(McbpStateMachine::State::closing);
+            c->setState(StateMachine::State::closing);
         } else {
             cookie.sendResponse(cb::mcbp::Status::AuthStale);
         }
@@ -818,7 +818,7 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
             "AuthResult - closing connection",
             c->getId(),
             uint32_t(res));
-    c->setState(McbpStateMachine::State::closing);
+    c->setState(StateMachine::State::closing);
 }
 
 /**
@@ -837,7 +837,7 @@ void execute_response_packet(Cookie& cookie,
         LOG_INFO("{}: Unsupported response packet received with opcode: {:x}",
                  c.getId(),
                  uint32_t(response.opcode));
-        c.setState(McbpStateMachine::State::closing);
+        c.setState(StateMachine::State::closing);
     }
 }
 
@@ -918,7 +918,7 @@ void try_read_mcbp_command(Connection& c) {
                     "closing connection",
                     c.getId(),
                     header.getOpcode());
-            c.setState(McbpStateMachine::State::closing);
+            c.setState(StateMachine::State::closing);
             return;
         }
     } else if (!header.isRequest()) {
@@ -927,7 +927,7 @@ void try_read_mcbp_command(Connection& c) {
                 "connection",
                 c.getId(),
                 header.getMagic());
-        c.setState(McbpStateMachine::State::closing);
+        c.setState(StateMachine::State::closing);
         return;
     }
 
@@ -943,7 +943,7 @@ void try_read_mcbp_command(Connection& c) {
                 c.getId(),
                 std::to_string(static_cast<uint16_t>(reason)),
                 c.getDescription());
-        c.setWriteAndGo(McbpStateMachine::State::closing);
+        c.setWriteAndGo(StateMachine::State::closing);
         return;
     }
 
@@ -953,7 +953,7 @@ void try_read_mcbp_command(Connection& c) {
                          cb::const_byte_buffer{input.data(),
                                                sizeof(cb::mcbp::Request) +
                                                        header.getBodylen()});
-        c.setState(McbpStateMachine::State::execute);
+        c.setState(StateMachine::State::execute);
     } else {
         // we need to allocate more memory!!
         try {
@@ -967,9 +967,9 @@ void try_read_mcbp_command(Connection& c) {
         } catch (const std::bad_alloc&) {
             LOG_WARNING("{}: Failed to grow buffer.. closing connection",
                         c.getId());
-            c.setState(McbpStateMachine::State::closing);
+            c.setState(StateMachine::State::closing);
             return;
         }
-        c.setState(McbpStateMachine::State::read_packet_body);
+        c.setState(StateMachine::State::read_packet_body);
     }
 }

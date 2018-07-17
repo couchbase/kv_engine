@@ -31,8 +31,8 @@ void ship_dcp_log(Cookie& cookie) {
     switch (ret) {
     case ENGINE_SUCCESS:
         /* The engine got more data it wants to send */
-        c.setState(McbpStateMachine::State::send_data);
-        c.setWriteAndGo(McbpStateMachine::State::ship_log);
+        c.setState(StateMachine::State::send_data);
+        c.setWriteAndGo(StateMachine::State::ship_log);
         break;
     case ENGINE_EWOULDBLOCK:
         /* the engine don't have more data to send at this moment */
@@ -44,6 +44,6 @@ void ship_dcp_log(Cookie& cookie) {
                 c.getId(),
                 std::to_string(ret),
                 c.getDescription());
-        c.setState(McbpStateMachine::State::closing);
+        c.setState(StateMachine::State::closing);
     }
 }

@@ -374,7 +374,7 @@ static BufferLoan loan_single_buffer(Connection& c,
                 "connection {}",
                 c.getId(),
                 c.getDescription());
-        c.setState(McbpStateMachine::State::closing);
+        c.setState(StateMachine::State::closing);
         return BufferLoan::Existing;
     }
 

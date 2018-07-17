@@ -26,7 +26,6 @@
 #include "protocol/mcbp/ship_dcp_log.h"
 #include "runtime.h"
 #include "server_event.h"
-#include "statemachine_mcbp.h"
 
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/header.h>
@@ -866,7 +865,7 @@ Connection::TransmitResult Connection::transmit() {
         ssl.drainBioSendPipe(socketDescriptor);
         if (ssl.morePendingOutput()) {
             if (ssl.hasError() || !updateEvent(EV_WRITE | EV_PERSIST)) {
-                setState(McbpStateMachine::State::closing);
+                setState(StateMachine::State::closing);
                 return TransmitResult::HardError;
             }
             return TransmitResult::SoftError;
@@ -901,7 +900,7 @@ Connection::TransmitResult Connection::transmit() {
                     if (ssl.isEnabled() && ssl.morePendingOutput()) {
                         if (ssl.hasError() ||
                             !updateEvent(EV_WRITE | EV_PERSIST)) {
-                            setState(McbpStateMachine::State::closing);
+                            setState(StateMachine::State::closing);
                             return TransmitResult::HardError;
                         }
                         return TransmitResult::SoftError;
@@ -915,7 +914,7 @@ Connection::TransmitResult Connection::transmit() {
 
         if (res == -1 && cb::net::is_blocking(error)) {
             if (!updateEvent(EV_WRITE | EV_PERSIST)) {
-                setState(McbpStateMachine::State::closing);
+                setState(StateMachine::State::closing);
                 return TransmitResult::HardError;
             }
             return TransmitResult::SoftError;
@@ -944,7 +943,7 @@ Connection::TransmitResult Connection::transmit() {
             }
         }
 
-        setState(McbpStateMachine::State::closing);
+        setState(StateMachine::State::closing);
         return TransmitResult::HardError;
     } else {
         return TransmitResult::Complete;
@@ -1241,7 +1240,7 @@ Connection::~Connection() {
     }
 }
 
-void Connection::setState(McbpStateMachine::State next_state) {
+void Connection::setState(StateMachine::State next_state) {
     stateMachine.setCurrentState(next_state);
 }
 
@@ -1273,7 +1272,7 @@ void Connection::setConnectionId(cb::const_char_buffer uuid) {
 }
 
 bool Connection::shouldDelete() {
-    return getState() == McbpStateMachine::State ::destroyed;
+    return getState() == StateMachine::State ::destroyed;
 }
 
 size_t Connection::getNumberOfCookies() const {
@@ -1313,7 +1312,7 @@ void Connection::runEventLoop(short which) {
         runStateMachinery();
     } catch (const std::exception& e) {
         bool logged = false;
-        if (getState() == McbpStateMachine::State::execute) {
+        if (getState() == StateMachine::State::execute) {
             try {
                 // Converting the cookie to json -> string could probably
                 // cause too much memory allcation. We don't want that to
@@ -1343,7 +1342,7 @@ void Connection::runEventLoop(short which) {
             }
         }
 
-        setState(McbpStateMachine::State::closing);
+        setState(StateMachine::State::closing);
         /*
          * In addition to setting the state to conn_closing
          * we need to move execution foward by executing
@@ -1380,7 +1379,7 @@ bool Connection::close() {
         }
     }
 
-    if (getState() == McbpStateMachine::State::closing) {
+    if (getState() == StateMachine::State::closing) {
         // We don't want any network notifications anymore..
         if (registered_in_libevent) {
             unregisterEvent();
@@ -1405,10 +1404,10 @@ bool Connection::close() {
     }
 
     if (refcount > 1 || ewb) {
-        setState(McbpStateMachine::State::pending_close);
+        setState(StateMachine::State::pending_close);
         return false;
     }
-    setState(McbpStateMachine::State::immediate_close);
+    setState(StateMachine::State::immediate_close);
     return true;
 }
 
@@ -1431,14 +1430,14 @@ void Connection::signalIfIdle(bool logbusy, size_t workerthread) {
                         "{}: Connection::signalIfIdle: Unable to "
                         "registerEvent.  Setting state to conn_closing",
                         getId());
-                setState(McbpStateMachine::State::closing);
+                setState(StateMachine::State::closing);
             }
         } else if (!updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
             LOG_WARNING(
                     "{}: Connection::signalIfIdle: Unable to "
                     "updateEvent.  Setting state to conn_closing",
                     getId());
-            setState(McbpStateMachine::State::closing);
+            setState(StateMachine::State::closing);
         }
         event_active(event.get(), EV_WRITE, 0);
     } else if (logbusy) {

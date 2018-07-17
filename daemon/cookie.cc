@@ -241,8 +241,8 @@ void Cookie::sendDynamicBuffer() {
                 "Cookie::sendDynamicBuffer(): Dynamic buffer not created");
     } else {
         connection.addIov(dynamicBuffer.getRoot(), dynamicBuffer.getOffset());
-        connection.setState(McbpStateMachine::State::send_data);
-        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+        connection.setState(StateMachine::State::send_data);
+        connection.setWriteAndGo(StateMachine::State::new_cmd);
         connection.pushTempAlloc(dynamicBuffer.getRoot());
         dynamicBuffer.takeOwnership();
     }
@@ -260,8 +260,8 @@ void Cookie::sendNotMyVBucket() {
                         0,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES);
-        connection.setState(McbpStateMachine::State::send_data);
-        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+        connection.setState(StateMachine::State::send_data);
+        connection.setWriteAndGo(StateMachine::State::new_cmd);
         return;
     }
 
@@ -296,14 +296,14 @@ void Cookie::sendResponse(cb::mcbp::Status status) {
             // normally updates the responseCounters).
             auto& bucket = connection.getBucket();
             ++bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
-            connection.setState(McbpStateMachine::State::new_cmd);
+            connection.setState(StateMachine::State::new_cmd);
             return;
         }
 
         mcbp_add_header(
                 *this, uint16_t(status), 0, 0, 0, PROTOCOL_BINARY_RAW_BYTES);
-        connection.setState(McbpStateMachine::State::send_data);
-        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+        connection.setState(StateMachine::State::send_data);
+        connection.setWriteAndGo(StateMachine::State::new_cmd);
         return;
     }
 
@@ -394,8 +394,8 @@ void Cookie::sendResponse(cb::mcbp::Status status,
         connection.addIov(wdata.data(), value.size());
     }
 
-    connection.setState(McbpStateMachine::State::send_data);
-    connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+    connection.setState(StateMachine::State::send_data);
+    connection.setWriteAndGo(StateMachine::State::new_cmd);
 }
 
 const DocKey Cookie::getRequestKey() const {

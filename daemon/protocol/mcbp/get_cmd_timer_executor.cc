@@ -187,7 +187,7 @@ void get_cmd_timer_executor(Cookie& cookie) {
                     connection.getId(),
                     connection.getDescription());
         }
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         return;
     }
 

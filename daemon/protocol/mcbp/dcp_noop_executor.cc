@@ -42,7 +42,7 @@ void dcp_noop_executor(Cookie& cookie) {
         break;
 
     case ENGINE_DISCONNECT:
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

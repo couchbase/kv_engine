@@ -19,9 +19,9 @@
 class Connection;
 
 /**
- * The state machinery for the Memcached Binary Protocol.
+ * The state machinery for connections in the daemon
  */
-class McbpStateMachine {
+class StateMachine {
 public:
     enum class State {
         /**
@@ -153,9 +153,9 @@ public:
         destroyed
     };
 
-    McbpStateMachine() = delete;
+    StateMachine() = delete;
 
-    explicit McbpStateMachine(Connection& connection_)
+    explicit StateMachine(Connection& connection_)
         : currentState(State::new_cmd), connection(connection_) {
     }
 
@@ -199,6 +199,20 @@ public:
     const char* getStateName(State state) const;
 
 protected:
+    // The various methods implementing the logic for that state
+    bool conn_new_cmd();
+    bool conn_waiting();
+    bool conn_read_packet_header();
+    bool conn_parse_cmd();
+    bool conn_read_packet_body();
+    bool conn_closing();
+    bool conn_pending_close();
+    bool conn_immediate_close();
+    bool conn_destroyed();
+    bool conn_execute();
+    bool conn_send_data();
+    bool conn_ship_log();
+
     State currentState;
     Connection& connection;
 };

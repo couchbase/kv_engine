@@ -129,7 +129,7 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     connection.addIov(&info.flags, sizeof(info.flags));
     // Add the value
     connection.addIov(payload.buf, payload.len);
-    connection.setState(McbpStateMachine::State::send_data);
+    connection.setState(StateMachine::State::send_data);
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
     state = State::Done;
     return ENGINE_SUCCESS;
@@ -140,7 +140,7 @@ ENGINE_ERROR_CODE GatCommandContext::noSuchItem() {
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                     .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
-        connection.setState(McbpStateMachine::State::new_cmd);
+        connection.setState(StateMachine::State::new_cmd);
     } else {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     }

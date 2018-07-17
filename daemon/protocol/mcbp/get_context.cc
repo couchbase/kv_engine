@@ -110,7 +110,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     }
 
     connection.addIov(payload.buf, payload.len);
-    connection.setState(McbpStateMachine::State::send_data);
+    connection.setState(StateMachine::State::send_data);
     cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
 
     STATS_HIT(&connection, get);
@@ -128,7 +128,7 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                   .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
-        connection.setState(McbpStateMachine::State::new_cmd);
+        connection.setState(StateMachine::State::new_cmd);
     } else {
         if (shouldSendKey()) {
             cookie.sendResponse(

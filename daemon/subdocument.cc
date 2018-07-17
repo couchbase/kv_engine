@@ -561,7 +561,7 @@ static bool subdoc_fetch(Cookie& cookie,
             return false;
 
         case ENGINE_DISCONNECT:
-            cookie.getConnection().setState(McbpStateMachine::State::closing);
+            cookie.getConnection().setState(StateMachine::State::closing);
             return false;
 
         default:
@@ -993,7 +993,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     if (access != ENGINE_SUCCESS) {
         access = context.connection.remapErrorCode(access);
         if (access == ENGINE_DISCONNECT) {
-            context.connection.setState(McbpStateMachine::State::closing);
+            context.connection.setState(StateMachine::State::closing);
             return false;
         }
 
@@ -1272,7 +1272,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             return ret;
 
         case ENGINE_DISCONNECT:
-            connection.setState(McbpStateMachine::State::closing);
+            connection.setState(StateMachine::State::closing);
             return ret;
 
         default:
@@ -1368,7 +1368,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
         break;
 
     case ENGINE_DISCONNECT:
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         break;
 
     default:
@@ -1590,7 +1590,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
             }
         }
     }
-    connection.setState(McbpStateMachine::State::send_data);
+    connection.setState(StateMachine::State::send_data);
 }
 
 /* Construct and send a response to a multi-path lookup back to the client.
@@ -1678,7 +1678,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
         }
     }
 
-    connection.setState(McbpStateMachine::State::send_data);
+    connection.setState(StateMachine::State::send_data);
 }
 
 // Respond back to the user as appropriate to the specific command.
@@ -1704,7 +1704,7 @@ static void subdoc_response(Cookie& cookie, SubdocCmdContext& context) {
             "{}: subdoc_response - invalid traits.path - closing connection {}",
             connection.getId(),
             connection.getDescription());
-    connection.setWriteAndGo(McbpStateMachine::State::closing);
+    connection.setWriteAndGo(StateMachine::State::closing);
 }
 
 void subdoc_get_executor(Cookie& cookie) {

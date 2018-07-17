@@ -98,8 +98,8 @@ public:
         connection.addIov(connection.write->wdata().data(), needed);
         connection.write->produced(needed);
 
-        connection.setState(McbpStateMachine::State::send_data);
-        connection.setWriteAndGo(McbpStateMachine::State::new_cmd);
+        connection.setState(StateMachine::State::send_data);
+        connection.setWriteAndGo(StateMachine::State::new_cmd);
         return true;
     }
 };

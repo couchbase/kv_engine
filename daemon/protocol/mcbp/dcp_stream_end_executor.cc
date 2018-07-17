@@ -38,11 +38,11 @@ void dcp_stream_end_executor(Cookie& cookie) {
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        connection.setState(McbpStateMachine::State::ship_log);
+        connection.setState(StateMachine::State::ship_log);
         break;
 
     case ENGINE_DISCONNECT:
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

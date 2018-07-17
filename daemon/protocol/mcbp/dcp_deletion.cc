@@ -131,11 +131,11 @@ void dcp_deletion_executor(Cookie& cookie) {
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS:
-        connection.setState(McbpStateMachine::State::new_cmd);
+        connection.setState(StateMachine::State::new_cmd);
         break;
 
     case ENGINE_DISCONNECT:
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
         break;
 
     case ENGINE_EWOULDBLOCK:

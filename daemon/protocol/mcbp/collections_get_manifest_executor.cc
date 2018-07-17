@@ -38,7 +38,7 @@ void collections_get_manifest_executor(Cookie& cookie) {
                 "ENGINE_DISCONNECT - closing connection {}",
                 connection.getId(),
                 connection.getDescription());
-        connection.setState(McbpStateMachine::State::closing);
+        connection.setState(StateMachine::State::closing);
     } else {
         cookie.sendResponse(cb::mcbp::to_status(rv.first));
     }

@@ -37,7 +37,7 @@ void get_cluster_config_executor(Cookie& cookie) {
                     "selecting a bucket. Disconnecting {}",
                     connection.getId(),
                     connection.getDescription());
-            connection.setState(McbpStateMachine::State::closing);
+            connection.setState(StateMachine::State::closing);
         }
         return;
     }
@@ -69,7 +69,7 @@ void set_cluster_config_executor(Cookie& cookie) {
                     "selecting a bucket. Disconnecting {}",
                     connection.getId(),
                     connection.getDescription());
-            connection.setState(McbpStateMachine::State::closing);
+            connection.setState(StateMachine::State::closing);
         }
         return;
     }

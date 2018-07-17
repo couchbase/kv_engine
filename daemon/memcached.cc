@@ -848,7 +848,7 @@ bool is_bucket_dying(Connection& c) {
                 "connection {}",
                 c.getId(),
                 c.getDescription());
-        c.setState(McbpStateMachine::State::closing);
+        c.setState(StateMachine::State::closing);
         return true;
     }
 
@@ -1556,7 +1556,7 @@ static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
             c->getId(),
             priority,
             c->getDescription());
-    c->setState(McbpStateMachine::State::closing);
+    c->setState(StateMachine::State::closing);
 }
 
 static std::condition_variable shutdown_cv;
