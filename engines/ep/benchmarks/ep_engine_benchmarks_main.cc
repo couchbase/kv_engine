@@ -37,6 +37,7 @@ int main(int argc, char** argv) {
     mock_init_alloc_hooks();
     init_mock_server();
     globalBucketLogger = std::make_unique<BucketLogger>(cb::logger::get());
+    globalBucketLogger->set_level(spdlog::level::level_enum::off);
     initialize_time_functions(get_mock_server_api()->core);
     ::benchmark::Initialize(&argc, argv);
     /*

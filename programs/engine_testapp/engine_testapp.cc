@@ -1206,6 +1206,12 @@ static test_result execute_test(engine_test_t test,
                 verbose_logging ? EXTENSION_LOG_DEBUG : EXTENSION_LOG_FATAL;
         get_mock_server_api()->log->set_level(log_level);
 
+        const auto spd_log_level =
+                verbose_logging ? spdlog::level::level_enum::debug
+                                : spdlog::level::level_enum::critical;
+        get_mock_server_api()->log->get_spdlogger()->spdlogGetter()->set_level(
+                spd_log_level);
+
         /* Start the engine and go */
         if (!start_your_engine(engine)) {
             fprintf(stderr, "Failed to start engine %s\n", engine);
