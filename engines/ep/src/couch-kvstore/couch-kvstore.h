@@ -670,7 +670,7 @@ protected:
     std::map<size_t, Db*> scans; //map holding active scans
     std::mutex scanLock; //lock guarding the scan map
 
-    Logger& logger;
+    BucketLogger& logger;
 
     /**
      * Base fileops implementation to be wrapped by stat collecting fileops

@@ -68,7 +68,7 @@ public:
         return shardId;
     }
 
-    Logger& getLogger() {
+    BucketLogger& getLogger() {
         return *logger;
     }
 
@@ -85,7 +85,7 @@ public:
     /**
      * Used to override the default logger object
      */
-    KVStoreConfig& setLogger(Logger& _logger);
+    KVStoreConfig& setLogger(BucketLogger& _logger);
 
     /**
      * Used to override the default buffering behaviour.
@@ -118,7 +118,7 @@ private:
     std::string dbname;
     std::string backend;
     uint16_t shardId;
-    Logger* logger;
+    BucketLogger* logger;
     bool buffered;
     bool persistDocNamespace;
 

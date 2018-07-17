@@ -399,46 +399,38 @@ TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
 using namespace testing;
 
 /**
- * The MockLogger is used to verify that the logger is called with certain
- * parameters / messages.
+ * The MockBucket Logger is used to verify that the logger is called with
+ * certain parameters / messages.
  *
- * The MockLogger is slightly misleading in that it mocks a function that
- * is not on the API of the logger, instead mocking a function that is
- * called with the preformatted log message.
+ * The MockBucketLogger calls the log method as normal, and intercepts the
+ * _sink_it call by overriding it to determine the correctness of the logging
  */
-class MockLogger : public Logger {
+class MockBucketLogger : public BucketLogger {
 public:
-    MockLogger() {
-        ON_CALL(*this, mlog(_, _)).WillByDefault(Invoke([](EXTENSION_LOG_LEVEL sev,
-                                                           const std::string& msg){
-        }));
+    MockBucketLogger() {
+        // Set the log level of the BucketLogger to trace to ensure messages
+        // make it through to the sink it method. Does not alter the logging
+        // level of the underlying spdlogger so we will not see console
+        // output during the test.
+        set_level(spdlog::level::level_enum::trace);
+        ON_CALL(*this, mlog(_, _))
+                .WillByDefault(Invoke([](spdlog::level::level_enum sev,
+                                         const std::string& msg) {}));
     }
 
-    void vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) const override {
-        mlog(severity, vatos(fmt, va));
+    // Mock a method taking a logging level and formatted message to test log
+    // outputs.
+    MOCK_CONST_METHOD2(mlog,
+                       void(spdlog::level::level_enum severity,
+                            const std::string& message));
+
+protected:
+    // Override the _sink_it method to redirect to the mocked method
+    // Must call the mlog method to check the message details as they are
+    // bundled in the log_msg object
+    void _sink_it(spdlog::details::log_msg& msg) override {
+        mlog(msg.level, msg.raw.c_str());
     }
-
-    MOCK_CONST_METHOD2(mlog, void(EXTENSION_LOG_LEVEL severity,
-                                  const std::string& message));
-
-private:
-    /**
-     * Convert fmt cstring and a variadic arguments list to a string
-     */
-    static std::string vatos(const char* fmt, va_list va) {
-        std::vector<char> buffer;
-        va_list cpy;
-
-        // Calculate Size
-        va_copy(cpy, va);
-        buffer.resize(vsnprintf(nullptr, 0, fmt, cpy) + 1);
-        va_end(cpy);
-
-        // Write to vector and return as string
-        vsnprintf(buffer.data(), buffer.size(), fmt, va);
-        return std::string(buffer.data());
-    }
-
 };
 
 /**
@@ -526,7 +518,7 @@ protected:
     const std::string data_dir;
 
     ::testing::NiceMock<MockOps> ops;
-    ::testing::NiceMock<MockLogger> logger;
+    ::testing::NiceMock<MockBucketLogger> logger;
 
     KVStoreConfig config;
     std::unique_ptr<CouchKVStore> kvstore;
@@ -544,11 +536,12 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
     kvstore->begin(std::make_unique<TransactionContext>());
     kvstore->set(items.front(), set_callback);
     {
-        /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_NOTICE),
-                                 VCE(COUCHSTORE_ERROR_OPEN_FILE))
-        ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::info),
+                         VCE(COUCHSTORE_ERROR_OPEN_FILE)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, open(_, _, _, _)).Times(AnyNumber());
@@ -571,9 +564,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_OPEN_FILE))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_OPEN_FILE)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, open(_, _, _, _))
@@ -595,9 +590,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_WRITE))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_WRITE)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pwrite(_, _, _, _, _))
@@ -620,9 +617,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_WRITE))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_WRITE)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pwrite(_, _, _, _, _))
@@ -646,9 +645,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_WRITE))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_WRITE)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pwrite(_, _, _, _, _))
@@ -668,9 +669,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -690,9 +693,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -713,9 +718,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
 
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -766,9 +773,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_OPEN_FILE))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_OPEN_FILE)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, open(_, _, _, _))
@@ -786,9 +795,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, reset_commit) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, sync(_, _))
@@ -838,9 +849,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, scan_changes_since) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -865,9 +878,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -897,9 +912,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -927,9 +944,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_DB_NO_LONGER_VALID))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_DB_NO_LONGER_VALID)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -959,9 +978,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -989,9 +1010,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -1013,9 +1036,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_READ))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_READ)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
@@ -1034,9 +1059,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger, mlog(Ge(EXTENSION_LOG_WARNING),
-                                 VCE(COUCHSTORE_ERROR_FILE_CLOSE))
-                   ).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(logger,
+                    mlog(Ge(spdlog::level::level_enum::warn),
+                         VCE(COUCHSTORE_ERROR_FILE_CLOSE)))
+                .Times(1)
+                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, close(_, _)).Times(AnyNumber());
@@ -1073,9 +1100,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
         {
             /* Establish Logger expectation */
             EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-            EXPECT_CALL(
-                    logger,
-                    mlog(Ge(EXTENSION_LOG_WARNING), VCE(COUCHSTORE_ERROR_READ)))
+            EXPECT_CALL(logger,
+                        mlog(Ge(spdlog::level::level_enum::warn),
+                             VCE(COUCHSTORE_ERROR_READ)))
                     .Times(1)
                     .RetiresOnSaturation();
 

@@ -498,5 +498,5 @@ private:
     std::map<size_t, SnapshotPtr> scanSnapshots;
     std::mutex scanSnapshotsMutex;
 
-    Logger& logger;
+    BucketLogger& logger;
 };

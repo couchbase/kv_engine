@@ -39,6 +39,7 @@
 #include <vector>
 
 /* Forward declarations */
+class BucketLogger;
 class Item;
 class KVStore;
 class KVStoreConfig;
@@ -245,7 +246,7 @@ public:
     const ValueFilter valFilter;
     const uint64_t documentCount;
 
-    Logger* logger;
+    BucketLogger* logger;
     const KVStoreConfig& config;
 };
 

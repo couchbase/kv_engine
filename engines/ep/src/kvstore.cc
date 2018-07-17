@@ -59,7 +59,7 @@ ScanContext::ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
       docFilter(_docFilter),
       valFilter(_valFilter),
       documentCount(_documentCount),
-      logger(&global_logger),
+      logger(globalBucketLogger.get()),
       config(_config) {
 }
 

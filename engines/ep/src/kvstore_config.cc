@@ -59,14 +59,14 @@ KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
       dbname(_dbname),
       backend(_backend),
       shardId(_shardId),
-      logger(&global_logger),
+      logger(globalBucketLogger.get()),
       buffered(true),
       persistDocNamespace(_persistDocNamespace) {
 }
 
 KVStoreConfig::~KVStoreConfig() = default;
 
-KVStoreConfig& KVStoreConfig::setLogger(Logger& _logger) {
+KVStoreConfig& KVStoreConfig::setLogger(BucketLogger& _logger) {
     logger = &_logger;
     return *this;
 }

@@ -480,11 +480,11 @@ bool RocksDBKVStore::commit(const Item* collectionsManifest) {
     // Flush all documents to disk
     auto status = saveDocs(vbid, collectionsManifest, commitBatch);
     if (!status.ok()) {
-        logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::commit: saveDocs error:%d, "
-                   "vb:%" PRIu16,
-                   status.code(),
-                   vbid);
+        logger.warn(
+                "RocksDBKVStore::commit: saveDocs error:{}, "
+                "vb:{}",
+                status.code(),
+                vbid);
         success = false;
     }
 
@@ -665,9 +665,8 @@ void RocksDBKVStore::delVBucket(uint16_t vbid, uint64_t vb_version) {
     std::lock_guard<std::mutex> lg2(vbhMutex);
 
     if (!vbHandles[vbid]) {
-        logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::delVBucket: VBucket not found, vb:%" PRIu16,
-                   vbid);
+        logger.warn("RocksDBKVStore::delVBucket: VBucket not found, vb:{}",
+                    vbid);
         return;
     }
 
@@ -709,22 +708,22 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
         rocksdb::WriteBatch batch;
         auto status = saveVBStateToBatch(*vbh, vbstate, batch);
         if (!status.ok()) {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
-                       "failed state:%s vb:%" PRIu16 " :%s",
-                       VBucket::toString(vbstate.state),
-                       vbucketId,
-                       status.getState());
+            logger.warn(
+                    "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
+                    "failed state:{} vb:{} :{}",
+                    VBucket::toString(vbstate.state),
+                    vbucketId,
+                    status.getState());
             return false;
         }
         status = rdb->Write(writeOptions, &batch);
         if (!status.ok()) {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "RocksDBKVStore::snapshotVBucket: Write() "
-                       "failed state:%s vb:%" PRIu16 " :%s",
-                       VBucket::toString(vbstate.state),
-                       vbucketId,
-                       status.getState());
+            logger.warn(
+                    "RocksDBKVStore::snapshotVBucket: Write() "
+                    "failed state:{} vb:{} :{}",
+                    VBucket::toString(vbstate.state),
+                    vbucketId,
+                    status.getState());
             return false;
         }
     }
@@ -966,28 +965,28 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
                            &vbstate);
     if (!status.ok()) {
         if (status.IsNotFound()) {
-            logger.log(EXTENSION_LOG_NOTICE,
-                       "RocksDBKVStore::readVBState: '_local/vbstate.%" PRIu16
-                       "' not found",
-                       vbid);
+            logger.info(
+                    "RocksDBKVStore::readVBState: '_local/vbstate.{}' not "
+                    "found",
+                    vbid);
         } else {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "RocksDBKVStore::readVBState: error getting vbstate "
-                       "error:%s, vb:%" PRIu16,
-                       status.getState(),
-                       vbid);
+            logger.warn(
+                    "RocksDBKVStore::readVBState: error getting vbstate "
+                    "error:{}, vb:{}",
+                    status.getState(),
+                    vbid);
         }
     } else {
         nlohmann::json json;
         try {
             json = nlohmann::json::parse(vbstate);
         } catch (const nlohmann::json::exception& e) {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "RocksKVStore::readVBState: Failed to parse the vbstat "
-                       "json doc for vb:%" PRIu16 ", json:%s with reason:%s",
-                       vbid,
-                       vbstate.c_str(),
-                       e.what());
+            logger.warn(
+                    "RocksKVStore::readVBState: Failed to parse the vbstat "
+                    "json doc for vb:{}, json:{} with reason:{}",
+                    vbid,
+                    vbstate,
+                    e.what());
             return;
         }
 
@@ -1004,16 +1003,15 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
         if (vb_state.empty() || checkpoint_id.empty() ||
             max_deleted_seqno.empty()) {
             std::stringstream error;
-            logger.log(EXTENSION_LOG_WARNING,
-                       "RocksDBKVStore::readVBState: State"
-                       " JSON doc for vb:%" PRIu16
-                       " is in the wrong format:%s, "
-                       "vb state:%s, checkpoint id:%s and max deleted seqno:%s",
-                       vbid,
-                       vbstate.c_str(),
-                       vb_state.c_str(),
-                       checkpoint_id.c_str(),
-                       max_deleted_seqno.c_str());
+            logger.warn(
+                    "RocksDBKVStore::readVBState: State"
+                    " JSON doc for vb:{} is in the wrong format:{}, "
+                    "vb state:{}, checkpoint id:{} and max deleted seqno:{}",
+                    vbid,
+                    vbstate,
+                    vb_state,
+                    checkpoint_id,
+                    max_deleted_seqno);
         } else {
             state = VBucket::fromString(vb_state.c_str());
             maxDeletedSeqno = std::stoull(max_deleted_seqno);
@@ -1209,11 +1207,11 @@ rocksdb::Status RocksDBKVStore::saveDocs(
 
         status = addRequestToWriteBatch(*vbh, batch, request.get());
         if (!status.ok()) {
-            logger.log(EXTENSION_LOG_WARNING,
-                       "RocksDBKVStore::saveDocs: addRequestToWriteBatch "
-                       "error:%d, vb:%" PRIu16,
-                       status.code(),
-                       vbid);
+            logger.warn(
+                    "RocksDBKVStore::saveDocs: addRequestToWriteBatch "
+                    "error:{}, vb:{}",
+                    status.code(),
+                    vbid);
             return status;
         }
 
@@ -1230,12 +1228,12 @@ rocksdb::Status RocksDBKVStore::saveDocs(
         if (batch.GetDataSize() > batchLimit) {
             status = writeAndTimeBatch(batch);
             if (!status.ok()) {
-                logger.log(EXTENSION_LOG_WARNING,
-                           "RocksDBKVStore::saveDocs: rocksdb::DB::Write "
-                           "error:%d, "
-                           "vb:%" PRIu16,
-                           status.code(),
-                           vbid);
+                logger.warn(
+                        "RocksDBKVStore::saveDocs: rocksdb::DB::Write "
+                        "error:{}, "
+                        "vb:{}",
+                        status.code(),
+                        vbid);
                 return status;
             }
             batch.Clear();
@@ -1244,19 +1242,18 @@ rocksdb::Status RocksDBKVStore::saveDocs(
 
     status = saveVBStateToBatch(*vbh, *vbstate, batch);
     if (!status.ok()) {
-        logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::saveDocs: saveVBStateToBatch error:%d",
-                   status.code());
+        logger.warn("RocksDBKVStore::saveDocs: saveVBStateToBatch error:{}",
+                    status.code());
         return status;
     }
 
     status = writeAndTimeBatch(batch);
     if (!status.ok()) {
-        logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:%d, "
-                   "vb:%" PRIu16,
-                   status.code(),
-                   vbid);
+        logger.warn(
+                "RocksDBKVStore::saveDocs: rocksdb::DB::Write error:{}, "
+                "vb:{}",
+                status.code(),
+                vbid);
         return status;
     }
 
@@ -1289,22 +1286,22 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
     auto status =
             batch.Put(vbh.defaultCFH.get(), keySliceParts, valueSliceParts);
     if (!status.ok()) {
-        logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
-                   "[ColumnFamily: \'default\']  error:%d, "
-                   "vb:%" PRIu16,
-                   status.code(),
-                   vbid);
+        logger.warn(
+                "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
+                "[ColumnFamily: \'default\']  error:{}, "
+                "vb:{}",
+                status.code(),
+                vbid);
         return status;
     }
     status = batch.Put(vbh.seqnoCFH.get(), bySeqnoSlice, keySlice);
     if (!status.ok()) {
-        logger.log(EXTENSION_LOG_WARNING,
-                   "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
-                   "[ColumnFamily: \'seqno\']  error:%d, "
-                   "vb:%" PRIu16,
-                   status.code(),
-                   vbid);
+        logger.warn(
+                "RocksDBKVStore::saveDocs: rocksdb::WriteBatch::Put "
+                "[ColumnFamily: \'seqno\']  error:{}, "
+                "vb:{}",
+                status.code(),
+                vbid);
         return status;
     }
     st.saveDocsHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1525,10 +1522,10 @@ bool RocksDBKVStore::getStatFromMemUsage(
     auto status = rocksdb::MemoryUtil::GetApproximateMemoryUsageByType(
             dbs, cache_set, &usageByType);
     if (!status.ok()) {
-        logger.log(EXTENSION_LOG_NOTICE,
-                   "RocksDBKVStore::getStatFromMemUsage: "
-                   "GetApproximateMemoryUsageByType error: %s",
-                   status.getState());
+        logger.info(
+                "RocksDBKVStore::getStatFromMemUsage: "
+                "GetApproximateMemoryUsageByType error: {}",
+                status.getState());
         return false;
     }
 
