@@ -1208,7 +1208,6 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
       stateMachine(*this) {
     // TEMP: Once all of these functions are converted to virtual methods
     // these assignments will not be necesary.
-    dcp_message_producers::noop = dcp_message_noop;
     dcp_message_producers::buffer_acknowledgement =
             dcp_message_buffer_acknowledgement;
     dcp_message_producers::control = dcp_message_control;

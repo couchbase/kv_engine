@@ -229,8 +229,7 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*noop)
-    (gsl::not_null<const void*> cookie, uint32_t opaque) = nullptr;
+    virtual ENGINE_ERROR_CODE noop(uint32_t opaque) = 0;
 
     /**
      * Send a buffer acknowledgment

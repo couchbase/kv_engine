@@ -306,9 +306,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state(
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_noop(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::noop(uint32_t opaque) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_NOOP;
     dcp_last_opaque = opaque;
@@ -364,7 +362,6 @@ static ENGINE_ERROR_CODE mock_get_error_map(gsl::not_null<const void*> cookie,
 }
 
 MockDcpMessageProducers::MockDcpMessageProducers(EngineIface* engine) {
-    noop = mock_noop;
     buffer_acknowledgement = mock_buffer_acknowledgement;
     control = mock_control;
     system_event = mock_system_event;

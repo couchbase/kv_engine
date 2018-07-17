@@ -106,6 +106,7 @@ public:
     ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
                                         uint16_t vbucket,
                                         vbucket_state_t state) override;
+    ENGINE_ERROR_CODE noop(uint32_t opaque) override;
 
     // Change the status code returned from mutation() to the specified value.
     void setMutationStatus(ENGINE_ERROR_CODE code);

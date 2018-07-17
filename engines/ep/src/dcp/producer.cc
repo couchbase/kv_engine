@@ -1231,7 +1231,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
     if (!noopCtx.pendingRecv && elapsedTime >= noopCtx.dcpNoopTxInterval) {
         EventuallyPersistentEngine *epe = ObjectRegistry::
                 onSwitchThread(NULL, true);
-        ENGINE_ERROR_CODE ret = producers->noop(getCookie(), ++noopCtx.opaque);
+        const auto ret = producers->noop(++noopCtx.opaque);
         ObjectRegistry::onSwitchThread(epe);
 
         if (ret == ENGINE_SUCCESS) {

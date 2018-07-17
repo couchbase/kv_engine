@@ -433,16 +433,14 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
     return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_noop(gsl::not_null<const void*> void_cookie,
-                                   uint32_t opaque) {
-    auto& c = cookie2connection(void_cookie);
+ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
     protocol_binary_request_dcp_noop packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_NOOP;
     packet.message.header.request.opaque = opaque;
 
-    return add_packet_to_pipe(c, {packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
 ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(

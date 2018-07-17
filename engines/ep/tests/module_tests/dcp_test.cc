@@ -1801,11 +1801,6 @@ protected:
     uint16_t vbid;
 };
 
-ENGINE_ERROR_CODE mock_noop_return_engine_e2big(
-        gsl::not_null<const void*> cookie, uint32_t opaque) {
-    return ENGINE_E2BIG;
-}
-
 /*
  * Test that the connection manager interval is a multiple of the value we
  * are setting the noop interval to.  This ensures we do not set the the noop
@@ -1845,8 +1840,13 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
             /*flags*/ 0,
             cb::const_byte_buffer() /*no json*/);
 
-    MockDcpMessageProducers producers;
-    producers.noop = mock_noop_return_engine_e2big;
+    class MockE2BigMessageProducers : public MockDcpMessageProducers {
+    public:
+        ENGINE_ERROR_CODE noop(uint32_t) override {
+            return ENGINE_E2BIG;
+        }
+
+    } producers;
 
     producer->setNoopEnabled(true);
     const auto send_time = ep_current_time() + 21;
