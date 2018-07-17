@@ -179,8 +179,7 @@ struct default_engine : public EngineIface {
     ENGINE_ERROR_CODE unknown_command(
             const void* cookie,
             gsl::not_null<protocol_binary_request_header*> request,
-            ADD_RESPONSE response,
-            DocNamespace doc_namespace) override;
+            ADD_RESPONSE response) override;
 
     void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
 

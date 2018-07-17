@@ -508,8 +508,7 @@ public:
     ENGINE_ERROR_CODE unknown_command(
             const void* cookie,
             gsl::not_null<protocol_binary_request_header*> request,
-            ADD_RESPONSE response,
-            DocNamespace doc_namespace) override {
+            ADD_RESPONSE response) override {
         if (request->request.opcode == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
             auto* req =
                     reinterpret_cast<request_ewouldblock_ctl*>(request.get());
@@ -608,8 +607,7 @@ public:
             if (should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
                 return err;
             } else {
-                return real_engine->unknown_command(
-                        cookie, request, response, doc_namespace);
+                return real_engine->unknown_command(cookie, request, response);
             }
         }
     }

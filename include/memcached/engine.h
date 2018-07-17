@@ -454,15 +454,13 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param cookie The cookie provided by the frontend
      * @param request pointer to request header to be filled in
      * @param response function to transmit data
-     * @param doc_namespace namespace the command applies to
      *
      * @return ENGINE_SUCCESS if all goes well
      */
     virtual ENGINE_ERROR_CODE unknown_command(
             const void* cookie,
             gsl::not_null<protocol_binary_request_header*> request,
-            ADD_RESPONSE response,
-            DocNamespace doc_namespace) {
+            ADD_RESPONSE response) {
         return ENGINE_ENOTSUP;
     }
 

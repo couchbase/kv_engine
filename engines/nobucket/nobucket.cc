@@ -158,8 +158,7 @@ public:
     ENGINE_ERROR_CODE unknown_command(
             const void*,
             gsl::not_null<protocol_binary_request_header*>,
-            ADD_RESPONSE,
-            DocNamespace) override {
+            ADD_RESPONSE) override {
         return ENGINE_NO_BUCKET;
     }
 

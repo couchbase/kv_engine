@@ -821,8 +821,7 @@ static bool set_param(struct default_engine* e,
 ENGINE_ERROR_CODE default_engine::unknown_command(
         const void* cookie,
         gsl::not_null<protocol_binary_request_header*> request,
-        ADD_RESPONSE response,
-        DocNamespace doc_namespace) {
+        ADD_RESPONSE response) {
     bool sent;
 
     switch(request->request.opcode) {

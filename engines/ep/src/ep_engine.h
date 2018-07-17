@@ -177,8 +177,7 @@ public:
     ENGINE_ERROR_CODE unknown_command(
             const void* cookie,
             gsl::not_null<protocol_binary_request_header*> request,
-            ADD_RESPONSE response,
-            DocNamespace doc_namespace) override;
+            ADD_RESPONSE response) override;
 
     void item_set_cas(gsl::not_null<item*> item, uint64_t cas) override;
 
@@ -449,25 +448,23 @@ public:
                                              const DocKey& key,
                                              uint16_t vbucket);
 
-    ENGINE_ERROR_CODE setWithMeta(const void* cookie,
-                                 protocol_binary_request_set_with_meta *request,
-                                 ADD_RESPONSE response,
-                                 DocNamespace docNamespace);
+    ENGINE_ERROR_CODE setWithMeta(
+            const void* cookie,
+            protocol_binary_request_set_with_meta* request,
+            ADD_RESPONSE response);
 
-    ENGINE_ERROR_CODE deleteWithMeta(const void* cookie,
-                              protocol_binary_request_delete_with_meta *request,
-                              ADD_RESPONSE response,
-                              DocNamespace docNamespace);
+    ENGINE_ERROR_CODE deleteWithMeta(
+            const void* cookie,
+            protocol_binary_request_delete_with_meta* request,
+            ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE returnMeta(const void* cookie,
-                                 protocol_binary_request_return_meta *request,
-                                 ADD_RESPONSE response,
-                                 DocNamespace docNamespace);
+                                 protocol_binary_request_return_meta* request,
+                                 ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE getAllKeys(const void* cookie,
-                                protocol_binary_request_get_keys *request,
-                                ADD_RESPONSE response,
-                                DocNamespace docNamespace);
+                                 protocol_binary_request_get_keys* request,
+                                 ADD_RESPONSE response);
 
     CONN_PRIORITY getDCPPriority(const void* cookie);
 
@@ -522,14 +519,15 @@ public:
 
     bool resetVBucket(uint16_t vbid);
 
-    protocol_binary_response_status evictKey(const DocKey& key,
-                                             uint16_t vbucket,
-                                             const char** msg);
+    protocol_binary_response_status evictKey(
+            const void* cookie,
+            protocol_binary_request_header* request,
+            const char** msg,
+            size_t* msg_size);
 
     ENGINE_ERROR_CODE observe(const void* cookie,
-                              protocol_binary_request_header *request,
-                              ADD_RESPONSE response,
-                              DocNamespace docNamespace);
+                              protocol_binary_request_header* request,
+                              ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE observe_seqno(const void* cookie,
                                     protocol_binary_request_header *request,
@@ -567,6 +565,12 @@ public:
                                                     const char* keyz,
                                                     const char* valz,
                                                     std::string& msg);
+
+    ENGINE_ERROR_CODE getReplicaCmd(protocol_binary_request_header* request,
+                                    const void* cookie,
+                                    Item** it,
+                                    const char** msg,
+                                    protocol_binary_response_status* res);
 
     ~EventuallyPersistentEngine();
 
@@ -995,6 +999,11 @@ protected:
      * @return the corrected expiry time (may return input)
      */
     time_t processExpiryTime(time_t in) const;
+
+    /**
+     * Make a DocKey from the key buffer
+     */
+    DocKey makeDocKey(const void* cookie, cb::const_byte_buffer key);
 
     SERVER_HANDLE_V1 *serverApi;
 

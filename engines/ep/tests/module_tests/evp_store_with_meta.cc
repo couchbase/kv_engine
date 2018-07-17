@@ -105,15 +105,13 @@ public:
                     cookie,
                     reinterpret_cast<protocol_binary_request_delete_with_meta*>(
                             wm.data()),
-                    this->addResponse,
-                    DocNamespace::DefaultCollection);
+                    this->addResponse);
         } else {
             return engine->setWithMeta(
                     cookie,
                     reinterpret_cast<protocol_binary_request_set_with_meta*>(
                             wm.data()),
-                    this->addResponse,
-                    DocNamespace::DefaultCollection);
+                    this->addResponse);
         }
     }
 

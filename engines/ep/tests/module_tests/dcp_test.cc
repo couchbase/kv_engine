@@ -1711,7 +1711,7 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
     CacheLookup lookup(docKey, /*BySeqno*/ 1, vbid);
     // Make the key non-resident by evicting the key
     const char* msg;
-    engine->evictKey(docKey, vbid, &msg);
+    engine->getKVBucket()->evictKey(docKey, vbid, &msg);
     callback.callback(lookup);
 
     /* With the key evicted, invoking callback should result in backfillReceived

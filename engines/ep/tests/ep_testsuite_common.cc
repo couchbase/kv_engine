@@ -167,9 +167,7 @@ bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
-    check(h1->unknown_command(
-                  NULL, pkt, add_response, testHarness.doc_namespace) ==
-                  ENGINE_SUCCESS,
+    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
     cb_free(pkt);
 
