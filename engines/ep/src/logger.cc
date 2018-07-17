@@ -107,11 +107,7 @@ void Logger::vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) con
 }
 
 void Logger::setLoggerAPI(ServerLogIface* api) {
-    if (globalBucketLogger == nullptr) {
-        globalBucketLogger = std::make_unique<BucketLogger>(
-                api->get_spdlogger()->spdlogGetter());
-    }
-
+    BucketLogger::setLoggerAPI(api);
     Logger::logger_api.store(api, std::memory_order_relaxed);
 }
 

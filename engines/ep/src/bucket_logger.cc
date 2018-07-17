@@ -21,9 +21,10 @@
 
 // Construct the base logger with a nullptr for the sinks as they will never be
 // used
-BucketLogger::BucketLogger(spdlog::logger* logger)
-    : spdlog::logger(logger->name(), nullptr) {
-    spdLogger = logger;
+BucketLogger::BucketLogger() : spdlog::logger("", nullptr) {
+    spdLogger = BucketLogger::loggerAPI.load(std::memory_order_relaxed)
+                        ->get_spdlogger()
+                        ->spdlogGetter();
     set_level(spdLogger->level());
 }
 
@@ -46,16 +47,36 @@ void BucketLogger::_sink_it(spdlog::details::log_msg& msg) {
 
     std::string fmtString;
 
-    // Prepend the engine name
-    if (engine) {
-        fmtString = '(' + std::string(engine->getName().c_str()) + ") " +
-                    msg.raw.c_str();
-    } else {
-        fmtString.append("(No Engine) ");
-        fmtString.append(msg.raw.c_str());
+    // Append the id (if set)
+    if (connectionId != 0) {
+        fmtString.append(std::to_string(connectionId) + ": ");
     }
 
+    // Append the engine name (if applicable)
+    if (engine) {
+        fmtString.append('(' + std::string(engine->getName().c_str()) + ") ");
+    } else {
+        fmtString.append("(No Engine) ");
+    }
+
+    // Append the given prefix (if set)
+    if (prefix.size() > 0) {
+        fmtString.append(prefix + " ");
+    }
+
+    // Append the rest of the message and log
+    fmtString.append(msg.raw.c_str());
     spdLogger->log(msg.level, fmtString);
 }
+
+void BucketLogger::setLoggerAPI(ServerLogIface* api) {
+    BucketLogger::loggerAPI.store(api, std::memory_order_relaxed);
+
+    if (globalBucketLogger == nullptr) {
+        globalBucketLogger = std::make_unique<BucketLogger>();
+    }
+}
+
+std::atomic<ServerLogIface*> BucketLogger::loggerAPI;
 
 std::unique_ptr<BucketLogger> globalBucketLogger;

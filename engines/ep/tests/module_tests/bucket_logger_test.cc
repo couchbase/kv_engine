@@ -31,7 +31,7 @@ void BucketLoggerTest::SetUp() {
     oldLogLevel = Logger::getGlobalLogLevel();
 
     SpdloggerTest::SetUp();
-    globalBucketLogger = std::make_unique<BucketLogger>(cb::logger::get());
+    globalBucketLogger = std::make_unique<BucketLogger>();
 }
 
 void BucketLoggerTest::TearDown() {
@@ -43,13 +43,13 @@ void BucketLoggerTest::TearDown() {
     cb::logger::createBlackholeLogger();
     get_mock_server_api()->log->set_level(oldLogLevel);
     Logger::setLoggerAPI(get_mock_server_api()->log);
-    globalBucketLogger = std::make_unique<BucketLogger>(cb::logger::get());
+    globalBucketLogger = std::make_unique<BucketLogger>();
 }
 
 void BucketLoggerTest::setUpLogger(const spdlog::level::level_enum level,
                                    const size_t cyclesize) {
     SpdloggerTest::setUpLogger(level, cyclesize);
-    globalBucketLogger = std::make_unique<BucketLogger>(cb::logger::get());
+    globalBucketLogger = std::make_unique<BucketLogger>();
 }
 
 /**

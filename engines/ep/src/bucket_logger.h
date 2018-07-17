@@ -18,12 +18,31 @@
 #pragma once
 
 #include "spdlog/logger.h"
+#include <memcached/extension.h>
 
 /**
  * EP Engine specific logger
  *
- * Prepends the engine name to log messages called via the defined macros using
- * an engine specific logger.
+ * Prepends an integer connection ID (if set) at the very start of every
+ * message.
+ *
+ * Prepends the engine name after the connection ID when called by a thread
+ * associated with an engine.
+ *
+ * Prepends a given string prefix to log messages after the engine name.
+ *
+ * Overall message format is as follows:
+ *
+ * INFO 44: (default) {SpecifiedPrefix} {ActualLogMessage}
+ *   |   |       |            |                  |--------|
+ *   |   |       |            |                           |
+ *   |   |       |            |-------------|             |
+ *   |   |       |                          |             |
+ *   |   |       |------------|             |             |
+ *   |   |                    |             |             |
+ *   |   |-------|            |             |             |
+ *   |           |            |             |             |
+ * LogLevel      ID      EngineName      Prefix      LogMessage
  *
  * Requires some indirection to do so as the format library in spdlog requires
  * type safety and we don't want to inline a lot of message formatting as
@@ -35,14 +54,37 @@
  */
 class BucketLogger : public spdlog::logger {
 public:
+    // Constructor that assumes that we have already called the setLoggerAPI
+    // method to store the spdlog::logger which is loaded once on creation to
+    // set the member variable
+    BucketLogger();
+
     // Constructor taking a spdlog::logger that is used to perform the actual
     // logging after this BucketLogger formats the log messages
     BucketLogger(spdlog::logger* logger);
 
+    // Informs the BucketLogger class of the current logging API
+    static void setLoggerAPI(ServerLogIface* api);
+
+    // Set the conection id (printed before any other prefix or message)
+    void setConnectionId(uint32_t id) {
+        this->connectionId = id;
+    }
+
+    // The prefix printed before the log message contents
+    std::string prefix{""};
+
 protected:
     void _sink_it(spdlog::details::log_msg& msg) override;
 
+    // Connection ID prefix that is printed if set (printed before any other
+    // prefix or message)
+    uint32_t connectionId{0};
+
 private:
+    // memcached logger API used to construct the non-global instances
+    static std::atomic<ServerLogIface*> loggerAPI;
+
     spdlog::logger* spdLogger;
 };
 
