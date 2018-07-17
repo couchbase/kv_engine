@@ -543,10 +543,8 @@ ENGINE_ERROR_CODE dcp_message_system_event(gsl::not_null<const void*> cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE dcp_message_get_error_map(gsl::not_null<const void*> cookie,
-                                            uint32_t opaque,
-                                            uint16_t version) {
-    auto& c = cookie2connection(cookie);
+ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {
+    auto& c = *this;
 
     protocol_binary_request_get_errmap packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;

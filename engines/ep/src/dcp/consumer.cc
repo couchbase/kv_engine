@@ -1294,7 +1294,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
         // Note: just send 0 as version to get the default error map loaded
         //     from file at startup. The error map returned is not used, we
         //     just want to issue a valid request.
-        ret = producers->get_error_map(getCookie(), opaque, 0 /*version*/);
+        ret = producers->get_error_map(opaque, 0 /*version*/);
         ObjectRegistry::onSwitchThread(epe);
         getErrorMapState = GetErrorMapState::PendingResponse;
         return ret;

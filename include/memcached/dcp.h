@@ -295,10 +295,8 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*get_error_map)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     uint16_t version) = nullptr;
+    virtual ENGINE_ERROR_CODE get_error_map(uint32_t opaque,
+                                            uint16_t version) = 0;
 };
 
 typedef ENGINE_ERROR_CODE (*dcp_add_failover_log)(

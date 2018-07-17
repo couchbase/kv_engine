@@ -1012,6 +1012,8 @@ public:
                               const void* value,
                               uint32_t nvalue) override;
 
+    ENGINE_ERROR_CODE get_error_map(uint32_t opaque, uint16_t version) override;
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses

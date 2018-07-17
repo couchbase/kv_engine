@@ -1209,7 +1209,6 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
     // TEMP: Once all of these functions are converted to virtual methods
     // these assignments will not be necesary.
     dcp_message_producers::system_event = dcp_message_system_event;
-    dcp_message_producers::get_error_map = dcp_message_get_error_map;
 
     setTcpNoDelay(ifc.tcp_nodelay);
     updateDescription();
