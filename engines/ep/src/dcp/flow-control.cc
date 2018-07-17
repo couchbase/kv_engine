@@ -61,7 +61,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             const std::string &controlMsgKey = consumerConn->getControlMsgKey();
             EventuallyPersistentEngine *epe =
                                     ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->control(consumerConn->getCookie(), opaque,
+            ret = producers->control(opaque,
                                      controlMsgKey.c_str(),
                                      controlMsgKey.length(),
                                      buf_size.c_str(),

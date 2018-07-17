@@ -259,13 +259,11 @@ struct dcp_message_producers {
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*control)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     const void* key,
-     uint16_t nkey,
-     const void* value,
-     uint32_t nvalue) = nullptr;
+    virtual ENGINE_ERROR_CODE control(uint32_t opaque,
+                                      const void* key,
+                                      uint16_t nkey,
+                                      const void* value,
+                                      uint32_t nvalue) = 0;
 
     /**
      * Send a system event message to the other end

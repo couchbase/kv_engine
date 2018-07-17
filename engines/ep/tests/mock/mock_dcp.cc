@@ -322,13 +322,11 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::buffer_acknowledgement(
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_control(gsl::not_null<const void*> cookie,
-                                      uint32_t opaque,
-                                      const void* key,
-                                      uint16_t nkey,
-                                      const void* value,
-                                      uint32_t nvalue) {
-    (void) cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::control(uint32_t opaque,
+                                                   const void* key,
+                                                   uint16_t nkey,
+                                                   const void* value,
+                                                   uint32_t nvalue) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL;
     dcp_last_opaque = opaque;
@@ -358,7 +356,6 @@ static ENGINE_ERROR_CODE mock_get_error_map(gsl::not_null<const void*> cookie,
 }
 
 MockDcpMessageProducers::MockDcpMessageProducers(EngineIface* engine) {
-    control = mock_control;
     system_event = mock_system_event;
     get_error_map = mock_get_error_map;
 

@@ -459,13 +459,12 @@ ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
     return add_packet_to_pipe(*this, {packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE dcp_message_control(gsl::not_null<const void*> void_cookie,
-                                      uint32_t opaque,
+ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
                                       const void* key,
                                       uint16_t nkey,
                                       const void* value,
                                       uint32_t nvalue) {
-    auto& c = cookie2connection(void_cookie);
+    auto& c = *this;
     protocol_binary_request_dcp_control packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =

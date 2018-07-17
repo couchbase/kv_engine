@@ -1006,6 +1006,11 @@ public:
     ENGINE_ERROR_CODE buffer_acknowledgement(uint32_t opaque,
                                              uint16_t vbucket,
                                              uint32_t buffer_bytes) override;
+    ENGINE_ERROR_CODE control(uint32_t opaque,
+                              const void* key,
+                              uint16_t nkey,
+                              const void* value,
+                              uint32_t nvalue) override;
 
 protected:
     /**
