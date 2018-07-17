@@ -61,7 +61,6 @@ struct dcp_message_producers {
     /**
      * Send a Stream End message
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param vbucket the vbucket id the message belong to
@@ -81,7 +80,6 @@ struct dcp_message_producers {
     /**
      * Send a marker
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param vbucket the vbucket id the message belong to
@@ -97,7 +95,6 @@ struct dcp_message_producers {
     /**
      * Send a Mutation
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param itm the item to send. The core will call item_release on
@@ -127,7 +124,6 @@ struct dcp_message_producers {
     /**
      * Send a deletion
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param itm the item to send. The core will call item_release on
@@ -149,7 +145,6 @@ struct dcp_message_producers {
     /**
      * Send a deletion with delete_time or collections (or both)
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param itm the item to send. The core will call item_release on
@@ -173,7 +168,6 @@ struct dcp_message_producers {
     /**
      * Send an expiration
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param itm the item to send. The core will call item_release on
@@ -197,7 +191,6 @@ struct dcp_message_producers {
     /**
      * Send a flush for a single vbucket
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param vbucket the vbucket id the message belong to
@@ -209,7 +202,6 @@ struct dcp_message_producers {
     /**
      * Send a state transition for a vbucket
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param vbucket the vbucket id the message belong to
@@ -224,7 +216,6 @@ struct dcp_message_producers {
     /**
      * Send a noop
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque what to use as the opaque in the buffer
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
@@ -234,7 +225,6 @@ struct dcp_message_producers {
     /**
      * Send a buffer acknowledgment
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param vbucket the vbucket id the message belong to
@@ -249,7 +239,6 @@ struct dcp_message_producers {
     /**
      * Send a control message to the other end
      *
-     * @param cookie passed on the cookie provided by step
      * @param opaque what to use as the opaque in the buffer
      * @param key the identifier for the property to set
      * @param nkey the number of bytes in the key
@@ -289,7 +278,6 @@ struct dcp_message_producers {
     /*
      * Send a GetErrorMap message to the other end
      *
-     * @param cookie The cookie provided by step
      * @param opaque The opaque to send over
      * @param version The version of the error map
      *
