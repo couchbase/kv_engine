@@ -1093,6 +1093,11 @@ protected:
                                     cb::const_byte_buffer extendedMeta);
 
     /**
+     * Add the provided packet to the send pipe for the connection
+     */
+    ENGINE_ERROR_CODE add_packet_to_send_pipe(cb::const_byte_buffer packet);
+
+    /**
      * The actual socket descriptor used by this connection
      */
     SOCKET socketDescriptor;
