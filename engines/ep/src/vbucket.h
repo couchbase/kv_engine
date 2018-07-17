@@ -632,9 +632,10 @@ public:
      * checkpoint.
      *
      * @param m A Collections::Manifest to apply to the VB::Manifest
+     * @param true if the update was successful
      */
-    void updateFromManifest(const Collections::Manifest& m) {
-        manifest.wlock().update(*this, m);
+    bool updateFromManifest(const Collections::Manifest& m) {
+        return manifest.wlock().update(*this, m);
     }
 
     /**

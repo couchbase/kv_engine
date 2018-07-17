@@ -29,7 +29,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                                               cb::const_char_buffer manifest) {
     std::unique_lock<std::mutex> ul(lock, std::try_to_lock);
     if (!ul.owns_lock()) {
-        // Make concurrent updates fail, in realiy there should only be one
+        // Make concurrent updates fail, in reality there should only be one
         // admin connection making changes.
         return cb::engine_error(cb::engine_errc::temporary_failure,
                                 "Collections::Manager::update already locked");
@@ -53,18 +53,35 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                         cb::to_string(manifest));
     }
 
+    auto updated = updateAllVBuckets(bucket, *newManifest);
+    if (updated.is_initialized()) {
+        auto rolledback = updateAllVBuckets(bucket, *current);
+        return cb::engine_error(
+                cb::engine_errc::cannot_apply_collections_manifest,
+                "Collections::Manager::update aborted on vb:" +
+                        std::to_string(*updated) + " and rolled-back success:" +
+                        std::to_string(!rolledback.is_initialized()) +
+                        ", cannot apply:" + cb::to_string(manifest));
+    }
+
     current = std::move(newManifest);
 
+    return cb::engine_error(cb::engine_errc::success,
+                            "Collections::Manager::update");
+}
+
+boost::optional<uint16_t> Collections::Manager::updateAllVBuckets(
+        KVBucket& bucket, const Manifest& newManifest) {
     for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {
         auto vb = bucket.getVBuckets().getBucket(i);
 
         if (vb && vb->getState() == vbucket_state_active) {
-            vb->updateFromManifest(*current);
+            if (!vb->updateFromManifest(newManifest)) {
+                return vb->getId();
+            }
         }
     }
-
-    return cb::engine_error(cb::engine_errc::success,
-                            "Collections::Manager::update");
+    return {};
 }
 
 cb::EngineErrorStringPair Collections::Manager::getManifest() const {

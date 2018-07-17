@@ -85,6 +85,13 @@ public:
     void dump() const;
 
 private:
+    /**
+     * Apply newManifest to all active vbuckets
+     * @return uninitialized if success, else the vbid which triggered failure.
+     */
+    boost::optional<uint16_t> updateAllVBuckets(KVBucket& bucket,
+                                                const Manifest& newManifest);
+
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 
     mutable std::mutex lock;

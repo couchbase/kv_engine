@@ -16,6 +16,7 @@
  */
 
 #include "collections/vbucket_manifest.h"
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_serialised_manifest_entry.h"
@@ -84,21 +85,32 @@ Manifest::Manifest(const std::string& manifest)
     }
 }
 
-void Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
-    std::vector<CollectionID> additions, deletions;
-    std::tie(additions, deletions) = processManifest(manifest);
+bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
+    auto rv = processManifest(manifest);
+    if (!rv.is_initialized()) {
+        EP_LOG_WARN("VB::Manifest::update cannot update vb:{}", vb.getId());
+        return false;
+    } else {
+        const std::vector<CollectionID>& additions = rv->first;
+        const std::vector<CollectionID>& deletions = rv->second;
 
-    // Process deletions to the manifest
-    for (const auto& collection : deletions) {
-        beginCollectionDelete(
-                vb, manifest.getUid(), collection, OptionalSeqno{/*no-seqno*/});
-    }
+        // Process deletions to the manifest
+        for (const auto& collection : deletions) {
+            beginCollectionDelete(vb,
+                                  manifest.getUid(),
+                                  collection,
+                                  OptionalSeqno{/*no-seqno*/});
+        }
 
-    // Process additions to the manifest
-    for (const auto& collection : additions) {
-        addCollection(
-                vb, manifest.getUid(), collection, OptionalSeqno{/*no-seqno*/});
+        // Process additions to the manifest
+        for (const auto& collection : additions) {
+            addCollection(vb,
+                          manifest.getUid(),
+                          collection,
+                          OptionalSeqno{/*no-seqno*/});
+        }
     }
+    return true;
 }
 
 void Manifest::addCollection(::VBucket& vb,
@@ -271,6 +283,13 @@ Manifest::processResult Manifest::processManifest(
 
         if (itr == map.end()) {
             additions.push_back(m.first);
+        } else if (itr->second.isDeleting()) {
+            // trying to add a collection which is deleting, not allowed.
+            LOG(EXTENSION_LOG_WARNING,
+                "Attempt to add a deleting collection:%s:%" PRIx32,
+                m.second.c_str(),
+                uint32_t(m.first));
+            return {};
         }
     }
     return std::make_pair(additions, deletions);

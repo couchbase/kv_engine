@@ -53,6 +53,7 @@ bool isStatusSuccess(Status status) {
     case Status::XattrEinval:
     case Status::UnknownCollection:
     case Status::NoCollectionsManifest:
+    case Status::CannotApplyCollectionsManifest:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -159,6 +160,8 @@ std::string to_string(cb::mcbp::Status status) {
         return "Unknown Collection";
     case Status::NoCollectionsManifest:
         return "No Collections Manifest";
+    case Status::CannotApplyCollectionsManifest:
+        return "Cannot apply collections manifest";
     case Status::SubdocPathEnoent:
         return "Subdoc: Path not does not exist";
     case Status::SubdocPathMismatch:

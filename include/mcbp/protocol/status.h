@@ -115,6 +115,11 @@ enum class Status : uint16_t {
      */
     NoCollectionsManifest = 0x89,
 
+    /**
+     * Bucket Manifest update could not be applied to vbucket(s)
+     */
+    CannotApplyCollectionsManifest = 0x8a,
+
     /*
      * Sub-document specific responses.
      */

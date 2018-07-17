@@ -781,3 +781,23 @@ TEST_F(CollectionsManagerTest, basic2) {
         }
     }
 }
+
+/**
+ * Add a collection, delete it and add it again (i.e. a CID re-use)
+ * We should see a failure
+ */
+TEST_F(CollectionsManagerTest, cid_clash) {
+    // Add some more VBuckets just so there's some iteration happening
+    const int extraVbuckets = 2;
+    for (int vb = vbid + 1; vb <= (vbid + extraVbuckets); vb++) {
+        store->setVBucketState(vb, vbucket_state_active, false);
+    }
+
+    CollectionsManifest cm;
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setCollections({cm.add(CollectionEntry::meat)}).code());
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setCollections({cm.remove(CollectionEntry::meat)}).code());
+    EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,
+              store->setCollections({cm.add(CollectionEntry::meat)}).code());
+}

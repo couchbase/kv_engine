@@ -96,6 +96,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "predicate_failed";
     case cb::engine_errc::no_collections_manifest:
         return "no_collections_manifest";
+    case cb::engine_errc::cannot_apply_collections_manifest:
+        return "cannot_apply_collections_manifest";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

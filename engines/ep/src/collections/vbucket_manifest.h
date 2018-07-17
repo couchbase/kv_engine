@@ -276,9 +276,10 @@ public:
          *
          * @param vb The VBucket to update (queue data into).
          * @param manifest The incoming manifest to compare this object with.
+         * @return true if the update was applied
          */
-        void update(::VBucket& vb, const Collections::Manifest& newManifest) {
-            manifest.update(vb, newManifest);
+        bool update(::VBucket& vb, const Collections::Manifest& newManifest) {
+            return manifest.update(vb, newManifest);
         }
 
         /**
@@ -458,8 +459,9 @@ private:
      *
      * @param vb The VBucket to update (queue data into).
      * @param manifest The incoming manifest to compare this object with.
+     * @return true if the update was applied
      */
-    void update(::VBucket& vb, const Collections::Manifest& manifest);
+    bool update(::VBucket& vb, const Collections::Manifest& manifest);
 
     /**
      * Add a collection to the manifest.
@@ -626,12 +628,14 @@ protected:
      * added and those which are being deleted.
      *
      * @param manifest The Manifest to compare with.
-     * @returns A pair of vectors containing the required changes, first
-     *          contains collections that need adding whilst second contains
-     *          those which should be deleted.
+     * @returns An optional containing a std::pair of vectors, if successful
+     *          first contains collections that need adding whilst second
+     *          contains those which should be deleted. If the optional is
+     *          uninitialised than the manifest could not be processed against
+     *          this, the only error is trying to add a deleting collection-ID.
      */
-    using processResult =
-            std::pair<std::vector<CollectionID>, std::vector<CollectionID>>;
+    using processResult = boost::optional<
+            std::pair<std::vector<CollectionID>, std::vector<CollectionID>>>;
     processResult processManifest(const Collections::Manifest& manifest) const;
 
     /**
