@@ -327,10 +327,6 @@ struct SERVER_DOCUMENT_API {
     bool (*pre_expiry)(item_info& itm_info);
 };
 
-#ifdef WIN32
-#undef interface
-#endif
-
 extern "C" {
 typedef SERVER_HANDLE_V1* (* GET_SERVER_API)(void);
 }

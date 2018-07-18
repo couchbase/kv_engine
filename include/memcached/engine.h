@@ -57,13 +57,9 @@
 /**
  * Abstract interface to an engine.
  */
-#ifdef WIN32
-#undef interface
-#endif
 
 /* This is typedefed in types.h */
 struct server_handle_v1_t {
-    uint64_t interface; /**< The version number on the server structure */
     SERVER_CORE_API* core;
     SERVER_CALLBACK_API* callback;
     SERVER_LOG_API* log;

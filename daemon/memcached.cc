@@ -1698,7 +1698,6 @@ SERVER_HANDLE_V1* get_server_api() {
         document_api.pre_link = pre_link_document;
         document_api.pre_expiry = document_pre_expiry;
 
-        rv.interface = 1;
         rv.core = &core_api;
         rv.callback = &callback_api;
         rv.log = &server_log_api;
