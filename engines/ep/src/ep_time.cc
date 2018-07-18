@@ -19,40 +19,39 @@
 
 #include "ep_time.h"
 
+#include <atomic>
 #include <stdexcept>
 
-static rel_time_t uninitialized_current_time(void) {
-    throw std::logic_error("unitialized_current_time called");
-    return 0;
-}
+static std::atomic<ServerCoreIface*> core{nullptr};
 
-static time_t default_abs_time(rel_time_t notused) {
-    throw std::logic_error("default_abs_time called");
-    return 0;
-}
-
-static rel_time_t default_reltime(rel_time_t notused, cb::ExpiryLimit) {
-    throw std::logic_error("default_reltime called");
-    return 0;
-}
-
-
-void initialize_time_functions(const SERVER_CORE_API* core_api) {
-    if (ep_current_time == uninitialized_current_time) {
-        ep_current_time = core_api->get_current_time;
+rel_time_t ep_current_time() {
+    auto* iface = core.load(std::memory_order_acquire);
+    if (iface) {
+        return iface->get_current_time();
     }
-    if (ep_abs_time == default_abs_time) {
-        ep_abs_time = core_api->abstime;
-    }
-    if (ep_reltime == default_reltime) {
-        ep_reltime = core_api->realtime;
-    }
+    throw std::logic_error("ep_current_time called, but core API not set");
 }
 
-rel_time_t (*ep_current_time)(void) = uninitialized_current_time;
-time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
-rel_time_t (*ep_reltime)(rel_time_t, cb::ExpiryLimit) = default_reltime;
+time_t ep_abs_time(rel_time_t rel_time) {
+    auto* iface = core.load(std::memory_order_acquire);
+    if (iface) {
+        return iface->abstime(rel_time);
+    }
+    throw std::logic_error("ep_abs_time called, but core API not set");
+}
 
-time_t ep_real_time(void) {
+rel_time_t ep_reltime(rel_time_t exptime, cb::ExpiryLimit limit) {
+    auto* iface = core.load(std::memory_order_acquire);
+    if (iface) {
+        return iface->realtime(exptime, limit);
+    }
+    throw std::logic_error("ep_reltime called, but core API not set");
+}
+
+void initialize_time_functions(ServerCoreIface* core_api) {
+    core.store(core_api, std::memory_order_release);
+}
+
+time_t ep_real_time() {
     return ep_abs_time(ep_current_time());
 }

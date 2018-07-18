@@ -1560,10 +1560,6 @@ static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
     c->setState(McbpStateMachine::State::closing);
 }
 
-static size_t get_max_item_iovec_size() {
-    return 1;
-}
-
 static std::condition_variable shutdown_cv;
 static std::mutex shutdown_cv_mutex;
 static bool memcached_can_shutdown = false;
@@ -1615,6 +1611,38 @@ static void set_log_level(EXTENSION_LOG_LEVEL severity)
     }
 }
 
+struct ServerCoreApi : public ServerCoreIface {
+    rel_time_t get_current_time() override {
+        return mc_time_get_current_time();
+    }
+
+    rel_time_t realtime(rel_time_t exptime, cb::ExpiryLimit limit) override {
+        return mc_time_convert_to_real_time(exptime, limit);
+    }
+
+    time_t abstime(rel_time_t exptime) override {
+        return mc_time_convert_to_abs_time(exptime);
+    }
+
+    int parse_config(const char* str,
+                     config_item* items,
+                     FILE* error) override {
+        return ::parse_config(str, items, error);
+    }
+
+    void shutdown() override {
+        shutdown_server();
+    }
+
+    size_t get_max_item_iovec_size() override {
+        return 1;
+    }
+
+    void trigger_tick() override {
+        mc_time_clock_tick();
+    }
+};
+
 struct ServerDocumentApi : public ServerDocumentIface {
     ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> void_cookie,
                                item_info& info) override {
@@ -1643,7 +1671,7 @@ struct ServerDocumentApi : public ServerDocumentIface {
  */
 SERVER_HANDLE_V1* get_server_api() {
     static int init;
-    static SERVER_CORE_API core_api;
+    static ServerCoreApi core_api;
     static SERVER_COOKIE_API server_cookie_api;
     static SERVER_LOG_API server_log_api;
     static SERVER_CALLBACK_API callback_api;
@@ -1653,14 +1681,6 @@ SERVER_HANDLE_V1* get_server_api() {
 
     if (!init) {
         init = 1;
-        core_api.realtime = mc_time_convert_to_real_time;
-        core_api.abstime = mc_time_convert_to_abs_time;
-        core_api.get_current_time = mc_time_get_current_time;
-        core_api.parse_config = parse_config;
-        core_api.shutdown = shutdown_server;
-        core_api.get_max_item_iovec_size = get_max_item_iovec_size;
-        core_api.trigger_tick = mc_time_clock_tick;
-
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;
         server_cookie_api.is_datatype_supported = is_datatype_supported;

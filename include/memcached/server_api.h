@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #pragma once
-#include <inttypes.h>
+#include <cinttypes>
 
 #include <memcached/config_parser.h>
 #include <memcached/engine_error.h>
@@ -29,11 +29,13 @@
 
 #include "tracing/tracetypes.h"
 
-typedef struct {
+struct ServerCoreIface {
+    virtual ~ServerCoreIface() = default;
+
     /**
      * The current time.
      */
-    rel_time_t (*get_current_time)(void);
+    virtual rel_time_t get_current_time() = 0;
 
     /**
      * Get the relative time for the given time_t value.
@@ -48,24 +50,24 @@ typedef struct {
      *        with abstime.
      * @return The relative time since memcached's epoch.
      */
-    rel_time_t (*realtime)(rel_time_t exptime, cb::ExpiryLimit limit);
+    virtual rel_time_t realtime(rel_time_t exptime, cb::ExpiryLimit limit) = 0;
 
     /**
      * Get the absolute time for the given rel_time_t value.
      */
-    time_t (*abstime)(const rel_time_t exptime);
+    virtual time_t abstime(rel_time_t exptime) = 0;
 
     /**
      * parser config options
      */
-    int (*parse_config)(const char* str,
-                        struct config_item items[],
-                        FILE* error);
+    virtual int parse_config(const char* str,
+                             struct config_item items[],
+                             FILE* error) = 0;
 
     /**
      * Request the server to start a shutdown sequence.
      */
-    void (*shutdown)(void);
+    virtual void shutdown() = 0;
 
     /**
      * Get the maximum size of an iovec the core supports receiving
@@ -74,18 +76,18 @@ typedef struct {
      * when making the data available for the core it must fit
      * within these limits.
      */
-    size_t (*get_max_item_iovec_size)(void);
+    virtual size_t get_max_item_iovec_size() = 0;
 
     /**
      * Trigger a tick of the clock
      */
-    void (*trigger_tick)(void);
-} SERVER_CORE_API;
+    virtual void trigger_tick() = 0;
+};
 
 /**
  * Commands to operate on a specific cookie.
  */
-typedef struct {
+struct SERVER_COOKIE_API {
     /**
      * Store engine-specific session data on the given cookie.
      *
@@ -281,8 +283,7 @@ typedef struct {
      */
     void (*set_error_context)(gsl::not_null<void*> cookie,
                               cb::const_char_buffer message);
-
-} SERVER_COOKIE_API;
+};
 
 struct ServerDocumentIface {
     virtual ~ServerDocumentIface() = default;

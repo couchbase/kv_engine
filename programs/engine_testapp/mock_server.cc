@@ -289,10 +289,6 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
     return parse_config(str, items, error);
 }
 
-static size_t mock_get_max_item_iovec_size() {
-    return 1;
-}
-
 /**
  * SERVER CALLBACK API FUNCTIONS
  */
@@ -335,6 +331,35 @@ void mock_init_alloc_hooks() {
     AllocHooks::initialize();
 }
 
+struct MockServerCoreApi : public ServerCoreIface {
+    rel_time_t get_current_time() override {
+        return mock_get_current_time();
+    }
+    rel_time_t realtime(rel_time_t exptime, cb::ExpiryLimit limit) override {
+        return mock_realtime(exptime, limit);
+    }
+    time_t abstime(rel_time_t exptime) override {
+        return mock_abstime(exptime);
+    }
+    int parse_config(const char* str,
+                     config_item* items,
+                     FILE* error) override {
+        return mock_parse_config(str, items, error);
+    }
+    void shutdown() override {
+        throw std::runtime_error(
+                "MockServerCoreApi::shutdown() not implemented");
+    }
+    size_t get_max_item_iovec_size() override {
+        return 1;
+    }
+
+    void trigger_tick() override {
+        throw std::runtime_error(
+                "MockServerCoreApi::trigger_tick() not implemented");
+    }
+};
+
 struct MockServerDocumentApi : public ServerDocumentIface {
     ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> cookie,
                                item_info& info) override {
@@ -352,67 +377,65 @@ struct MockServerDocumentApi : public ServerDocumentIface {
 
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
-   static SERVER_CORE_API core_api;
-   static SERVER_COOKIE_API server_cookie_api;
-   static SERVER_CALLBACK_API callback_api;
-   static SERVER_LOG_API log_api;
-   static ALLOCATOR_HOOKS_API hooks_api;
-   static SERVER_HANDLE_V1 rv;
-   static MockServerDocumentApi document_api;
-   static int init;
-   if (!init) {
-      init = 1;
-      core_api.realtime = mock_realtime;
-      core_api.get_current_time = mock_get_current_time;
-      core_api.abstime = mock_abstime;
-      core_api.parse_config = mock_parse_config;
-      core_api.get_max_item_iovec_size = mock_get_max_item_iovec_size;
+    static MockServerCoreApi core_api;
+    static SERVER_COOKIE_API server_cookie_api;
+    static SERVER_CALLBACK_API callback_api;
+    static SERVER_LOG_API log_api;
+    static ALLOCATOR_HOOKS_API hooks_api;
+    static SERVER_HANDLE_V1 rv;
+    static MockServerDocumentApi document_api;
+    static int init;
+    if (!init) {
+        init = 1;
 
-      server_cookie_api.store_engine_specific = mock_store_engine_specific;
-      server_cookie_api.get_engine_specific = mock_get_engine_specific;
-      server_cookie_api.is_datatype_supported = mock_is_datatype_supported;
-      server_cookie_api.is_mutation_extras_supported = mock_is_mutation_extras_supported;
-      server_cookie_api.is_collections_supported = mock_is_collections_supported;
-      server_cookie_api.get_opcode_if_ewouldblock_set = mock_get_opcode_if_ewouldblock_set;
-      server_cookie_api.validate_session_cas = mock_validate_session_cas;
-      server_cookie_api.decrement_session_ctr = mock_decrement_session_ctr;
-      server_cookie_api.notify_io_complete = mock_notify_io_complete;
-      server_cookie_api.reserve = mock_cookie_reserve;
-      server_cookie_api.release = mock_cookie_release;
-      server_cookie_api.get_priority = mock_get_priority;
-      server_cookie_api.set_priority = mock_set_priority;
-      server_cookie_api.check_privilege = mock_check_privilege;
-      server_cookie_api.engine_error2mcbp = mock_engine_error2mcbp;
-      server_cookie_api.get_log_info = mock_get_log_info;
-      server_cookie_api.set_error_context = mock_set_error_context;
+        server_cookie_api.store_engine_specific = mock_store_engine_specific;
+        server_cookie_api.get_engine_specific = mock_get_engine_specific;
+        server_cookie_api.is_datatype_supported = mock_is_datatype_supported;
+        server_cookie_api.is_mutation_extras_supported =
+                mock_is_mutation_extras_supported;
+        server_cookie_api.is_collections_supported =
+                mock_is_collections_supported;
+        server_cookie_api.get_opcode_if_ewouldblock_set =
+                mock_get_opcode_if_ewouldblock_set;
+        server_cookie_api.validate_session_cas = mock_validate_session_cas;
+        server_cookie_api.decrement_session_ctr = mock_decrement_session_ctr;
+        server_cookie_api.notify_io_complete = mock_notify_io_complete;
+        server_cookie_api.reserve = mock_cookie_reserve;
+        server_cookie_api.release = mock_cookie_release;
+        server_cookie_api.get_priority = mock_get_priority;
+        server_cookie_api.set_priority = mock_set_priority;
+        server_cookie_api.check_privilege = mock_check_privilege;
+        server_cookie_api.engine_error2mcbp = mock_engine_error2mcbp;
+        server_cookie_api.get_log_info = mock_get_log_info;
+        server_cookie_api.set_error_context = mock_set_error_context;
 
-      callback_api.register_callback = mock_register_callback;
-      callback_api.perform_callbacks = mock_perform_callbacks;
+        callback_api.register_callback = mock_register_callback;
+        callback_api.perform_callbacks = mock_perform_callbacks;
 
-      log_api.get_logger = mock_get_logger;
-      log_api.get_spdlogger = mock_file_logger;
-      log_api.get_level = mock_get_log_level;
-      log_api.set_level = mock_set_log_level;
+        log_api.get_logger = mock_get_logger;
+        log_api.get_spdlogger = mock_file_logger;
+        log_api.get_level = mock_get_log_level;
+        log_api.set_level = mock_set_log_level;
 
-      hooks_api.add_new_hook = AllocHooks::add_new_hook;
-      hooks_api.remove_new_hook = AllocHooks::remove_new_hook;
-      hooks_api.add_delete_hook = AllocHooks::add_delete_hook;
-      hooks_api.remove_delete_hook = AllocHooks::remove_delete_hook;
-      hooks_api.get_extra_stats_size = AllocHooks::get_extra_stats_size;
-      hooks_api.get_allocator_stats = AllocHooks::get_allocator_stats;
-      hooks_api.get_allocation_size = AllocHooks::get_allocation_size;
-      hooks_api.get_detailed_stats = AllocHooks::get_detailed_stats;
-      hooks_api.release_free_memory = AllocHooks::release_free_memory;
-      hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
-      hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
+        hooks_api.add_new_hook = AllocHooks::add_new_hook;
+        hooks_api.remove_new_hook = AllocHooks::remove_new_hook;
+        hooks_api.add_delete_hook = AllocHooks::add_delete_hook;
+        hooks_api.remove_delete_hook = AllocHooks::remove_delete_hook;
+        hooks_api.get_extra_stats_size = AllocHooks::get_extra_stats_size;
+        hooks_api.get_allocator_stats = AllocHooks::get_allocator_stats;
+        hooks_api.get_allocation_size = AllocHooks::get_allocation_size;
+        hooks_api.get_detailed_stats = AllocHooks::get_detailed_stats;
+        hooks_api.release_free_memory = AllocHooks::release_free_memory;
+        hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
+        hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
 
-      rv.core = &core_api;
-      rv.callback = &callback_api;
-      rv.log = &log_api;
-      rv.cookie = &server_cookie_api;
-      rv.alloc_hooks = &hooks_api;
-      rv.document = &document_api;
-   }
+        rv.core = &core_api;
+        rv.callback = &callback_api;
+        rv.log = &log_api;
+        rv.cookie = &server_cookie_api;
+        rv.alloc_hooks = &hooks_api;
+        rv.document = &document_api;
+    }
 
    return &rv;
 }

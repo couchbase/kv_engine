@@ -60,7 +60,7 @@
 
 /* This is typedefed in types.h */
 struct server_handle_v1_t {
-    SERVER_CORE_API* core;
+    ServerCoreIface* core;
     SERVER_CALLBACK_API* callback;
     SERVER_LOG_API* log;
     SERVER_COOKIE_API* cookie;
