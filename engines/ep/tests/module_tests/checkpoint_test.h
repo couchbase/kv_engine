@@ -22,6 +22,7 @@
 #include "callbacks.h"
 #include "checkpoint_config.h"
 #include "configuration.h"
+#include "evp_store_single_threaded_test.h"
 
 #include <gtest/gtest.h>
 
@@ -64,3 +65,8 @@ protected:
     std::unique_ptr<V> vbucket;
     std::unique_ptr<CheckpointManager> manager;
 };
+
+/*
+ * Test fixture for single-threaded Checkpoint tests
+ */
+class SingleThreadedCheckpointTest : public SingleThreadedKVBucketTest {};
