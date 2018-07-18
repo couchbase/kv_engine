@@ -39,10 +39,6 @@ static inline bool may_accept_xattr(const Cookie& cookie) {
     return true;
 }
 
-static inline bool may_accept_collections(const Cookie& cookie) {
-    return cookie.getConnection().isCollectionsSupported();
-}
-
 bool is_document_key_valid(const Cookie& cookie) {
     const auto& req = cookie.getRequest(Cookie::PacketContent::Header);
     if (cookie.getConnection().isCollectionsSupported()) {
@@ -307,9 +303,7 @@ static protocol_binary_response_status dcp_mutation_validator(const Cookie& cook
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    // extlen varies for collection aware DCP vs legacy
-    if (extlen != protocol_binary_request_dcp_mutation::getExtrasLength(
-                          may_accept_collections(cookie))) {
+    if (extlen != protocol_binary_request_dcp_mutation::getExtrasLength()) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -384,8 +378,7 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
 
     const uint32_t extlen{req->message.header.request.extlen};
     // extlen varies for collection aware DCP vs legacy
-    if (extlen != protocol_binary_request_dcp_expiration::getExtrasLength(
-                          may_accept_collections(cookie))) {
+    if (extlen != protocol_binary_request_dcp_expiration::getExtrasLength()) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return verify_common_dcp_restrictions(cookie);

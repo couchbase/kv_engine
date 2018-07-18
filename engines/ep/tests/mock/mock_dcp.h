@@ -73,8 +73,7 @@ public:
                                uint32_t lock_time,
                                const void* meta,
                                uint16_t nmeta,
-                               uint8_t nru,
-                               uint8_t collection_len) override;
+                               uint8_t nru) override;
 
     ENGINE_ERROR_CODE deletion(uint32_t opaque,
                                item* itm,
@@ -89,8 +88,7 @@ public:
                                   uint16_t vbucket,
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
-                                  uint32_t delete_time,
-                                  uint8_t collection_len) override;
+                                  uint32_t delete_time) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                  item* itm,
@@ -98,8 +96,7 @@ public:
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  const void* meta,
-                                 uint16_t nmeta,
-                                 uint8_t collection_len) override;
+                                 uint16_t nmeta) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
                                         uint16_t vbucket,
@@ -127,7 +124,6 @@ protected:
                                     const void* meta,
                                     uint16_t nmeta,
                                     uint32_t deleteTime,
-                                    uint8_t collectionLen,
                                     uint32_t extlen);
 
     ENGINE_ERROR_CODE mutationStatus = ENGINE_SUCCESS;

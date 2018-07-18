@@ -1,6 +1,7 @@
 #pragma once
 
 #include <boost/optional/optional.hpp>
+#include <memcached/dockey.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <chrono>
@@ -117,6 +118,8 @@ struct item_info {
      * True if the CAS is a HLC timestamp
      */
     bool cas_is_hlc;
+
+    CollectionID collectionID;
 };
 
 /* Forward declaration of the server handle -- to be filled in later */

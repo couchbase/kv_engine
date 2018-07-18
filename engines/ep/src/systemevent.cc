@@ -159,7 +159,7 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                 new CollectionsProducerMessage(
                         opaque,
                         item,
-                        Collections::VB::Manifest::getSystemEventData(
+                        Collections::VB::Manifest::getSystemEventDcpData(
                                 {item->getData(), item->getNBytes()}))};
     }
     case SystemEvent::DeleteCollectionHard:

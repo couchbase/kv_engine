@@ -1549,8 +1549,7 @@ typedef protocol_binary_response_no_extras
         protocol_binary_response_dcp_snapshot_marker;
 
 union protocol_binary_request_dcp_mutation {
-    protocol_binary_request_dcp_mutation(bool collectionsAware,
-                                         uint32_t opaque,
+    protocol_binary_request_dcp_mutation(uint32_t opaque,
                                          uint16_t vbucket,
                                          uint64_t cas,
                                          uint16_t keyLen,
@@ -1562,8 +1561,7 @@ union protocol_binary_request_dcp_mutation {
                                          uint32_t expiration,
                                          uint32_t lockTime,
                                          uint16_t nmeta,
-                                         uint8_t nru,
-                                         uint8_t collectionLen) {
+                                         uint8_t nru) {
         auto& req = message.header.request;
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_MUTATION;
@@ -1571,7 +1569,7 @@ union protocol_binary_request_dcp_mutation {
         req.vbucket = htons(vbucket);
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
-        req.extlen = gsl::narrow<uint8_t>(getExtrasLength(collectionsAware));
+        req.extlen = gsl::narrow<uint8_t>(getExtrasLength());
         req.bodylen = ntohl(req.extlen + keyLen + nmeta + valueLen);
         req.datatype = datatype;
 
@@ -1583,7 +1581,6 @@ union protocol_binary_request_dcp_mutation {
         body.lock_time = htonl(lockTime);
         body.nmeta = htons(nmeta);
         body.nru = nru;
-        body.collection_len = collectionLen;
     }
 
     struct {
@@ -1596,24 +1593,17 @@ union protocol_binary_request_dcp_mutation {
             uint32_t lock_time;
             uint16_t nmeta;
             uint8_t nru;
-            uint8_t collection_len;
         } body;
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 32];
 
-    static uint8_t getExtrasLength(bool collectionAware) {
-        if (collectionAware) {
-            return (2 * sizeof(uint64_t)) + (3 * sizeof(uint32_t)) +
-                   sizeof(uint16_t) + (2 * sizeof(uint8_t));
-        } else {
-            return (2 * sizeof(uint64_t)) + (3 * sizeof(uint32_t)) +
-                   sizeof(uint16_t) + sizeof(uint8_t);
-        }
+    static uint8_t getExtrasLength() {
+        return (2 * sizeof(uint64_t)) + (3 * sizeof(uint32_t)) +
+               sizeof(uint16_t) + sizeof(uint8_t);
     }
 
-    static size_t getHeaderLength(bool collectionAware) {
-        return sizeof(protocol_binary_request_header) +
-               getExtrasLength(collectionAware);
+    static size_t getHeaderLength() {
+        return sizeof(protocol_binary_request_header) + getExtrasLength();
     }
 };
 
@@ -1698,8 +1688,7 @@ union protocol_binary_request_dcp_deletion_v2 {
 };
 
 union protocol_binary_request_dcp_expiration {
-    protocol_binary_request_dcp_expiration(bool collectionsAware,
-                                           uint32_t opaque,
+    protocol_binary_request_dcp_expiration(uint32_t opaque,
                                            uint16_t vbucket,
                                            uint64_t cas,
                                            uint16_t keyLen,
@@ -1707,8 +1696,7 @@ union protocol_binary_request_dcp_expiration {
                                            protocol_binary_datatype_t datatype,
                                            uint64_t bySeqno,
                                            uint64_t revSeqno,
-                                           uint16_t nmeta,
-                                           uint8_t collectionLen) {
+                                           uint16_t nmeta) {
         auto& req = message.header.request;
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_EXPIRATION;
@@ -1716,7 +1704,7 @@ union protocol_binary_request_dcp_expiration {
         req.vbucket = htons(vbucket);
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
-        req.extlen = gsl::narrow<uint8_t>(getExtrasLength(collectionsAware));
+        req.extlen = gsl::narrow<uint8_t>(getExtrasLength());
         req.bodylen = ntohl(req.extlen + keyLen + nmeta + valueLen);
         req.datatype = datatype;
 
@@ -1724,7 +1712,6 @@ union protocol_binary_request_dcp_expiration {
         body.by_seqno = htonll(bySeqno);
         body.rev_seqno = htonll(revSeqno);
         body.nmeta = htons(nmeta);
-        body.collection_len = collectionLen;
     }
 
     struct {
@@ -1733,18 +1720,12 @@ union protocol_binary_request_dcp_expiration {
             uint64_t by_seqno;
             uint64_t rev_seqno;
             uint16_t nmeta;
-            uint8_t collection_len;
         } body;
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 19];
 
-    static size_t getExtrasLength(bool collectionsAware) {
-        if (collectionsAware) {
-            return (2 * sizeof(uint64_t)) + sizeof(uint16_t) +
-                   (1 * sizeof(uint8_t));
-        } else {
-            return (2 * sizeof(uint64_t)) + sizeof(uint16_t);
-        }
+    static size_t getExtrasLength() {
+        return (2 * sizeof(uint64_t)) + sizeof(uint16_t);
     }
 
     /**
@@ -1752,9 +1733,8 @@ union protocol_binary_request_dcp_expiration {
      * data of the packet. The size of a collectionAware DCP stream expiration
      * differs to that of legacy DCP streams.
      */
-    static size_t getHeaderLength(bool collectionsAware) {
-        return sizeof(protocol_binary_request_header) +
-               getExtrasLength(collectionsAware);
+    static size_t getHeaderLength() {
+        return sizeof(protocol_binary_request_header) + getExtrasLength();
     }
 };
 

@@ -420,21 +420,22 @@ public:
         for (const auto& qi : events) {
             lastSeqno = qi->getBySeqno();
             if (qi->getOperation() == queue_op::system_event) {
-                auto dcpData = Collections::VB::Manifest::getSystemEventData(
+                auto dcpData = Collections::VB::Manifest::getSystemEventDcpData(
                         {qi->getData(), qi->getNBytes()});
 
                 switch (SystemEvent(qi->getFlags())) {
                 case SystemEvent::Collection: {
                     if (qi->isDeleted()) {
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaBeginDelete(vbR,
-                                                           dcpData.manifestUid,
-                                                           dcpData.cid,
-                                                           qi->getBySeqno());
+                        replica.wlock().replicaBeginDelete(
+                                vbR,
+                                dcpData.manifestUid,
+                                dcpData.cid.to_host(),
+                                qi->getBySeqno());
                     } else {
                         replica.wlock().replicaAdd(vbR,
                                                    dcpData.manifestUid,
-                                                   dcpData.cid,
+                                                   dcpData.cid.to_host(),
                                                    qi->getBySeqno());
                     }
                     break;

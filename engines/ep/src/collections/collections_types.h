@@ -91,23 +91,11 @@ static inline CollectionID makeCollectionID(const std::string& uid) {
 }
 
 /**
- * All of the data a DCP system event message will carry.
- * This covers create and delete collection.
- * This struct is not the layout of such data.
- */
-struct SystemEventData {
-    /// UID of manifest which triggered the event
-    Collections::uid_t manifestUid;
-    /// Identifier of the affected collection
-    CollectionID cid;
-};
-
-/**
  * All of the data a DCP system event message will carry (for create/delete).
  * This is the layout of such data and the collection name is the key of the
  * event packet.
  */
-struct SystemEventDCPData {
+struct SystemEventDcpData {
     /// The manifest uid stored in network byte order ready for sending
     Collections::uid_t manifestUid;
     /// The collection id stored in network byte order ready for sending

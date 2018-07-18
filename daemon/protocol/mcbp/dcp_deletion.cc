@@ -69,10 +69,8 @@ static ENGINE_ERROR_CODE dcp_deletion_v2_executor(
         const protocol_binary_request_dcp_deletion_v2& request) {
     const uint16_t nkey = ntohs(request.message.header.request.keylen);
     auto& connection = cookie.getConnection();
-    const DocKey key{request.bytes + sizeof(request.bytes),
-                     nkey,
-                     connection.getDocNamespaceForDcpMessage(
-                             request.message.body.collection_len)};
+    const auto key = connection.makeDocKey(
+            {request.bytes + sizeof(request.bytes), nkey});
 
     const auto opaque = request.message.header.request.opaque;
     const auto datatype = request.message.header.request.datatype;

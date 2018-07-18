@@ -325,8 +325,7 @@ ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(
         uint32_t lock_time,
         const void* meta,
         uint16_t nmeta,
-        uint8_t nru,
-        uint8_t collection_len) {
+        uint8_t nru) {
     Item* item = reinterpret_cast<Item*>(itm);
     delete item;
     return ENGINE_E2BIG;

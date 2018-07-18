@@ -20,6 +20,7 @@
 #include <relaxed_atomic.h>
 #include <stdlib.h>
 
+#include "collections/collections_types.h"
 #include "item.h"
 #include "mock_dcp.h"
 
@@ -40,7 +41,7 @@ uint64_t dcp_last_snap_start_seqno;
 uint64_t dcp_last_snap_end_seqno;
 Couchbase::RelaxedAtomic<uint64_t> dcp_last_byseqno;
 uint64_t dcp_last_revseqno;
-uint8_t dcp_last_collection_len;
+CollectionID dcp_last_collection_id;
 uint32_t dcp_last_delete_time;
 std::string dcp_last_meta;
 std::string dcp_last_value;
@@ -166,8 +167,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                                     uint32_t lock_time,
                                                     const void* meta,
                                                     uint16_t nmeta,
-                                                    uint8_t nru,
-                                                    uint8_t collectionLen) {
+                                                    uint8_t nru) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_MUTATION;
@@ -187,12 +187,13 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
     // correct. For now collections testing is done via GTEST tests and isn't
     // reliant on dcp_last_packet_size so this doesn't cause any problems.
     dcp_last_packet_size =
-            protocol_binary_request_dcp_mutation::getHeaderLength(false);
+            protocol_binary_request_dcp_mutation::getHeaderLength();
     dcp_last_packet_size = dcp_last_packet_size + dcp_last_key.length() +
                            item->getNBytes() + nmeta;
 
-    dcp_last_collection_len = collectionLen;
     dcp_last_datatype = item->getDataType();
+    dcp_last_collection_id = item->getKey().getCollectionID();
+
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(item);
     }
@@ -207,7 +208,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(uint32_t opaque,
                                                          const void* meta,
                                                          uint16_t nmeta,
                                                          uint32_t deleteTime,
-                                                         uint8_t collectionLen,
                                                          uint32_t extlen) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
@@ -227,12 +227,13 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(uint32_t opaque,
 
     dcp_last_value.assign(static_cast<const char*>(item->getData()),
                           item->getNBytes());
-    dcp_last_collection_len = collectionLen;
     dcp_last_delete_time = deleteTime;
+    dcp_last_collection_id = item->getKey().getCollectionID();
 
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(item);
     }
+
     return ENGINE_SUCCESS;
 }
 
@@ -251,7 +252,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
                          meta,
                          nmeta,
                          0,
-                         0,
                          protocol_binary_request_dcp_deletion::extlen);
 }
 
@@ -260,8 +260,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
                                                        uint16_t vbucket,
                                                        uint64_t by_seqno,
                                                        uint64_t rev_seqno,
-                                                       uint32_t deleteTime,
-                                                       uint8_t collectionLen) {
+                                                       uint32_t deleteTime) {
     return deletionInner(opaque,
                          itm,
                          vbucket,
@@ -270,7 +269,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
                          nullptr,
                          0,
                          deleteTime,
-                         collectionLen,
                          protocol_binary_request_dcp_deletion_v2::extlen);
 }
 
@@ -280,8 +278,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t,
                                                       uint64_t,
                                                       uint64_t,
                                                       const void*,
-                                                      uint16_t,
-                                                      uint8_t) {
+                                                      uint16_t) {
     clear_dcp_data();
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(itm);
@@ -379,6 +376,6 @@ void clear_dcp_data() {
     dcp_last_value.clear();
     dcp_last_key.clear();
     dcp_last_vbucket_state = (vbucket_state_t)0;
-    dcp_last_collection_len = 0;
     dcp_last_delete_time = 0;
+    dcp_last_collection_id = 0;
 }

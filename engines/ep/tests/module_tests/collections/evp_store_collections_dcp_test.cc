@@ -39,6 +39,7 @@
 extern uint8_t dcp_last_op;
 extern std::string dcp_last_key;
 extern uint32_t dcp_last_flags;
+extern CollectionID dcp_last_collection_id;
 
 class CollectionsDcpTest : public SingleThreadedKVBucketTest {
 public:
@@ -166,9 +167,16 @@ public:
         (void)cookie;
         (void)vbucket; // ignored as we are connecting VBn to VBn+1
         dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
-        dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
-                            key.size());
         dcp_last_system_event = event;
+
+        if (event == mcbp::systemevent::id::CreateCollection ||
+            event == mcbp::systemevent::id::DeleteCollection) {
+            dcp_last_collection_id =
+                    reinterpret_cast<const Collections::SystemEventDcpData*>(
+                            eventData.data())
+                            ->cid.to_host();
+        }
+
         return consumer->systemEvent(
                 opaque, replicaVB, event, bySeqno, key, eventData);
     }
@@ -203,7 +211,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     std::string collection = "meat";
     CollectionID cid = CollectionEntry::meat.getId();
     Collections::uid_t manifestUid = 0xcafef00d;
-    Collections::SystemEventDCPData eventData{htonll(manifestUid),
+    Collections::SystemEventDcpData eventData{htonll(manifestUid),
                                               cid.to_network()};
 
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -580,13 +588,12 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
     // Setup filtered DCP for CID 6 (dairy)
     createDcpObjects({{R"({"collections":["6"]})"}});
-
     notifyAndStepToCheckpoint();
 
     // SystemEvent createCollection
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    // EXPECT_EQ("dairy", dcp_last_key); @todo MB-30397 - DCP broken
+    EXPECT_EQ(CollectionEntry::dairy.getId(), dcp_last_collection_id);
 
     // Store collection documents
     std::array<std::string, 2> expectedKeys = {{"dairy:one", "dairy:two"}};
@@ -606,6 +613,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     for (auto& key : expectedKeys) {
         EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
         EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        EXPECT_EQ(CollectionEntry::dairy.getId(), dcp_last_collection_id);
         EXPECT_EQ(key, dcp_last_key);
     }
     // And no more
@@ -652,7 +660,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     // SystemEvent createCollection for dairy is expected
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    // EXPECT_EQ("dairy", dcp_last_key); @todo MB-30397 - DCP broken
+    EXPECT_EQ(CollectionEntry::dairy.getId(), dcp_last_collection_id);
 
     // And no more for this stream - no meat
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));

@@ -106,7 +106,6 @@ struct dcp_message_producers {
      * @param meta
      * @param nmeta
      * @param nru the nru field used by ep-engine (may safely be ignored)
-     * @param collection_len how many bytes of the key are the collection
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
@@ -118,8 +117,7 @@ struct dcp_message_producers {
                                        uint32_t lock_time,
                                        const void* meta,
                                        uint16_t nmeta,
-                                       uint8_t nru,
-                                       uint8_t collection_len) = 0;
+                                       uint8_t nru) = 0;
 
     /**
      * Send a deletion
@@ -153,7 +151,6 @@ struct dcp_message_producers {
      * @param by_seqno
      * @param rev_seqno
      * @param delete_time the time of the deletion (tombstone creation time)
-     * @param collection_len how many bytes of the key are the collection
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
@@ -162,8 +159,7 @@ struct dcp_message_producers {
                                           uint16_t vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
-                                          uint32_t delete_time,
-                                          uint8_t collection_len) = 0;
+                                          uint32_t delete_time) = 0;
 
     /**
      * Send an expiration
@@ -175,7 +171,6 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
-     * @param collection_len how many bytes of the key are the collection
      *
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
@@ -185,8 +180,7 @@ struct dcp_message_producers {
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          const void* meta,
-                                         uint16_t nmeta,
-                                         uint8_t collection_len) = 0;
+                                         uint16_t nmeta) = 0;
 
     /**
      * Send a state transition for a vbucket

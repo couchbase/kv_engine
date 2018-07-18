@@ -1754,8 +1754,7 @@ class DcpMutationValidatorTest : public ValidatorTest,
                                  public ::testing::WithParamInterface<bool> {
 public:
     DcpMutationValidatorTest()
-        : request(GetParam(),
-                  0 /*opaque*/,
+        : request(0 /*opaque*/,
                   0 /*vbucket*/,
                   0 /*cas*/,
                   GetParam() ? 5 : 1 /*keylen*/,
@@ -1767,8 +1766,7 @@ public:
                   0 /*expiration*/,
                   0 /*lockTime*/,
                   0 /*nmeta*/,
-                  0 /*nru*/,
-                  0 /*collectionLen*/) {
+                  0 /*nru*/) {
     }
 
     void SetUp() override {
@@ -1808,12 +1806,12 @@ TEST_P(DcpMutationValidatorTest, InvalidExtlen) {
 
 TEST_P(DcpMutationValidatorTest, InvalidExtlenCollections) {
     request.message.header.request.extlen =
-            protocol_binary_request_dcp_mutation::getExtrasLength(!GetParam());
+            protocol_binary_request_dcp_mutation::getExtrasLength() + 1;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 0;
+    request.message.header.request.keylen = GetParam() ? htons(4) : 0;
     request.message.header.request.bodylen = htonl(31);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
@@ -2006,8 +2004,7 @@ class DcpExpirationValidatorTest : public ValidatorTest,
 public:
     DcpExpirationValidatorTest()
         : ValidatorTest(),
-          request(GetParam(),
-                  0 /*opaque*/,
+          request(0 /*opaque*/,
                   0 /*vbucket*/,
                   0 /*cas*/,
                   GetParam() ? 5 : 1 /*keylen*/,
@@ -2015,8 +2012,7 @@ public:
                   PROTOCOL_BINARY_RAW_BYTES,
                   0 /*bySeqno*/,
                   0 /*revSeqno*/,
-                  0 /*nmeta*/,
-                  0 /*collectionLen*/) {
+                  0 /*nmeta*/) {
         request.message.header.request.opcode =
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_EXPIRATION;
     }

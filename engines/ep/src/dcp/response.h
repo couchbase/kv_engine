@@ -425,23 +425,14 @@ public:
                              IncludeValue includeVal,
                              IncludeXattrs includeXattrs,
                              IncludeDeleteTime includeDeleteTime,
-                             uint8_t _collectionLen,
                              ExtendedMetaData* e = NULL)
         : MutationResponse(std::move(item),
                            opaque,
                            includeVal,
                            includeXattrs,
                            includeDeleteTime,
-                           e),
-          collectionLen(_collectionLen) {
+                           e) {
     }
-
-    uint8_t getCollectionLen() const {
-        return collectionLen;
-    }
-
-private:
-    uint8_t collectionLen;
 };
 
 /**
@@ -589,9 +580,9 @@ class CollectionsProducerMessage : public SystemEventProducerMessage {
 public:
     CollectionsProducerMessage(uint32_t opaque,
                                const queued_item& itm,
-                               const Collections::SystemEventData& data)
+                               const Collections::SystemEventDcpData& data)
         : SystemEventProducerMessage(opaque, itm),
-          eventData{htonll(data.manifestUid), data.cid.to_network()} {
+          eventData{htonll(data.manifestUid), data.cid} {
     }
 
     // Collections system event have no key data, all is in the event data
@@ -606,7 +597,7 @@ public:
 
 private:
     /// Stores uid of manifest and cid of affected collection in network order
-    Collections::SystemEventDCPData eventData;
+    Collections::SystemEventDcpData eventData;
 };
 
 
@@ -641,7 +632,7 @@ protected:
 class CreateOrDeleteCollectionEvent : public CollectionsEvent {
 public:
     CreateOrDeleteCollectionEvent(const SystemEventMessage& e)
-        : CollectionsEvent(e, sizeof(Collections::SystemEventDCPData)) {
+        : CollectionsEvent(e, sizeof(Collections::SystemEventDcpData)) {
     }
 
     /**
@@ -649,7 +640,7 @@ public:
      */
     CollectionID getCollectionID() const {
         const auto* dcpData =
-                reinterpret_cast<const Collections::SystemEventDCPData*>(
+                reinterpret_cast<const Collections::SystemEventDcpData*>(
                         event.getEventData().data());
         return dcpData->cid.to_host();
     }
@@ -659,7 +650,7 @@ public:
      */
     Collections::uid_t getManifestUid() const {
         const auto* dcpData =
-                reinterpret_cast<const Collections::SystemEventDCPData*>(
+                reinterpret_cast<const Collections::SystemEventDcpData*>(
                         event.getEventData().data());
         return ntohll(dcpData->manifestUid);
     }

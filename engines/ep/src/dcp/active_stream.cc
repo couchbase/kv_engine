@@ -909,18 +909,15 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                     opaque_,
                     includeValue,
                     includeXattributes,
-                    includeDeleteTime,
-                    0 /* @todo MB-30397 - DCP for collections*/);
+                    includeDeleteTime);
         }
 
         // Item unmodified - construct response from original.
-        return std::make_unique<MutationProducerResponse>(
-                item,
-                opaque_,
-                includeValue,
-                includeXattributes,
-                includeDeleteTime,
-                0 /* @todo MB-30397 - DCP for collections*/);
+        return std::make_unique<MutationProducerResponse>(item,
+                                                          opaque_,
+                                                          includeValue,
+                                                          includeXattributes,
+                                                          includeDeleteTime);
     }
     return SystemEventProducerMessage::make(opaque_, item);
 }

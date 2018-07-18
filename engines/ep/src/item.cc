@@ -285,6 +285,7 @@ item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
     info.cas_is_hlc = hlcEpoch > HlcCasSeqnoUninitialised &&
                       int64_t(info.seqno) >= hlcEpoch;
 
+    info.collectionID = getKey().getCollectionID();
     return info;
 }
 

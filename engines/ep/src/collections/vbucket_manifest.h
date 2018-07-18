@@ -401,7 +401,7 @@ public:
      *          object maybe sized_buffer objects which point into
      *          serialisedManifest.
      */
-    static SystemEventData getSystemEventData(
+    static SystemEventDcpData getSystemEventDcpData(
             cb::const_char_buffer serialisedManifest);
 
     /**

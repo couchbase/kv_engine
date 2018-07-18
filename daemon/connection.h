@@ -472,17 +472,6 @@ public:
         return isCollectionsSupported() || isDcpDeleteTimeEnabled();
     }
 
-    /**
-     * Get the DocNamespace for a DcpMessage (mutation/deletion/expiration)
-     * If the connection is dcp aware and the passed length is not zero, then
-     * the document belongs to a collection.
-     * @param collectionLength the length sent by the producer
-     * @return the DocNamespace (DefaultCollection until MB-30397 is fixed)
-     */
-    CollectionID getDocNamespaceForDcpMessage(uint8_t collectionLength) const {
-        // @todo MB-30397, Collection by-ID needs changes
-        return CollectionID::DefaultCollection;
-    }
 
     bool isDcpNoValue() const {
         return dcpNoValue;
@@ -960,8 +949,7 @@ public:
                                uint32_t lock_time,
                                const void* meta,
                                uint16_t nmeta,
-                               uint8_t nru,
-                               uint8_t collection_len) override;
+                               uint8_t nru) override;
 
     ENGINE_ERROR_CODE deletion(uint32_t opaque,
                                item* itm,
@@ -976,8 +964,7 @@ public:
                                   uint16_t vbucket,
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
-                                  uint32_t delete_time,
-                                  uint8_t collection_len) override;
+                                  uint32_t delete_time) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                  item* itm,
@@ -985,8 +972,7 @@ public:
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  const void* meta,
-                                 uint16_t nmeta,
-                                 uint8_t collection_len) override;
+                                 uint16_t nmeta) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
                                         uint16_t vbucket,
@@ -1080,7 +1066,8 @@ protected:
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
                                     cb::const_byte_buffer packet,
-                                    cb::const_byte_buffer extendedMeta);
+                                    cb::const_byte_buffer extendedMeta,
+                                    CollectionIDNetworkOrder cid);
 
     /**
      * Add the provided packet to the send pipe for the connection
