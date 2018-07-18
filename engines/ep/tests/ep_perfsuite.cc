@@ -55,13 +55,13 @@
 // override this, but is generally desirable for them to scale the
 // default iteration count instead of blindly overriding it.
 const size_t ITERATIONS =
-#if defined(THREAD_SANITIZER)
-    // Reduced iteration count for ThreadSanitizer, as it runs ~20x
-    // slower than without TSan.  Note: We don't actually track
-    // performance when run under TSan, however the workloads of this
-    // testsuite are still useful to run under TSan to expose any data
-    // race issues.
-    100000 / 20;
+#if defined(THREAD_SANITIZER) || defined(ADDRESS_SANITIZER)
+        // Reduced iteration count for Address/ThreadSanitizer, as it runs ~20x
+        // slower than without TSan.  Note: We don't actually track
+        // performance when run under TSan, however the workloads of this
+        // testsuite are still useful to run under TSan to expose any data
+        // race issues.
+        100000 / 20;
 #else
     // Set to a value a typical ~2015 laptop can run Baseline in 3s.
     100000;
