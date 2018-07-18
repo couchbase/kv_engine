@@ -662,11 +662,19 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         return;
     }
     size_t visited = 0;
+    // Acquire one (any) of the mutexes before incrementing {visitors}, this
+    // prevents any race between this visitor and the HashTable resizer.
+    // See comments in pauseResumeVisit() for further details.
+    std::unique_lock<std::mutex> lh(mutexes[0]);
     VisitorTracker vt(&visitors);
+    lh.unlock();
 
     for (int l = 0; l < static_cast<int>(mutexes.size()); l++) {
-        LockHolder lh(mutexes[l]);
         for (int i = l; i < static_cast<int>(size); i+= mutexes.size()) {
+            // (re)acquire mutex on each HashBucket, to minimise any impact
+            // on front-end threads.
+            LockHolder lh(mutexes[l]);
+
             size_t depth = 0;
             StoredValue* p = values[i].get().get();
             if (p) {
