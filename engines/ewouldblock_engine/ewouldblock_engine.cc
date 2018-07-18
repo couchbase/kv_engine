@@ -151,11 +151,36 @@ private:
     const std::string file;
 };
 
-static void register_callback(ENGINE_HANDLE *, ENGINE_EVENT_TYPE,
-                              EVENT_CALLBACK, const void *);
-
 static SERVER_HANDLE_V1 wrapped_api;
 static SERVER_HANDLE_V1 *real_api;
+
+struct EwbServerCallbackApi : public ServerCallbackIface {
+    void register_callback(ENGINE_HANDLE* engine,
+                           ENGINE_EVENT_TYPE type,
+                           EVENT_CALLBACK cb,
+                           const void* cb_data) override {
+        const auto& p = engine_map.find(engine);
+        if (p == engine_map.end()) {
+            std::cerr << "Can't find EWB corresponding to " << std::hex
+                      << engine << std::endl;
+            for (const auto& pair : engine_map) {
+                std::cerr << "EH: " << std::hex << pair.first
+                          << " = EWB: " << std::hex << pair.second << std::endl;
+            }
+            abort();
+        }
+        auto wrapped_eh = reinterpret_cast<ENGINE_HANDLE*>(p->second);
+        real_api->callback->register_callback(wrapped_eh, type, cb, cb_data);
+    }
+    void perform_callbacks(ENGINE_EVENT_TYPE type,
+                           const void* data,
+                           const void* cookie) override {
+        wrapped->perform_callbacks(type, data, cookie);
+    }
+
+    ServerCallbackIface* wrapped = nullptr;
+};
+
 static void init_wrapped_api(GET_SERVER_API fn) {
     static bool init = false;
     if (init) {
@@ -167,8 +192,8 @@ static void init_wrapped_api(GET_SERVER_API fn) {
     wrapped_api = *real_api;
 
     // Overrides
-    static SERVER_CALLBACK_API callback = *wrapped_api.callback;
-    callback.register_callback = register_callback;
+    static EwbServerCallbackApi callback;
+    callback.wrapped = real_api->callback;
     wrapped_api.callback = &callback;
 }
 
@@ -1223,21 +1248,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     stop_notification_thread.store(false);
     notify_io_thread->start();
-}
-
-static void register_callback(ENGINE_HANDLE *eh, ENGINE_EVENT_TYPE type,
-                              EVENT_CALLBACK cb, const void *cb_data) {
-    const auto& p = engine_map.find(eh);
-    if (p == engine_map.end()) {
-        std::cerr << "Can't find EWB corresponding to " << std::hex << eh << std::endl;
-        for (const auto& pair : engine_map) {
-            std::cerr << "EH: " << std::hex << pair.first << " = EWB: " << std::hex << pair.second << std::endl;
-        }
-        abort();
-    }
-    cb_assert(p != engine_map.end());
-    auto wrapped_eh = reinterpret_cast<ENGINE_HANDLE*>(p->second);
-    real_api->callback->register_callback(wrapped_eh, type, cb, cb_data);
 }
 
 EWB_Engine::~EWB_Engine() {

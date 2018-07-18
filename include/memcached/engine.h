@@ -61,7 +61,7 @@
 /* This is typedefed in types.h */
 struct server_handle_v1_t {
     ServerCoreIface* core;
-    SERVER_CALLBACK_API* callback;
+    ServerCallbackIface* callback;
     ServerLogIface* log;
     SERVER_COOKIE_API* cookie;
     ALLOCATOR_HOOKS_API* alloc_hooks;

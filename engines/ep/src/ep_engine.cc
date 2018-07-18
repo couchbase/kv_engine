@@ -1886,7 +1886,7 @@ void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
                                                         const void *cb_data) {
     EventuallyPersistentEngine *epe =
                                     ObjectRegistry::onSwitchThread(NULL, true);
-    SERVER_CALLBACK_API *sapi = getServerApi()->callback;
+    auto* sapi = getServerApi()->callback;
     sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
                             type, cb, cb_data);
     ObjectRegistry::onSwitchThread(epe);

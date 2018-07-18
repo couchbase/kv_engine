@@ -1663,6 +1663,20 @@ struct ServerDocumentApi : public ServerDocumentIface {
     }
 };
 
+struct ServerCallbackApi : public ServerCallbackIface {
+    void register_callback(ENGINE_HANDLE* engine,
+                           ENGINE_EVENT_TYPE type,
+                           EVENT_CALLBACK cb,
+                           const void* cb_data) override {
+        ::register_callback(engine, type, cb, cb_data);
+    }
+    void perform_callbacks(ENGINE_EVENT_TYPE type,
+                           const void* data,
+                           const void* cookie) override {
+        ::perform_callbacks(type, data, cookie);
+    }
+};
+
 class ServerApi : public SERVER_HANDLE_V1 {
 public:
     ServerApi() {
@@ -1685,9 +1699,6 @@ public:
         server_cookie_api.engine_error2mcbp = engine_error2mcbp;
         server_cookie_api.get_log_info = cookie_get_log_info;
         server_cookie_api.set_error_context = cookie_set_error_context;
-
-        callback_api.register_callback = register_callback;
-        callback_api.perform_callbacks = perform_callbacks;
 
         hooks_api.add_new_hook = AllocHooks::add_new_hook;
         hooks_api.remove_new_hook = AllocHooks::remove_new_hook;
@@ -1713,7 +1724,7 @@ protected:
     ServerCoreApi core_api;
     SERVER_COOKIE_API server_cookie_api;
     ServerLogApi server_log_api;
-    SERVER_CALLBACK_API callback_api;
+    ServerCallbackApi callback_api;
     ALLOCATOR_HOOKS_API hooks_api;
     ServerDocumentApi document_api;
 };

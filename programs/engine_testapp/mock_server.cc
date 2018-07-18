@@ -289,17 +289,6 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
     return parse_config(str, items, error);
 }
 
-/**
- * SERVER CALLBACK API FUNCTIONS
- */
-
-static void mock_register_callback(ENGINE_HANDLE *eh,
-                                   ENGINE_EVENT_TYPE type,
-                                   EVENT_CALLBACK cb,
-                                   const void *cb_data) {
-    mock_event_handlers[type].emplace_back(mock_callbacks{cb, cb_data});
-}
-
 static void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
                                    const void *data,
                                    const void *c) {
@@ -374,11 +363,26 @@ struct MockServerDocumentApi : public ServerDocumentIface {
     }
 };
 
+struct MockServerCallbackApi : public ServerCallbackIface {
+    void register_callback(ENGINE_HANDLE* engine,
+                           ENGINE_EVENT_TYPE type,
+                           EVENT_CALLBACK cb,
+                           const void* cb_data) override {
+        mock_event_handlers[type].emplace_back(mock_callbacks{cb, cb_data});
+    }
+
+    void perform_callbacks(ENGINE_EVENT_TYPE type,
+                           const void* data,
+                           const void* cookie) override {
+        mock_perform_callbacks(type, data, cookie);
+    }
+};
+
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
     static MockServerCoreApi core_api;
     static SERVER_COOKIE_API server_cookie_api;
-    static SERVER_CALLBACK_API callback_api;
+    static MockServerCallbackApi callback_api;
     static MockServerLogApi log_api;
     static ALLOCATOR_HOOKS_API hooks_api;
     static SERVER_HANDLE_V1 rv;
@@ -407,9 +411,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
         server_cookie_api.engine_error2mcbp = mock_engine_error2mcbp;
         server_cookie_api.get_log_info = mock_get_log_info;
         server_cookie_api.set_error_context = mock_set_error_context;
-
-        callback_api.register_callback = mock_register_callback;
-        callback_api.perform_callbacks = mock_perform_callbacks;
 
         hooks_api.add_new_hook = AllocHooks::add_new_hook;
         hooks_api.remove_new_hook = AllocHooks::remove_new_hook;
