@@ -137,12 +137,13 @@ struct mock_engine : public EngineIface, public DcpIface {
             gsl::not_null<const void*> cookie,
             gsl::not_null<dcp_message_producers*> producers) override;
 
-    ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
-                           uint32_t opaque,
-                           uint32_t seqno,
-                           uint32_t flags,
-                           cb::const_char_buffer name,
-                           cb::const_byte_buffer jsonExtras) override;
+    ENGINE_ERROR_CODE open(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            uint32_t seqno,
+            uint32_t flags,
+            cb::const_char_buffer name,
+            boost::optional<cb::const_char_buffer> json) override;
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
@@ -633,13 +634,14 @@ ENGINE_ERROR_CODE mock_engine::step(
     return the_engine_dcp->step(cookie, producers);
 }
 
-ENGINE_ERROR_CODE mock_engine::open(gsl::not_null<const void*> cookie,
-                                    uint32_t opaque,
-                                    uint32_t seqno,
-                                    uint32_t flags,
-                                    cb::const_char_buffer name,
-                                    cb::const_byte_buffer jsonExtras) {
-    return the_engine_dcp->open(cookie, opaque, seqno, flags, name, jsonExtras);
+ENGINE_ERROR_CODE mock_engine::open(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        uint32_t seqno,
+        uint32_t flags,
+        cb::const_char_buffer name,
+        boost::optional<cb::const_char_buffer> json) {
+    return the_engine_dcp->open(cookie, opaque, seqno, flags, name, json);
 }
 
 ENGINE_ERROR_CODE mock_engine::add_stream(gsl::not_null<const void*> cookie,

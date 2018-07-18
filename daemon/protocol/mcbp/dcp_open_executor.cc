@@ -52,12 +52,20 @@ void dcp_open_executor(Cookie& cookie) {
                 reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
 
         auto dcpOpenFunc = [&]() -> ENGINE_ERROR_CODE {
+            boost::optional<cb::const_char_buffer> collections;
+            // Initialise the optional only if collections is enabled and even
+            // if valuelen is 0
+            if (cookie.getConnection().isCollectionsSupported()) {
+                collections = {reinterpret_cast<const char*>(
+                                       req->bytes + sizeof(req->bytes) + nkey),
+                               valuelen};
+            }
             return dcpOpen(cookie,
                            req->message.header.request.opaque,
                            ntohl(req->message.body.seqno),
                            flags,
                            {name, nkey},
-                           {req->bytes + sizeof(req->bytes) + nkey, valuelen});
+                           collections);
         };
 
         // Collections Prototype: The following code allows the bucket to decide
@@ -68,12 +76,12 @@ void dcp_open_executor(Cookie& cookie) {
             ret = dcpOpenFunc();
             if (settings.isCollectionsPrototypeEnabled() &&
                 ret == ENGINE_UNKNOWN_COLLECTION) {
-                flags |= DCP_OPEN_COLLECTIONS;
+                // Force collections on
+                cookie.getConnection().setCollectionsSupported(true);
                 ret = dcpOpenFunc();
-                LOG_INFO(
-                        "{}: Retried DCP open with DCP_OPEN_COLLECTIONS ret:{}",
-                        connection.getId(),
-                        ret);
+                LOG_INFO("{}: Retried DCP open with collections enabled ret:{}",
+                         connection.getId(),
+                         ret);
             }
         }
     }
@@ -84,12 +92,10 @@ void dcp_open_executor(Cookie& cookie) {
         const bool dcpXattrAware = (flags & DCP_OPEN_INCLUDE_XATTRS) != 0 &&
                                    connection.selectedBucketIsXattrEnabled();
         const bool dcpNoValue = (flags & DCP_OPEN_NO_VALUE) != 0;
-        const bool dcpCollections = (flags & DCP_OPEN_COLLECTIONS) != 0;
         const bool dcpDeleteTimes =
                 (flags & DCP_OPEN_INCLUDE_DELETE_TIMES) != 0;
         connection.setDcpXattrAware(dcpXattrAware);
         connection.setDcpNoValue(dcpNoValue);
-        connection.setDcpCollectionAware(dcpCollections);
         connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
 
         // String buffer with max length = total length of all possible contents
@@ -108,9 +114,6 @@ void dcp_open_executor(Cookie& cookie) {
         }
         if (dcpNoValue) {
             logBuffer.append("NO_VALUE, ");
-        }
-        if (dcpCollections) {
-            logBuffer.append("COLLECTIONS, ");
         }
         if (dcpDeleteTimes) {
             logBuffer.append("DELETE_TIMES, ");

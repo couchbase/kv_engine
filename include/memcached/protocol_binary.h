@@ -1415,12 +1415,7 @@ typedef union {
  */
 #define DCP_OPEN_NO_VALUE 8
 
-/**
- * Indicate that the server should send collection data
- * and this request can also optionally include a collection
- * filter in the body (no filter = all data)
- */
-#define DCP_OPEN_COLLECTIONS 16
+#define DCP_OPEN_UNUSED 16
 
 /**
  * Request that DCP delete message include the time the a delete was persisted.

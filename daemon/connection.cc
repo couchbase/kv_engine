@@ -1645,7 +1645,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     // the item.
     item.release();
     protocol_binary_request_dcp_mutation packet(
-            isDcpCollectionAware(),
+            isCollectionsSupported(),
             opaque,
             vbucket,
             info.cas,
@@ -1666,7 +1666,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                            cb::byte_buffer wbuf) -> size_t {
         const size_t packetlen =
                 protocol_binary_request_dcp_mutation::getHeaderLength(
-                        isDcpCollectionAware());
+                        isCollectionsSupported());
 
         if (wbuf.size() < (packetlen + nmeta)) {
             ret = ENGINE_E2BIG;

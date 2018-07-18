@@ -35,7 +35,7 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
 
     // Collection aware DCP will be sending the collection_len field
     auto body_offset = protocol_binary_request_dcp_mutation::getHeaderLength(
-            connection.isDcpCollectionAware());
+            connection.isCollectionsSupported());
 
     const uint16_t nkey = ntohs(req->message.header.request.keylen);
     // @todo: MB-30397 collections broken if enabled

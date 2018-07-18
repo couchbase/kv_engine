@@ -55,7 +55,7 @@ public:
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
         producers = std::make_unique<MockDcpMessageProducers>(engine.get());
-        createDcpObjects({/*no filter*/}, true /*collections on*/);
+        createDcpObjects({{nullptr, 0}} /*collections on, but no filter*/);
     }
     std::string getManifest(uint16_t vb) const {
         return store->getVBucket(vb)
@@ -97,10 +97,10 @@ public:
                                            /*flags*/ 0));
     }
 
-    void createDcpObjects(const std::string& filter, bool dcpCollectionAware) {
+    void createDcpObjects(boost::optional<cb::const_char_buffer> collections) {
         createDcpConsumer();
         producer = SingleThreadedKVBucketTest::createDcpProducer(
-                cookieP, filter, dcpCollectionAware, IncludeDeleteTime::No);
+                cookieP, collections, IncludeDeleteTime::No);
         // Patch our local callback into the handlers
         producers->system_event = &CollectionsDcpTest::sendSystemEvent;
         createDcpStream();
@@ -380,7 +380,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
 
     resetEngineAndWarmup();
 
-    createDcpObjects({}, true); // from disk
+    createDcpObjects({{nullptr, 0}}); // from disk
 
     // Streamed from disk, one create (create of fruit) and items of fruit
     testDcpCreateDelete(1, 0, items, false);
@@ -420,7 +420,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
 
     resetEngineAndWarmup();
 
-    createDcpObjects({}, true /* from disk*/);
+    createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, we won't see the 2x create events or the intermediate
     // delete. So check DCP sends only 1 collection create.
@@ -459,7 +459,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
 
     resetEngineAndWarmup();
 
-    createDcpObjects({}, true /* from disk*/);
+    createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, we won't see the first create or delete
     testDcpCreateDelete(1, 0, 0, false);
@@ -504,7 +504,7 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     resetEngineAndWarmup();
 
     // Stream again!
-    createDcpObjects({}, true);
+    createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, one create (create of fruit) and items of fruit
     testDcpCreateDelete(1, 0, items, false /*fromMemory*/);
@@ -542,15 +542,13 @@ TEST_F(CollectionsFilteredDcpErrorTest, error1) {
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
 
     std::string filter = R"({"collections":["8"]})";
-    cb::const_byte_buffer buffer{
-            reinterpret_cast<const uint8_t*>(filter.data()), filter.size()};
     // Can't create a filter for unknown collections
     try {
         MockDcpProducer mock(*engine,
                              cookieP,
                              "test_producer",
-                             DCP_OPEN_COLLECTIONS,
-                             buffer,
+                             0,
+                             cb::const_char_buffer{filter},
                              false /*startTask*/);
         FAIL() << "Expected an exception";
     } catch (const cb::engine_error& e) {
@@ -581,7 +579,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
     // Setup filtered DCP for CID 6 (dairy)
-    createDcpObjects(R"({"collections":["6"]})", true);
+    createDcpObjects({{R"({"collections":["6"]})"}});
 
     notifyAndStepToCheckpoint();
 
@@ -623,7 +621,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // In order to create a filter, a manifest needs to be set
     store->setCollections({cm});
 
-    createDcpObjects(R"({"collections":["6"]})", true);
+    createDcpObjects({{R"({"collections":["6"]})"}});
 
     // Streamed from disk
     // 1x create - create of dairy
@@ -642,7 +640,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
     // Setup filtered DCP
-    createDcpObjects(R"({"collections":["6"]})", true);
+    createDcpObjects({{R"({"collections":["6"]})"}});
 
     // Store collection documents
     store_item(vbid, {"meat::one", CollectionEntry::meat}, "value");
@@ -676,7 +674,7 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
 
     // Setup DCP
-    createDcpObjects({/*no filter*/}, false /*don't know about collections*/);
+    createDcpObjects({/*no collections*/});
 
     // Store collection documents and one default collection document
     store_item(vbid, {"meat:one", CollectionEntry::meat}, "value");
@@ -708,7 +706,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     store->setCollections({cm.add(CollectionEntry::meat)});
 
     // Setup filtered DCP
-    createDcpObjects(R"({"collections":["2"]})", true);
+    createDcpObjects({{R"({"collections":["2"]})"}});
 
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -755,10 +753,8 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     CollectionsManifest cm;
     store->setCollections({cm.add(CollectionEntry::meat)});
 
-    producer = createDcpProducer(cookieP,
-                                 R"({"collections":["2"]})",
-                                 true,
-                                 IncludeDeleteTime::No);
+    producer = createDcpProducer(
+            cookieP, {{R"({"collections":["2"]})"}}, IncludeDeleteTime::No);
     createDcpConsumer();
 
     // Perform a delete of meat
@@ -796,10 +792,8 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes2) {
     store->setCollections({cm.add(CollectionEntry::meat)});
 
     // specific collection uid
-    producer = createDcpProducer(cookieP,
-                                 R"({"collections":["2"]})",
-                                 true,
-                                 IncludeDeleteTime::No);
+    producer = createDcpProducer(
+            cookieP, {{R"({"collections":["2"]})"}}, IncludeDeleteTime::No);
     createDcpConsumer();
 
     // Perform a delete of meat
@@ -836,7 +830,7 @@ TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
     mock_set_collections_support(cookieC, false);
     // Setup legacy DCP, it only receives default collection mutation/deletion
     // and should self-close if the default collection were to be deleted
-    createDcpObjects({}, false);
+    createDcpObjects({});
 
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());

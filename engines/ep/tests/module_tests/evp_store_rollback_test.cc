@@ -691,7 +691,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
             /*cookie*/ cookie,
             "MB-21682",
             0,
-            cb::const_byte_buffer() /*no json*/);
+            boost::optional<cb::const_char_buffer>{/* no collections*/});
 
     MockDcpConnMap& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());

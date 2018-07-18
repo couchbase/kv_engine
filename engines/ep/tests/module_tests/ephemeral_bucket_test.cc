@@ -110,7 +110,7 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
             cookie,
             testName,
             /*flags*/ 0,
-            cb::const_byte_buffer() /*no json*/);
+            boost::optional<cb::const_char_buffer>{/* no collections*/});
 
     // Since we are creating a mock active stream outside of
     // DcpProducer::streamRequest(), and we want the checkpt processor task,

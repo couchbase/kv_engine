@@ -40,7 +40,7 @@ static inline bool may_accept_xattr(const Cookie& cookie) {
 }
 
 static inline bool may_accept_collections(const Cookie& cookie) {
-    return cookie.getConnection().isDcpCollectionAware();
+    return cookie.getConnection().isCollectionsSupported();
 }
 
 bool is_document_key_valid(const Cookie& cookie) {
@@ -108,19 +108,20 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    // If there's a value, then OPEN_COLLECTIONS must be specified
+    // If there's a value, then collections must be enabled
     const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
                               req->message.header.request.extlen -
                               ntohs(req->message.header.request.keylen);
 
-    const auto flags = ntohl(req->message.body.flags);
-    if (!(flags & DCP_OPEN_COLLECTIONS) && valuelen) {
+    if (!cookie.getConnection().isCollectionsSupported() && valuelen) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     const auto mask = DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER |
                       DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_NO_VALUE |
-                      DCP_OPEN_COLLECTIONS | DCP_OPEN_INCLUDE_DELETE_TIMES;
+                      DCP_OPEN_INCLUDE_DELETE_TIMES;
+
+    const auto flags = ntohl(req->message.body.flags);
 
     if (flags & ~mask) {
         LOG_INFO(

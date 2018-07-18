@@ -1334,9 +1334,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::open(
         uint32_t seqno,
         uint32_t flags,
         cb::const_char_buffer name,
-        cb::const_byte_buffer jsonExtra) {
+        boost::optional<cb::const_char_buffer> json) {
     return acquireEngine(this)->dcpOpen(
-            cookie, opaque, seqno, flags, name, jsonExtra);
+            cookie, opaque, seqno, flags, name, json);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::add_stream(
@@ -5592,7 +5592,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
         uint32_t seqno,
         uint32_t flags,
         cb::const_char_buffer stream_name,
-        cb::const_byte_buffer jsonExtra) {
+        boost::optional<cb::const_char_buffer> json) {
     (void) opaque;
     (void) seqno;
     std::string connName = cb::to_string(stream_name);
@@ -5612,7 +5612,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     static const std::string replicationConnName = "replication:";
     if (getConfiguration().isCollectionsPrototypeEnabled() &&
         !connName.compare(0, replicationConnName.size(), replicationConnName) &&
-        (flags & DCP_OPEN_COLLECTIONS) == 0) {
+        !json.is_initialized()) {
         // Fail DCP open, we need to have replication with collections enabled
         // Use this specific collection error to get memcached to retry
         return ENGINE_UNKNOWN_COLLECTION;
@@ -5625,8 +5625,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
                     cookie,
                     connName,
                     flags,
-                    getKVBucket()->getCollectionsManager().makeFilter(
-                            flags, jsonExtra));
+                    getKVBucket()->getCollectionsManager().makeFilter(json));
         } catch (const cb::engine_error& e) {
             EP_LOG_INFO(
                     "EPEngine::dcpOpen: failed to create a filter error:{}, "

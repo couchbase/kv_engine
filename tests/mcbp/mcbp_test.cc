@@ -1483,8 +1483,8 @@ TEST_F(DcpOpenValidatorTest, ValueButNoCollections) {
 }
 
 TEST_F(DcpOpenValidatorTest, CorrectMessageValueCollections) {
+    connection.setCollectionsSupported(true);
     request.message.header.request.bodylen = htonl(10 + 20);
-    request.message.body.flags = ntohl(DCP_OPEN_COLLECTIONS);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
 }
 
@@ -1758,7 +1758,7 @@ public:
                   0 /*opaque*/,
                   0 /*vbucket*/,
                   0 /*cas*/,
-                  1 /*keylen*/,
+                  GetParam() ? 5 : 1 /*keylen*/,
                   0 /*valueLen*/,
                   PROTOCOL_BINARY_RAW_BYTES,
                   0 /*bySeqno*/,
@@ -1773,7 +1773,7 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
-        connection.setDcpCollectionAware(GetParam());
+        connection.setCollectionsSupported(GetParam());
     }
 
 protected:
@@ -1830,11 +1830,14 @@ public:
           request(GetParam() ? makeV2() : makeV1()),
           header(request->getHeader()) {
         header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
+        if (GetParam()) {
+            header.request.keylen = htons(5); // min-collection key
+        }
     }
 
     void SetUp() override {
         ValidatorTest::SetUp();
-        connection.setDcpCollectionAware(GetParam());
+        connection.setCollectionsSupported(GetParam());
     }
 
 protected:
@@ -2007,7 +2010,7 @@ public:
                   0 /*opaque*/,
                   0 /*vbucket*/,
                   0 /*cas*/,
-                  2 /*keylen*/,
+                  GetParam() ? 5 : 1 /*keylen*/,
                   0 /*valueLen*/,
                   PROTOCOL_BINARY_RAW_BYTES,
                   0 /*bySeqno*/,
@@ -2020,7 +2023,7 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
-        connection.setDcpCollectionAware(GetParam());
+        connection.setCollectionsSupported(GetParam());
     }
 
 protected:

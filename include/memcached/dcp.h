@@ -315,18 +315,19 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param name Identifier for this connection. Note that the name must be
      *             unique; attempting to (re)connect with a name already in use
      *             will disconnect the existing connection.
-     * @param jsonExtras Optional JSON string; which if non-empty can be used
+     * @param json Optional JSON string; which if non-empty can be used
      *                   to further control how data is requested - for example
      *                   to filter to specific collections.
      * @return ENGINE_SUCCESS if the DCP connection was successfully opened,
      *         otherwise error code indicating reason for the failure.
      */
-    virtual ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
-                                   uint32_t opaque,
-                                   uint32_t seqno,
-                                   uint32_t flags,
-                                   cb::const_char_buffer name,
-                                   cb::const_byte_buffer jsonExtras) = 0;
+    virtual ENGINE_ERROR_CODE open(
+            gsl::not_null<const void*> cookie,
+            uint32_t opaque,
+            uint32_t seqno,
+            uint32_t flags,
+            cb::const_char_buffer name,
+            boost::optional<cb::const_char_buffer> json) = 0;
 
     /**
      * Called from the memcached core to add a vBucket stream to the set of

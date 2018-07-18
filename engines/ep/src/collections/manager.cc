@@ -85,15 +85,10 @@ void Collections::Manager::update(VBucket& vb) const {
 }
 
 Collections::Filter Collections::Manager::makeFilter(
-        uint32_t openFlags, cb::const_byte_buffer jsonExtra) const {
+        boost::optional<cb::const_char_buffer> collections) const {
     // Lock manager updates
     std::lock_guard<std::mutex> lg(lock);
-    boost::optional<cb::const_char_buffer> jsonFilter;
-    if (openFlags & DCP_OPEN_COLLECTIONS) {
-        jsonFilter = {reinterpret_cast<const char*>(jsonExtra.data()),
-                      jsonExtra.size()};
-    }
-    return Collections::Filter(jsonFilter, current.get());
+    return Collections::Filter(collections, current.get());
 }
 
 // This method is really to aid development and allow the dumping of the VB

@@ -459,14 +459,6 @@ public:
         Connection::dcpXattrAware = dcpXattrAware;
     }
 
-    bool isDcpCollectionAware() const {
-        return dcpCollectionAware;
-    }
-
-    void setDcpCollectionAware(bool dcpCollectionAware) {
-        Connection::dcpCollectionAware = dcpCollectionAware;
-    }
-
     void setDcpDeleteTimeEnabled(bool dcpDeleteTimeEnabled) {
         Connection::dcpDeleteTimeEnabled = dcpDeleteTimeEnabled;
     }
@@ -477,7 +469,7 @@ public:
 
     /// returns true if either collections or delete_time is enabled
     bool isDcpDeleteV2() const {
-        return isDcpCollectionAware() || isDcpDeleteTimeEnabled();
+        return isCollectionsSupported() || isDcpDeleteTimeEnabled();
     }
 
     /**
@@ -1245,9 +1237,6 @@ protected:
 
     /** Shuld values be stripped off? */
     bool dcpNoValue = false;
-
-    /** Is this DCP channel collection aware? */
-    bool dcpCollectionAware = false;
 
     /** Is Tracing enabled for this connection? */
     bool tracingEnabled = false;

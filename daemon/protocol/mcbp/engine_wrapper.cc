@@ -548,10 +548,10 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
                           uint32_t seqno,
                           uint32_t flags,
                           cb::const_char_buffer name,
-                          cb::const_byte_buffer collectionFilter) {
+                          boost::optional<cb::const_char_buffer> json) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->open(&cookie, opaque, seqno, flags, name, collectionFilter);
+    auto ret = dcp->open(&cookie, opaque, seqno, flags, name, json);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.open returned ENGINE_DISCONNECT",
                     connection.getId(),

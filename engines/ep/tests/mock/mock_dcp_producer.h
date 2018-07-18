@@ -37,7 +37,7 @@ public:
                     const void* cookie,
                     const std::string& name,
                     uint32_t flags,
-                    cb::const_byte_buffer jsonExtra,
+                    boost::optional<cb::const_char_buffer> collections,
                     bool startTask = true)
         : DcpProducer(
                   theEngine,
@@ -45,7 +45,7 @@ public:
                   name,
                   flags,
                   theEngine.getKVBucket()->getCollectionsManager().makeFilter(
-                          flags, jsonExtra),
+                          collections),
                   startTask) {
         backfillMgr.reset(new MockDcpBackfillManager(engine_));
     }
