@@ -129,9 +129,6 @@ void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
 
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> service_online;
-// Should we enable to common ports (all of the ports which arn't tagged as
-// management ports)
-static std::atomic<bool> enable_common_ports;
 
 std::unique_ptr<ExecutorPool> executorPool;
 
@@ -323,15 +320,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         }
         break;
     }
-
-    case ON_INIT_COMPLETE:
-        if ((data != nullptr) || (void_cookie != nullptr)) {
-            throw std::invalid_argument("perform_callbacks: data and cookie"
-                                            " should be nullptr");
-        }
-        enable_common_ports.store(true, std::memory_order_release);
-        notify_dispatcher();
-        break;
 
     default:
         throw std::invalid_argument("perform_callbacks: type "
@@ -942,12 +930,6 @@ void listen_event_handler(evutil_socket_t, short which, void *arg) {
 static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
     char buffer[80];
     ssize_t nr = cb::net::recv(fd, buffer, sizeof(buffer), 0);
-
-    if (enable_common_ports.load()) {
-        enable_common_ports.store(false);
-        create_listen_sockets(false);
-        LOG_INFO("Initialization complete. Accepting clients.");
-    }
 
     if (nr != -1 && is_listen_disabled()) {
         bool enable = false;
