@@ -101,8 +101,6 @@
 #include <time.h>
 #include <vector>
 
-static EXTENSION_LOG_LEVEL get_log_level(void);
-
 /**
  * All of the buckets in couchbase is stored in this array.
  */
@@ -255,7 +253,7 @@ void associate_initial_bucket(Connection& connection) {
 static void populate_log_level(void*) {
     // Lock the entire buckets array so that buckets can't be modified while
     // we notify them (blocking bucket creation/deletion)
-    auto val = get_log_level();
+    auto val = settings.getLogLevel();
 
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (auto& bucket : all_buckets) {
@@ -465,7 +463,8 @@ static void ssl_cipher_list_changed_listener(const std::string&, Settings &s) {
 static void verbosity_changed_listener(const std::string&, Settings &s) {
     auto logger = cb::logger::get();
     if (logger) {
-        logger->set_level(cb::logger::convertToSpdSeverity(get_log_level()));
+        logger->set_level(
+                cb::logger::convertToSpdSeverity(settings.getLogLevel()));
     }
 
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
@@ -1582,35 +1581,6 @@ void enable_shutdown(void) {
     shutdown_cv.notify_all();
 }
 
-static EXTENSION_LOGGER_DESCRIPTOR* get_logger(void)
-{
-    return settings.extensions.logger;
-}
-
-static EXTENSION_SPDLOG_GETTER* get_spdlogger() {
-    return settings.extensions.spdlogger;
-}
-
-static EXTENSION_LOG_LEVEL get_log_level() {
-    return settings.getLogLevel();
-}
-
-static void set_log_level(EXTENSION_LOG_LEVEL severity)
-{
-    switch (severity) {
-    case EXTENSION_LOG_FATAL:
-    case EXTENSION_LOG_WARNING:
-    case EXTENSION_LOG_NOTICE:
-        settings.setVerbose(0);
-        break;
-    case EXTENSION_LOG_INFO:
-        settings.setVerbose(1);
-        break;
-    default:
-        settings.setVerbose(2);
-    }
-}
-
 struct ServerCoreApi : public ServerCoreIface {
     rel_time_t get_current_time() override {
         return mc_time_get_current_time();
@@ -1640,6 +1610,35 @@ struct ServerCoreApi : public ServerCoreIface {
 
     void trigger_tick() override {
         mc_time_clock_tick();
+    }
+};
+
+struct ServerLogApi : public ServerLogIface {
+    EXTENSION_LOGGER_DESCRIPTOR* get_logger() override {
+        return settings.extensions.logger;
+    }
+
+    EXTENSION_SPDLOG_GETTER* get_spdlogger() override {
+        return settings.extensions.spdlogger;
+    }
+
+    EXTENSION_LOG_LEVEL get_level() override {
+        return settings.getLogLevel();
+    }
+
+    void set_level(EXTENSION_LOG_LEVEL severity) override {
+        switch (severity) {
+        case EXTENSION_LOG_FATAL:
+        case EXTENSION_LOG_WARNING:
+        case EXTENSION_LOG_NOTICE:
+            settings.setVerbose(0);
+            break;
+        case EXTENSION_LOG_INFO:
+            settings.setVerbose(1);
+            break;
+        default:
+            settings.setVerbose(2);
+        }
     }
 };
 
@@ -1673,7 +1672,7 @@ SERVER_HANDLE_V1* get_server_api() {
     static int init;
     static ServerCoreApi core_api;
     static SERVER_COOKIE_API server_cookie_api;
-    static SERVER_LOG_API server_log_api;
+    static ServerLogApi server_log_api;
     static SERVER_CALLBACK_API callback_api;
     static ALLOCATOR_HOOKS_API hooks_api;
     static SERVER_HANDLE_V1 rv;
@@ -1700,11 +1699,6 @@ SERVER_HANDLE_V1* get_server_api() {
         server_cookie_api.engine_error2mcbp = engine_error2mcbp;
         server_cookie_api.get_log_info = cookie_get_log_info;
         server_cookie_api.set_error_context = cookie_set_error_context;
-
-        server_log_api.get_logger = get_logger;
-        server_log_api.get_spdlogger = get_spdlogger;
-        server_log_api.get_level = get_log_level;
-        server_log_api.set_level = set_log_level;
 
         callback_api.register_callback = register_callback;
         callback_api.perform_callbacks = perform_callbacks;

@@ -53,7 +53,7 @@ public:
     virtual void vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) const;
 
     // Informs the Logger class of the current logging API.
-    static void setLoggerAPI(SERVER_LOG_API* api);
+    static void setLoggerAPI(ServerLogIface* api);
 
     // Informs the Logger class of a change in the global log level.
     static void setGlobalLogLevel(EXTENSION_LOG_LEVEL level);
@@ -77,7 +77,7 @@ protected:
 private:
     // memcached (server) logger API which is actually used to output messages
     // to the underlying log file.
-    static std::atomic<SERVER_LOG_API*> logger_api;
+    static std::atomic<ServerLogIface*> logger_api;
 
     // Global log level; any message less than this will not be output.
     static std::atomic<EXTENSION_LOG_LEVEL> global_log_level;

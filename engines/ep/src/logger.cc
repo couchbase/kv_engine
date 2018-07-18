@@ -106,7 +106,7 @@ void Logger::vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) con
     ObjectRegistry::onSwitchThread(engine);
 }
 
-void Logger::setLoggerAPI(SERVER_LOG_API* api) {
+void Logger::setLoggerAPI(ServerLogIface* api) {
     if (globalBucketLogger == nullptr) {
         globalBucketLogger = std::make_unique<BucketLogger>(
                 api->get_spdlogger()->spdlogGetter());
@@ -123,7 +123,7 @@ EXTENSION_LOG_LEVEL Logger::getGlobalLogLevel() {
     return Logger::global_log_level.load(std::memory_order_relaxed);
 }
 
-std::atomic<SERVER_LOG_API*> Logger::logger_api;
+std::atomic<ServerLogIface*> Logger::logger_api;
 std::atomic<EXTENSION_LOG_LEVEL> Logger::global_log_level;
 
 Logger global_logger;

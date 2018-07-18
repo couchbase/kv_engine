@@ -308,25 +308,6 @@ static void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
     }
 }
 
-/**
- * LOG API FUNCTIONS
- **/
-static EXTENSION_LOGGER_DESCRIPTOR* mock_get_logger(void) {
-    return extensions.logger;
-}
-
-static EXTENSION_SPDLOG_GETTER* mock_file_logger(void) {
-    return extensions.spdlogGetter;
-}
-
-static EXTENSION_LOG_LEVEL mock_get_log_level(void) {
-    return log_level;
-}
-
-static void mock_set_log_level(EXTENSION_LOG_LEVEL severity) {
-    log_level = severity;
-}
-
 void mock_init_alloc_hooks() {
     AllocHooks::initialize();
 }
@@ -360,6 +341,24 @@ struct MockServerCoreApi : public ServerCoreIface {
     }
 };
 
+struct MockServerLogApi : public ServerLogIface {
+    EXTENSION_LOGGER_DESCRIPTOR* get_logger() override {
+        return extensions.logger;
+    }
+
+    EXTENSION_SPDLOG_GETTER* get_spdlogger() override {
+        return extensions.spdlogGetter;
+    }
+
+    EXTENSION_LOG_LEVEL get_level() override {
+        return log_level;
+    }
+
+    void set_level(EXTENSION_LOG_LEVEL severity) override {
+        log_level = severity;
+    }
+};
+
 struct MockServerDocumentApi : public ServerDocumentIface {
     ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> cookie,
                                item_info& info) override {
@@ -380,7 +379,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
     static MockServerCoreApi core_api;
     static SERVER_COOKIE_API server_cookie_api;
     static SERVER_CALLBACK_API callback_api;
-    static SERVER_LOG_API log_api;
+    static MockServerLogApi log_api;
     static ALLOCATOR_HOOKS_API hooks_api;
     static SERVER_HANDLE_V1 rv;
     static MockServerDocumentApi document_api;
@@ -411,11 +410,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
 
         callback_api.register_callback = mock_register_callback;
         callback_api.perform_callbacks = mock_perform_callbacks;
-
-        log_api.get_logger = mock_get_logger;
-        log_api.get_spdlogger = mock_file_logger;
-        log_api.get_level = mock_get_log_level;
-        log_api.set_level = mock_set_log_level;
 
         hooks_api.add_new_hook = AllocHooks::add_new_hook;
         hooks_api.remove_new_hook = AllocHooks::remove_new_hook;

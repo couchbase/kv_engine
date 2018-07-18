@@ -46,9 +46,10 @@ typedef struct {
     spdlog::logger* (*spdlogGetter)(void);
 } EXTENSION_SPDLOG_GETTER;
 
-typedef struct {
-    EXTENSION_LOGGER_DESCRIPTOR* (*get_logger)(void);
-    EXTENSION_SPDLOG_GETTER* (*get_spdlogger)();
-    EXTENSION_LOG_LEVEL (*get_level)(void);
-    void (*set_level)(EXTENSION_LOG_LEVEL severity);
-} SERVER_LOG_API;
+struct ServerLogIface {
+    ~ServerLogIface() = default;
+    virtual EXTENSION_LOGGER_DESCRIPTOR* get_logger() = 0;
+    virtual EXTENSION_SPDLOG_GETTER* get_spdlogger() = 0;
+    virtual EXTENSION_LOG_LEVEL get_level() = 0;
+    virtual void set_level(EXTENSION_LOG_LEVEL severity) = 0;
+};
