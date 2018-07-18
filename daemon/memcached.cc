@@ -770,21 +770,6 @@ static protocol_binary_response_status engine_error2mcbp(
     return engine_error_2_mcbp_protocol_error(status);
 }
 
-static ENGINE_ERROR_CODE pre_link_document(
-        gsl::not_null<const void*> void_cookie, item_info& info) {
-    // Sanity check that people aren't calling the method with a bogus
-    // cookie
-    auto* cookie =
-            reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
-
-    auto* context = cookie->getCommandContext();
-    if (context != nullptr) {
-        return context->pre_link_document(info);
-    }
-
-    return ENGINE_SUCCESS;
-}
-
 static nlohmann::json get_bucket_details_UNLOCKED(const Bucket& bucket,
                                                   size_t idx) {
     if (bucket.state == BucketState::None) {
@@ -1630,6 +1615,27 @@ static void set_log_level(EXTENSION_LOG_LEVEL severity)
     }
 }
 
+struct ServerDocumentApi : public ServerDocumentIface {
+    ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> void_cookie,
+                               item_info& info) override {
+        // Sanity check that people aren't calling the method with a bogus
+        // cookie
+        auto* cookie =
+                reinterpret_cast<Cookie*>(const_cast<void*>(void_cookie.get()));
+
+        auto* context = cookie->getCommandContext();
+        if (context != nullptr) {
+            return context->pre_link_document(info);
+        }
+
+        return ENGINE_SUCCESS;
+    }
+
+    bool pre_expiry(item_info& itm_info) override {
+        return document_pre_expiry(itm_info);
+    }
+};
+
 /**
  * Callback the engines may call to get the public server interface
  * @return pointer to a structure containing the interface. The client should
@@ -1643,7 +1649,7 @@ SERVER_HANDLE_V1* get_server_api() {
     static SERVER_CALLBACK_API callback_api;
     static ALLOCATOR_HOOKS_API hooks_api;
     static SERVER_HANDLE_V1 rv;
-    static SERVER_DOCUMENT_API document_api;
+    static ServerDocumentApi document_api;
 
     if (!init) {
         init = 1;
@@ -1694,9 +1700,6 @@ SERVER_HANDLE_V1* get_server_api() {
         hooks_api.release_free_memory = AllocHooks::release_free_memory;
         hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
         hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
-
-        document_api.pre_link = pre_link_document;
-        document_api.pre_expiry = document_pre_expiry;
 
         rv.core = &core_api;
         rv.callback = &callback_api;

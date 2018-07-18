@@ -215,15 +215,6 @@ void mock_set_pre_link_function(PreLinkFunction function) {
     pre_link_function = function;
 }
 
-static ENGINE_ERROR_CODE mock_pre_link_document(
-        gsl::not_null<const void*> cookie, item_info& info) {
-    if (pre_link_function) {
-        pre_link_function(info);
-    }
-
-    return ENGINE_SUCCESS;
-}
-
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
 static rel_time_t mock_get_current_time(void) {
@@ -344,6 +335,21 @@ void mock_init_alloc_hooks() {
     AllocHooks::initialize();
 }
 
+struct MockServerDocumentApi : public ServerDocumentIface {
+    ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> cookie,
+                               item_info& info) override {
+        if (pre_link_function) {
+            pre_link_function(info);
+        }
+
+        return ENGINE_SUCCESS;
+    }
+
+    bool pre_expiry(item_info& itm_info) override {
+        return document_pre_expiry(itm_info);
+    }
+};
+
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
    static SERVER_CORE_API core_api;
@@ -352,7 +358,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    static SERVER_LOG_API log_api;
    static ALLOCATOR_HOOKS_API hooks_api;
    static SERVER_HANDLE_V1 rv;
-   static SERVER_DOCUMENT_API document_api;
+   static MockServerDocumentApi document_api;
    static int init;
    if (!init) {
       init = 1;
@@ -399,9 +405,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       hooks_api.release_free_memory = AllocHooks::release_free_memory;
       hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
       hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
-
-      document_api.pre_link = mock_pre_link_document;
-      document_api.pre_expiry = document_pre_expiry;
 
       rv.core = &core_api;
       rv.callback = &callback_api;

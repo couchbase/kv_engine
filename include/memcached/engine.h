@@ -65,7 +65,7 @@ struct server_handle_v1_t {
     SERVER_LOG_API* log;
     SERVER_COOKIE_API* cookie;
     ALLOCATOR_HOOKS_API* alloc_hooks;
-    SERVER_DOCUMENT_API* document;
+    ServerDocumentIface* document;
 };
 
 /**

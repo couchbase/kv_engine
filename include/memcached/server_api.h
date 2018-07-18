@@ -284,7 +284,9 @@ typedef struct {
 
 } SERVER_COOKIE_API;
 
-struct SERVER_DOCUMENT_API {
+struct ServerDocumentIface {
+    virtual ~ServerDocumentIface() = default;
+
     /**
      * This callback is called from the underlying engine right before
      * it is linked into the list of available documents (it is currently
@@ -309,8 +311,8 @@ struct SERVER_DOCUMENT_API {
      *                        error codes means that the engine should
      *                        *NOT* link the item
      */
-    ENGINE_ERROR_CODE(*pre_link)
-    (gsl::not_null<const void*> cookie, item_info& info);
+    virtual ENGINE_ERROR_CODE pre_link(gsl::not_null<const void*> cookie,
+                                       item_info& info) = 0;
 
     /**
      * This callback is called from the underlying engine right before
@@ -324,7 +326,7 @@ struct SERVER_DOCUMENT_API {
      * @throws std::bad_alloc in case of memory allocation failure
      * @throws std::logic_error if the data has grown
      */
-    bool (*pre_expiry)(item_info& itm_info);
+    virtual bool pre_expiry(item_info& itm_info) = 0;
 };
 
 extern "C" {
