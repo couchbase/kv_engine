@@ -1663,23 +1663,9 @@ struct ServerDocumentApi : public ServerDocumentIface {
     }
 };
 
-/**
- * Callback the engines may call to get the public server interface
- * @return pointer to a structure containing the interface. The client should
- *         know the layout and perform the proper casts.
- */
-SERVER_HANDLE_V1* get_server_api() {
-    static int init;
-    static ServerCoreApi core_api;
-    static SERVER_COOKIE_API server_cookie_api;
-    static ServerLogApi server_log_api;
-    static SERVER_CALLBACK_API callback_api;
-    static ALLOCATOR_HOOKS_API hooks_api;
-    static SERVER_HANDLE_V1 rv;
-    static ServerDocumentApi document_api;
-
-    if (!init) {
-        init = 1;
+class ServerApi : public SERVER_HANDLE_V1 {
+public:
+    ServerApi() {
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;
         server_cookie_api.is_datatype_supported = is_datatype_supported;
@@ -1715,14 +1701,30 @@ SERVER_HANDLE_V1* get_server_api() {
         hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
         hooks_api.get_allocator_property = AllocHooks::get_allocator_property;
 
-        rv.core = &core_api;
-        rv.callback = &callback_api;
-        rv.log = &server_log_api;
-        rv.cookie = &server_cookie_api;
-        rv.alloc_hooks = &hooks_api;
-        rv.document = &document_api;
+        core = &core_api;
+        callback = &callback_api;
+        log = &server_log_api;
+        cookie = &server_cookie_api;
+        alloc_hooks = &hooks_api;
+        document = &document_api;
     }
 
+protected:
+    ServerCoreApi core_api;
+    SERVER_COOKIE_API server_cookie_api;
+    ServerLogApi server_log_api;
+    SERVER_CALLBACK_API callback_api;
+    ALLOCATOR_HOOKS_API hooks_api;
+    ServerDocumentApi document_api;
+};
+
+/**
+ * Callback the engines may call to get the public server interface
+ * @return pointer to a structure containing the interface. The client should
+ *         know the layout and perform the proper casts.
+ */
+SERVER_HANDLE_V1* get_server_api() {
+    static ServerApi rv;
     return &rv;
 }
 
