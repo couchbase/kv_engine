@@ -50,6 +50,7 @@
 #include "ep_test_apis.h"
 
 #include "mock/mock_dcp.h"
+#include "module_tests/test_helpers.h"
 
 // Default number of iterations for tests. Individual tests may
 // override this, but is generally desirable for them to scale the
@@ -1113,6 +1114,100 @@ static enum test_result perf_dcp_latency_with_random_binary(ENGINE_HANDLE *h,
                             Doc_format::BINARY_RANDOM, ITERATIONS / 20);
 }
 
+/*
+ * The test simulates the real scenario of a bulk load where the
+ * ActiveStreamCheckpointProcessorTask runs fast on the Producer.
+ * The Consumer receives many 1-item snapshots and executes
+ * PassiveStream::handleSnapshotEnd at every incoming mutation.
+ * Note that my fix for MB-30019 has been reverted for MB-30234, so currently
+ * we are skipping the call to CheckpointManager::checkAndAddNewCheckpoint
+ * (most times in real executions, always in this test).
+ */
+static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
+        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+    const void* cookie = testHarness.create_cookie();
+    const uint16_t vbid = 0;
+    const uint32_t opaque = 1;
+
+    check(set_vbucket_state(h, h1, vbid, vbucket_state_replica),
+          "set_vbucket_state failed");
+
+    auto& dcp = dynamic_cast<DcpIface&>(*h);
+
+    checkeq(ENGINE_SUCCESS,
+            dcp.open(cookie,
+                     opaque,
+                     0 /*seqno*/,
+                     0 /*flags*/,
+                     "test_consumer",
+                     {} /*jsonExtras*/),
+            "dcp.open failed");
+
+    checkeq(ENGINE_SUCCESS,
+            dcp.add_stream(cookie, opaque, vbid, 0 /*flags*/),
+            "dcp.add_stream failed");
+
+    std::vector<hrtime_t> timings;
+    // Note: trying to keep the runtime below 1sec on local environment as it
+    //     will increase on ASan, TSan and UBSan runs.
+    const size_t numItems = ITERATIONS / 10;
+    // Note: here we send many 1-item snapshots. At every iteration:
+    //     1) we send the snapshot-marker with snapStart=snapEnd=seqno
+    //     2) we send the seqno-mutation, which is the snapshot-end mutation
+    for (size_t seqno = 1; seqno <= numItems; seqno++) {
+        // 1) snapshot-marker
+        checkeq(ENGINE_SUCCESS,
+                dcp.snapshot_marker(cookie,
+                                    opaque,
+                                    vbid,
+                                    seqno /*snapStart*/,
+                                    seqno /*snapEnd*/,
+                                    dcp_marker_flag_t::MARKER_FLAG_MEMORY),
+                "dcp.snapshot_marker failed");
+
+        auto begin = ProcessClock::now();
+
+        // 2) snapshot-end mutation
+        checkeq(ENGINE_SUCCESS,
+                dcp.mutation(
+                        cookie,
+                        opaque,
+                        makeStoredDocKey("key_" + std::to_string(seqno)),
+                        cb::const_byte_buffer(
+                                reinterpret_cast<const uint8_t*>("value"), 5),
+                        0 /*priv_bytes*/,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        0 /*cas*/,
+                        vbid,
+                        0 /*flags*/,
+                        seqno,
+                        0 /*revSeqno*/,
+                        0 /*expiration*/,
+                        0 /*lockTime*/,
+                        {} /*meta*/,
+                        0 /*nru*/),
+                "dcp.mutation failed");
+
+        timings.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                  ProcessClock::now() - begin)
+                                  .count());
+    }
+
+    std::vector<std::pair<std::string, std::vector<hrtime_t>*>> result;
+    result.push_back({"Datatype::Raw", &timings});
+
+    std::string title = "DCP Consumer snapshot-end mutation";
+    // Note: I need to print the title here as it is ignore by output_result
+    //     for stdout
+    printf("\n=== %s - %zu items === ", title.c_str(), numItems);
+    output_result(title, "Latency (ns) ", result, "ns");
+    printf("\n");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result perf_multi_thread_latency(engine_test_t* test) {
     return perf_latency_baseline_multi_thread_bucket(test,
                                                      1, /* bucket */
@@ -1404,6 +1499,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
+
+        TestCase("DCP Consumer snapshot-end mutation latency",
+                perf_dcp_consumer_snap_end_mutation_latency,
+                 test_setup,
+                 teardown,
+                 "backend=couchdb;ht_size=393209",
+                 prepare,
+                 cleanup),
 
         TestCase("Baseline Stat latency", perf_stat_latency_baseline,
                  test_setup, teardown,
