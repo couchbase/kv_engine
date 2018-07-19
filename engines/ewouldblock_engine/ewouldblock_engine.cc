@@ -223,8 +223,6 @@ private:
 
     const char* to_string(Cmd cmd);
 
-    uint64_t (*get_connection_id)(gsl::not_null<const void*> cookie);
-
 public:
     EWB_Engine(GET_SERVER_API gsa_);
 
@@ -248,7 +246,7 @@ public:
             return true;
         }
 
-        uint64_t id = get_connection_id(cookie);
+        uint64_t id = real_api->cookie->get_connection_id(cookie);
 
         std::lock_guard<std::mutex> guard(cookie_map_mutex);
 
@@ -610,7 +608,7 @@ public:
                             new_mode->to_string(),
                             cookie);
 
-                    uint64_t id = get_connection_id(cookie);
+                    uint64_t id = real_api->cookie->get_connection_id(cookie);
 
                     {
                         std::lock_guard<std::mutex> guard(cookie_map_mutex);
@@ -841,7 +839,7 @@ public:
                 reinterpret_cast<EWB_Engine*>(const_cast<void*>(cb_data));
         LOG_DEBUG("EWB_Engine::handle_disconnect");
 
-        uint64_t id = ewb->get_connection_id(cookie);
+        uint64_t id = real_api->cookie->get_connection_id(cookie);
         {
             std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
             ewb->connection_map.erase(id);
@@ -1243,8 +1241,6 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
 
     clustermap_revno = 1;
-
-    get_connection_id = gsa()->cookie->get_connection_id;
 
     stop_notification_thread.store(false);
     notify_io_thread->start();
