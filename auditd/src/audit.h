@@ -46,7 +46,7 @@ public:
     // End public API
 
     explicit AuditImpl(std::string config_file,
-                       SERVER_COOKIE_API* sapi,
+                       ServerCookieIface* sapi,
                        const std::string& host);
     ~AuditImpl() override;
 
@@ -138,7 +138,7 @@ protected:
     /// The number of events currently dropped.
     std::atomic<uint32_t> dropped_events = {0};
 
-    SERVER_COOKIE_API* cookie_api;
+    ServerCookieIface* cookie_api;
 
     /// The hostname we want to inject to the audit events
     const std::string hostname;

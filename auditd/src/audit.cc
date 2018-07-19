@@ -40,7 +40,7 @@
 #include <string>
 
 AuditImpl::AuditImpl(std::string config_file,
-                     SERVER_COOKIE_API* sapi,
+                     ServerCookieIface* sapi,
                      const std::string& host)
     : Audit(),
       auditfile(host),

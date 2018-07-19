@@ -695,64 +695,6 @@ void safe_close(SOCKET sfd) {
     }
 }
 
-bucket_id_t get_bucket_id(gsl::not_null<const void*> void_cookie) {
-    /* @todo fix this. Currently we're using the index as the id,
-     * but this should be changed to be a uniqe ID that won't be
-     * reused.
-     */
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    return bucket_id_t(cookie->getConnection().getBucketIndex());
-}
-
-uint64_t get_connection_id(gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    return uint64_t(&cookie->getConnection());
-}
-
-std::pair<uint32_t, std::string> cookie_get_log_info(
-        gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    return std::make_pair(cookie->getConnection().getId(),
-                          cookie->getConnection().getDescription());
-}
-
-void cookie_set_error_context(gsl::not_null<void*> void_cookie,
-                              cb::const_char_buffer message) {
-    auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
-    cookie->setErrorContext(to_string(message));
-}
-
-/**
- * Check if the cookie holds the privilege
- *
- * @param void_cookie this is the cookie passed down to the engine.
- * @param privilege The privilege to check for
- * @return if the privilege is held or not (or if the privilege data is stale)
- */
-static cb::rbac::PrivilegeAccess check_privilege(
-        gsl::not_null<const void*> void_cookie,
-        const cb::rbac::Privilege privilege) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    return cookie->getConnection().checkPrivilege(privilege,
-                                                  const_cast<Cookie&>(*cookie));
-}
-
-static protocol_binary_response_status engine_error2mcbp(
-        gsl::not_null<const void*> void_cookie, ENGINE_ERROR_CODE code) {
-    const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    auto& connection = cookie->getConnection();
-
-    ENGINE_ERROR_CODE status = connection.remapErrorCode(code);
-    if (status == ENGINE_DISCONNECT) {
-        throw cb::engine_error(
-                cb::engine_errc::disconnect,
-                "engine_error2mcbp: " + std::to_string(connection.getId()) +
-                        ": Disconnect client");
-    }
-
-    return engine_error_2_mcbp_protocol_error(status);
-}
-
 static nlohmann::json get_bucket_details_UNLOCKED(const Bucket& bucket,
                                                   size_t idx) {
     if (bucket.state == BucketState::None) {
@@ -1390,151 +1332,6 @@ const char* get_server_version(void) {
     }
 }
 
-static void store_engine_specific(gsl::not_null<const void*> void_cookie,
-                                  void* engine_data) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    cookie->getConnection().setEngineStorage(engine_data);
-}
-
-static void* get_engine_specific(gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    return cookie->getConnection().getEngineStorage();
-}
-
-static bool is_datatype_supported(gsl::not_null<const void*> void_cookie,
-                                  protocol_binary_datatype_t datatype) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    return cookie->getConnection().isDatatypeEnabled(datatype);
-}
-
-static bool is_mutation_extras_supported(
-        gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    return cookie->getConnection().isSupportsMutationExtras();
-}
-
-static bool is_collections_supported(gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-    return cookie->getConnection().isCollectionsSupported();
-}
-
-static uint8_t get_opcode_if_ewouldblock_set(
-        gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-    uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
-    if (cookie->isEwouldblock()) {
-        try {
-            opcode = cookie->getHeader().getOpcode();
-        } catch (...) {
-            // Don't barf out if the header isn't there
-        }
-    }
-    return opcode;
-}
-
-static bool validate_session_cas(const uint64_t cas) {
-    return session_cas.increment_session_counter(cas);
-}
-
-static void decrement_session_ctr(void) {
-    session_cas.decrement_session_counter();
-}
-
-static ENGINE_ERROR_CODE reserve_cookie(
-        gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-    cookie->getConnection().incrementRefcount();
-    return ENGINE_SUCCESS;
-}
-
-static ENGINE_ERROR_CODE release_cookie(
-        gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-    auto* c = &cookie->getConnection();
-    int notify;
-    FrontEndThread* thr;
-
-    thr = c->getThread();
-    cb_assert(thr);
-
-    {
-        TRACE_LOCKGUARD_TIMED(thr->mutex,
-                              "mutex",
-                              "release_cookie::threadLock",
-                              SlowMutexThreshold);
-
-        c->decrementRefcount();
-
-        /* Releasing the refererence to the object may cause it to change
-         * state. (NOTE: the release call shall never be called from the
-         * worker threads), so should put the connection in the pool of
-         * pending IO and have the system retry the operation for the
-         * connection
-         */
-        notify = add_conn_to_pending_io_list(c, ENGINE_SUCCESS);
-    }
-
-    /* kick the thread in the butt */
-    if (notify) {
-        notify_thread(*thr);
-    }
-
-    return ENGINE_SUCCESS;
-}
-
-static CONN_PRIORITY cookie_get_priority(
-        gsl::not_null<const void*> void_cookie) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-    auto& conn = cookie->getConnection();
-    const auto priority = conn.getPriority();
-    switch (priority) {
-    case Connection::Priority::High:
-        return CONN_PRIORITY_HIGH;
-    case Connection::Priority::Medium:
-        return CONN_PRIORITY_MED;
-    case Connection::Priority::Low:
-        return CONN_PRIORITY_LOW;
-    }
-
-    LOG_WARNING(
-            "{}: cookie_get_priority: priority (which is {}) is not a "
-            "valid CONN_PRIORITY - closing connection {}",
-            conn.getId(),
-            int(priority),
-            conn.getDescription());
-    return CONN_PRIORITY_MED;
-}
-
-static void cookie_set_priority(gsl::not_null<const void*> void_cookie,
-                                CONN_PRIORITY priority) {
-    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-    auto* c = &cookie->getConnection();
-    switch (priority) {
-    case CONN_PRIORITY_HIGH:
-        c->setPriority(Connection::Priority::High);
-        return;
-    case CONN_PRIORITY_MED:
-        c->setPriority(Connection::Priority::Medium);
-        return;
-    case CONN_PRIORITY_LOW:
-        c->setPriority(Connection::Priority::Low);
-        return;
-    }
-
-    LOG_WARNING(
-            "{}: cookie_set_priority: priority (which is {}) is not a "
-            "valid CONN_PRIORITY - closing connection {}",
-            c->getId(),
-            priority,
-            c->getDescription());
-    c->setState(StateMachine::State::closing);
-}
-
 static std::condition_variable shutdown_cv;
 static std::mutex shutdown_cv_mutex;
 static bool memcached_can_shutdown = false;
@@ -1653,29 +1450,211 @@ struct ServerCallbackApi : public ServerCallbackIface {
     }
 };
 
+struct ServerCookieApi : public ServerCookieIface {
+    void store_engine_specific(gsl::not_null<const void*> void_cookie,
+                               void* engine_data) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        cookie->getConnection().setEngineStorage(engine_data);
+    }
+
+    void* get_engine_specific(gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return cookie->getConnection().getEngineStorage();
+    }
+
+    bool is_datatype_supported(gsl::not_null<const void*> void_cookie,
+                               protocol_binary_datatype_t datatype) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return cookie->getConnection().isDatatypeEnabled(datatype);
+    }
+
+    bool is_mutation_extras_supported(
+            gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return cookie->getConnection().isSupportsMutationExtras();
+    }
+
+    bool is_collections_supported(
+            gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return cookie->getConnection().isCollectionsSupported();
+    }
+
+    uint8_t get_opcode_if_ewouldblock_set(
+            gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+
+        uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
+        if (cookie->isEwouldblock()) {
+            try {
+                opcode = cookie->getHeader().getOpcode();
+            } catch (...) {
+                // Don't barf out if the header isn't there
+            }
+        }
+        return opcode;
+    }
+
+    bool validate_session_cas(uint64_t cas) override {
+        return session_cas.increment_session_counter(cas);
+    }
+
+    void decrement_session_ctr() override {
+        session_cas.decrement_session_counter();
+    }
+
+    void notify_io_complete(gsl::not_null<const void*> cookie,
+                            ENGINE_ERROR_CODE status) override {
+        ::notify_io_complete(cookie, status);
+    }
+
+    ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+
+        cookie->getConnection().incrementRefcount();
+        return ENGINE_SUCCESS;
+    }
+
+    ENGINE_ERROR_CODE release(gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+
+        auto* c = &cookie->getConnection();
+        int notify;
+        FrontEndThread* thr;
+
+        thr = c->getThread();
+        cb_assert(thr);
+
+        {
+            TRACE_LOCKGUARD_TIMED(thr->mutex,
+                                  "mutex",
+                                  "release_cookie::threadLock",
+                                  SlowMutexThreshold);
+
+            c->decrementRefcount();
+
+            /* Releasing the refererence to the object may cause it to change
+             * state. (NOTE: the release call shall never be called from the
+             * worker threads), so should put the connection in the pool of
+             * pending IO and have the system retry the operation for the
+             * connection
+             */
+            notify = add_conn_to_pending_io_list(c, ENGINE_SUCCESS);
+        }
+
+        /* kick the thread in the butt */
+        if (notify) {
+            notify_thread(*thr);
+        }
+
+        return ENGINE_SUCCESS;
+    }
+
+    void set_priority(gsl::not_null<const void*> void_cookie,
+                      CONN_PRIORITY priority) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+
+        auto* c = &cookie->getConnection();
+        switch (priority) {
+        case CONN_PRIORITY_HIGH:
+            c->setPriority(Connection::Priority::High);
+            return;
+        case CONN_PRIORITY_MED:
+            c->setPriority(Connection::Priority::Medium);
+            return;
+        case CONN_PRIORITY_LOW:
+            c->setPriority(Connection::Priority::Low);
+            return;
+        }
+
+        LOG_WARNING(
+                "{}: ServerCookieApi::set_priority: priority (which is {}) is "
+                "not a "
+                "valid CONN_PRIORITY - closing connection {}",
+                c->getId(),
+                priority,
+                c->getDescription());
+        c->setState(StateMachine::State::closing);
+    }
+
+    CONN_PRIORITY get_priority(
+            gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+
+        auto& conn = cookie->getConnection();
+        const auto priority = conn.getPriority();
+        switch (priority) {
+        case Connection::Priority::High:
+            return CONN_PRIORITY_HIGH;
+        case Connection::Priority::Medium:
+            return CONN_PRIORITY_MED;
+        case Connection::Priority::Low:
+            return CONN_PRIORITY_LOW;
+        }
+
+        LOG_WARNING(
+                "{}: ServerCookieApi::get_priority: priority (which is {}) is "
+                "not a "
+                "valid CONN_PRIORITY. {}",
+                conn.getId(),
+                int(priority),
+                conn.getDescription());
+        return CONN_PRIORITY_MED;
+    }
+
+    bucket_id_t get_bucket_id(gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return bucket_id_t(cookie->getConnection().getBucketIndex());
+    }
+
+    uint64_t get_connection_id(
+            gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return uint64_t(&cookie->getConnection());
+    }
+
+    cb::rbac::PrivilegeAccess check_privilege(
+            gsl::not_null<const void*> void_cookie,
+            cb::rbac::Privilege privilege) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return cookie->getConnection().checkPrivilege(
+                privilege, const_cast<Cookie&>(*cookie));
+    }
+
+    protocol_binary_response_status engine_error2mcbp(
+            gsl::not_null<const void*> void_cookie,
+            ENGINE_ERROR_CODE code) override {
+        const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        auto& connection = cookie->getConnection();
+
+        ENGINE_ERROR_CODE status = connection.remapErrorCode(code);
+        if (status == ENGINE_DISCONNECT) {
+            throw cb::engine_error(
+                    cb::engine_errc::disconnect,
+                    "engine_error2mcbp: " + std::to_string(connection.getId()) +
+                            ": Disconnect client");
+        }
+
+        return engine_error_2_mcbp_protocol_error(status);
+    }
+
+    std::pair<uint32_t, std::string> get_log_info(
+            gsl::not_null<const void*> void_cookie) override {
+        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+        return std::make_pair(cookie->getConnection().getId(),
+                              cookie->getConnection().getDescription());
+    }
+
+    void set_error_context(gsl::not_null<void*> void_cookie,
+                           cb::const_char_buffer message) override {
+        auto* cookie = reinterpret_cast<Cookie*>(void_cookie.get());
+        cookie->setErrorContext(to_string(message));
+    }
+};
+
 class ServerApi : public SERVER_HANDLE_V1 {
 public:
     ServerApi() {
-        server_cookie_api.store_engine_specific = store_engine_specific;
-        server_cookie_api.get_engine_specific = get_engine_specific;
-        server_cookie_api.is_datatype_supported = is_datatype_supported;
-        server_cookie_api.is_mutation_extras_supported = is_mutation_extras_supported;
-        server_cookie_api.is_collections_supported = is_collections_supported;
-        server_cookie_api.get_opcode_if_ewouldblock_set = get_opcode_if_ewouldblock_set;
-        server_cookie_api.validate_session_cas = validate_session_cas;
-        server_cookie_api.decrement_session_ctr = decrement_session_ctr;
-        server_cookie_api.notify_io_complete = notify_io_complete;
-        server_cookie_api.reserve = reserve_cookie;
-        server_cookie_api.release = release_cookie;
-        server_cookie_api.get_priority = cookie_get_priority;
-        server_cookie_api.set_priority = cookie_set_priority;
-        server_cookie_api.get_bucket_id = get_bucket_id;
-        server_cookie_api.get_connection_id = get_connection_id;
-        server_cookie_api.check_privilege = check_privilege;
-        server_cookie_api.engine_error2mcbp = engine_error2mcbp;
-        server_cookie_api.get_log_info = cookie_get_log_info;
-        server_cookie_api.set_error_context = cookie_set_error_context;
-
         hooks_api.add_new_hook = AllocHooks::add_new_hook;
         hooks_api.remove_new_hook = AllocHooks::remove_new_hook;
         hooks_api.add_delete_hook = AllocHooks::add_delete_hook;
@@ -1698,7 +1677,7 @@ public:
 
 protected:
     ServerCoreApi core_api;
-    SERVER_COOKIE_API server_cookie_api;
+    ServerCookieApi server_cookie_api;
     ServerLogApi server_log_api;
     ServerCallbackApi callback_api;
     ALLOCATOR_HOOKS_API hooks_api;

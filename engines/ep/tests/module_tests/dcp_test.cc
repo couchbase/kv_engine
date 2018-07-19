@@ -55,6 +55,100 @@
 extern uint8_t dcp_last_op;
 extern uint32_t dcp_last_flags;
 
+/**
+ * The DCP tests wants to mock around with the notify_io_complete
+ * method. Previously we copied in a new notify_io_complete method, but
+ * we can't do that as the cookie interface contains virtual pointers.
+ * An easier approach is to create a class which just wraps the server
+ * API and we may subclass this class to override whatever method we want
+ *
+ * The constructor installs itself as the mock server cookie interface,
+ * and the destructor reinstalls the original server cookie interfa
+ */
+class WrappedServerCookieIface : public ServerCookieIface {
+public:
+    WrappedServerCookieIface() : wrapped(get_mock_server_api()->cookie) {
+        get_mock_server_api()->cookie = this;
+    }
+
+    ~WrappedServerCookieIface() override {
+        get_mock_server_api()->cookie = wrapped;
+    }
+
+    void store_engine_specific(gsl::not_null<const void*> cookie,
+                               void* engine_data) override {
+        wrapped->store_engine_specific(cookie, engine_data);
+    }
+    void* get_engine_specific(gsl::not_null<const void*> cookie) override {
+        return wrapped->get_engine_specific(cookie);
+    }
+    bool is_datatype_supported(gsl::not_null<const void*> cookie,
+                               protocol_binary_datatype_t datatype) override {
+        return wrapped->is_datatype_supported(cookie, datatype);
+    }
+    bool is_mutation_extras_supported(
+            gsl::not_null<const void*> cookie) override {
+        return wrapped->is_mutation_extras_supported(cookie);
+    }
+    bool is_collections_supported(gsl::not_null<const void*> cookie) override {
+        return wrapped->is_collections_supported(cookie);
+    }
+    uint8_t get_opcode_if_ewouldblock_set(
+            gsl::not_null<const void*> cookie) override {
+        return wrapped->get_opcode_if_ewouldblock_set(cookie);
+    }
+    bool validate_session_cas(uint64_t cas) override {
+        return wrapped->validate_session_cas(cas);
+    }
+    void decrement_session_ctr() override {
+        return wrapped->decrement_session_ctr();
+    }
+    void notify_io_complete(gsl::not_null<const void*> cookie,
+                            ENGINE_ERROR_CODE status) override {
+        return wrapped->notify_io_complete(cookie, status);
+    }
+    ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
+        return wrapped->reserve(cookie);
+    }
+    ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) override {
+        return wrapped->release(cookie);
+    }
+    void set_priority(gsl::not_null<const void*> cookie,
+                      CONN_PRIORITY priority) override {
+        return wrapped->set_priority(cookie, priority);
+    }
+    CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) override {
+        return wrapped->get_priority(cookie);
+    }
+    bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {
+        return wrapped->get_bucket_id(cookie);
+    }
+    uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
+        return wrapped->get_connection_id(cookie);
+    }
+    cb::rbac::PrivilegeAccess check_privilege(
+            gsl::not_null<const void*> cookie,
+            cb::rbac::Privilege privilege) override {
+        return wrapped->check_privilege(cookie, privilege);
+    }
+    protocol_binary_response_status engine_error2mcbp(
+            gsl::not_null<const void*> cookie,
+            ENGINE_ERROR_CODE code) override {
+        return wrapped->engine_error2mcbp(cookie, code);
+    }
+    std::pair<uint32_t, std::string> get_log_info(
+            gsl::not_null<const void*> cookie) override {
+        return wrapped->get_log_info(cookie);
+    }
+    void set_error_context(gsl::not_null<void*> cookie,
+                           cb::const_char_buffer message) override {
+        wrapped->set_error_context(cookie, message);
+    }
+
+protected:
+    ServerCookieIface* wrapped;
+};
+
 class DCPTest : public EventuallyPersistentEngineTest {
 protected:
     void SetUp() override {
@@ -2540,15 +2634,17 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     // We (ab)use the engine_specific API to pass a pointer to a count of
     // how many times notify_io_complete has been called.
     size_t notify_count = 0;
-    SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
-    scapi->store_engine_specific(cookie, &notify_count);
-    auto orig_notify_io_complete = scapi->notify_io_complete;
-    scapi->notify_io_complete = [](gsl::not_null<const void*> cookie,
-                                   ENGINE_ERROR_CODE status) {
-        auto* notify_ptr = reinterpret_cast<size_t*>(
-                get_mock_server_api()->cookie->get_engine_specific(cookie));
-        (*notify_ptr)++;
-    };
+    class MockServerCookieApi : public WrappedServerCookieIface {
+    public:
+        void notify_io_complete(gsl::not_null<const void*> cookie,
+                                ENGINE_ERROR_CODE status) override {
+            auto* notify_ptr = reinterpret_cast<size_t*>(
+                    wrapped->get_engine_specific(cookie));
+            (*notify_ptr)++;
+        }
+    } scapi;
+
+    scapi.store_engine_specific(cookie, &notify_count);
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -2568,7 +2664,6 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
         << "expected at least one notify after shutting down all connections";
 
     // Restore notify_io_complete callback.
-    scapi->notify_io_complete = orig_notify_io_complete;
     destroy_mock_cookie(cookie);
 }
 
@@ -2596,15 +2691,18 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     // We (ab)use the engine_specific API to pass a pointer to a count of
     // how many times notify_io_complete has been called.
     size_t notify_count = 0;
-    SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
-    scapi->store_engine_specific(cookie, &notify_count);
-    auto orig_notify_io_complete = scapi->notify_io_complete;
-    scapi->notify_io_complete = [](gsl::not_null<const void*> cookie,
-                                   ENGINE_ERROR_CODE status) {
-        auto* notify_ptr = reinterpret_cast<size_t*>(
-                get_mock_server_api()->cookie->get_engine_specific(cookie));
-        (*notify_ptr)++;
-    };
+
+    class MockServerCookieApi : public WrappedServerCookieIface {
+    public:
+        void notify_io_complete(gsl::not_null<const void*> cookie,
+                                ENGINE_ERROR_CODE status) override {
+            auto* notify_ptr = reinterpret_cast<size_t*>(
+                    get_mock_server_api()->cookie->get_engine_specific(cookie));
+            (*notify_ptr)++;
+        }
+    } scapi;
+
+    scapi.store_engine_specific(cookie, &notify_count);
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -2624,7 +2722,6 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
         << "expected at least one notify after shutting down all connections";
 
     // Restore notify_io_complete callback.
-    scapi->notify_io_complete = orig_notify_io_complete;
     destroy_mock_cookie(cookie);
 }
 
@@ -2810,23 +2907,9 @@ TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {
 
 class NotifyTest : public DCPTest {
 protected:
-    void SetUp() {
-        // The test is going to replace a server cookie API method, we must
-        // be able to undo that
-        scookie_api = *get_mock_server_api()->cookie;
-        DCPTest::SetUp();
-    }
-
-    void TearDown() {
-        // Reset the server cookie api for other tests
-        *get_mock_server_api()->cookie = scookie_api;
-        DCPTest::TearDown();
-    }
-
-    SERVER_COOKIE_API scookie_api;
     std::unique_ptr<MockDcpConnMap> connMap;
-    DcpProducer* producer;
-    int callbacks;
+    DcpProducer* producer = nullptr;
+    int callbacks = 0;
 };
 
 class ConnMapNotifyTest {
@@ -2865,6 +2948,7 @@ public:
         const auto* notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(
                 get_mock_server_api()->cookie->get_engine_specific(
                         cookie.get()));
+        cb_assert(notifyTest != nullptr);
         // 3. Call notifyPausedConnection again. We're now interleaved inside
         //    of notifyAllPausedConnections, a second notification should occur.
         const_cast<ConnMapNotifyTest*>(notifyTest)->notify();
@@ -2883,8 +2967,13 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     ConnMapNotifyTest notifyTest(*engine);
 
     // Hook into notify_io_complete
-    SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
-    scapi->notify_io_complete = ConnMapNotifyTest::dcp_test_notify_io_complete;
+    class MockServerCookieApi : public WrappedServerCookieIface {
+    public:
+        void notify_io_complete(gsl::not_null<const void*> cookie,
+                                ENGINE_ERROR_CODE status) override {
+            ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
+        }
+    } scapi;
 
     // Should be 0 when we begin
     ASSERT_EQ(0, notifyTest.getCallbacks());
@@ -2920,8 +3009,13 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     ConnMapNotifyTest notifyTest(*engine);
 
     // Hook into notify_io_complete
-    SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
-    scapi->notify_io_complete = ConnMapNotifyTest::dcp_test_notify_io_complete;
+    class MockServerCookieApi : public WrappedServerCookieIface {
+    public:
+        void notify_io_complete(gsl::not_null<const void*> cookie,
+                                ENGINE_ERROR_CODE status) override {
+            ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
+        }
+    } scapi;
 
     // Should be 0 when we begin
     ASSERT_EQ(notifyTest.getCallbacks(), 0);

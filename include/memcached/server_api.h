@@ -87,7 +87,9 @@ struct ServerCoreIface {
 /**
  * Commands to operate on a specific cookie.
  */
-struct SERVER_COOKIE_API {
+struct ServerCookieIface {
+    virtual ~ServerCookieIface() = default;
+
     /**
      * Store engine-specific session data on the given cookie.
      *
@@ -99,8 +101,8 @@ struct SERVER_COOKIE_API {
      * @param cookie The cookie provided by the frontend
      * @param engine_data pointer to opaque data
      */
-    void (*store_engine_specific)(gsl::not_null<const void*> cookie,
-                                  void* engine_data);
+    virtual void store_engine_specific(gsl::not_null<const void*> cookie,
+                                       void* engine_data) = 0;
 
     /**
      * Retrieve engine-specific session data for the given cookie.
@@ -110,7 +112,7 @@ struct SERVER_COOKIE_API {
      * @return the data provied by store_engine_specific or NULL
      *         if none was provided
      */
-    void* (*get_engine_specific)(gsl::not_null<const void*> cookie);
+    virtual void* get_engine_specific(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Check if datatype is supported by the connection.
@@ -120,8 +122,8 @@ struct SERVER_COOKIE_API {
      *
      * @return true if connection supports the datatype or else false.
      */
-    bool (*is_datatype_supported)(gsl::not_null<const void*> cookie,
-                                  protocol_binary_datatype_t datatype);
+    virtual bool is_datatype_supported(gsl::not_null<const void*> cookie,
+                                       protocol_binary_datatype_t datatype) = 0;
 
     /**
      * Check if mutation extras is supported by the connection.
@@ -130,7 +132,8 @@ struct SERVER_COOKIE_API {
      *
      * @return true if supported or else false.
      */
-    bool (*is_mutation_extras_supported)(gsl::not_null<const void*> cookie);
+    virtual bool is_mutation_extras_supported(
+            gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Check if collections are supported by the connection.
@@ -139,7 +142,8 @@ struct SERVER_COOKIE_API {
      *
      * @return true if supported or else false.
      */
-    bool (*is_collections_supported)(gsl::not_null<const void*> cookie);
+    virtual bool is_collections_supported(
+            gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Retrieve the opcode of the connection, if
@@ -153,7 +157,8 @@ struct SERVER_COOKIE_API {
      * @return the opcode from the binary_header saved in the
      * connection.
      */
-    uint8_t (*get_opcode_if_ewouldblock_set)(gsl::not_null<const void*> cookie);
+    virtual uint8_t get_opcode_if_ewouldblock_set(
+            gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Validate given ns_server's session cas token against
@@ -165,46 +170,46 @@ struct SERVER_COOKIE_API {
      * @return true if session cas matches the one saved in
      * memcached
      */
-    bool (*validate_session_cas)(const uint64_t cas);
+    virtual bool validate_session_cas(uint64_t cas) = 0;
 
     /**
      * Decrement session_cas's counter everytime a control
      * command completes execution.
      */
-    void (*decrement_session_ctr)(void);
+    virtual void decrement_session_ctr() = 0;
 
     /**
      * Let a connection know that IO has completed.
      * @param cookie cookie representing the connection
      * @param status the status for the io operation
      */
-    void (*notify_io_complete)(gsl::not_null<const void*> cookie,
-                               ENGINE_ERROR_CODE status);
+    virtual void notify_io_complete(gsl::not_null<const void*> cookie,
+                                    ENGINE_ERROR_CODE status) = 0;
 
     /**
      * Notify the core that we're holding on to this cookie for
      * future use. (The core guarantees it will not invalidate the
      * memory until the cookie is invalidated by calling release())
      */
-    ENGINE_ERROR_CODE (*reserve)(gsl::not_null<const void*> cookie);
+    virtual ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Notify the core that we're releasing the reference to the
      * The engine is not allowed to use the cookie (the core may invalidate
      * the memory)
      */
-    ENGINE_ERROR_CODE (*release)(gsl::not_null<const void*> cookie);
+    virtual ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Set the priority for this connection
      */
-    void (*set_priority)(gsl::not_null<const void*> cookie,
-                         CONN_PRIORITY priority);
+    virtual void set_priority(gsl::not_null<const void*> cookie,
+                              CONN_PRIORITY priority) = 0;
 
     /**
      * Get the priority for this connection
      */
-    CONN_PRIORITY (*get_priority)(gsl::not_null<const void*> cookie);
+    virtual CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Get the bucket the connection is bound to
@@ -212,7 +217,7 @@ struct SERVER_COOKIE_API {
      * @cookie The connection object
      * @return the bucket identifier for a cookie
      */
-    bucket_id_t (*get_bucket_id)(gsl::not_null<const void*> cookie);
+    virtual bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Get connection id
@@ -220,7 +225,7 @@ struct SERVER_COOKIE_API {
      * @param cookie the cookie sent to the engine for an operation
      * @return a unique identifier for a connection
      */
-    uint64_t (*get_connection_id)(gsl::not_null<const void*> cookie);
+    virtual uint64_t get_connection_id(gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Check if the cookie have the specified privilege in it's
@@ -235,9 +240,9 @@ struct SERVER_COOKIE_API {
      * @return true if the cookie have the privilege in its active set,
      *         false otherwise
      */
-    cb::rbac::PrivilegeAccess (*check_privilege)(
+    virtual cb::rbac::PrivilegeAccess check_privilege(
             gsl::not_null<const void*> cookie,
-            const cb::rbac::Privilege privilege);
+            cb::rbac::Privilege privilege) = 0;
 
     /**
      * Method to map an engine error code to the appropriate mcbp response
@@ -252,8 +257,8 @@ struct SERVER_COOKIE_API {
      *         std::logic_error if the error code doesn't make sense
      *         std::invalid_argument if the code doesn't exist
      */
-    protocol_binary_response_status (*engine_error2mcbp)(
-            gsl::not_null<const void*> cookie, ENGINE_ERROR_CODE code);
+    virtual protocol_binary_response_status engine_error2mcbp(
+            gsl::not_null<const void*> cookie, ENGINE_ERROR_CODE code) = 0;
 
     /**
      * Get the log information to be used for a log entry.
@@ -270,8 +275,8 @@ struct SERVER_COOKIE_API {
      * at any time (but not while the engine is operating in a single call
      * from the core) so it should _not_ be cached.
      */
-    std::pair<uint32_t, std::string> (*get_log_info)(
-            gsl::not_null<const void*> cookie);
+    virtual std::pair<uint32_t, std::string> get_log_info(
+            gsl::not_null<const void*> cookie) = 0;
 
     /**
      * Set the error context string to be sent in response. This should not
@@ -281,8 +286,8 @@ struct SERVER_COOKIE_API {
      * @param cookie the client cookie (to look up client connection)
      * @param message the message string to be set as the error context
      */
-    void (*set_error_context)(gsl::not_null<void*> cookie,
-                              cb::const_char_buffer message);
+    virtual void set_error_context(gsl::not_null<void*> cookie,
+                                   cb::const_char_buffer message) = 0;
 };
 
 struct ServerDocumentIface {

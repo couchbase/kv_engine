@@ -44,7 +44,7 @@ static std::string gethostname() {
 }
 
 UniqueAuditPtr create_audit_daemon(const std::string& config_file,
-                                   SERVER_COOKIE_API* server_cookie_api) {
+                                   ServerCookieIface* server_cookie_api) {
     if (!cb::logger::isInitialized()) {
         throw std::invalid_argument(
                 "start_auditdaemon: logger must have been created");

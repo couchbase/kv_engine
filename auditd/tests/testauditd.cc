@@ -48,13 +48,80 @@ static std::mutex mutex;
 static std::condition_variable cond;
 static bool ready = false;
 
-extern "C" {
-static void notify_io_complete(gsl::not_null<const void*>, ENGINE_ERROR_CODE) {
-    std::lock_guard<std::mutex> lock(mutex);
-    ready = true;
-    cond.notify_one();
-}
-}
+class AuditMockServerCookieApi : public ServerCookieIface {
+public:
+    void store_engine_specific(gsl::not_null<const void*> cookie,
+                               void* engine_data) override {
+        throw std::runtime_error("Not implemented");
+    }
+    void* get_engine_specific(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    bool is_datatype_supported(gsl::not_null<const void*> cookie,
+                               protocol_binary_datatype_t datatype) override {
+        throw std::runtime_error("Not implemented");
+    }
+    bool is_mutation_extras_supported(
+            gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    bool is_collections_supported(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    uint8_t get_opcode_if_ewouldblock_set(
+            gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    bool validate_session_cas(uint64_t cas) override {
+        throw std::runtime_error("Not implemented");
+    }
+    void decrement_session_ctr() override {
+        throw std::runtime_error("Not implemented");
+    }
+    void notify_io_complete(gsl::not_null<const void*> cookie,
+                            ENGINE_ERROR_CODE status) override {
+        std::lock_guard<std::mutex> lock(mutex);
+        ready = true;
+        cond.notify_one();
+    }
+    ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    ENGINE_ERROR_CODE release(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    void set_priority(gsl::not_null<const void*> cookie,
+                      CONN_PRIORITY priority) override {
+        throw std::runtime_error("Not implemented");
+    }
+    CONN_PRIORITY get_priority(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    bucket_id_t get_bucket_id(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    uint64_t get_connection_id(gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    cb::rbac::PrivilegeAccess check_privilege(
+            gsl::not_null<const void*> cookie,
+            cb::rbac::Privilege privilege) override {
+        throw std::runtime_error("Not implemented");
+    }
+    protocol_binary_response_status engine_error2mcbp(
+            gsl::not_null<const void*> cookie,
+            ENGINE_ERROR_CODE code) override {
+        throw std::runtime_error("Not implemented");
+    }
+    std::pair<uint32_t, std::string> get_log_info(
+            gsl::not_null<const void*> cookie) override {
+        throw std::runtime_error("Not implemented");
+    }
+    void set_error_context(gsl::not_null<void*> cookie,
+                           cb::const_char_buffer message) override {
+        throw std::runtime_error("Not implemented");
+    }
+};
 
 class AuditDaemonTest
     : public ::testing::TestWithParam<std::tuple<bool, bool>> {
@@ -82,7 +149,6 @@ public:
         }
 
         // Start the audit daemon
-        sapi.notify_io_complete = notify_io_complete;
         auditHandle = cb::audit::create_audit_daemon({}, &sapi);
 
         if (!auditHandle) {
@@ -175,14 +241,14 @@ protected:
         return false;
     }
 
-    static SERVER_COOKIE_API sapi;
+    static AuditMockServerCookieApi sapi;
     MockAuditConfig config;
     static cb::audit::UniqueAuditPtr auditHandle;
     static std::string testdir;
     static std::string cfgfile;
 };
 
-SERVER_COOKIE_API AuditDaemonTest::sapi = {};
+AuditMockServerCookieApi AuditDaemonTest::sapi;
 
 std::string AuditDaemonTest::testdir;
 std::string AuditDaemonTest::cfgfile;

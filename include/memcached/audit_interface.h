@@ -109,7 +109,7 @@ using UniqueAuditPtr = std::unique_ptr<Audit>;
  * @throws std::bad_alloc for allocation failures
  */
 UniqueAuditPtr create_audit_daemon(const std::string& config_file,
-                                   SERVER_COOKIE_API* server_cookie_api);
+                                   ServerCookieIface* server_cookie_api);
 
 } // namespace audit
 } // namespace cb
