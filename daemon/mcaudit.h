@@ -16,6 +16,8 @@
  */
 #pragma once
 
+#include <memcached/engine_common.h>
+#include <memcached/engine_error.h>
 #include <platform/sized_buffer.h>
 
 #include <cstdint>
@@ -109,5 +111,8 @@ void add(const Cookie& c, Operation operation);
  * Initialize the audit subsystem
  */
 void initialize_audit();
+void shutdown_audit();
+ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie);
+void stats_audit(ADD_STAT add_stats, Cookie& cookie);
 
 bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload);

@@ -28,6 +28,8 @@
 #include <cJSON.h>
 #include <memcached/isotime.h>
 
+static std::unique_ptr<Audit, AuditDeleter> auditHandle;
+
 static std::atomic_bool audit_enabled{false};
 
 static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
@@ -109,8 +111,7 @@ static void do_audit(const Connection* c,
                      unique_cJSON_ptr& event,
                      const char* warn) {
     auto text = to_string(event, false);
-    auto status = put_audit_event(get_audit_handle(), id, text.data(),
-                                  text.length());
+    auto status = put_audit_event(*auditHandle, id, text);
 
     if (status != AUDIT_SUCCESS) {
         LOG_WARNING("{}: {}", warn, text);
@@ -242,10 +243,10 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
         return true;
     }
 
-    return put_audit_event(get_audit_handle(),
-                           audit_eventid,
-                           payload.data(),
-                           payload.size()) == AUDIT_SUCCESS;
+    cb::const_char_buffer buffer{reinterpret_cast<const char*>(payload.data()),
+                                 payload.size()};
+    return put_audit_event(*auditHandle, audit_eventid, buffer) ==
+           AUDIT_SUCCESS;
 }
 
 namespace cb {
@@ -316,23 +317,43 @@ void add(const Cookie& cookie, Operation operation) {
 } // namespace audit
 } // namespace cb
 
-
-
 static void event_state_listener(uint32_t id, bool enabled) {
     setEnabled(id, enabled);
 }
 
 void initialize_audit() {
-/* Start the audit daemon */
+    /* Start the audit daemon */
     AUDIT_EXTENSION_DATA audit_extension_data;
     memset(&audit_extension_data, 0, sizeof(audit_extension_data));
     audit_extension_data.notify_io_complete = notify_io_complete;
     audit_extension_data.configfile = settings.getAuditFile().c_str();
-    Audit* handle = nullptr;
-    if (start_auditdaemon(&audit_extension_data, &handle) != AUDIT_SUCCESS) {
+
+    auditHandle = start_auditdaemon(&audit_extension_data);
+    if (!auditHandle) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }
-    set_audit_handle(handle);
-    cb::audit::add_event_state_listener(handle, event_state_listener);
-    cb::audit::notify_all_event_states(handle);
+    cb::audit::add_event_state_listener(*auditHandle, event_state_listener);
+    cb::audit::notify_all_event_states(*auditHandle);
+}
+
+void shutdown_audit() {
+    auditHandle.reset();
+}
+
+ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
+    auto ret = configure_auditdaemon(*auditHandle,
+                                     settings.getAuditFile().c_str(),
+                                     static_cast<void*>(&cookie));
+    switch (ret) {
+    case AUDIT_SUCCESS:
+        return ENGINE_SUCCESS;
+    case AUDIT_EWOULDBLOCK:
+        return ENGINE_EWOULDBLOCK;
+    default:
+        return ENGINE_FAILED;
+    }
+}
+
+void stats_audit(ADD_STAT add_stats, Cookie& cookie) {
+    process_auditd_stats(*auditHandle, add_stats, &cookie);
 }

@@ -62,17 +62,19 @@ typedef struct {
  */
 class Audit;
 
+class AuditDeleter {
+public:
+    void operator()(Audit* audit);
+};
+
 /**
  * Start the audit daemon
  *
- * @todo refactor to return the handle to the newly created audit daemon
- *
  * @param extension_data the default configuration data to be used
- * @param handle where to store the audit handle
- * @return AUDIT_SUCCESS for success, AUDIT_FAILED if an error occurred
+ * @return The newly created audit daemon handle upon success
  */
-AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
-                                   Audit **handle);
+std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
+        const AUDIT_EXTENSION_DATA* extension_data);
 
 /**
  * Update the audit daemon with the specified configuration file
@@ -84,7 +86,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
  *                           will be signalled when it is done)
  *         AUDIT_FAILED if we failed to update the configuration
  */
-AUDIT_ERROR_CODE configure_auditdaemon(Audit* handle,
+AUDIT_ERROR_CODE configure_auditdaemon(Audit& handle,
                                        const char* config,
                                        const void* cookie);
 
@@ -93,24 +95,14 @@ AUDIT_ERROR_CODE configure_auditdaemon(Audit* handle,
  *
  * @param audit_eventid The identifier for the event to insert
  * @param payload the JSON encoded payload to insert to the audit trail
- * @param length the number of bytes in the payload
  * @return AUDIT_SUCCESS if the event was successfully added to the audit
  *                       queue (may be dropped at a later time)
  *         AUDIT_FAILED if an error occured while trying to insert the
  *                      event to the audit queue.
  */
-AUDIT_ERROR_CODE put_audit_event(Audit* handle,
-                                 const uint32_t audit_eventid,
-                                 const void* payload,
-                                 const size_t length);
-
-/**
- * Shut down the audit daemon
- *
- * @param handle the audit daemon handle
- *
- */
-AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle);
+AUDIT_ERROR_CODE put_audit_event(Audit& handle,
+                                 uint32_t audit_eventid,
+                                 cb::const_char_buffer payload);
 
 /**
  * method called from the core to collect statistics information from
@@ -119,10 +111,9 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle);
  * @param add_stats a callback function to add information to the response
  * @param cookie the cookie representing the command
  */
-void process_auditd_stats(Audit* handle,
+void process_auditd_stats(Audit& handle,
                           ADD_STAT add_stats,
-                          const void* cookie);
-
+                          gsl::not_null<const void*> cookie);
 
 namespace cb {
 namespace audit {
@@ -143,7 +134,7 @@ typedef void (*EventStateListener)(uint32_t id, bool enabled);
  * disabled in memcached (to avoid building up audit events in the frontend
  * threads which will be dropped by the audit daemon later on).
  */
-void add_event_state_listener(Audit* handle, EventStateListener listener);
+void add_event_state_listener(Audit& handle, EventStateListener listener);
 
 /**
  * Fire the event state listener for _ALL_ of the events.
@@ -156,7 +147,6 @@ void add_event_state_listener(Audit* handle, EventStateListener listener);
  *       the internal datastructures without locking it (the event
  *       descriptor array).
  */
-void notify_all_event_states(Audit* handle);
-
+void notify_all_event_states(Audit& handle);
 }
 }

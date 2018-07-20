@@ -16,6 +16,8 @@
  */
 #include "audit_configure_context.h"
 
+#include "daemon/mcaudit.h"
+
 #include <daemon/cookie.h>
 #include <daemon/runtime.h>
 #include <daemon/settings.h>
@@ -30,20 +32,17 @@ ENGINE_ERROR_CODE AuditConfigureCommandContext::configuring() {
         return ENGINE_SUCCESS;
     }
 
-    auto ret = configure_auditdaemon(get_audit_handle(),
-                                     settings.getAuditFile().c_str(),
-                                     static_cast<void*>(&cookie));
+    auto ret = reconfigure_audit(cookie);
     switch (ret) {
-    case AUDIT_SUCCESS:
-        return ENGINE_SUCCESS;
-    case AUDIT_EWOULDBLOCK:
-        return ENGINE_EWOULDBLOCK;
+    case ENGINE_SUCCESS:
+    case ENGINE_EWOULDBLOCK:
+        break;
     default:
         LOG_WARNING("configuration of audit daemon failed with config file: {}",
                     settings.getAuditFile());
     }
 
-    return ENGINE_FAILED;
+    return ret;
 }
 
 void AuditConfigureCommandContext::done() {

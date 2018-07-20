@@ -28,6 +28,7 @@
 #include <daemon/cookie.h>
 #include <daemon/executorpool.h>
 #include <daemon/mc_time.h>
+#include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <daemon/runtime.h>
 #include <daemon/stats.h>
@@ -558,7 +559,7 @@ static ENGINE_ERROR_CODE stat_settings_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
                                              Cookie& cookie) {
     if (arg.empty()) {
-        process_auditd_stats(get_audit_handle(), &append_stats, &cookie);
+        stats_audit(&append_stats, cookie);
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;

@@ -85,13 +85,16 @@ public:
         memset(&audit_extension_data, 0, sizeof(audit_extension_data));
         audit_extension_data.notify_io_complete = notify_io_complete;
 
-        ASSERT_EQ(AUDIT_SUCCESS,
-                  start_auditdaemon(&audit_extension_data, &auditHandle))
-                << "start audit daemon: FAILED" << std::endl;
+        auditHandle = start_auditdaemon(&audit_extension_data);
+        if (!auditHandle) {
+            throw std::runtime_error(
+                    "AuditDaemonTest::SetUpTestCase() Failed to start audit "
+                    "daemon");
+        }
     }
 
     static void TearDownTestCase() {
-        EXPECT_EQ(AUDIT_SUCCESS, shutdown_auditdaemon(auditHandle));
+        auditHandle.reset();
         cb::io::rmrf(testdir);
         cb::io::rmrf(cfgfile);
     }
@@ -102,7 +105,7 @@ protected:
         // notify_io_complete unless it's set to a non-null value..
         // just pass on the ready variable
         const void* cookie = (const void*)&ready;
-        switch (configure_auditdaemon(auditHandle, fname.c_str(), cookie)) {
+        switch (configure_auditdaemon(*auditHandle, fname.c_str(), cookie)) {
         case AUDIT_SUCCESS:
             break;
         case AUDIT_EWOULDBLOCK: {
@@ -177,14 +180,14 @@ protected:
     }
 
     MockAuditConfig config;
-    static Audit* auditHandle;
+    static std::unique_ptr<Audit, AuditDeleter> auditHandle;
     static std::string testdir;
     static std::string cfgfile;
 };
 
 std::string AuditDaemonTest::testdir;
 std::string AuditDaemonTest::cfgfile;
-Audit* AuditDaemonTest::auditHandle;
+std::unique_ptr<Audit, AuditDeleter> AuditDaemonTest::auditHandle;
 
 TEST_P(AuditDaemonTest, StartupDisabledDontCreateFiles) {
     configure();
@@ -256,11 +259,9 @@ TEST_P(AuditDaemonFilteringTest, AuditFilteringTest) {
     addEvent(eventFilteringPermitted);
 
     // generate the 1234 event with real_userid:user = johndoe
-    put_audit_event(
-            auditHandle, 1234, payloadjohndoe.c_str(), payloadjohndoe.length());
+    put_audit_event(*auditHandle, 1234, payloadjohndoe);
     // generate the 1234 event with real_userid:user = another
-    put_audit_event(
-            auditHandle, 1234, payloadanother.c_str(), payloadanother.length());
+    put_audit_event(*auditHandle, 1234, payloadanother);
 
     // Check the audit log exists
     assertNumberOfFiles(1);

@@ -84,7 +84,7 @@ static void consume_events(void* arg) {
     audit.auditfile.close();
 }
 
-static std::string gethostname(void) {
+static std::string gethostname() {
     char host[128];
     if (gethostname(host, sizeof(host)) != 0) {
         throw std::runtime_error("gethostname() failed: " + cb_strerror());
@@ -93,11 +93,8 @@ static std::string gethostname(void) {
     return std::string(host);
 }
 
-AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
-                                   Audit** handle) {
-    if (handle == nullptr) {
-        throw std::invalid_argument("start_auditdaemon: handle can't be null");
-    }
+std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
+        const AUDIT_EXTENSION_DATA* extension_data) {
     if (extension_data == nullptr) {
         throw std::invalid_argument(
             "start_auditdaemon: extension_data can't be null");
@@ -108,7 +105,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
                 "start_auditdaemon: logger must have been created");
     }
 
-    std::unique_ptr<Audit> holder;
+    std::unique_ptr<Audit, AuditDeleter> holder;
 
     try {
         holder.reset(new Audit);
@@ -121,118 +118,94 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
         }
 
         if (!audit->configfile.empty() && !audit->configure()) {
-            return AUDIT_FAILED;
+            return {};
         }
 
         if (cb_create_named_thread(&audit->consumer_tid, consume_events,
                                    audit, 0, "mc:auditd") != 0) {
             LOG_WARNING("Failed to create audit thread");
-            return AUDIT_FAILED;
+            return {};
         }
         audit->consumer_thread_running.store(true);
     } catch (std::runtime_error& err) {
         LOG_WARNING("{}", err.what());
-        return AUDIT_FAILED;
+        return {};
     } catch (std::bad_alloc&) {
         LOG_WARNING("Failed to start audit: Out of memory");
-        return AUDIT_FAILED;
+        return {};
     }
 
-    *handle = holder.release();
-    return AUDIT_SUCCESS;
+    return holder;
 }
 
-AUDIT_ERROR_CODE configure_auditdaemon(Audit* handle,
+AUDIT_ERROR_CODE configure_auditdaemon(Audit& handle,
                                        const char* config,
                                        const void* cookie) {
-    if (handle == nullptr) {
-        throw std::invalid_argument(
-            "configure_auditdaemon: handle can't be nullptr");
-    }
     if (cookie == nullptr) {
         throw std::invalid_argument(
             "configure_auditdaemon: cookie can't be nullptr");
     }
-    if (handle->add_reconfigure_event(config, cookie)) {
+    if (handle.add_reconfigure_event(config, cookie)) {
         return AUDIT_EWOULDBLOCK;
     } else {
         return AUDIT_FAILED;
     }
 }
 
-AUDIT_ERROR_CODE put_audit_event(Audit* handle,
-                                 const uint32_t audit_eventid,
-                                 const void* payload,
-                                 const size_t length) {
-    if (handle == nullptr) {
-        throw std::invalid_argument("put_audit_event: handle can't be nullptr");
-    }
-    if (handle->config.is_auditd_enabled()) {
-        if (!handle->add_to_filleventqueue(audit_eventid,
-                                           (const char*)payload,
-                                           length)) {
+AUDIT_ERROR_CODE put_audit_event(Audit& handle,
+                                 uint32_t audit_eventid,
+                                 cb::const_char_buffer payload) {
+    if (handle.config.is_auditd_enabled()) {
+        if (!handle.add_to_filleventqueue(
+                    audit_eventid, payload.data(), payload.size())) {
             return AUDIT_FAILED;
         }
     }
     return AUDIT_SUCCESS;
 }
 
-AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle) {
-    if (handle == nullptr) {
-        throw std::invalid_argument(
-            "shutdown_auditdaemon: handle can't be nullptr");
-    }
-
-    // Put the handle in a unique_ptr to ensure that it is deleted in
-    // all return paths
-    std::unique_ptr<Audit> holder(handle);
-
+void AuditDeleter::operator()(Audit* handle) {
     if (handle->config.is_auditd_enabled()) {
         // send event to say we are shutting down the audit daemon
         nlohmann::json payload;
-        if (!handle->create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
-                                        payload) ||
-            !handle->add_to_filleventqueue(
-                    AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload.dump())) {
-            handle->clean_up();
-            return AUDIT_FAILED;
-        }
+        handle->create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                                   payload);
+        handle->add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                                      payload.dump());
     }
 
-    if (handle->clean_up()) {
-        return AUDIT_SUCCESS;
-    }
-
-    return AUDIT_FAILED;
+    handle->clean_up();
+    delete handle;
 }
 
-void process_auditd_stats(Audit* handle,
+void process_auditd_stats(Audit& handle,
                           ADD_STAT add_stats,
-                          const void* cookie) {
-    if (handle == nullptr) {
-        throw std::invalid_argument(
-            "process_auditd_stats: handle can't be nullptr");
-    }
+                          gsl::not_null<const void*> cookie) {
     const char* enabled;
-    enabled = handle->config.is_auditd_enabled() ? "true" : "false";
-    add_stats("enabled", (uint16_t)strlen("enabled"),
-              enabled, (uint32_t)strlen(enabled), cookie);
+    enabled = handle.config.is_auditd_enabled() ? "true" : "false";
+    add_stats("enabled",
+              (uint16_t)strlen("enabled"),
+              enabled,
+              (uint32_t)strlen(enabled),
+              cookie.get());
     std::stringstream num_of_dropped_events;
-    num_of_dropped_events << handle->dropped_events;
-    add_stats("dropped_events", (uint16_t)strlen("dropped_events"),
+    num_of_dropped_events << handle.dropped_events;
+    add_stats("dropped_events",
+              (uint16_t)strlen("dropped_events"),
               num_of_dropped_events.str().c_str(),
-              (uint32_t)num_of_dropped_events.str().length(), cookie);
+              (uint32_t)num_of_dropped_events.str().length(),
+              cookie.get());
 }
 
 namespace cb {
 namespace audit {
 
-void add_event_state_listener(Audit* handle, EventStateListener listener) {
-    handle->add_event_state_listener(listener);
+void add_event_state_listener(Audit& handle, EventStateListener listener) {
+    handle.add_event_state_listener(listener);
 }
 
-void notify_all_event_states(Audit* handle) {
-    handle->notify_all_event_states();
+void notify_all_event_states(Audit& handle) {
+    handle.notify_all_event_states();
 }
 
 } // namespace audit

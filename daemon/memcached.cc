@@ -2391,7 +2391,8 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* start up worker threads if MT mode */
     thread_init(settings.getNumWorkerThreads(), main_base, dispatch_event_handler);
 
-    executorPool.reset(new ExecutorPool(settings.getNumWorkerThreads()));
+    executorPool =
+            std::make_unique<ExecutorPool>(settings.getNumWorkerThreads());
 
     initializeTracing();
     TRACE_GLOBAL0("memcached", "Started");
@@ -2433,8 +2434,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 
     LOG_INFO("Shutting down audit daemon");
-    /* Close down the audit daemon cleanly */
-    shutdown_auditdaemon(get_audit_handle());
+    shutdown_audit();
 
     LOG_INFO("Shutting down client worker threads");
     threads_shutdown();

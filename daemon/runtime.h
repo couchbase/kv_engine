@@ -37,11 +37,6 @@ void set_ssl_protocol_mask(const std::string& mask);
 
 void set_ssl_ctx_protocol_mask(SSL_CTX* ctx);
 
-class Audit;
-
-void set_audit_handle(Audit*);
-Audit* get_audit_handle(void);
-
 bool is_default_bucket_enabled();
 void set_default_bucket_enabled(bool enabled);
 
