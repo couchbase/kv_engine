@@ -111,9 +111,7 @@ static void do_audit(const Connection* c,
                      unique_cJSON_ptr& event,
                      const char* warn) {
     auto text = to_string(event, false);
-    auto status = put_audit_event(*auditHandle, id, text);
-
-    if (status != AUDIT_SUCCESS) {
+    if (!put_audit_event(*auditHandle, id, text)) {
         LOG_WARNING("{}: {}", warn, text);
     }
 }
@@ -245,8 +243,7 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
 
     cb::const_char_buffer buffer{reinterpret_cast<const char*>(payload.data()),
                                  payload.size()};
-    return put_audit_event(*auditHandle, audit_eventid, buffer) ==
-           AUDIT_SUCCESS;
+    return put_audit_event(*auditHandle, audit_eventid, buffer);
 }
 
 namespace cb {
@@ -341,17 +338,13 @@ void shutdown_audit() {
 }
 
 ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
-    auto ret = configure_auditdaemon(*auditHandle,
-                                     settings.getAuditFile().c_str(),
-                                     static_cast<void*>(&cookie));
-    switch (ret) {
-    case AUDIT_SUCCESS:
-        return ENGINE_SUCCESS;
-    case AUDIT_EWOULDBLOCK:
+    if (configure_auditdaemon(*auditHandle,
+                              settings.getAuditFile(),
+                              static_cast<void*>(&cookie))) {
         return ENGINE_EWOULDBLOCK;
-    default:
-        return ENGINE_FAILED;
     }
+
+    return ENGINE_FAILED;
 }
 
 void stats_audit(ADD_STAT add_stats, Cookie& cookie) {

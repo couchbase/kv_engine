@@ -20,23 +20,6 @@
 #include <platform/platform.h>
 
 /**
- * Response codes for audit operations.
- */
-typedef enum {
-    /** The command executed successfully */
-    AUDIT_SUCCESS = 0x00,
-    /**
-     * A fatal error occurred, and the server should shut down as soon
-     * as possible
-     */
-    AUDIT_FATAL = 0x01,
-    /** Generic failure. */
-    AUDIT_FAILED = 0x02,
-    /** performing configuration would block */
-    AUDIT_EWOULDBLOCK = 0x03
-} AUDIT_ERROR_CODE;
-
-/**
  * The following structure is passed between the memcached core in order
  * to create the audit subsystem
  */
@@ -82,27 +65,26 @@ std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
  * @param handle the handle to the audit instance to use
  * @param config the configuration file to use.
  * @param cookie the command cookie to notify when we're done
- * @return AUDIT_EWOULDBLOCK the configuration is to be scheduled (cookie
- *                           will be signalled when it is done)
- *         AUDIT_FAILED if we failed to update the configuration
+ * @return true if success (and the cookie will be signalled when reconfigure
+ *              is complete)
  */
-AUDIT_ERROR_CODE configure_auditdaemon(Audit& handle,
-                                       const char* config,
-                                       const void* cookie);
+bool configure_auditdaemon(Audit& handle,
+                           const std::string& config,
+                           gsl::not_null<const void*> cookie);
 
 /**
  * Put an audit event into the audit trail
  *
  * @param audit_eventid The identifier for the event to insert
  * @param payload the JSON encoded payload to insert to the audit trail
- * @return AUDIT_SUCCESS if the event was successfully added to the audit
- *                       queue (may be dropped at a later time)
- *         AUDIT_FAILED if an error occured while trying to insert the
- *                      event to the audit queue.
+ * @return true if the event was successfully added to the audit
+ *              queue (may be dropped at a later time)
+ *         false if an error occurred while trying to insert the
+ *               event to the audit queue.
  */
-AUDIT_ERROR_CODE put_audit_event(Audit& handle,
-                                 uint32_t audit_eventid,
-                                 cb::const_char_buffer payload);
+bool put_audit_event(Audit& handle,
+                     uint32_t audit_eventid,
+                     cb::const_char_buffer payload);
 
 /**
  * method called from the core to collect statistics information from

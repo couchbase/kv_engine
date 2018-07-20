@@ -105,17 +105,14 @@ protected:
         // notify_io_complete unless it's set to a non-null value..
         // just pass on the ready variable
         const void* cookie = (const void*)&ready;
-        switch (configure_auditdaemon(*auditHandle, fname.c_str(), cookie)) {
-        case AUDIT_SUCCESS:
-            break;
-        case AUDIT_EWOULDBLOCK: {
-            // we have to wait
-            std::unique_lock<std::mutex> lk(mutex);
-            cond.wait(lk, [] { return ready; });
-        }
+        if (configure_auditdaemon(*auditHandle, fname, cookie)) {
+            {
+                // we have to wait
+                std::unique_lock<std::mutex> lk(mutex);
+                cond.wait(lk, [] { return ready; });
+            }
             ready = false;
-            break;
-        default:
+        } else {
             std::cerr << "initialize audit daemon: FAILED" << std::endl;
             exit(EXIT_FAILURE);
         };

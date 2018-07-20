@@ -138,30 +138,22 @@ std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
     return holder;
 }
 
-AUDIT_ERROR_CODE configure_auditdaemon(Audit& handle,
-                                       const char* config,
-                                       const void* cookie) {
-    if (cookie == nullptr) {
-        throw std::invalid_argument(
-            "configure_auditdaemon: cookie can't be nullptr");
-    }
-    if (handle.add_reconfigure_event(config, cookie)) {
-        return AUDIT_EWOULDBLOCK;
-    } else {
-        return AUDIT_FAILED;
-    }
+bool configure_auditdaemon(Audit& handle,
+                           const std::string& config,
+                           gsl::not_null<const void*> cookie) {
+    return handle.add_reconfigure_event(config.c_str(), cookie.get());
 }
 
-AUDIT_ERROR_CODE put_audit_event(Audit& handle,
-                                 uint32_t audit_eventid,
-                                 cb::const_char_buffer payload) {
+bool put_audit_event(Audit& handle,
+                     uint32_t audit_eventid,
+                     cb::const_char_buffer payload) {
     if (handle.config.is_auditd_enabled()) {
         if (!handle.add_to_filleventqueue(
                     audit_eventid, payload.data(), payload.size())) {
-            return AUDIT_FAILED;
+            return false;
         }
     }
-    return AUDIT_SUCCESS;
+    return true;
 }
 
 void AuditDeleter::operator()(Audit* handle) {
