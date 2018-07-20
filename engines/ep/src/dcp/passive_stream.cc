@@ -709,8 +709,18 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
         if (cur_snapshot_type.load() == Snapshot::Disk &&
             vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
-            const auto id = ckptMgr.getOpenCheckpointId() + 1;
-            ckptMgr.checkAndAddNewCheckpoint(id, *vb);
+            // Note: given that for backfill we enqueue mutations into the
+            //     dedicated backfill-queue (not into checkpoint), why do we
+            //     still need to do the following?
+            //     The reason is that we may have a DCP client consuming from
+            //     a replica-vbucket (e.g., View-Engine), and in that case the
+            //     replica-vbucket is the active actor (a Producer).
+            //     We have a check in DcpProducer::streamReq that fails the
+            //     stream-req if (current-checkpoint-id = 0). We have also some
+            //     tests that check that condition.
+            //     The following call sets (current-checkpoint-id  > 0) to mark
+            //     the end of the backfill phase.
+            ckptMgr.checkAndAddNewCheckpoint();
         } else {
             size_t mem_threshold = engine->getEpStats().mem_high_wat.load();
             size_t mem_used =
@@ -718,8 +728,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
             /* We want to add a new replica checkpoint if the mem usage is above
                high watermark (85%) */
             if (mem_threshold < mem_used) {
-                const auto id = ckptMgr.getOpenCheckpointId() + 1;
-                ckptMgr.checkAndAddNewCheckpoint(id, *vb);
+                ckptMgr.checkAndAddNewCheckpoint();
             }
         }
 

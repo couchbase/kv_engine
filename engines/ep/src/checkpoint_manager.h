@@ -322,16 +322,14 @@ public:
      */
     bool hasClosedCheckpointWhichCanBeRemoved() const;
 
-    /**
-     * This method performs the following steps for creating a new checkpoint with a given ID i1:
-     * 1) Check if the checkpoint manager contains any checkpoints with IDs >= i1.
-     * 2) If exists, collapse all checkpoints and set the open checkpoint id to a given ID.
-     * 3) Otherwise, simply create a new open checkpoint with a given ID.
-     * This method is mainly for dealing with rollback events from a producer.
-     * @param id the id of a checkpoint to be created.
-     * @param vbucket vbucket of the checkpoint.
+    /*
+     * Creates a new checkpoint if the following conditions apply:
+     *     - the id of the open checkpoint is > 0 (i.e., the vbucket isn't in
+     *         backfill state)
+     *     - the open checkpoint is not empty
+     * Just updates the open checkpoint id otherwise.
      */
-    void checkAndAddNewCheckpoint(uint64_t id, VBucket& vbucket);
+    void checkAndAddNewCheckpoint();
 
     void setBackfillPhase(uint64_t start, uint64_t end);
 

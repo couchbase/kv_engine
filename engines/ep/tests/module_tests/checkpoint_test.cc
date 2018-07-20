@@ -288,47 +288,6 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
     EXPECT_EQ(0, rc);
 }
 
-TYPED_TEST(CheckpointTest, reset_checkpoint_id) {
-    int i;
-    for (i = 0; i < 10; ++i) {
-        EXPECT_TRUE(this->queueNewItem("key-" + std::to_string(i)));
-    }
-    EXPECT_EQ(10, this->manager->getNumOpenChkItems());
-    EXPECT_EQ(10, this->manager->getNumItemsForPersistence());
-
-    EXPECT_EQ(2, this->manager->createNewCheckpoint());
-
-    size_t itemPos;
-    size_t lastMutationId = 0;
-    std::vector<queued_item> items;
-    auto range = this->manager->getAllItemsForPersistence(items);
-    EXPECT_EQ(0, range.start);
-    EXPECT_EQ(1010, range.end);
-    EXPECT_EQ(13, items.size());
-    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
-    // Check that the next 10 items are all SET operations.
-    for(itemPos = 1; itemPos < 11; ++itemPos) {
-        queued_item qi = items.at(itemPos);
-        EXPECT_EQ(queue_op::mutation, qi->getOperation());
-        size_t mid = qi->getBySeqno();
-        EXPECT_GT(mid, lastMutationId);
-        lastMutationId = qi->getBySeqno();
-    }
-
-    // Check that the following items are checkpoint end, followed by a
-    // checkpoint start.
-    EXPECT_EQ(queue_op::checkpoint_end, items.at(11)->getOperation());
-    EXPECT_EQ(queue_op::checkpoint_start, items.at(12)->getOperation());
-
-    items.clear();
-
-    this->manager->checkAndAddNewCheckpoint(1, *this->vbucket);
-    range = this->manager->getAllItemsForPersistence(items);
-    EXPECT_EQ(1001, range.start);
-    EXPECT_EQ(1010, range.end);
-    EXPECT_EQ(0, items.size());
-}
-
 // Sanity check test fixture
 TYPED_TEST(CheckpointTest, CheckFixture) {
     // Initially have a single cursor (persistence).

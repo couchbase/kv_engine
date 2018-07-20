@@ -1159,67 +1159,56 @@ void CheckpointManager::updateDiskQueueStats(VBucket& vbucket,
     }
 }
 
-void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
-                                                 VBucket& vbucket) {
+void CheckpointManager::checkAndAddNewCheckpoint() {
     LockHolder lh(queueLock);
 
-    // Ignore CHECKPOINT_START message with ID 0 as 0 is reserved for
-    // representing backfill.
-    if (id == 0) {
-        return;
-    }
-    // If the replica receives a checkpoint start message right after backfill
-    // completion, simply set the current open checkpoint id to the one
-    // received from the active vbucket.
+    const auto id = getOpenCheckpointId_UNLOCKED() + 1;
+
+    // If the open checkpoint is the backfill-snapshot (checkpoint-id=0),
+    // then we just update the id of the existing checkpoint and we update
+    // cursors.
+    // Notes:
+    //     - we need this because the (checkpoint-id = 0) is reserved for the
+    //         backfill phase, and any attempt of stream-request to a
+    //         replica-vbucket (e.g., View-Engine) fails if
+    //         (current-checkpoint-id = 0). There are also some PassiveStream
+    //         tests relying on that.
+    //     - an alternative to this is closing the checkpoint and adding a
+    //         new one.
     if (checkpointList.back()->getId() == 0) {
         setOpenCheckpointId_UNLOCKED(id);
         resetCursors(false);
         return;
     }
 
-    auto it = checkpointList.begin();
-    // Check if a checkpoint exists with ID >= id.
-    while (it != checkpointList.end()) {
-        if (id <= (*it)->getId()) {
-            break;
-        }
-        ++it;
+    if ((checkpointList.back()->getId() + 1) < id) {
+        isCollapsedCheckpoint = true;
+        uint64_t oid = getOpenCheckpointId_UNLOCKED();
+        lastClosedCheckpointId = oid > 0 ? (oid - 1) : 0;
+    } else if ((checkpointList.back()->getId() + 1) == id) {
+        isCollapsedCheckpoint = false;
     }
 
-    if (it == checkpointList.end()) {
-        if ((checkpointList.back()->getId() + 1) < id) {
-            isCollapsedCheckpoint = true;
-            uint64_t oid = getOpenCheckpointId_UNLOCKED();
-            lastClosedCheckpointId = oid > 0 ? (oid - 1) : 0;
-        } else if ((checkpointList.back()->getId() + 1) == id) {
-            isCollapsedCheckpoint = false;
-        }
-        if (checkpointList.back()->getState() == CHECKPOINT_OPEN &&
-            checkpointList.back()->getNumItems() == 0) {
-            // If the current open checkpoint doesn't have any items, simply
-            // set its id to
-            // the one from the master node.
-            setOpenCheckpointId_UNLOCKED(id);
-            // Reposition all the cursors in the open checkpoint to the
-            // beginning position so that a checkpoint_start message can be
-            // sent again with the correct id.
-            for (const auto& cit : checkpointList.back()->getCursorNameList()) {
-                if (cit == pCursorName) {
-                    // Persistence cursor
-                    continue;
-                } else { // Dcp/Tap cursors
-                    cursor_index::iterator mit = connCursors.find(cit);
-                    mit->second->currentPos = checkpointList.back()->begin();
-                }
+    if (checkpointList.back()->getState() == CHECKPOINT_OPEN &&
+        checkpointList.back()->getNumItems() == 0) {
+        // If the current open checkpoint doesn't have any items, simply
+        // set its id to
+        // the one from the master node.
+        setOpenCheckpointId_UNLOCKED(id);
+        // Reposition all the cursors in the open checkpoint to the
+        // begining position so that a checkpoint_start message can be
+        // sent again with the correct id.
+        for (const auto& cit : checkpointList.back()->getCursorNameList()) {
+            if (cit == pCursorName) {
+                // Persistence cursor
+                continue;
+            } else { // Dcp/Tap cursors
+                cursor_index::iterator mit = connCursors.find(cit);
+                mit->second->currentPos = checkpointList.back()->begin();
             }
-        } else {
-            addNewCheckpoint_UNLOCKED(id);
         }
     } else {
-        size_t curr_remains = getNumItemsForCursor_UNLOCKED(persistenceCursor);
-        collapseCheckpoints(id);
-        size_t new_remains = getNumItemsForCursor_UNLOCKED(persistenceCursor);
-        updateDiskQueueStats(vbucket, curr_remains, new_remains);
+        addNewCheckpoint_UNLOCKED(id);
     }
 }
 
