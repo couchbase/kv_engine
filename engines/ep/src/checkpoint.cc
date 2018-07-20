@@ -127,14 +127,6 @@ void Checkpoint::setState_UNLOCKED(checkpoint_state state) {
     checkpointState = state;
 }
 
-void Checkpoint::popBackCheckpointEndItem() {
-    if (!toWrite.empty() &&
-        toWrite.back()->getOperation() == queue_op::checkpoint_end) {
-        metaKeyIndex.erase(toWrite.back()->getKey());
-        toWrite.pop_back();
-    }
-}
-
 bool Checkpoint::keyExists(const DocKey& key) {
     return keyIndex.find(key) != keyIndex.end();
 }

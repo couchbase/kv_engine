@@ -459,8 +459,6 @@ protected:
 
     void collapseClosedCheckpoints(CheckpointList& collapsedChks);
 
-    void collapseCheckpoints(uint64_t id);
-
     void resetCursors(bool resetPersistenceCursor = true);
 
     void putCursorsInCollapsedChk(CursorIdToPositionMap& cursors,

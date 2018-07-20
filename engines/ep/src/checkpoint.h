@@ -383,8 +383,6 @@ public:
      */
     void setState_UNLOCKED(checkpoint_state state);
 
-    void popBackCheckpointEndItem();
-
     /**
      * Return the number of cursors that are currently walking through this checkpoint.
      */

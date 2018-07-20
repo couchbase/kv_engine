@@ -1212,59 +1212,6 @@ void CheckpointManager::checkAndAddNewCheckpoint() {
     }
 }
 
-void CheckpointManager::collapseCheckpoints(uint64_t id) {
-    if (checkpointList.empty()) {
-        throw std::logic_error("CheckpointManager::collapseCheckpoints: "
-                        "checkpointList is empty");
-    }
-
-    CursorIdToPositionMap cursorMap;
-    for (const auto itr : connCursors) {
-        const bool isMetaItem =
-                (*(itr.second->currentPos))->isCheckPointMetaItem();
-        const bool cursor_on_chk_start =
-                (*(itr.second->currentPos))->getOperation() ==
-                queue_op::checkpoint_start;
-
-        auto& chk = *(itr.second->currentCheckpoint);
-        auto key = (*(itr.second->currentPos))->getKey();
-        cursorMap[itr.first] = CursorPosition{chk->getMutationIdForKey(key, isMetaItem),
-                                              cursor_on_chk_start};
-    }
-
-    setOpenCheckpointId_UNLOCKED(id);
-
-    auto rit = checkpointList.rbegin();
-    ++rit; // Move to the last closed checkpoint.
-    size_t numDuplicatedItems = 0, numMetaItems = 0;
-    // Collapse all checkpoints.
-    for (; rit != checkpointList.rend(); ++rit) {
-        size_t numAddedItems = checkpointList.back()->
-                               mergePrevCheckpoint((*rit).get());
-        numDuplicatedItems += ((*rit)->getNumItems() - numAddedItems);
-        numMetaItems += (*rit)->getNumMetaItems();
-        (*rit).reset();
-    }
-    numItems.fetch_sub(numDuplicatedItems + numMetaItems);
-
-    if (checkpointList.size() > 1) {
-        checkpointList.erase(checkpointList.begin(), --checkpointList.end());
-    }
-
-    if (checkpointList.size() != 1) {
-        throw std::logic_error("CheckpointManager::collapseCheckpoints: "
-                "checkpointList.size (which is" +
-                std::to_string(checkpointList.size()) + " is not 1");
-    }
-
-    if (checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
-        checkpointList.back()->popBackCheckpointEndItem();
-        --numItems;
-        checkpointList.back()->setState(CHECKPOINT_OPEN);
-    }
-    putCursorsInCollapsedChk(cursorMap, checkpointList.begin());
-}
-
 void CheckpointManager::putCursorsInCollapsedChk(
         CursorIdToPositionMap& cursors, const CheckpointList::iterator chkItr) {
     size_t i;
