@@ -55,6 +55,5 @@ INSTANTIATE_TYPED_TEST_CASE_P(CouchstoreOpsTest,
  * registering BufferedWrappedOpsTest in wrapped_fileops_test.h
  */
 INSTANTIATE_TYPED_TEST_CASE_P(CouchstoreOpsTest,
-    BufferedWrappedOpsTest,
-    testing::Types<>
-);
+                              BufferedWrappedOpsTest,
+                              testing::Types<>);
