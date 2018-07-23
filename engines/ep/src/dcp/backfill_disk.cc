@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include "dcp/active_stream.h"
+#include "dcp/active_stream_impl.h"
 #include "dcp/backfill_disk.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
@@ -198,11 +198,11 @@ backfill_status_t DCPBackfillDisk::create() {
             engine.getKVBucket()->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
-        stream->log(EXTENSION_LOG_NOTICE,
-                    "(vb %d) Rescheduling backfill"
-                    "because backfill up to seqno %" PRIu64
+        stream->log(spdlog::level::level_enum::info,
+                    "(vb:{}) Rescheduling backfill"
+                    "because backfill up to seqno {}"
                     " is needed but only up to "
-                    "%" PRIu64 " is persisted",
+                    "{} is persisted",
                     vbid,
                     endSeqno,
                     lastPersistedSeqno);
@@ -252,7 +252,7 @@ backfill_status_t DCPBackfillDisk::create() {
             log << "vb not found!!";
         }
 
-        stream->log(EXTENSION_LOG_WARNING, "%s", log.str().c_str());
+        stream->log(spdlog::level::level_enum::warn, "{}", log.str());
         stream->setDead(status);
         transitionState(backfill_state_done);
     } else {
@@ -308,10 +308,10 @@ backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
 
     stream->completeBackfill();
 
-    EXTENSION_LOG_LEVEL severity =
-            cancelled ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
+    auto severity = cancelled ? spdlog::level::level_enum::info
+                              : spdlog::level::level_enum::debug;
     stream->log(severity,
-                "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64 ") %s",
+                "(vb:{}) Backfill task ({} to {}) {}",
                 vbid,
                 startSeqno,
                 endSeqno,

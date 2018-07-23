@@ -27,6 +27,11 @@
 
 #include <memory>
 
+const std::string passiveStreamLoggingPrefix =
+        "DCP (Consumer): **Deleted "
+        "conn**";
+std::unique_ptr<BucketLogger> globalPassiveStreamBucketLogger;
+
 PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              std::shared_ptr<DcpConsumer> c,
                              const std::string& name,
@@ -56,6 +61,11 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_end(0),
       cur_snapshot_type(Snapshot::None),
       cur_snapshot_ack(false) {
+    if (!globalPassiveStreamBucketLogger) {
+        globalPassiveStreamBucketLogger = std::make_unique<BucketLogger>();
+        globalPassiveStreamBucketLogger->prefix = passiveStreamLoggingPrefix;
+    }
+
     LockHolder lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
@@ -65,10 +75,9 @@ PassiveStream::~PassiveStream() {
     uint32_t unackedBytes = clearBuffer_UNLOCKED();
     if (state_ != StreamState::Dead) {
         // Destructed a "live" stream, log it.
-        log(EXTENSION_LOG_NOTICE,
-            "(vb %" PRId16
-            ") Destructing stream."
-            " last_seqno is %" PRIu64 ", unAckedBytes is %" PRIu32 ".",
+        log(spdlog::level::level_enum::info,
+            "(vb:{}) Destructing stream."
+            " last_seqno is {}, unAckedBytes is {}.",
             vb_,
             last_seqno.load(),
             unackedBytes);
@@ -97,14 +106,11 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
     const char* type = (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER)
                                ? "takeover stream"
                                : "stream";
-    log(EXTENSION_LOG_NOTICE,
-        "(vb %" PRId16 ") Attempting to add %s: opaque_:%" PRIu32
-        ", "
-        "start_seqno_:%" PRIu64 ", end_seqno_:%" PRIu64
-        ", "
-        "vb_uuid:%" PRIu64 ", snap_start_seqno_:%" PRIu64
-        ", "
-        "snap_end_seqno_:%" PRIu64 ", last_seqno:%" PRIu64,
+    log(spdlog::level::level_enum::info,
+        "(vb:{}) Attempting to add {}: opaque_:{}, "
+        "start_seqno_:{}, end_seqno_:{}, "
+        "vb_uuid:{}, snap_start_seqno_:{}, "
+        "snap_end_seqno_:{}, last_seqno:{}",
         vb_,
         type,
         opaque_,
@@ -130,14 +136,13 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
     }
 
     if (killed) {
-        EXTENSION_LOG_LEVEL logLevel = EXTENSION_LOG_NOTICE;
+        auto severity = spdlog::level::level_enum::info;
         if (END_STREAM_DISCONNECTED == status) {
-            logLevel = EXTENSION_LOG_WARNING;
+            severity = spdlog::level::level_enum::warn;
         }
-        log(logLevel,
-            "(vb %" PRId16
-            ") Setting stream to dead state, last_seqno is %" PRIu64
-            ", unAckedBytes is %" PRIu32 ", status is %s",
+        log(severity,
+            "(vb:{}) Setting stream to dead state, last_seqno is {}, "
+            "unAckedBytes is {}, status is {}",
             vb_,
             last_seqno.load(),
             unackedBytes,
@@ -176,10 +181,9 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
     start_seqno_ = info.start;
     snap_end_seqno_ = info.range.end;
 
-    log(EXTENSION_LOG_NOTICE,
-        "(vb %d) Attempting to reconnect stream with opaque %" PRIu32
-        ", start seq no %" PRIu64 ", end seq no %" PRIu64
-        ", snap start seqno %" PRIu64 ", and snap end seqno %" PRIu64,
+    log(spdlog::level::level_enum::info,
+        "(vb:{}) Attempting to reconnect stream with opaque {}, start seq "
+        "no {}, end seq no {}, snap start seqno {}, and snap end seqno {}",
         vb_,
         new_opaque,
         start_seqno,
@@ -214,12 +218,10 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
     auto seqno = dcpResponse->getBySeqno();
     if (seqno) {
         if (uint64_t(*seqno) <= last_seqno.load()) {
-            log(EXTENSION_LOG_WARNING,
-                "(vb %d) Erroneous (out of sequence) message (%s) received, "
-                "with opaque: %" PRIu32 ", its seqno (%" PRIu64
-                ") is not "
-                "greater than last received seqno (%" PRIu64
-                "); "
+            log(spdlog::level::level_enum::warn,
+                "(vb:{}) Erroneous (out of sequence) message ({}) received, "
+                "with opaque: {}, its seqno ({}) is not "
+                "greater than last received seqno ({}); "
                 "Dropping mutation!",
                 vb_,
                 dcpResponse->to_string(),
@@ -234,13 +236,11 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
         uint64_t snapStart = s->getStartSeqno();
         uint64_t snapEnd = s->getEndSeqno();
         if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
-            log(EXTENSION_LOG_WARNING,
-                "(vb %d) Erroneous snapshot marker received, with "
-                "opaque: %" PRIu32
-                ", its start "
-                "(%" PRIu64 "), and end (%" PRIu64
-                ") are less than last "
-                "received seqno (%" PRIu64 "); Dropping marker!",
+            log(spdlog::level::level_enum::warn,
+                "(vb:{}) Erroneous snapshot marker received, with "
+                "opaque: {}, its start "
+                "({}), and end ({}) are less than last "
+                "received seqno ({}); Dropping marker!",
                 vb_,
                 opaque_,
                 snapStart,
@@ -252,9 +252,8 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
 
     switch (engine->getReplicationThrottle().getStatus()) {
     case ReplicationThrottle::Status::Disconnect:
-        log(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16
-            " Disconnecting the connection as there is "
+        log(spdlog::level::level_enum::warn,
+            "vb:{} Disconnecting the connection as there is "
             "no memory to complete replication",
             vb_);
         return ENGINE_DISCONNECT;
@@ -289,8 +288,8 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
                 break;
             }
             default:
-                log(EXTENSION_LOG_WARNING,
-                    "(vb %d) Unknown event:%d, opaque:%" PRIu32,
+                log(spdlog::level::level_enum::warn,
+                    "(vb:{}) Unknown event:{}, opaque:{}",
                     vb_,
                     int(dcpResponse->getEvent()),
                     opaque_);
@@ -299,9 +298,8 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
 
             if (ret == ENGINE_ENOMEM) {
                 if (engine->getReplicationThrottle().doDisconnectOnNoMem()) {
-                    log(EXTENSION_LOG_WARNING,
-                        "vb:%" PRIu16
-                        " Disconnecting the connection as there is no "
+                    log(spdlog::level::level_enum::warn,
+                        "vb:{} Disconnecting the connection as there is no "
                         "memory to complete replication; process dcp "
                         "event returned no memory",
                         vb_);
@@ -380,11 +378,10 @@ process_items_error_t PassiveStream::processBufferedMessages(
             break;
         }
         default:
-            log(EXTENSION_LOG_WARNING,
+            log(spdlog::level::level_enum::warn,
                 "PassiveStream::processBufferedMessages:"
-                "(vb %" PRIu16
-                ") PassiveStream ignoring "
-                "unknown message type %s",
+                "(vb:{}) PassiveStream ignoring "
+                "unknown message type {}",
                 vb_,
                 response->to_string());
             continue;
@@ -419,9 +416,8 @@ process_items_error_t PassiveStream::processBufferedMessages(
 
     if (failed) {
         if (noMem && engine->getReplicationThrottle().doDisconnectOnNoMem()) {
-            log(EXTENSION_LOG_WARNING,
-                "vb:%" PRIu16
-                " Processor task indicating disconnection as "
+            log(spdlog::level::level_enum::warn,
+                "vb:{} Processor task indicating disconnection as "
                 "there is no memory to complete replication; process dcp "
                 "event returned no memory ",
                 vb_);
@@ -446,12 +442,11 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
 
     if (uint64_t(*mutation->getBySeqno()) < cur_snapshot_start.load() ||
         uint64_t(*mutation->getBySeqno()) > cur_snapshot_end.load()) {
-        log(EXTENSION_LOG_WARNING,
-            "(vb %d) Erroneous mutation [sequence "
+        log(spdlog::level::level_enum::warn,
+            "(vb:{}) Erroneous mutation [sequence "
             "number does not fall in the expected snapshot range : "
-            "{snapshot_start (%" PRIu64 ") <= seq_no (%" PRIu64
-            ") <= "
-            "snapshot_end (%" PRIu64 ")]; Dropping the mutation!",
+            "{snapshot_start ({}) <= seq_no ({}) <= "
+            "snapshot_end ({})]; Dropping the mutation!",
             vb_,
             cur_snapshot_start.load(),
             *mutation->getBySeqno(),
@@ -464,9 +459,9 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     // this check may send us "bad" CAS values, we should regenerate them (which
     // is better than rejecting the data entirely).
     if (!Item::isValidCas(mutation->getItem()->getCas())) {
-        log(EXTENSION_LOG_WARNING,
-            "Invalid CAS (0x%" PRIx64 ") received for mutation {vb:%" PRIu16
-            ", seqno:%" PRId64 "}. Regenerating new CAS",
+        log(spdlog::level::level_enum::warn,
+            "Invalid CAS (0x{}) received for mutation {vb:{}, seqno:{}}. "
+            "Regenerating new CAS",
             mutation->getItem()->getCas(),
             vb_,
             mutation->getItem()->getBySeqno());
@@ -496,12 +491,11 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     }
 
     if (ret != ENGINE_SUCCESS) {
-        log(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16
-            " Got error '%s' while trying to process "
-            "mutation with seqno:%" PRId64,
+        log(spdlog::level::level_enum::warn,
+            "vb:{} Got error '{}' while trying to process "
+            "mutation with seqno:{}",
             vb_,
-            cb::to_string(cb::to_engine_errc(ret)).c_str(),
+            cb::to_string(cb::to_engine_errc(ret)),
             mutation->getItem()->getBySeqno());
     } else {
         handleSnapshotEnd(vb, *mutation->getBySeqno());
@@ -523,12 +517,11 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 
     if (uint64_t(*deletion->getBySeqno()) < cur_snapshot_start.load() ||
         uint64_t(*deletion->getBySeqno()) > cur_snapshot_end.load()) {
-        log(EXTENSION_LOG_WARNING,
-            "(vb %d) Erroneous deletion [sequence "
+        log(spdlog::level::level_enum::warn,
+            "(vb:{}) Erroneous deletion [sequence "
             "number does not fall in the expected snapshot range : "
-            "{snapshot_start (%" PRIu64 ") <= seq_no (%" PRIu64
-            ") <= "
-            "snapshot_end (%" PRIu64 ")]; Dropping the deletion!",
+            "{snapshot_start ({}) <= seq_no ({}) <= "
+            "snapshot_end ({})]; Dropping the deletion!",
             vb_,
             cur_snapshot_start.load(),
             *deletion->getBySeqno(),
@@ -548,9 +541,9 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 
     // MB-17517: Check for the incoming item's CAS validity.
     if (!Item::isValidCas(meta.cas)) {
-        log(EXTENSION_LOG_WARNING,
-            "Invalid CAS (0x%" PRIx64 ") received for deletion {vb:%" PRIu16
-            ", seqno:%" PRId64 "}. Regenerating new CAS",
+        log(spdlog::level::level_enum::warn,
+            "Invalid CAS (0x{}) received for deletion {vb:{}, seqno:{}}. "
+            "Regenerating new CAS",
             meta.cas,
             vb_,
             *deletion->getBySeqno());
@@ -578,12 +571,11 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     }
 
     if (ret != ENGINE_SUCCESS) {
-        log(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16
-            " Got error '%s' while trying to process "
-            "deletion with seqno:%" PRId64,
+        log(spdlog::level::level_enum::warn,
+            "vb:{} Got error '{}' while trying to process "
+            "deletion with seqno:{}",
             vb_,
-            cb::to_string(cb::to_engine_errc(ret)).c_str(),
+            cb::to_string(cb::to_engine_errc(ret)),
             *deletion->getBySeqno());
     } else {
         handleSnapshotEnd(vb, *deletion->getBySeqno());
@@ -619,12 +611,11 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
     }
 
     if (rv != ENGINE_SUCCESS) {
-        log(EXTENSION_LOG_WARNING,
-            "vb:%" PRIu16
-            " Got error '%s' while trying to process "
+        log(spdlog::level::level_enum::warn,
+            "vb:{} Got error '{}' while trying to process "
             "system event",
             vb_,
-            cb::to_string(cb::to_engine_errc(rv)).c_str());
+            cb::to_string(cb::to_engine_errc(rv)));
     } else {
         handleSnapshotEnd(vb, *event.getBySeqno());
     }
@@ -827,12 +818,12 @@ uint32_t PassiveStream::clearBuffer_UNLOCKED() {
 }
 
 bool PassiveStream::transitionState(StreamState newState) {
-    log(EXTENSION_LOG_INFO,
-        "PassiveStream::transitionState: (vb %d) "
-        "Transitioning from %s to %s",
+    log(spdlog::level::level_enum::debug,
+        "PassiveStream::transitionState: (vb:{}) "
+        "Transitioning from {} to {}",
         vb_,
-        to_string(state_.load()).c_str(),
-        to_string(newState).c_str());
+        to_string(state_.load()),
+        to_string(newState));
 
     if (state_ == newState) {
         return false;
@@ -894,22 +885,6 @@ std::string PassiveStream::getEndStreamStatusStr(end_stream_status_t status) {
                        "; this should not have happened!"};
 }
 
-void PassiveStream::log(EXTENSION_LOG_LEVEL severity,
-                        const char* fmt,
-                        ...) const {
-    va_list va;
-    va_start(va, fmt);
-    auto consumer = consumerPtr.lock();
-    if (consumer) {
-        consumer->getLogger().vlog(severity, fmt, va);
-    } else {
-        static Logger defaultLogger =
-                Logger("DCP (Consumer): **Deleted conn**");
-        defaultLogger.vlog(severity, fmt, va);
-    }
-    va_end(va);
-}
-
 void PassiveStream::notifyStreamReady() {
     auto consumer = consumerPtr.lock();
     if (!consumer) {
@@ -919,5 +894,17 @@ void PassiveStream::notifyStreamReady() {
     bool inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
         consumer->notifyStreamReady(vb_);
+    }
+}
+
+template <typename... Args>
+void PassiveStream::log(spdlog::level::level_enum severity,
+                        const char* fmt,
+                        Args... args) const {
+    auto consumer = consumerPtr.lock();
+    if (consumer) {
+        consumer->getLogger().log(severity, fmt, args...);
+    } else {
+        globalPassiveStreamBucketLogger->log(severity, fmt, args...);
     }
 }

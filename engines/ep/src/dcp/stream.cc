@@ -55,10 +55,16 @@ const std::string to_string(Stream::Type type) {
 
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
 
-Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
-               uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
-               uint64_t vb_uuid, uint64_t snap_start_seqno,
-               uint64_t snap_end_seqno, Type type)
+Stream::Stream(const std::string& name,
+               uint32_t flags,
+               uint32_t opaque,
+               uint16_t vb,
+               uint64_t start_seqno,
+               uint64_t end_seqno,
+               uint64_t vb_uuid,
+               uint64_t snap_start_seqno,
+               uint64_t snap_end_seqno,
+               Type type)
     : name_(name),
       flags_(flags),
       opaque_(opaque),

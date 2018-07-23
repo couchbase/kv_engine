@@ -96,7 +96,12 @@ public:
 
     uint64_t getLastSentSeqno() const;
 
-    void log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const override;
+    // Defined in active_stream_impl.h to remove the need to include the
+    // producer header here
+    template <typename... Args>
+    void log(spdlog::level::level_enum severity,
+             const char* fmt,
+             Args... args) const;
 
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
@@ -265,8 +270,8 @@ private:
      *
      * @return log level
      */
-    EXTENSION_LOG_LEVEL getTransitionStateLogLevel(StreamState currState,
-                                                   StreamState newState);
+    spdlog::level::level_enum getTransitionStateLogLevel(StreamState currState,
+                                                         StreamState newState);
 
     /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */

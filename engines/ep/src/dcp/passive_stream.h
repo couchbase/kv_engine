@@ -18,9 +18,11 @@
 #include "dcp/response.h"
 #include "dcp/stream.h"
 #include "locks.h"
+#include "spdlog/common.h"
 
 #include <memcached/engine_error.h>
 
+class BucketLogger;
 class ChangeSeparatorCollectionEvent;
 class CreateOrDeleteCollectionEvent;
 class EventuallyPersistentEngine;
@@ -131,7 +133,10 @@ protected:
      */
     void streamRequest_UNLOCKED(uint64_t vb_uuid);
 
-    void log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const override;
+    template <typename... Args>
+    void log(spdlog::level::level_enum severity,
+             const char* fmt,
+             Args... args) const;
 
     /**
      * Notifies the consumer connection that the stream has items ready to be

@@ -23,6 +23,11 @@
 #include "locks.h"
 #include "vbucket.h"
 
+const std::string notifierStreamLoggingPrefix =
+        "DCP (Notifier): **Deleted "
+        "conn**";
+std::unique_ptr<BucketLogger> globalNotifierStreamBucketLogger;
+
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
                                std::shared_ptr<DcpProducer> p,
                                const std::string& name,
@@ -45,6 +50,11 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
              snap_end_seqno,
              Type::Notifier),
       producerPtr(p) {
+    if (!globalNotifierStreamBucketLogger) {
+        globalNotifierStreamBucketLogger = std::make_unique<BucketLogger>();
+        globalNotifierStreamBucketLogger->prefix = notifierStreamLoggingPrefix;
+    }
+
     LockHolder lh(streamMutex);
     VBucketPtr vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
@@ -53,10 +63,9 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
         transitionState(StreamState::Dead);
         itemsReady.store(true);
     }
-
-    p->getLogger().log(EXTENSION_LOG_NOTICE,
-                       "(vb %d) stream created with start seqno %" PRIu64
-                       " and end seqno %" PRIu64,
+    p->getLogger().log(spdlog::level::level_enum::info,
+                       "(vb:{}) stream created with start seqno {} and "
+                       "end seqno {}",
                        vb,
                        st_seqno,
                        en_seqno);
@@ -104,12 +113,12 @@ std::unique_ptr<DcpResponse> NotifierStream::next() {
 }
 
 void NotifierStream::transitionState(StreamState newState) {
-    log(EXTENSION_LOG_INFO,
-        "NotifierStream::transitionState: (vb %d) "
-        "Transitioning from %s to %s",
+    log(spdlog::level::level_enum::debug,
+        "NotifierStream::transitionState: (vb:{}) "
+        "Transitioning from {} to {}",
         vb_,
-        to_string(state_.load()).c_str(),
-        to_string(newState).c_str());
+        to_string(state_.load()),
+        to_string(newState));
 
     if (state_ == newState) {
         return;
@@ -148,22 +157,6 @@ void NotifierStream::addStats(ADD_STAT add_stat, const void* c) {
     Stream::addStats(add_stat, c);
 }
 
-void NotifierStream::log(EXTENSION_LOG_LEVEL severity,
-                         const char* fmt,
-                         ...) const {
-    va_list va;
-    va_start(va, fmt);
-    auto producer = producerPtr.lock();
-    if (producer) {
-        producer->getLogger().vlog(severity, fmt, va);
-    } else {
-        static Logger defaultLogger =
-                Logger("DCP (Notifier): **Deleted conn**");
-        defaultLogger.vlog(severity, fmt, va);
-    }
-    va_end(va);
-}
-
 void NotifierStream::notifyStreamReady() {
     auto producer = producerPtr.lock();
     if (!producer) {
@@ -173,5 +166,17 @@ void NotifierStream::notifyStreamReady() {
     bool inverse = false;
     if (itemsReady.compare_exchange_strong(inverse, true)) {
         producer->notifyStreamReady(vb_);
+    }
+}
+
+template <typename... Args>
+void NotifierStream::log(spdlog::level::level_enum severity,
+                         const char* fmt,
+                         Args... args) const {
+    auto producer = producerPtr.lock();
+    if (producer) {
+        producer->getLogger().log(severity, fmt, args...);
+    } else {
+        globalNotifierStreamBucketLogger->log(severity, fmt, args...);
     }
 }

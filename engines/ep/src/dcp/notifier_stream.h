@@ -18,6 +18,9 @@
 #pragma once
 
 #include "dcp/stream.h"
+#include "spdlog/common.h"
+
+class BucketLogger;
 
 class NotifierStream : public Stream {
 public:
@@ -44,7 +47,10 @@ public:
 private:
     void transitionState(StreamState newState);
 
-    void log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const override;
+    template <typename... Args>
+    void log(spdlog::level::level_enum severity,
+             const char* fmt,
+             Args... args) const;
 
     /**
      * Notifies the producer connection that the stream has items ready to be

@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#include "dcp/active_stream.h"
+#include "dcp/active_stream_impl.h"
 #include "dcp/backfill_memory.h"
 #include "ep_engine.h"
 #include "ephemeral_vb.h"
@@ -190,17 +190,17 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         if (rangeItrOptional) {
             rangeItr = std::move(*rangeItrOptional);
         } else {
-            stream->log(EXTENSION_LOG_INFO,
-                        "vb:%" PRIu16
+            stream->log(spdlog::level::level_enum::debug,
+                        "vb:{}"
                         " Deferring backfill creation as another "
                         "range iterator is already on the sequence list",
                         getVBucketId());
             return backfill_snooze;
         }
     } catch (const std::bad_alloc&) {
-        stream->log(EXTENSION_LOG_WARNING,
+        stream->log(spdlog::level::level_enum::warn,
                     "Alloc error when trying to create a range iterator"
-                    "on the sequence list for (vb %" PRIu16 ")",
+                    "on the sequence list for (vb:{})",
                     getVBucketId());
         /* Try backfilling again later; here we snooze because system has
            hit ENOMEM */
@@ -282,10 +282,10 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             auto hbl = evb->ht.getLockedBucket((*rangeItr).getKey());
             item = (*rangeItr).toItem(false, getVBucketId());
         } catch (const std::bad_alloc&) {
-            stream->log(EXTENSION_LOG_WARNING,
+            stream->log(spdlog::level::level_enum::warn,
                         "Alloc error when trying to create an "
-                        "item copy from hash table. Item seqno:%" PRIi64
-                        ", vb:%" PRIu16,
+                        "item copy from hash table. Item seqno:{}"
+                        ", vb:{}",
                         (*rangeItr).getBySeqno(),
                         getVBucketId());
             /* Try backfilling again later; here we snooze because system has
@@ -300,8 +300,8 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                want to check if other backfills can be run by the
                backfillMgr */
             TRACE_INSTANT1("dcp/backfill", "ScanDefer", "seqno", seqnoDbg);
-            stream->log(EXTENSION_LOG_INFO,
-                        "vb:%" PRIu16 " Deferring backfill at seqno:%" PRIi64
+            stream->log(spdlog::level::level_enum::debug,
+                        "vb:{} Deferring backfill at seqno:{}"
                         "as scan buffer or backfill buffer is full",
                         getVBucketId(),
                         seqnoDbg);
@@ -336,10 +336,10 @@ void DCPBackfillMemoryBuffered::complete(bool cancelled) {
 
     stream->completeBackfill();
 
-    EXTENSION_LOG_LEVEL severity =
-            cancelled ? EXTENSION_LOG_NOTICE : EXTENSION_LOG_INFO;
+    auto severity = cancelled ? spdlog::level::level_enum::info
+                              : spdlog::level::level_enum::debug;
     stream->log(severity,
-                "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64 ") %s",
+                "(vb:{}) Backfill task ({} to {}) {}",
                 getVBucketId(),
                 startSeqno,
                 endSeqno,

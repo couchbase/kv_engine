@@ -31,6 +31,8 @@
 #include <queue>
 #include <string>
 
+#include <spdlog/common.h>
+
 class CheckpointCursor;
 class DcpResponse;
 class EventuallyPersistentEngine;
@@ -58,7 +60,7 @@ public:
            Memory
     };
 
-    Stream(const std::string &name,
+    Stream(const std::string& name,
            uint32_t flags,
            uint32_t opaque,
            uint16_t vb,
@@ -133,7 +135,6 @@ public:
     void clear();
 
 protected:
-
     // The StreamState is protected as it needs to be accessed by sub-classes
     enum class StreamState {
           Pending,
@@ -158,18 +159,6 @@ protected:
     std::unique_ptr<DcpResponse> popFromReadyQ(void);
 
     uint64_t getReadyQueueMemory(void);
-
-    /**
-     * Uses the associated connection logger to log the message if the
-     * connection is alive else uses a default logger
-     *
-     * @param severity Desired logging level
-     * @param fmt Format string
-     * @param ... Variable list of params as per the fmt
-     */
-    virtual void log(EXTENSION_LOG_LEVEL severity,
-                     const char* fmt,
-                     ...) const = 0;
 
     std::string name_;
     uint32_t flags_;

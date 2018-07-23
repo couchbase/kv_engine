@@ -195,7 +195,7 @@ public:
         logger.prefix = header;
     }
 
-    const Logger& getLogger() const;
+    BucketLogger& getLogger();
 
     void releaseReference();
 
@@ -275,8 +275,8 @@ protected:
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
 
-    //! The logger for this connection
-    Logger logger;
+    //! The bucketLogger for this connection
+    BucketLogger logger;
 
 private:
 
