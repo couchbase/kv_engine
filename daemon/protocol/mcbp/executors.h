@@ -37,7 +37,6 @@ void dcp_add_stream_executor(Cookie& cookie);
 void dcp_buffer_acknowledgement_executor(Cookie& cookie);
 void dcp_close_stream_executor(Cookie& cookie);
 void dcp_control_executor(Cookie& cookie);
-void dcp_flush_executor(Cookie& cookie);
 void dcp_get_failover_log_executor(Cookie& cookie);
 void dcp_noop_executor(Cookie& cookie);
 void dcp_open_executor(Cookie& cookie);

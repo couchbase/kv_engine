@@ -1565,16 +1565,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::expiration(
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(
-        gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket) {
-    auto engine = acquireEngine(this);
-    ConnHandler* conn = engine->getConnHandler(cookie);
-    if (conn) {
-        return conn->flushall(opaque, vbucket);
-    }
-    return ENGINE_DISCONNECT;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::set_vbucket_state(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,

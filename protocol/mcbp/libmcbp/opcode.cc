@@ -179,8 +179,6 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "DCP_DELETION";
     case ClientOpcode::DcpExpiration:
         return "DCP_EXPIRATION";
-    case ClientOpcode::DcpFlush:
-        return "DCP_FLUSH";
     case ClientOpcode::DcpSetVbucketState:
         return "DCP_SET_VBUCKET_STATE";
     case ClientOpcode::DcpNoop:

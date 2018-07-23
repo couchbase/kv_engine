@@ -1846,17 +1846,6 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
     return ENGINE_ENOTSUP;
 }
 
-ENGINE_ERROR_CODE Connection::flush(uint32_t opaque, uint16_t vbucket) {
-    protocol_binary_request_dcp_flush packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_FLUSH;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
-
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
-}
-
 ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
                                                 uint16_t vbucket,
                                                 vbucket_state_t state) {

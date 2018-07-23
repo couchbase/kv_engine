@@ -312,8 +312,6 @@ const uint8_t PROTOCOL_BINARY_CMD_DCP_DELETION =
         uint8_t(cb::mcbp::ClientOpcode::DcpDeletion);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_EXPIRATION =
         uint8_t(cb::mcbp::ClientOpcode::DcpExpiration);
-const uint8_t PROTOCOL_BINARY_CMD_DCP_FLUSH =
-        uint8_t(cb::mcbp::ClientOpcode::DcpFlush);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE =
         uint8_t(cb::mcbp::ClientOpcode::DcpSetVbucketState);
 const uint8_t PROTOCOL_BINARY_CMD_DCP_NOOP =
@@ -1764,8 +1762,6 @@ union protocol_binary_request_dcp_expiration {
                getExtrasLength(collectionsAware);
     }
 };
-
-typedef protocol_binary_request_no_extras protocol_binary_request_dcp_flush;
 
 typedef union {
     struct {

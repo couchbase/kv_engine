@@ -289,12 +289,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t,
     return ENGINE_ENOTSUP;
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::flush(uint32_t opaque,
-                                                 uint16_t vbucket) {
-    clear_dcp_data();
-    return ENGINE_ENOTSUP;
-}
-
 ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state(
         uint32_t opaque, uint16_t vbucket, vbucket_state_t state) {
     clear_dcp_data();

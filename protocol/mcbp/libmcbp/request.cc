@@ -80,7 +80,6 @@ bool cb::mcbp::Request::isQuiet() const {
         case ClientOpcode::DcpMutation:
         case ClientOpcode::DcpDeletion:
         case ClientOpcode::DcpExpiration:
-        case ClientOpcode::DcpFlush:
         case ClientOpcode::DcpSetVbucketState:
         case ClientOpcode::DcpNoop:
         case ClientOpcode::DcpBufferAcknowledgement:

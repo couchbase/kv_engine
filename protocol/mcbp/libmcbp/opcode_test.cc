@@ -105,7 +105,6 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::DcpMutation, "DCP_MUTATION"},
          {ClientOpcode::DcpDeletion, "DCP_DELETION"},
          {ClientOpcode::DcpExpiration, "DCP_EXPIRATION"},
-         {ClientOpcode::DcpFlush, "DCP_FLUSH"},
          {ClientOpcode::DcpSetVbucketState, "DCP_SET_VBUCKET_STATE"},
          {ClientOpcode::DcpNoop, "DCP_NOOP"},
          {ClientOpcode::DcpBufferAcknowledgement, "DCP_BUFFER_ACKNOWLEDGEMENT"},

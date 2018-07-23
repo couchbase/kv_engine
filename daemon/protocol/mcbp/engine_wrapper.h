@@ -267,16 +267,6 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
                                 cb::const_byte_buffer meta);
 
 /**
- * Calls the underlying engine DCP flush
- *
- * @param cookie The cookie representing the connection
- * @param opaque The opaque field in the received message
- * @param vbid The vbucket id
- * @return ENGINE_ERROR_CODE
- */
-ENGINE_ERROR_CODE dcpFlush(Cookie& cookie, uint32_t opaque, uint16_t vbid);
-
-/**
  * Calls the underlying engine DCP get-failover-log
  *
  * @param cookie The cookie representing the connection

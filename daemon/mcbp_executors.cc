@@ -589,7 +589,6 @@ void initialize_mbcp_lookup_map() {
             process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] =
             process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_FLUSH] = process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE] =
             process_bin_dcp_response;
     response_handlers[PROTOCOL_BINARY_CMD_DCP_NOOP] = process_bin_dcp_response;
@@ -613,7 +612,6 @@ void initialize_mbcp_lookup_map() {
             dcp_snapshot_marker_executor;
     handlers[PROTOCOL_BINARY_CMD_DCP_DELETION] = dcp_deletion_executor;
     handlers[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] = dcp_expiration_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_FLUSH] = dcp_flush_executor;
     handlers[PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG] =
             dcp_get_failover_log_executor;
     handlers[PROTOCOL_BINARY_CMD_DCP_MUTATION] = dcp_mutation_executor;

@@ -2064,45 +2064,6 @@ TEST_P(DcpExpirationValidatorTest, InvalidBodylen) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-class DcpFlushValidatorTest : public ValidatorTest {
-protected:
-    protocol_binary_response_status validate() {
-        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_DCP_FLUSH,
-                                       static_cast<void*>(&request));
-    }
-};
-
-TEST_F(DcpFlushValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
-}
-
-TEST_F(DcpFlushValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-TEST_F(DcpFlushValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 5;
-    request.message.header.request.bodylen = htonl(5);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-TEST_F(DcpFlushValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 4;
-    request.message.header.request.bodylen = htonl(4);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-TEST_F(DcpFlushValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
-TEST_F(DcpFlushValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-}
-
 class DcpSetVbucketStateValidatorTest : public ValidatorTest {
     void SetUp() override {
         ValidatorTest::SetUp();

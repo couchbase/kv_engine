@@ -686,15 +686,6 @@ ENGINE_ERROR_CODE DcpConsumer::noop(uint32_t opaque) {
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::flush(uint32_t opaque, uint16_t vbucket) {
-    lastMessageTime = ep_current_time();
-    if (doDisconnect()) {
-        return ENGINE_DISCONNECT;
-    }
-
-    return ENGINE_ENOTSUP;
-}
-
 ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {

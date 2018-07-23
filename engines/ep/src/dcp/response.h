@@ -35,7 +35,6 @@ public:
         Mutation,
         Deletion,
         Expiration,
-        Flush,
         SetVbucket,
         StreamReq,
         StreamEnd,
@@ -77,7 +76,6 @@ public:
         case Event::Mutation:
         case Event::Deletion:
         case Event::Expiration:
-        case Event::Flush:
             return false;
 
         case Event::SetVbucket:

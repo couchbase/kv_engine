@@ -44,8 +44,6 @@ const char* DcpResponse::to_string() const {
         return "deletion";
     case Event::Expiration:
         return "expiration";
-    case Event::Flush:
-        return "flush";
     case Event::SetVbucket:
         return "set vbucket";
     case Event::StreamReq:

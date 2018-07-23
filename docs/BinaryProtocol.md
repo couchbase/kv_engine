@@ -350,7 +350,7 @@ information about a given command.
 | 0x57 | Dcp mutation |
 | 0x58 | Dcp deletion |
 | 0x59 | Dcp expiration |
-| 0x5a | Dcp flush |
+| 0x5a | UNUSED (was Dcp flush) |
 | 0x5b | Dcp set vbucket state |
 | 0x5c | Dcp noop |
 | 0x5d | Dcp buffer acknowledgement |

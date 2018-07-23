@@ -189,17 +189,6 @@ struct dcp_message_producers {
                                          uint8_t collection_len) = 0;
 
     /**
-     * Send a flush for a single vbucket
-     *
-     * @param opaque this is the opaque requested by the consumer
-     *               in the Stream Request message
-     * @param vbucket the vbucket id the message belong to
-     *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
-     */
-    virtual ENGINE_ERROR_CODE flush(uint32_t opaque, uint16_t vbucket) = 0;
-
-    /**
      * Send a state transition for a vbucket
      *
      * @param opaque this is the opaque requested by the consumer
@@ -540,13 +529,6 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          cb::const_byte_buffer meta) = 0;
-
-    /**
-     * Callback to the engine that a flush message was received
-     */
-    virtual ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie,
-                                    uint32_t opaque,
-                                    uint16_t vbucket) = 0;
 
     /**
      * Callback to the engine that a set vbucket state message was received

@@ -390,20 +390,6 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_flush_validator(const Cookie& cookie)
-{
-    auto req = static_cast<protocol_binary_request_dcp_flush*>(
-            cookie.getPacketAsVoidPtr());
-    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 0 ||
-        req->message.header.request.keylen != 0 ||
-        req->message.header.request.bodylen != 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    }
-    return verify_common_dcp_restrictions(cookie);
-}
-
 static protocol_binary_response_status dcp_set_vbucket_state_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_set_vbucket_state*>(
@@ -1339,7 +1325,6 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_snapshot_marker_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_deletion_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_EXPIRATION, dcp_expiration_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_FLUSH, dcp_flush_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG, dcp_get_failover_log_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_mutation_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_set_vbucket_state_validator);

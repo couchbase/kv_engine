@@ -2399,10 +2399,6 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for noop";
     consumer->setLastMessageTime(1234);
-    consumer->flush(/*opaque*/0, /*vbucket*/0);
-    EXPECT_NE(1234, consumer->getLastMessageTime())
-        << "lastMessagerTime not updated for flush";
-    consumer->setLastMessageTime(1234);
     consumer->setVBucketState(/*opaque*/0,
                               /*vbucket*/0,
                               /*state*/vbucket_state_active);

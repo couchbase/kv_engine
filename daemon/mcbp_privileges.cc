@@ -155,7 +155,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_DCP_MUTATION, require<Privilege::DcpConsumer>);
     setup(PROTOCOL_BINARY_CMD_DCP_DELETION, require<Privilege::DcpConsumer>);
     setup(PROTOCOL_BINARY_CMD_DCP_EXPIRATION, require<Privilege::DcpConsumer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_FLUSH, require<Privilege::DcpConsumer>);
     setup(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, require<Privilege::DcpConsumer>);
     setup(PROTOCOL_BINARY_CMD_DCP_NOOP, empty);
     setup(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT, empty);

@@ -313,12 +313,6 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
-    ENGINE_ERROR_CODE flush(gsl::not_null<const void*>,
-                            uint32_t,
-                            uint16_t) override {
-        return ENGINE_NO_BUCKET;
-    }
-
     ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*>,
                                         uint32_t,
                                         uint16_t,

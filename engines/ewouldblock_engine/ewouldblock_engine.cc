@@ -776,10 +776,6 @@ public:
                                  uint64_t rev_seqno,
                                  cb::const_byte_buffer meta) override;
 
-    ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie,
-                            uint32_t opaque,
-                            uint16_t vbucket) override;
-
     ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
                                         uint32_t opaque,
                                         uint16_t vbucket,
@@ -1530,16 +1526,6 @@ ENGINE_ERROR_CODE EWB_Engine::expiration(gsl::not_null<const void*> cookie,
                                            by_seqno,
                                            rev_seqno,
                                            meta);
-    }
-}
-
-ENGINE_ERROR_CODE EWB_Engine::flush(gsl::not_null<const void*> cookie,
-                                    uint32_t opaque,
-                                    uint16_t vbucket) {
-    if (!real_engine_dcp) {
-        return ENGINE_ENOTSUP;
-    } else {
-        return real_engine_dcp->flush(cookie, opaque, vbucket);
     }
 }
 

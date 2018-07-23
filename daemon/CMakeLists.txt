@@ -103,7 +103,6 @@ ADD_LIBRARY(memcached_daemon STATIC
             protocol/mcbp/dcp_deletion.h
             protocol/mcbp/dcp_expiration.cc
             protocol/mcbp/dcp_expiration.h
-            protocol/mcbp/dcp_flush_executor.cc
             protocol/mcbp/dcp_get_failover_log_executor.cc
             protocol/mcbp/dcp_mutation.cc
             protocol/mcbp/dcp_mutation.h

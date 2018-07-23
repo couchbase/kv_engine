@@ -144,8 +144,6 @@ public:
                                              uint64_t end_seqno,
                                              uint32_t flags);
 
-    virtual ENGINE_ERROR_CODE flushall(uint32_t opaque, uint16_t vbucket);
-
     virtual ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
                                               vbucket_state_t state);
 

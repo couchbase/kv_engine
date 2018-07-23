@@ -476,18 +476,6 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE dcpFlush(Cookie& cookie, uint32_t opaque, uint16_t vbucket) {
-    auto& connection = cookie.getConnection();
-    auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->flush(&cookie, opaque, vbucket);
-    if (ret == ENGINE_DISCONNECT) {
-        LOG_WARNING("{}: {} dcp.flush returned ENGINE_DISCONNECT",
-                    connection.getId(),
-                    connection.getDescription());
-    }
-    return ret;
-}
-
 ENGINE_ERROR_CODE dcpGetFailoverLog(Cookie& cookie,
                                     uint32_t opaque,
                                     uint16_t vbucket,
