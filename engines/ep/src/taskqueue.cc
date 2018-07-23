@@ -217,9 +217,8 @@ void TaskQueue::_schedule(ExTask &task) {
 
         futureQueue.push(task);
 
-        EP_LOG_DEBUG("{}: Schedule a task \"{}*s\" id {}",
+        EP_LOG_DEBUG("{}: Schedule a task \"{}\" id {}",
                      name,
-                     task->getDescription().size(),
                      task->getDescription(),
                      task->getId());
 
@@ -244,9 +243,8 @@ void TaskQueue::_wake(ExTask &task) {
     size_t readyCount = 1;
     {
         LockHolder lh(mutex);
-        EP_LOG_DEBUG("{}: Wake a task \"{}*s\" id {}",
+        EP_LOG_DEBUG("{}: Wake a task \"{}\" id {}",
                      name,
-                     task->getDescription().size(),
                      task->getDescription(),
                      task->getId());
 

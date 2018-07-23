@@ -125,21 +125,19 @@ void ExecutorThread::run() {
                 scheduleOverhead > std::chrono::seconds(1)) {
                 auto description = currentTask->getDescription();
                 EP_LOG_WARN(
-                        "Slow scheduling for NON_IO task '{}*s' on thread {}. "
+                        "Slow scheduling for NON_IO task '{}' on thread {}. "
                         "Schedule overhead: {}",
-                        int(description.size()),
-                        description.data(),
+                        description,
                         getName(),
                         cb::time2text(scheduleOverhead));
             }
             updateTaskStart();
 
             const auto curTaskDescr = currentTask->getDescription();
-            EP_LOG_DEBUG("{}: Run task \"{}*s\" id {}",
+            EP_LOG_DEBUG("{}: Run task \"{}\" id {}",
                          getName(),
-                         int(curTaskDescr.size()),
-                         curTaskDescr.data(),
-                         uint64_t(currentTask->getId()));
+                         curTaskDescr,
+                         currentTask->getId());
 
             // Now Run the Task ....
             currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
@@ -157,9 +155,8 @@ void ExecutorThread::run() {
             // so the bucket name is included in the Log message.
             if (runtime > currentTask->maxExpectedDuration()) {
                 auto description = currentTask->getDescription();
-                EP_LOG_WARN("Slow runtime for '{}*s' on thread {}: {}",
-                            int(description.size()),
-                            description.data(),
+                EP_LOG_WARN("Slow runtime for '{}' on thread {}: {}",
+                            description,
                             getName(),
                             cb::time2text(runtime));
             }
@@ -181,10 +178,9 @@ void ExecutorThread::run() {
                 }
                 EP_LOG_DEBUG(
                         "{}: Reschedule a task"
-                        " \"{}*s\" id {}[{} {} |{}]",
+                        " \"{}\" id {}[{} {} |{}]",
                         name,
-                        int(curTaskDescr.size()),
-                        curTaskDescr.data(),
+                        curTaskDescr,
                         currentTask->getId(),
                         to_ns_since_epoch(new_waketime).count(),
                         to_ns_since_epoch(currentTask->getWaketime()).count(),

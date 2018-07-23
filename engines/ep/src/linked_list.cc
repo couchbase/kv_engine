@@ -503,9 +503,8 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
     itrRange = SeqRange(currIt->getBySeqno(),
                         list.seqList.back().getBySeqno() + 1);
 
-    spdlog::level::level_enum severity =
-            isBackfill ? spdlog::level::level_enum::info
-                       : spdlog::level::level_enum::debug;
+    auto severity = isBackfill ? spdlog::level::level_enum::info
+                               : spdlog::level::level_enum::debug;
 
     EP_LOG_FMT(severity,
                "vb:{} Created range iterator from {} to {}",
@@ -520,9 +519,8 @@ BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
         /* we must reset the list readRange only if the list iterator still owns
            the read lock on the list */
         list.readRange.reset();
-        spdlog::level::level_enum severity =
-                isBackfill ? spdlog::level::level_enum::info
-                           : spdlog::level::level_enum::debug;
+        auto severity = isBackfill ? spdlog::level::level_enum::info
+                                   : spdlog::level::level_enum::debug;
         EP_LOG_FMT(severity, "vb:{} Releasing the range iterator", list.vbid);
     }
     /* As readLockHolder goes out of scope here, it will automatically release
@@ -571,9 +569,8 @@ void BasicLinkedList::RangeIteratorLL::incrOperatorHelper() {
            iterator client that does not delete the iterator obj will not end up
            holding the list readRange lock forever */
         list.readRange.reset();
-        spdlog::level::level_enum severity =
-                isBackfill ? spdlog::level::level_enum::info
-                           : spdlog::level::level_enum::debug;
+        auto severity = isBackfill ? spdlog::level::level_enum::info
+                                   : spdlog::level::level_enum::debug;
         EP_LOG_FMT(severity, "vb:{} Releasing the range iterator", list.vbid);
         readLockHolder.unlock();
 

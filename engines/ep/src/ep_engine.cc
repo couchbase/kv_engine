@@ -4032,13 +4032,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
             MicrosecondStopwatch(stats.getStatsCmdHisto),
             TracerStopwatch(cookie, cb::tracing::TraceCode::GETSTATS));
 
-    if (stat_key != NULL) {
-        EP_LOG_DEBUG("stats {}*s", nkey, stat_key);
+    const std::string statKey(stat_key, nkey);
+
+    if (statKey.size()) {
+        EP_LOG_DEBUG("stats {}", stat_key);
     } else {
         EP_LOG_DEBUG("stats engine");
     }
-
-    const std::string statKey(stat_key, nkey);
 
     ENGINE_ERROR_CODE rv = ENGINE_KEY_ENOENT;
     if (statKey.empty()) {
