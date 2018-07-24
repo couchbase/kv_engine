@@ -36,6 +36,10 @@ extern "C" {
     }
 }
 
+ExecutorThread::~ExecutorThread() {
+    EP_LOG_INFO("Executor killing {}", name);
+}
+
 void ExecutorThread::start() {
     std::string thread_name("mc:" + getName());
     // Only permitted 15 characters of name; therefore abbreviate thread names.

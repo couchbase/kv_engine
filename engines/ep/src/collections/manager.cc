@@ -22,6 +22,8 @@
 #include "kv_bucket.h"
 #include "vbucket.h"
 
+#include <spdlog/fmt/ostr.h>
+
 Collections::Manager::Manager() {
 }
 
@@ -44,9 +46,10 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                                                    .getConfiguration()
                                                    .getCollectionsMaxSize());
     } catch (std::exception& e) {
-        LOG(EXTENSION_LOG_NOTICE,
-            "Collections::Manager::update can't construct manifest e.what:%s",
-            e.what());
+        EP_LOG_INFO(
+                "Collections::Manager::update can't construct manifest "
+                "e.what:{}",
+                e.what());
         return cb::engine_error(
                 cb::engine_errc::invalid_arguments,
                 "Collections::Manager::update manifest json invalid:" +
@@ -111,19 +114,14 @@ Collections::Filter Collections::Manager::makeFilter(
 // This method is really to aid development and allow the dumping of the VB
 // collection data to the logs.
 void Collections::Manager::logAll(KVBucket& bucket) const {
-    std::stringstream ss;
-    ss << *this;
-    LOG(EXTENSION_LOG_NOTICE, "%s", ss.str().c_str());
+    EP_LOG_INFO("{}", *this);
     for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {
         auto vb = bucket.getVBuckets().getBucket(i);
         if (vb) {
-            std::stringstream vbss;
-            vbss << vb->lockCollections();
-            LOG(EXTENSION_LOG_NOTICE,
-                "vb:%d: %s %s",
-                i,
-                VBucket::toString(vb->getState()),
-                vbss.str().c_str());
+            EP_LOG_INFO("vb:{}: {} {}",
+                        i,
+                        VBucket::toString(vb->getState()),
+                        vb->lockCollections());
         }
     }
 }

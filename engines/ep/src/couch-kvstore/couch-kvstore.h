@@ -28,7 +28,6 @@
 #include "kvstore.h"
 #include "kvstore_priv.h"
 #include "libcouchstore/couch_db.h"
-#include "logger.h"
 #include "monotonic.h"
 
 #include <platform/histogram.h>

@@ -19,6 +19,8 @@
 #define SRC_LOCKS_H_ 1
 
 #include "config.h"
+#include "bucket_logger.h"
+#include "utility.h"
 
 #include <platform/processclock.h>
 #include <platform/rwlock.h>
@@ -29,8 +31,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
-
-#include "utility.h"
 
 using LockHolder = std::lock_guard<std::mutex>;
 
@@ -160,9 +160,9 @@ public:
                                                                       start)
                         .count();
         if (msec > ACQUIRE_MS) {
-            LOG(EXTENSION_LOG_WARNING,
-                "LockHolder<%s> Took too long to acquire lock: %" PRIu64 " ms",
-                name, msec);
+            EP_LOG_WARN("LockHolder<{}> Took too long to acquire lock: {} ms",
+                        name,
+                        msec);
         }
     }
 
@@ -191,8 +191,8 @@ private:
                                                                       acquired)
                         .count();
         if (msec > HELD_MS) {
-            LOG(EXTENSION_LOG_WARNING, "LockHolder<%s> Held lock for too long: "
-                    "%" PRIu64 " ms", name, msec);
+            EP_LOG_WARN(
+                    "LockHolder<{}> Held lock for too long: {} ms", name, msec);
         }
     }
 

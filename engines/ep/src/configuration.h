@@ -26,7 +26,7 @@
 #include <mutex>
 #include <string>
 
-#include "utility.h"
+#include "bucket_logger.h"
 
 /**
  * The value changed listeners runs _without_ the global mutex for
@@ -68,8 +68,8 @@ public:
      * @param value the new value for the key
      */
     virtual void booleanValueChanged(const std::string &key, bool) {
-        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
-            " a boolean value", key.c_str());
+        EP_LOG_DEBUG("Configuration error.. {} does not expect a boolean value",
+                     key);
     }
 
     /**
@@ -78,8 +78,8 @@ public:
      * @param value the new value for the key
      */
     virtual void sizeValueChanged(const std::string &key, size_t) {
-        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
-            " a size value", key.c_str());
+        EP_LOG_DEBUG("Configuration error.. {} does not expect a size value",
+                     key);
     }
 
     /**
@@ -88,8 +88,8 @@ public:
      * @param value the new value for the key
      */
     virtual void ssizeValueChanged(const std::string &key, ssize_t) {
-        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
-            " a size value", key.c_str());
+        EP_LOG_DEBUG("Configuration error.. {} does not expect a size value",
+                     key);
     }
 
     /**
@@ -98,8 +98,10 @@ public:
      * @param value the new value for the key
      */
     virtual void floatValueChanged(const std::string &key, float) {
-        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
-            " a floating point value", key.c_str());
+        EP_LOG_DEBUG(
+                "Configuration error.. {} does not expect a floating point"
+                "value",
+                key);
     }
     /**
      * Callback if when a string configuration value changed
@@ -107,8 +109,8 @@ public:
      * @param value the new value for the key
      */
     virtual void stringValueChanged(const std::string &key, const char *) {
-        LOG(EXTENSION_LOG_DEBUG, "Configuration error.. %s does not expect"
-            " a string value", key.c_str());
+        EP_LOG_DEBUG("Configuration error.. {} does not expect a string value",
+                     key);
     }
 
     virtual ~ValueChangedListener() { /* EMPTY */}
@@ -153,7 +155,7 @@ public:
     virtual void validateBool(const std::string& key, bool) {
         std::string error = "Configuration error.. " + key +
                             " does not take a boolean parameter";
-        LOG(EXTENSION_LOG_DEBUG, "%s", error.c_str());
+        EP_LOG_DEBUG(error);
         throw std::runtime_error(error);
     }
 
@@ -166,7 +168,7 @@ public:
     virtual void validateSize(const std::string& key, size_t) {
         std::string error = "Configuration error.. " + key +
                             " does not take a size_t parameter";
-        LOG(EXTENSION_LOG_DEBUG, "%s", error.c_str());
+        EP_LOG_DEBUG(error);
         throw std::runtime_error(error);
     }
 
@@ -179,7 +181,7 @@ public:
     virtual void validateSSize(const std::string& key, ssize_t) {
         std::string error = "Configuration error.. " + key +
                             " does not take a ssize_t parameter";
-        LOG(EXTENSION_LOG_DEBUG, "%s", error.c_str());
+        EP_LOG_DEBUG(error);
         throw std::runtime_error(error);
     }
 
@@ -192,7 +194,7 @@ public:
     virtual void validateFloat(const std::string& key, float) {
         std::string error = "Configuration error.. " + key +
                             " does not take a float parameter";
-        LOG(EXTENSION_LOG_DEBUG, "%s", error.c_str());
+        EP_LOG_DEBUG(error);
         throw std::runtime_error(error);
     }
 
@@ -205,7 +207,7 @@ public:
     virtual void validateString(const std::string& key, const char*) {
         std::string error = "Configuration error.. " + key +
                             " does not take a string parameter";
-        LOG(EXTENSION_LOG_DEBUG, "%s", error.c_str());
+        EP_LOG_DEBUG(error);
         throw std::runtime_error(error);
     }
 

@@ -95,9 +95,7 @@ public:
           currentTask(NULL) {
     }
 
-    ~ExecutorThread() {
-        LOG(EXTENSION_LOG_INFO, "Executor killing %s", name.c_str());
-    }
+    ~ExecutorThread();
 
     void start(void);
 

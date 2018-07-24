@@ -44,14 +44,7 @@ class Flusher {
 public:
     Flusher(EPBucket* st, KVShard* k);
 
-    ~Flusher() {
-        if (_state != State::Stopped) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Flusher::~Flusher: being destroyed in state %s",
-                stateName(_state));
-            stop(true);
-        }
-    }
+    ~Flusher();
 
     bool stop(bool isForceShutdown = false);
     void wait();

@@ -43,6 +43,4 @@
 
 // Utility functions implemented in various modules.
 
-extern void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) CB_FORMAT_PRINTF(2, 3);
-
 typedef struct engine_allocator_hooks_v1 ALLOCATOR_HOOKS_API;

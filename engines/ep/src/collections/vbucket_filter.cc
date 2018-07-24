@@ -18,6 +18,8 @@
 #include "collections/vbucket_filter.h"
 #include "collections/filter.h"
 #include "collections/vbucket_manifest.h"
+
+#include "bucket_logger.h"
 #include "dcp/response.h"
 #include "statwriter.h"
 
@@ -42,9 +44,9 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
             defaultAllowed = true;
         } else {
             // The VB::Manifest no longer has $default so don't filter it
-            LOG(EXTENSION_LOG_NOTICE,
-                "VB::Filter::Filter: dropping $default as it's not in the "
-                "VB::Manifest");
+            EP_LOG_INFO(
+                    "VB::Filter::Filter: dropping $default as it's not in the "
+                    "VB::Manifest");
         }
     }
 
@@ -55,10 +57,10 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
         } else {
             // The VB::Manifest doesn't have the collection, or the collection
             // is deleted
-            LOG(EXTENSION_LOG_NOTICE,
-                "VB::Filter::Filter: dropping collection:%" PRIx32
-                "as it's not open",
-                uint32_t(collection));
+            EP_LOG_INFO(
+                    "VB::Filter::Filter: dropping collection:{}"
+                    "as it's not open",
+                    collection);
         }
     }
 }
@@ -154,12 +156,12 @@ void Collections::VB::Filter::addStats(ADD_STAT add_stat,
                 buffer, bsize, "%s:filter_%d_size", prefix.c_str(), vb);
         add_casted_stat(buffer, filter.size(), add_stat, c);
     } catch (std::exception& error) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Collections::VB::Filter::addStats: %s:vb:%" PRIu16
-            " exception.what:%s",
-            prefix.c_str(),
-            vb,
-            error.what());
+        EP_LOG_WARN(
+                "Collections::VB::Filter::addStats: {}:vb:{}"
+                " exception.what:{}",
+                prefix,
+                vb,
+                error.what());
     }
 }
 

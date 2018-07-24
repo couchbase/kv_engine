@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include "logger.h"
+#include "bucket_logger.h"
 #include "statwriter.h"
 #include "utility.h"
 

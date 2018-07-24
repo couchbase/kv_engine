@@ -20,11 +20,10 @@
 #include "config.h"
 
 #include "configuration.h"
-#include "logger.h"
 
 #include <string>
 
-class Logger;
+class BucketLogger;
 
 class KVStoreConfig {
 public:

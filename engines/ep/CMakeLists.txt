@@ -365,7 +365,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     ADD_EXECUTABLE(ep-engine_atomic_ptr_test
                    tests/module_tests/atomic_ptr_test.cc
                    src/atomic.cc
-                   src/testlogger.cc)
+            )
     TARGET_LINK_LIBRARIES(ep-engine_atomic_ptr_test platform)
 
     ADD_EXECUTABLE(ep-engine_couch-fs-stats_test

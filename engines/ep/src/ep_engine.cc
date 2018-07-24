@@ -1765,13 +1765,6 @@ bool EventuallyPersistentEngine::isXattrEnabled() {
     return getKVBucket()->isXattrEnabled();
 }
 
-void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
-    va_list va;
-    va_start(va, fmt);
-    global_logger.vlog(severity, fmt, va);
-    va_end(va);
-}
-
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api)
     : kvBucket(nullptr),

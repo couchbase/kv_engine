@@ -27,6 +27,7 @@
 #include "rocksdb-kvstore/rocksdb-kvstore.h"
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
+#include "bucket_logger.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
 #include "persistence_callback.h"

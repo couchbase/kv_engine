@@ -22,6 +22,7 @@
 #include <phosphor/phosphor.h>
 
 #include "access_scanner.h"
+#include "bucket_logger.h"
 #include "ep_time.h"
 #include "hash_table.h"
 #include "kv_bucket.h"

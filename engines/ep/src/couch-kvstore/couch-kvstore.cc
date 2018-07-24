@@ -37,6 +37,7 @@
 #include <utility>
 #include <vector>
 
+#include "bucket_logger.h"
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "ep_types.h"

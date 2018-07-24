@@ -43,7 +43,6 @@ class BucketLogger;
 class Item;
 class KVStore;
 class KVStoreConfig;
-class Logger;
 class PersistenceCallback;
 class RollbackCB;
 class RollbackResult;

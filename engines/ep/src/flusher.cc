@@ -38,6 +38,14 @@ Flusher::Flusher(EPBucket* st, KVShard* k)
       shard(k) {
 }
 
+Flusher::~Flusher() {
+    if (_state != State::Stopped) {
+        EP_LOG_WARN("Flusher::~Flusher: being destroyed in state {}",
+                    stateName(_state));
+        stop(true);
+    }
+}
+
 bool Flusher::stop(bool isForceShutdown) {
     forceShutdownReceived = isForceShutdown;
     State to = forceShutdownReceived ? State::Stopped : State::Stopping;

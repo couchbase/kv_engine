@@ -16,6 +16,7 @@
  */
 
 #include "collections/vbucket_manifest.h"
+
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/manifest.h"
@@ -132,16 +133,15 @@ void Manifest::addCollection(::VBucket& vb,
                                   false /*deleted*/,
                                   optionalSeqno);
 
-    LOG(EXTENSION_LOG_NOTICE,
-        "collections: vb:%" PRIu16 " adding collection:%" PRIx32
-        ", replica:%s,"
-        " backfill:%s, seqno:%" PRId64 ", manifest:%" PRIx64,
-        vb.getId(),
-        uint32_t(identifier),
-        optionalSeqno.is_initialized() ? "true" : "false",
-        vb.isBackfillPhase() ? "true" : "false",
-        seqno,
-        manifestUid);
+    EP_LOG_INFO(
+            "collections: vb:{} adding collection:{}, replica:{}, "
+            "backfill:{}, seqno:{}, manifest:{}",
+            vb.getId(),
+            identifier,
+            optionalSeqno.is_initialized(),
+            vb.isBackfillPhase(),
+            seqno,
+            manifestUid);
 
     // 3. Now patch the entry with the seqno of the system event, note the copy
     //    of the manifest taken at step 1 gets the correct seqno when the system
@@ -204,15 +204,15 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
                                   true /*deleted*/,
                                   optionalSeqno);
 
-    LOG(EXTENSION_LOG_NOTICE,
-        "collections: vb:%" PRIu16 " begin delete of collection:%" PRIx32
-        ", replica:%s, backfill:%s, seqno:%" PRId64 ", manifest:%" PRIx64,
-        vb.getId(),
-        uint32_t(identifier),
-        optionalSeqno.is_initialized() ? "true" : "false",
-        vb.isBackfillPhase() ? "true" : "false",
-        seqno,
-        manifestUid);
+    EP_LOG_INFO(
+            "collections: vb:{} begin delete of collection:{}"
+            ", replica:{}, backfill:{}, seqno:{}, manifest:{}",
+            vb.getId(),
+            identifier,
+            optionalSeqno.is_initialized(),
+            vb.isBackfillPhase(),
+            seqno,
+            manifestUid);
 
     if (identifier.isDefaultCollection()) {
         defaultCollectionExists = false;
@@ -237,10 +237,9 @@ ManifestEntry& Manifest::beginDeleteCollectionEntry(CollectionID identifier) {
 void Manifest::completeDeletion(::VBucket& vb, CollectionID identifier) {
     auto itr = map.find(identifier);
 
-    LOG(EXTENSION_LOG_NOTICE,
-        "collections: vb:%" PRIu16 " complete delete of collection:%" PRIx32,
-        vb.getId(),
-        uint32_t(identifier));
+    EP_LOG_INFO("collections: vb:{} complete delete of collection:{}",
+                vb.getId(),
+                identifier);
 
     if (itr == map.end()) {
         throwException<std::logic_error>(
@@ -285,10 +284,9 @@ Manifest::processResult Manifest::processManifest(
             additions.push_back(m.first);
         } else if (itr->second.isDeleting()) {
             // trying to add a collection which is deleting, not allowed.
-            LOG(EXTENSION_LOG_WARNING,
-                "Attempt to add a deleting collection:%s:%" PRIx32,
-                m.second.c_str(),
-                uint32_t(m.first));
+            EP_LOG_WARN("Attempt to add a deleting collection:{}:{}",
+                        m.second,
+                        m.first);
             return {};
         }
     }

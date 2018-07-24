@@ -20,6 +20,7 @@
 #include "rocksdb-kvstore.h"
 #include "rocksdb-kvstore_config.h"
 
+#include "bucket_logger.h"
 #include "ep_time.h"
 
 #include "kvstore_priv.h"
