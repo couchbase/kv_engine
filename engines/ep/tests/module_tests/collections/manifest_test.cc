@@ -44,11 +44,11 @@ TEST(ManifestTest, validation) {
 
             // valid uid, valid collection uid, no collection name
             R"({"uid":"0",
-                "collections":[{"uid":"1"}]})",
+                "collections":[{"uid":"2"}]})",
 
             // valid name, invalid collection uid (wrong type)
             R"({"uid":"0",
-                "collections":[{"name":"beer", "uid":1}]})",
+                "collections":[{"name":"beer", "uid":2}]})",
 
             // valid name, invalid collection uid (not hex)
             R"({"uid":"0",
@@ -56,42 +56,42 @@ TEST(ManifestTest, validation) {
 
             // invalid name (wrong type), valid uid
             R"({"uid" : "0",
-                "collections":[{"name":1, "uid":"1"}]})",
+                "collections":[{"name":1, "uid":"2"}]})",
 
             // illegal $ prefixed  name
             R"({"uid" : "0",
-             "collections":[{"name":"$beer", "uid":"1"},
+             "collections":[{"name":"$beer", "uid":"3"},
                             {"name":"brewery","uid":"2"}]})",
 
             // illegal _ prefixed  name
             R"({"uid" : "0",
-               "collections":[{"name":"_beer", "uid":"1"},
+               "collections":[{"name":"_beer", "uid":"3"},
                               {"name":"brewery","uid":"2"}]})",
 
-            // duplicate collections
+            // duplicate CID
             R"({"uid" : "0",
-                "collections":[{"name":"beer", "uid":"1"},
-                               {"name":"beer", "uid":"2"}]})",
+                "collections":[{"name":"beer", "uid":"2"},
+                               {"name":"lager", "uid":"2"}]})",
 
             // Invalid manifest UIDs
             // Missing UID
-            R"({"collections":[{"name":"beer", "uid":"1"}]})",
+            R"({"collections":[{"name":"beer", "uid":"2"}]})",
 
             // UID wrong type
             R"({"uid" : 0,
-                "collections":[{"name":"beer", "uid":"1"}]})",
+                "collections":[{"name":"beer", "uid":"2"}]})",
 
             // UID cannot be converted to a value
             R"({"uid" : "thisiswrong",
-                "collections":[{"name":"beer", "uid":"1"}]})",
+                "collections":[{"name":"beer", "uid":"2"}]})",
 
             // UID cannot be converted to a value
             R"({"uid" : "12345678901234567890112111",
-                "collections":[{"name":"beer", "uid":"1"}]})",
+                "collections":[{"name":"beer", "uid":"2}]})",
 
             // UID cannot be 0x prefixed
             R"({"uid" : "0x101",
-                "collections":[{"name":"beer", "uid":"1"}]})",
+                "collections":[{"name":"beer", "uid":"2"}]})",
 
             // collection cid cannot be 1
             R"({"uid" : "101",
@@ -109,7 +109,6 @@ TEST(ManifestTest, validation) {
                                {"name":"beer", "uid":"3"},
                                {"name":"brewery","uid":"2"}]})",
 
-            // beer & brewery have same UID, valid
             R"({"uid" : "0",
                 "collections":[{"name":"$default","uid":"0"},
                                {"name":"beer", "uid":"2"},
