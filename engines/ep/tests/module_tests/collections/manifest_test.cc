@@ -20,6 +20,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cctype>
 #include <limits>
 
 TEST(ManifestTest, validation) {
@@ -63,11 +64,6 @@ TEST(ManifestTest, validation) {
              "collections":[{"name":"$beer", "uid":"3"},
                             {"name":"brewery","uid":"2"}]})",
 
-            // illegal _ prefixed  name
-            R"({"uid" : "0",
-               "collections":[{"name":"_beer", "uid":"3"},
-                              {"name":"brewery","uid":"2"}]})",
-
             // duplicate CID
             R"({"uid" : "0",
                 "collections":[{"name":"beer", "uid":"2"},
@@ -99,18 +95,27 @@ TEST(ManifestTest, validation) {
 
             // collection cid too long
             R"({"uid" : "101",
-                "collections":[{"name":"beer", "uid":"1234567890"}]})"};
+                "collections":[{"name":"beer", "uid":"1234567890"}]})",
+
+            // Invalid names, no $ prefix allowed yet and empty also denied
+            R"({"uid" : "0",
+                "collections":[{"name":"$beer", "uid":"2"}]})",
+            R"({"uid" : "0",
+                "collections":[{"name":"", "uid":"2"}]})",
+            R"({"uid" : "0",
+                "collections":[{"name":"name_is_far_too_long_for_collections", "uid":"2"}]})",
+    };
 
     std::vector<std::string> validManifests = {
             R"({"uid" : "0", "collections":[]})",
 
             R"({"uid" : "0",
-                "collections":[{"name":"$default","uid":"0"},
+                "collections":[{"name":"_default","uid":"0"},
                                {"name":"beer", "uid":"3"},
                                {"name":"brewery","uid":"2"}]})",
 
             R"({"uid" : "0",
-                "collections":[{"name":"$default","uid":"0"},
+                "collections":[{"name":"_default","uid":"0"},
                                {"name":"beer", "uid":"2"},
                                {"name":"brewery","uid":"3"}]})",
 
@@ -183,7 +188,7 @@ TEST(ManifestTest, findCollection) {
             R"({"uid" : "0",
                 "collections":[{"name":"beer", "uid":"3"},
                                {"name":"brewery","uid":"2"},
-                               {"name":"$default","uid":"0"}]})";
+                               {"name":"_default","uid":"0"}]})";
     std::vector<CollectionID> collectionT = {0, 3, 2};
     std::vector<CollectionID> collectionF = {5, 6, 7};
 
@@ -249,3 +254,29 @@ TEST(ManifestTest, toJson) {
     }
 }
 #endif // !defined(__clang_major__) || __clang_major__ > 7
+
+TEST(ManifestTest, badNames) {
+    for (char c = 127; c >= 0; c--) {
+        std::string name(1, c);
+        CollectionsManifest cm({name, 2});
+
+        if (!(std::isdigit(c) || std::isalpha(c) || c == '.' || c == '_' ||
+              c == '-' || c == '%')) {
+            try {
+                Collections::Manifest m(cm);
+                EXPECT_TRUE(false)
+                        << "No exception thrown for invalid manifest:" << m
+                        << std::endl;
+            } catch (std::exception&) {
+            }
+        } else {
+            try {
+                Collections::Manifest m(cm);
+            } catch (std::exception& e) {
+                EXPECT_TRUE(false) << "Exception thrown for valid manifest"
+                                   << std::endl
+                                   << " what:" << e.what();
+            }
+        }
+    }
+}

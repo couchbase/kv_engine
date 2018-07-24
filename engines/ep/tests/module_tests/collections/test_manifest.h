@@ -31,7 +31,7 @@
 
 // For building CollectionEntry we need a name
 namespace CollectionName {
-constexpr char defaultC[] = "$default";
+constexpr char defaultC[] = "_default";
 constexpr char meat[] = "meat";
 constexpr char fruit[] = "fruit";
 constexpr char vegetable[] = "vegetable";

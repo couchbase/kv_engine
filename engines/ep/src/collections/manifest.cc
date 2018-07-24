@@ -22,6 +22,7 @@
 #include <nlohmann/json.hpp>
 #include <gsl/gsl>
 
+#include <cctype>
 #include <cstring>
 #include <iostream>
 #include <sstream>
@@ -114,14 +115,23 @@ void Manifest::enableDefaultCollection(CollectionID identifier) {
 }
 
 bool Manifest::validCollection(const std::string& collection) {
-    // Current validation is to just check the prefix to ensure
-    // 1. $default is the only $ prefixed collection.
-    // 2. _ is not allowed as the first character.
-    if (collection[0] == '$' &&
-        (collection.compare(DefaultCollectionIdentifier.data()) != 0)) {
+    // $ prefix is currently reserved for future use
+    // Name cannot be empty
+    if (collection.empty() || collection.size() > MaxCollectionNameSize ||
+        collection[0] == '$') {
         return false;
     }
-    return collection[0] != '_';
+    // Check rest of the characters for validity
+    for (const auto& c : collection) {
+        // Collection names are allowed to contain
+        // A-Z, a-z, 0-9 and . _ - % $
+        // system collections are _ prefixed, but not enforced here
+        if (!(std::isdigit(c) || std::isalpha(c) || c == '.' || c == '_' ||
+              c == '-' || c == '%' || c == '$')) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool Manifest::validUid(CollectionID identifier) {

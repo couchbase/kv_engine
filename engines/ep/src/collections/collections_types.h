@@ -24,15 +24,15 @@
 namespace Collections {
 
 // The reserved name of the system owned, default collection.
-const char* const _DefaultCollectionIdentifier = "$default";
+const char* const _DefaultCollectionIdentifier = "_default";
 static cb::const_char_buffer DefaultCollectionIdentifier(
         _DefaultCollectionIdentifier);
 
 // SystemEvent keys or parts which will be made into keys
 const char* const SystemSeparator = ":"; // Note this never changes
-const char* const SystemEventPrefix = "$collections";
-const char* const SystemEventPrefixWithSeparator = "$collections:";
-const char* const DeleteKey = "$collections_delete:";
+const char* const SystemEventPrefix = "_collections";
+const char* const SystemEventPrefixWithSeparator = "_collections:";
+const char* const DeleteKey = "_collections_delete:";
 
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";

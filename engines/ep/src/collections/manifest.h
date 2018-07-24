@@ -154,6 +154,7 @@ private:
     static constexpr char const* CollectionUidKey = "uid";
     static constexpr nlohmann::json::value_t CollectionUidType =
             nlohmann::json::value_t::string;
+    static const size_t MaxCollectionNameSize = 30;
 };
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
