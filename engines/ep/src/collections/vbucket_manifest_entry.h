@@ -21,6 +21,7 @@
 #include "stored-value.h"
 #include "systemevent.h"
 
+#include <platform/non_negative_counter.h>
 #include <platform/sized_buffer.h>
 
 #include <memory>
@@ -37,7 +38,7 @@ namespace VB {
 class ManifestEntry {
 public:
     ManifestEntry(int64_t _startSeqno, int64_t _endSeqno)
-        : startSeqno(-1), endSeqno(-1) {
+        : startSeqno(-1), endSeqno(-1), diskCount(0) {
         // Setters validate the start/end range is valid
         setStartSeqno(_startSeqno);
         setEndSeqno(_endSeqno);
@@ -106,6 +107,21 @@ public:
      */
     SystemEvent completeDeletion();
 
+    /// increment how many items are stored on disk for this collection
+    void incrementDiskCount() const {
+        diskCount++;
+    }
+
+    /// decrement how many items are stored on disk for this collection
+    void decrementDiskCount() const {
+        diskCount--;
+    }
+
+    /// @return how many items are stored on disk for this collection
+    uint64_t getDiskCount() const {
+        return diskCount;
+    }
+
 private:
     /**
      * Return a string for use in throwException, returns:
@@ -141,6 +157,15 @@ private:
      */
     int64_t startSeqno;
     int64_t endSeqno;
+
+    /**
+     * The count of items in this collection
+     * mutable - the VB:Manifest read/write lock protects this object and
+     *           we can do stats updates as long as the read lock is held.
+     *           The write lock is really for the Manifest map being changed.
+     */
+    mutable cb::NonNegativeCounter<uint64_t, cb::ThrowExceptionUnderflowPolicy>
+            diskCount;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

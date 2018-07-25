@@ -16,6 +16,7 @@
  */
 
 #include "callbacks.h"
+#include "collections/vbucket_manifest.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
 #ifdef EP_USE_ROCKSDB
@@ -125,7 +126,9 @@ protected:
                       vbid);
             kvstore->set(item, wc);
         }
-        kvstore->commit(nullptr /*no collections manifest*/);
+        Collections::VB::Manifest m({});
+        Collections::VB::Flush f(m);
+        kvstore->commit(f);
         // Just check that the VBucket High Seqno has been updated correctly
         EXPECT_EQ(kvstore->getVBucketState(vbid)->highSeqno, numItems);
     }

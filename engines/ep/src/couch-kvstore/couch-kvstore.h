@@ -221,7 +221,7 @@ public:
      *        Can be nullptr if the commit has no manifest to write.
      * @return true if the commit is completed successfully.
      */
-    bool commit(const Item* collectionsManifest) override;
+    bool commit(Collections::VB::Flush& collectionsFlush) override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -524,7 +524,7 @@ protected:
     void operator=(const CouchKVStore &from);
 
     void close();
-    bool commit2couchstore(const Item* collectionsManifest);
+    bool commit2couchstore(Collections::VB::Flush& collectionsFlush);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string> &filenames,
@@ -558,7 +558,7 @@ protected:
                                 const std::vector<Doc*>& docs,
                                 std::vector<DocInfo*>& docinfos,
                                 kvstats_ctx& kvctx,
-                                const Item* collectionsManifest);
+                                Collections::VB::Flush& collectionsFlush);
 
     void commitCallback(std::vector<CouchRequest *> &committedReqs,
                         kvstats_ctx &kvctx,
@@ -575,8 +575,8 @@ protected:
      * @param db Handle to the open data store.
      * @param item A SystemEvent which can generate the JSON data to write.
      */
-    couchstore_error_t saveCollectionsManifest(Db& db,
-                                               const Item& collectionsManifest);
+    couchstore_error_t saveCollectionsManifest(
+            Db& db, const Collections::VB::Flush& collectionsFlush);
 
     /**
      * Read the collections manifest from the _local/collections_manifest
@@ -586,6 +586,21 @@ protected:
      *         manifest is present.
      */
     std::string readCollectionsManifest(Db& db);
+
+    /**
+     * Save count for collection cid into the file referenced by db
+     * @param db The Db to write to
+     * @param cid The collection to update
+     * @param count The value to write
+     */
+    void saveItemCount(Db& db, CollectionID cid, uint64_t count);
+
+    /**
+     * Delete the count for collection cid
+     * @param db The Db to write to
+     * @param cid The collection to delete
+     */
+    void deleteItemCount(Db& db, CollectionID cid);
 
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);

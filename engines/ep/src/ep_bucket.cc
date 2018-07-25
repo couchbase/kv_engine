@@ -312,7 +312,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
             bool mustCheckpointVBState = false;
             auto& pcbs = rwUnderlying->getPersistenceCbList();
 
-            SystemEventFlush sef;
+            SystemEventFlush sef(vb->getManifest());
 
             for (const auto& item : items) {
 
@@ -429,8 +429,8 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
              * of items to flush.
              * Or if there is a manifest item
              */
-            if (items_flushed > 0 || sef.getCollectionsManifestItem()) {
-                commit(*rwUnderlying, sef.getCollectionsManifestItem());
+            if (items_flushed > 0 || sef.needsCommit()) {
+                commit(*rwUnderlying, sef.getCollectionFlush());
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
@@ -490,12 +490,13 @@ void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
     flusherBatchSplitTrigger = limit;
 }
 
-void EPBucket::commit(KVStore& kvstore, const Item* collectionsManifest) {
+void EPBucket::commit(KVStore& kvstore,
+                      Collections::VB::Flush& collectionsFlush) {
     auto& pcbs = kvstore.getPersistenceCbList();
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     auto commit_start = ProcessClock::now();
 
-    while (!kvstore.commit(collectionsManifest)) {
+    while (!kvstore.commit(collectionsFlush)) {
         ++stats.commitFailed;
         EP_LOG_WARN(
                 "KVBucket::commit: kvstore.commit failed!!! Retry in 1 sec...");

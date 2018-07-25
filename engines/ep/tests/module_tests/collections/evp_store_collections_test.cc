@@ -364,6 +364,7 @@ std::string CollectionsFlushTest::createCollectionAndFlush(
     vb->updateFromManifest(json);
     storeItems(collection, items);
     flush_vbucket_to_disk(vbid, 1 + items); // create event + items
+    EXPECT_EQ(items, vb->lockCollections().getItemCount(collection));
     return getManifest(vbid);
 }
 
@@ -375,6 +376,8 @@ std::string CollectionsFlushTest::deleteCollectionAndFlush(
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
     flush_vbucket_to_disk(vbid, 1 + items); // 1x del(create event) + items
+    // Eraser yet to run, so count will still show items
+    EXPECT_EQ(items, vb->lockCollections().getItemCount(collection));
     return getManifest(vbid);
 }
 
@@ -387,6 +390,8 @@ std::string CollectionsFlushTest::completeDeletionAndFlush(
     // Default is still ok
     storeItems(CollectionID::DefaultCollection, items);
     flush_vbucket_to_disk(vbid, items); // just the items
+
+    // No item count check here, the call will throw for the deleted collection
     return getManifest(vbid);
 }
 
@@ -542,6 +547,8 @@ TEST_F(CollectionsWarmupTest, warmup) {
                    {cb::engine_errc::unknown_collection});
 
         flush_vbucket_to_disk(vbid, 1);
+
+        EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -593,9 +600,13 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
         store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "creamy");
 
         // Now delete the dairy collection
-        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
+        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)
+                                        .add(CollectionEntry::fruit)});
 
-        flush_vbucket_to_disk(vbid, 2);
+        flush_vbucket_to_disk(vbid, 3);
+
+        EXPECT_EQ(1,
+                  vb->lockCollections().getItemCount(CollectionEntry::dairy));
 
         // This pushes an Item which doesn't flush but has consumed a seqno
         vb->completeDeletion(CollectionEntry::dairy);
@@ -639,6 +650,8 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         flush_vbucket_to_disk(vbid, 1);
 
         EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
+        EXPECT_EQ(nitems,
+                  vb->lockCollections().getItemCount(CollectionEntry::meat));
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -674,6 +687,9 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         flush_vbucket_to_disk(vbid, 1);
 
         EXPECT_EQ(nitems, vb->ht.getNumInMemoryItems());
+        EXPECT_EQ(
+                nitems,
+                vb->lockCollections().getItemCount(CollectionEntry::defaultC));
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();

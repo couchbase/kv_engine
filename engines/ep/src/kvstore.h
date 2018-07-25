@@ -48,6 +48,12 @@ class PersistenceCallback;
 class RollbackCB;
 class RollbackResult;
 
+namespace Collections {
+namespace VB {
+class Flush;
+}
+} // namespace Collections
+
 struct vb_bgfetch_item_ctx_t;
 
 using vb_bgfetch_queue_t =
@@ -563,12 +569,11 @@ public:
     /**
      * Commit a transaction (unless not currently in one).
      *
-     * @param collectionsManifest a pointer to an Item which is a SystemEvent
-     *        that contains a collections manifest to be written in the commit.
-     *        Can be nullptr if the commit has no manifest to write.
+     * @param collectionsFlush a reference to a Collections::VB::Flush object
+     *        which is required for persisted metadata updates and item counting
      * @return false if the commit fails
      */
-    virtual bool commit(const Item* collectionsManifest) = 0;
+    virtual bool commit(Collections::VB::Flush& collectionsFlush) = 0;
 
     /**
      * Rollback the current transaction.

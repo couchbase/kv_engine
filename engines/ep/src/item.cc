@@ -173,7 +173,8 @@ std::ostream& operator<<(std::ostream& os, const Item& i) {
     os << "\tmetadata:" << i.metaData << "\n"
        << "\tbySeqno:" << i.bySeqno << " queuedTime:" << i.queuedTime
        << " vbucketId:" << i.vbucketId << " op:" << to_string(i.op)
-       << " nru:" << int(i.nru) << " datatype:" << int(i.getDataType());
+       << " nru:" << int(i.nru) << " datatype:" << int(i.getDataType())
+       << " deleted:" << i.isDeleted();
     return os;
 }
 

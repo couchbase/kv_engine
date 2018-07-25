@@ -583,6 +583,18 @@ std::string Manifest::getExceptionString(const std::string& thrower,
     return ss.str();
 }
 
+uint64_t Manifest::getItemCount(CollectionID collection) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "failed find of collection:" + collection.to_string());
+    }
+    // For now link through to disk count
+    // @todo: ephemeral support
+    return itr->second.getDiskCount();
+}
+
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "VB::Manifest"
        << ": defaultCollectionExists:" << manifest.defaultCollectionExists

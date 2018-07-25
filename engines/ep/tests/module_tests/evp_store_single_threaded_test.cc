@@ -3463,7 +3463,8 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     DeleteCallback dc;
     kvstore->begin(std::make_unique<TransactionContext>());
     kvstore->del(*(itm.get()), dc);
-    kvstore->commit(nullptr);
+    Collections::VB::Flush f(epstore.getVBucket(vbid)->getManifest());
+    kvstore->commit(f);
 
     // Add another item to ensure that seqno of the deleted item
     // gets purged. KV-engine doesn't purge a deleted item with

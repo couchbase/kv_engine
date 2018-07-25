@@ -626,6 +626,10 @@ public:
         return manifest.lock(key, allowSystem);
     }
 
+    Collections::VB::Manifest& getManifest() {
+        return manifest;
+    }
+
     /**
      * Update the Collections::VB::Manifest and the VBucket.
      * Adds SystemEvents for the create and delete of collections into the
@@ -683,6 +687,16 @@ public:
      */
     const Collections::VB::Manifest& getManifest() const {
         return manifest;
+    }
+
+    void incrementCollectionDiskCount(const DocKey& key) {
+        // Obtain caching read handle
+        lockCollections(key).incrementDiskCount();
+    }
+
+    void decrementCollectionDiskCount(const DocKey& key) {
+        // Obtain caching read handle
+        lockCollections(key).decrementDiskCount();
     }
 
     static const vbucket_state_t ACTIVE;

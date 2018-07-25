@@ -99,33 +99,20 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
         return ProcessStatus::Continue;
     }
 
+    // All system-events we encounter update the manifest
+    collectionsFlush.processManifestChange(item);
+
     switch (SystemEvent(item->getFlags())) {
     case SystemEvent::Collection: {
-        saveCollectionsManifestItem(item); // Updates manifest
         return ProcessStatus::Continue; // And flushes an item
     }
     case SystemEvent::DeleteCollectionHard: {
-        saveCollectionsManifestItem(item); // Updates manifest
         return ProcessStatus::Skip; // But skips flushing the item
     }
     }
 
     throw std::invalid_argument("SystemEventFlush::process unknown event " +
                                 std::to_string(item->getFlags()));
-}
-
-const Item* SystemEventFlush::getCollectionsManifestItem() const {
-    return collectionManifestItem.get();
-}
-
-void SystemEventFlush::saveCollectionsManifestItem(const queued_item& item) {
-    // For a given checkpoint only the highest system event should be the
-    // one which writes the manifest
-    if ((collectionManifestItem &&
-         item->getBySeqno() > collectionManifestItem->getBySeqno()) ||
-        !collectionManifestItem) {
-        collectionManifestItem = item;
-    }
 }
 
 ProcessStatus SystemEventReplicate::process(const Item& item) {

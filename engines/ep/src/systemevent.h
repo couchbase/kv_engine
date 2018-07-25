@@ -20,6 +20,7 @@
 #include <memcached/dockey.h>
 
 #include "atomic.h"
+#include "collections/flush.h"
 #include "ep_types.h"
 
 #include <string>
@@ -27,6 +28,12 @@
 class Item;
 class KVStore;
 class SystemEventMessage;
+
+namespace Collections {
+namespace VB {
+class Manifest;
+} // namespace VB
+} // namespace Collections
 
 /// underlying size of uint32_t as this is to be stored in the Item flags field.
 enum class SystemEvent : uint32_t {
@@ -106,21 +113,18 @@ private:
 enum class ProcessStatus { Skip, Continue };
 
 /**
- * SystemEventFlush holds all SystemEvent data for a single invocation of a
- * vbucket's flush
- * If the flush encountered no SystemEvents then this class does nothing
- * If the flush has SystemEvents then this class will ensure the correct
- * actions occur.
+ * SystemEventFlush manages what actions are required for the flush of a
+ * SystemEvent.
+ * If the flusher encountered no SystemEvents then this class does nothing
+ * If the flusher has SystemEvents then this class will ensure the correct
+ * actions occur (maybe updating another object or telling the flusher to
+ * skip the item).
  */
 class SystemEventFlush {
 public:
-    /**
-     * Get the Item which is updating the collections manifest (if any)
-     *
-     * @return nullptr if no manifest exists or the Item to be used in writing
-     *         a manifest.
-     */
-    const Item* getCollectionsManifestItem() const;
+    SystemEventFlush(Collections::VB::Manifest& manifest)
+        : collectionsFlush(manifest) {
+    }
 
     /**
      * The flusher passes each item into this function and process determines
@@ -129,30 +133,24 @@ public:
      * This function /may/ take a reference to the ref-counted Item if the Item
      * is required for a collections manifest update.
      *
-     * Warning: Even though the input is a const queued_item, the Item* is not
-     * const. This function may call setOperation on the shared item
      *
-     * @param item an item from the flushers items to flush.
+     * @param item an queued_item ref from the flusher's items to flush.
      * @returns Skip if the flusher should not continue with the item or
      *          Continue if the flusher can continue the rest of the flushing
      *          function against the item.
      */
     ProcessStatus process(const queued_item& item);
 
-private:
-    /**
-     * Save the item as the item which contains the manifest which will be
-     * used in the flush's update of the vbucket's metadata documents.
-     * The function will only set the them if it has a seqno higher than any
-     * previously saved item.
-     */
-    void saveCollectionsManifestItem(const queued_item& item);
+    bool needsCommit() const {
+        return collectionsFlush.getCollectionsManifestItem() != nullptr;
+    }
 
-    /**
-     * Shared pointer to an Item which holds collections manifest data that
-     * maybe needed by the flush::commit
-     */
-    queued_item collectionManifestItem;
+    Collections::VB::Flush& getCollectionFlush() {
+        return collectionsFlush;
+    }
+
+private:
+    Collections::VB::Flush collectionsFlush;
 };
 
 class SystemEventReplicate {

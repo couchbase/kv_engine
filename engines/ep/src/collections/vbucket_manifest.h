@@ -26,8 +26,10 @@
 #include <platform/rwlock.h>
 #include <platform/sized_buffer.h>
 
+#include <functional>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 class VBucket;
 
@@ -142,6 +144,10 @@ public:
             return manifest.getManifestUid();
         }
 
+        uint64_t getItemCount(CollectionID collection) const {
+            return manifest.getItemCount(collection);
+        }
+
         /**
          * Dump this VB::Manifest to std::cerr
          */
@@ -222,6 +228,24 @@ public:
         /// @return the manifest UID that last updated this vb::manifest
         uid_t getManifestUid() const {
             return manifest.getManifestUid();
+        }
+
+        /// increment the key's collection item count
+        void incrementDiskCount() const {
+            // We don't include system events when counting
+            if (key.getDocNamespace() == DocNamespace::System) {
+                return;
+            }
+            return manifest.incrementDiskCount(itr);
+        }
+
+        /// decrement the key's collection item count
+        void decrementDiskCount() const {
+            // We don't include system events when counting
+            if (key.getDocNamespace() == DocNamespace::System) {
+                return;
+            }
+            return manifest.decrementDiskCount(itr);
         }
 
         /**
@@ -532,6 +556,24 @@ private:
     bool isLogicallyDeleted(const container::const_iterator entry,
                             int64_t seqno) const;
 
+    void incrementDiskCount(const container::const_iterator entry) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.incrementDiskCount();
+    }
+
+    void decrementDiskCount(const container::const_iterator entry) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.decrementDiskCount();
+    }
+
     /**
      * Function intended for use by the collection's eraser code.
      *
@@ -566,6 +608,11 @@ private:
     bool exists(CollectionID identifier) const {
         return map.count(identifier) > 0;
     }
+
+    /**
+     * @return the number of items stored for collection
+     */
+    uint64_t getItemCount(CollectionID collection) const;
 
     container::const_iterator end() const {
         return map.end();

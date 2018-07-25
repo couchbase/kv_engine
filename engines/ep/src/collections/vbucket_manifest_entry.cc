@@ -38,6 +38,7 @@ std::ostream& Collections::VB::operator<<(
         std::ostream& os,
         const Collections::VB::ManifestEntry& manifestEntry) {
     os << "ManifestEntry: startSeqno:" << manifestEntry.getStartSeqno()
-       << ", endSeqno:" << manifestEntry.getEndSeqno();
+       << ", endSeqno:" << manifestEntry.getEndSeqno()
+       << ", diskCount:" << manifestEntry.getDiskCount();
     return os;
 }
