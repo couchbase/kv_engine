@@ -331,14 +331,14 @@ information about a given command.
 | 0x3d | [Set VBucket](#0x3d-set-vbucket)                        |
 | 0x3e | [Get VBucket](#0x3e-get-vbucket)                        |
 | 0x3f | [Del VBucket](#0x3f-del-vbucket)                        |
-| 0x40 | [TAP Connect](TAP.md#0x40-tap-connect)                  |
-| 0x41 | [TAP Mutation](TAP.md#0x41-tap-mutation)                |
-| 0x42 | [TAP Delete](TAP.md#0x42-tap-delete)                    |
-| 0x43 | [TAP Flush](TAP.md#0x43-tap-flush)                      |
-| 0x44 | [TAP Opaque](TAP.md#0x44-tap-opaque)                    |
-| 0x45 | [TAP VBucket Set](TAP.md#0x45-tap-vbucket-set)          |
-| 0x46 | [TAP Checkout Start](TAP.md#0x46-tap-checkpoint-start)  |
-| 0x47 | [TAP Checkpoint End](TAP.md#0x47-tap-checkpoint-end)    |
+| 0x40 | TAP Connect - TAP removed in 5.0                       |
+| 0x41 | TAP Mutation - TAP removed in 5.0                      |
+| 0x42 | TAP Delete - TAP removed in 5.0                        |
+| 0x43 | TAP Flush - TAP removed in 5.0                         |
+| 0x44 | TAP Opaque - TAP removed in 5.0                        |
+| 0x45 | TAP VBucket Set) - TAP removed in 5.0                  |
+| 0x46 | TAP Checkout Start - TAP removed in 5.0                |
+| 0x47 | TAP Checkpoint End - TAP removed in 5.0                |
 | 0x48 | Get all vb seqnos |
 | 0x50 | Dcp Open |
 | 0x51 | Dcp add stream |
@@ -372,7 +372,7 @@ information about a given command.
 | 0x95 | Unlock key |
 | 0x96 | Get Failover Log |
 | 0x97 | Last closed checkpoint |
-| 0x9e | Deregister tap client |
+| 0x9e | Deregister tap client - TAP removed in 5.0 |
 | 0x9f | Reset replication chain |
 | 0xa0 | Get meta |
 | 0xa1 | Getq meta |

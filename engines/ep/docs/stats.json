@@ -9,8 +9,6 @@
     "kvtimings": {},
     "memory": {},
     "prev-vbucket": {},
-    "tap": {},
-    "tapagg": {},
     "timings": {},
     "uuid": {
         "description": "Get the unique identifier for the bucket",

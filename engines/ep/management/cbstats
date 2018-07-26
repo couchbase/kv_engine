@@ -455,11 +455,6 @@ def stats_vkey(mc, key, vb):
         stats_formatter(vbs)
 
 @cmd
-def stats_tap_takeover(mc, vb, name):
-    cmd = "tap-vbtakeover %s %s" % (str(vb), name)
-    stats_formatter(stats_perform(mc, cmd))
-
-@cmd
 def stats_dcp_takeover(mc, vb, name):
     cmd = "dcp-vbtakeover %s %s" % (str(vb), name)
     stats_formatter(stats_perform(mc, cmd))
@@ -476,14 +471,6 @@ def stats_timings(mc):
     h = stats_perform(mc, 'timings')
     if h:
         histograms(mc, h)
-
-@cmd
-def stats_tap(mc):
-    stats_formatter(stats_perform(mc, 'tap'))
-
-@cmd
-def stats_tapagg(mc):
-    stats_formatter(stats_perform(mc, 'tapagg _'))
 
 @cmd
 def stats_dcp(mc):
@@ -795,9 +782,6 @@ def main():
     c.addCommand('reset', reset, 'reset')
     c.addCommand('responses', stats_responses, 'responses [all]')
     c.addCommand('slabs', stats_slabs, 'slabs (memcached bucket only)')
-    c.addCommand('tap', stats_tap, 'tap')
-    c.addCommand('tapagg', stats_tapagg, 'tapagg')
-    c.addCommand('tap-vbtakeover', stats_tap_takeover, 'tap-vbtakeover vb name')
     c.addCommand('dcp', stats_dcp, 'dcp')
     c.addCommand('dcpagg', stats_dcpagg, 'dcpagg')
     c.addCommand('dcp-vbtakeover', stats_dcp_takeover, 'dcp-vbtakeover vb name')

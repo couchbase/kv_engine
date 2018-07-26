@@ -203,7 +203,7 @@ enum class ClientOpcode : uint8_t {
      */
     DisableTraffic = 0xae,
     /**
-     * Command to change the vbucket filter for a given TAP producer.
+     * Command to change the vbucket filter for a given producer.
      */
     ChangeVbFilter = 0xb0,
     /**

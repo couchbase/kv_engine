@@ -1078,7 +1078,7 @@ typedef protocol_binary_request_rangeop protocol_binary_request_rdecr;
 typedef protocol_binary_request_rangeop protocol_binary_request_rdecrq;
 
 /**
- * Definition of tap commands
+ * Definition of tap commands - Note: TAP removed in 5.0
  * See To be written
  *
  */
@@ -1895,7 +1895,7 @@ typedef enum : int {
 
 /**
  * CMD_SET_PARAM command message to set engine parameters.
- * flush, tap, checkpoint, dcp and vbucket parameter types are currently
+ * flush, checkpoint, dcp and vbucket parameter types are currently
  * supported.
  */
 typedef union {

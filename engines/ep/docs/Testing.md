@@ -104,9 +104,6 @@ The following component-level testsuites exist:
   testcases for the Data Change Protocol (DCP) api for moving data
   into / out of ep-engine.
 
-* [`ep_testsuite_tap`](../tests/ep_testsuite_tap.cc) -
-  Contains testcases for TAP functionality
-
 * [`ep_testsuite_xdcr`](../tests/ep_testsuite_xdcr.cc) -
   Contains testcases for cross-datacentre replicaton APIs.
 
