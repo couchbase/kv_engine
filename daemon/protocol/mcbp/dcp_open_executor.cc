@@ -56,9 +56,10 @@ void dcp_open_executor(Cookie& cookie) {
             // Initialise the optional only if collections is enabled and even
             // if valuelen is 0
             if (cookie.getConnection().isCollectionsSupported()) {
-                collections = {reinterpret_cast<const char*>(
-                                       req->bytes + sizeof(req->bytes) + nkey),
-                               valuelen};
+                collections = cb::const_char_buffer{
+                        reinterpret_cast<const char*>(
+                                req->bytes + sizeof(req->bytes) + nkey),
+                        valuelen};
             }
             return dcpOpen(cookie,
                            req->message.header.request.opaque,
