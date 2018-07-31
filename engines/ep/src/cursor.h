@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <platform/rwlock.h>
+
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -33,6 +35,12 @@ class CheckpointCursor;
  */
 class Cursor {
 public:
+#if defined(__MACH__) && __clang_major__ > 7 || !defined(__MACH__)
+    using LockType = std::shared_timed_mutex;
+#else
+    using LockType = cb::RWLock;
+#endif
+
     Cursor() {
     }
 
@@ -41,44 +49,44 @@ public:
 
     Cursor(const Cursor& in) {
         // Need read access to them
-        std::unique_lock<std::shared_timed_mutex> writer(cursorLock);
+        std::unique_lock<LockType> writer(cursorLock);
         cursor = in.cursor;
     }
 
     Cursor& operator=(const Cursor& in) {
         // Need exclusive access to us, but read access to them
-        std::unique_lock<std::shared_timed_mutex> writer(cursorLock);
-        std::shared_lock<std::shared_timed_mutex> reader(in.cursorLock);
+        std::unique_lock<LockType> writer(cursorLock);
+        std::shared_lock<LockType> reader(in.cursorLock);
         cursor = in.cursor;
         return *this;
     }
 
     Cursor(Cursor&& in) {
         // Need exclusive access to them
-        std::unique_lock<std::shared_timed_mutex> writer1(in.cursorLock);
+        std::unique_lock<LockType> writer1(in.cursorLock);
         cursor = std::move(in.cursor);
     }
 
     Cursor& operator=(Cursor&& in) {
         // Need exclusive access to both us and them
-        std::unique_lock<std::shared_timed_mutex> writer1(cursorLock);
-        std::unique_lock<std::shared_timed_mutex> writer2(in.cursorLock);
+        std::unique_lock<LockType> writer1(cursorLock);
+        std::unique_lock<LockType> writer2(in.cursorLock);
         cursor = std::move(in.cursor);
         return *this;
     }
 
     void setCursor(std::shared_ptr<CheckpointCursor> cursor) {
-        std::unique_lock<std::shared_timed_mutex> writer(cursorLock);
+        std::unique_lock<LockType> writer(cursorLock);
         this->cursor = cursor;
     }
 
     std::shared_ptr<CheckpointCursor> lock() const {
-        std::shared_lock<std::shared_timed_mutex> reader(cursorLock);
+        std::shared_lock<LockType> reader(cursorLock);
         return cursor.lock();
     }
 
 private:
-    mutable std::shared_timed_mutex cursorLock;
+    mutable LockType cursorLock;
     std::weak_ptr<CheckpointCursor> cursor;
 };
 
