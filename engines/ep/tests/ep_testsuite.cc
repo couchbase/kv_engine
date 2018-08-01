@@ -2858,7 +2858,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
 
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed remove with value.");
-    stop_persistence(h, h1);
+    stop_persistence(h);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "k1", "v2", nullptr, 0, 0),
             "Failed to fail to store an item.");
@@ -2868,7 +2868,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     if (key_count == 0) {
         check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") <= 2,
                 "Unexpected number of writes");
-        start_persistence(h, h1);
+        start_persistence(h);
         wait_for_flusher_to_settle(h, h1);
         checkeq(0, get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
                                 "vbucket-details 0"),
@@ -2877,7 +2877,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
         cb_assert(key_count == 1);
         checkeq(2, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
                 "Unexpected number of writes");
-        start_persistence(h, h1);
+        start_persistence(h);
         wait_for_flusher_to_settle(h, h1);
         checkeq(1, get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
                                 "vbucket-details 0"),
@@ -3727,7 +3727,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
                      reinterpret_cast<char*>(&count),
                      sizeof(count), key, strlen(key), NULL, 0, 0x00);
 
-    stop_persistence(h, h1);
+    stop_persistence(h);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed set vbucket 1 state.");
 
@@ -3746,7 +3746,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
         return SUCCESS;
     }
 
-    start_persistence(h, h1);
+    start_persistence(h);
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Unexpected response status");
@@ -3853,20 +3853,19 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
     checkeq(0, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected all active vbucket items to be resident");
 
-
-    stop_persistence(h, h1);
+    stop_persistence(h);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "k1", "v1"),
             "Failed to fail to store an item.");
     evict_key(h, h1, "k1", 0, "Can't eject: Dirty object.", true);
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
-    stop_persistence(h, h1);
+    stop_persistence(h);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "k2", "v2", nullptr, 0, 1),
             "Failed to fail to store an item.");
     evict_key(h, h1, "k2", 1, "Can't eject: Dirty object.", true);
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
 
     evict_key(h, h1, "k1", 0, "Ejected.");
@@ -4352,7 +4351,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     check_observe_seqno(
             false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
     //Stop persistence. Add more mutations and check observe result
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     num_items = 20;
     for (int j = 10; j < num_items; ++j) {
@@ -4376,7 +4375,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     }
     check_observe_seqno(
             false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
 
     if (isPersistentBucket(h, h1)) {
@@ -4475,7 +4474,7 @@ static enum test_result test_observe_seqno_error(EngineIface* h,
 
 static enum test_result test_observe_single_key(EngineIface* h,
                                                 EngineIface* h1) {
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     // Set an item
     std::string value('x', 100);
@@ -4742,7 +4741,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h,
 
     if (isPersistentBucket(h, h1)) {
         wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
-        stop_persistence(h, h1);
+        stop_persistence(h);
     }
 
     check(storeCasOut(h, h1, NULL, 1, "key3", value, PROTOCOL_BINARY_RAW_BYTES,
@@ -5006,7 +5005,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
             h1->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Expected not found.");
 
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value"),
@@ -5020,7 +5019,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
           "Expected 'dirty'");
 
     // Check that a key that is resident and persisted returns valid
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
@@ -5159,13 +5158,13 @@ static enum test_result test_set_ret_meta_error(EngineIface* h,
           "Expected set returing meta to succeed");
 
     // Check tmp fail errors
-    disable_traffic(h, h1);
+    disable_traffic(h);
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h, h1, "key", 3, "value", 5, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected set returing meta to fail");
-    enable_traffic(h, h1);
+    enable_traffic(h);
 
     // Check not my vbucket errors
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -5255,13 +5254,13 @@ static enum test_result test_add_ret_meta_error(EngineIface* h,
           "Expected add returing meta to succeed");
 
     // Check tmp fail errors
-    disable_traffic(h, h1);
+    disable_traffic(h);
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, h1, "key", 3, "value", 5, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected add returing meta to fail");
-    enable_traffic(h, h1);
+    enable_traffic(h);
 
     // Check not my vbucket errors
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -5391,13 +5390,13 @@ static enum test_result test_del_ret_meta_error(EngineIface* h,
           "Expected add returing meta to succeed");
 
     // Check tmp fail errors
-    disable_traffic(h, h1);
+    disable_traffic(h);
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, h1, "key", 3, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected add returing meta to fail");
-    enable_traffic(h, h1);
+    enable_traffic(h);
 
     // Check not my vbucket errors
     checkeq(ENGINE_NOT_MY_VBUCKET,

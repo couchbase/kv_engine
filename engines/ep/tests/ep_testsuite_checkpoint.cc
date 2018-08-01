@@ -132,7 +132,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h,
 
 static enum test_result test_collapse_checkpoints(EngineIface* h,
                                                   EngineIface* h1) {
-    stop_persistence(h, h1);
+    stop_persistence(h);
     for (size_t i = 0; i < 5; ++i) {
         for (size_t j = 0; j < 497; ++j) {
             const auto key = "key" + std::to_string(j);
@@ -153,7 +153,7 @@ static enum test_result test_collapse_checkpoints(EngineIface* h,
     }
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
     wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
     return SUCCESS;
 }

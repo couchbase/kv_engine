@@ -227,8 +227,8 @@ ENGINE_ERROR_CODE delete_with_value(
         cb::const_char_buffer value,
         cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
 
-void disable_traffic(EngineIface* h, EngineIface* h1);
-void enable_traffic(EngineIface* h, EngineIface* h1);
+void disable_traffic(EngineIface* h);
+void enable_traffic(EngineIface* h);
 void evict_key(EngineIface* h,
                EngineIface* h1,
                const char* key,
@@ -286,8 +286,8 @@ void verify_all_vb_seqnos(EngineIface* h,
                           EngineIface* h1,
                           int vb_start,
                           int vb_end);
-void start_persistence(EngineIface* h, EngineIface* h1);
-void stop_persistence(EngineIface* h, EngineIface* h1);
+void start_persistence(EngineIface* h);
+void stop_persistence(EngineIface* h);
 
 /**
  * Store an item.

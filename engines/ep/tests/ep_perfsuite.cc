@@ -419,7 +419,7 @@ static enum test_result perf_latency(EngineIface* h,
                                      const char* title,
                                      size_t num_docs) {
     // Only timing front-end performance, not considering persistence.
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     std::vector<hrtime_t> add_timings, get_timings,
                           replace_timings, delete_timings;
@@ -538,7 +538,7 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
         // re-use test_setup to wait for ready
         test_setup(buckets[ii].h);
         // Only timing front-end performance, not considering persistence.
-        stop_persistence(buckets[ii].h, buckets[ii].h1);
+        stop_persistence(buckets[ii].h);
     }
 
     std::vector<ThreadArguments> thread_args(n_threads);
@@ -1334,7 +1334,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
     }
 
     // Only timing front-end performance, not considering persistence.
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     if ((backgroundWork & BackgroundWork::Sets) == BackgroundWork::Sets) {
         std::thread load_thread { perf_background_sets, h, h1, /*vbid*/0,

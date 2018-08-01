@@ -1012,54 +1012,54 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
                        cookie);
 }
 
-void disable_traffic(EngineIface* h, EngineIface* h1) {
+void disable_traffic(EngineIface* h) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
-    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to disable data traffic");
     cb_free(pkt);
 }
 
-void enable_traffic(EngineIface* h, EngineIface* h1) {
+void enable_traffic(EngineIface* h) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
-    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to enable data traffic");
     cb_free(pkt);
 }
 
-void start_persistence(EngineIface* h, EngineIface* h1) {
-    if (!isPersistentBucket(h, h1)) {
+void start_persistence(EngineIface* h) {
+    if (!isPersistentBucket(h, h)) {
         // Nothing to do for non-persistent buckets
         return;
     }
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
-    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Error starting persistence.");
     cb_free(pkt);
 }
 
-void stop_persistence(EngineIface* h, EngineIface* h1) {
-    if (!isPersistentBucket(h, h1)) {
+void stop_persistence(EngineIface* h) {
+    if (!isPersistentBucket(h, h)) {
         // Nothing to do for non-persistent buckets
         return;
     }
 
     useconds_t sleepTime = 128;
     while (true) {
-        if (get_str_stat(h, h1, "ep_flusher_state", 0) == "running") {
+        if (get_str_stat(h, h, "ep_flusher_state", 0) == "running") {
             break;
         }
         decayingSleep(&sleepTime);
     }
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
-    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Error stopping persistence.");

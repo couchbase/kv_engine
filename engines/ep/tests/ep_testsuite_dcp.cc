@@ -1989,7 +1989,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
     // Stop persistece (so the persistence cursor cannot advance into the
     // deletions below, and hence de-dupe them with respect to the
     // additions we just did).
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     // Now delete half of the keys. Given that we have reached the
     // maximum checkpoint size above, all the deletes should be in a
@@ -2153,7 +2153,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h,
         if (200 == start_seqno) {
             wait_for_flusher_to_settle(h, h1);
             wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", 200);
-            stop_persistence(h, h1);
+            stop_persistence(h);
         }
         write_items(h, h1, batch_items, start_seqno);
     }
@@ -2573,7 +2573,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
                           start + 10, start, start + 10);
 
     wait_for_flusher_to_settle(h, h1);
-    stop_persistence(h, h1);
+    stop_persistence(h);
     checkeq(2 * num_items, get_int_stat(h, h1, "vb_replica_curr_items"),
             "wrong number of items in replica vbucket");
 
@@ -2844,7 +2844,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
 
     /* Write items such that cursor is dropped due to heavy memory usage and
        stream state changes from memory->backfill */
-    stop_persistence(h, h1);
+    stop_persistence(h);
     num_items += write_items_upto_mem_perc(h, h1,
                                            cursor_dropping_mem_thres_perc,
                                            num_items + 1);
@@ -2856,7 +2856,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
             "Does not have expected min items; Check max_size setting");
 
     /* Persist all items */
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
 
     /* wait for cursor to be dropped. You need to make sure that there are
@@ -2930,7 +2930,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
     tdc.openStreams();
 
     /* Write items such that we cross threshold for cursor dropping */
-    stop_persistence(h, h1);
+    stop_persistence(h);
     num_items += write_items_upto_mem_perc(h, h1,
                                            cursor_dropping_mem_thres_perc,
                                            num_items + 1);
@@ -2943,7 +2943,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
 
     /* Persist all items so that we can drop the replication cursor and
        schedule another backfill */
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
 
     wait_for_stat_to_be_gte(h, h1, "ep_cursors_dropped", 1);
@@ -3626,7 +3626,7 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h,
     checkeq(10, get_int_stat(h, h1, "ep_replication_throttle_queue_cap"),
             "Incorrect replication_throttle_queue_cap value.");
 
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -3730,10 +3730,10 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
 
     uint16_t vbid = 0;
     const int num_items = 40;
-    stop_persistence(h, h1);
+    stop_persistence(h);
     write_items(h, h1, num_items);
 
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
@@ -3745,7 +3745,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
 
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     for (int j = 0; j < num_items / 2; ++j) {
         std::stringstream ss;
@@ -3755,7 +3755,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
                 "Failed to store a value");
     }
 
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, 60, "Wrong amount of items");
     set_vbucket_state(h, h1, vbid, vbucket_state_replica);
@@ -3943,22 +3943,22 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
 
 static enum test_result test_partialrollback_for_consumer(EngineIface* h,
                                                           EngineIface* h1) {
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     const int numInitialItems = 100;
     write_items(h, h1, numInitialItems, 0, "key_");
 
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
     checkeq(100, get_int_stat(h, h1, "curr_items"),
             "Item count should've been 100");
 
-    stop_persistence(h, h1);
+    stop_persistence(h);
 
     /* Write items from 90 to 109 */
     const int numUpdateAndWrites = 20, updateStartSeqno = 90;
     write_items(h, h1, numUpdateAndWrites, updateStartSeqno, "key_");
-    start_persistence(h, h1);
+    start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
 
     const int expItems = std::max((numUpdateAndWrites + updateStartSeqno),
@@ -4776,7 +4776,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
                           start + 100, start, start + 100);
 
     wait_for_flusher_to_settle(h, h1);
-    stop_persistence(h, h1);
+    stop_persistence(h);
     checkeq(2 * num_items, get_int_stat(h, h1, "vb_replica_curr_items"),
             "wrong number of items in replica vbucket");
 
