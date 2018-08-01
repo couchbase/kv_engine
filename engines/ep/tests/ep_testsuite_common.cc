@@ -438,7 +438,7 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
 
 void destroy_buckets(std::vector<BucketHolder> &buckets) {
     for(auto bucket : buckets) {
-        testHarness->destroy_bucket(bucket.h, bucket.h1, false);
+        testHarness->destroy_bucket(bucket.h, false);
         rmdb(bucket.dbpath.c_str());
     }
 }

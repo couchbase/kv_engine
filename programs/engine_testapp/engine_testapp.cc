@@ -876,8 +876,7 @@ static cb::engine_error mock_collections_set_manifest(
                 "mock_collections_set_manifest: not supported by engine");
     }
 
-    return me->the_engine->collections.set_manifest(
-            (EngineIface*)me->the_engine, json);
+    return me->the_engine->collections.set_manifest(me->the_engine, json);
 }
 
 static void usage(void) {
@@ -1013,95 +1012,126 @@ static void stop_your_engine() {
     engine_ref = NULL;
 }
 
-static EngineIface* create_bucket(bool initialize, const char* cfg) {
-    auto me = std::make_unique<mock_engine>();
-    EngineIface* handle = NULL;
-
-    if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
-        me->collections.set_manifest = mock_collections_set_manifest;
-
-        me->the_engine = (EngineIface*)handle;
-        me->the_engine_dcp = dynamic_cast<DcpIface*>(handle);
-
-        if (initialize) {
-            if (!init_engine_instance(handle, cfg)) {
-                fprintf(stderr, "Failed to init engine with config %s.\n", cfg);
-                return NULL;
-            }
-        }
-
-        return me.release();
+class MockTestHarness : public test_harness {
+public:
+    const void* create_cookie() override {
+        return create_mock_cookie();
     }
-    return nullptr;
-}
 
-static void destroy_bucket(EngineIface* handle,
-                           EngineIface* handle_v1,
-                           bool force) {
-    handle_v1->destroy(force);
-    delete handle_v1;
-}
+    void destroy_cookie(const void* cookie) override {
+        destroy_mock_cookie(cookie);
+    }
 
-//
-// Reload the engine, i.e. the shared object and reallocate a single bucket/instance
-//
-static void reload_engine(EngineIface** h,
-                          EngineIface** h1,
-                          const char* engine,
-                          const char* cfg,
-                          bool init,
-                          bool force) {
-    disconnect_all_mock_connections();
-    destroy_bucket(*h, *h1, force);
-    destroy_mock_event_callbacks();
-    stop_your_engine();
-    start_your_engine(engine);
-    handle = *h = *h1 = create_bucket(init, cfg);
-}
+    void set_ewouldblock_handling(const void* cookie, bool enable) override {
+        mock_set_ewouldblock_handling(cookie, enable);
+    }
 
-static void reload_bucket(EngineIface** h,
-                          EngineIface** h1,
-                          const char* cfg,
-                          bool init,
-                          bool force) {
-    destroy_bucket(*h, *h1, force);
-    *h1 = create_bucket(init, cfg);
-    *h = (EngineIface*)(*h1);
-}
+    void set_mutation_extras_handling(const void* cookie,
+                                      bool enable) override {
+        mock_set_mutation_extras_handling(cookie, enable);
+    }
 
-static engine_test_t* current_testcase;
+    void set_datatype_support(const void* cookie,
+                              protocol_binary_datatype_t datatypes) override {
+        mock_set_datatype_support(cookie, datatypes);
+    }
 
-static const engine_test_t* get_current_testcase(void)
-{
-    return current_testcase;
-}
+    void set_collections_support(const void* cookie, bool enable) override {
+        mock_set_collections_support(cookie, enable);
+    }
 
-/* Return how many bytes the memory allocator has mapped in RAM - essentially
- * application-allocated bytes plus memory in allocators own data structures
- * & freelists. This is an approximation of the the application's RSS.
- */
-static size_t get_mapped_bytes(void) {
-    size_t mapped_bytes;
-    allocator_stats stats = {0};
-    ALLOCATOR_HOOKS_API* alloc_hooks = get_mock_server_api()->alloc_hooks;
-    stats.ext_stats.resize(alloc_hooks->get_extra_stats_size());
+    void lock_cookie(const void* cookie) override {
+        lock_mock_cookie(cookie);
+    }
 
-    alloc_hooks->get_allocator_stats(&stats);
-    mapped_bytes = stats.fragmentation_size + stats.allocated_size;
-    return mapped_bytes;
-}
+    void unlock_cookie(const void* cookie) override {
+        unlock_mock_cookie(cookie);
+    }
 
-static void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status) {
-    get_mock_server_api()->cookie->notify_io_complete(cookie, status);
-}
+    void waitfor_cookie(const void* cookie) override {
+        waitfor_mock_cookie(cookie);
+    }
 
-static void release_free_memory(void) {
-    get_mock_server_api()->alloc_hooks->release_free_memory();
-}
+    void store_engine_specific(const void* cookie, void* engine_data) override {
+        get_mock_server_api()->cookie->store_engine_specific(cookie,
+                                                             engine_data);
+    }
 
-static void store_engine_specific(const void *cookie, void *engine_data) {
-    get_mock_server_api()->cookie->store_engine_specific(cookie, engine_data);
-}
+    int get_number_of_mock_cookie_references(const void* cookie) override {
+        return ::get_number_of_mock_cookie_references(cookie);
+    }
+    void set_pre_link_function(PreLinkFunction function) override {
+        mock_set_pre_link_function(function);
+    }
+
+    void time_travel(int offset) override {
+        mock_time_travel(offset);
+    }
+
+    void set_current_testcase(engine_test_t* testcase) {
+        current_testcase = testcase;
+    }
+
+    const engine_test_t* get_current_testcase() override {
+        return current_testcase;
+    }
+
+    void release_free_memory() override {
+        get_mock_server_api()->alloc_hooks->release_free_memory();
+    }
+
+    EngineIface* create_bucket(bool initialize, const char* cfg) override {
+        auto me = std::make_unique<mock_engine>();
+        EngineIface* handle = NULL;
+
+        if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
+            me->collections.set_manifest = mock_collections_set_manifest;
+
+            me->the_engine = (EngineIface*)handle;
+            me->the_engine_dcp = dynamic_cast<DcpIface*>(handle);
+
+            if (initialize) {
+                if (!init_engine_instance(handle, cfg)) {
+                    fprintf(stderr,
+                            "Failed to init engine with config %s.\n",
+                            cfg);
+                    return NULL;
+                }
+            }
+
+            return me.release();
+        }
+        return nullptr;
+    }
+
+    void destroy_bucket(EngineIface* handle, bool force) override {
+        handle->destroy(force);
+        delete handle;
+    }
+
+    void reload_engine(EngineIface** h,
+                       const char* engine,
+                       const char* cfg,
+                       bool init,
+                       bool force) override {
+        disconnect_all_mock_connections();
+        destroy_bucket(*h, force);
+        destroy_mock_event_callbacks();
+        stop_your_engine();
+        start_your_engine(engine);
+        handle = *h = create_bucket(init, cfg);
+    }
+
+    void notify_io_complete(const void* cookie,
+                            ENGINE_ERROR_CODE status) override {
+        get_mock_server_api()->cookie->notify_io_complete(cookie, status);
+    }
+
+private:
+    engine_test_t* current_testcase = nullptr;
+};
+
+MockTestHarness harness;
 
 static test_result execute_test(engine_test_t test,
                                 const char* engine,
@@ -1174,7 +1204,7 @@ static test_result execute_test(engine_test_t test,
         }
     }
 
-    current_testcase = &test;
+    harness.set_current_testcase(&test);
     if (test.prepare != NULL) {
         if ((ret = test.prepare(&test)) == SUCCESS) {
             ret = PENDING;
@@ -1201,7 +1231,8 @@ static test_result execute_test(engine_test_t test,
 
         if (test_api_1) {
             // all test (API1) get 1 bucket and they are welcome to ask for more.
-            handle = create_bucket(true, test.cfg ? test.cfg : default_cfg);
+            handle = harness.create_bucket(true,
+                                           test.cfg ? test.cfg : default_cfg);
             if (test.test_setup != NULL && !test.test_setup(handle, handle)) {
                 fprintf(stderr, "Failed to run setup for test %s\n", test.name);
                 return FAIL;
@@ -1228,11 +1259,10 @@ static test_result execute_test(engine_test_t test,
             }
         }
 
-
         if (handle) {
-            destroy_bucket(handle, handle, false);
+            harness.destroy_bucket(handle, false);
+            handle = nullptr;
         }
-        handle = nullptr;
 
         destroy_mock_event_callbacks();
         stop_your_engine();
@@ -1303,11 +1333,9 @@ int main(int argc, char **argv) {
     const char *test_suite = NULL;
     std::unique_ptr<std::regex> test_case_regex;
     engine_test_t *testcases = NULL;
-    OutputFormat output_format(OutputFormat::Text);
     cb_dlhandle_t handle;
     char *errmsg = NULL;
     void *symbol = NULL;
-    struct test_harness harness;
     int test_case_id = -1;
 
     /* If a testcase fails, retry up to 'attempts -1' times to allow it
@@ -1402,9 +1430,9 @@ int main(int argc, char **argv) {
             break;
         case 'f':
             if (std::string(optarg) == "text") {
-                output_format = OutputFormat::Text;
+                harness.output_format = OutputFormat::Text;
             } else if (std::string(optarg) == "xml") {
-                output_format = OutputFormat::XML;
+                harness.output_format = OutputFormat::XML;
             } else {
                 fprintf(stderr, "Invalid option for output format '%s'. Valid "
                     "options are 'text' and 'xml'.\n", optarg);
@@ -1478,33 +1506,8 @@ int main(int argc, char **argv) {
     testcases = (*my_get_test.get_tests)();
 
     /* set up the suite if needed */
-    memset(&harness, 0, sizeof(harness));
     harness.default_engine_cfg = engine_args;
     harness.engine_path = engine;
-    harness.output_format = output_format;
-    harness.output_file_prefix = "output.";
-    harness.reload_engine = reload_engine;
-    harness.create_cookie = create_mock_cookie;
-    harness.destroy_cookie = destroy_mock_cookie;
-    harness.set_ewouldblock_handling = mock_set_ewouldblock_handling;
-    harness.set_mutation_extras_handling = mock_set_mutation_extras_handling;
-    harness.set_datatype_support = mock_set_datatype_support;
-    harness.set_collections_support = mock_set_collections_support;
-    harness.lock_cookie = lock_mock_cookie;
-    harness.unlock_cookie = unlock_mock_cookie;
-    harness.waitfor_cookie = waitfor_mock_cookie;
-    harness.notify_io_complete = notify_io_complete;
-    harness.time_travel = mock_time_travel;
-    harness.get_current_testcase = get_current_testcase;
-    harness.get_mapped_bytes = get_mapped_bytes;
-    harness.release_free_memory = release_free_memory;
-    harness.create_bucket = create_bucket;
-    harness.destroy_bucket = destroy_bucket;
-    harness.reload_bucket = reload_bucket;
-    harness.store_engine_specific = store_engine_specific;
-    harness.get_number_of_mock_cookie_references = get_number_of_mock_cookie_references;
-    harness.doc_namespace = DocNamespace::DefaultCollection;
-    harness.set_pre_link_function = mock_set_pre_link_function;
 
     /* Check to see whether the config string string sets the bucket type. */
     if (harness.default_engine_cfg != nullptr) {

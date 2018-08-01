@@ -35,38 +35,140 @@ typedef struct test engine_test_t;
 
 using PreLinkFunction = std::function<void(item_info&)>;
 
+/**
+ * The test_harness structure provides an API for the various test
+ * cases to manipulate the test framework
+ */
 struct test_harness {
-    const char *engine_path;
-    const char *default_engine_cfg;
-    DocNamespace doc_namespace;
-    void (*reload_engine)(
-            EngineIface**, EngineIface**, const char*, const char*, bool, bool);
-    OutputFormat output_format;
-    const char* output_file_prefix;
-    std::string bucket_type;
-    const void *(*create_cookie)(void);
-    void (*destroy_cookie)(const void *cookie);
-    void (*set_ewouldblock_handling)(const void *cookie, bool enable);
-    void (*set_mutation_extras_handling)(const void *cookie, bool enable);
-    void (*set_datatype_support)(const void* cookie,
-                                 protocol_binary_datatype_t datatypes);
-    void (*set_collections_support)(const void *cookie, bool enable);
-    void (*lock_cookie)(const void *cookie);
-    void (*unlock_cookie)(const void *cookie);
-    void (*waitfor_cookie)(const void *cookie);
-    void (*notify_io_complete)(const void *cookie, ENGINE_ERROR_CODE status);
-    void (*time_travel)(int offset);
-    const engine_test_t* (*get_current_testcase)(void);
-    size_t (*get_mapped_bytes)(void);
-    void (*release_free_memory)(void);
+    virtual ~test_harness() = default;
 
-    EngineIface* (*create_bucket)(bool initialize, const char* cfg);
-    void (*destroy_bucket)(EngineIface* h, EngineIface* h1, bool force);
-    void (*reload_bucket)(
-            EngineIface**, EngineIface**, const char*, bool, bool);
-    void (*store_engine_specific)(const void *cookie,void *engine_data);
-    int (*get_number_of_mock_cookie_references)(const void *cookie);
-    void (*set_pre_link_function)(PreLinkFunction function);
+    const char* engine_path = nullptr;
+    const char* default_engine_cfg = nullptr;
+    DocNamespace doc_namespace = DocNamespace::DefaultCollection;
+    OutputFormat output_format = OutputFormat::Text;
+    const char* output_file_prefix = "output.";
+    std::string bucket_type;
+
+    /**
+     * The method to call notify_io_complete if one don't have a copy
+     * of the server API
+     *
+     * @param cookie the cookie to notify
+     * @param status the status code to set for the cookie
+     */
+    virtual void notify_io_complete(const void* cookie,
+                                    ENGINE_ERROR_CODE status) = 0;
+
+    /**
+     * Create a new cookie instance
+     */
+    virtual const void* create_cookie() = 0;
+
+    /**
+     * Destroy a cookie (and invalidate the allocated memory)
+     */
+    virtual void destroy_cookie(const void* cookie) = 0;
+
+    /**
+     * Set the ewouldblock mode for the specified cookie
+     */
+    virtual void set_ewouldblock_handling(const void* cookie, bool enable) = 0;
+
+    /**
+     * Set if mutations_extra's should be handled for the specified cookie
+     */
+    virtual void set_mutation_extras_handling(const void* cookie,
+                                              bool enable) = 0;
+    /**
+     * Set the datatypes the cookie should support
+     */
+    virtual void set_datatype_support(const void* cookie,
+                                      protocol_binary_datatype_t datatypes) = 0;
+    /**
+     * Set if collections is enabled for the specified cookie
+     */
+    virtual void set_collections_support(const void* cookie, bool enable) = 0;
+
+    /**
+     * Lock the specified cookie
+     */
+    virtual void lock_cookie(const void* cookie) = 0;
+
+    /**
+     * Unlock the specified cookie
+     */
+    virtual void unlock_cookie(const void* cookie) = 0;
+
+    /**
+     * Wait for a cookie to be notified
+     */
+    virtual void waitfor_cookie(const void* cookie) = 0;
+
+    /**
+     * Store the specified pointer in the specified cookie
+     */
+    virtual void store_engine_specific(const void* cookie,
+                                       void* engine_data) = 0;
+
+    /**
+     * Get the number of references for the specified cookie
+     */
+    virtual int get_number_of_mock_cookie_references(const void* cookie) = 0;
+
+    /**
+     * Add the specified offset (in seconds) to the internal clock. (Adding
+     * a negative value is supported)
+     */
+    virtual void time_travel(int offset) = 0;
+
+    /**
+     * Get the handle to the current test case
+     */
+    virtual const engine_test_t* get_current_testcase() = 0;
+
+    /**
+     * Try to release memory back to the operating system
+     */
+    virtual void release_free_memory() = 0;
+
+    /**
+     * Create a new bucket instance
+     *
+     * @param initialize set to true if the initialize method should be called
+     *                   on the newly created instance
+     * @param cfg The configuration to pass to initialize (if enabled)
+     * @return The newly created engine or nullptr if create failed
+     */
+    virtual EngineIface* create_bucket(bool initialize, const char* cfg) = 0;
+
+    /**
+     * Destroy (and invalidate) the specified bucket
+     *
+     * @param bucket the bucket to destroy
+     * @param force if the bucket should be allwed a graceful shutdown or not
+     */
+    virtual void destroy_bucket(EngineIface* bucket, bool force) = 0;
+
+    /**
+     * Try to reload the current engine
+     *
+     * @param handle a pointer to the old handle (and the new one is returned)
+     * @param engine the name of the engine
+     * @param cfg the configuration to use
+     * @param init it initialize should be called or not
+     * @param force should the old one be shut down with force or not
+     */
+    virtual void reload_engine(EngineIface** h,
+                               const char* engine,
+                               const char* cfg,
+                               bool init,
+                               bool force) = 0;
+
+    /**
+     * Set the method which should be called as part of the pre-link step
+     * for a document
+     */
+    virtual void set_pre_link_function(PreLinkFunction function) = 0;
 };
 
 /*

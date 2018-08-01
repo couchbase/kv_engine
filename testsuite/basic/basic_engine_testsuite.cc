@@ -560,7 +560,7 @@ static enum test_result test_n_bucket_destroy(engine_test_t *test) {
     }
 
     for (auto itr : buckets) {
-        test_harness->destroy_bucket(itr.first, itr.second, false);
+        test_harness->destroy_bucket(itr.first, false);
     }
 
     test_harness->destroy_cookie(cookie);
@@ -600,7 +600,7 @@ static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
                                 DocumentState::Alive) == ENGINE_SUCCESS);
         }
 
-        test_harness->destroy_bucket(h, h1, false);
+        test_harness->destroy_bucket(h, false);
     }
 
     test_harness->destroy_cookie(cookie);

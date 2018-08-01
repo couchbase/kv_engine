@@ -145,11 +145,11 @@ static enum test_result test_max_size_and_water_marks_settings(
           "Incorrect even smaller high wat. percent");
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     checkeq(1000, get_int_stat(h, h1, "ep_max_size"),
@@ -188,7 +188,8 @@ static enum test_result test_whitespace_db(EngineIface* h, EngineIface* h1) {
         config.replace(found, oldparam.size(), newparam);
     }
     testHarness->reload_engine(
-            &h, &h1, testHarness->engine_path, config.c_str(), true, false);
+            &h, testHarness->engine_path, config.c_str(), true, false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     vals.clear();
@@ -312,11 +313,11 @@ static enum test_result test_conc_set(EngineIface* h, EngineIface* h1) {
         wait_for_flusher_to_settle(h, h1);
 
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
 
         cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
@@ -1145,12 +1146,11 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
 
     //reload engine
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
-
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     //verify persisted expiration time
@@ -1170,11 +1170,11 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
             "touch coolkey");
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     checkeq(cb::engine_errc::success,
@@ -1515,11 +1515,11 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
     wait_for_persisted_value(h, h1, "key", "value2");
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     check_key_value(h, h1, "key", "value2", 6);
@@ -1528,11 +1528,11 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h, h1);
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
@@ -1584,11 +1584,11 @@ static enum test_result test_bug2509(EngineIface* h, EngineIface* h1) {
     if (isWarmupEnabled(h, h1)) {
         // Restart again, to verify we don't have any duplicates.
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
 
         return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
@@ -1626,11 +1626,11 @@ static enum test_result test_bug7023(EngineIface* h, EngineIface* h1) {
     if (isWarmupEnabled(h, h1)) {
         // Restart again, to verify no data loss.
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
         checkeq(nitems,
                 get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
@@ -1707,12 +1707,12 @@ static enum test_result test_mb5172(EngineIface* h, EngineIface* h1) {
 
     // restart the server.
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
 
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
             "Expected all items to be resident");
@@ -1778,12 +1778,12 @@ static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
 
     // Force a shutdown so the warmup will create failover entries
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
 
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     // values of interested stats for each VB

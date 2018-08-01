@@ -3296,11 +3296,11 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
 
     if (restart) {
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    true);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
         dcp = requireDcpIface(h);
     }
@@ -3738,12 +3738,12 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
 
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     stop_persistence(h, h1);
 
@@ -5587,11 +5587,11 @@ static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
     wait_for_stat_to_be(h, h1, "curr_items", num_items);
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     wait_for_stat_to_be(h, h1, "curr_items", num_items);

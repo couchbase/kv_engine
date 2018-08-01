@@ -294,11 +294,11 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
 
     // shutdown engine force and restart
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                shutdownForce);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     return get_int_stat(h, h1, "curr_items");
 }
@@ -363,11 +363,11 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h,
 
     /* restart the engine */
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     /* Check if snapshot range is persisted correctly */
@@ -391,11 +391,11 @@ static enum test_result test_restart(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, ret, "Failed set.");
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     check_key_value(h, h1, "key", val, strlen(val));
     return SUCCESS;
@@ -464,11 +464,11 @@ static enum test_result test_specialKeys(EngineIface* h, EngineIface* h1) {
     if (isWarmupEnabled(h, h1)) {
         // Check that after warmup the keys are still present.
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
         check_key_value(h, h1, key0, val0, strlen(val0));
         check_key_value(h, h1, key1, val1, strlen(val1));
@@ -520,11 +520,11 @@ static enum test_result test_binKeys(EngineIface* h, EngineIface* h1) {
 
     if (isWarmupEnabled(h, h1)) {
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
         check_key_value(h, h1, key0, val0, strlen(val0));
         check_key_value(h, h1, key1, val1, strlen(val1));
@@ -548,11 +548,11 @@ static enum test_result test_restart_bin_val(EngineIface* h, EngineIface* h1) {
             "Failed set.");
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
@@ -658,11 +658,11 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
 
     // Reload engine
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
 
@@ -898,11 +898,11 @@ static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
 
     // Restart the engine to ensure the above expired item is not loaded
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
 
@@ -1070,11 +1070,11 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
 
     // Restart the engine to ensure the above item is expired
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     check(get_bool_stat(h, h1, "ep_exp_pager_enabled"),
           "Expiry pager should be enabled on warmup");
@@ -1177,11 +1177,11 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
 
     // Restart the engine to ensure the above unexpired new item is loaded
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     cb_assert(1 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
@@ -1260,11 +1260,11 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
 
     // Restart the engine.
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     // TODO: modify this for a better test case
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
@@ -1780,11 +1780,11 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
 
     // Reload to get a flush forced.
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
@@ -1804,11 +1804,11 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
           "vbucket 1 was not missing after deleting it.");
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     if (verify_vbucket_state(h, h1, 1, vbucket_state_pending, true)) {
@@ -2212,11 +2212,11 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h,
 
     // Restart the engine.
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     int newFileSize = get_int_stat(h, h1, "vb_0:db_file_size", "vbucket-details 0");
@@ -2473,7 +2473,8 @@ static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
     std::string config(testHarness->get_current_testcase()->cfg);
     config = config + "warmup_min_memory_threshold=0";
     testHarness->reload_engine(
-            &h, &h1, testHarness->engine_path, config.c_str(), true, false);
+            &h, testHarness->engine_path, config.c_str(), true, false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     const std::string eviction_policy = get_str_stat(h, h1, "ep_item_eviction_policy");
@@ -3026,7 +3027,8 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
             std::string(testHarness->get_current_testcase()->cfg) + alog_path;
 
     testHarness->reload_engine(
-            &h, &h1, testHarness->engine_path, newconfig.c_str(), true, false);
+            &h, testHarness->engine_path, newconfig.c_str(), true, false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     std::string err_msg;
@@ -3120,7 +3122,8 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
             ";" + alog_task_time;
 
     testHarness->reload_engine(
-            &h, &h1, testHarness->engine_path, newconfig.c_str(), true, false);
+            &h, testHarness->engine_path, newconfig.c_str(), true, false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     /* Check that alog_task_time was correctly updated. */
@@ -3264,12 +3267,12 @@ static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
 
     // Restart the server.
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
 
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     const auto warmup_stats = get_all_stats(h, h1, "warmup");
@@ -3339,12 +3342,12 @@ static enum test_result test_warmup_with_threshold(EngineIface* h,
 
     // Restart the server.
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
 
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     checkeq(1,
@@ -3462,8 +3465,8 @@ static enum test_result test_warmup_oom(EngineIface* h, EngineIface* h1) {
     config = config + "max_size=2097152;item_eviction_policy=value_only";
 
     testHarness->reload_engine(
-            &h, &h1, testHarness->engine_path, config.c_str(), true, false);
-
+            &h, testHarness->engine_path, config.c_str(), true, false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
@@ -3498,11 +3501,11 @@ static enum test_result test_cbd_225(EngineIface* h, EngineIface* h1) {
     // reload the engine
     testHarness->time_travel(10);
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     // check token, this time we should get a different one
@@ -3969,11 +3972,11 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
     wait_for_flusher_to_settle(h, h1);
 
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
@@ -4202,11 +4205,11 @@ static enum test_result test_kill9_bucket(EngineIface* h, EngineIface* h1) {
 
     // Last parameter indicates the force shutdown for the engine.
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     keys.clear();
@@ -4415,11 +4418,11 @@ static enum test_result test_observe_seqno_failover(EngineIface* h,
 
     // restart
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
 
     uint64_t new_vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -5568,11 +5571,11 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
     if (isWarmupEnabled(h, h1)) {
         // Restart, and check data is warmed up correctly.
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    true);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
 
         checkeq(curr_vb_items,
@@ -5984,11 +5987,11 @@ static enum test_result test_failover_log_behavior(EngineIface* h,
 
     // restart
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
@@ -6010,11 +6013,11 @@ static enum test_result test_failover_log_behavior(EngineIface* h,
 
     // restart
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
@@ -6167,11 +6170,11 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h,
 
     // Now shutdown engine force and restart to warmup from the 2.5.x data.
     testHarness->reload_engine(&h,
-                               &h1,
                                testHarness->engine_path,
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
+    h1 = h;
     wait_for_warmup_complete(h, h1);
     uint64_t vb_uuid0 = get_ull_stat(h, h1, "vb_0:uuid", "vbucket-details");
     uint64_t vb_uuid1 = get_ull_stat(h, h1, "vb_1:uuid", "vbucket-details");
@@ -7454,11 +7457,11 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
     if (isWarmupEnabled(h, h1)) {
         /* Reload the engine */
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
 
         /* Purge seqno should not change after reload */

@@ -122,11 +122,11 @@ static enum test_result test_get_meta_with_extras(EngineIface* h,
     if (isWarmupEnabled(h, h1)) {
         // restart
         testHarness->reload_engine(&h,
-                                   &h1,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    true);
+        h1 = h;
         wait_for_warmup_complete(h, h1);
 
         check(get_meta(h, h1, key1, errorMetaPair), "Expected to get meta");
