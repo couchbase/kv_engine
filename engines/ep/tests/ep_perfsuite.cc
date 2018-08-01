@@ -1373,7 +1373,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
               "Failed set_vbucket_state for vbucket");
     }
     if (isPersistentBucket(h)) {
-        wait_for_stat_to_be(h, h1, "ep_persist_vbstate_total", active_vbuckets);
+        wait_for_stat_to_be(h, "ep_persist_vbstate_total", active_vbuckets);
     }
 
     // Only timing front-end performance, not considering persistence.

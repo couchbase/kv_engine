@@ -1587,7 +1587,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
         testHarness->destroy_cookie(cookie[count]);
     }
     /* Wait for disconnected connections to be deleted */
-    wait_for_stat_to_be(h, h1, "ep_dcp_dead_conn_count", 0, "dcp");
+    wait_for_stat_to_be(h, "ep_dcp_dead_conn_count", 0, "dcp");
 
     /* Check if the buffer size of all connections has increased */
     const auto exp_buf_size = (int)((ep_max_size * bucketMemQuotaFraction) /
@@ -1976,14 +1976,14 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
 
     write_items(h, h1, max_ckpt_items);
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", max_ckpt_items);
+    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items);
     checkeq(initial_ckpt_id + 1,
             get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 1 after storing items");
 
     write_items(h, h1, max_ckpt_items, max_ckpt_items);
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
+    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
     checkeq(initial_ckpt_id + 2,
             get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 2 after storing 2x max_ckpt_items");
@@ -2052,7 +2052,7 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2083,7 +2083,7 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h,
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     checkne(num_items -
             get_stat<uint64_t>(h, h1, "ep_items_rm_from_checkpoints"),
@@ -2154,7 +2154,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h,
          start_seqno += batch_items) {
         if (200 == start_seqno) {
             wait_for_flusher_to_settle(h, h1);
-            wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", 200);
+            wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", 200);
             stop_persistence(h);
         }
         write_items(h, h1, batch_items, start_seqno);
@@ -2190,7 +2190,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h,
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2217,7 +2217,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2281,7 +2281,7 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
 
     /* Wait for the checkpoint to be removed so that upon DCP connection
        backfill is scheduled */
-    wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", num_items);
+    wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", num_items);
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2421,7 +2421,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h,
         evict_key(h, ss.str().c_str(), 0, "Ejected.");
     }
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "ep_num_value_ejects", 5);
+    wait_for_stat_to_be(h, "ep_num_value_ejects", 5);
 
     TestDcpConsumer tdc("unittest", cookie, h, h1);
     uint32_t flags = DCP_OPEN_PRODUCER;
@@ -2502,12 +2502,12 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h,
               == 0);
 
     /* Wait for producer to be created */
-    wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
+    wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
 
     /* Wait for an active stream to be created */
     const std::string stat_stream_count("eq_dcpq:" + conn_name +
                                         ":num_streams");
-    wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
+    wait_for_stat_to_be(h, stat_stream_count.c_str(), 1, "dcp");
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
     Couchbase::RelaxedAtomic<uint64_t> exp_items(num_items);
@@ -2601,12 +2601,12 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
               == 0);
 
     /* Wait for producer to be created */
-    wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
+    wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
 
     /* Wait for an active stream to be created */
     const std::string stat_stream_count("eq_dcpq:" + conn_name1 +
                                         ":num_streams");
-    wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
+    wait_for_stat_to_be(h, stat_stream_count.c_str(), 1, "dcp");
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
     Couchbase::RelaxedAtomic<uint64_t> exp_items(3 * num_items);
@@ -2617,8 +2617,10 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
                                                      ":stream_" +
                                                      std::to_string(vb) +
                                                      "_last_sent_snap_end_seqno");
-    wait_for_stat_to_be(h, h1, stat_stream_last_sent_snap_end_seqno.c_str(),
-                        3 * num_items, "dcp");
+    wait_for_stat_to_be(h,
+                        stat_stream_last_sent_snap_end_seqno.c_str(),
+                        3 * num_items,
+                        "dcp");
 
     /* Check if the stream is still open after sending out latest items */
     std::string stat_stream_state("eq_dcpq:" + conn_name1 + ":stream_" +
@@ -2676,25 +2678,25 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
               == 0);
 
     /* Wait for producer to be created */
-    wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
+    wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
 
     /* Wait for an active stream to be created */
     const std::string stat_stream_count("eq_dcpq:" + conn_name +
                                         ":num_streams");
-    wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
+    wait_for_stat_to_be(h, stat_stream_count.c_str(), 1, "dcp");
 
     /* Wait for the dcp test client to receive upto highest seqno we have */
     Couchbase::RelaxedAtomic<uint64_t> exp_items(num_items);
     wait_for_val_to_be("dcp_last_sent_seqno", dcp_last_byseqno, exp_items);
 
     /* Wait for new open (empty) checkpoint to be added */
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", curr_chkpt_id + 1,
-                        "checkpoint");
+    wait_for_stat_to_be(
+            h, "vb_0:open_checkpoint_id", curr_chkpt_id + 1, "checkpoint");
 
     /* We want to make sure that no cursors are lingering on any of the previous
        checkpoints. For that we wait for checkpoint remover to remove all but
        the latest open checkpoint cursor */
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
@@ -2847,9 +2849,8 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
     /* Write items such that cursor is dropped due to heavy memory usage and
        stream state changes from memory->backfill */
     stop_persistence(h);
-    num_items += write_items_upto_mem_perc(h, h1,
-                                           cursor_dropping_mem_thres_perc,
-                                           num_items + 1);
+    num_items += write_items_upto_mem_perc(
+            h, cursor_dropping_mem_thres_perc, num_items + 1);
 
     // Sanity check - ensure we have enough vBucket quota (max_size)
     // such that we have 1000 items - enough to give us 0.1%
@@ -2912,7 +2913,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
     /* Set up a connection */
     const void* cookie = testHarness->create_cookie();
@@ -2933,9 +2934,8 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
 
     /* Write items such that we cross threshold for cursor dropping */
     stop_persistence(h);
-    num_items += write_items_upto_mem_perc(h, h1,
-                                           cursor_dropping_mem_thres_perc,
-                                           num_items + 1);
+    num_items += write_items_upto_mem_perc(
+            h, cursor_dropping_mem_thres_perc, num_items + 1);
 
     /* Sanity check - ensure we have enough vBucket quota (max_size)
        such that we have 1000 items - enough to give us 0.1%
@@ -3295,7 +3295,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", items);
+    wait_for_stat_to_be(h, "vb_replica_curr_items", items);
 
     testHarness->destroy_cookie(cookie);
 
@@ -3427,7 +3427,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h,
                 "Failed to send dcp mutation");
     }
 
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
+    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
@@ -3482,7 +3482,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
             dcp->snapshot_marker(cookie, stream_opaque, 0, 200, 300, 300),
             "Failed to send snapshot marker");
 
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
+    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     checkeq(ENGINE_SUCCESS,
             dcp->close_stream(cookie, stream_opaque, 0),
@@ -3569,8 +3569,8 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h,
     write_items(h, h1, 2, 1, "key_");
 
     // Wait for a new open checkpoint
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", openCheckpointId + 1,
-                        "checkpoint");
+    wait_for_stat_to_be(
+            h, "vb_0:open_checkpoint_id", openCheckpointId + 1, "checkpoint");
 
     // Consumer processes 5th mutation
     const std::string key("key" + std::to_string(i));
@@ -3684,7 +3684,7 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h,
                 "Failed to send dcp mutation");
     }
 
-    wait_for_stat_change(h, h1, "eq_dcpq:unittest:total_backoffs", 0, "dcp");
+    wait_for_stat_change(h, "eq_dcpq:unittest:total_backoffs", 0, "dcp");
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
@@ -3901,7 +3901,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             dcp->response_handler(cookie, pkt1),
             "Expected Success after Rollback");
-    wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
+    wait_for_stat_to_be(h, "ep_rollback_count", 1);
     dcp_step(h, h1, cookie);
 
     opaque++;
@@ -4017,7 +4017,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             dcp->response_handler(cookie, pkt1),
             "Expected Success after Rollback");
-    wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
+    wait_for_stat_to_be(h, "ep_rollback_count", 1);
     dcp_step(h, h1, cookie);
     opaque++;
 
@@ -4429,8 +4429,8 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h,
             dcp->stream_end(cookie, stream_opaque, vbucket, end_flag),
             "Expected success");
 
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_state",
-                        std::string{"dead"}, "dcp");
+    wait_for_stat_to_be(
+            h, "eq_dcpq:unittest:stream_0_state", std::string{"dead"}, "dcp");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -4550,8 +4550,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h,
             get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
-                        "dcp");
+    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     check(set_vbucket_state(h, 0, vbucket_state_active),
           "Failed to set vbucket state.");
@@ -4642,10 +4641,9 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h,
             get_int_stat(h, h1, "eq_dcpq:unittest:unacked_bytes", "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
-                        "dcp");
+    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
-    wait_for_stat_change(h, h1, "curr_items", 1);
+    wait_for_stat_change(h, "curr_items", 1);
     verify_curr_items(h, h1, 0, "one item deleted");
     testHarness->destroy_cookie(cookie);
 
@@ -4682,8 +4680,7 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h,
 
     /* Stream in mutations from replica */
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "vb_0:high_seqno", num_items,
-                        "vbucket-seqno");
+    wait_for_stat_to_be(h, "vb_0:high_seqno", num_items, "vbucket-seqno");
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -4731,8 +4728,7 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h,
 
     /* Stream in memory mutations from replica */
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "vb_0:high_seqno", num_items,
-                        "vbucket-seqno");
+    wait_for_stat_to_be(h, "vb_0:high_seqno", num_items, "vbucket-seqno");
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -5006,13 +5002,13 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h,
 
     /* Run compaction */
     compact_db(h, h1, 0, 0, 2, high_seqno, 1);
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(static_cast<int>(high_seqno - 1),
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     /* Create a DCP stream */
     DcpStreamCtx ctx;
@@ -5085,13 +5081,13 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
 
     /* Run compaction */
     compact_db(h, h1, 0, 0, 2, high_seqno, 1);
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
             static_cast<int>(high_seqno - 1),
           "purge_seqno didn't match expected value");
 
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     /* DCP stream, expect a rollback to seq 0 */
     DcpStreamCtx ctx1;
@@ -5256,7 +5252,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
         checkeq(err, ENGINE_SUCCESS, "Mutation should have been buffered!");
     }
 
-    wait_for_stat_to_be(h, h1, bufferItemsStr.c_str(), 0, "dcp");
+    wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
 
     // Full Evictions: must wait for all items to have been flushed before
     // asserting item counts
@@ -5322,7 +5318,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h,
     }
 
     std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
-    wait_for_stat_to_be(h, h1, bufferItemsStr.c_str(), 0, "dcp");
+    wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
 
     checkeq(dcp->close_stream(cookie1, stream_opaque, 0),
             ENGINE_SUCCESS,
@@ -5495,7 +5491,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h,
     }
 
     std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
-    wait_for_stat_to_be(h, h1, bufferItemsStr.c_str(), 0, "dcp");
+    wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
 
     // Invalid snapshot marker with end <= start
     checkeq(dcp->snapshot_marker(cookie, stream_opaque, 0, 11, 8, 300),
@@ -5569,7 +5565,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h,
     testHarness->destroy_cookie(cookie);
 
     // Let all backfills finish
-    wait_for_stat_to_be(h, h1, "ep_dcp_num_running_backfills", 0, "dcp");
+    wait_for_stat_to_be(h, "ep_dcp_num_running_backfills", 0, "dcp");
 
     return SUCCESS;
 }
@@ -5590,7 +5586,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
     write_items(h, h1, num_items);
 
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", num_items);
+    wait_for_stat_to_be(h, "curr_items", num_items);
 
     testHarness->reload_engine(&h,
                                testHarness->engine_path,
@@ -5600,7 +5596,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    wait_for_stat_to_be(h, h1, "curr_items", num_items);
+    wait_for_stat_to_be(h, "curr_items", num_items);
 
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     uint64_t uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
@@ -5809,7 +5805,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h,
     }
 
     // Ensure we have processed the mutations.
-    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 2);
+    wait_for_stat_to_be(h, "vb_replica_curr_items", 2);
 
     // Delete one of them (to allow us to test DCP deletion).
     const std::string delete_key{prefix + "0"};
@@ -5829,7 +5825,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h,
             "Expected DCP deletion with CAS:-1 to succeed");
 
     // Ensure we have processed the deletion.
-    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 1);
+    wait_for_stat_to_be(h, "vb_replica_curr_items", 1);
 
     // Flip vBucket to active so we can access the documents in it.
     check(set_vbucket_state(h, 0, vbucket_state_active),
@@ -5933,7 +5929,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h,
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0) == 0);
 
     // Wait for producer to be created
-    wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
+    wait_for_stat_to_be(h, "ep_dcp_producer_count", 1, "dcp");
 
     // Write a mutation
     checkeq(ENGINE_SUCCESS,
@@ -5942,7 +5938,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h,
 
     // Wait for producer to stream that item
     const std::string items_sent_str = "eq_dcpq:" + conn_name + ":items_sent";
-    wait_for_stat_to_be(h, h1, items_sent_str.c_str(), 1, "dcp");
+    wait_for_stat_to_be(h, items_sent_str.c_str(), 1, "dcp");
 
     // Change vbucket state to pending
     check(set_vbucket_state(h, 0, vbucket_state_pending),
@@ -6191,7 +6187,7 @@ static enum test_result test_mb19153(EngineIface* h, EngineIface* h1) {
     testHarness->destroy_cookie(cookie);
 
     // Wait for ConnManager to clear out dead connections from dcpConnMap
-    wait_for_stat_to_be(h, h1, "ep_dcp_dead_conn_count", 0, "dcp");
+    wait_for_stat_to_be(h, "ep_dcp_dead_conn_count", 0, "dcp");
 
     // Set auxIO threads to 1, so the backfill for the closed producer
     // is picked up, and begins to run.

@@ -468,7 +468,6 @@ void verify_curr_items(EngineIface* h,
                        const char* msg);
 template <typename T>
 void wait_for_stat_change(EngineIface* h,
-                          EngineIface* h1,
                           const char* stat,
                           T initial,
                           const char* stat_key = nullptr,
@@ -476,7 +475,6 @@ void wait_for_stat_change(EngineIface* h,
 
 template <typename T>
 void wait_for_stat_to_be(EngineIface* h,
-                         EngineIface* h1,
                          const char* stat,
                          T final,
                          const char* stat_key = nullptr,
@@ -674,7 +672,6 @@ void write_items(EngineIface* h,
 /* Helper function to write unique items starting from keyXX until memory usage
    hits "mem_thresh_perc" (XX is start_seqno) */
 int write_items_upto_mem_perc(EngineIface* h,
-                              EngineIface* h1,
                               int mem_thresh_perc,
                               int start_seqno = 0,
                               const char* key_prefix = "key",
@@ -682,7 +679,6 @@ int write_items_upto_mem_perc(EngineIface* h,
 
 template <typename T>
 inline void wait_for_stat_change(EngineIface* h,
-                                 EngineIface* h1,
                                  const char* stat,
                                  T initial,
                                  const char* stat_key,
@@ -691,7 +687,7 @@ inline void wait_for_stat_change(EngineIface* h,
     WaitTimeAccumulator<T> accumulator("to change from", stat, stat_key,
                                          initial, max_wait_time_in_secs);
     for (;;) {
-        auto current = get_stat<T>(h, h1, stat, stat_key);
+        auto current = get_stat<T>(h, h, stat, stat_key);
         if (current != initial) {
             break;
         }
@@ -702,7 +698,6 @@ inline void wait_for_stat_change(EngineIface* h,
 
 template <typename T>
 void wait_for_stat_to_be(EngineIface* h,
-                         EngineIface* h1,
                          const char* stat,
                          T final,
                          const char* stat_key,
@@ -711,7 +706,7 @@ void wait_for_stat_to_be(EngineIface* h,
     WaitTimeAccumulator<T> accumulator("to be", stat, stat_key, final,
                                        max_wait_time_in_secs);
     for (;;) {
-        auto current = get_stat<T>(h, h1, stat, stat_key);
+        auto current = get_stat<T>(h, h, stat, stat_key);
         if (current == final) {
             break;
         }

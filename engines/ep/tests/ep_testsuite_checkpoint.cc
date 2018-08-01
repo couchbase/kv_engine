@@ -115,7 +115,7 @@ static enum test_result test_checkpoint_timeout(EngineIface* h,
             store(h, NULL, OPERATION_SET, "key", "value"),
             "Failed to store an item.");
     testHarness->time_travel(600);
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 2, "checkpoint");
     return SUCCESS;
 }
 
@@ -131,7 +131,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h,
         }
     }
     // 4500 keys + 1x checkpoint_start + 1x set_vbucket_state.
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoint_items", 4502, "checkpoint");
+    wait_for_stat_to_be(h, "vb_0:num_checkpoint_items", 4502, "checkpoint");
     return SUCCESS;
 }
 
@@ -247,7 +247,7 @@ static enum test_result test_wait_for_persist_vb_del(EngineIface* h,
     int ret = cb_create_thread(&th, wait_for_persistence_thread, h, 0);
     cb_assert(ret == 0);
 
-    wait_for_stat_to_be(h, h1, "ep_chk_persistence_remains", 1);
+    wait_for_stat_to_be(h, "ep_chk_persistence_remains", 1);
 
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),

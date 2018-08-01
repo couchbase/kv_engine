@@ -1519,7 +1519,7 @@ static enum test_result test_set_delete(EngineIface* h, EngineIface* h1) {
             "Failed remove with value.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
     return SUCCESS;
 }
 
@@ -1691,7 +1691,7 @@ static enum test_result test_mb3169(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_SET, "get", "getvalue"),
             "Failed to store a value");
 
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
+    wait_for_stat_to_be(h, "ep_total_persisted", 3);
 
     evict_key(h, "set", 0, "Ejected.");
     evict_key(h, "delete", 0, "Ejected.");

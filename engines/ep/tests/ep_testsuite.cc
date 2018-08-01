@@ -180,7 +180,7 @@ static enum test_result test_wrong_vb_mutation(EngineIface* h,
     checkeq(ENGINE_NOT_MY_VBUCKET,
             store(h, NULL, op, "key", "somevalue", nullptr, cas, 1),
             "Expected not_my_vbucket");
-    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
+    wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -222,7 +222,7 @@ static enum test_result test_replica_vb_mutation(EngineIface* h,
     checkeq(ENGINE_NOT_MY_VBUCKET,
             store(h, NULL, op, "key", "somevalue", nullptr, cas, 1),
             "Expected not my vbucket");
-    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
+    wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -562,7 +562,7 @@ static enum test_result test_wrong_vb_get(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_NOT_MY_VBUCKET,
             verify_key(h, "key", 1),
             "Expected wrong bucket.");
-    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
+    wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -590,7 +590,7 @@ static enum test_result test_vb_get_replica(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_NOT_MY_VBUCKET,
             verify_key(h, "key", 1),
             "Expected not my bucket.");
-    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
+    wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -614,7 +614,7 @@ static enum test_result test_wrong_vb_del(EngineIface* h, EngineIface* h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
             "Expected wrong bucket.");
-    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
+    wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -1019,7 +1019,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
 
     // Compaction on VBucket
     compact_db(h, h1, 0, 0, 0, 0, 0);
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
 
     checkeq(50, get_int_stat(h, h1, "ep_expired_compactor"),
             "Unexpected expirations by compactor");
@@ -1259,7 +1259,7 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
     check_key_value(h, key, new_data, strlen(new_data));
     ret.second.reset();
     testHarness->time_travel(3);
-    wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
+    wait_for_stat_change(h, "ep_num_expiry_pager_runs", pager_runs);
     wait_for_flusher_to_settle(h, h1);
 
     // Restart the engine.
@@ -1342,7 +1342,7 @@ static enum test_result test_get_replica_non_resident(EngineIface* h,
             store(h, NULL, OPERATION_SET, "key", "value"),
             "Store Failed");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+    wait_for_stat_to_be(h, "ep_total_persisted", 1);
 
     evict_key(h, "key", 0, "Ejected.");
     check(set_vbucket_state(h, 0, vbucket_state_replica),
@@ -1387,7 +1387,7 @@ static enum test_result test_vb_del_replica(EngineIface* h, EngineIface* h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
             "Expected not my vbucket.");
-    wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
+    wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
@@ -1477,7 +1477,7 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
     testHarness->time_travel(exp_time + 1);
 
     // Wait for the item to be expired
-    wait_for_stat_to_be(h, h1, "vb_active_expired", 1);
+    wait_for_stat_to_be(h, "vb_active_expired", 1);
     const int exp_purge_seqno =
             get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
@@ -1507,7 +1507,7 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
             2 /* purge_before_ts */,
             exp_purge_seqno - 1 /* purge_before_seq */,
             1 /* drop deletes (forces purge irrespective purge_before_seq) */);
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(exp_purge_seqno,
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
@@ -1601,7 +1601,7 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h,
         cb_assert(r == 0);
     }
 
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
 
     return SUCCESS;
 }
@@ -1653,7 +1653,7 @@ static enum test_result test_multi_vb_compactions_with_workload(
             ++count;
         }
     }
-    wait_for_stat_to_be(h, h1, "ep_workload_pattern", std::string{"read_heavy"});
+    wait_for_stat_to_be(h, "ep_workload_pattern", std::string{"read_heavy"});
 
     // Compact multiple vbuckets.
     const int n_threads = 4;
@@ -1673,7 +1673,7 @@ static enum test_result test_multi_vb_compactions_with_workload(
         cb_assert(r == 0);
     }
 
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
 
     return SUCCESS;
 }
@@ -1734,7 +1734,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
     }
     wait_for_flusher_to_settle(h, h1);
     testHarness->time_travel(65);
-    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+    wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
@@ -1748,11 +1748,11 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
     check(verify_vbucket_missing(h, 1),
           "vbucket 1 was not missing after deleting it.");
 
-    wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
+    wait_for_stat_change(h, "ep_vbucket_del", vbucketDel);
 
-    wait_for_stat_to_be(h, h1, "ep_total_cache_size", cacheSize);
-    wait_for_stat_to_be(h, h1, "ep_overhead", overhead);
-    wait_for_stat_to_be(h, h1, "ep_num_non_resident", nonResident);
+    wait_for_stat_to_be(h, "ep_total_cache_size", cacheSize);
+    wait_for_stat_to_be(h, "ep_overhead", overhead);
+    wait_for_stat_to_be(h, "ep_num_non_resident", nonResident);
 
     return SUCCESS;
 }
@@ -2058,7 +2058,7 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
     wait_for_persisted_value(h, h1, "key", value);
     testHarness->time_travel(65);
     if (isPersistentBucket(h)) {
-        wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+        wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
     }
 
     if (isActiveCompressionEnabled(h)) {
@@ -2185,7 +2185,7 @@ static enum test_result test_io_stats(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_vb_file_stats(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_change(h, h1, "ep_db_data_size", 0);
+    wait_for_stat_change(h, "ep_db_data_size", 0);
 
     int old_data_size = get_int_stat(h, h1, "ep_db_data_size");
     int old_file_size = get_int_stat(h, h1, "ep_db_file_size");
@@ -3074,8 +3074,8 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
 
     // Ensure access_scanner_task_time is what its expected to be.
     // Need to wait until the AccessScanner task has been setup.
-    wait_for_stat_change(h, h1, "ep_access_scanner_task_time",
-                         std::string{"NOT_SCHEDULED"});
+    wait_for_stat_change(
+            h, "ep_access_scanner_task_time", std::string{"NOT_SCHEDULED"});
 
     std::string str = get_str_stat(h, h1, "ep_access_scanner_task_time");
     std::string expected_time = "02:00";
@@ -3242,7 +3242,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
           "Failed to trigger access scanner");
 
     // Wait for the number of runs to equal the number of shards.
-    wait_for_stat_to_be(h, h1, "ep_num_access_scanner_runs", num_shards);
+    wait_for_stat_to_be(h, "ep_num_access_scanner_runs", num_shards);
 
     /* This time since resident ratio is < 95% access log should be generated */
     checkeq(0, access(name.c_str(), F_OK),
@@ -3262,7 +3262,8 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
                     "access_scanner_run",
                     "true"),
           "Failed to trigger access scanner");
-    wait_for_stat_to_be(h, h1, "ep_num_access_scanner_skips",
+    wait_for_stat_to_be(h,
+                        "ep_num_access_scanner_skips",
                         access_scanner_skips + num_shards);
 
     /* Access log files should be removed because resident ratio > 95% */
@@ -3846,7 +3847,7 @@ static enum test_result test_curr_items_delete(EngineIface* h,
     checkeq(ENGINE_SUCCESS, del(h, h1, "key1", 0, 0),
             "Failed remove with value.");
 
-    wait_for_stat_change(h, h1, "curr_items", 3);
+    wait_for_stat_change(h, "curr_items", 3);
     verify_curr_items(h, h1, 2, "one item deleted - persisted");
 
     return SUCCESS;
@@ -4011,7 +4012,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
           "vbucket 1 was not missing after deleting it.");
     // wait for the deletion to successfully complete before setting the
     // vbucket state active (which creates the vbucket)
-    wait_for_stat_change(h, h1, "ep_vbucket_del", vb_del_num);
+    wait_for_stat_change(h, "ep_vbucket_del", vb_del_num);
 
     check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
@@ -4063,7 +4064,7 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
     testHarness->time_travel(65);
-    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+    wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
             "Should start with zero bg fetches");
@@ -4103,9 +4104,9 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed remove with value.");
-    wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
+    wait_for_stat_change(h, "ep_total_persisted", numStored);
     testHarness->time_travel(65);
-    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+    wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     return SUCCESS;
 }
@@ -4133,9 +4134,9 @@ static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h,
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed remove with value.");
-    wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
+    wait_for_stat_change(h, "ep_total_persisted", numStored);
     testHarness->time_travel(65);
-    wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+    wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     return SUCCESS;
 }
@@ -4607,7 +4608,7 @@ static enum test_result test_observe_temp_item(EngineIface* h,
 
     checkeq(ENGINE_SUCCESS, del(h, h1, k1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -4704,7 +4705,7 @@ static enum test_result test_observe_multi_key(EngineIface* h,
           "Set should work");
 
     if (isPersistentBucket(h)) {
-        wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
+        wait_for_stat_to_be(h, "ep_total_persisted", 3);
     }
 
     // Do observe
@@ -4796,7 +4797,7 @@ static enum test_result test_multiple_observes(EngineIface* h,
           "Set should work");
 
     if (isPersistentBucket(h)) {
-        wait_for_stat_to_be(h, h1, "ep_total_persisted", 2);
+        wait_for_stat_to_be(h, "ep_total_persisted", 2);
     }
 
     // Do observe
@@ -4863,7 +4864,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h,
           "Set should work");
 
     if (isPersistentBucket(h)) {
-        wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+        wait_for_stat_to_be(h, "ep_total_persisted", 1);
         stop_persistence(h);
     }
 
@@ -5099,7 +5100,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
     int num_non_resident = get_int_stat(h, h1, "ep_num_non_resident");
 
     if (num_non_resident == 0) {
-        wait_for_stat_change(h, h1, "ep_num_non_resident", 0);
+        wait_for_stat_change(h, "ep_num_non_resident", 0);
     }
     // Check we can successfully fetch all of the documents (even ones not
     // resident).
@@ -5153,7 +5154,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
 
     // Check that a key that is resident and persisted returns valid
     start_persistence(h);
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
+    wait_for_stat_to_be(h, "ep_total_persisted", 1);
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Failed to get stats.");
@@ -5198,7 +5199,7 @@ static enum test_result test_multiple_transactions(EngineIface* h,
                       1),
                 "Failed to store a value");
     }
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 2000);
+    wait_for_stat_to_be(h, "ep_total_persisted", 2000);
     check(get_int_stat(h, h1, "ep_commit_num") > 1,
           "Expected 20 transaction completions at least");
     return SUCCESS;
@@ -5887,7 +5888,7 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h,
                       cas3) == ENGINE_SUCCESS,
           "Set should work.");
 
-    wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
+    wait_for_stat_to_be(h, "ep_total_persisted", 3);
 
     evict_key(h, "key1", 0, "Ejected.");
     evict_key(h, "key2", 1, "Ejected.");
@@ -5980,7 +5981,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(1, get_int_stat(h, h1, "vb_active_expired"),
           "Expect the compactor to delete an expired item");
 
@@ -6174,7 +6175,7 @@ static enum test_result test_failover_log_behavior(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 10);
+    wait_for_stat_to_be(h, "curr_items", 10);
 
     // restart
     testHarness->reload_engine(&h,
@@ -7473,7 +7474,7 @@ static enum test_result test_mb20697(EngineIface* h, EngineIface* h1) {
             "store should have succeeded");
 
     /* Ensure that this results in commit failure and the stat gets incremented */
-    wait_for_stat_change(h, h1, "ep_item_commit_failed", 0);
+    wait_for_stat_change(h, "ep_item_commit_failed", 0);
 
     // Restore the database directory so the flusher can complete (otherwise
     // the writer thread can loop forever and we cannot shutdown cleanly.
@@ -7512,7 +7513,7 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h,
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
             "store should have succeeded");
 
-    wait_for_stat_change(h, h1, "vb_active_ops_reject", 0);
+    wait_for_stat_change(h, "vb_active_ops_reject", 0);
 
     checkeq(1, get_int_stat(h, h1, "vb_0:ops_reject", "vbucket-details 0"),
             "Expected rejected ops to be equal to 1");
@@ -7604,7 +7605,7 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
                                        "vbucket-seqno") - 1;
     compact_db(h, h1, 0, 2,
                get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"), 1, 1);
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(exp_purge_seqno,
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
@@ -7612,7 +7613,7 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
     /* Compact again, this time we don't expect to purge any items */
     compact_db(h, h1, 0, 2,
                get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"), 1, 1);
-    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(exp_purge_seqno,
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value after another compaction");

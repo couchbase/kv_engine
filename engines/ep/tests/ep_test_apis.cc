@@ -1660,7 +1660,7 @@ bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1) {
 }
 
 void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1) {
-    wait_for_stat_to_be(h, h1, "ep_queue_size", 0);
+    wait_for_stat_to_be(h, "ep_queue_size", 0);
 
     /* check that vb backfill queue is empty as well */
     checkeq(0,
@@ -1676,15 +1676,14 @@ void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1) {
     // waited for the item counts in each vBucket to be synced with
     // the number of items on disk. See
     // EPBucket::commit().
-    wait_for_stat_to_be(h, h1, "ep_flusher_todo", 0);
+    wait_for_stat_to_be(h, "ep_flusher_todo", 0);
 }
 
 void wait_for_item_compressor_to_settle(EngineIface* h, EngineIface* h1) {
     int visited_count = get_int_stat(h, h1, "ep_item_compressor_num_visited");
 
     // We need to wait for at least one more run of the item compressor
-    wait_for_stat_to_be(
-            h, h1, "ep_item_compressor_num_visited", visited_count + 1);
+    wait_for_stat_to_be(h, "ep_item_compressor_num_visited", visited_count + 1);
 }
 
 void wait_for_rollback_to_finish(EngineIface* h, EngineIface* h1) {
@@ -1716,7 +1715,7 @@ void wait_for_persisted_value(EngineIface* h,
     if (isPersistentBucket(h)) {
         // Wait for persistence...
         wait_for_flusher_to_settle(h, h1);
-        wait_for_stat_change(h, h1, "ep_commit_num", commitNum);
+        wait_for_stat_change(h, "ep_commit_num", commitNum);
     }
 }
 
@@ -1807,13 +1806,12 @@ void write_items(EngineIface* h,
 /* Helper function to write unique items starting from keyXX until memory usage
    hits "mem_thresh_perc" (XX is start_seqno) */
 int write_items_upto_mem_perc(EngineIface* h,
-                              EngineIface* h1,
                               int mem_thresh_perc,
                               int start_seqno,
                               const char* key_prefix,
                               const char* value) {
-    float maxSize = static_cast<float>(get_int_stat(h, h1, "ep_max_size",
-                                                    "memory"));
+    float maxSize =
+            static_cast<float>(get_int_stat(h, h, "ep_max_size", "memory"));
     float mem_thresh = static_cast<float>(mem_thresh_perc) / (100.0);
     int num_items = 0;
     while (1) {
@@ -1821,7 +1819,7 @@ int write_items_upto_mem_perc(EngineIface* h,
          is used. Getting stats is expensive, only check every 100
          iterations. */
         if ((num_items % 100) == 0) {
-            float memUsed = float(get_int_stat(h, h1, "mem_used", "memory"));
+            float memUsed = float(get_int_stat(h, h, "mem_used", "memory"));
             if (memUsed > (maxSize * mem_thresh)) {
                 /* Persist all items written so far. */
                 break;

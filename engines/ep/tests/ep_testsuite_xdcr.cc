@@ -264,7 +264,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
             store(h, NULL, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 1);
+    wait_for_stat_to_be(h, "curr_items", 1);
 
     // check the stat
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect zero getMeta ops");
@@ -288,7 +288,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
     checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
     check(get_meta(h, h1, key1, errorMetaPair), "Expected to get meta");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
@@ -602,7 +602,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0),
             "Delete failed");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -634,7 +634,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect some ops");
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
@@ -697,7 +697,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
 
     // check the stat
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
@@ -742,7 +742,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // do delete with meta with the correct cas value.
@@ -762,7 +762,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     return SUCCESS;
@@ -1088,7 +1088,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     // delete the key
     checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -1587,7 +1587,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h,
     wait_for_expired_items_to_be(h, h1, 1);
 
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
 
     check(get_meta(h, h1, "key3", errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.seqno == 4, "Expected seqno to match");
@@ -1609,7 +1609,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
 
     checkeq(ENGINE_SUCCESS, del(h, h1, k1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
 
     // Issue a get_meta for a deleted key. This will need to bring in a temp
     // item into the hashtable as a placeholder for the (deleted) metadata
@@ -1671,7 +1671,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     // Trigger the expiry pager and verify that two temp items are deleted
     set_param(h, protocol_binary_engine_param_flush, "num_nonio_threads", "1");
 
-    wait_for_stat_to_be(h, h1, "ep_expired_pager", 1);
+    wait_for_stat_to_be(h, "ep_expired_pager", 1);
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
@@ -1696,7 +1696,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h,
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
     itemMeta.revSeqno++;
@@ -1863,7 +1863,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h,
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
@@ -1928,7 +1928,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h,
     del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
     del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
