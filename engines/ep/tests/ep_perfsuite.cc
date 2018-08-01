@@ -1170,7 +1170,6 @@ static enum test_result perf_dcp_latency_with_random_binary(EngineIface* h,
  */
 static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
         EngineIface* h, EngineIface* h1) {
-    const void* cookie = testHarness->create_cookie();
     const uint16_t vbid = 0;
     const uint32_t opaque = 1;
 
@@ -1179,30 +1178,70 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
 
+    // To simulate a scenario where the number of checkpoints is high, I
+    // need to prevent the CheckpointRemoverTask from releasing checkpoints.
+    // To achieve that, in the following first few steps I create a Producer
+    // and an ActiveStream on the replica-vbucket. That will create a cursor
+    // for the ActiveStream.
+    // Also, given that I never call 'dcp.step(activeCookie)', the stream never
+    // switches from Backfill to In-memory, so the new cursor will be stuck on
+    // the first checkpoint. That will prevent any checkpoint from being closed
+    // and released.
+
+    // Create a DCP Producer connection and add an active stream on vbid
+    const void* activeCookie = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
-            dcp.open(cookie,
+            dcp.open(activeCookie,
+                     opaque,
+                     0 /*seqno*/,
+                     DCP_OPEN_PRODUCER /*flags*/,
+                     "test_producer",
+                     {} /*jsonExtras*/),
+            "dcp.open failed");
+
+    uint64_t rollbackSeqno = 0;
+    checkeq(ENGINE_SUCCESS,
+            dcp.stream_req(activeCookie,
+                           0 /*flags*/,
+                           opaque,
+                           vbid,
+                           0 /*startSeqno*/,
+                           std::numeric_limits<int>::max() /*endSeqno*/,
+                           0 /*vbUuid*/,
+                           0 /*snap_start_seqno*/,
+                           0 /*snap_end_seqno*/,
+                           &rollbackSeqno,
+                           mock_dcp_add_failover_log),
+            "dcp.stream_req failed");
+
+    // We have done with preventing checkpoints from being closed and released.
+    // Now we can proceed with our measurement.
+
+    // Create a DCP Consumer connection and add a passive stream on vbid
+    const void* passiveCookie = testHarness->create_cookie();
+    checkeq(ENGINE_SUCCESS,
+            dcp.open(passiveCookie,
                      opaque,
                      0 /*seqno*/,
                      0 /*flags*/,
                      "test_consumer",
                      {} /*jsonExtras*/),
             "dcp.open failed");
-
     checkeq(ENGINE_SUCCESS,
-            dcp.add_stream(cookie, opaque, vbid, 0 /*flags*/),
+            dcp.add_stream(passiveCookie, opaque, vbid, 0 /*flags*/),
             "dcp.add_stream failed");
 
     std::vector<hrtime_t> timings;
     // Note: trying to keep the runtime below 1sec on local environment as it
     //     will increase on ASan, TSan and UBSan runs.
-    const size_t numItems = ITERATIONS / 10;
+    const size_t numItems = ITERATIONS / 5;
     // Note: here we send many 1-item snapshots. At every iteration:
     //     1) we send the snapshot-marker with snapStart=snapEnd=seqno
     //     2) we send the seqno-mutation, which is the snapshot-end mutation
     for (size_t seqno = 1; seqno <= numItems; seqno++) {
         // 1) snapshot-marker
         checkeq(ENGINE_SUCCESS,
-                dcp.snapshot_marker(cookie,
+                dcp.snapshot_marker(passiveCookie,
                                     opaque,
                                     vbid,
                                     seqno /*snapStart*/,
@@ -1215,7 +1254,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
         // 2) snapshot-end mutation
         checkeq(ENGINE_SUCCESS,
                 dcp.mutation(
-                        cookie,
+                        passiveCookie,
                         opaque,
                         makeStoredDocKey("key_" + std::to_string(seqno)),
                         cb::const_byte_buffer(
@@ -1248,7 +1287,8 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     output_result(title, "Latency (ns) ", result, "ns");
     printf("\n");
 
-    testHarness->destroy_cookie(cookie);
+    testHarness->destroy_cookie(passiveCookie);
+    testHarness->destroy_cookie(activeCookie);
 
     return SUCCESS;
 }
