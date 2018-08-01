@@ -34,8 +34,7 @@ void collections_set_manifest_executor(Cookie& cookie) {
         ret = ENGINE_ERROR_CODE(
                 connection.getBucketEngine()
                         ->collections
-                        .set_manifest(connection.getBucketEngineAsV0(),
-                                      jsonBuffer)
+                        .set_manifest(connection.getBucketEngine(), jsonBuffer)
                         .code()
                         .value());
     }

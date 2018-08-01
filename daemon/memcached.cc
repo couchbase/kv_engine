@@ -193,7 +193,6 @@ void disassociate_bucket(Connection& connection) {
     b.clients--;
 
     connection.setBucketIndex(0);
-    connection.setBucketEngine(nullptr);
 
     if (b.clients == 0 && b.state == BucketState::Destroying) {
         b.cond.notify_one();
@@ -214,7 +213,6 @@ bool associate_bucket(Connection& connection, const char* name) {
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
             b.clients++;
             connection.setBucketIndex(gsl::narrow<int>(ii));
-            connection.setBucketEngine(b.getEngine());
             found = true;
         }
     }
@@ -227,7 +225,6 @@ bool associate_bucket(Connection& connection, const char* name) {
             b.clients++;
         }
         connection.setBucketIndex(0);
-        connection.setBucketEngine(b.getEngine());
     }
 
     return found;
@@ -241,7 +238,6 @@ void associate_initial_bucket(Connection& connection) {
     }
 
     connection.setBucketIndex(0);
-    connection.setBucketEngine(b.getEngine());
 
     if (is_default_bucket_enabled()) {
         associate_bucket(connection, "default");

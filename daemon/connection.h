@@ -293,17 +293,7 @@ public:
 
     Bucket& getBucket() const;
 
-    EngineIface* getBucketEngine() const {
-        return bucketEngine;
-    };
-
-    EngineIface* getBucketEngineAsV0() const {
-        return bucketEngine;
-    }
-
-    void setBucketEngine(EngineIface* bucketEngine) {
-        Connection::bucketEngine = bucketEngine;
-    };
+    EngineIface* getBucketEngine() const;
 
     void* getEngineStorage() const {
         return engine_storage;
@@ -654,12 +644,7 @@ public:
     /**
      * Release all of the items we've saved a reference to
      */
-    void releaseReservedItems() {
-        for (auto* it : reservedItems) {
-            bucketEngine->release(it);
-        }
-        reservedItems.clear();
-    }
+    void releaseReservedItems();
 
     /**
      * Put an item on our list of reserved items (which we should release
@@ -1136,11 +1121,6 @@ protected:
      * The index of the connected bucket
      */
     std::atomic_int bucketIndex{0};
-
-    /**
-     * The engine interface for the connected bucket
-     */
-    EngineIface* bucketEngine{nullptr};
 
     /** Name of the peer if known */
     const std::string peername;

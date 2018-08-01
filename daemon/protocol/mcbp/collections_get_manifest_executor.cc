@@ -23,7 +23,7 @@
 void collections_get_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto rv = connection.getBucketEngine()->collections.get_manifest(
-            connection.getBucketEngineAsV0());
+            connection.getBucketEngine());
 
     if (rv.first == cb::engine_errc::success) {
         cookie.sendResponse(cb::mcbp::Status::Success,

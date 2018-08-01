@@ -370,6 +370,10 @@ Bucket& Connection::getBucket() const {
     return all_buckets[getBucketIndex()];
 }
 
+EngineIface* Connection::getBucketEngine() const {
+    return getBucket().getEngine();
+}
+
 ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     if (xerror_support) {
         return code;
@@ -1170,6 +1174,14 @@ void Connection::addIov(const void* buf, size_t len) {
     m->msg_iovlen++;
 }
 
+void Connection::releaseReservedItems() {
+    auto* bucketEngine = getBucket().getEngine();
+    for (auto* it : reservedItems) {
+        bucketEngine->release(it);
+    }
+    reservedItems.clear();
+}
+
 void Connection::ensureIovSpace() {
     if (iovused < iov.size()) {
         // There is still size in the list
@@ -1467,6 +1479,7 @@ void Connection::setPriority(Connection::Priority priority) {
 }
 
 bool Connection::selectedBucketIsXattrEnabled() const {
+    auto* bucketEngine = getBucketEngine();
     if (bucketEngine) {
         return settings.isXattrEnabled() && bucketEngine->isXattrEnabled();
     }
@@ -1623,7 +1636,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                                        uint16_t nmeta,
                                        uint8_t nru) {
     // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngineAsV0()});
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
 
     item_info info;
     if (!bucket_get_item_info(getCookieObject(), it, &info)) {
@@ -1763,7 +1776,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
                                        const void* meta,
                                        uint16_t nmeta) {
     // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngineAsV0()});
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     item_info info;
     if (!bucket_get_item_info(getCookieObject(), it, &info)) {
         LOG_WARNING("{}: dcp_message_deletion_v1: Failed to get item info",
@@ -1809,7 +1822,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time) {
     // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngineAsV0()});
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     item_info info;
     if (!bucket_get_item_info(getCookieObject(), it, &info)) {
         LOG_WARNING("{}: dcp_message_deletion_v2: Failed to get item info",
@@ -1861,7 +1874,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
      * EP engine don't use expiration, so we won't have tests for this
      * code. Add it back once we have people calling the method
      */
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngineAsV0()});
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     return ENGINE_ENOTSUP;
 }
 

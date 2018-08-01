@@ -1256,9 +1256,8 @@ static protocol_binary_response_status collections_set_manifest_validator(
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.getConnection().getBucketEngine() == nullptr ||
-        cookie.getConnection().getBucketEngine()->collections.set_manifest ==
-                nullptr) {
+    auto* engine = cookie.getConnection().getBucket().getEngine();
+    if (engine == nullptr || engine->collections.set_manifest == nullptr) {
         // The attached bucket does not support collections
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -1281,9 +1280,8 @@ static protocol_binary_response_status collections_get_manifest_validator(
 
     // We could do these tests before checking the packet, but
     // it feels cleaner to validate the packet first.
-    if (cookie.getConnection().getBucketEngine() == nullptr ||
-        cookie.getConnection().getBucketEngine()->collections.get_manifest ==
-                nullptr) {
+    auto* engine = cookie.getConnection().getBucket().getEngine();
+    if (engine == nullptr || engine->collections.get_manifest == nullptr) {
         // The attached bucket does not support collections
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
