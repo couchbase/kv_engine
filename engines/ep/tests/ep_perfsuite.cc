@@ -536,7 +536,7 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
 
     for (int ii = 0; ii < n_buckets; ii++) {
         // re-use test_setup to wait for ready
-        test_setup(buckets[ii].h, buckets[ii].h1);
+        test_setup(buckets[ii].h);
         // Only timing front-end performance, not considering persistence.
         stop_persistence(buckets[ii].h, buckets[ii].h1);
     }

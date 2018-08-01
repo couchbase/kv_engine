@@ -18,8 +18,8 @@ engine_test_t* get_tests(void);
 MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th);
 
-bool test_setup(EngineIface* h, EngineIface* h1);
-bool teardown(EngineIface* h, EngineIface* h1);
+bool test_setup(EngineIface* h);
+bool teardown(EngineIface* h);
 void delay(int amt);
 void add(EngineIface* h, EngineIface* h1);
 void flush(EngineIface* h, EngineIface* h1);

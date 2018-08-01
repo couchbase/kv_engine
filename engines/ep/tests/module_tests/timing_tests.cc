@@ -61,8 +61,7 @@ extern "C" {
 #endif
     }
 
-    static bool teardown(EngineIface* h, EngineIface* h1) {
-        (void)h; (void)h1;
+    static bool teardown(EngineIface*) {
         atexit(rmdb);
         vals.clear();
         return true;

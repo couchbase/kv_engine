@@ -185,8 +185,8 @@ struct test_api_v2 {
 struct test {
     const char *name;
     enum test_result (*tfun)(EngineIface*, EngineIface*);
-    bool (*test_setup)(EngineIface*, EngineIface*);
-    bool (*test_teardown)(EngineIface*, EngineIface*);
+    bool (*test_setup)(EngineIface*);
+    bool (*test_teardown)(EngineIface*);
 
     const char *cfg;
     /**

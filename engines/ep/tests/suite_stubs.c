@@ -38,8 +38,7 @@ static void clearCAS(void) {
    cas = (((uint64_t)1) << 31);
 }
 
-bool teardown(EngineIface* h, EngineIface* h1) {
-    (void)h; (void)h1;
+bool teardown(EngineIface*) {
     clearCAS();
     return true;
 }

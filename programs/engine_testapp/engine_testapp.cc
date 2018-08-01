@@ -1233,15 +1233,14 @@ static test_result execute_test(engine_test_t test,
             // all test (API1) get 1 bucket and they are welcome to ask for more.
             handle = harness.create_bucket(true,
                                            test.cfg ? test.cfg : default_cfg);
-            if (test.test_setup != NULL && !test.test_setup(handle, handle)) {
+            if (test.test_setup != nullptr && !test.test_setup(handle)) {
                 fprintf(stderr, "Failed to run setup for test %s\n", test.name);
                 return FAIL;
             }
 
             ret = test.tfun(handle, handle);
 
-            if (test.test_teardown != NULL &&
-                !test.test_teardown(handle, handle)) {
+            if (test.test_teardown != nullptr && !test.test_teardown(handle)) {
                 fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
             }
 

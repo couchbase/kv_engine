@@ -14,14 +14,12 @@ struct test_harness* testHarness;
 
 static DocKey key("key", DocNamespace::DefaultCollection);
 
-bool test_setup(EngineIface* h, EngineIface* h1) {
-    (void)h; (void)h1;
+bool test_setup(EngineIface*) {
     delay(2);
     return true;
 }
 
-bool teardown(EngineIface* h, EngineIface* h1) {
-    (void)h; (void)h1;
+bool teardown(EngineIface*) {
     return true;
 }
 

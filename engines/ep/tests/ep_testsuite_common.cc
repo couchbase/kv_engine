@@ -50,8 +50,8 @@ BaseTestCase::BaseTestCase(const BaseTestCase &o)
 
 TestCase::TestCase(const char* _name,
                    enum test_result (*_tfun)(EngineIface*, EngineIface*),
-                   bool (*_test_setup)(EngineIface*, EngineIface*),
-                   bool (*_test_teardown)(EngineIface*, EngineIface*),
+                   bool (*_test_setup)(EngineIface*),
+                   bool (*_test_teardown)(EngineIface*),
                    const char* _cfg,
                    enum test_result (*_prepare)(engine_test_t* test),
                    void (*_cleanup)(engine_test_t* test,
@@ -140,17 +140,17 @@ enum test_result rmdb(const char* path) {
     return SUCCESS;
 }
 
-bool test_setup(EngineIface* h, EngineIface* h1) {
-    wait_for_warmup_complete(h, h1);
+bool test_setup(EngineIface* h) {
+    wait_for_warmup_complete(h, h);
 
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+    check(set_vbucket_state(h, h, 0, vbucket_state_active),
           "Failed to set VB0 state.");
 
-    const auto bucket_type = get_str_stat(h, h1, "ep_bucket_type");
+    const auto bucket_type = get_str_stat(h, h, "ep_bucket_type");
     if (bucket_type == "persistent") {
         // Wait for vb0's state (active) to be persisted to disk, that way
         // we know the KVStore files exist on disk.
-        wait_for_stat_to_be_gte(h, h1, "ep_persist_vbstate_total", 1);
+        wait_for_stat_to_be_gte(h, h, "ep_persist_vbstate_total", 1);
     } else if (bucket_type == "ephemeral") {
         // No persistence to wait for here.
     } else {
@@ -164,15 +164,14 @@ bool test_setup(EngineIface* h, EngineIface* h1) {
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
-    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
     cb_free(pkt);
 
     return true;
 }
 
-bool teardown(EngineIface* h, EngineIface* h1) {
-    (void)h; (void)h1;
+bool teardown(EngineIface*) {
     vals.clear();
     return true;
 }

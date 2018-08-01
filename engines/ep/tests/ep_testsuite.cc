@@ -6087,7 +6087,7 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
 
     for (auto bucket : buckets) {
         // re-use test_setup which will wait for bucket ready
-        test_setup(bucket.h, bucket.h1);
+        test_setup(bucket.h);
     }
 
     int ii = 0;

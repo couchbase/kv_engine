@@ -24,7 +24,7 @@
 
 #include "ep_testsuite.h"
 
-bool teardown(EngineIface* h, EngineIface* h1);
+bool teardown(EngineIface* h);
 void delay(int amt);
 
 void add(EngineIface* h, EngineIface* h1);

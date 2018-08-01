@@ -129,8 +129,8 @@ class TestCase : public BaseTestCase {
 public:
     TestCase(const char* _name,
              enum test_result (*_tfun)(EngineIface*, EngineIface*),
-             bool (*_test_setup)(EngineIface*, EngineIface*),
-             bool (*_test_teardown)(EngineIface*, EngineIface*),
+             bool (*_test_setup)(EngineIface*),
+             bool (*_test_teardown)(EngineIface*),
              const char* _cfg,
              enum test_result (*_prepare)(engine_test_t* test),
              void (*_cleanup)(engine_test_t* test, enum test_result result),
@@ -170,10 +170,10 @@ enum test_result rmdb(void);
 
 
 // Default testcase setup function
-bool test_setup(EngineIface* h, EngineIface* h1);
+bool test_setup(EngineIface* h);
 
 // Default testcase teardown function
-bool teardown(EngineIface* h, EngineIface* h1);
+bool teardown(EngineIface* h);
 bool teardown_v2(engine_test_t* test);
 
 
