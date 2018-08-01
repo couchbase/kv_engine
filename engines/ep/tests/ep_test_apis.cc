@@ -614,17 +614,6 @@ bool get_item_info(EngineIface* h,
     return true;
 }
 
-bool get_key(EngineIface* h, EngineIface* h1, item* i, std::string& key) {
-    item_info info;
-    if (!h1->get_item_info(i, &info)) {
-        fprintf(stderr, "get_item_info failed\n");
-        return false;
-    }
-
-    key.assign((const char*)info.key, info.nkey);
-    return true;
-}
-
 cb::EngineErrorItemPair getl(EngineIface* h,
                              EngineIface* h1,
                              const void* cookie,

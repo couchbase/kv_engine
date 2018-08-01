@@ -245,7 +245,6 @@ bool get_item_info(EngineIface* h,
                    item_info* info,
                    const char* key,
                    uint16_t vb = 0);
-bool get_key(EngineIface* h, EngineIface* h1, item* i, std::string& key);
 
 cb::EngineErrorItemPair getl(EngineIface* h,
                              EngineIface* h1,
