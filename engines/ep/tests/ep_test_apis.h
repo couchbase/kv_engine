@@ -310,19 +310,17 @@ cb::EngineErrorItemPair get(
  * {out_cas}.
  */
 ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
-                              EngineIface* h1,
                               const void* cookie,
-                              const uint16_t vb,
+                              uint16_t vb,
                               const std::string& key,
                               const std::string& value,
-                              const protocol_binary_datatype_t datatype,
+                              protocol_binary_datatype_t datatype,
                               item*& out_item,
                               uint64_t& out_cas,
                               DocumentState docState = DocumentState::Alive);
 
 cb::EngineErrorItemPair storeCasVb11(
         EngineIface* h,
-        EngineIface* h1,
         const void* cookie,
         ENGINE_STORE_OPERATION op,
         const char* key,

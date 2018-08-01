@@ -533,8 +533,16 @@ static enum test_result test_restart_bin_val(EngineIface* h, EngineIface* h1) {
     cb_assert(sizeof(binaryData) != strlen(binaryData));
 
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                         binaryData, sizeof(binaryData), 82758, 0, 0).first,
+            storeCasVb11(h,
+                         NULL,
+                         OPERATION_SET,
+                         "key",
+                         binaryData,
+                         sizeof(binaryData),
+                         82758,
+                         0,
+                         0)
+                    .first,
             "Failed set.");
 
     testHarness->reload_engine(&h,
@@ -727,10 +735,18 @@ static enum test_result test_expiry_with_xattr(EngineIface* h,
     const void* cookie = testHarness->create_cookie();
 
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, cookie, OPERATION_SET, key,
+            storeCasVb11(h,
+                         cookie,
+                         OPERATION_SET,
+                         key,
                          reinterpret_cast<char*>(data.data()),
-                         data.size(), 9258, 0, 0, 10,
-                         PROTOCOL_BINARY_DATATYPE_XATTR).first,
+                         data.size(),
+                         9258,
+                         0,
+                         0,
+                         10,
+                         PROTOCOL_BINARY_DATATYPE_XATTR)
+                    .first,
             "Failed to store xattr document");
 
     if (isPersistentBucket(h, h1)) {
@@ -951,7 +967,6 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
 
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h,
-                             h1,
                              nullptr,
                              OPERATION_SET,
                              ss.str().c_str(),
@@ -977,7 +992,6 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
 
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h,
-                             h1,
                              nullptr,
                              OPERATION_SET,
                              ss.str().c_str(),
@@ -2913,7 +2927,7 @@ static enum test_result test_datatype(EngineIface* h, EngineIface* h1) {
     uint64_t cas = 0;
     std::string value("x");
     checkeq(ENGINE_SUCCESS,
-            storeCasOut(h, h1, NULL, 0, key, value, datatype, itm, cas),
+            storeCasOut(h, nullptr, 0, key, value, datatype, itm, cas),
             "Expected set to succeed");
 
     auto ret = get(h, cookie, key, 0);
@@ -4375,8 +4389,14 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
         item *it = NULL;
         uint64_t cas1;
         std::string value('x', 100);
-        check(storeCasOut(h, h1, NULL, 1, "key" + std::to_string(j), value,
-                          PROTOCOL_BINARY_RAW_BYTES, it, cas1) == ENGINE_SUCCESS,
+        check(storeCasOut(h,
+                          nullptr,
+                          1,
+                          "key" + std::to_string(j),
+                          value,
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          it,
+                          cas1) == ENGINE_SUCCESS,
               "Expected set to succeed");
     }
 
@@ -4407,8 +4427,14 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
         item *it = NULL;
         uint64_t cas1;
         std::string value('x', 100);
-        check(storeCasOut(h, h1, NULL, 1, "key" + std::to_string(j), value,
-                          PROTOCOL_BINARY_RAW_BYTES, it, cas1) == ENGINE_SUCCESS,
+        check(storeCasOut(h,
+                          nullptr,
+                          1,
+                          "key" + std::to_string(j),
+                          value,
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          it,
+                          cas1) == ENGINE_SUCCESS,
               "Expected set to succeed");
     }
 
@@ -4449,8 +4475,14 @@ static enum test_result test_observe_seqno_failover(EngineIface* h,
         item *it = NULL;
         uint64_t cas1;
         std::string value('x', 100);
-        check(storeCasOut(h, h1, NULL, 0, "key" + std::to_string(j), value,
-                          PROTOCOL_BINARY_RAW_BYTES, it, cas1) == ENGINE_SUCCESS,
+        check(storeCasOut(h,
+                          nullptr,
+                          0,
+                          "key" + std::to_string(j),
+                          value,
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          it,
+                          cas1) == ENGINE_SUCCESS,
               "Expected set to succeed");
     }
 
@@ -4522,8 +4554,14 @@ static enum test_result test_observe_single_key(EngineIface* h,
     std::string value('x', 100);
     item *it = NULL;
     uint64_t cas1;
-    check(storeCasOut(h, h1, NULL, /*vb*/0, "key", value,
-                      PROTOCOL_BINARY_RAW_BYTES, it, cas1) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      /*vb*/ 0,
+                      "key",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas1) == ENGINE_SUCCESS,
           "Set should work");
 
     // Do an observe
@@ -4630,16 +4668,34 @@ static enum test_result test_observe_multi_key(EngineIface* h,
     item *it = NULL;
     uint64_t cas1, cas2, cas3;
     std::string value('x', 100);
-    check(storeCasOut(h, h1, NULL, 0, "key1", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas1) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      0,
+                      "key1",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas1) == ENGINE_SUCCESS,
           "Set should work");
 
-    check(storeCasOut(h, h1, NULL, 1, "key2", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas2) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      1,
+                      "key2",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas2) == ENGINE_SUCCESS,
           "Set should work");
 
-    check(storeCasOut(h, h1, NULL, 1, "key3", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas3) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      1,
+                      "key3",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas3) == ENGINE_SUCCESS,
           "Set should work");
 
     if (isPersistentBucket(h, h1)) {
@@ -4714,12 +4770,24 @@ static enum test_result test_multiple_observes(EngineIface* h,
     item *it = NULL;
     uint64_t cas1, cas2;
     std::string value('x', 100);
-    check(storeCasOut(h, h1, NULL, 0, "key1", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas1) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      0,
+                      "key1",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas1) == ENGINE_SUCCESS,
           "Set should work");
 
-    check(storeCasOut(h, h1, NULL, 0, "key2", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas2) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      0,
+                      "key2",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas2) == ENGINE_SUCCESS,
           "Set should work");
 
     if (isPersistentBucket(h, h1)) {
@@ -4779,8 +4847,14 @@ static enum test_result test_observe_with_not_found(EngineIface* h,
     item *it = NULL;
     uint64_t cas1, cas3;
     std::string value('x', 100);
-    check(storeCasOut(h, h1, NULL, 0, "key1", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas1) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      0,
+                      "key1",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas1) == ENGINE_SUCCESS,
           "Set should work");
 
     if (isPersistentBucket(h, h1)) {
@@ -4788,8 +4862,14 @@ static enum test_result test_observe_with_not_found(EngineIface* h,
         stop_persistence(h);
     }
 
-    check(storeCasOut(h, h1, NULL, 1, "key3", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas3) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      1,
+                      "key3",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas3) == ENGINE_SUCCESS,
           "Set should work");
 
     check(del(h, h1, "key3", 0, 1) == ENGINE_SUCCESS, "Failed to remove a key");
@@ -5774,14 +5854,32 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h,
     uint64_t cas1, cas2, cas3;
 
     std::string value('x', 100);
-    check(storeCasOut(h, h1, NULL, 0, "key1", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas1) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      0,
+                      "key1",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas1) == ENGINE_SUCCESS,
           "Set should work.");
-    check(storeCasOut(h, h1, NULL, 1, "key2", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas2) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      1,
+                      "key2",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas2) == ENGINE_SUCCESS,
           "Set should work.");
-    check(storeCasOut(h, h1, NULL, 1, "key3", value, PROTOCOL_BINARY_RAW_BYTES,
-                      it, cas3) == ENGINE_SUCCESS,
+    check(storeCasOut(h,
+                      nullptr,
+                      1,
+                      "key3",
+                      value,
+                      PROTOCOL_BINARY_RAW_BYTES,
+                      it,
+                      cas3) == ENGINE_SUCCESS,
           "Set should work.");
 
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
@@ -5938,9 +6036,19 @@ static enum test_result test_eviction_with_xattr(EngineIface* h,
     std::copy(blob.buf, blob.buf + blob.size(), std::back_inserter(data));
 
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, nullptr, OPERATION_SET, key,
-                         data.data(), data.size(), 0, 0, 0, 0,
-                         PROTOCOL_BINARY_DATATYPE_XATTR, DocumentState::Alive).first,
+            storeCasVb11(h,
+                         nullptr,
+                         OPERATION_SET,
+                         key,
+                         data.data(),
+                         data.size(),
+                         0,
+                         0,
+                         0,
+                         0,
+                         PROTOCOL_BINARY_DATATYPE_XATTR,
+                         DocumentState::Alive)
+                    .first,
             "Unable to store item");
 
     wait_for_flusher_to_settle(h, h1);
@@ -7530,9 +7638,19 @@ static enum test_result test_mb23640(EngineIface* h, EngineIface* h1) {
     const std::string key{"mb-23640"};
     const std::string value{"my value"};
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, nullptr, OPERATION_SET, key.c_str(),
-                         value.data(), value.size(), 0, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES, DocumentState::Alive).first,
+            storeCasVb11(h,
+                         nullptr,
+                         OPERATION_SET,
+                         key.c_str(),
+                         value.data(),
+                         value.size(),
+                         0,
+                         0,
+                         0,
+                         0,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         DocumentState::Alive)
+                    .first,
             "Unable to store item");
 
     // I should be able to get the key if I ask for anything which
@@ -7552,9 +7670,19 @@ static enum test_result test_mb23640(EngineIface* h, EngineIface* h1) {
 
     // Delete the document
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, nullptr, OPERATION_SET, key.c_str(),
-                         value.data(), value.size(), 0, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES, DocumentState::Deleted).first,
+            storeCasVb11(h,
+                         nullptr,
+                         OPERATION_SET,
+                         key.c_str(),
+                         value.data(),
+                         value.size(),
+                         0,
+                         0,
+                         0,
+                         0,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         DocumentState::Deleted)
+                    .first,
             "Unable to delete item");
 
     // I should be able to get the key if I ask for anything which

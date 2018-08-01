@@ -563,7 +563,6 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h,
-                         h1,
                          cookie,
                          OPERATION_SET,
                          key,
@@ -619,7 +618,6 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
 
     /* cas should fail */
     ret = storeCasVb11(h,
-                       h1,
                        cookie,
                        OPERATION_CAS,
                        ekey,
@@ -735,8 +733,16 @@ static enum test_result test_set_get_hit_bin(EngineIface* h, EngineIface* h1) {
     cb_assert(sizeof(binaryData) != strlen(binaryData));
 
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                         binaryData, sizeof(binaryData), 82758, 0, 0).first,
+            storeCasVb11(h,
+                         nullptr,
+                         OPERATION_SET,
+                         "key",
+                         binaryData,
+                         sizeof(binaryData),
+                         82758,
+                         0,
+                         0)
+                    .first,
             "Failed to set.");
     check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
     return SUCCESS;
@@ -776,8 +782,16 @@ static enum test_result test_set_change_flags(EngineIface* h, EngineIface* h1) {
     cb_assert(info.flags != flags);
 
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                         "newvalue", strlen("newvalue"), flags, 0, 0).first,
+            storeCasVb11(h,
+                         nullptr,
+                         OPERATION_SET,
+                         "key",
+                         "newvalue",
+                         strlen("newvalue"),
+                         flags,
+                         0,
+                         0)
+                    .first,
             "Failed to set again.");
 
     check(get_item_info(h, h1, &info, "key"), "Failed to get value.");

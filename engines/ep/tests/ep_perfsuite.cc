@@ -332,8 +332,16 @@ static void add_sentinel_doc(EngineIface* h, EngineIface* h1, uint16_t vbid) {
     // Use ADD instead of SET as we only expect to mutate the sentinel
     // doc once per run.
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, nullptr, OPERATION_ADD, SENTINEL_KEY,
-                         nullptr, 0, /*flags*/0, 0, vbid).first,
+            storeCasVb11(h,
+                         nullptr,
+                         OPERATION_ADD,
+                         SENTINEL_KEY,
+                         nullptr,
+                         0,
+                         /*flags*/ 0,
+                         0,
+                         vbid)
+                    .first,
             "Failed to add sentinel document.");
 }
 
@@ -372,9 +380,18 @@ static void perf_latency_core(EngineIface* h,
     for (auto& key : keys) {
         const auto start = ProcessClock::now();
         checkeq(cb::engine_errc::success,
-                storeCasVb11(h, h1, cookie, OPERATION_ADD, key.c_str(),
-                             data.c_str(), data.length(), 0, 0,
-                             /*vBucket*/0, 0, 0).first,
+                storeCasVb11(h,
+                             cookie,
+                             OPERATION_ADD,
+                             key.c_str(),
+                             data.c_str(),
+                             data.length(),
+                             0,
+                             0,
+                             /*vBucket*/ 0,
+                             0,
+                             0)
+                        .first,
                 "Failed to add a value");
         const auto end = ProcessClock::now();
         add_timings.push_back((end - start).count());
@@ -393,9 +410,18 @@ static void perf_latency_core(EngineIface* h,
     for (auto& key : keys) {
         const auto start = ProcessClock::now();
         checkeq(cb::engine_errc::success,
-                storeCasVb11(h, h1, cookie, OPERATION_REPLACE, key.c_str(),
-                             data.c_str(), data.length(), 0, 0,
-                             /*vBucket*/0, 0, 0).first,
+                storeCasVb11(h,
+                             cookie,
+                             OPERATION_REPLACE,
+                             key.c_str(),
+                             data.c_str(),
+                             data.length(),
+                             0,
+                             0,
+                             /*vBucket*/ 0,
+                             0,
+                             0)
+                        .first,
                 "Failed to replace a value");
         const auto end = ProcessClock::now();
         replace_timings.push_back((end - start).count());
@@ -793,8 +819,7 @@ static void perf_load_client(EngineIface* h,
     for (int i = 0; i < count; ++i) {
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h,
-                             h1,
-                             NULL,
+                             nullptr,
                              OPERATION_SET,
                              keys[i].c_str(),
                              vals[i].data(),
@@ -843,10 +868,18 @@ static void perf_background_sets(EngineIface* h,
             ii = 0;
         }
         const auto start = ProcessClock::now();
-        checkeq(storeCasVb11(h, h1, cookie, OPERATION_SET, keys[ii].c_str(),
-                             vals[ii].data(), vals[ii].size(), /*flags*/9258,
-                             0, vbid).first,
-                cb::engine_errc::success, "Failed set.");
+        checkeq(storeCasVb11(h,
+                             cookie,
+                             OPERATION_SET,
+                             keys[ii].c_str(),
+                             vals[ii].data(),
+                             vals[ii].size(),
+                             /*flags*/ 9258,
+                             0,
+                             vbid)
+                        .first,
+                cb::engine_errc::success,
+                "Failed set.");
         const auto end = ProcessClock::now();
         insertTimes.push_back((end - start).count());
         ++ii;
@@ -1259,9 +1292,17 @@ static void perf_stat_latency_core(EngineIface* h,
     const void* cookie = testHarness->create_cookie();
     // For some of the stats we need to have a document stored
     checkeq(cb::engine_errc::success,
-            storeCasVb11(h, h1, nullptr, OPERATION_ADD, "example_doc", nullptr,
-                         0, /*flags*/0, 0, /*vbid*/0).first,
-                         "Failed to add example document.");
+            storeCasVb11(h,
+                         nullptr,
+                         OPERATION_ADD,
+                         "example_doc",
+                         nullptr,
+                         0,
+                         /*flags*/ 0,
+                         0,
+                         /*vbid*/ 0)
+                    .first,
+            "Failed to add example document.");
 
     if (isWarmupEnabled(h, h1)) {
         // Include warmup-specific stats

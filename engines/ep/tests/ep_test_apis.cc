@@ -408,7 +408,6 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
                                     cb::const_char_buffer value,
                                     cb::mcbp::Datatype datatype) {
     auto ret = storeCasVb11(h,
-                            h,
                             cookie,
                             OPERATION_SET,
                             key,
@@ -1065,7 +1064,6 @@ ENGINE_ERROR_CODE store(EngineIface* h,
                         uint8_t datatype,
                         DocumentState docState) {
     auto ret = storeCasVb11(h,
-                            h,
                             cookie,
                             op,
                             key,
@@ -1084,12 +1082,11 @@ ENGINE_ERROR_CODE store(EngineIface* h,
 }
 
 ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
-                              EngineIface* h1,
                               const void* cookie,
-                              const uint16_t vb,
+                              uint16_t vb,
                               const std::string& key,
                               const std::string& value,
-                              const protocol_binary_datatype_t datatype,
+                              protocol_binary_datatype_t datatype,
                               item*& out_item,
                               uint64_t& out_cas,
                               DocumentState docState) {
@@ -1102,10 +1099,9 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
     auto ret = allocate(h, cookie, key, value.size(), 0, 0, datatype, vb);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
-    check(h1->get_item_info(ret.second.get(), &info),
-          "Unable to get item_info");
+    check(h->get_item_info(ret.second.get(), &info), "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
-    ENGINE_ERROR_CODE res = h1->store(
+    ENGINE_ERROR_CODE res = h->store(
             cookie, ret.second.get(), out_cas, OPERATION_SET, docState);
 
     if (create_cookie) {
@@ -1116,7 +1112,6 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
 }
 
 cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
-                                     EngineIface* h1,
                                      const void* cookie,
                                      ENGINE_STORE_OPERATION op,
                                      const char* key,
@@ -1135,13 +1130,13 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
         return rv;
     }
     item_info info;
-    if (!h1->get_item_info(rv.second.get(), &info)) {
+    if (!h->get_item_info(rv.second.get(), &info)) {
         abort();
     }
 
     cb_assert(info.value[0].iov_len == vlen);
     std::copy(value, value + vlen, reinterpret_cast<char*>(info.value[0].iov_base));
-    h1->item_set_cas(rv.second.get(), casIn);
+    h->item_set_cas(rv.second.get(), casIn);
 
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -1149,7 +1144,7 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
         create_cookie = true;
     }
 
-    auto storeRet = h1->store(cookie, rv.second.get(), cas, op, docState);
+    auto storeRet = h->store(cookie, rv.second.get(), cas, op, docState);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
