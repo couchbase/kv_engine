@@ -236,7 +236,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
                                        EngineIface* h1,
                                        int numItems2Load,
                                        bool shutdownForce) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -305,7 +305,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
 
 static enum test_result test_flush_shutdown_force(EngineIface* h,
                                                   EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -320,7 +320,7 @@ static enum test_result test_flush_shutdown_force(EngineIface* h,
 
 static enum test_result test_flush_shutdown_noforce(EngineIface* h,
                                                     EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -335,7 +335,7 @@ static enum test_result test_flush_shutdown_noforce(EngineIface* h,
 
 static enum test_result test_shutdown_snapshot_range(EngineIface* h,
                                                      EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -384,7 +384,7 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h,
 }
 
 static enum test_result test_restart(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -455,7 +455,7 @@ static enum test_result test_specialKeys(EngineIface* h, EngineIface* h1) {
     check((ret = store(h, NULL, OPERATION_SET, key7, val7)) == ENGINE_SUCCESS,
           "Failed set Arabic key");
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         // Check that after warmup the keys are still present.
         testHarness->reload_engine(&h,
                                    testHarness->engine_path,
@@ -508,7 +508,7 @@ static enum test_result test_binKeys(EngineIface* h, EngineIface* h1) {
           "Failed set binary utf-16 bom key");
     check_key_value(h, h1, key3, val3, strlen(val3));
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         testHarness->reload_engine(&h,
                                    testHarness->engine_path,
                                    testHarness->get_current_testcase()->cfg,
@@ -525,7 +525,7 @@ static enum test_result test_binKeys(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_restart_bin_val(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -750,7 +750,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h,
                     .first,
             "Failed to store xattr document");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h, h1);
     }
 
@@ -867,7 +867,7 @@ static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
     const char *key = "test_expiry_loader";
@@ -1029,7 +1029,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
 
 static enum test_result test_expiration_on_warmup(EngineIface* h,
                                                   EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -1111,7 +1111,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
 }
 
 static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -1197,7 +1197,7 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -1760,7 +1760,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
 static enum test_result vbucket_destroy_restart(EngineIface* h,
                                                 EngineIface* h1,
                                                 const char* value = NULL) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -1902,7 +1902,7 @@ static enum test_result test_stats_seqno(EngineIface* h, EngineIface* h1) {
     checkeq(100, get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
             "Invalid seqno");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         checkeq(100,
                 get_int_stat(h, h1, "vb_0:last_persisted_seqno", "vbucket-seqno"),
                 "Unexpected last_persisted_seqno");
@@ -1911,7 +1911,7 @@ static enum test_result test_stats_seqno(EngineIface* h, EngineIface* h1) {
             "Invalid seqno");
     checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno 1"),
             "Invalid seqno");
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         checkeq(0,
                 get_int_stat(h, h1, "vb_1:last_persisted_seqno", "vbucket-seqno 1"),
                 "Invalid last_persisted_seqno");
@@ -2057,11 +2057,11 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     wait_for_persisted_value(h, h1, "key", value);
     testHarness->time_travel(65);
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
     }
 
-    if (isActiveCompressionEnabled(h, h1)) {
+    if (isActiveCompressionEnabled(h)) {
         wait_for_item_compressor_to_settle(h, h1);
     }
 
@@ -2073,7 +2073,7 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
           "ep_kv_size should be greater than the hashtable cache size due to "
           "the checkpoint overhead");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         evict_key(h, "key", 0, "Ejected.");
 
         check(get_int_stat(h, h1, "ep_total_cache_size") <= cache_size,
@@ -2083,7 +2083,7 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
 
         check_key_value(h, h1, "key", value, strlen(value), 0); // Load an item from disk again.
 
-        if (isActiveCompressionEnabled(h, h1)) {
+        if (isActiveCompressionEnabled(h)) {
             wait_for_item_compressor_to_settle(h, h1);
         }
 
@@ -2203,7 +2203,7 @@ static enum test_result test_vb_file_stats(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_vb_file_stats_after_warmup(EngineIface* h,
                                                         EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -2449,7 +2449,7 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -3041,7 +3041,7 @@ static enum test_result test_session_cas_validation(EngineIface* h,
 
 static enum test_result test_access_scanner_settings(EngineIface* h,
                                                      EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         // Access scanner n/a without warmup.
         return SKIPPED;
     }
@@ -3124,7 +3124,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
 }
 
 static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         // Access scanner not applicable without warmup.
         return SKIPPED;
     }
@@ -3281,7 +3281,7 @@ static enum test_result test_set_param_message(EngineIface* h,
 }
 
 static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -3352,7 +3352,7 @@ static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_warmup_with_threshold(EngineIface* h,
                                                    EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -3487,7 +3487,7 @@ static enum test_result test_warmup_accesslog(EngineIface *h, EngineIface *h1) {
 // memory to load all item metadata we return NOMEM to the
 // ENABLE_TRAFFIC command.
 static enum test_result test_warmup_oom(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -3728,7 +3728,7 @@ static enum test_result test_all_keys_api(EngineIface* h, EngineIface* h1) {
                      reinterpret_cast<char*>(&count),
                      sizeof(count), start_key.c_str(), keylen, NULL, 0, 0x00);
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
                 h1->unknown_command(nullptr, pkt1, add_response),
                 "Failed to get all_keys, sort: ascending");
@@ -3778,7 +3778,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
     check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed set vbucket 1 state.");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
                 h1->unknown_command(nullptr, pkt1, add_response),
                 "Unexpected return code from all_keys_api");
@@ -3818,7 +3818,7 @@ static enum test_result test_curr_items_add_set(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "k3", "v3"),
             "Failed to fail to store an item.");
-    if (isPersistentBucket(h, h1) && is_full_eviction(h, h1)) {
+    if (isPersistentBucket(h) && is_full_eviction(h)) {
         // MB-21957: FE mode - curr_items is only valid once we flush documents
         wait_for_flusher_to_settle(h, h1);
     }
@@ -3968,7 +3968,7 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_duplicate_items_disk(EngineIface* h,
                                                   EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -4243,7 +4243,7 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h,
 }
 
 static enum test_result test_kill9_bucket(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -4379,7 +4379,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
             "Expected success");
 
     const auto bucket_type =
-            isPersistentBucket(h, h1) ? BucketType::EP : BucketType::Ephemeral;
+            isPersistentBucket(h) ? BucketType::EP : BucketType::Ephemeral;
     check_observe_seqno(
             false, bucket_type, 0, 1, vb_uuid, high_seqno, high_seqno);
 
@@ -4406,7 +4406,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     int total_persisted = 0;
     high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         total_persisted = get_int_stat(h, h1, "ep_total_persisted");
         checkeq(total_persisted,
                 num_items,
@@ -4442,7 +4442,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS, observe_seqno(h, 1, vb_uuid), "Expected success");
 
-    if (!isPersistentBucket(h, h1)) {
+    if (!isPersistentBucket(h)) {
         /* if bucket is not persistent then total_persisted == high_seqno */
         total_persisted = high_seqno;
     }
@@ -4451,7 +4451,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         total_persisted = get_int_stat(h, h1, "ep_total_persisted");
     } else {
         total_persisted = high_seqno;
@@ -4466,7 +4466,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
 
 static enum test_result test_observe_seqno_failover(EngineIface* h,
                                                     EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -4506,7 +4506,7 @@ static enum test_result test_observe_seqno_failover(EngineIface* h,
     checkeq(ENGINE_SUCCESS, observe_seqno(h, 0, vb_uuid), "Expected success");
 
     const auto bucket_type =
-            isPersistentBucket(h, h1) ? BucketType::EP : BucketType::Ephemeral;
+            isPersistentBucket(h) ? BucketType::EP : BucketType::Ephemeral;
     check_observe_seqno(true,
                         bucket_type,
                         1,
@@ -4612,7 +4612,7 @@ static enum test_result test_observe_temp_item(EngineIface* h,
           "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         // Persistent: make sure there is one temp_item (as Persistent buckets
         // don't keep deleted items in HashTable, unlike Ephemeral).
         checkeq(1,
@@ -4642,7 +4642,7 @@ static enum test_result test_observe_temp_item(EngineIface* h,
     check(ntohs(vb) == 0, "Wrong vbucket in result");
     check(ntohs(keylen) == 3, "Wrong keylen in result");
     check(strncmp(key, "key", 3) == 0, "Wrong key in result");
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         checkeq(OBS_STATE_NOT_FOUND,
                 int(persisted),
                 "Expected NOT_FOUND in result");
@@ -4699,7 +4699,7 @@ static enum test_result test_observe_multi_key(EngineIface* h,
                       cas3) == ENGINE_SUCCESS,
           "Set should work");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
     }
 
@@ -4718,7 +4718,7 @@ static enum test_result test_observe_multi_key(EngineIface* h,
     uint8_t persisted;
     uint64_t cas;
 
-    const int expected_persisted = isPersistentBucket(h, h1)
+    const int expected_persisted = isPersistentBucket(h)
                                            ? OBS_STATE_PERSISTED
                                            : OBS_STATE_NOT_PERSISTED;
 
@@ -4791,7 +4791,7 @@ static enum test_result test_multiple_observes(EngineIface* h,
                       cas2) == ENGINE_SUCCESS,
           "Set should work");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_stat_to_be(h, h1, "ep_total_persisted", 2);
     }
 
@@ -4801,7 +4801,7 @@ static enum test_result test_multiple_observes(EngineIface* h,
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
-    const int expected_persisted = isPersistentBucket(h, h1)
+    const int expected_persisted = isPersistentBucket(h)
                                            ? OBS_STATE_PERSISTED
                                            : OBS_STATE_NOT_PERSISTED;
 
@@ -4858,7 +4858,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h,
                       cas1) == ENGINE_SUCCESS,
           "Set should work");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
         stop_persistence(h);
     }
@@ -4890,7 +4890,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h,
     uint8_t persisted;
     uint64_t cas;
 
-    const int expected_persisted = isPersistentBucket(h, h1)
+    const int expected_persisted = isPersistentBucket(h)
                                            ? OBS_STATE_PERSISTED
                                            : OBS_STATE_NOT_PERSISTED;
 
@@ -5694,7 +5694,7 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 
     curr_vb_items = get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0");
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         // Restart, and check data is warmed up correctly.
         testHarness->reload_engine(&h,
                                    testHarness->engine_path,
@@ -6025,7 +6025,7 @@ static enum test_result test_mb16421(EngineIface* h, EngineIface* h1) {
  */
 static enum test_result test_eviction_with_xattr(EngineIface* h,
                                                  EngineIface* h1) {
-    if (!isPersistentBucket(h, h1)) {
+    if (!isPersistentBucket(h)) {
         return SKIPPED;
     }
 
@@ -6131,7 +6131,7 @@ static enum test_result test_get_random_key(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_failover_log_behavior(EngineIface* h,
                                                    EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         // TODO: Ephemeral: We should add a test variant which checks that
         // on restart we generate a new UUID (essentially forcing all clients
         // to rollback if they re-connect; given that all previous data is gone).
@@ -6313,7 +6313,7 @@ static void force_vbstate_to_25x(std::string dbname, int vbucket) {
 // we warmup 2 vbuckets and ensure they get unique IDs.
 static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h,
                                                       EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -7105,7 +7105,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h, EngineIface* h1) {
               "vb_replica_queue_size",
               "vb_replica_rollback_item_count"}}};
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         // Add stats which are only available if warmup is enabled:
         auto& eng_stats = statsKeys.at("");
         eng_stats.insert(eng_stats.end(), {"ep_warmup_dups",
@@ -7114,13 +7114,13 @@ static enum test_result test_mb19687_fixed(EngineIface* h, EngineIface* h1) {
                                            "ep_warmup_thread"});
     }
 
-    if (isCompressionEnabled(h, h1)) {
+    if (isCompressionEnabled(h)) {
         auto& vb0_hash_stats = statsKeys.at("hash");
         vb0_hash_stats.insert(vb0_hash_stats.end(),
                               {"vb_0:mem_size_uncompressed"});
     }
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         // Add data_size and file_size stats to toplevel group.
         auto& eng_stats = statsKeys.at("");
 
@@ -7190,7 +7190,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h, EngineIface* h1) {
                              "ep_item_eviction_policy"});
     }
 
-    if (isEphemeralBucket(h, h1)) {
+    if (isEphemeralBucket(h)) {
         auto& eng_stats = statsKeys.at("");
         eng_stats.insert(eng_stats.end(),
                          {"ep_ephemeral_full_policy",
@@ -7391,7 +7391,7 @@ static enum test_result test_mb19687_variable(EngineIface* h, EngineIface* h1) {
             {"kvtimings", {}},
     };
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         statsKeys.insert( { "warmup", { "ep_warmup",
                                         "ep_warmup_state",
                                         "ep_warmup_thread",
@@ -7405,7 +7405,7 @@ static enum test_result test_mb19687_variable(EngineIface* h, EngineIface* h1) {
                                         "ep_warmup_estimated_value_count" } });
     }
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         statsKeys.insert( { "vkey mykey", { "key_cas",
                                             "key_exptime",
                                             "key_flags",
@@ -7614,7 +7614,7 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value after another compaction");
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         /* Reload the engine */
         testHarness->reload_engine(&h,
                                    testHarness->engine_path,

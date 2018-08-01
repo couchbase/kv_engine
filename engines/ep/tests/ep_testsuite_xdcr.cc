@@ -119,7 +119,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h,
     check(temp == 1, "Expect one getMeta op");
     h->release(i);
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         // restart
         testHarness->reload_engine(&h,
                                    testHarness->engine_path,
@@ -291,7 +291,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
     wait_for_stat_to_be(h, h1, "curr_items", 0);
     check(get_meta(h, h1, key1, errorMetaPair), "Expected to get meta");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkPersistentBucketTempItems(h, h1, 1);
+    checkPersistentBucketTempItems(h, 1);
 
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
@@ -390,7 +390,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h,
                     .first,
             "Failed to store xattr document");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h, h1);
     }
 
@@ -404,7 +404,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h,
             errorMetaPair.second.datatype,
             "Datatype is not XATTR");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         //Evict the key
         evict_key(h, key);
 
@@ -445,11 +445,11 @@ static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
                     .first,
             "Failed to store xattr document");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h, h1);
     }
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         cb::xattr::Blob systemXattrBlob;
         systemXattrBlob.set("_sync", "{\"cas\":\"0xdeadbeefcafefeed\"}");
         auto deletedValue = systemXattrBlob.finalize();
@@ -611,7 +611,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkPersistentBucketTempItems(h, h1, 1);
+    checkPersistentBucketTempItems(h, 1);
 
     // this is the cas to be used with a subsequent delete with meta
     uint64_t valid_cas = last_cas;
@@ -626,7 +626,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
             "Expected invalid cas error");
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Faild ops does not count");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkPersistentBucketTempItems(h, h1, 1);
+    checkPersistentBucketTempItems(h, 1);
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
@@ -648,7 +648,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
           "Expected flags to match");
 
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkPersistentBucketTempItems(h, h1, 1);
+    checkPersistentBucketTempItems(h, 1);
 
     return SUCCESS;
 }
@@ -688,7 +688,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
     // check the stat
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Failed op does not count");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkPersistentBucketTempItems(h, h1, 1);
+    checkPersistentBucketTempItems(h, 1);
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
@@ -711,7 +711,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
           "Expected flags to match");
 
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkPersistentBucketTempItems(h, h1, 1);
+    checkPersistentBucketTempItems(h, 1);
 
     return SUCCESS;
 }
@@ -1097,7 +1097,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkPersistentBucketTempItems(h, h1, 1);
+    checkPersistentBucketTempItems(h, 1);
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = errorMetaPair.second.cas;
@@ -1112,7 +1112,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     // check the stat
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Failed op does not count");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkPersistentBucketTempItems(h, h1, 1);
+    checkPersistentBucketTempItems(h, 1);
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
@@ -1428,7 +1428,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h,
         int(info.datatype),
         "Expected datatype to be JSON and XATTR");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h, h1);
         //evict the key
         evict_key(h, key);
@@ -1463,7 +1463,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h,
             store(h, nullptr, OPERATION_SET, key1, body.data()),
             "Failed to store key1.");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h, h1);
     }
 
@@ -1703,7 +1703,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h,
     itemMeta.cas++;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(isPersistentBucket(h, h1) ? 1 : 0,
+    checkeq(isPersistentBucket(h) ? 1 : 0,
             get_int_stat(h, h1, "ep_bg_meta_fetched"),
             "Expected bg meta fetches");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),

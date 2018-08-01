@@ -173,7 +173,7 @@ static enum test_result test_whitespace_db(EngineIface* h, EngineIface* h1) {
 
     std::string dbname;
     std::string policy;
-    policy = isPersistentBucket(h, h1)
+    policy = isPersistentBucket(h)
                      ? vals.find("ep_item_eviction_policy")->second
                      : "ephemeral";
     dbname.assign(policy + std::string(WHITESPACE_DB));
@@ -251,7 +251,7 @@ static enum test_result test_set(EngineIface* h, EngineIface* h1) {
         }
     }
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h, h1);
 
         std::stringstream error1, error2;
@@ -305,7 +305,7 @@ static enum test_result test_conc_set(EngineIface* h, EngineIface* h1) {
         cb_assert(r == 0);
     }
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         wait_for_flusher_to_settle(h, h1);
 
         testHarness->reload_engine(&h,
@@ -1131,7 +1131,7 @@ static enum test_result test_touch_locked(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -1549,7 +1549,7 @@ static enum test_result test_set_delete_invalid_cas(EngineIface* h,
 }
 
 static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -1627,7 +1627,7 @@ static enum test_result test_bug2509(EngineIface* h, EngineIface* h1) {
         usleep(10);
     }
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         // Restart again, to verify we don't have any duplicates.
         testHarness->reload_engine(&h,
                                    testHarness->engine_path,
@@ -1669,7 +1669,7 @@ static enum test_result test_bug7023(EngineIface* h, EngineIface* h1) {
     }
     wait_for_flusher_to_settle(h, h1);
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         // Restart again, to verify no data loss.
         testHarness->reload_engine(&h,
                                    testHarness->engine_path,
@@ -1734,7 +1734,7 @@ static enum test_result test_mb3169(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_mb5172(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -1799,7 +1799,7 @@ static enum test_result set_max_cas_mb21190(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -1921,7 +1921,7 @@ static test_result get_if(EngineIface* h, EngineIface* h1) {
             store(h, nullptr, OPERATION_SET, key.c_str(), "somevalue"),
             "Failed set.");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h, h1);
         evict_key(h, key.c_str(), 0, "Ejected.");
     }

@@ -1015,7 +1015,7 @@ void enable_traffic(EngineIface* h) {
 }
 
 void start_persistence(EngineIface* h) {
-    if (!isPersistentBucket(h, h)) {
+    if (!isPersistentBucket(h)) {
         // Nothing to do for non-persistent buckets
         return;
     }
@@ -1029,7 +1029,7 @@ void start_persistence(EngineIface* h) {
 }
 
 void stop_persistence(EngineIface* h) {
-    if (!isPersistentBucket(h, h)) {
+    if (!isPersistentBucket(h)) {
         // Nothing to do for non-persistent buckets
         return;
     }
@@ -1640,7 +1640,7 @@ void wait_for_memory_usage_below(EngineIface* h,
 }
 
 bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return true;
     }
 
@@ -1667,7 +1667,7 @@ void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1) {
             get_int_stat(h, h1, "ep_vb_backfill_queue_size", 0),
             "even though disk queue is empty, vb backfill queue is not!!");
 
-    if (!isPersistentBucket(h, h1)) {
+    if (!isPersistentBucket(h)) {
         // We don't run flusher in non-persistent buckets
         return;
     }
@@ -1700,8 +1700,8 @@ void wait_for_persisted_value(EngineIface* h,
                               const char* val,
                               uint16_t vbucketId) {
     int commitNum = 0;
-    if (isPersistentBucket(h, h1)) {
-         commitNum = get_int_stat(h, h1, "ep_commit_num");
+    if (isPersistentBucket(h)) {
+        commitNum = get_int_stat(h, h1, "ep_commit_num");
     }
     check(ENGINE_SUCCESS == store(h,
                                   NULL,
@@ -1713,7 +1713,7 @@ void wait_for_persisted_value(EngineIface* h,
                                   vbucketId),
           "Failed to store an item.");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         // Wait for persistence...
         wait_for_flusher_to_settle(h, h1);
         wait_for_stat_change(h, h1, "ep_commit_num", commitNum);

@@ -280,22 +280,22 @@ void check_key_value(EngineIface* h,
 std::string get_dbname(const char* test_cfg);
 
 // Returns true if Compression is enabled for the given engine.
-bool isCompressionEnabled(EngineIface* h, EngineIface* h1);
+bool isCompressionEnabled(EngineIface* h);
 
 // Returns true if passive compression is enabled for the given engine.
-bool isPassiveCompressionEnabled(EngineIface* h, EngineIface* h1);
+bool isPassiveCompressionEnabled(EngineIface* h);
 
 // Returns true if active compression is enabled for the given engine.
-bool isActiveCompressionEnabled(EngineIface* h, EngineIface* h1);
+bool isActiveCompressionEnabled(EngineIface* h);
 
 // Returns true if Warmup is enabled for the given engine.
-bool isWarmupEnabled(EngineIface* h, EngineIface* h1);
+bool isWarmupEnabled(EngineIface* h);
 
 // Returns true if the given engine is a persistent bucket (EPBucket).
-bool isPersistentBucket(EngineIface* h, EngineIface* h1);
+bool isPersistentBucket(EngineIface* h);
 
 // Returns true if the given engine is an ephemeral bucket (EphemeralBucket).
-bool isEphemeralBucket(EngineIface* h, EngineIface* h1);
+bool isEphemeralBucket(EngineIface* h);
 
 // Checks number of temp items in a persistent bucket (EPBucket).
-void checkPersistentBucketTempItems(EngineIface* h, EngineIface* h1, int exp);
+void checkPersistentBucketTempItems(EngineIface* h, int exp);

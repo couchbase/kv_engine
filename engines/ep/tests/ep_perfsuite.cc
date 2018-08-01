@@ -1305,12 +1305,12 @@ static void perf_stat_latency_core(EngineIface* h,
                     .first,
             "Failed to add example document.");
 
-    if (isWarmupEnabled(h, h1)) {
+    if (isWarmupEnabled(h)) {
         // Include warmup-specific stats
         stat_tests.insert({"warmup", {"warmup", StatRuntime::Fast, {}} });
     }
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         // Include persistence-specific stats
         stat_tests.insert(
                 {make_stat_pair("diskinfo",
@@ -1371,7 +1371,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
         check(set_vbucket_state(h, vb, vbucket_state_active),
               "Failed set_vbucket_state for vbucket");
     }
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         wait_for_stat_to_be(h, h1, "ep_persist_vbstate_total", active_vbuckets);
     }
 

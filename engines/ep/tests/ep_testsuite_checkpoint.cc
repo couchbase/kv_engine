@@ -194,7 +194,7 @@ extern "C" {
 
 static enum test_result test_checkpoint_persistence(EngineIface* h,
                                                     EngineIface* h1) {
-    if (!isPersistentBucket(h, h1)) {
+    if (!isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
                 checkpointPersistence(h, 0, 0),
                 "Failed to request checkpoint persistence");

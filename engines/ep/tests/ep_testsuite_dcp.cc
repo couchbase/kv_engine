@@ -1194,7 +1194,7 @@ static void dcp_waiting_step(EngineIface* h,
 static enum test_result test_dcp_vbtakeover_no_stream(EngineIface* h,
                                                       EngineIface* h1) {
     write_items(h, h1, 10);
-    if (isPersistentBucket(h, h1) && is_full_eviction(h, h1)) {
+    if (isPersistentBucket(h) && is_full_eviction(h)) {
         // MB-21646: FE mode - curr_items (which is part of "estimate") is
         // updated as part of flush, and thus if the writes are flushed in
         // blocks < 10 we may see an estimate < 10
@@ -2024,7 +2024,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
     ctx.exp_mutations = 95; // 105 to 200
     ctx.exp_deletions = 100; // 201 to 300
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         ctx.exp_markers = 2;
     } else {
         // the ephemeral stream request won't be broken into two snapshots of
@@ -2233,7 +2233,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(
     tdc.run();
 
     uint64_t exp_backfill_task_runs;
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         /* Backfill task runs are expected as below:
            once for backfill_state_init + once for backfill_state_completing +
            once for backfill_state_done + once post all backfills are run
@@ -3340,7 +3340,7 @@ static enum test_result test_dcp_reconnect_partial(EngineIface* h,
 
 static enum test_result test_dcp_crash_reconnect_full(EngineIface* h,
                                                       EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -3350,7 +3350,7 @@ static enum test_result test_dcp_crash_reconnect_full(EngineIface* h,
 
 static enum test_result test_dcp_crash_reconnect_partial(EngineIface* h,
                                                          EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -3731,7 +3731,7 @@ static enum test_result test_rollback_to_zero(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_chk_manager_rollback(EngineIface* h,
                                                   EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         return SKIPPED;
     }
 
@@ -4049,7 +4049,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
             get_int_stat(h, h1, "ep_rollback_count"),
             "Rollback count expected to be 1");
 
-    if (isPersistentBucket(h, h1)) {
+    if (isPersistentBucket(h)) {
         checkeq(rollbackSeqno,
                 get_ull_stat(h, h1, "vb_replica_curr_items"),
                 "Item count should've been 100");
@@ -5260,7 +5260,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
 
     // Full Evictions: must wait for all items to have been flushed before
     // asserting item counts
-    if (isPersistentBucket(h, h1) && is_full_eviction(h, h1)) {
+    if (isPersistentBucket(h) && is_full_eviction(h)) {
         wait_for_flusher_to_settle(h, h1);
     }
 
@@ -5575,7 +5575,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h,
 }
 
 static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
-    if (!isWarmupEnabled(h, h1)) {
+    if (!isWarmupEnabled(h)) {
         // TODO: Ephemeral - Should re-enable some of these tests, where after
         // restart we expect all requests to rollback (as should be no matching
         // entries as the failover table will just have a single entry with

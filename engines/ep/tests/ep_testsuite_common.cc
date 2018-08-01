@@ -460,7 +460,7 @@ void check_key_value(EngineIface* h,
 
     cb::const_char_buffer payload;
     cb::compression::Buffer inflated;
-    if (isCompressionEnabled(h, h1) &&
+    if (isCompressionEnabled(h) &&
         (info.datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
         cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                  {static_cast<const char *>(info.value[0].iov_base),
@@ -476,34 +476,34 @@ void check_key_value(EngineIface* h,
     check(memcmp(payload.data(), val, vlen) == 0, "Data mismatch");
 }
 
-bool isCompressionEnabled(EngineIface* h, EngineIface* h1) {
+bool isCompressionEnabled(EngineIface* h) {
     return h->getCompressionMode() != BucketCompressionMode::Off;
 }
 
-bool isActiveCompressionEnabled(EngineIface* h, EngineIface* h1) {
+bool isActiveCompressionEnabled(EngineIface* h) {
     return h->getCompressionMode() == BucketCompressionMode::Active;
 }
 
-bool isPassiveCompressionEnabled(EngineIface* h, EngineIface* h1) {
+bool isPassiveCompressionEnabled(EngineIface* h) {
     return h->getCompressionMode() == BucketCompressionMode::Passive;
 }
 
-bool isWarmupEnabled(EngineIface* h, EngineIface* h1) {
-    return get_bool_stat(h, h1, "ep_warmup");
+bool isWarmupEnabled(EngineIface* h) {
+    return get_bool_stat(h, h, "ep_warmup");
 }
 
-bool isPersistentBucket(EngineIface* h, EngineIface* h1) {
-    return get_str_stat(h, h1, "ep_bucket_type") == "persistent";
+bool isPersistentBucket(EngineIface* h) {
+    return get_str_stat(h, h, "ep_bucket_type") == "persistent";
 }
 
-bool isEphemeralBucket(EngineIface* h, EngineIface* h1) {
-    return get_str_stat(h, h1, "ep_bucket_type") == "ephemeral";
+bool isEphemeralBucket(EngineIface* h) {
+    return get_str_stat(h, h, "ep_bucket_type") == "ephemeral";
 }
 
-void checkPersistentBucketTempItems(EngineIface* h, EngineIface* h1, int exp) {
-    if (isPersistentBucket(h, h1)) {
+void checkPersistentBucketTempItems(EngineIface* h, int exp) {
+    if (isPersistentBucket(h)) {
         checkeq(exp,
-                get_int_stat(h, h1, "curr_temp_items"),
+                get_int_stat(h, h, "curr_temp_items"),
                 "CheckPersistentBucketTempItems(): Num temp items not as "
                 "expected");
     }
