@@ -356,9 +356,9 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     return req;
 }
 
-void createCheckpoint(EngineIface* h, EngineIface* h1) {
+void createCheckpoint(EngineIface* h) {
     protocol_binary_request_header *request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
-    check(h1->unknown_command(NULL, request, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(nullptr, request, add_response) == ENGINE_SUCCESS,
           "Failed to create a new checkpoint.");
     cb_free(request);
 }
@@ -547,20 +547,18 @@ void evict_key(EngineIface* h,
 }
 
 ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
-                                        EngineIface* h1,
                                         uint64_t checkpoint_id,
                                         uint16_t vb) {
     checkpoint_id = htonll(checkpoint_id);
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, vb, 0, NULL, 0, NULL, 0,
                            (const char *)&checkpoint_id, sizeof(uint64_t));
-    ENGINE_ERROR_CODE rv = h1->unknown_command(NULL, request, add_response);
+    ENGINE_ERROR_CODE rv = h->unknown_command(nullptr, request, add_response);
     cb_free(request);
     return rv;
 }
 
 ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
-                                   EngineIface* h1,
                                    const void* cookie,
                                    uint16_t vbucket,
                                    uint64_t seqno) {
@@ -570,7 +568,7 @@ ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
     protocol_binary_request_header* request =
         createPacket(PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE, vbucket, 0, buffer, 8);
 
-    ENGINE_ERROR_CODE rv = h1->unknown_command(cookie, request, add_response);
+    ENGINE_ERROR_CODE rv = h->unknown_command(cookie, request, add_response);
     cb_free(request);
     return rv;
 }
@@ -1323,7 +1321,6 @@ bool verify_vbucket_state(EngineIface* h,
 }
 
 void sendDcpAck(EngineIface* h,
-                EngineIface* h1,
                 const void* cookie,
                 protocol_binary_command opcode,
                 protocol_binary_response_status status,

@@ -362,20 +362,17 @@ bool verify_vbucket_state(EngineIface* h,
                           bool mute = false);
 
 void sendDcpAck(EngineIface* h,
-                EngineIface* h1,
                 const void* cookie,
                 protocol_binary_command opcode,
                 protocol_binary_response_status status,
                 uint32_t opaque);
 
 // Checkpoint Operations
-void createCheckpoint(EngineIface* h, EngineIface* h1);
+void createCheckpoint(EngineIface* h);
 ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
-                                        EngineIface* h1,
                                         uint64_t checkpoint_id,
                                         uint16_t vb);
 ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
-                                   EngineIface* h1,
                                    const void* cookie,
                                    uint16_t vbucket,
                                    uint64_t seqno);

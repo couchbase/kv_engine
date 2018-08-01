@@ -351,7 +351,8 @@ void TestDcpConsumer::run(bool openConn) {
                     all_bytes += dcp_last_packet_size;
                     if (stats.pending_marker_ack &&
                         dcp_last_byseqno == stats.marker_end) {
-                        sendDcpAck(h, h1, cookie,
+                        sendDcpAck(h,
+                                   cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
@@ -377,7 +378,8 @@ void TestDcpConsumer::run(bool openConn) {
                     all_bytes += dcp_last_packet_size;
                     if (stats.pending_marker_ack &&
                         dcp_last_byseqno == stats.marker_end) {
-                        sendDcpAck(h, h1, cookie,
+                        sendDcpAck(h,
+                                   cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
@@ -435,7 +437,8 @@ void TestDcpConsumer::run(bool openConn) {
                     }
                     bytes_read += dcp_last_packet_size;
                     all_bytes += dcp_last_packet_size;
-                    sendDcpAck(h, h1, cookie,
+                    sendDcpAck(h,
+                               cookie,
                                PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                dcp_last_opaque);
@@ -892,7 +895,8 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
                     bytes_read += dcp_last_packet_size;
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
-                        sendDcpAck(h, h1, cookie,
+                        sendDcpAck(h,
+                                   cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
@@ -1135,7 +1139,8 @@ static void dcp_waiting_step(EngineIface* h,
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
                     bytes_read += dcp_last_packet_size;
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
-                        sendDcpAck(h, h1, cookie,
+                        sendDcpAck(h,
+                                   cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
@@ -1741,8 +1746,11 @@ static enum test_result test_dcp_noop(EngineIface* h, EngineIface* h1) {
             const auto stat_name("eq_dcpq:" + name + ":noop_wait");
             checkeq(1, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
                     "Didn't send noop");
-            sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_NOOP,
-                       PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
+            sendDcpAck(h,
+                       cookie,
+                       PROTOCOL_BINARY_CMD_DCP_NOOP,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                       dcp_last_opaque);
             checkeq(0, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
                     "Didn't ack noop");
         } else if (dcp_last_op != 0) {
@@ -3037,8 +3045,11 @@ static test_result test_dcp_takeover_no_items(EngineIface* h, EngineIface* h1) {
                     } else if (dcp_last_vbucket_state == vbucket_state_active) {
                         num_set_vbucket_active++;
                     }
-                    sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
-                               PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
+                    sendDcpAck(h,
+                               cookie,
+                               PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                               dcp_last_opaque);
                     break;
                 case 0:
                      break;
@@ -3440,10 +3451,10 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
          start_seqno += batch_items) {
         write_items(h, h1, batch_items, start_seqno);
         wait_for_flusher_to_settle(h, h1);
-        createCheckpoint(h, h1);
+        createCheckpoint(h);
     }
 
-    createCheckpoint(h, h1);
+    createCheckpoint(h);
     wait_for_flusher_to_settle(h, h1);
 
     const void* cookie = testHarness->create_cookie();
@@ -4813,7 +4824,7 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h,
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(ENGINE_SUCCESS,
-            seqnoPersistence(h, h1, nullptr, /*vbid*/ 0, /*seqno*/ num_items),
+            seqnoPersistence(h, nullptr, /*vbid*/ 0, /*seqno*/ num_items),
             "Expected success for seqno persistence request");
 
     /* the test chooses to handle the EWOULDBLOCK here */
@@ -4822,8 +4833,7 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h,
 
     /* seqno 'num_items + 1' is not yet seen buy the vbucket */
     checkeq(ENGINE_EWOULDBLOCK,
-            seqnoPersistence(
-                    h, h1, cookie, /*vbid*/ 0, /*seqno*/ num_items + 1),
+            seqnoPersistence(h, cookie, /*vbid*/ 0, /*seqno*/ num_items + 1),
             "Expected temp failure for seqno persistence request");
     checkeq(1,
             get_int_stat(h, h1, "vb_0:hp_vb_req_size", "vbucket-details 0"),
@@ -4908,7 +4918,7 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
 
     /* seqno 'num_items + 1' is not yet seen by the vbucket */
     checkeq(ENGINE_EWOULDBLOCK,
-            seqnoPersistence(h, h1, cookie, /*vbid*/ 0, /*seqno*/ num_items),
+            seqnoPersistence(h, cookie, /*vbid*/ 0, /*seqno*/ num_items),
             "Expected temp failure for seqno persistence request");
     checkeq(1,
             get_int_stat(h, h1, "vb_0:hp_vb_req_size", "vbucket-details 0"),

@@ -991,7 +991,8 @@ static void perf_dcp_client(EngineIface* h,
                     bytes_received.push_back(dcp_last_value.length());
                     bytes_read += dcp_last_packet_size;
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
-                        sendDcpAck(h, h1, cookie,
+                        sendDcpAck(h,
+                                   cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);

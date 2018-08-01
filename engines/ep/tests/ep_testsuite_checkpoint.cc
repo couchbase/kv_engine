@@ -52,7 +52,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
             "Last closed checkpoint Id for VB 0 should increase to 2 after "
             "storing 51 items");
 
-    createCheckpoint(h, h1);
+    createCheckpoint(h);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success response from creating a new checkpoint");
 
@@ -170,7 +170,7 @@ extern "C" {
 
         // Issue a request with the unexpected large checkpoint id 100, which
         // will cause timeout.
-        check(checkpointPersistence(hp->h, hp->h1, 100, 0) == ENGINE_TMPFAIL,
+        check(checkpointPersistence(hp->h, 100, 0) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
         check(get_int_stat(hp->h, hp->h1, "ep_chk_persistence_timeout") > 10,
               "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be greater"
@@ -188,7 +188,7 @@ extern "C" {
                     "Failed to store a value");
         }
 
-        createCheckpoint(hp->h, hp->h1);
+        createCheckpoint(hp->h);
     }
 }
 
@@ -196,7 +196,7 @@ static enum test_result test_checkpoint_persistence(EngineIface* h,
                                                     EngineIface* h1) {
     if (!isPersistentBucket(h, h1)) {
         checkeq(ENGINE_SUCCESS,
-                checkpointPersistence(h, h1, 0, 0),
+                checkpointPersistence(h, 0, 0),
                 "Failed to request checkpoint persistence");
         checkeq(last_status.load(),
                 PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
@@ -222,7 +222,7 @@ static enum test_result test_checkpoint_persistence(EngineIface* h,
     int closed_chk_id = get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id",
                                      "checkpoint 0");
     // Request to prioritize persisting vbucket 0.
-    check(checkpointPersistence(h, h1, closed_chk_id, 0) == ENGINE_SUCCESS,
+    check(checkpointPersistence(h, closed_chk_id, 0) == ENGINE_SUCCESS,
           "Failed to request checkpoint persistence");
 
     return SUCCESS;
@@ -232,7 +232,7 @@ extern "C" {
     static void wait_for_persistence_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
 
-        check(checkpointPersistence(hp->h, hp->h1, 100, 1) == ENGINE_TMPFAIL,
+        check(checkpointPersistence(hp->h, 100, 1) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
     }
 }
