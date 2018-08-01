@@ -398,7 +398,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h,
 
     if (isPersistentBucket(h, h1)) {
         //Evict the key
-        evict_key(h, h1, key);
+        evict_key(h, key);
 
         // This should result in a bg fetch
         check(get_meta(h, h1, key, errorMetaPair, cookie),
@@ -440,7 +440,6 @@ static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
 
         checkeq(ENGINE_SUCCESS,
                 delete_with_value(h,
-                                  h1,
                                   cookie,
                                   0,
                                   key,
@@ -1416,7 +1415,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h,
     if (isPersistentBucket(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
         //evict the key
-        evict_key(h, h1, key);
+        evict_key(h, key);
 
         //set with the same meta data but now as RAW BYTES.
         //This should result in a bg fetch
@@ -1950,7 +1949,7 @@ static enum test_result test_getMeta_with_item_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, key, 0, "Ejected.");
+    evict_key(h, key, 0, "Ejected.");
 
     Item *it = reinterpret_cast<Item*>(i);
 
@@ -2562,7 +2561,7 @@ static enum test_result test_MB29119(EngineIface* h, EngineIface* h1) {
 
     wait_for_flusher_to_settle(h, h1);
     // evict the key
-    evict_key(h, h1, key1);
+    evict_key(h, key1);
 
     // Same key
     del_with_meta(h,

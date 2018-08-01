@@ -2416,7 +2416,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h,
     for (int ii = 0; ii < 5; ii++) {
         std::stringstream ss;
         ss << "key" << ii;
-        evict_key(h, h1, ss.str().c_str(), 0, "Ejected.");
+        evict_key(h, ss.str().c_str(), 0, "Ejected.");
     }
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "ep_num_value_ejects", 5);

@@ -395,7 +395,7 @@ static enum test_result test_getl_delete_with_cas(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, "key", "value"),
             "Failed to set key");
 
-    auto ret = getl(h, h1, nullptr, "key", 0, 15);
+    auto ret = getl(h, nullptr, "key", 0, 15);
     checkeq(cb::engine_errc::success,
             ret.first,
             "Expected getl to succeed on key");
@@ -416,7 +416,7 @@ static enum test_result test_getl_delete_with_bad_cas(EngineIface* h,
 
     uint64_t cas = last_cas;
     checkeq(cb::engine_errc::success,
-            getl(h, h1, nullptr, "key", 0, 15).first,
+            getl(h, nullptr, "key", 0, 15).first,
             "Expected getl to succeed on key");
 
     checkeq(ENGINE_LOCKED_TMPFAIL, del(h, h1, "key", cas, 0), "Expected TMPFAIL");
@@ -434,7 +434,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h,
             "Failed to set key");
 
     checkeq(cb::engine_errc::success,
-            getl(h, h1, nullptr, key, 0, 15).first,
+            getl(h, nullptr, key, 0, 15).first,
             "Expected getl to succeed on key");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -471,7 +471,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
     const void* cookie = testHarness->create_cookie();
 
     checkeq(cb::engine_errc::no_such_key,
-            getl(h, h1, cookie, key, vbucketId, expiration).first,
+            getl(h, cookie, key, vbucketId, expiration).first,
             "expected the key to be missing...");
 
     checkeq(ENGINE_SUCCESS,
@@ -489,7 +489,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
             "Failed to store an item.");
 
     /* retry getl, should succeed */
-    auto ret = getl(h, h1, cookie, key, vbucketId, expiration);
+    auto ret = getl(h, cookie, key, vbucketId, expiration);
     checkeq(cb::engine_errc::success,
             ret.first,
             "Expected to be able to getl on first try");
@@ -511,7 +511,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
 
     /* lock's taken so this should fail */
     checkeq(cb::engine_errc::locked_tmpfail,
-            getl(h, h1, cookie, key, vbucketId, expiration).first,
+            getl(h, cookie, key, vbucketId, expiration).first,
             "Expected to fail getl on second try");
 
     checkne(ENGINE_SUCCESS,
@@ -544,11 +544,11 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
 
     /* point to wrong vbucket, to test NOT_MY_VB response */
     checkeq(cb::engine_errc::not_my_vbucket,
-            getl(h, h1, cookie, key, 10, expiration).first,
+            getl(h, cookie, key, 10, expiration).first,
             "Should have received not my vbucket response");
 
     /* acquire lock, should succeed */
-    ret = getl(h, h1, cookie, key, vbucketId, expiration);
+    ret = getl(h, cookie, key, vbucketId, expiration);
     checkeq(cb::engine_errc::success,
             ret.first,
             "Acquire lock should have succeeded");
@@ -585,7 +585,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
 
     /* acquire lock, should succeed */
     checkeq(cb::engine_errc::success,
-            getl(h, h1, cookie, key, vbucketId, expiration).first,
+            getl(h, cookie, key, vbucketId, expiration).first,
             "Acquire lock should have succeeded");
 
     /* bug MB 3252 & MB 3354.
@@ -695,7 +695,7 @@ static enum test_result test_unl(EngineIface* h, EngineIface* h1) {
             "Failed to store an item.");
 
     /* getl, should succeed */
-    auto ret = getl(h, h1, nullptr, key, vbucketId, 0);
+    auto ret = getl(h, nullptr, key, vbucketId, 0);
     checkeq(cb::engine_errc::success,
             ret.first,
             "Expected to be able to getl on first try");
@@ -716,7 +716,7 @@ static enum test_result test_unl(EngineIface* h, EngineIface* h1) {
 
     /* acquire lock, should succeed */
     checkeq(cb::engine_errc::success,
-            getl(h, h1, nullptr, key, vbucketId, 0).first,
+            getl(h, nullptr, key, vbucketId, 0).first,
             "Lock should work after unlock");
 
     /* wait 16 seconds */
@@ -1007,7 +1007,7 @@ static enum test_result test_touch_mb10277(EngineIface* h, EngineIface* h1) {
             store(h, h1, NULL, OPERATION_SET, key, "v"),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, key, 0, "Ejected.");
+    evict_key(h, key, 0, "Ejected.");
 
     checkeq(ENGINE_SUCCESS,
             touch(h, h1, key, 0, 3600), // A new expiration time remains in the same.
@@ -1018,12 +1018,12 @@ static enum test_result test_touch_mb10277(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_gat(EngineIface* h, EngineIface* h1) {
     // Try to gat an unknown item...
-    auto ret = gat(h, h1, "mykey", 0, 10);
+    auto ret = gat(h, "mykey", 0, 10);
     checkeq(ENGINE_KEY_ENOENT, ENGINE_ERROR_CODE(ret.first),
             "Testing unknown key");
 
     // illegal vbucket
-    ret = gat(h, h1, "mykey", 5, 10);
+    ret = gat(h, "mykey", 5, 10);
     checkeq(ENGINE_NOT_MY_VBUCKET,
             ENGINE_ERROR_CODE(ret.first), "Testing illegal vbucket");
 
@@ -1045,7 +1045,7 @@ static enum test_result test_gat(EngineIface* h, EngineIface* h1) {
     check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
             strlen("{\"some\":\"value\"}"));
 
-    ret = gat(h, h1, "mykey", 0, 10);
+    ret = gat(h, "mykey", 0, 10);
     checkeq(ENGINE_SUCCESS,
             ENGINE_ERROR_CODE(ret.first), "gat mykey");
 
@@ -1085,14 +1085,14 @@ static enum test_result test_gat_locked(EngineIface* h, EngineIface* h1) {
             "Failed to set key");
 
     checkeq(cb::engine_errc::success,
-            getl(h, h1, nullptr, "key", 0, 15).first,
+            getl(h, nullptr, "key", 0, 15).first,
             "Expected getl to succeed on key");
 
-    auto ret = gat(h, h1, "key", 0, 10);
+    auto ret = gat(h, "key", 0, 10);
     checkeq(ENGINE_LOCKED, ENGINE_ERROR_CODE(ret.first), "Expected LOCKED");
 
     testHarness->time_travel(16);
-    ret = gat(h, h1, "key", 0, 10);
+    ret = gat(h, "key", 0, 10);
     checkeq(ENGINE_SUCCESS, ENGINE_ERROR_CODE(ret.first), "Expected success");
 
     testHarness->time_travel(11);
@@ -1110,7 +1110,7 @@ static enum test_result test_touch_locked(EngineIface* h, EngineIface* h1) {
     h->release(itm);
 
     checkeq(cb::engine_errc::success,
-            getl(h, h1, nullptr, "key", 0, 15).first,
+            getl(h, nullptr, "key", 0, 15).first,
             "Expected getl to succeed on key");
 
     checkeq(ENGINE_LOCKED, touch(h, h1, "key", 0, 10),
@@ -1163,7 +1163,7 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
 
     // evict key, touch expiration time, and verify
-    evict_key(h, h1, "coolkey", 0, "Ejected.");
+    evict_key(h, "coolkey", 0, "Ejected.");
 
     expTime = time(NULL) + 222;
     checkeq(ENGINE_SUCCESS ,touch(h, h1, "coolkey", 0, expTime),
@@ -1211,7 +1211,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
 
     /* Alive -> Deleted-with-value */
     checkeq(ENGINE_SUCCESS,
-            delete_with_value(h, h1, cookie, cas_0, "key", "deleted"),
+            delete_with_value(h, cookie, cas_0, "key", "deleted"),
             "Failed Alive -> Delete-with-value");
 
     checkeq(uint64_t(0),
@@ -1231,7 +1231,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
 
     /* Deleted-with-value -> Deleted-with-value (different value). */
     checkeq(ENGINE_SUCCESS,
-            delete_with_value(h, h1, cookie, cas_0, "key", "deleted 2"),
+            delete_with_value(h, cookie, cas_0, "key", "deleted 2"),
             "Failed Deleted-with-value -> Deleted-with-value");
 
     checkeq(uint64_t(0),
@@ -1287,7 +1287,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
 
     /* Deleted-no-value -> Delete-with-value */
     checkeq(ENGINE_SUCCESS,
-            delete_with_value(h, h1, cookie, cas_0, "key", "deleted 3"),
+            delete_with_value(h, cookie, cas_0, "key", "deleted 3"),
             "Failed delete with value (deleted 2)");
 
     res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
@@ -1559,7 +1559,7 @@ static enum test_result test_get_delete_missing_file(EngineIface* h,
     // the item is still in the memory
     checkeq(cb::engine_errc::success, ret.first, "Expected success for get");
 
-    evict_key(h, h1, key);
+    evict_key(h, key);
     ret = get(h, h1, NULL, key, 0);
 
     // ep engine must be now aware of the ill-fated db file where
@@ -1652,9 +1652,9 @@ static enum test_result test_mb3169(EngineIface* h, EngineIface* h1) {
 
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
 
-    evict_key(h, h1, "set", 0, "Ejected.");
-    evict_key(h, h1, "delete", 0, "Ejected.");
-    evict_key(h, h1, "get", 0, "Ejected.");
+    evict_key(h, "set", 0, "Ejected.");
+    evict_key(h, "delete", 0, "Ejected.");
+    evict_key(h, "get", 0, "Ejected.");
 
     checkeq(3, get_int_stat(h, h1, "curr_items"), "Expected 3 items");
     checkeq(3,
@@ -1872,7 +1872,7 @@ static test_result get_if(EngineIface* h, EngineIface* h1) {
 
     if (isPersistentBucket(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
-        evict_key(h, h1, key.c_str(), 0, "Ejected.");
+        evict_key(h, key.c_str(), 0, "Ejected.");
     }
 
     const auto* cookie = testHarness->create_cookie();

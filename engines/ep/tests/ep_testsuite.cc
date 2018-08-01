@@ -145,7 +145,7 @@ static enum test_result test_replace_with_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed to set value.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, "key");
+    evict_key(h, "key");
     int numBgFetched = get_int_stat(h, h1, "ep_bg_fetched");
 
     checkeq(ENGINE_SUCCESS,
@@ -1340,7 +1340,7 @@ static enum test_result test_get_replica_non_resident(EngineIface* h,
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
 
-    evict_key(h, h1, "key", 0, "Ejected.");
+    evict_key(h, "key", 0, "Ejected.");
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket to replica");
 
@@ -2060,7 +2060,7 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
           "the checkpoint overhead");
 
     if (isPersistentBucket(h, h1)) {
-        evict_key(h, h1, "key", 0, "Ejected.");
+        evict_key(h, "key", 0, "Ejected.");
 
         check(get_int_stat(h, h1, "ep_total_cache_size") <= cache_size,
               "Evict a value shouldn't increase the total cache size");
@@ -2124,7 +2124,7 @@ static enum test_result test_io_stats(EngineIface* h, EngineIface* h1) {
             get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
             "Expected storing the key to update the write bytes");
 
-    evict_key(h, h1, key.c_str(), 0, "Ejected.");
+    evict_key(h, key.c_str(), 0, "Ejected.");
 
     check_key_value(h, h1, "a", value.c_str(), value.size(), 0);
 
@@ -2231,7 +2231,7 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h,
 static enum test_result test_bg_stats(EngineIface* h, EngineIface* h1) {
     reset_stats(h);
     wait_for_persisted_value(h, h1, "a", "b\r\n");
-    evict_key(h, h1, "a", 0, "Ejected.");
+    evict_key(h, "a", 0, "Ejected.");
     testHarness->time_travel(43);
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
 
@@ -2250,7 +2250,7 @@ static enum test_result test_bg_stats(EngineIface* h, EngineIface* h1) {
               (std::string("Found no ") + key).c_str());
     }
 
-    evict_key(h, h1, "a", 0, "Ejected.");
+    evict_key(h, "a", 0, "Ejected.");
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
     check(get_int_stat(h, h1, "ep_bg_num_samples") == 2,
           "Expected one sample");
@@ -2267,7 +2267,7 @@ static enum test_result test_bg_meta_stats(EngineIface* h, EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "v1");
     wait_for_persisted_value(h, h1, "k2", "v2");
 
-    evict_key(h, h1, "k1", 0, "Ejected.");
+    evict_key(h, "k1", 0, "Ejected.");
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k2", 0, 0), "Failed remove with value.");
     wait_for_flusher_to_settle(h, h1);
@@ -2637,7 +2637,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
     for (i = 0; i < 10; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        evict_key(h, h1, key.str().c_str(), 0, "Ejected.");
+        evict_key(h, key.str().c_str(), 0, "Ejected.");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -3857,25 +3857,25 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "k1", "v1"),
             "Failed to fail to store an item.");
-    evict_key(h, h1, "k1", 0, "Can't eject: Dirty object.", true);
+    evict_key(h, "k1", 0, "Can't eject: Dirty object.", true);
     start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
     stop_persistence(h);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "k2", "v2", nullptr, 0, 1),
             "Failed to fail to store an item.");
-    evict_key(h, h1, "k2", 1, "Can't eject: Dirty object.", true);
+    evict_key(h, "k2", 1, "Can't eject: Dirty object.", true);
     start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
 
-    evict_key(h, h1, "k1", 0, "Ejected.");
-    evict_key(h, h1, "k2", 1, "Ejected.");
+    evict_key(h, "k1", 0, "Ejected.");
+    evict_key(h, "k2", 1, "Ejected.");
 
     checkeq(2, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected two non-resident items for active vbuckets");
 
-    evict_key(h, h1, "k1", 0, "Already ejected.");
-    evict_key(h, h1, "k2", 1, "Already ejected.");
+    evict_key(h, "k1", 0, "Already ejected.");
+    evict_key(h, "k2", 1, "Already ejected.");
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY, 0, 0,
                                                        NULL, 0, "missing-key", 11);
@@ -3980,7 +3980,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
     for (it = keys.begin(); it != keys.end(); ++it) {
-        evict_key(h, h1, it->c_str(), 1, "Ejected.");
+        evict_key(h, it->c_str(), 1, "Ejected.");
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
         check_key_value(h, h1, it->c_str(), it->data(), it->size(), 1);
@@ -4011,7 +4011,7 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
     int mem_used = get_int_stat(h, h1, "mem_used");
 
     // Evict the data.
-    evict_key(h, h1, "k1");
+    evict_key(h, "k1");
 
     int kv_size2 = get_int_stat(h, h1, "ep_kv_size");
     int mem_used2 = get_int_stat(h, h1, "mem_used");
@@ -4063,7 +4063,7 @@ static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h,
             "Fell below initial overhead.");
 
     // Evict the data.
-    evict_key(h, h1, "k1");
+    evict_key(h, "k1");
 
     // Delete the value and make sure things return correctly.
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
@@ -4081,7 +4081,7 @@ static enum test_result test_disk_gt_ram_update_paged_out(EngineIface* h,
                                                           EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    evict_key(h, h1, "k1");
+    evict_key(h, "k1");
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "k1", "new value"),
@@ -4098,7 +4098,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h,
                                                           EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    evict_key(h, h1, "k1");
+    evict_key(h, "k1");
 
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed to delete.");
@@ -4143,7 +4143,7 @@ static enum test_result test_disk_gt_ram_set_race(EngineIface* h,
 
     set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
 
-    evict_key(h, h1, "k1");
+    evict_key(h, "k1");
 
     cb_thread_t tid;
     if (cb_create_thread(&tid, bg_set_thread, new ThreadData(h, h1), 0) != 0) {
@@ -4166,7 +4166,7 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h,
 
     set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
 
-    evict_key(h, h1, "k1");
+    evict_key(h, "k1");
 
     cb_thread_t tid;
     if (cb_create_thread(&tid, bg_del_thread, new ThreadData(h, h1), 0) != 0) {
@@ -5028,7 +5028,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
           "Expected 'valid'");
 
     // Check that an evicted key still returns valid
-    evict_key(h, h1, "key", 0, "Ejected.");
+    evict_key(h, "key", 0, "Ejected.");
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(cookie, "vkey key 0"_ccb, add_stats),
             "Failed to get stats.");
@@ -5426,7 +5426,7 @@ static enum test_result test_set_with_item_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, "key", 0, "Ejected.");
+    evict_key(h, "key", 0, "Ejected.");
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "newvalue"),
             "Failed set.");
@@ -5447,7 +5447,7 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, key, val),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, key, 0, "Ejected.");
+    evict_key(h, key, 0, "Ejected.");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -5591,7 +5591,7 @@ static enum test_result test_add_with_item_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_ADD, "key", "somevalue"),
             "Failed to add value.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, "key", 0, "Ejected.");
+    evict_key(h, "key", 0, "Ejected.");
 
     checkeq(ENGINE_NOT_STORED,
             store(h, h1, NULL, OPERATION_ADD, "key", "somevalue"),
@@ -5614,9 +5614,9 @@ static enum test_result test_gat_with_item_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, "mykey", 0, "Ejected.");
+    evict_key(h, "mykey", 0, "Ejected.");
 
-    gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
+    gat(h, "mykey", 0, 10); // 10 sec as expiration time
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
     check(last_body == "somevalue", "Invalid data returned");
 
@@ -5643,7 +5643,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, "k1", "v1"),
             "Failed to store an item.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, "k1", 0, "Ejected.");
+    evict_key(h, "k1", 0, "Ejected.");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -5678,7 +5678,7 @@ static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, key, "somevalue"),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, key, 0, "Ejected.");
+    evict_key(h, key, 0, "Ejected.");
 
     // delete an item with meta data
     del_with_meta(h, h1, key, keylen, 0, &itemMeta);
@@ -5694,7 +5694,7 @@ static enum test_result test_del_with_item_eviction(EngineIface* h,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, "key", 0, "Ejected.");
+    evict_key(h, "key", 0, "Ejected.");
 
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
@@ -5739,8 +5739,8 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h,
 
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
 
-    evict_key(h, h1, "key1", 0, "Ejected.");
-    evict_key(h, h1, "key2", 1, "Ejected.");
+    evict_key(h, "key1", 0, "Ejected.");
+    evict_key(h, "key2", 1, "Ejected.");
 
     // Do observe
     std::map<std::string, uint16_t> obskeys;
@@ -5799,7 +5799,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h,
     check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue") ==
                   ENGINE_SUCCESS,
           "Failed set.");
-    gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
+    gat(h, "mykey", 0, 10); // 10 sec as expiration time
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
     check(last_body == "somevalue", "Invalid data returned");
 
@@ -5809,7 +5809,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h,
                 0, 0, 0), "Error setting.");
 
     wait_for_flusher_to_settle(h, h1);
-    evict_key(h, h1, "mykey", 0, "Ejected.");
+    evict_key(h, "mykey", 0, "Ejected.");
 
     // time-travel 11 secs..
     testHarness->time_travel(11);
@@ -5853,7 +5853,7 @@ static enum test_result test_mb16421(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h, h1);
 
     // Evict Item!
-    evict_key(h, h1, "mykey", 0, "Ejected.");
+    evict_key(h, "mykey", 0, "Ejected.");
 
     // Issue Get Meta
     check(get_meta(h, h1, "mykey"), "Expected to get meta");
@@ -5892,7 +5892,7 @@ static enum test_result test_eviction_with_xattr(EngineIface* h,
     wait_for_flusher_to_settle(h, h1);
 
     // Evict Item!
-    evict_key(h, h1, key, 0, "Ejected.");
+    evict_key(h, key, 0, "Ejected.");
 
     item_info info;
     check(get_item_info(h, h1, &info, key), "Error getting item info");
@@ -6062,7 +6062,7 @@ static enum test_result test_hlc_cas(EngineIface* h, EngineIface* h1) {
     prev_cas = curr_cas;
 
     checkeq(cb::engine_errc::success,
-            getl(h, h1, NULL, key, 0, 10).first,
+            getl(h, nullptr, key, 0, 10).first,
             "Expected to be able to getl on first try");
     check(get_item_info(h, h1, &info, key), "Error in getting item info");
 

@@ -220,7 +220,6 @@ ENGINE_ERROR_CODE del(EngineIface* h,
  */
 ENGINE_ERROR_CODE delete_with_value(
         EngineIface* h,
-        EngineIface* h1,
         const void* cookie,
         uint64_t cas,
         const char* key,
@@ -230,13 +229,11 @@ ENGINE_ERROR_CODE delete_with_value(
 void disable_traffic(EngineIface* h);
 void enable_traffic(EngineIface* h);
 void evict_key(EngineIface* h,
-               EngineIface* h1,
                const char* key,
                uint16_t vbucketId = 0,
                const char* msg = NULL,
                bool expectError = false);
 cb::EngineErrorItemPair gat(EngineIface* h,
-                            EngineIface* h1,
                             const char* key,
                             uint16_t vb,
                             uint32_t exp);
@@ -247,7 +244,6 @@ bool get_item_info(EngineIface* h,
                    uint16_t vb = 0);
 
 cb::EngineErrorItemPair getl(EngineIface* h,
-                             EngineIface* h1,
                              const void* cookie,
                              const char* key,
                              uint16_t vb,

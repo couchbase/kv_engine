@@ -402,14 +402,13 @@ ENGINE_ERROR_CODE del(EngineIface* h,
  * a delete with a value.
  */
 ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
-                                    EngineIface* h1,
                                     const void* cookie,
                                     uint64_t cas,
                                     const char* key,
                                     cb::const_char_buffer value,
                                     cb::mcbp::Datatype datatype) {
     auto ret = storeCasVb11(h,
-                            h1,
+                            h,
                             cookie,
                             OPERATION_SET,
                             key,
@@ -421,7 +420,7 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
                             /*exp*/ 0,
                             uint8_t(datatype),
                             DocumentState::Deleted);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h, h);
 
     return ENGINE_ERROR_CODE(ret.first);
 }
@@ -507,19 +506,18 @@ void del_with_meta(EngineIface* h,
 }
 
 void evict_key(EngineIface* h,
-               EngineIface* h1,
                const char* key,
                uint16_t vbucketId,
                const char* msg,
                bool expectError) {
-    int nonResidentItems = get_int_stat(h, h1, "ep_num_non_resident");
-    int numEjectedItems = get_int_stat(h, h1, "ep_num_value_ejects");
+    int nonResidentItems = get_int_stat(h, h, "ep_num_non_resident");
+    int numEjectedItems = get_int_stat(h, h, "ep_num_value_ejects");
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY, 0, 0,
                                                        NULL, 0, key, strlen(key));
     pkt->request.vbucket = htons(vbucketId);
 
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Failed to perform CMD_EVICT_KEY.");
 
     cb_free(pkt);
@@ -535,10 +533,12 @@ void evict_key(EngineIface* h,
                 "evict_key: expected SUCCESS when evicting key.");
     }
 
-    checkeq(nonResidentItems, get_int_stat(h, h1, "ep_num_non_resident"),
-          "Incorrect number of non-resident items");
-    checkeq(numEjectedItems, get_int_stat(h, h1, "ep_num_value_ejects"),
-          "Incorrect number of ejected items");
+    checkeq(nonResidentItems,
+            get_int_stat(h, h, "ep_num_non_resident"),
+            "Incorrect number of non-resident items");
+    checkeq(numEjectedItems,
+            get_int_stat(h, h, "ep_num_value_ejects"),
+            "Incorrect number of ejected items");
 
     if (msg != NULL && last_body != msg) {
         fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
@@ -577,18 +577,17 @@ ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
 }
 
 cb::EngineErrorItemPair gat(EngineIface* h,
-                            EngineIface* h1,
                             const char* key,
                             uint16_t vb,
                             uint32_t exp) {
     const auto* cookie = testHarness->create_cookie();
-    auto ret = h1->get_and_touch(
+    auto ret = h->get_and_touch(
             cookie, DocKey(key, testHarness->doc_namespace), vb, exp);
     testHarness->destroy_cookie(cookie);
 
     if (ret.first == cb::engine_errc::success) {
         item_info info;
-        check(h1->get_item_info(ret.second.get(), &info),
+        check(h->get_item_info(ret.second.get(), &info),
               "gat Failed to get item info");
 
         last_body.assign((const char*)info.value[0].iov_base,
@@ -615,7 +614,6 @@ bool get_item_info(EngineIface* h,
 }
 
 cb::EngineErrorItemPair getl(EngineIface* h,
-                             EngineIface* h1,
                              const void* cookie,
                              const char* key,
                              uint16_t vb,
@@ -625,7 +623,7 @@ cb::EngineErrorItemPair getl(EngineIface* h,
         cookie = testHarness->create_cookie();
         create_cookie = true;
     }
-    auto ret = h1->get_locked(
+    auto ret = h->get_locked(
             cookie, DocKey(key, testHarness->doc_namespace), vb, lock_timeout);
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
