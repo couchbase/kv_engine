@@ -357,8 +357,10 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h,
           "Failed set vbucket 0 to replica state.");
 
     /* trigger persist vb state task */
-    check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "vb_state_persist_run", "0"),
+    check(set_param(h,
+                    protocol_binary_engine_param_flush,
+                    "vb_state_persist_run",
+                    "0"),
           "Failed to trigger vb state persist");
 
     /* restart the engine */
@@ -641,8 +643,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
     cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
     checkeq(3600, get_int_stat(h, h1, "ep_exp_pager_stime"),
             "Expiry pager sleep time not expected");
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "exp_pager_stime", "1");
+    set_param(h, protocol_binary_engine_param_flush, "exp_pager_stime", "1");
     checkeq(1, get_int_stat(h, h1, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
     cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
@@ -650,8 +651,8 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
     checkeq(0, get_int_stat(h, h1, "ep_num_expiry_pager_runs"),
             "Expiry pager run count is not zero");
 
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "exp_pager_enabled", "true");
+    set_param(
+            h, protocol_binary_engine_param_flush, "exp_pager_enabled", "true");
     checkeq(1, get_int_stat(h, h1, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
     wait_for_stat_to_be_gte(h, h1, "ep_num_expiry_pager_runs", 1);
@@ -667,16 +668,18 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
     cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
 
     // Enable expiry pager again
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "exp_pager_enabled", "true");
+    set_param(
+            h, protocol_binary_engine_param_flush, "exp_pager_enabled", "true");
 
     checkeq(get_int_stat(h, h1, "ep_exp_pager_initial_run_time"), -1,
             "Task time should be disable upon warmup");
 
     std::string err_msg;
     // Update exp_pager_initial_run_time and ensure the update is successful
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "exp_pager_initial_run_time", "3");
+    set_param(h,
+              protocol_binary_engine_param_flush,
+              "exp_pager_initial_run_time",
+              "3");
     std::string expected_time = "03:00";
     std::string str;
     // [MB-21806] - Need to repeat the fetch as the set_param for
@@ -694,7 +697,9 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
     std::string targetTaskTime1{make_time_string(std::chrono::system_clock::now() +
                                                  update_by)};
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "exp_pager_stime",
+    set_param(h,
+              protocol_binary_engine_param_flush,
+              "exp_pager_stime",
               std::to_string(update_by.count() * 60).c_str());
     str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
 
@@ -914,8 +919,10 @@ static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
 static enum test_result test_expiration_on_compaction(EngineIface* h,
                                                       EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_exp_pager_enabled")) {
-        set_param(h, h1, protocol_binary_engine_param_flush,
-                  "exp_pager_enabled", "false");
+        set_param(h,
+                  protocol_binary_engine_param_flush,
+                  "exp_pager_enabled",
+                  "false");
     }
 
     checkeq(1,
@@ -1027,8 +1034,10 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
     }
 
     const auto* cookie = testHarness->create_cookie();
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "exp_pager_enabled", "false");
+    set_param(h,
+              protocol_binary_engine_param_flush,
+              "exp_pager_enabled",
+              "false");
     int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
 
     const char *key = "KEY";
@@ -1276,7 +1285,7 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
 static enum test_result test_get_replica_active_state(EngineIface* h,
                                                       EngineIface* h1) {
     protocol_binary_request_header *pkt;
-    pkt = prepare_get_replica(h, h1, vbucket_state_active);
+    pkt = prepare_get_replica(h, vbucket_state_active);
     checkeq(ENGINE_NOT_MY_VBUCKET,
             h1->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
@@ -1291,7 +1300,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h,
 
     const void* cookie = testHarness->create_cookie();
     testHarness->set_ewouldblock_handling(cookie, false);
-    pkt = prepare_get_replica(h, h1, vbucket_state_pending);
+    pkt = prepare_get_replica(h, vbucket_state_pending);
     checkeq(ENGINE_EWOULDBLOCK,
             h1->unknown_command(cookie, pkt, add_response),
             "Should have returned error for pending state");
@@ -1306,7 +1315,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h,
 static enum test_result test_get_replica_dead_state(EngineIface* h,
                                                     EngineIface* h1) {
     protocol_binary_request_header *pkt;
-    pkt = prepare_get_replica(h, h1, vbucket_state_dead);
+    pkt = prepare_get_replica(h, vbucket_state_dead);
     checkeq(ENGINE_NOT_MY_VBUCKET,
             h1->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
@@ -1316,7 +1325,7 @@ static enum test_result test_get_replica_dead_state(EngineIface* h,
 
 static enum test_result test_get_replica(EngineIface* h, EngineIface* h1) {
     protocol_binary_request_header *pkt;
-    pkt = prepare_get_replica(h, h1, vbucket_state_replica);
+    pkt = prepare_get_replica(h, vbucket_state_replica);
     checkeq(ENGINE_SUCCESS,
             h1->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
@@ -1344,7 +1353,7 @@ static enum test_result test_get_replica_non_resident(EngineIface* h,
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket to replica");
 
-    get_replica(h, h1, "key", 0);
+    get_replica(h, "key", 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success");
     checkeq(1,
@@ -1358,7 +1367,7 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h,
                                                      EngineIface* h1) {
     protocol_binary_request_header *pkt;
     bool makeinvalidkey = true;
-    pkt = prepare_get_replica(h, h1, vbucket_state_replica, makeinvalidkey);
+    pkt = prepare_get_replica(h, vbucket_state_replica, makeinvalidkey);
     checkeq(ENGINE_NOT_MY_VBUCKET,
             h1->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
@@ -1516,8 +1525,10 @@ static enum test_result test_compaction_config(EngineIface* h,
     checkeq(10000,
             get_int_stat(h, h1, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 10000");
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "compaction_write_queue_cap", "100000");
+    set_param(h,
+              protocol_binary_engine_param_flush,
+              "compaction_write_queue_cap",
+              "100000");
     checkeq(100000, get_int_stat(h, h1, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 100000");
     return SUCCESS;
@@ -2437,18 +2448,26 @@ static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
     checkeq(100, get_int_stat(h, h1, "ep_warmup_min_memory_threshold"),
             "Incorrect initial warmup min memory threshold.");
 
-    check(!set_param(h, h1, protocol_binary_engine_param_flush,
-                     "warmup_min_items_threshold", "a"),
+    check(!set_param(h,
+                     protocol_binary_engine_param_flush,
+                     "warmup_min_items_threshold",
+                     "a"),
           "Set warmup_min_items_threshold should have failed");
-    check(!set_param(h, h1, protocol_binary_engine_param_flush,
-                     "warmup_min_items_threshold", "a"),
+    check(!set_param(h,
+                     protocol_binary_engine_param_flush,
+                     "warmup_min_items_threshold",
+                     "a"),
           "Set warmup_min_memory_threshold should have failed");
 
-    check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "warmup_min_items_threshold", "80"),
+    check(set_param(h,
+                    protocol_binary_engine_param_flush,
+                    "warmup_min_items_threshold",
+                    "80"),
           "Set warmup_min_items_threshold should have worked");
-    check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "warmup_min_memory_threshold", "80"),
+    check(set_param(h,
+                    protocol_binary_engine_param_flush,
+                    "warmup_min_memory_threshold",
+                    "80"),
           "Set warmup_min_memory_threshold should have worked");
 
     checkeq(80, get_int_stat(h, h1, "ep_warmup_min_items_threshold"),
@@ -2496,7 +2515,6 @@ static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
 // can be set.
 static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "pager_active_vb_pcnt",
                     "50"),
@@ -2506,7 +2524,6 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
             "pager_active_vb_pcnt did not get set to the correct value");
 
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "pager_sleep_time_ms",
                     "1000"),
@@ -2516,7 +2533,6 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
             "pager_sleep_time_ms did not get set to the correct value");
 
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "ht_eviction_policy",
                     "2-bit_lru"),
@@ -2526,7 +2542,6 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
             "ht_eviction_policy did not get set to the correct value");
 
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "item_eviction_age_percentage",
                     "100"),
@@ -2537,7 +2552,6 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
             "value");
 
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "item_eviction_freq_counter_age_threshold",
                     "10"),
@@ -2548,7 +2562,6 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
             "correct value");
 
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "item_freq_decayer_chunk_duration",
                     "1000"),
@@ -2559,7 +2572,6 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
             "value");
 
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "item_freq_decayer_percent",
                     "100"),
@@ -2573,8 +2585,10 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_bloomfilter_conf(EngineIface* h, EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
-        check(set_param(h, h1, protocol_binary_engine_param_flush,
-                        "bfilter_enabled", "true"),
+        check(set_param(h,
+                        protocol_binary_engine_param_flush,
+                        "bfilter_enabled",
+                        "true"),
               "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
@@ -2583,11 +2597,15 @@ static enum test_result test_bloomfilter_conf(EngineIface* h, EngineIface* h1) {
     check(get_float_stat(h, h1, "ep_bfilter_residency_threshold") == (float)0.1,
           "Incorrect initial bfilter_residency_threshold.");
 
-    check(set_param(h, h1, protocol_binary_engine_param_flush,
-          "bfilter_enabled", "false"),
+    check(set_param(h,
+                    protocol_binary_engine_param_flush,
+                    "bfilter_enabled",
+                    "false"),
           "Set bloomfilter_enabled should have worked.");
-    check(set_param(h, h1, protocol_binary_engine_param_flush,
-          "bfilter_residency_threshold", "0.15"),
+    check(set_param(h,
+                    protocol_binary_engine_param_flush,
+                    "bfilter_residency_threshold",
+                    "0.15"),
           "Set bfilter_residency_threshold should have worked.");
 
     check(get_bool_stat(h, h1, "ep_bfilter_enabled") == false,
@@ -2600,9 +2618,11 @@ static enum test_result test_bloomfilter_conf(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
-        check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "bfilter_enabled", "true"),
-                "Set bloomfilter_enabled should have worked");
+        check(set_param(h,
+                        protocol_binary_engine_param_flush,
+                        "bfilter_enabled",
+                        "true"),
+              "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
@@ -2742,9 +2762,11 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
 static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
                                                           EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
-        check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "bfilter_enabled", "true"),
-                "Set bloomfilter_enabled should have worked");
+        check(set_param(h,
+                        protocol_binary_engine_param_flush,
+                        "bfilter_enabled",
+                        "true"),
+              "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
@@ -2835,9 +2857,11 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
 static enum test_result test_bloomfilter_delete_plus_set_scenario(
         EngineIface* h, EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
-        check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "bfilter_enabled", "true"),
-                "Set bloomfilter_enabled should have worked");
+        check(set_param(h,
+                        protocol_binary_engine_param_flush,
+                        "bfilter_enabled",
+                        "true"),
+              "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
@@ -3055,7 +3079,6 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
     //  may not have been initialized at the time of call
     repeat_till_true([&]() {
         set_param(h,
-                  h1,
                   protocol_binary_engine_param_flush,
                   "alog_task_time",
                   "5");
@@ -3072,7 +3095,9 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
     std::string targetTaskTime1{make_time_string(std::chrono::system_clock::now() +
                                                  update_by)};
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "alog_sleep_time",
+    set_param(h,
+              protocol_binary_engine_param_flush,
+              "alog_sleep_time",
               std::to_string(update_by.count()).c_str());
     str = get_str_stat(h, h1, "ep_access_scanner_task_time");
 
@@ -3199,8 +3224,10 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
             "Expected num_non_resident to be at least 6% of total items");
 
     /* Run access scanner task once and expect it to generate access log */
-    check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "access_scanner_run", "true"),
+    check(set_param(h,
+                    protocol_binary_engine_param_flush,
+                    "access_scanner_run",
+                    "true"),
           "Failed to trigger access scanner");
 
     // Wait for the number of runs to equal the number of shards.
@@ -3219,8 +3246,10 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
     /* Run access scanner task once */
     const int access_scanner_skips =
             get_int_stat(h, h1, "ep_num_access_scanner_skips");
-    check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "access_scanner_run", "true"),
+    check(set_param(h,
+                    protocol_binary_engine_param_flush,
+                    "access_scanner_run",
+                    "true"),
           "Failed to trigger access scanner");
     wait_for_stat_to_be(h, h1, "ep_num_access_scanner_skips",
                         access_scanner_skips + num_shards);
@@ -3235,7 +3264,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_set_param_message(EngineIface* h,
                                                EngineIface* h1) {
-    set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time", "50");
+    set_param(h, protocol_binary_engine_param_flush, "alog_task_time", "50");
 
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
         "Expected an invalid value error for an out of bounds alog_task_time");
@@ -4141,7 +4170,7 @@ static enum test_result test_disk_gt_ram_set_race(EngineIface* h,
                                                   EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
+    set_param(h, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
 
     evict_key(h, "k1");
 
@@ -4164,7 +4193,7 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h,
                                                  EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
+    set_param(h, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
 
     evict_key(h, "k1");
 
@@ -4292,7 +4321,7 @@ static enum test_result test_mb3466(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_observe_no_data(EngineIface* h, EngineIface* h1) {
     std::map<std::string, uint16_t> obskeys;
-    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "expected success");
+    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     return SUCCESS;
 }
@@ -4305,9 +4334,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     //Check the output when there is no data in the vbucket
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     uint64_t high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
-    checkeq(ENGINE_SUCCESS,
-            observe_seqno(h, h1, 1, vb_uuid),
-            "Expected success");
+    checkeq(ENGINE_SUCCESS, observe_seqno(h, 1, vb_uuid), "Expected success");
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(),
@@ -4344,9 +4371,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
         total_persisted = high_seqno;
     }
 
-    checkeq(ENGINE_SUCCESS,
-            observe_seqno(h, h1, 1, vb_uuid),
-            "Expected success");
+    checkeq(ENGINE_SUCCESS, observe_seqno(h, 1, vb_uuid), "Expected success");
 
     check_observe_seqno(
             false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
@@ -4365,9 +4390,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     }
 
     high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
-    checkeq(ENGINE_SUCCESS,
-            observe_seqno(h, h1, 1, vb_uuid),
-            "Expected success");
+    checkeq(ENGINE_SUCCESS, observe_seqno(h, 1, vb_uuid), "Expected success");
 
     if (!isPersistentBucket(h, h1)) {
         /* if bucket is not persistent then total_persisted == high_seqno */
@@ -4384,9 +4407,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
         total_persisted = high_seqno;
     }
 
-    checkeq(ENGINE_SUCCESS,
-            observe_seqno(h, h1, 1, vb_uuid),
-            "Expected success");
+    checkeq(ENGINE_SUCCESS, observe_seqno(h, 1, vb_uuid), "Expected success");
 
     check_observe_seqno(
             false, bucket_type, 0, 1, vb_uuid, total_persisted, high_seqno);
@@ -4426,9 +4447,7 @@ static enum test_result test_observe_seqno_failover(EngineIface* h,
 
     uint64_t new_vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
-    checkeq(ENGINE_SUCCESS,
-            observe_seqno(h, h1, 0, vb_uuid),
-            "Expected success");
+    checkeq(ENGINE_SUCCESS, observe_seqno(h, 0, vb_uuid), "Expected success");
 
     const auto bucket_type =
             isPersistentBucket(h, h1) ? BucketType::EP : BucketType::Ephemeral;
@@ -4450,7 +4469,7 @@ static enum test_result test_observe_seqno_error(EngineIface* h,
     //not my vbucket test
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            observe_seqno(h, h1, 10, vb_uuid),
+            observe_seqno(h, 10, vb_uuid),
             "Expected NMVB");
 
     //invalid uuid for vbucket
@@ -4487,7 +4506,7 @@ static enum test_result test_observe_single_key(EngineIface* h,
     // Do an observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key"] = 0;
-    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
+    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that the key is not persisted
@@ -4542,7 +4561,7 @@ static enum test_result test_observe_temp_item(EngineIface* h,
     // Do an observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key"] = 0;
-    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
+    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that the key is not found
@@ -4608,7 +4627,7 @@ static enum test_result test_observe_multi_key(EngineIface* h,
     obskeys["key1"] = 0;
     obskeys["key2"] = 1;
     obskeys["key3"] = 1;
-    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
+    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result
@@ -4686,7 +4705,7 @@ static enum test_result test_multiple_observes(EngineIface* h,
     // Do observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key1"] = 0;
-    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
+    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     const int expected_persisted = isPersistentBucket(h, h1)
@@ -4708,7 +4727,7 @@ static enum test_result test_multiple_observes(EngineIface* h,
     // Do another observe
     obskeys.clear();
     obskeys["key2"] = 0;
-    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
+    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     memcpy(&vb, last_body.data(), sizeof(uint16_t));
@@ -4755,7 +4774,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h,
     obskeys["key1"] = 0;
     obskeys["key2"] = 0;
     obskeys["key3"] = 1;
-    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
+    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result
@@ -4808,7 +4827,7 @@ static enum test_result test_observe_errors(EngineIface* h, EngineIface* h1) {
     obskeys["key"] = 1;
 
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            observe(h, h1, obskeys),
+            observe(h, obskeys),
             "Expected not my vbucket");
 
     // Check invalid packets
@@ -4935,11 +4954,15 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
     if (get_int_stat(h, h1, "ep_num_non_resident") == 0) {
         int mem_used = get_int_stat(h, h1, "mem_used");
         int new_low_wat = mem_used * 0.75;
-        set_param(h, h1, protocol_binary_engine_param_flush,
-                  "mem_low_wat", std::to_string(new_low_wat).c_str());
+        set_param(h,
+                  protocol_binary_engine_param_flush,
+                  "mem_low_wat",
+                  std::to_string(new_low_wat).c_str());
         int new_high_wat = mem_used * 0.85;
-        set_param(h, h1, protocol_binary_engine_param_flush,
-                  "mem_high_wat", std::to_string(new_high_wat).c_str());
+        set_param(h,
+                  protocol_binary_engine_param_flush,
+                  "mem_high_wat",
+                  std::to_string(new_high_wat).c_str());
     }
 
     testHarness->time_travel(5);
@@ -5747,7 +5770,7 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h,
     obskeys["key1"] = 0;
     obskeys["key2"] = 1;
     obskeys["key3"] = 1;
-    checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "Expected success");
+    checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result

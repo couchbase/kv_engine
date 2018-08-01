@@ -94,7 +94,7 @@ static enum test_result test_max_size_and_water_marks_settings(
     check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.85),
           "Incorrect initial high wat. percent");
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "1000000");
+    set_param(h, protocol_binary_engine_param_flush, "max_size", "1000000");
 
     checkeq(1000000, get_int_stat(h, h1, "ep_max_size"),
             "Incorrect new size.");
@@ -107,8 +107,8 @@ static enum test_result test_max_size_and_water_marks_settings(
     check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.85),
           "Incorrect larger high wat. percent");
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "mem_low_wat", "700000");
-    set_param(h, h1, protocol_binary_engine_param_flush, "mem_high_wat", "800000");
+    set_param(h, protocol_binary_engine_param_flush, "mem_low_wat", "700000");
+    set_param(h, protocol_binary_engine_param_flush, "mem_high_wat", "800000");
 
     checkeq(700000, get_int_stat(h, h1, "ep_mem_low_wat"),
             "Incorrect even larger low wat.");
@@ -119,7 +119,7 @@ static enum test_result test_max_size_and_water_marks_settings(
     check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.8),
           "Incorrect even larger high wat. percent");
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "100");
+    set_param(h, protocol_binary_engine_param_flush, "max_size", "100");
 
     checkeq(100, get_int_stat(h, h1, "ep_max_size"),
             "Incorrect smaller size.");
@@ -132,8 +132,8 @@ static enum test_result test_max_size_and_water_marks_settings(
     check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.8),
           "Incorrect smaller high wat. percent");
 
-    set_param(h, h1, protocol_binary_engine_param_flush, "mem_low_wat", "50");
-    set_param(h, h1, protocol_binary_engine_param_flush, "mem_high_wat", "70");
+    set_param(h, protocol_binary_engine_param_flush, "mem_low_wat", "50");
+    set_param(h, protocol_binary_engine_param_flush, "mem_high_wat", "70");
 
     checkeq(50, get_int_stat(h, h1, "ep_mem_low_wat"),
             "Incorrect even smaller low wat.");
@@ -1729,19 +1729,24 @@ static enum test_result test_set_vbucket_out_of_range(EngineIface* h,
 static enum test_result set_max_cas_mb21190(EngineIface* h, EngineIface* h1) {
     uint64_t max_cas = get_ull_stat(h, h1, "vb_0:max_cas", "vbucket-details 0");
     std::string max_cas_str = std::to_string(max_cas+1);
-    set_param(h, h1, protocol_binary_engine_param_vbucket,
-              "max_cas", max_cas_str.data(), 0);
+    set_param(h,
+              protocol_binary_engine_param_vbucket,
+              "max_cas",
+              max_cas_str.data(),
+              0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failed to set_param max_cas");
     checkeq(max_cas + 1,
             get_ull_stat(h, h1, "vb_0:max_cas", "vbucket-details 0"),
             "max_cas didn't change");
-    set_param(h, h1, protocol_binary_engine_param_vbucket,
-              "max_cas", max_cas_str.data(), 1);
+    set_param(h,
+              protocol_binary_engine_param_vbucket,
+              "max_cas",
+              max_cas_str.data(),
+              1);
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
             "Expected not my vbucket for vb 1");
-    set_param(h, h1, protocol_binary_engine_param_vbucket,
-              "max_cas", "JUNK", 0);
+    set_param(h, protocol_binary_engine_param_vbucket, "max_cas", "JUNK", 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
             "Expected EINVAL");
     return SUCCESS;
@@ -1910,11 +1915,9 @@ static test_result get_if(EngineIface* h, EngineIface* h1) {
 
 static test_result max_ttl_out_of_range(EngineIface* h, EngineIface* h1) {
     // Test absolute first as this is the bigger time travel
-    check(!set_param(
-                  h, h1, protocol_binary_engine_param_flush, "max_ttl", "-1"),
+    check(!set_param(h, protocol_binary_engine_param_flush, "max_ttl", "-1"),
           "Should not be allowed to set a negative value");
     check(!set_param(h,
-                     h1,
                      protocol_binary_engine_param_flush,
                      "max_ttl",
                      "2147483648"),
@@ -1936,7 +1939,6 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
 
     // Test absolute first as this is the bigger time travel
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "max_ttl",
                     absoluteExpiryStr.c_str()),
@@ -1965,7 +1967,6 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
             "Failed, expected no_such_key.");
 
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "max_ttl",
                     relativeExpiryStr.c_str()),
@@ -2010,7 +2011,6 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
 
     // Test absolute first as this is the bigger time travel
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "max_ttl",
                     absoluteExpiryStr.c_str()),
@@ -2046,7 +2046,6 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
             "Failed, expected no_such_key.");
 
     check(set_param(h,
-                    h1,
                     protocol_binary_engine_param_flush,
                     "max_ttl",
                     relativeExpiryStr.c_str()),

@@ -249,23 +249,17 @@ cb::EngineErrorItemPair getl(EngineIface* h,
                              uint16_t vb,
                              uint32_t lock_timeout);
 
-void get_replica(EngineIface* h, EngineIface* h1, const char* key, uint16_t vb);
-ENGINE_ERROR_CODE observe(EngineIface* h,
-                          EngineIface* h1,
-                          std::map<std::string, uint16_t> obskeys);
-ENGINE_ERROR_CODE observe_seqno(EngineIface* h,
-                                EngineIface* h1,
-                                uint16_t vb_id,
-                                uint64_t uuid);
-
 protocol_binary_request_header* prepare_get_replica(EngineIface* h,
-                                                    EngineIface* h1,
                                                     vbucket_state_t state,
                                                     bool makeinvalidkey = false)
         CB_MUST_USE_RESULT;
 
+void get_replica(EngineIface* h, const char* key, uint16_t vb);
+ENGINE_ERROR_CODE observe(EngineIface* h,
+                          std::map<std::string, uint16_t> obskeys);
+ENGINE_ERROR_CODE observe_seqno(EngineIface* h, uint16_t vb_id, uint64_t uuid);
+
 bool set_param(EngineIface* h,
-               EngineIface* h1,
                protocol_binary_engine_param_t paramtype,
                const char* param,
                const char* val,

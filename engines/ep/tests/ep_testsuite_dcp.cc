@@ -1450,8 +1450,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(
     const uint32_t seqno = 0;
     const uint32_t flags = 0;
     /* Check the min limit */
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
-              "500000000");
+    set_param(h, protocol_binary_engine_param_flush, "max_size", "500000000");
     checkeq(500000000, get_int_stat(h, h1, "ep_max_size"),
             "Incorrect new size.");
 
@@ -1468,8 +1467,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(
 
     /* Check the size as percentage of the bucket memory */
     const auto* cookie2 = testHarness->create_cookie();
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
-              "2000000000");
+    set_param(h, protocol_binary_engine_param_flush, "max_size", "2000000000");
     checkeq(2000000000, get_int_stat(h, h1, "ep_max_size"),
             "Incorrect new size.");
 
@@ -1505,8 +1503,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(
 
     /* Check the max limit */
     const auto* cookie4 = testHarness->create_cookie();
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
-              "7000000000");
+    set_param(h, protocol_binary_engine_param_flush, "max_size", "7000000000");
     checkeq(static_cast<uint64_t>(7000000000),
             get_ull_stat(h, h1, "ep_max_size"), "Incorrect new size.");
 
@@ -1530,7 +1527,9 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     const auto flow_ctl_buf_min = 10485760;
     const auto ep_max_size = 1200000000;
     const auto bucketMemQuotaFraction = 0.05;
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
+    set_param(h,
+              protocol_binary_engine_param_flush,
+              "max_size",
               std::to_string(ep_max_size).c_str());
     checkeq(ep_max_size, get_int_stat(h, h1, "ep_max_size"), "Incorrect new size.");
 
@@ -1863,7 +1862,6 @@ static void test_dcp_noop_mandatory_combo(EngineIface* h,
 
     // Configure manditory noop as requested.
     set_param(h,
-              h1,
               protocol_binary_engine_param_flush,
               "dcp_noop_mandatory_for_v5_features",
               noopManditory ? "true" : "false");
@@ -2377,7 +2375,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
             "Expected at least 50% of items to be non-resident");
 
     // Reduce max_size from 6291456 to 6000000
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "6000000");
+    set_param(h, protocol_binary_engine_param_flush, "max_size", "6000000");
     checkgt(50,
             get_int_stat(h, h1, "vb_active_perc_mem_resident"),
             "Too high percentage of memory resident");
@@ -3621,8 +3619,10 @@ static enum test_result test_dcp_add_stream(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_consumer_backoff_stat(EngineIface* h,
                                                    EngineIface* h1) {
-    set_param(h, h1, protocol_binary_engine_param_replication,
-              "replication_throttle_queue_cap", "10");
+    set_param(h,
+              protocol_binary_engine_param_replication,
+              "replication_throttle_queue_cap",
+              "10");
     checkeq(10, get_int_stat(h, h1, "ep_replication_throttle_queue_cap"),
             "Incorrect replication_throttle_queue_cap value.");
 
@@ -6134,8 +6134,7 @@ static enum test_result test_mb19153(EngineIface* h, EngineIface* h1) {
 
     // Set max num AUX IO to 0, so no backfill would start
     // immediately
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "num_auxio_threads", "0");
+    set_param(h, protocol_binary_engine_param_flush, "num_auxio_threads", "0");
 
     int num_items = 10000;
 
@@ -6186,8 +6185,7 @@ static enum test_result test_mb19153(EngineIface* h, EngineIface* h1) {
 
     // Set auxIO threads to 1, so the backfill for the closed producer
     // is picked up, and begins to run.
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "num_auxio_threads", "1");
+    set_param(h, protocol_binary_engine_param_flush, "num_auxio_threads", "1");
 
     // Terminate engine
     return SUCCESS;
@@ -6295,11 +6293,11 @@ static enum test_result test_set_dcp_param(EngineIface* h, EngineIface* h1) {
                                     h1,
                                     statKey.c_str());
         std::string value = std::to_string(newValue);
-        check(expectedSetParam == set_param(h, h1,
+        check(expectedSetParam == set_param(h,
                                             protocol_binary_engine_param_dcp,
                                             key.c_str(),
                                             value.c_str()),
-                "Set param not expected");
+              "Set param not expected");
         check(newValue != param,
               "Forcing failure as nothing will change");
 

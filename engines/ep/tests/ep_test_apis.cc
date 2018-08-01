@@ -663,7 +663,6 @@ bool get_meta(EngineIface* h,
 }
 
 ENGINE_ERROR_CODE observe(EngineIface* h,
-                          EngineIface* h1,
                           std::map<std::string, uint16_t> obskeys) {
     std::stringstream value;
     std::map<std::string, uint16_t>::iterator it;
@@ -679,13 +678,12 @@ ENGINE_ERROR_CODE observe(EngineIface* h,
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0,
                            value.str().data(), value.str().length());
 
-    auto ret = h1->unknown_command(nullptr, request, add_response);
+    auto ret = h->unknown_command(nullptr, request, add_response);
     cb_free(request);
     return ret;
 }
 
 ENGINE_ERROR_CODE observe_seqno(EngineIface* h,
-                                EngineIface* h1,
                                 uint16_t vb_id,
                                 uint64_t uuid) {
     protocol_binary_request_header *request;
@@ -695,24 +693,22 @@ ENGINE_ERROR_CODE observe_seqno(EngineIface* h,
 
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, vb_id, 0, NULL, 0,
                            NULL, 0, data.str().data(), data.str().length());
-    auto ret = h1->unknown_command(NULL, request, add_response);
+    auto ret = h->unknown_command(nullptr, request, add_response);
     cb_free(request);
     return ret;
 }
 
 void get_replica(EngineIface* h,
-                 EngineIface* h1,
                  const char* key,
                  uint16_t vbid) {
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
-    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
           "Get Replica Failed");
     cb_free(pkt);
 }
 
 protocol_binary_request_header* prepare_get_replica(EngineIface* h,
-                                                    EngineIface* h1,
                                                     vbucket_state_t state,
                                                     bool makeinvalidkey) {
     uint16_t id = 0;
@@ -722,8 +718,8 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
 
     if (!makeinvalidkey) {
         check(store(h,
-                    h1,
-                    NULL,
+                    h,
+                    nullptr,
                     OPERATION_SET,
                     key,
                     "replicadata",
@@ -732,7 +728,7 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
                     id) == ENGINE_SUCCESS,
               "Get Replica Failed");
 
-        check(set_vbucket_state(h, h1, id, state),
+        check(set_vbucket_state(h, h, id, state),
               "Failed to set vbucket active state, Get Replica Failed");
     }
 
@@ -740,7 +736,6 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
 }
 
 bool set_param(EngineIface* h,
-               EngineIface* h1,
                protocol_binary_engine_param_t paramtype,
                const char* param,
                const char* val,
@@ -751,7 +746,7 @@ bool set_param(EngineIface* h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_PARAM, vb, 0, ext, sizeof(protocol_binary_engine_param_t), param,
                        strlen(param), val, strlen(val));
 
-    if (h1->unknown_command(NULL, pkt, add_response) != ENGINE_SUCCESS) {
+    if (h->unknown_command(nullptr, pkt, add_response) != ENGINE_SUCCESS) {
         cb_free(pkt);
         return false;
     }

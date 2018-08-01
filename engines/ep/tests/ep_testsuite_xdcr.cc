@@ -1601,12 +1601,10 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     // We need to temporarily disable the reader threads as to prevent the
     // BGfetch from immediately running and removing our temp_item before
     // we've had chance to validate its existence.
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "num_reader_threads", "0");
+    set_param(h, protocol_binary_engine_param_flush, "num_reader_threads", "0");
 
     // Disable nonio so that we have better control of the expirypager
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "num_nonio_threads", "0");
+    set_param(h, protocol_binary_engine_param_flush, "num_nonio_threads", "0");
 
     // Tell the harness not to handle EWOULDBLOCK for us - we want it to
     // be outstanding while we check the below stats.
@@ -1626,8 +1624,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
 
     // Re-enable EWOULDBLOCK handling (and reader threads), and re-issue.
     testHarness->set_ewouldblock_handling(cookie, true);
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "num_reader_threads", "1");
+    set_param(h, protocol_binary_engine_param_flush, "num_reader_threads", "1");
 
     check(get_meta(h, h1, k1, errorMetaPair, cookie),
           "Expected get_meta to succeed");
@@ -1656,8 +1653,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
             "Num get meta ops not as expected");
 
     // Trigger the expiry pager and verify that two temp items are deleted
-    set_param(h, h1, protocol_binary_engine_param_flush,
-              "num_nonio_threads", "1");
+    set_param(h, protocol_binary_engine_param_flush, "num_nonio_threads", "1");
 
     wait_for_stat_to_be(h, h1, "ep_expired_pager", 1);
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
@@ -2188,9 +2184,11 @@ static enum test_result test_setting_drift_threshold(EngineIface* h,
 
     for (auto data : values) {
         for (auto conf : configData) {
-            check(set_param(h, h1, protocol_binary_engine_param_vbucket,
-                     std::get<1>(conf).c_str(), data.first.data()),
-                "Expected set_param success");
+            check(set_param(h,
+                            protocol_binary_engine_param_vbucket,
+                            std::get<1>(conf).c_str(),
+                            data.first.data()),
+                  "Expected set_param success");
 
             checkeq(int64_t(data.second.count()),
                     int64_t(get_ull_stat(h, h1, std::get<0>(conf).c_str(), nullptr)),
