@@ -121,10 +121,12 @@ static enum test_result test_get_meta_with_extras(EngineIface* h,
 
     if (isWarmupEnabled(h, h1)) {
         // restart
-        testHarness.reload_engine(&h, &h1,
-                                  testHarness.engine_path,
-                                  testHarness.get_current_testcase()->cfg,
-                                  true, true);
+        testHarness->reload_engine(&h,
+                                   &h1,
+                                   testHarness->engine_path,
+                                   testHarness->get_current_testcase()->cfg,
+                                   true,
+                                   true);
         wait_for_warmup_complete(h, h1);
 
         check(get_meta(h, h1, key1, errorMetaPair), "Expected to get meta");
@@ -371,7 +373,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h,
     const char* key = "get_meta_key";
     std::vector<char> data = createXattrValue({"test_expiry_value"});
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, cookie, OPERATION_SET, key,
@@ -406,7 +408,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h,
                 "Datatype is not XATTR");
     }
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -418,7 +420,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
     const char* key = "get_meta_key";
     std::vector<char> data = createXattrValue({"test_expiry_value"});
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, cookie, OPERATION_SET, key,
@@ -465,7 +467,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
                 "Expected deleted flag to be set");
     }
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -534,7 +536,7 @@ static enum test_result test_delete_with_meta(EngineIface* h, EngineIface* h1) {
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // delete an item with meta data
     del_with_meta(h, h1, key1, keylen, 0, &itemMeta, 0/*cas*/, 0/*options*/, cookie);
@@ -546,7 +548,7 @@ static enum test_result test_delete_with_meta(EngineIface* h, EngineIface* h1) {
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 1, "Expect more setMeta ops");
 
-    testHarness.set_mutation_extras_handling(cookie, false);
+    testHarness->set_mutation_extras_handling(cookie, false);
 
     // delete an item with meta data
     del_with_meta(h, h1, key2, keylen, 0, &itemMeta, 0/*cas*/, 0/*options*/, cookie);
@@ -562,7 +564,7 @@ static enum test_result test_delete_with_meta(EngineIface* h, EngineIface* h1) {
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -966,9 +968,9 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     // We are explicitly going to test the !datatype paths, so turn it off.
-    testHarness.set_datatype_support(cookie, false);
+    testHarness->set_datatype_support(cookie, false);
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
@@ -995,7 +997,7 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
     check(errorMetaPair.second.flags == 0xdeadbeef, "Expected flags to match");
 
     //disable getting vb uuid and seqno as extras
-    testHarness.set_mutation_extras_handling(cookie, false);
+    testHarness->set_mutation_extras_handling(cookie, false);
     itm_meta.revSeqno++;
     cas_for_set = errorMetaPair.second.cas;
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
@@ -1012,11 +1014,11 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
 
     // Make sure the item expiration was processed correctly
-    testHarness.time_travel(301);
+    testHarness->time_travel(301);
     auto ret = get(h, h1, NULL, key, 0);
     checkeq(cb::engine_errc::no_such_key, ret.first, "Failed to get value.");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -1361,7 +1363,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h,
     std::string value_data = R"({"json":"yes"})";
     std::vector<char> data = createXattrValue(value_data);
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // store a value (so we can get its metadata)
     checkeq(ENGINE_SUCCESS,
@@ -1379,13 +1381,13 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h,
                           errorMetaPair.second.exptime);
 
     int force = 0;
-    if (strstr(testHarness.get_current_testcase()->cfg,
+    if (strstr(testHarness->get_current_testcase()->cfg,
                "conflict_resolution_type=lww") != nullptr) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
     // Only enable XATTR
-    testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
+    testHarness->set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
 
     // Set with the same meta data but now with the xattr/json value
     set_with_meta(h,
@@ -1425,7 +1427,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h,
 		"Expected return code to be EEXISTS");
     }
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -1434,7 +1436,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h,
                                                     EngineIface* h1) {
     const char* key1 = "delete_with_meta_xattr_key1";
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // Create XATTR doc with a JSON body
     // In practice a del_with_meta should come along with only XATTR, but
@@ -1462,13 +1464,13 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h,
             errorMetaPair.second.exptime);
 
     int force = 0;
-    if (strstr(testHarness.get_current_testcase()->cfg,
+    if (strstr(testHarness->get_current_testcase()->cfg,
                "conflict_resolution_type=lww") != nullptr) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
 
     // Now enable XATTR
-    testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
+    testHarness->set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_XATTR);
 
     // Now delete with a value (marked with XATTR)
     del_with_meta(h,
@@ -1528,7 +1530,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h,
     // @todo implement test for the deletion of a value that has xattr using
     // a delete that has none (i.e. non-xattr/!spock client)
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -1563,7 +1565,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h,
     itm_meta.exptime = 1735689600; // expires in 2025
     set_with_meta(h, h1, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
 
-    testHarness.time_travel(500000000);
+    testHarness->time_travel(500000000);
     // Wait for the item to be expired, either by the pager,
     // or by access (as part of persistence callback from a
     // previous set - slow disk), or the compactor (unlikely).
@@ -1609,8 +1611,8 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
 
     // Tell the harness not to handle EWOULDBLOCK for us - we want it to
     // be outstanding while we check the below stats.
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_ewouldblock_handling(cookie, false);
+    const void* cookie = testHarness->create_cookie();
+    testHarness->set_ewouldblock_handling(cookie, false);
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -1624,7 +1626,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     // Re-enable EWOULDBLOCK handling (and reader threads), and re-issue.
-    testHarness.set_ewouldblock_handling(cookie, true);
+    testHarness->set_ewouldblock_handling(cookie, true);
     set_param(h, h1, protocol_binary_engine_param_flush,
               "num_reader_threads", "1");
 
@@ -1662,7 +1664,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -2216,7 +2218,7 @@ static enum test_result test_cas_regeneration(EngineIface* h, EngineIface* h1) {
     itemMeta.flags = 0xdeadbeef;
     int force = 0;
 
-    if (strstr(testHarness.get_current_testcase()->cfg,
+    if (strstr(testHarness->get_current_testcase()->cfg,
                "conflict_resolution_type=lww") != nullptr) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
@@ -2283,7 +2285,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h,
     itemMeta.flags = 0xdeadbeef;
     int force = 0;
 
-    if (strstr(testHarness.get_current_testcase()->cfg,
+    if (strstr(testHarness->get_current_testcase()->cfg,
                "conflict_resolution_type=lww") != nullptr) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
@@ -2381,7 +2383,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h,
 
     int force = 0;
 
-    if (strstr(testHarness.get_current_testcase()->cfg,
+    if (strstr(testHarness->get_current_testcase()->cfg,
                "conflict_resolution_type=lww") != nullptr) {
         force = FORCE_ACCEPT_WITH_META_OPS;
     }
@@ -2541,7 +2543,7 @@ static enum test_result test_MB29119(EngineIface* h, EngineIface* h1) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // delete an item with meta data
     del_with_meta(h,
@@ -2578,7 +2580,7 @@ static enum test_result test_MB29119(EngineIface* h, EngineIface* h1) {
             last_status.load(),
             "Expected EEXISTS");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 

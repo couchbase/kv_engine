@@ -187,8 +187,8 @@ static enum test_result test_wrong_vb_mutation(EngineIface* h,
 static enum test_result test_pending_vb_mutation(EngineIface* h,
                                                  EngineIface* h1,
                                                  ENGINE_STORE_OPERATION op) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_ewouldblock_handling(cookie, false);
+    const void* cookie = testHarness->create_cookie();
+    testHarness->set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
     check(verify_vbucket_state(h, h1, 1, vbucket_state_pending),
@@ -201,7 +201,7 @@ static enum test_result test_pending_vb_mutation(EngineIface* h,
     checkeq(ENGINE_EWOULDBLOCK,
             store(h, h1, cookie, op, "key", "somevalue", nullptr, cas, 1),
             "Expected ewouldblock");
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -293,10 +293,12 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     cb_free(pkt);
 
     // shutdown engine force and restart
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, shutdownForce);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               shutdownForce);
     wait_for_warmup_complete(h, h1);
     return get_int_stat(h, h1, "curr_items");
 }
@@ -360,10 +362,12 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h,
           "Failed to trigger vb state persist");
 
     /* restart the engine */
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     /* Check if snapshot range is persisted correctly */
@@ -386,10 +390,12 @@ static enum test_result test_restart(EngineIface* h, EngineIface* h1) {
     ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET, "key", val);
     checkeq(ENGINE_SUCCESS, ret, "Failed set.");
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
     check_key_value(h, h1, "key", val, strlen(val));
     return SUCCESS;
@@ -457,10 +463,12 @@ static enum test_result test_specialKeys(EngineIface* h, EngineIface* h1) {
 
     if (isWarmupEnabled(h, h1)) {
         // Check that after warmup the keys are still present.
-        testHarness.reload_engine(&h, &h1,
-                                  testHarness.engine_path,
-                                  testHarness.get_current_testcase()->cfg,
-                                  true, false);
+        testHarness->reload_engine(&h,
+                                   &h1,
+                                   testHarness->engine_path,
+                                   testHarness->get_current_testcase()->cfg,
+                                   true,
+                                   false);
         wait_for_warmup_complete(h, h1);
         check_key_value(h, h1, key0, val0, strlen(val0));
         check_key_value(h, h1, key1, val1, strlen(val1));
@@ -511,10 +519,12 @@ static enum test_result test_binKeys(EngineIface* h, EngineIface* h1) {
     check_key_value(h, h1, key3, val3, strlen(val3));
 
     if (isWarmupEnabled(h, h1)) {
-        testHarness.reload_engine(&h, &h1,
-                                  testHarness.engine_path,
-                                  testHarness.get_current_testcase()->cfg,
-                                  true, false);
+        testHarness->reload_engine(&h,
+                                   &h1,
+                                   testHarness->engine_path,
+                                   testHarness->get_current_testcase()->cfg,
+                                   true,
+                                   false);
         wait_for_warmup_complete(h, h1);
         check_key_value(h, h1, key0, val0, strlen(val0));
         check_key_value(h, h1, key1, val1, strlen(val1));
@@ -537,10 +547,12 @@ static enum test_result test_restart_bin_val(EngineIface* h, EngineIface* h1) {
                          binaryData, sizeof(binaryData), 82758, 0, 0).first,
             "Failed set.");
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
@@ -558,8 +570,8 @@ static enum test_result test_wrong_vb_get(EngineIface* h, EngineIface* h1) {
 static enum test_result test_vb_get_pending(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_ewouldblock_handling(cookie, false);
+    const void* cookie = testHarness->create_cookie();
+    testHarness->set_ewouldblock_handling(cookie, false);
 
     checkeq(cb::engine_errc::would_block,
             get(h, h1, cookie, "key", 1).first,
@@ -568,7 +580,7 @@ static enum test_result test_vb_get_pending(EngineIface* h, EngineIface* h1) {
             get_int_stat(h, h1, "vb_pending_ops_get"),
             "Expected 1 get");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -645,10 +657,12 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
     wait_for_stat_to_be_gte(h, h1, "ep_num_expiry_pager_runs", 1);
 
     // Reload engine
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
     cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
 
@@ -717,7 +731,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h,
     std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
               std::back_inserter(data));
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, cookie, OPERATION_SET, key,
@@ -730,7 +744,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h,
         wait_for_flusher_to_settle(h, h1);
     }
 
-    testHarness.time_travel(11);
+    testHarness->time_travel(11);
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -778,7 +792,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h,
 
     checkeq(cas_str, sync_str , "system xattr is invalid");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -787,7 +801,7 @@ static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
     const char *key = "test_expiry";
     const char *data = "some test data here.";
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     auto ret = allocate(h,
                         h1,
                         cookie,
@@ -814,7 +828,7 @@ static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
 
-    testHarness.time_travel(5);
+    testHarness->time_travel(5);
     checkeq(cb::engine_errc::no_such_key,
             get(h, h1, cookie, key, 0).first,
             "Item didn't expire");
@@ -839,7 +853,7 @@ static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
     ss << "overwriting the key that was expired, but not purged yet";
     checkeq(1, get_int_stat(h, h1, "curr_items"), ss.str().c_str());
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -850,7 +864,7 @@ static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
     const char *key = "test_expiry_loader";
     const char *data = "some test data here.";
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     auto ret = allocate(h,
                         h1,
                         cookie,
@@ -877,20 +891,22 @@ static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
 
-    testHarness.time_travel(3);
+    testHarness->time_travel(3);
 
     ret = get(h, h1, cookie, key, 0);
     checkeq(cb::engine_errc::no_such_key, ret.first, "Item didn't expire");
 
     // Restart the engine to ensure the above expired item is not loaded
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -992,7 +1008,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
     check(1 < get_int_stat(h, h1, "vb_0:persistence:num_visits", "checkpoint"),
           "Cursor not moved even after flusher runs");
 
-    testHarness.time_travel(15);
+    testHarness->time_travel(15);
 
     // Compaction on VBucket
     compact_db(h, h1, 0, 0, 0, 0, 0);
@@ -1010,7 +1026,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
         return SKIPPED;
     }
 
-    const auto* cookie = testHarness.create_cookie();
+    const auto* cookie = testHarness->create_cookie();
     set_param(h, h1, protocol_binary_engine_param_flush,
               "exp_pager_enabled", "false");
     int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
@@ -1047,16 +1063,18 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Failed store item");
-    testHarness.time_travel(15);
+    testHarness->time_travel(15);
 
     checkeq(pager_runs, get_int_stat(h, h1, "ep_num_expiry_pager_runs"),
             "Expiry pager shouldn't have run during this time");
 
     // Restart the engine to ensure the above item is expired
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
     check(get_bool_stat(h, h1, "ep_exp_pager_enabled"),
           "Expiry pager should be enabled on warmup");
@@ -1080,7 +1098,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
     checkeq(0, get_int_stat(h, h1, "curr_items"),
             "The item should have been expired.");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -1092,7 +1110,7 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
     const char *key = "test_expiry_duplicate_warmup";
     const char *data = "some test data here.";
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     auto ret = allocate(h,
                         h1,
                         cookie,
@@ -1121,7 +1139,7 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h, h1);
 
     // Advance the ep_engine time by 10 sec for the above item to be expired.
-    testHarness.time_travel(10);
+    testHarness->time_travel(10);
     ret = get(h, h1, cookie, key, 0);
     checkeq(cb::engine_errc::no_such_key, ret.first, "Item didn't expire");
 
@@ -1158,15 +1176,17 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
             "Item shouldn't expire");
 
     // Restart the engine to ensure the above unexpired new item is loaded
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
     cb_assert(1 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -1178,7 +1198,7 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
     const char *key = "test_expiry_no_items_warmup";
     const char *data = "some test data here.";
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     auto ret = allocate(h,
                         h1,
                         cookie,
@@ -1234,20 +1254,22 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, new_data, strlen(new_data));
     ret.second.reset();
-    testHarness.time_travel(3);
+    testHarness->time_travel(3);
     wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
     wait_for_flusher_to_settle(h, h1);
 
     // Restart the engine.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
     // TODO: modify this for a better test case
     cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -1267,8 +1289,8 @@ static enum test_result test_get_replica_pending_state(EngineIface* h,
                                                        EngineIface* h1) {
     protocol_binary_request_header *pkt;
 
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_ewouldblock_handling(cookie, false);
+    const void* cookie = testHarness->create_cookie();
+    testHarness->set_ewouldblock_handling(cookie, false);
     pkt = prepare_get_replica(h, h1, vbucket_state_pending);
     checkeq(ENGINE_EWOULDBLOCK,
             h1->unknown_command(cookie, pkt, add_response),
@@ -1276,7 +1298,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h,
     checkeq(1,
             get_int_stat(h, h1, "vb_pending_ops_get"),
             "Expected 1 get");
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     cb_free(pkt);
     return SUCCESS;
 }
@@ -1345,13 +1367,13 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h,
 }
 
 static enum test_result test_vb_del_pending(EngineIface* h, EngineIface* h1) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_ewouldblock_handling(cookie, false);
+    const void* cookie = testHarness->create_cookie();
+    testHarness->set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
     checkeq(ENGINE_EWOULDBLOCK, del(h, h1, "key", 0, 1, cookie),
             "Expected woodblock.");
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -1448,7 +1470,7 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
             "Touch expiring key failed");
 
     // Move beyond expire time
-    testHarness.time_travel(exp_time + 1);
+    testHarness->time_travel(exp_time + 1);
 
     // Wait for the item to be expired
     wait_for_stat_to_be(h, h1, "vb_active_expired", 1);
@@ -1708,7 +1730,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
                 "Failed to store a value");
     }
     wait_for_flusher_to_settle(h, h1);
-    testHarness.time_travel(65);
+    testHarness->time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
@@ -1757,10 +1779,12 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
     check_key_value(h, h1, "key", "somevalue", 9, 1);
 
     // Reload to get a flush forced.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
@@ -1779,10 +1803,12 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     if (verify_vbucket_state(h, h1, 1, vbucket_state_pending, true)) {
@@ -2016,7 +2042,7 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
     strcpy(value + sizeof(value) - 4, "\r\n");
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     wait_for_persisted_value(h, h1, "key", value);
-    testHarness.time_travel(65);
+    testHarness->time_travel(65);
     if (isPersistentBucket(h, h1)) {
         wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
     }
@@ -2185,10 +2211,12 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h,
     int spaceUsed = get_int_stat(h, h1, "vb_0:db_data_size", "vbucket-details 0");
 
     // Restart the engine.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     int newFileSize = get_int_stat(h, h1, "vb_0:db_file_size", "vbucket-details 0");
@@ -2204,7 +2232,7 @@ static enum test_result test_bg_stats(EngineIface* h, EngineIface* h1) {
     reset_stats(h);
     wait_for_persisted_value(h, h1, "a", "b\r\n");
     evict_key(h, h1, "a", 0, "Ejected.");
-    testHarness.time_travel(43);
+    testHarness->time_travel(43);
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
 
     auto stats = get_all_stats(h, h1);
@@ -2289,7 +2317,7 @@ static enum test_result test_key_stats(EngineIface* h, EngineIface* h1) {
             store(h, h1, NULL, OPERATION_SET, "k2", "v2", nullptr, 0, 1),
             "Failed to store an item.");
 
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
@@ -2313,7 +2341,7 @@ static enum test_result test_key_stats(EngineIface* h, EngineIface* h1) {
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -2333,7 +2361,7 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 3, vbucket_state_pending), "Failed to set VB3 state.");
     check(set_vbucket_state(h, h1, 4, vbucket_state_dead), "Failed to set VB4 state.");
 
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "vkey k1 0";
@@ -2395,7 +2423,7 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
     check(vals.find("key_valid") != vals.end(), "Found no key_valid");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -2442,12 +2470,10 @@ static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
     }
 
     // Restart the server.
-    std::string config(testHarness.get_current_testcase()->cfg);
+    std::string config(testHarness->get_current_testcase()->cfg);
     config = config + "warmup_min_memory_threshold=0";
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              config.c_str(),
-                              true, false);
+    testHarness->reload_engine(
+            &h, &h1, testHarness->engine_path, config.c_str(), true, false);
     wait_for_warmup_complete(h, h1);
 
     const std::string eviction_policy = get_str_stat(h, h1, "ep_item_eviction_policy");
@@ -2861,8 +2887,8 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
 }
 
 static enum test_result test_datatype(EngineIface* h, EngineIface* h1) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_datatype_support(cookie, true);
+    const void* cookie = testHarness->create_cookie();
+    testHarness->set_datatype_support(cookie, true);
 
     item *itm = NULL;
     const std::string key("{\"foo\":\"bar\"}");
@@ -2898,14 +2924,14 @@ static enum test_result test_datatype(EngineIface* h, EngineIface* h1) {
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
 static enum test_result test_datatype_with_unknown_command(EngineIface* h,
                                                            EngineIface* h1) {
-    const void *cookie = testHarness.create_cookie();
-    testHarness.set_datatype_support(cookie, true);
+    const void* cookie = testHarness->create_cookie();
+    testHarness->set_datatype_support(cookie, true);
     const char* key = "foo";
     const char* val = "{\"foo\":\"bar\"}";
     uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -2948,7 +2974,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h,
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             last_datatype.load(), "Invalid datatype, when set_return_meta");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -2996,13 +3022,11 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
 
     const auto alog_path = std::string("alog_path=") + dbname +
             DIRECTORY_SEPARATOR_CHARACTER + "access.log";
-    std::string newconfig = std::string(testHarness.get_current_testcase()->cfg)
-                            + alog_path;
+    std::string newconfig =
+            std::string(testHarness->get_current_testcase()->cfg) + alog_path;
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              newconfig.c_str(),
-                              true, false);
+    testHarness->reload_engine(
+            &h, &h1, testHarness->engine_path, newconfig.c_str(), true, false);
     wait_for_warmup_complete(h, h1);
 
     std::string err_msg;
@@ -3091,13 +3115,12 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
     const auto alog_task_time = std::string("alog_task_time=") +
             std::to_string(two_hours_hence);
 
-    const auto newconfig = std::string(testHarness.get_current_testcase()->cfg)
-                           + alog_path + ";" + alog_task_time;
+    const auto newconfig =
+            std::string(testHarness->get_current_testcase()->cfg) + alog_path +
+            ";" + alog_task_time;
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              newconfig.c_str(),
-                              true, false);
+    testHarness->reload_engine(
+            &h, &h1, testHarness->engine_path, newconfig.c_str(), true, false);
     wait_for_warmup_complete(h, h1);
 
     /* Check that alog_task_time was correctly updated. */
@@ -3240,10 +3263,12 @@ static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
     }
 
     // Restart the server.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
 
     wait_for_warmup_complete(h, h1);
 
@@ -3313,10 +3338,12 @@ static enum test_result test_warmup_with_threshold(EngineIface* h,
     }
 
     // Restart the server.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
 
     wait_for_warmup_complete(h, h1);
 
@@ -3393,9 +3420,9 @@ static enum test_result test_warmup_accesslog(EngineIface *h, EngineIface *h1) {
     }
 
     // Restart the server.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
+    testHarness->reload_engine(&h, &h1,
+                              testHarness->engine_path,
+                              testHarness->get_current_testcase()->cfg,
                               true, false);
 
     wait_for_warmup_complete(h, h1);
@@ -3431,13 +3458,11 @@ static enum test_result test_warmup_oom(EngineIface* h, EngineIface* h1) {
 
     wait_for_flusher_to_settle(h, h1);
 
-    std::string config(testHarness.get_current_testcase()->cfg);
+    std::string config(testHarness->get_current_testcase()->cfg);
     config = config + "max_size=2097152;item_eviction_policy=value_only";
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              config.c_str(),
-                              true, false);
+    testHarness->reload_engine(
+            &h, &h1, testHarness->engine_path, config.c_str(), true, false);
 
     wait_for_warmup_complete(h, h1);
 
@@ -3471,11 +3496,13 @@ static enum test_result test_cbd_225(EngineIface* h, EngineIface* h1) {
     check(token2 == token1, "Expected the same startup token");
 
     // reload the engine
-    testHarness.time_travel(10);
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->time_travel(10);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     // check token, this time we should get a different one
@@ -3486,11 +3513,11 @@ static enum test_result test_cbd_225(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_workload_stats(EngineIface* h, EngineIface* h1) {
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(cookie, "workload"_ccb, add_stats),
             "Falied to get workload stats");
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
                                                "workload");
     int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers",
@@ -3526,11 +3553,11 @@ static enum test_result test_workload_stats(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_max_workload_stats(EngineIface* h,
                                                 EngineIface* h1) {
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(cookie, "workload"_ccb, add_stats),
             "Failed to get workload stats");
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
                                                "workload");
     int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers",
@@ -3941,10 +3968,12 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
     }
     wait_for_flusher_to_settle(h, h1);
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
@@ -3968,7 +3997,7 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
 
     // Store some data and check post-set state.
     wait_for_persisted_value(h, h1, "k1", "some value");
-    testHarness.time_travel(65);
+    testHarness->time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
@@ -4010,7 +4039,7 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
-    testHarness.time_travel(65);
+    testHarness->time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     return SUCCESS;
@@ -4040,7 +4069,7 @@ static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
-    testHarness.time_travel(65);
+    testHarness->time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     return SUCCESS;
@@ -4172,10 +4201,12 @@ static enum test_result test_kill9_bucket(EngineIface* h, EngineIface* h1) {
     }
 
     // Last parameter indicates the force shutdown for the engine.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, true);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               true);
     wait_for_warmup_complete(h, h1);
 
     keys.clear();
@@ -4383,10 +4414,12 @@ static enum test_result test_observe_seqno_failover(EngineIface* h,
     uint64_t high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
     // restart
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, true);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               true);
     wait_for_warmup_complete(h, h1);
 
     uint64_t new_vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -4907,7 +4940,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
                   "mem_high_wat", std::to_string(new_high_wat).c_str());
     }
 
-    testHarness.time_travel(5);
+    testHarness->time_travel(5);
 
     wait_for_memory_usage_below(h, h1, get_int_stat(h, h1, "ep_mem_high_wat"));
 
@@ -4962,7 +4995,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_stats_vkey_valid_field(EngineIface* h,
                                                     EngineIface* h1) {
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // Check vkey when a key doesn't exist
     const char* stats_key = "vkey key 0";
@@ -4999,7 +5032,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
             "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("valid") == 0, "Expected 'valid'");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -5534,10 +5567,12 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 
     if (isWarmupEnabled(h, h1)) {
         // Restart, and check data is warmed up correctly.
-        testHarness.reload_engine(&h, &h1,
-                                  testHarness.engine_path,
-                                  testHarness.get_current_testcase()->cfg,
-                                  true, true);
+        testHarness->reload_engine(&h,
+                                   &h1,
+                                   testHarness->engine_path,
+                                   testHarness->get_current_testcase()->cfg,
+                                   true,
+                                   true);
         wait_for_warmup_complete(h, h1);
 
         checkeq(curr_vb_items,
@@ -5561,7 +5596,7 @@ static enum test_result test_add_with_item_eviction(EngineIface* h,
             "Failed to fail to re-add value.");
 
     // Expiration above was an hour, so let's go to The Future
-    testHarness.time_travel(3800);
+    testHarness->time_travel(3800);
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD, "key", "newvalue"),
@@ -5584,13 +5619,13 @@ static enum test_result test_gat_with_item_eviction(EngineIface* h,
     check(last_body == "somevalue", "Invalid data returned");
 
     // time-travel 9 secs..
-    testHarness.time_travel(9);
+    testHarness->time_travel(9);
 
     // The item should still exist
     check_key_value(h, h1, "mykey", "somevalue", 9);
 
     // time-travel 2 secs..
-    testHarness.time_travel(2);
+    testHarness->time_travel(2);
 
     // The item should have expired now...
     checkeq(cb::engine_errc::no_such_key,
@@ -5608,7 +5643,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h,
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "k1", 0, "Ejected.");
 
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
@@ -5621,7 +5656,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h,
     check(vals.find("key_cas") != vals.end(), "Found no key_cas");
     check(vals.find("key_vb_state") != vals.end(), "Found no key_vb_state");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -5775,7 +5810,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h,
     evict_key(h, h1, "mykey", 0, "Ejected.");
 
     // time-travel 11 secs..
-    testHarness.time_travel(11);
+    testHarness->time_travel(11);
 
     // Compaction on VBucket 0
     compact_db(h, h1, 0, 0, 10, 10, 0);
@@ -5867,7 +5902,7 @@ static enum test_result test_eviction_with_xattr(EngineIface* h,
 }
 
 static enum test_result test_get_random_key(EngineIface* h, EngineIface* h1) {
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // An empty database should return no key
     protocol_binary_request_header pkt;
@@ -5926,7 +5961,7 @@ static enum test_result test_get_random_key(EngineIface* h, EngineIface* h1) {
             h1->unknown_command(cookie, &pkt, add_response),
             "bodylen not allowed");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -5948,10 +5983,12 @@ static enum test_result test_failover_log_behavior(EngineIface* h,
     top_entry_id = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     // restart
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, true);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               true);
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
@@ -5972,10 +6009,12 @@ static enum test_result test_failover_log_behavior(EngineIface* h,
     wait_for_stat_to_be(h, h1, "curr_items", 10);
 
     // restart
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, true);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               true);
     wait_for_warmup_complete(h, h1);
     num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
 
@@ -6121,16 +6160,18 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h,
         return SKIPPED_UNDER_ROCKSDB;
     }
 
-    std::string dbname = get_dbname(testHarness.get_current_testcase()->cfg);
+    std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
 
     force_vbstate_to_25x(dbname, 0);
     force_vbstate_to_25x(dbname, 1);
 
     // Now shutdown engine force and restart to warmup from the 2.5.x data.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
     uint64_t vb_uuid0 = get_ull_stat(h, h1, "vb_0:uuid", "vbucket-details");
     uint64_t vb_uuid1 = get_ull_stat(h, h1, "vb_1:uuid", "vbucket-details");
@@ -7278,7 +7319,7 @@ static enum test_result test_mb20697(EngineIface* h, EngineIface* h1) {
 /* Check if vbucket reject ops are incremented on persistence failure */
 static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h,
                                                            EngineIface* h1) {
-    std::string dbname = get_dbname(testHarness.get_current_testcase()->cfg);
+    std::string dbname = get_dbname(testHarness->get_current_testcase()->cfg);
     std::string filename = dbname +
                            DIRECTORY_SEPARATOR_CHARACTER +
                            "0.couch.1";
@@ -7321,14 +7362,14 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h,
 
 static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
         EngineIface* h, EngineIface* h1) {
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     bool  ready = false;
     std::mutex m;
     std::condition_variable cv;
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
               "Failed to set vbucket state.");
-    testHarness.set_ewouldblock_handling(cookie, false);
+    testHarness->set_ewouldblock_handling(cookie, false);
 
     checkeq(cb::engine_errc::would_block,
             get(h, h1, cookie, "key", 1).first,
@@ -7338,14 +7379,14 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
     std::thread notify_waiter{[&cv, &ready, &m, &cookie](){
         {
             std::lock_guard<std::mutex> lk(m);
-            testHarness.lock_cookie(cookie);
+            testHarness->lock_cookie(cookie);
             ready = true;
         }
         // Once we have locked the cookie we can allow the main thread to
         // continue.
         cv.notify_one();
-        testHarness.waitfor_cookie(cookie);
-        testHarness.unlock_cookie(cookie);
+        testHarness->waitfor_cookie(cookie);
+        testHarness->unlock_cookie(cookie);
 
     }};
 
@@ -7362,7 +7403,7 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
     checkeq(cb::engine_errc::not_my_vbucket,
             get(h, h1, cookie, "key", 1).first,
             "Expected NOT MY VBUCKET.");
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -7412,10 +7453,12 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
 
     if (isWarmupEnabled(h, h1)) {
         /* Reload the engine */
-        testHarness.reload_engine(&h, &h1,
-                                  testHarness.engine_path,
-                                  testHarness.get_current_testcase()->cfg,
-                                  true, false);
+        testHarness->reload_engine(&h,
+                                   &h1,
+                                   testHarness->engine_path,
+                                   testHarness->get_current_testcase()->cfg,
+                                   true,
+                                   false);
         wait_for_warmup_complete(h, h1);
 
         /* Purge seqno should not change after reload */

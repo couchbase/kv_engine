@@ -109,7 +109,7 @@ static enum test_result test_checkpoint_timeout(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value"),
             "Failed to store an item.");
-    testHarness.time_travel(600);
+    testHarness->time_travel(600);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
     return SUCCESS;
 }

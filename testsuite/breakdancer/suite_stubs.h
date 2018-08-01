@@ -34,7 +34,7 @@ void assertNotExists(EngineIface* h, EngineIface* h1);
 
 extern int expiry;
 extern bool hasError;
-extern struct test_harness testHarness;
+extern struct test_harness* testHarness;
 
 #ifdef __cplusplus
 }

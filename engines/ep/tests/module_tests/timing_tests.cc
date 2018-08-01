@@ -42,7 +42,7 @@ char *last_key = NULL;
 char *last_body = NULL;
 std::map<std::string, std::string> vals;
 
-struct test_harness testHarness;
+struct test_harness* testHarness;
 
 bool abort_msg(const char *expr, const char *msg, int line) {
     fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
@@ -132,12 +132,12 @@ static int get_int_stat(EngineIface* h,
                         const char* statname,
                         const char* statkey = NULL) {
     vals.clear();
-    const auto* cookie = testHarness.create_cookie();
+    const auto* cookie = testHarness->create_cookie();
     check(h1->get_stats(cookie,
                         {statkey, statkey == NULL ? 0 : strlen(statkey)},
                         add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     std::string s = vals[statname];
     return atoi(s.c_str());
 }
@@ -206,7 +206,7 @@ static test_result test_persistence(EngineIface* h, EngineIface* h1) {
 
 extern "C" MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
-    testHarness = *th;
+    testHarness = th;
     return true;
 }
 

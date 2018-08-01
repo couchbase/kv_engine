@@ -238,7 +238,7 @@ template<typename T>
 void renderToXML(const std::string& name, const std::string& description,
                  const std::vector<Stats<T> >& value_stats,
                  const std::string& unit) {
-    std::string test_name = testHarness.output_file_prefix;
+    std::string test_name = testHarness->output_file_prefix;
     test_name += name;
     std::ofstream file(test_name + ".xml");
 
@@ -252,12 +252,12 @@ void renderToXML(const std::string& name, const std::string& description,
 
     std::string classname = "ep-perfsuite";
 
-    if (testHarness.bucket_type == "") {
+    if (testHarness->bucket_type == "") {
         file << "  <testsuite name=\"ep-perfsuite\">\n";
     } else {
-        file << "  <testsuite name=\"ep-perfsuite-" << testHarness.bucket_type
+        file << "  <testsuite name=\"ep-perfsuite-" << testHarness->bucket_type
              << "\">\n";
-        classname += "-" + testHarness.bucket_type;
+        classname += "-" + testHarness->bucket_type;
     }
 
     for (const auto& stats : value_stats) {
@@ -276,7 +276,7 @@ void renderToXML(const std::string& name, const std::string& description,
 }
 
 // Given a vector of values (each a vector<T>) calculate metrics on them
-// and print in the format specified by {testharness.output_format}.
+// and print in the format specified by {testHarness->output_format}.
 template<typename T>
 void output_result(const std::string& name,
                    const std::string& description,
@@ -313,7 +313,7 @@ void output_result(const std::string& name,
     }
 
     // Now render in the given format.
-    switch (testHarness.output_format) {
+    switch (testHarness->output_format) {
     case OutputFormat::Text:
         renderToText(new_name, description, value_stats, unit);
         break;
@@ -359,7 +359,7 @@ static void perf_latency_core(EngineIface* h,
                               std::vector<hrtime_t>& get_timings,
                               std::vector<hrtime_t>& replace_timings,
                               std::vector<hrtime_t>& delete_timings) {
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     const std::string data(100, 'x');
 
     // Build vector of keys
@@ -411,7 +411,7 @@ static void perf_latency_core(EngineIface* h,
         delete_timings.push_back((end - start).count());
     }
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 }
 
 static enum test_result perf_latency(EngineIface* h,
@@ -571,7 +571,7 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
 
     // destroy the buckets and rm the db path
     for (int ii = 0; ii < n_buckets; ii++) {
-        testHarness.destroy_bucket(buckets[ii].h, buckets[ii].h1, false);
+        testHarness->destroy_bucket(buckets[ii].h, buckets[ii].h1, false);
         rmdb(buckets[ii].dbpath.c_str());
     }
 
@@ -823,7 +823,7 @@ static void perf_background_sets(EngineIface* h,
                                  std::atomic<bool>& setup_benchmark,
                                  std::atomic<bool>& running_benchmark) {
     std::vector<std::string> keys;
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     for (int ii = 0; ii < count; ++ii) {
         keys.push_back("key" + std::to_string(ii));
@@ -852,7 +852,7 @@ static void perf_background_sets(EngineIface* h,
         ++ii;
     }
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 }
 
 /*
@@ -868,7 +868,7 @@ static void perf_dcp_client(EngineIface* h,
                             bool retrieveCompressed,
                             std::vector<hrtime_t>& recv_timings,
                             std::vector<size_t>& bytes_received) {
-    const void *cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     std::string uuid("vb_" + std::to_string(vbid) + ":0:id");
     uint64_t vb_uuid = get_ull_stat(h, h1, uuid.c_str(), "failovers");
@@ -889,8 +889,8 @@ static void perf_dcp_client(EngineIface* h,
             "Failed to establish connection buffer");
 
     if (retrieveCompressed) {
-
-        testHarness.set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
+        testHarness->set_datatype_support(cookie,
+                                          PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
         checkeq(dcp.control(cookie,
                             ++streamOpaque,
@@ -939,9 +939,9 @@ static void perf_dcp_client(EngineIface* h,
         case ENGINE_EWOULDBLOCK:
             // No data currently available - wait to be notified when
             // more available.
-            testHarness.lock_cookie(cookie);
-            testHarness.waitfor_cookie(cookie);
-            testHarness.unlock_cookie(cookie);
+            testHarness->lock_cookie(cookie);
+            testHarness->waitfor_cookie(cookie);
+            testHarness->unlock_cookie(cookie);
             break;
 
         case ENGINE_SUCCESS:
@@ -994,7 +994,7 @@ static void perf_dcp_client(EngineIface* h,
         }
     } while (!done);
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 }
 
 struct Ret_vals {
@@ -1135,7 +1135,7 @@ static enum test_result perf_dcp_latency_with_random_binary(EngineIface* h,
  */
 static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
         EngineIface* h, EngineIface* h1) {
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     const uint16_t vbid = 0;
     const uint32_t opaque = 1;
 
@@ -1213,7 +1213,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     output_result(title, "Latency (ns) ", result, "ns");
     printf("\n");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -1256,7 +1256,7 @@ static void perf_stat_latency_core(EngineIface* h,
     const int iterations = (statRuntime == StatRuntime::Slow) ?
             iterations_for_slow_stats : iterations_for_fast_stats;
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     // For some of the stats we need to have a document stored
     checkeq(cb::engine_errc::success,
             storeCasVb11(h, h1, nullptr, OPERATION_ADD, "example_doc", nullptr,
@@ -1304,7 +1304,7 @@ static void perf_stat_latency_core(EngineIface* h,
             }
         }
     }
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 }
 
 static enum test_result perf_stat_latency(EngineIface* h,

@@ -10,7 +10,7 @@
 
 int expiry = 3600;
 bool hasError = false;
-struct test_harness testHarness;
+struct test_harness* testHarness;
 
 static DocKey key("key", DocNamespace::DefaultCollection);
 
@@ -26,7 +26,7 @@ bool teardown(EngineIface* h, EngineIface* h1) {
 }
 
 void delay(int amt) {
-    testHarness.time_travel(amt);
+    testHarness->time_travel(amt);
     hasError = false;
 }
 
@@ -36,7 +36,7 @@ static void storeItem(EngineIface* h,
     uint64_t cas = 0;
     const char *value = "0";
     const int flags = 0;
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
     size_t vlen;
     item_info info;
 
@@ -55,7 +55,7 @@ static void storeItem(EngineIface* h,
     auto rv =
             h1->store(cookie, ret.second.get(), cas, op, DocumentState::Alive);
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     hasError = rv != ENGINE_SUCCESS;
 }
 
@@ -64,17 +64,17 @@ void add(EngineIface* h, EngineIface* h1) {
 }
 
 void flush(EngineIface* h, EngineIface* h1) {
-    const auto* cookie = testHarness.create_cookie();
+    const auto* cookie = testHarness->create_cookie();
     hasError = h1->flush(cookie);
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 }
 
 void del(EngineIface* h, EngineIface* h1) {
     uint64_t cas = 0;
     mutation_descr_t mut_info;
-    const auto* cookie = testHarness.create_cookie();
+    const auto* cookie = testHarness->create_cookie();
     hasError = h1->remove(cookie, key, cas, 0, mut_info) != ENGINE_SUCCESS;
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 }
 
 void set(EngineIface* h, EngineIface* h1) {
@@ -82,9 +82,9 @@ void set(EngineIface* h, EngineIface* h1) {
 }
 
 void checkValue(EngineIface* h, EngineIface* h1, const char* exp) {
-    const auto* cookie = testHarness.create_cookie();
+    const auto* cookie = testHarness->create_cookie();
     auto rv = h1->get(cookie, key, 0, DocStateFilter::Alive);
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     cb_assert(rv.first == cb::engine_errc::success);
 
     item_info info;
@@ -108,15 +108,15 @@ void checkValue(EngineIface* h, EngineIface* h1, const char* exp) {
 }
 
 void assertNotExists(EngineIface* h, EngineIface* h1) {
-    const auto* cookie = testHarness.create_cookie();
+    const auto* cookie = testHarness->create_cookie();
     auto rv = h1->get(cookie, key, 0, DocStateFilter::Alive);
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     cb_assert(rv.first == cb::engine_errc::no_such_key);
 }
 
 MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
-    testHarness = *th;
+    testHarness = th;
     return true;
 }
 

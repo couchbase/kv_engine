@@ -144,10 +144,12 @@ static enum test_result test_max_size_and_water_marks_settings(
     check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.7),
           "Incorrect even smaller high wat. percent");
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, true);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               true);
     wait_for_warmup_complete(h, h1);
 
     checkeq(1000, get_int_stat(h, h1, "ep_max_size"),
@@ -180,15 +182,13 @@ static enum test_result test_whitespace_db(EngineIface* h, EngineIface* h1) {
 
     std::string oldparam("dbname=" + vals["ep_dbname"]);
     std::string newparam("dbname=" + dbname);
-    std::string config = testHarness.get_current_testcase()->cfg;
+    std::string config = testHarness->get_current_testcase()->cfg;
     std::string::size_type found = config.find(oldparam);
     if (found != config.npos) {
         config.replace(found, oldparam.size(), newparam);
     }
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              config.c_str(),
-                              true, false);
+    testHarness->reload_engine(
+            &h, &h1, testHarness->engine_path, config.c_str(), true, false);
     wait_for_warmup_complete(h, h1);
 
     vals.clear();
@@ -311,10 +311,12 @@ static enum test_result test_conc_set(EngineIface* h, EngineIface* h1) {
     if (isWarmupEnabled(h, h1)) {
         wait_for_flusher_to_settle(h, h1);
 
-        testHarness.reload_engine(&h, &h1,
-                                  testHarness.engine_path,
-                                  testHarness.get_current_testcase()->cfg,
-                                  true, false);
+        testHarness->reload_engine(&h,
+                                   &h1,
+                                   testHarness->engine_path,
+                                   testHarness->get_current_testcase()->cfg,
+                                   true,
+                                   false);
         wait_for_warmup_complete(h, h1);
 
         cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
@@ -465,7 +467,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
     uint16_t vbucketId = 0;
     uint32_t expiration = 25;
 
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     checkeq(cb::engine_errc::no_such_key,
             getl(h, h1, cookie, key, vbucketId, expiration).first,
@@ -504,7 +506,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
             "Expected datatype to be JSON");
 
     /* wait 16 seconds */
-    testHarness.time_travel(16);
+    testHarness->time_travel(16);
 
     /* lock's taken so this should fail */
     checkeq(cb::engine_errc::locked_tmpfail,
@@ -524,7 +526,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
             "Should have failed to store an item.");
 
     /* wait another 10 seconds */
-    testHarness.time_travel(10);
+    testHarness->time_travel(10);
 
     /* retry set, should succeed */
     checkeq(ENGINE_SUCCESS,
@@ -562,7 +564,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
 
     /* bug MB 2699 append after getl should fail with ENGINE_TMPFAIL */
 
-    testHarness.time_travel(26);
+    testHarness->time_travel(26);
 
     char binaryData1[] = "abcdefg\0gfedcba";
 
@@ -620,7 +622,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
             "Failed to Store item");
     check_key_value(h, h1, ekey, edata, strlen(edata));
 
-    testHarness.time_travel(3);
+    testHarness->time_travel(3);
     cas = last_cas;
 
     /* cas should fail */
@@ -649,7 +651,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
                   vbucketId),
             "Failed to store an item.");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -717,7 +719,7 @@ static enum test_result test_unl(EngineIface* h, EngineIface* h1) {
             "Lock should work after unlock");
 
     /* wait 16 seconds */
-    testHarness.time_travel(16);
+    testHarness->time_travel(16);
 
     /* lock has expired, unl should fail */
     checkeq(ENGINE_TMPFAIL,
@@ -753,7 +755,7 @@ static enum test_result test_set_get_hit_bin(EngineIface* h, EngineIface* h1) {
 static enum test_result test_set_with_cas_non_existent(EngineIface* h,
                                                        EngineIface* h1) {
     const char *key = "test_expiry_flush";
-    const auto* cookie = testHarness.create_cookie();
+    const auto* cookie = testHarness->create_cookie();
     auto ret = allocate(
             h, h1, cookie, key, 10, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
@@ -770,7 +772,7 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h,
                       DocumentState::Alive),
             "Expected not found");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -820,7 +822,7 @@ static enum test_result test_add(EngineIface* h, EngineIface* h1) {
     check_key_value(h, h1, "key", "somevalue", 9);
 
     // Expiration above was an hour, so let's go to The Future
-    testHarness.time_travel(3800);
+    testHarness->time_travel(3800);
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD, "key", "newvalue"),
@@ -962,13 +964,13 @@ static enum test_result test_touch(EngineIface* h, EngineIface* h1) {
           "touch should have incremented rev seqno");
 
     // time-travel 9 secs..
-    testHarness.time_travel(9);
+    testHarness->time_travel(9);
 
     // The item should still exist
     check_key_value(h, h1, "mykey", "somevalue", 9);
 
     // time-travel 2 secs..
-    testHarness.time_travel(2);
+    testHarness->time_travel(2);
 
     // The item should have expired now...
     checkeq(cb::engine_errc::no_such_key,
@@ -990,7 +992,7 @@ static enum test_result test_touch_mb7342(EngineIface* h, EngineIface* h1) {
 
     // Travel a loong time to see if the object is still there (the default
     // store sets an exp time of 3600
-    testHarness.time_travel(3700);
+    testHarness->time_travel(3700);
 
     check_key_value(h, h1, key, "v", 1);
 
@@ -1060,14 +1062,14 @@ static enum test_result test_gat(EngineIface* h, EngineIface* h1) {
           "Invalid data returned");
 
     // time-travel 9 secs..
-    testHarness.time_travel(9);
+    testHarness->time_travel(9);
 
     // The item should still exist
     check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
                     strlen("{\"some\":\"value\"}"));
 
     // time-travel 2 secs..
-    testHarness.time_travel(2);
+    testHarness->time_travel(2);
 
     // The item should have expired now...
     checkeq(cb::engine_errc::no_such_key,
@@ -1088,11 +1090,11 @@ static enum test_result test_gat_locked(EngineIface* h, EngineIface* h1) {
     auto ret = gat(h, h1, "key", 0, 10);
     checkeq(ENGINE_LOCKED, ENGINE_ERROR_CODE(ret.first), "Expected LOCKED");
 
-    testHarness.time_travel(16);
+    testHarness->time_travel(16);
     ret = gat(h, h1, "key", 0, 10);
     checkeq(ENGINE_SUCCESS, ENGINE_ERROR_CODE(ret.first), "Expected success");
 
-    testHarness.time_travel(11);
+    testHarness->time_travel(11);
     checkeq(cb::engine_errc::no_such_key,
             get(h, h1, NULL, "key", 0).first,
             "Expected value to be expired");
@@ -1113,10 +1115,10 @@ static enum test_result test_touch_locked(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_LOCKED, touch(h, h1, "key", 0, 10),
             "Expected tmp fail");
 
-    testHarness.time_travel(16);
+    testHarness->time_travel(16);
     checkeq(ENGINE_SUCCESS, touch(h, h1, "key", 0, 10), "Expected success");
 
-    testHarness.time_travel(11);
+    testHarness->time_travel(11);
     checkeq(cb::engine_errc::no_such_key,
             get(h, h1, NULL, "key", 0).first,
             "Expected value to be expired");
@@ -1142,10 +1144,12 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
             "touch coolkey");
 
     //reload engine
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
 
     wait_for_warmup_complete(h, h1);
 
@@ -1165,10 +1169,12 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS ,touch(h, h1, "coolkey", 0, expTime),
             "touch coolkey");
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     checkeq(cb::engine_errc::success,
@@ -1191,7 +1197,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
                                                EngineIface* h1) {
     const uint64_t cas_0 = 0;
     const uint16_t vbid = 0;
-    const void* cookie = testHarness.create_cookie();
+    const void* cookie = testHarness->create_cookie();
 
     // Store an initial (not-deleted) value.
     checkeq(ENGINE_SUCCESS,
@@ -1290,7 +1296,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
             res.second,
             "Unexpected value (deleted 3)");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -1455,7 +1461,7 @@ static enum test_result test_delete(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
     h->release(i);
-    testHarness.time_travel(3617);
+    testHarness->time_travel(3617);
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key", 0, 0),
             "Did not get ENOENT removing an expired object.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
@@ -1508,10 +1514,12 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
 
     wait_for_persisted_value(h, h1, "key", "value2");
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     check_key_value(h, h1, "key", "value2", 6);
@@ -1519,10 +1527,12 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
             del(h, h1, "key", 0, 0), "Failed remove with value.");
     wait_for_flusher_to_settle(h, h1);
 
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
     wait_for_warmup_complete(h, h1);
 
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
@@ -1573,10 +1583,12 @@ static enum test_result test_bug2509(EngineIface* h, EngineIface* h1) {
 
     if (isWarmupEnabled(h, h1)) {
         // Restart again, to verify we don't have any duplicates.
-        testHarness.reload_engine(&h, &h1,
-                                  testHarness.engine_path,
-                                  testHarness.get_current_testcase()->cfg,
-                                  true, false);
+        testHarness->reload_engine(&h,
+                                   &h1,
+                                   testHarness->engine_path,
+                                   testHarness->get_current_testcase()->cfg,
+                                   true,
+                                   false);
         wait_for_warmup_complete(h, h1);
 
         return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
@@ -1613,10 +1625,12 @@ static enum test_result test_bug7023(EngineIface* h, EngineIface* h1) {
 
     if (isWarmupEnabled(h, h1)) {
         // Restart again, to verify no data loss.
-        testHarness.reload_engine(&h, &h1,
-                                  testHarness.engine_path,
-                                  testHarness.get_current_testcase()->cfg,
-                                  true, false);
+        testHarness->reload_engine(&h,
+                                   &h1,
+                                   testHarness->engine_path,
+                                   testHarness->get_current_testcase()->cfg,
+                                   true,
+                                   false);
         wait_for_warmup_complete(h, h1);
         checkeq(nitems,
                 get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
@@ -1692,10 +1706,12 @@ static enum test_result test_mb5172(EngineIface* h, EngineIface* h1) {
             "Expected all items to be resident");
 
     // restart the server.
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, false);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               false);
 
     wait_for_warmup_complete(h, h1);
     checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
@@ -1761,10 +1777,12 @@ static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h, h1);
 
     // Force a shutdown so the warmup will create failover entries
-    testHarness.reload_engine(&h, &h1,
-                              testHarness.engine_path,
-                              testHarness.get_current_testcase()->cfg,
-                              true, true);
+    testHarness->reload_engine(&h,
+                               &h1,
+                               testHarness->engine_path,
+                               testHarness->get_current_testcase()->cfg,
+                               true,
+                               true);
 
     wait_for_warmup_complete(h, h1);
 
@@ -1824,11 +1842,11 @@ static test_result pre_link_document(EngineIface* h, EngineIface* h1) {
     item_info info;
 
     PreLinkFunction function = pre_link_doc_callback;
-    testHarness.set_pre_link_function(function);
+    testHarness->set_pre_link_function(function);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
-    testHarness.set_pre_link_function({});
+    testHarness->set_pre_link_function({});
 
     // Fetch the value and verify that the callback was called!
     auto ret = get(h, h1, nullptr, "key", 0);
@@ -1857,21 +1875,21 @@ static test_result get_if(EngineIface* h, EngineIface* h1) {
         evict_key(h, h1, key.c_str(), 0, "Ejected.");
     }
 
-    const auto* cookie = testHarness.create_cookie();
+    const auto* cookie = testHarness->create_cookie();
     auto doc = h1->get_if(cookie,
-                          DocKey(key, testHarness.doc_namespace),
+                          DocKey(key, testHarness->doc_namespace),
                           0,
                           [](const item_info&) { return true; });
     check(doc.second, "document should be found");
 
     doc = h1->get_if(cookie,
-                     DocKey(key, testHarness.doc_namespace),
+                     DocKey(key, testHarness->doc_namespace),
                      0,
                      [](const item_info&) { return false; });
     check(!doc.second, "document should not be found");
 
     doc = h1->get_if(cookie,
-                     DocKey("no", testHarness.doc_namespace),
+                     DocKey("no", testHarness->doc_namespace),
                      0,
                      [](const item_info&) { return true; });
     check(!doc.second, "non-existing document should not be found");
@@ -1880,12 +1898,12 @@ static test_result get_if(EngineIface* h, EngineIface* h1) {
             "Failed remove with value");
 
     doc = h1->get_if(cookie,
-                     DocKey(key, testHarness.doc_namespace),
+                     DocKey(key, testHarness->doc_namespace),
                      0,
                      [](const item_info&) { return true; });
     check(!doc.second, "deleted document should not be found");
 
-    testHarness.destroy_cookie(cookie);
+    testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -1939,7 +1957,7 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
             "expiry should not be zero");
 
     // Force expiry
-    testHarness.time_travel(absoluteExpiry + 1);
+    testHarness->time_travel(absoluteExpiry + 1);
 
     auto ret = get(h, h1, NULL, "key-abs", 0);
     checkeq(cb::engine_errc::no_such_key,
@@ -1967,7 +1985,7 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
             "expiry should not be zero");
 
     // Force expiry
-    testHarness.time_travel(relativeExpiry + 1);
+    testHarness->time_travel(relativeExpiry + 1);
 
     ret = get(h, h1, NULL, "key-rel", 0);
     checkeq(cb::engine_errc::no_such_key,
@@ -2020,7 +2038,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
             "expiry should not be zero");
 
     // Force expiry
-    testHarness.time_travel(absoluteExpiry + 1);
+    testHarness->time_travel(absoluteExpiry + 1);
 
     auto ret = get(h, h1, NULL, keyAbs.c_str(), 0);
     checkeq(cb::engine_errc::no_such_key,
@@ -2053,7 +2071,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
             "expiry should not be zero");
 
     // Force expiry
-    testHarness.time_travel(relativeExpiry + 1);
+    testHarness->time_travel(relativeExpiry + 1);
 
     ret = get(h, h1, NULL, keyRel.c_str(), 0);
     checkeq(cb::engine_errc::no_such_key,

@@ -327,7 +327,7 @@ static engine_test_t *testcases;
 // are run.
 static int oneTestIdx;
 
-struct test_harness testHarness;
+struct test_harness* testHarness;
 
 // Array of testcases. Provided by the specific testsuite.
 extern BaseTestCase testsuite_testcases[];
@@ -380,7 +380,7 @@ engine_test_t* get_tests(void) {
 
 MEMCACHED_PUBLIC_API
 bool setup_suite(struct test_harness *th) {
-    testHarness = *th;
+    testHarness = th;
     return true;
 }
 
@@ -425,7 +425,7 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
             }
         }
         EngineIface* handle =
-                testHarness.create_bucket(true, config.str().c_str());
+                testHarness->create_bucket(true, config.str().c_str());
         if (handle) {
             buckets.push_back(
                     BucketHolder((EngineIface*)handle, handle, dbpath.str()));
@@ -438,7 +438,7 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
 
 void destroy_buckets(std::vector<BucketHolder> &buckets) {
     for(auto bucket : buckets) {
-        testHarness.destroy_bucket(bucket.h, bucket.h1, false);
+        testHarness->destroy_bucket(bucket.h, bucket.h1, false);
         rmdb(bucket.dbpath.c_str());
     }
 }

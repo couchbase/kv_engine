@@ -160,7 +160,7 @@ struct handle_pair {
 extern const char *dbname_env;
 
 // Handle of the test_harness, provided by engine_testapp.
-extern struct test_harness testHarness;
+extern struct test_harness* testHarness;
 
 // Default DB name. Provided by the specific testsuite.
 extern const char* default_dbname;
