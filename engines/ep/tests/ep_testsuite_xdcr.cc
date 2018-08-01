@@ -1059,7 +1059,7 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h,
     check(errorMetaPair.second.cas == 0xdeadbeef, "Expected cas to match");
     check(errorMetaPair.second.flags == 0xdeadbeef, "Expected flags to match");
 
-    check_key_value(h, h1, key, val, strlen(val));
+    check_key_value(h, key, val, strlen(val));
 
     return SUCCESS;
 }

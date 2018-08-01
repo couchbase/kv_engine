@@ -4556,7 +4556,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h,
     check(set_vbucket_state(h, 0, vbucket_state_active),
           "Failed to set vbucket state.");
 
-    check_key_value(h, h1, "key", data, dataLen);
+    check_key_value(h, "key", data, dataLen);
 
     testHarness->destroy_cookie(cookie);
     cb_free(data);

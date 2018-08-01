@@ -164,7 +164,7 @@ static enum test_result test_replace_with_eviction(EngineIface* h,
             get_int_stat(h, h1, "ep_bg_fetched"),
             "Bg fetched value didn't match");
 
-    check_key_value(h, h1, "key", "somevalue1", 10);
+    check_key_value(h, "key", "somevalue1", 10);
     return SUCCESS;
 }
 
@@ -399,7 +399,7 @@ static enum test_result test_restart(EngineIface* h, EngineIface* h1) {
                                false);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    check_key_value(h, h1, "key", val, strlen(val));
+    check_key_value(h, "key", val, strlen(val));
     return SUCCESS;
 }
 
@@ -411,7 +411,7 @@ static enum test_result test_specialKeys(EngineIface* h, EngineIface* h1) {
     static const char val0[] = "some Chinese value";
     check((ret = store(h, NULL, OPERATION_SET, key0, val0)) == ENGINE_SUCCESS,
           "Failed set Chinese key");
-    check_key_value(h, h1, key0, val0, strlen(val0));
+    check_key_value(h, key0, val0, strlen(val0));
 
     // Traditional Chinese "Couchbase"
     static const char key1[] = "沙發數據庫";
@@ -464,14 +464,14 @@ static enum test_result test_specialKeys(EngineIface* h, EngineIface* h1) {
                                    false);
         h1 = h;
         wait_for_warmup_complete(h, h1);
-        check_key_value(h, h1, key0, val0, strlen(val0));
-        check_key_value(h, h1, key1, val1, strlen(val1));
-        check_key_value(h, h1, key2, val2, strlen(val2));
-        check_key_value(h, h1, key3, val3, strlen(val3));
-        check_key_value(h, h1, key4, val4, strlen(val4));
-        check_key_value(h, h1, key5, val5, strlen(val5));
-        check_key_value(h, h1, key6, val6, strlen(val6));
-        check_key_value(h, h1, key7, val7, strlen(val7));
+        check_key_value(h, key0, val0, strlen(val0));
+        check_key_value(h, key1, val1, strlen(val1));
+        check_key_value(h, key2, val2, strlen(val2));
+        check_key_value(h, key3, val3, strlen(val3));
+        check_key_value(h, key4, val4, strlen(val4));
+        check_key_value(h, key5, val5, strlen(val5));
+        check_key_value(h, key6, val6, strlen(val6));
+        check_key_value(h, key7, val7, strlen(val7));
     }
     return SUCCESS;
 }
@@ -484,14 +484,14 @@ static enum test_result test_binKeys(EngineIface* h, EngineIface* h1) {
     static const char val0[] = "some value val8";
     check((ret = store(h, NULL, OPERATION_SET, key0, val0)) == ENGINE_SUCCESS,
           "Failed set binary key0");
-    check_key_value(h, h1, key0, val0, strlen(val0));
+    check_key_value(h, key0, val0, strlen(val0));
 
     // binary keys with char values beyond 0x7F
     static const char key1[] = "\xf1\xfd\xfe\xff\xf0\xf8\xef";
     static const char val1[] = "some value val9";
     check((ret = store(h, NULL, OPERATION_SET, key1, val1)) == ENGINE_SUCCESS,
           "Failed set binary key1");
-    check_key_value(h, h1, key1, val1, strlen(val1));
+    check_key_value(h, key1, val1, strlen(val1));
 
     // binary keys with special utf-8 BOM (Byte Order Mark) values 0xBB 0xBF
     // 0xEF
@@ -499,14 +499,14 @@ static enum test_result test_binKeys(EngineIface* h, EngineIface* h1) {
     static const char val2[] = "some utf-8 bom value";
     check((ret = store(h, NULL, OPERATION_SET, key2, val2)) == ENGINE_SUCCESS,
           "Failed set binary utf-8 bom key");
-    check_key_value(h, h1, key2, val2, strlen(val2));
+    check_key_value(h, key2, val2, strlen(val2));
 
     // binary keys with special utf-16BE BOM values "U+FEFF"
     static const char key3[] = "U+\xfe\xff\xefU+\xff\xfe";
     static const char val3[] = "some utf-16 bom value";
     check((ret = store(h, NULL, OPERATION_SET, key3, val3)) == ENGINE_SUCCESS,
           "Failed set binary utf-16 bom key");
-    check_key_value(h, h1, key3, val3, strlen(val3));
+    check_key_value(h, key3, val3, strlen(val3));
 
     if (isWarmupEnabled(h)) {
         testHarness->reload_engine(&h,
@@ -516,10 +516,10 @@ static enum test_result test_binKeys(EngineIface* h, EngineIface* h1) {
                                    false);
         h1 = h;
         wait_for_warmup_complete(h, h1);
-        check_key_value(h, h1, key0, val0, strlen(val0));
-        check_key_value(h, h1, key1, val1, strlen(val1));
-        check_key_value(h, h1, key2, val2, strlen(val2));
-        check_key_value(h, h1, key3, val3, strlen(val3));
+        check_key_value(h, key0, val0, strlen(val0));
+        check_key_value(h, key1, val1, strlen(val1));
+        check_key_value(h, key2, val2, strlen(val2));
+        check_key_value(h, key3, val3, strlen(val3));
     }
     return SUCCESS;
 }
@@ -553,7 +553,7 @@ static enum test_result test_restart_bin_val(EngineIface* h, EngineIface* h1) {
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
+    check_key_value(h, "key", binaryData, sizeof(binaryData));
     return SUCCESS;
 }
 
@@ -835,7 +835,7 @@ static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
-    check_key_value(h, h1, key, data, strlen(data));
+    check_key_value(h, key, data, strlen(data));
 
     testHarness->time_travel(5);
     checkeq(cb::engine_errc::no_such_key,
@@ -897,7 +897,7 @@ static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
-    check_key_value(h, h1, key, data, strlen(data));
+    check_key_value(h, key, data, strlen(data));
 
     testHarness->time_travel(3);
 
@@ -1066,7 +1066,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
-    check_key_value(h, h1, key, data, strlen(data));
+    check_key_value(h, key, data, strlen(data));
     ret.second.reset();
     wait_for_flusher_to_settle(h, h1);
 
@@ -1142,7 +1142,7 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
-    check_key_value(h, h1, key, data, strlen(data));
+    check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h, h1);
 
     // Advance the ep_engine time by 10 sec for the above item to be expired.
@@ -1173,7 +1173,7 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
                    OPERATION_ADD,
                    DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Add failed.");
-    check_key_value(h, h1, key, data, strlen(data));
+    check_key_value(h, key, data, strlen(data));
     ret.second.reset();
     wait_for_flusher_to_settle(h, h1);
 
@@ -1228,7 +1228,7 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
                         OPERATION_SET,
                         DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
-    check_key_value(h, h1, key, data, strlen(data));
+    check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h, h1);
 
     // Add a new item with the same key and 2 sec of expiration.
@@ -1256,7 +1256,7 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
                    OPERATION_SET,
                    DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
-    check_key_value(h, h1, key, new_data, strlen(new_data));
+    check_key_value(h, key, new_data, strlen(new_data));
     ret.second.reset();
     testHarness->time_travel(3);
     wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
@@ -1459,13 +1459,13 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, exp_key, exp_value),
             "Failed to set expiring key");
-    check_key_value(h, h1, exp_key, exp_value, strlen(exp_value));
+    check_key_value(h, exp_key, exp_value, strlen(exp_value));
 
     // Set a non-expiring key...
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, non_exp_key, non_exp_value),
             "Failed to set non-expiring key");
-    check_key_value(h, h1, non_exp_key, non_exp_value, strlen(non_exp_value));
+    check_key_value(h, non_exp_key, non_exp_value, strlen(non_exp_value));
 
     // Touch expiring key with an expire time
     const int exp_time = 11;
@@ -1778,7 +1778,7 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
                   0,
                   1),
             "Failed to set a value");
-    check_key_value(h, h1, "key", "somevalue", 9, 1);
+    check_key_value(h, "key", "somevalue", 9, 1);
 
     // Reload to get a flush forced.
     testHarness->reload_engine(&h,
@@ -1793,7 +1793,7 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
           "Bucket state was what it was initially, after restart.");
     check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
-    check_key_value(h, h1, "key", "somevalue", 9, 1);
+    check_key_value(h, "key", "somevalue", 9, 1);
 
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
@@ -2010,8 +2010,8 @@ static enum test_result test_item_stats(EngineIface* h, EngineIface* h1) {
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
 
-    check_key_value(h, h1, "key", "somevalueX", 10);
-    check_key_value(h, h1, "key1", "somevalueY", 10);
+    check_key_value(h, "key", "somevalueX", 10);
+    check_key_value(h, "key1", "somevalueY", 10);
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "key1", 0, 0),
             "Failed remove with value.");
@@ -2022,7 +2022,7 @@ static enum test_result test_item_stats(EngineIface* h, EngineIface* h1) {
             "Failed set.");
     wait_for_flusher_to_settle(h, h1);
 
-    check_key_value(h, h1, "key1", "someothervalue", 14);
+    check_key_value(h, "key1", "someothervalue", 14);
 
     checkeq(3,
             get_int_stat(h, h1, "vb_active_ops_create"),
@@ -2081,7 +2081,11 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
         check(get_int_stat(h, h1, "mem_used") < mem_used,
               "Expected mem_used to decrease when an item is evicted");
 
-        check_key_value(h, h1, "key", value, strlen(value), 0); // Load an item from disk again.
+        check_key_value(h,
+                        "key",
+                        value,
+                        strlen(value),
+                        0); // Load an item from disk again.
 
         if (isActiveCompressionEnabled(h)) {
             wait_for_item_compressor_to_settle(h, h1);
@@ -2140,7 +2144,7 @@ static enum test_result test_io_stats(EngineIface* h, EngineIface* h1) {
 
     evict_key(h, key.c_str(), 0, "Ejected.");
 
-    check_key_value(h, h1, "a", value.c_str(), value.size(), 0);
+    check_key_value(h, "a", value.c_str(), value.size(), 0);
 
     std::stringstream numReadStatStr;
     std::stringstream readBytesStatStr;
@@ -2246,7 +2250,7 @@ static enum test_result test_bg_stats(EngineIface* h, EngineIface* h1) {
     wait_for_persisted_value(h, h1, "a", "b\r\n");
     evict_key(h, "a", 0, "Ejected.");
     testHarness->time_travel(43);
-    check_key_value(h, h1, "a", "b\r\n", 3, 0);
+    check_key_value(h, "a", "b\r\n", 3, 0);
 
     auto stats = get_all_stats(h, h1);
     checkeq(1, std::stoi(stats.at("ep_bg_num_samples")),
@@ -2264,7 +2268,7 @@ static enum test_result test_bg_stats(EngineIface* h, EngineIface* h1) {
     }
 
     evict_key(h, "a", 0, "Ejected.");
-    check_key_value(h, h1, "a", "b\r\n", 3, 0);
+    check_key_value(h, "a", "b\r\n", 3, 0);
     check(get_int_stat(h, h1, "ep_bg_num_samples") == 2,
           "Expected one sample");
 
@@ -3952,7 +3956,7 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
     checkeq(0, get_int_stat(h, h1, "ep_num_value_ejects"),
             "Expected reset stats to set ep_num_value_ejects to zero");
 
-    check_key_value(h, h1, "k1", "v1", 2);
+    check_key_value(h, "k1", "v1", 2);
     checkeq(1, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected only one active vbucket item to be non-resident");
 
@@ -4042,7 +4046,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
         evict_key(h, it->c_str(), 1, "Ejected.");
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
-        check_key_value(h, h1, it->c_str(), it->data(), it->size(), 1);
+        check_key_value(h, it->c_str(), it->data(), it->size(), 1);
     }
     checkeq(0, get_int_stat(h, h1, "ep_warmup_dups"),
             "Expected no duplicate items from disk");
@@ -4079,7 +4083,7 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
     checkgt(mem_used, mem_used2, "mem_used should have decreased after eviction");
 
     // Reload the data.
-    check_key_value(h, h1, "k1", "some value", 10);
+    check_key_value(h, "k1", "some value", 10);
 
     int kv_size3 = get_int_stat(h, h1, "ep_kv_size");
     int mem_used3 = get_int_stat(h, h1, "mem_used");
@@ -4146,7 +4150,7 @@ static enum test_result test_disk_gt_ram_update_paged_out(EngineIface* h,
             store(h, NULL, OPERATION_SET, "k1", "new value"),
             "Failed to update an item.");
 
-    check_key_value(h, h1, "k1", "new value", 9);
+    check_key_value(h, "k1", "new value", 9);
 
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "bg fetched something");
 
@@ -4209,7 +4213,7 @@ static enum test_result test_disk_gt_ram_set_race(EngineIface* h,
         abort();
     }
 
-    check_key_value(h, h1, "k1", "new value", 9);
+    check_key_value(h, "k1", "new value", 9);
 
     // Should have bg_fetched, but discarded the old value.
     cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
@@ -4292,7 +4296,7 @@ static enum test_result test_kill9_bucket(EngineIface* h, EngineIface* h1) {
         h->release(i);
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
-        check_key_value(h, h1, it->c_str(), it->data(), it->size(), 0);
+        check_key_value(h, it->c_str(), it->data(), it->size(), 0);
     }
 
     return SUCCESS;
@@ -5557,7 +5561,7 @@ static enum test_result test_set_with_item_eviction(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "newvalue"),
             "Failed set.");
-    check_key_value(h, h1, "key", "newvalue", 8);
+    check_key_value(h, "key", "newvalue", 8);
     return SUCCESS;
 }
 
@@ -5730,7 +5734,7 @@ static enum test_result test_add_with_item_eviction(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_ADD, "key", "newvalue"),
             "Failed to add value again.");
-    check_key_value(h, h1, "key", "newvalue", 8);
+    check_key_value(h, "key", "newvalue", 8);
     return SUCCESS;
 }
 
@@ -5751,7 +5755,7 @@ static enum test_result test_gat_with_item_eviction(EngineIface* h,
     testHarness->time_travel(9);
 
     // The item should still exist
-    check_key_value(h, h1, "mykey", "somevalue", 9);
+    check_key_value(h, "mykey", "somevalue", 9);
 
     // time-travel 2 secs..
     testHarness->time_travel(2);
@@ -6269,8 +6273,7 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
     for (auto bucket : buckets) {
         std::stringstream val;
         val << "value_" << ii++;
-        check_key_value(bucket.h, bucket.h1,
-                        "key", val.str().c_str(), val.str().length());
+        check_key_value(bucket.h, "key", val.str().c_str(), val.str().length());
     }
 
     destroy_buckets(buckets);

@@ -271,7 +271,6 @@ void destroy_buckets(std::vector<BucketHolder> &buckets);
 
 // Verifies that the given key and value exist in the store.
 void check_key_value(EngineIface* h,
-                     EngineIface* h1,
                      const char* key,
                      const char* val,
                      size_t vlen,

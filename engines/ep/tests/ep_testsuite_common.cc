@@ -443,7 +443,6 @@ void destroy_buckets(std::vector<BucketHolder> &buckets) {
 }
 
 void check_key_value(EngineIface* h,
-                     EngineIface* h1,
                      const char* key,
                      const char* val,
                      size_t vlen,
@@ -455,7 +454,7 @@ void check_key_value(EngineIface* h,
             getResult.first,
             "Failed to fetch document");
     item_info info;
-    check(h1->get_item_info(getResult.second.get(), &info),
+    check(h->get_item_info(getResult.second.get(), &info),
           "Failed to get_item_info");
 
     cb::const_char_buffer payload;
