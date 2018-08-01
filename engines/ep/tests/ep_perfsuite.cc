@@ -360,7 +360,6 @@ static void add_sentinel_doc(EngineIface* h, EngineIface* h1, uint16_t vbid) {
  * The elapsed time of each operation is pushed to the vector parameters.
  */
 static void perf_latency_core(EngineIface* h,
-                              EngineIface* h1,
                               int key_prefix,
                               int num_docs,
                               std::vector<hrtime_t>& add_timings,
@@ -431,7 +430,7 @@ static void perf_latency_core(EngineIface* h,
     for (auto& key : keys) {
         const auto start = ProcessClock::now();
         checkeq(ENGINE_SUCCESS,
-                del(h, h1, key.c_str(), 0, 0, cookie),
+                del(h, h, key.c_str(), 0, 0, cookie),
                 "Failed to delete a value");
         const auto end = ProcessClock::now();
         delete_timings.push_back((end - start).count());
@@ -458,8 +457,13 @@ static enum test_result perf_latency(EngineIface* h,
                             std::to_string(num_docs) + " items (µs)");
 
     // run and measure on this thread.
-    perf_latency_core(h, h1, 0, num_docs, add_timings, get_timings,
-                      replace_timings, delete_timings);
+    perf_latency_core(h,
+                      0,
+                      num_docs,
+                      add_timings,
+                      get_timings,
+                      replace_timings,
+                      delete_timings);
 
     add_sentinel_doc(h, h1, /*vbid*/0);
 
@@ -509,7 +513,6 @@ public:
     }
 
     EngineIface* h;
-    EngineIface* h1;
     int key_prefix;
     int num_docs;
     std::vector<hrtime_t> add_timings;
@@ -523,7 +526,6 @@ extern "C" {
         ThreadArguments* threadArgs = static_cast<ThreadArguments*>(arg);
         // run and measure on this thread.
         perf_latency_core(threadArgs->h,
-                          threadArgs->h1,
                           threadArgs->key_prefix,
                           threadArgs->num_docs,
                           threadArgs->add_timings,
@@ -575,7 +577,6 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
     int bucket = 0;
     for (int ii = 0; ii < n_threads; ii++) {
         thread_args[ii].h = buckets[bucket].h;
-        thread_args[ii].h1 = buckets[bucket].h1;
         thread_args[ii].reserve(num_docs);
         thread_args[ii].num_docs = num_docs;
         thread_args[ii].key_prefix = ii;

@@ -426,8 +426,7 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
         EngineIface* handle =
                 testHarness->create_bucket(true, config.str().c_str());
         if (handle) {
-            buckets.push_back(
-                    BucketHolder((EngineIface*)handle, handle, dbpath.str()));
+            buckets.push_back(BucketHolder(handle, dbpath.str()));
         } else {
             return ii;
         }

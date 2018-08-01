@@ -149,13 +149,6 @@ public:
                bool _skip = false);
 };
 
-// Convenience types //////////////////////////////////////////////////////////
-
-struct handle_pair {
-    EngineIface* h;
-    EngineIface* h1;
-};
-
 // Name to use for database directory
 extern const char *dbname_env;
 
@@ -249,13 +242,12 @@ enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test);
 void cleanup(engine_test_t *test, enum test_result result);
 
 struct BucketHolder {
-    BucketHolder(EngineIface* _h, EngineIface* _h1, std::string _dbpath)
-        : h(_h), h1(_h1), dbpath(_dbpath) {
+    BucketHolder(EngineIface* _h, std::string _dbpath)
+        : h(_h), dbpath(std::move(_dbpath)) {
     }
 
     EngineIface* h;
-    EngineIface* h1;
-    std::string dbpath;
+    const std::string dbpath;
 };
 
 /*

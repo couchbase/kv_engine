@@ -271,19 +271,15 @@ static enum test_result test_set(EngineIface* h, EngineIface* h1) {
 
 extern "C" {
     static void conc_del_set_thread(void *arg) {
-        struct handle_pair *hp = static_cast<handle_pair *>(arg);
+        auto* h = static_cast<EngineIface*>(arg);
 
         for (int i = 0; i < 5000; ++i) {
-            store(hp->h, NULL, OPERATION_ADD, "key", "somevalue");
+            store(h, NULL, OPERATION_ADD, "key", "somevalue");
             checkeq(ENGINE_SUCCESS,
-                    store(hp->h,
-                          NULL,
-                          OPERATION_SET,
-                          "key",
-                          "somevalue"),
+                    store(h, nullptr, OPERATION_SET, "key", "somevalue"),
                     "Error setting.");
             // Ignoring the result here -- we're racing.
-            del(hp->h, hp->h1, "key", 0, 0);
+            del(h, h, "key", 0, 0);
         }
     }
 }
@@ -291,12 +287,11 @@ extern "C" {
 static enum test_result test_conc_set(EngineIface* h, EngineIface* h1) {
     const int n_threads = 8;
     cb_thread_t threads[n_threads];
-    struct handle_pair hp = {h, h1};
 
     wait_for_persisted_value(h, h1, "key", "value1");
 
     for (int i = 0; i < n_threads; i++) {
-        int r = cb_create_thread(&threads[i], conc_del_set_thread, &hp, 0);
+        int r = cb_create_thread(&threads[i], conc_del_set_thread, h, 0);
         cb_assert(r == 0);
     }
 

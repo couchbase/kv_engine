@@ -166,21 +166,22 @@ static enum test_result test_collapse_checkpoints(EngineIface* h,
 
 extern "C" {
     static void checkpoint_persistence_thread(void *arg) {
-        struct handle_pair *hp = static_cast<handle_pair *>(arg);
+        auto* h = static_cast<EngineIface*>(arg);
 
         // Issue a request with the unexpected large checkpoint id 100, which
         // will cause timeout.
-        check(checkpointPersistence(hp->h, 100, 0) == ENGINE_TMPFAIL,
+        check(checkpointPersistence(h, 100, 0) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
-        check(get_int_stat(hp->h, hp->h1, "ep_chk_persistence_timeout") > 10,
-              "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be greater"
+        check(get_int_stat(h, h, "ep_chk_persistence_timeout") > 10,
+              "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be "
+              "greater"
               " than 10 secs");
 
         for (int j = 0; j < 10; ++j) {
             std::stringstream ss;
             ss << "key" << j;
             checkeq(ENGINE_SUCCESS,
-                    store(hp->h,
+                    store(h,
                           NULL,
                           OPERATION_SET,
                           ss.str().c_str(),
@@ -188,7 +189,7 @@ extern "C" {
                     "Failed to store a value");
         }
 
-        createCheckpoint(hp->h);
+        createCheckpoint(h);
     }
 }
 
@@ -206,10 +207,10 @@ static enum test_result test_checkpoint_persistence(EngineIface* h,
 
     const int  n_threads = 2;
     cb_thread_t threads[n_threads];
-    struct handle_pair hp = {h, h1};
 
     for (int i = 0; i < n_threads; ++i) {
-        int r = cb_create_thread(&threads[i], checkpoint_persistence_thread, &hp, 0);
+        int r = cb_create_thread(
+                &threads[i], checkpoint_persistence_thread, h, 0);
         cb_assert(r == 0);
     }
 
@@ -230,9 +231,9 @@ static enum test_result test_checkpoint_persistence(EngineIface* h,
 
 extern "C" {
     static void wait_for_persistence_thread(void *arg) {
-        struct handle_pair *hp = static_cast<handle_pair *>(arg);
+        auto* h = static_cast<EngineIface*>(arg);
 
-        check(checkpointPersistence(hp->h, 100, 1) == ENGINE_TMPFAIL,
+        check(checkpointPersistence(h, 100, 1) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
     }
 }
@@ -240,12 +241,10 @@ extern "C" {
 static enum test_result test_wait_for_persist_vb_del(EngineIface* h,
                                                      EngineIface* h1) {
     cb_thread_t th;
-    struct handle_pair hp = {h, h1};
-
     check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
-    int ret = cb_create_thread(&th, wait_for_persistence_thread, &hp, 0);
+    int ret = cb_create_thread(&th, wait_for_persistence_thread, h, 0);
     cb_assert(ret == 0);
 
     wait_for_stat_to_be(h, h1, "ep_chk_persistence_remains", 1);
