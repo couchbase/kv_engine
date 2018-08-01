@@ -156,7 +156,8 @@ static enum test_result test_collapse_checkpoints(EngineIface* h,
                 store(h, h1, NULL, OPERATION_SET, "checkpoint_end", "value"),
                 "Failed to store an item.");
     }
-    check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
     wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
     start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
@@ -242,7 +243,8 @@ static enum test_result test_wait_for_persist_vb_del(EngineIface* h,
     cb_thread_t th;
     struct handle_pair hp = {h, h1};
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     int ret = cb_create_thread(&th, wait_for_persistence_thread, &hp, 0);
     cb_assert(ret == 0);

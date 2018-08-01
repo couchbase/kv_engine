@@ -1964,7 +1964,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
     // Activate n vbuckets (vb 0 is already)
     const int n_vbuckets = 10;
     for (int ii = 1; ii < n_vbuckets; ii++) {
-        check(set_vbucket_state(h, h1, ii, vbucket_state_active),
+        check(set_vbucket_state(h, ii, vbucket_state_active),
               "Failed to set vbucket state.");
     }
 
@@ -2050,7 +2050,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
     // Activate n vbuckets (vb 0 is already)
     const int n_vbuckets = 10;
     for (int ii = 1; ii < n_vbuckets; ii++) {
-        check(set_vbucket_state(h, h1, ii, vbucket_state_active),
+        check(set_vbucket_state(h, ii, vbucket_state_active),
               "Failed to set vbucket state.");
     }
 

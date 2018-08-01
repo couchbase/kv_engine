@@ -264,18 +264,11 @@ bool set_param(EngineIface* h,
                const char* param,
                const char* val,
                uint16_t vb = 0);
-bool set_vbucket_state(EngineIface* h,
-                       EngineIface* h1,
-                       uint16_t vb,
-                       vbucket_state_t state);
+bool set_vbucket_state(EngineIface* h, uint16_t vb, vbucket_state_t state);
 bool get_all_vb_seqnos(EngineIface* h,
-                       EngineIface* h1,
                        vbucket_state_t state,
                        const void* cookie);
-void verify_all_vb_seqnos(EngineIface* h,
-                          EngineIface* h1,
-                          int vb_start,
-                          int vb_end);
+void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end);
 void start_persistence(EngineIface* h);
 void stop_persistence(EngineIface* h);
 

@@ -728,7 +728,7 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
                     id) == ENGINE_SUCCESS,
               "Get Replica Failed");
 
-        check(set_vbucket_state(h, h, id, state),
+        check(set_vbucket_state(h, id, state),
               "Failed to set vbucket active state, Get Replica Failed");
     }
 
@@ -756,7 +756,6 @@ bool set_param(EngineIface* h,
 }
 
 bool set_vbucket_state(EngineIface* h,
-                       EngineIface* h1,
                        uint16_t vb,
                        vbucket_state_t state) {
     char ext[4];
@@ -764,7 +763,7 @@ bool set_vbucket_state(EngineIface* h,
     encodeExt(ext, static_cast<uint32_t>(state));
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, vb, 0, ext, 4);
 
-    if (h1->unknown_command(NULL, pkt, add_response) != ENGINE_SUCCESS) {
+    if (h->unknown_command(nullptr, pkt, add_response) != ENGINE_SUCCESS) {
         return false;
     }
 
@@ -773,7 +772,6 @@ bool set_vbucket_state(EngineIface* h,
 }
 
 bool get_all_vb_seqnos(EngineIface* h,
-                       EngineIface* h1,
                        vbucket_state_t state,
                        const void* cookie) {
     protocol_binary_request_header *pkt;
@@ -786,17 +784,14 @@ bool get_all_vb_seqnos(EngineIface* h,
         pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS);
     }
 
-    check(h1->unknown_command(cookie, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(cookie, pkt, add_response) == ENGINE_SUCCESS,
           "Error in getting all vb info");
 
     cb_free(pkt);
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-void verify_all_vb_seqnos(EngineIface* h,
-                          EngineIface* h1,
-                          int vb_start,
-                          int vb_end) {
+void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end) {
     const int per_vb_resp_size = sizeof(uint16_t) + sizeof(uint64_t);
     const int high_seqno_offset = sizeof(uint16_t);
 
@@ -816,7 +811,7 @@ void verify_all_vb_seqnos(EngineIface* h,
         std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
                                   ":high_seqno");
         uint64_t high_seqno_vb =
-        get_ull_stat(h, h1, vb_stat_seqno.c_str(), "vbucket-seqno");
+                get_ull_stat(h, h, vb_stat_seqno.c_str(), "vbucket-seqno");
         checkeq(high_seqno_vb,
                 ntohll(*(reinterpret_cast<const uint64_t*>(last_body.data() +
                                                            per_vb_resp_size*i +

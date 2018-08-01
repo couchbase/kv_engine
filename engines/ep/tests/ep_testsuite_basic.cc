@@ -1607,13 +1607,13 @@ static enum test_result test_bug7023(EngineIface* h, EngineIface* h1) {
 
     std::vector<std::string>::iterator it;
     for (int j = 0; j < iterations; ++j) {
-        check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
+        check(set_vbucket_state(h, 0, vbucket_state_dead),
               "Failed set set vbucket 0 dead.");
         checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 0), "expected success");
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
                 last_status.load(),
                 "Expected vbucket deletion to work.");
-        check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+        check(set_vbucket_state(h, 0, vbucket_state_active),
               "Failed set set vbucket 0 active.");
         for (it = keys.begin(); it != keys.end(); ++it) {
             checkeq(ENGINE_SUCCESS,
@@ -1721,7 +1721,7 @@ static enum test_result test_mb5172(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_set_vbucket_out_of_range(EngineIface* h,
                                                       EngineIface* h1) {
-    check(!set_vbucket_state(h, h1, 10000, vbucket_state_active),
+    check(!set_vbucket_state(h, 10000, vbucket_state_active),
           "Shouldn't have been able to set vbucket 10000");
     return SUCCESS;
 }
@@ -1762,9 +1762,9 @@ static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
     // VB 1 will not be empty
     // VB 2 will not be empty and will have had set_state as the final ops
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state for vb1");
-    check(set_vbucket_state(h, h1, 2, vbucket_state_active),
+    check(set_vbucket_state(h, 2, vbucket_state_active),
           "Failed to set vbucket state for vb2");
 
     const int num_items = 10;
@@ -1773,11 +1773,11 @@ static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h, h1);
 
     // flip replica to active to drive more _local writes
-    check(set_vbucket_state(h, h1, 2, vbucket_state_replica),
+    check(set_vbucket_state(h, 2, vbucket_state_replica),
           "Failed to set vbucket state (replica) for vb2");
     wait_for_flusher_to_settle(h, h1);
 
-    check(set_vbucket_state(h, h1, 2, vbucket_state_active),
+    check(set_vbucket_state(h, 2, vbucket_state_active),
           "Failed to set vbucket state (replica) for vb2");
     wait_for_flusher_to_settle(h, h1);
 

@@ -189,7 +189,7 @@ static enum test_result test_pending_vb_mutation(EngineIface* h,
                                                  ENGINE_STORE_OPERATION op) {
     const void* cookie = testHarness->create_cookie();
     testHarness->set_ewouldblock_handling(cookie, false);
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
+    check(set_vbucket_state(h, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
     check(verify_vbucket_state(h, h1, 1, vbucket_state_pending),
           "Bucket state was not set to pending.");
@@ -208,7 +208,7 @@ static enum test_result test_pending_vb_mutation(EngineIface* h,
 static enum test_result test_replica_vb_mutation(EngineIface* h,
                                                  EngineIface* h1,
                                                  ENGINE_STORE_OPERATION op) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+    check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     check(verify_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Bucket state was not set to replica.");
@@ -353,7 +353,7 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h,
 
     /* change vb state to replica before restarting (as it happens in graceful
        failover)*/
-    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+    check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed set vbucket 0 to replica state.");
 
     /* trigger persist vb state task */
@@ -570,7 +570,7 @@ static enum test_result test_wrong_vb_get(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_vb_get_pending(EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
+    check(set_vbucket_state(h, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
     const void* cookie = testHarness->create_cookie();
     testHarness->set_ewouldblock_handling(cookie, false);
@@ -587,7 +587,7 @@ static enum test_result test_vb_get_pending(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_vb_get_replica(EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+    check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -1350,7 +1350,7 @@ static enum test_result test_get_replica_non_resident(EngineIface* h,
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
 
     evict_key(h, "key", 0, "Ejected.");
-    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+    check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket to replica");
 
     get_replica(h, "key", 0);
@@ -1378,7 +1378,7 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h,
 static enum test_result test_vb_del_pending(EngineIface* h, EngineIface* h1) {
     const void* cookie = testHarness->create_cookie();
     testHarness->set_ewouldblock_handling(cookie, false);
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
+    check(set_vbucket_state(h, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
     checkeq(ENGINE_EWOULDBLOCK, del(h, h1, "key", 0, 1, cookie),
             "Expected woodblock.");
@@ -1387,7 +1387,7 @@ static enum test_result test_vb_del_pending(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_vb_del_replica(EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+    check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
@@ -1410,7 +1410,7 @@ static enum test_result test_vbucket_create(EngineIface* h, EngineIface* h1) {
         return FAIL;
     }
 
-    if (!set_vbucket_state(h, h1, 1, vbucket_state_active)) {
+    if (!set_vbucket_state(h, 1, vbucket_state_active)) {
         fprintf(stderr, "set state failed.\n");
         return FAIL;
     }
@@ -1420,7 +1420,7 @@ static enum test_result test_vbucket_create(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_takeover_stats_race_with_vb_create_DCP(
         EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state information");
 
     checkeq(0,
@@ -1551,7 +1551,7 @@ extern "C" {
 static enum test_result test_multiple_vb_compactions(EngineIface* h,
                                                      EngineIface* h1) {
     for (uint16_t i = 0; i < 4; ++i) {
-        if (!set_vbucket_state(h, h1, i, vbucket_state_active)) {
+        if (!set_vbucket_state(h, i, vbucket_state_active)) {
             fprintf(stderr, "set state failed for vbucket %d.\n", i);
             return FAIL;
         }
@@ -1615,7 +1615,7 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h,
 static enum test_result test_multi_vb_compactions_with_workload(
         EngineIface* h, EngineIface* h1) {
     for (uint16_t i = 0; i < 4; ++i) {
-        if (!set_vbucket_state(h, h1, i, vbucket_state_active)) {
+        if (!set_vbucket_state(h, i, vbucket_state_active)) {
             fprintf(stderr, "set state failed for vbucket %d.\n", i);
             return FAIL;
         }
@@ -1688,14 +1688,14 @@ static enum test_result test_multi_vb_compactions_with_workload(
 static enum test_result vbucket_destroy(EngineIface* h,
                                         EngineIface* h1,
                                         const char* value = NULL) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
     checkeq(ENGINE_NOT_MY_VBUCKET,
             vbucketDelete(h, h1, 2, value),
             "Expected NMVB");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+    check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1, value), "Expected success");
@@ -1714,7 +1714,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
     int overhead = get_int_stat(h, h1, "ep_overhead");
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
     std::vector<std::string> keys;
@@ -1744,7 +1744,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
     testHarness->time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+    check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
     int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
@@ -1772,7 +1772,7 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
         return SKIPPED;
     }
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
     // Store a value so the restart will try to resurrect it.
@@ -1800,11 +1800,11 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
 
     check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
           "Bucket state was what it was initially, after restart.");
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
     check_key_value(h, h1, "key", "somevalue", 9, 1);
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+    check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1, value), "Expected success");
@@ -1888,7 +1888,7 @@ static enum test_result test_vb_cas_replica(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_stats_seqno(EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
     int num_keys = 100;
@@ -1947,7 +1947,7 @@ static enum test_result test_stats_seqno(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_stats_diskinfo(EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
     int num_keys = 100;
@@ -2316,7 +2316,8 @@ static enum test_result test_bg_meta_stats(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_key_stats(EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed set vbucket 1 state.");
 
     // set (k1,v1) in vbucket 0
     checkeq(ENGINE_SUCCESS,
@@ -2357,10 +2358,14 @@ static enum test_result test_key_stats(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
-    check(set_vbucket_state(h, h1, 2, vbucket_state_active), "Failed set vbucket 2 state.");
-    check(set_vbucket_state(h, h1, 3, vbucket_state_active), "Failed set vbucket 3 state.");
-    check(set_vbucket_state(h, h1, 4, vbucket_state_active), "Failed set vbucket 4 state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed set vbucket 1 state.");
+    check(set_vbucket_state(h, 2, vbucket_state_active),
+          "Failed set vbucket 2 state.");
+    check(set_vbucket_state(h, 3, vbucket_state_active),
+          "Failed set vbucket 3 state.");
+    check(set_vbucket_state(h, 4, vbucket_state_active),
+          "Failed set vbucket 4 state.");
 
     wait_for_persisted_value(h, h1, "k1", "v1");
     wait_for_persisted_value(h, h1, "k2", "v2", 1);
@@ -2368,9 +2373,12 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k4", "v4", 3);
     wait_for_persisted_value(h, h1, "k5", "v5", 4);
 
-    check(set_vbucket_state(h, h1, 2, vbucket_state_replica), "Failed to set VB2 state.");
-    check(set_vbucket_state(h, h1, 3, vbucket_state_pending), "Failed to set VB3 state.");
-    check(set_vbucket_state(h, h1, 4, vbucket_state_dead), "Failed to set VB4 state.");
+    check(set_vbucket_state(h, 2, vbucket_state_replica),
+          "Failed to set VB2 state.");
+    check(set_vbucket_state(h, 3, vbucket_state_pending),
+          "Failed to set VB3 state.");
+    check(set_vbucket_state(h, 4, vbucket_state_dead),
+          "Failed to set VB4 state.");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -3240,7 +3248,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
 
     /* Increase resident ratio by deleting items */
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 0), "Expected success");
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+    check(set_vbucket_state(h, 0, vbucket_state_active),
           "Failed to set VB0 state.");
 
     /* Run access scanner task once */
@@ -3278,8 +3286,10 @@ static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
         return SKIPPED;
     }
 
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set VB1 state.");
+    check(set_vbucket_state(h, 0, vbucket_state_active),
+          "Failed to set VB0 state.");
+    check(set_vbucket_state(h, 1, vbucket_state_replica),
+          "Failed to set VB1 state.");
 
     for (int i = 0; i < 5000; ++i) {
         std::stringstream key;
@@ -3348,10 +3358,14 @@ static enum test_result test_warmup_with_threshold(EngineIface* h,
         return SKIPPED;
     }
 
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set vbucket 1 state.");
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 2 state.");
-    check(set_vbucket_state(h, h1, 2, vbucket_state_active), "Failed set vbucket 3 state.");
-    check(set_vbucket_state(h, h1, 3, vbucket_state_active), "Failed set vbucket 4 state.");
+    check(set_vbucket_state(h, 0, vbucket_state_active),
+          "Failed set vbucket 1 state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed set vbucket 2 state.");
+    check(set_vbucket_state(h, 2, vbucket_state_active),
+          "Failed set vbucket 3 state.");
+    check(set_vbucket_state(h, 3, vbucket_state_active),
+          "Failed set vbucket 4 state.");
 
     for (int i = 0; i < 10000; ++i) {
         std::stringstream key;
@@ -3757,7 +3771,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
                      sizeof(count), key, strlen(key), NULL, 0, 0x00);
 
     stop_persistence(h);
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed set vbucket 1 state.");
 
     if (isPersistentBucket(h, h1)) {
@@ -3839,7 +3853,7 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h, h1);
 
     // Verify dead vbucket case.
-    check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
+    check(set_vbucket_state(h, 0, vbucket_state_dead),
           "Failed set vbucket 0 state to dead");
 
     verify_curr_items(h, h1, 0, "dead vbucket");
@@ -3847,13 +3861,13 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
             "Expected curr_items_tot to be 0 with a dead vbucket");
 
     // Then resurrect.
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+    check(set_vbucket_state(h, 0, vbucket_state_active),
           "Failed set vbucket 0 state to active");
 
     verify_curr_items(h, h1, 3, "resurrected vbucket");
 
     // Now completely delete it.
-    check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
+    check(set_vbucket_state(h, 0, vbucket_state_dead),
           "Failed set vbucket 0 state to dead (2)");
     wait_for_flusher_to_settle(h, h1);
     checkeq(uint64_t(0),
@@ -3871,7 +3885,8 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     reset_stats(h);
 
@@ -3937,8 +3952,10 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
     checkeq(1, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected only one active vbucket item to be non-resident");
 
-    check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
     checkeq(0, get_int_stat(h, h1, "vb_active_num_non_resident"),
             "Expected no non-resident items");
 
@@ -3951,7 +3968,8 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
         return SKIPPED;
     }
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     std::vector<std::string> keys;
     for (int j = 0; j < 100; ++j) {
@@ -3988,7 +4006,8 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
     // vbucket state active (which creates the vbucket)
     wait_for_stat_change(h, h1, "ep_vbucket_del", vb_del_num);
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
@@ -4006,7 +4025,8 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
                                false);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
     for (it = keys.begin(); it != keys.end(); ++it) {
         evict_key(h, it->c_str(), 1, "Ejected.");
@@ -4329,7 +4349,8 @@ static enum test_result test_observe_no_data(EngineIface* h, EngineIface* h1) {
 static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
                                                        EngineIface* h1) {
     // Check observe seqno for vbucket with id 1
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     //Check the output when there is no data in the vbucket
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
@@ -4600,7 +4621,8 @@ static enum test_result test_observe_temp_item(EngineIface* h,
 static enum test_result test_observe_multi_key(EngineIface* h,
                                                EngineIface* h1) {
     // Create some vbuckets
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     // Set some keys to observe
     item *it = NULL;
@@ -4748,7 +4770,8 @@ static enum test_result test_multiple_observes(EngineIface* h,
 static enum test_result test_observe_with_not_found(EngineIface* h,
                                                     EngineIface* h1) {
     // Create some vbuckets
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     // Set some keys
     item *it = NULL;
@@ -5063,7 +5086,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
 
 static enum test_result test_multiple_transactions(EngineIface* h,
                                                    EngineIface* h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
     for (int j = 0; j < 1000; ++j) {
         std::stringstream s1;
@@ -5194,14 +5217,14 @@ static enum test_result test_set_ret_meta_error(EngineIface* h,
             set_ret_meta(h, h1, "key", 3, "value", 5, 1),
             "Expected NMVB");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+    check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             set_ret_meta(h, h1, "key", 3, "value", 5, 1),
             "Expected NMVB");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+    check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             set_ret_meta(h, h1, "key", 3, "value", 5, 1),
@@ -5290,14 +5313,14 @@ static enum test_result test_add_ret_meta_error(EngineIface* h,
             add_ret_meta(h, h1, "key", 3, "value", 5, 1),
             "Expected NMVB");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+    check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             add_ret_meta(h, h1, "key", 3, "value", 5, 1),
             "Expected NMVB");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+    check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             add_ret_meta(h, h1, "key", 3, "value", 5, 1),
@@ -5426,14 +5449,14 @@ static enum test_result test_del_ret_meta_error(EngineIface* h,
             del_ret_meta(h, h1, "key", 3, 1, 0, nullptr),
             "Expected NMVB");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+    check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             del_ret_meta(h, h1, "key", 3, 1, 0, nullptr),
             "Expected NMVB");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+    check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             del_ret_meta(h, h1, "key", 3, 1, 0, nullptr),
@@ -5743,7 +5766,8 @@ static enum test_result test_del_with_item_eviction(EngineIface* h,
 static enum test_result test_observe_with_item_eviction(EngineIface* h,
                                                         EngineIface* h1) {
     // Create some vbuckets
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     // Set some keys to observe
     item *it = NULL;
@@ -7392,8 +7416,8 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
     std::mutex m;
     std::condition_variable cv;
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
-              "Failed to set vbucket state.");
+    check(set_vbucket_state(h, 1, vbucket_state_pending),
+          "Failed to set vbucket state.");
     testHarness->set_ewouldblock_handling(cookie, false);
 
     checkeq(cb::engine_errc::would_block,

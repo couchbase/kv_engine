@@ -1024,8 +1024,8 @@ single_dcp_latency_bw_test(EngineIface* h,
                            bool retrieveCompressed) {
     std::vector<size_t> received;
 
-    check(set_vbucket_state(h, h1, vb, vbucket_state_active),
-            "Failed set_vbucket_state for vbucket");
+    check(set_vbucket_state(h, vb, vbucket_state_active),
+          "Failed set_vbucket_state for vbucket");
     wait_for_flusher_to_settle(h, h1);
 
     std::vector<hrtime_t> insert_times;
@@ -1139,7 +1139,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     const uint16_t vbid = 0;
     const uint32_t opaque = 1;
 
-    check(set_vbucket_state(h, h1, vbid, vbucket_state_replica),
+    check(set_vbucket_state(h, vbid, vbucket_state_replica),
           "set_vbucket_state failed");
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
@@ -1326,7 +1326,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
     insert_timings.reserve(iterations_for_fast_stats);
 
     for (int vb = 0; vb < active_vbuckets; vb++) {
-        check(set_vbucket_state(h, h1, vb, vbucket_state_active),
+        check(set_vbucket_state(h, vb, vbucket_state_active),
               "Failed set_vbucket_state for vbucket");
     }
     if (isPersistentBucket(h, h1)) {
