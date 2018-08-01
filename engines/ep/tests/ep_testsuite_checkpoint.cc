@@ -253,7 +253,7 @@ static enum test_result test_wait_for_persist_vb_del(EngineIface* h,
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failure deleting dead bucket.");
-    check(verify_vbucket_missing(h, h1, 1),
+    check(verify_vbucket_missing(h, 1),
           "vbucket 1 was not missing after deleting it.");
 
     ret = cb_join_thread(th);

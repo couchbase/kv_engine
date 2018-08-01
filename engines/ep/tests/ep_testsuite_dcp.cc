@@ -2969,7 +2969,7 @@ static test_result test_dcp_takeover(EngineIface* h, EngineIface* h1) {
     tdc.addStreamCtx(ctx);
     tdc.run();
 
-    check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
+    check(verify_vbucket_state(h, 0, vbucket_state_dead), "Wrong vb state");
 
     testHarness->destroy_cookie(cookie);
 
@@ -3054,7 +3054,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h, EngineIface* h1) {
     checkeq(1, num_set_vbucket_pending, "Didn't receive pending set state");
     checkeq(1, num_set_vbucket_active, "Didn't receive active set state");
 
-    check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
+    check(verify_vbucket_state(h, 0, vbucket_state_dead), "Wrong vb state");
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;

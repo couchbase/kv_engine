@@ -355,9 +355,8 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
                                                     uint16_t vbucket,
                                                     DocStateFilter state);
 
-bool verify_vbucket_missing(EngineIface* h, EngineIface* h1, uint16_t vb);
+bool verify_vbucket_missing(EngineIface* h, uint16_t vb);
 bool verify_vbucket_state(EngineIface* h,
-                          EngineIface* h1,
                           uint16_t vb,
                           vbucket_state_t expected,
                           bool mute = false);

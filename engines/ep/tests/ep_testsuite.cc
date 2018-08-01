@@ -191,7 +191,7 @@ static enum test_result test_pending_vb_mutation(EngineIface* h,
     testHarness->set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
-    check(verify_vbucket_state(h, h1, 1, vbucket_state_pending),
+    check(verify_vbucket_state(h, 1, vbucket_state_pending),
           "Bucket state was not set to pending.");
     uint64_t cas = 11;
     if (op == OPERATION_ADD) {
@@ -210,7 +210,7 @@ static enum test_result test_replica_vb_mutation(EngineIface* h,
                                                  ENGINE_STORE_OPERATION op) {
     check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
-    check(verify_vbucket_state(h, h1, 1, vbucket_state_replica),
+    check(verify_vbucket_state(h, 1, vbucket_state_replica),
           "Bucket state was not set to replica.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
 
@@ -1392,15 +1392,15 @@ static enum test_result test_vb_del_replica(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_vbucket_get_miss(EngineIface* h, EngineIface* h1) {
-    return verify_vbucket_missing(h, h1, 1) ? SUCCESS : FAIL;
+    return verify_vbucket_missing(h, 1) ? SUCCESS : FAIL;
 }
 
 static enum test_result test_vbucket_get(EngineIface* h, EngineIface* h1) {
-    return verify_vbucket_state(h, h1, 0, vbucket_state_active) ? SUCCESS : FAIL;
+    return verify_vbucket_state(h, 0, vbucket_state_active) ? SUCCESS : FAIL;
 }
 
 static enum test_result test_vbucket_create(EngineIface* h, EngineIface* h1) {
-    if (!verify_vbucket_missing(h, h1, 1)) {
+    if (!verify_vbucket_missing(h, 1)) {
         fprintf(stderr, "vbucket wasn't missing.\n");
         return FAIL;
     }
@@ -1410,7 +1410,7 @@ static enum test_result test_vbucket_create(EngineIface* h, EngineIface* h1) {
         return FAIL;
     }
 
-    return verify_vbucket_state(h, h1, 1, vbucket_state_active) ? SUCCESS : FAIL;
+    return verify_vbucket_state(h, 1, vbucket_state_active) ? SUCCESS : FAIL;
 }
 
 static enum test_result test_takeover_stats_race_with_vb_create_DCP(
@@ -1550,7 +1550,7 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h,
             fprintf(stderr, "set state failed for vbucket %d.\n", i);
             return FAIL;
         }
-        check(verify_vbucket_state(h, h1, i, vbucket_state_active),
+        check(verify_vbucket_state(h, i, vbucket_state_active),
               "VBucket state not active");
     }
 
@@ -1613,7 +1613,7 @@ static enum test_result test_multi_vb_compactions_with_workload(
             fprintf(stderr, "set state failed for vbucket %d.\n", i);
             return FAIL;
         }
-        check(verify_vbucket_state(h, h1, i, vbucket_state_active),
+        check(verify_vbucket_state(h, i, vbucket_state_active),
               "VBucket state not active");
     }
 
@@ -1695,7 +1695,7 @@ static enum test_result vbucket_destroy(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
-    check(verify_vbucket_missing(h, h1, 1),
+    check(verify_vbucket_missing(h, 1),
           "vbucket 0 was not missing after deleting it.");
 
     return SUCCESS;
@@ -1745,7 +1745,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
             last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
-    check(verify_vbucket_missing(h, h1, 1),
+    check(verify_vbucket_missing(h, 1),
           "vbucket 1 was not missing after deleting it.");
 
     wait_for_stat_change(h, h1, "ep_vbucket_del", vbucketDel);
@@ -1789,7 +1789,7 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
+    check(verify_vbucket_state(h, 1, vbucket_state_active),
           "Bucket state was what it was initially, after restart.");
     check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
@@ -1802,7 +1802,7 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
-    check(verify_vbucket_missing(h, h1, 1),
+    check(verify_vbucket_missing(h, 1),
           "vbucket 1 was not missing after deleting it.");
 
     testHarness->reload_engine(&h,
@@ -1813,12 +1813,12 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    if (verify_vbucket_state(h, h1, 1, vbucket_state_pending, true)) {
+    if (verify_vbucket_state(h, 1, vbucket_state_pending, true)) {
         std::cerr << "Bucket came up in pending state after delete." << std::endl;
         abort();
     }
 
-    check(verify_vbucket_missing(h, h1, 1),
+    check(verify_vbucket_missing(h, 1),
           "vbucket 1 was not missing after restart.");
 
     return SUCCESS;
@@ -4003,7 +4003,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failure deleting dead bucket.");
-    check(verify_vbucket_missing(h, h1, 1),
+    check(verify_vbucket_missing(h, 1),
           "vbucket 1 was not missing after deleting it.");
     // wait for the deletion to successfully complete before setting the
     // vbucket state active (which creates the vbucket)

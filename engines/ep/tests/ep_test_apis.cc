@@ -1264,7 +1264,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
     return make_pair(ENGINE_ERROR_CODE(rv.first), value);
 }
 
-bool verify_vbucket_missing(EngineIface* h, EngineIface* h1, uint16_t vb) {
+bool verify_vbucket_missing(EngineIface* h, uint16_t vb) {
     const auto vbstr = "vb_" + std::to_string(vb);
 
     // Try up to three times to verify the bucket is missing.  Bucket
@@ -1275,7 +1275,7 @@ bool verify_vbucket_missing(EngineIface* h, EngineIface* h1, uint16_t vb) {
     }
 
     const auto* cookie = testHarness->create_cookie();
-    check(h1->get_stats(cookie, {}, add_stats) == ENGINE_SUCCESS,
+    check(h->get_stats(cookie, {}, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     testHarness->destroy_cookie(cookie);
 
@@ -1292,14 +1292,13 @@ bool verify_vbucket_missing(EngineIface* h, EngineIface* h1, uint16_t vb) {
 }
 
 bool verify_vbucket_state(EngineIface* h,
-                          EngineIface* h1,
                           uint16_t vb,
                           vbucket_state_t expected,
                           bool mute) {
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, vb, 0);
 
-    ENGINE_ERROR_CODE errcode = h1->unknown_command(NULL, pkt, add_response);
+    ENGINE_ERROR_CODE errcode = h->unknown_command(NULL, pkt, add_response);
     cb_free(pkt);
     if (errcode != ENGINE_SUCCESS) {
         if (!mute) {
