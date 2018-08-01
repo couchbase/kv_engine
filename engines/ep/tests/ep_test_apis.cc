@@ -601,7 +601,7 @@ bool get_item_info(EngineIface* h,
                    item_info* info,
                    const char* key,
                    uint16_t vb) {
-    auto ret = get(h, h1, NULL, key, vb);
+    auto ret = get(h, NULL, key, vb);
     if (ret.first != cb::engine_errc::success) {
         return false;
     }
@@ -718,7 +718,6 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
 
     if (!makeinvalidkey) {
         check(store(h,
-                    h,
                     nullptr,
                     OPERATION_SET,
                     key,
@@ -1055,7 +1054,6 @@ void stop_persistence(EngineIface* h) {
 }
 
 ENGINE_ERROR_CODE store(EngineIface* h,
-                        EngineIface* h1,
                         const void* cookie,
                         ENGINE_STORE_OPERATION op,
                         const char* key,
@@ -1066,8 +1064,19 @@ ENGINE_ERROR_CODE store(EngineIface* h,
                         uint32_t exp,
                         uint8_t datatype,
                         DocumentState docState) {
-    auto ret = storeCasVb11(h, h1, cookie, op, key, value, strlen(value),
-                        9258, casIn, vb, exp, datatype, docState);
+    auto ret = storeCasVb11(h,
+                            h,
+                            cookie,
+                            op,
+                            key,
+                            value,
+                            strlen(value),
+                            9258,
+                            casIn,
+                            vb,
+                            exp,
+                            datatype,
+                            docState);
     if (outitem) {
         *outitem = ret.second.release();
     }
@@ -1090,7 +1099,7 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
         create_cookie = true;
     }
 
-    auto ret = allocate(h, h1, cookie, key, value.size(), 0, 0, datatype, vb);
+    auto ret = allocate(h, cookie, key, value.size(), 0, 0, datatype, vb);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
     check(h1->get_item_info(ret.second.get(), &info),
@@ -1121,7 +1130,7 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
                                      DocumentState docState) {
     uint64_t cas = 0;
 
-    auto rv = allocate(h, h1, cookie, key, vlen, flags, exp, datatype, vb);
+    auto rv = allocate(h, cookie, key, vlen, flags, exp, datatype, vb);
     if (rv.first != cb::engine_errc::success) {
         return rv;
     }
@@ -1241,7 +1250,7 @@ ENGINE_ERROR_CODE verify_key(EngineIface* h,
                              EngineIface* h1,
                              const char* key,
                              uint16_t vbucket) {
-    auto rv = get(h, h1, NULL, key, vbucket);
+    auto rv = get(h, NULL, key, vbucket);
     return ENGINE_ERROR_CODE(rv.first);
 }
 
@@ -1251,7 +1260,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
                                                     const char* key,
                                                     uint16_t vbucket,
                                                     DocStateFilter state) {
-    auto rv = get(h, h1, cookie, key, vbucket, state);
+    auto rv = get(h, cookie, key, vbucket, state);
     if (rv.first != cb::engine_errc::success) {
         return {ENGINE_ERROR_CODE(rv.first), ""};
     }
@@ -1708,7 +1717,6 @@ void wait_for_persisted_value(EngineIface* h,
          commitNum = get_int_stat(h, h1, "ep_commit_num");
     }
     check(ENGINE_SUCCESS == store(h,
-                                  h1,
                                   NULL,
                                   OPERATION_SET,
                                   key,
@@ -1795,7 +1803,6 @@ void write_items(EngineIface* h,
         }
         std::string key(key_prefix + std::to_string(j + start_seqno));
         ENGINE_ERROR_CODE ret = store(h,
-                                      h1,
                                       nullptr,
                                       OPERATION_SET,
                                       key.c_str(),
@@ -1835,14 +1842,14 @@ int write_items_upto_mem_perc(EngineIface* h,
         }
         std::string key("key" + std::to_string(num_items + start_seqno));
         ENGINE_ERROR_CODE ret =
-                store(h, h1, nullptr, OPERATION_SET, key.c_str(), "somevalue");
+                store(h, nullptr, OPERATION_SET, key.c_str(), "somevalue");
         validate_store_resp(ret, num_items);
     }
     return num_items;
 }
 
 uint64_t get_CAS(EngineIface* h, EngineIface* h1, const std::string& key) {
-    auto ret = get(h, h1, nullptr, key, 0);
+    auto ret = get(h, nullptr, key, 0);
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
@@ -1853,7 +1860,6 @@ uint64_t get_CAS(EngineIface* h, EngineIface* h1, const std::string& key) {
 }
 
 cb::EngineErrorItemPair allocate(EngineIface* h,
-                                 EngineIface* h1,
                                  const void* cookie,
                                  const std::string& key,
                                  size_t nbytes,
@@ -1866,13 +1872,13 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
         cookie = testHarness->create_cookie();
         cookie_created = true;
     }
-    auto ret = h1->allocate(cookie,
-                            DocKey(key, testHarness->doc_namespace),
-                            nbytes,
-                            flags,
-                            exptime,
-                            datatype,
-                            vb);
+    auto ret = h->allocate(cookie,
+                           DocKey(key, testHarness->doc_namespace),
+                           nbytes,
+                           flags,
+                           exptime,
+                           datatype,
+                           vb);
     if (cookie_created) {
         testHarness->destroy_cookie(cookie);
     }
@@ -1881,7 +1887,6 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
 }
 
 cb::EngineErrorItemPair get(EngineIface* h,
-                            EngineIface* h1,
                             const void* cookie,
                             const std::string& key,
                             uint16_t vb,
@@ -1892,10 +1897,10 @@ cb::EngineErrorItemPair get(EngineIface* h,
         create_cookie = true;
     }
 
-    auto ret = h1->get(cookie,
-                       DocKey(key, testHarness->doc_namespace),
-                       vb,
-                       documentStateFilter);
+    auto ret = h->get(cookie,
+                      DocKey(key, testHarness->doc_namespace),
+                      vb,
+                      documentStateFilter);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);

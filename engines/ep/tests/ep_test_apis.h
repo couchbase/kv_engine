@@ -279,7 +279,6 @@ void stop_persistence(EngineIface* h);
  * @return
  */
 ENGINE_ERROR_CODE store(EngineIface* h,
-                        EngineIface* h1,
                         const void* cookie,
                         ENGINE_STORE_OPERATION op,
                         const char* key,
@@ -292,7 +291,6 @@ ENGINE_ERROR_CODE store(EngineIface* h,
                         DocumentState docState = DocumentState::Alive);
 
 cb::EngineErrorItemPair allocate(EngineIface* h,
-                                 EngineIface* h1,
                                  const void* cookie,
                                  const std::string& key,
                                  size_t nbytes,
@@ -303,7 +301,6 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
 
 cb::EngineErrorItemPair get(
         EngineIface* h,
-        EngineIface* h1,
         const void* cookie,
         const std::string& key,
         uint16_t vb,

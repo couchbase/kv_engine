@@ -99,7 +99,7 @@ static enum test_result test_checkpoint_create(EngineIface* h,
         char key[8];
         sprintf(key, "key%d", i);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key, "value"),
+                store(h, NULL, OPERATION_SET, key, "value"),
                 "Failed to store an item.");
     }
     checkeq(3, get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
@@ -112,7 +112,7 @@ static enum test_result test_checkpoint_create(EngineIface* h,
 static enum test_result test_checkpoint_timeout(EngineIface* h,
                                                 EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, "key", "value"),
+            store(h, NULL, OPERATION_SET, "key", "value"),
             "Failed to store an item.");
     testHarness->time_travel(600);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
@@ -126,7 +126,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h,
             char key[8];
             sprintf(key, "key%d", j);
             checkeq(ENGINE_SUCCESS,
-                    store(h, h1, NULL, OPERATION_SET, key, "value"),
+                    store(h, NULL, OPERATION_SET, key, "value"),
                     "Failed to store an item.");
         }
     }
@@ -142,18 +142,18 @@ static enum test_result test_collapse_checkpoints(EngineIface* h,
         for (size_t j = 0; j < 497; ++j) {
             const auto key = "key" + std::to_string(j);
             checkeq(ENGINE_SUCCESS,
-                    store(h, h1, NULL, OPERATION_SET, key.c_str(), "value"),
+                    store(h, NULL, OPERATION_SET, key.c_str(), "value"),
                     "Failed to store an item.");
         }
         /* Test with app keys with special strings */
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, "dummy_key", "value"),
+                store(h, NULL, OPERATION_SET, "dummy_key", "value"),
                 "Failed to store an item.");
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, "checkpoint_start", "value"),
+                store(h, NULL, OPERATION_SET, "checkpoint_start", "value"),
                 "Failed to store an item.");
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, "checkpoint_end", "value"),
+                store(h, NULL, OPERATION_SET, "checkpoint_end", "value"),
                 "Failed to store an item.");
     }
     check(set_vbucket_state(h, 0, vbucket_state_replica),
@@ -181,7 +181,6 @@ extern "C" {
             ss << "key" << j;
             checkeq(ENGINE_SUCCESS,
                     store(hp->h,
-                          hp->h1,
                           NULL,
                           OPERATION_SET,
                           ss.str().c_str(),

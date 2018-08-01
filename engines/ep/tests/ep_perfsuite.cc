@@ -383,7 +383,7 @@ static void perf_latency_core(EngineIface* h,
     // Get
     for (auto& key : keys) {
         const auto start = ProcessClock::now();
-        auto ret = get(h, h1, cookie, key, 0);
+        auto ret = get(h, cookie, key, 0);
         checkeq(cb::engine_errc::success, ret.first, "Failed to get a value");
         const auto end = ProcessClock::now();
         get_timings.push_back((end - start).count());

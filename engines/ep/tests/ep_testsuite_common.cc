@@ -450,7 +450,7 @@ void check_key_value(EngineIface* h,
                      uint16_t vbucket) {
     // Fetch item itself, to ensure we maintain a ref-count on the underlying
     // Blob while comparing the key.
-    auto getResult = get(h, h1, NULL, key, vbucket);
+    auto getResult = get(h, NULL, key, vbucket);
     checkeq(cb::engine_errc::success,
             getResult.first,
             "Failed to fetch document");
