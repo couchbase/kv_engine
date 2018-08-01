@@ -57,7 +57,7 @@ struct ServerCallbackIface {
      * @param cb_data opaque data to be given back to the caller
      *        on event
      */
-    virtual void register_callback(ENGINE_HANDLE* engine,
+    virtual void register_callback(EngineIface* engine,
                                    ENGINE_EVENT_TYPE type,
                                    EVENT_CALLBACK cb,
                                    const void* cb_data) = 0;

@@ -75,10 +75,11 @@ typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
 class ThreadData {
 public:
-    ThreadData(ENGINE_HANDLE *eh, ENGINE_HANDLE_V1 *ehv1,
-               int e=0) : h(eh), h1(ehv1), extra(e) {}
-    ENGINE_HANDLE    *h;
-    ENGINE_HANDLE_V1 *h1;
+    ThreadData(EngineIface* eh, EngineIface* ehv1, int e = 0)
+        : h(eh), h1(ehv1), extra(e) {
+    }
+    EngineIface* h;
+    EngineIface* h1;
     int               extra;
 };
 
@@ -138,8 +139,8 @@ static void check_observe_seqno(bool failover,
     }
 }
 
-static enum test_result test_replace_with_eviction(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_replace_with_eviction(EngineIface* h,
+                                                   EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed to set value.");
@@ -167,7 +168,8 @@ static enum test_result test_replace_with_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+static enum test_result test_wrong_vb_mutation(EngineIface* h,
+                                               EngineIface* h1,
                                                ENGINE_STORE_OPERATION op) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     uint64_t cas = 11;
@@ -182,7 +184,8 @@ static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+static enum test_result test_pending_vb_mutation(EngineIface* h,
+                                                 EngineIface* h1,
                                                  ENGINE_STORE_OPERATION op) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
@@ -202,7 +205,8 @@ static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
-static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+static enum test_result test_replica_vb_mutation(EngineIface* h,
+                                                 EngineIface* h1,
                                                  ENGINE_STORE_OPERATION op) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
@@ -228,8 +232,10 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
 // ----------------------------------------------------------------------
 //
 
-static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                       int numItems2Load, bool shutdownForce) {
+static int checkCurrItemsAfterShutdown(EngineIface* h,
+                                       EngineIface* h1,
+                                       int numItems2Load,
+                                       bool shutdownForce) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -295,7 +301,8 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return get_int_stat(h, h1, "curr_items");
 }
 
-static enum test_result test_flush_shutdown_force(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_flush_shutdown_force(EngineIface* h,
+                                                  EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -309,7 +316,8 @@ static enum test_result test_flush_shutdown_force(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
-static enum test_result test_flush_shutdown_noforce(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_flush_shutdown_noforce(EngineIface* h,
+                                                    EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -323,8 +331,8 @@ static enum test_result test_flush_shutdown_noforce(ENGINE_HANDLE *h, ENGINE_HAN
     return SUCCESS;
 }
 
-static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_shutdown_snapshot_range(EngineIface* h,
+                                                     EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -369,7 +377,7 @@ static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_restart(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -387,7 +395,7 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_specialKeys(EngineIface* h, EngineIface* h1) {
     ENGINE_ERROR_CODE ret;
 
     // Simplified Chinese "Couchbase"
@@ -466,7 +474,7 @@ static enum test_result test_specialKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
-static enum test_result test_binKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_binKeys(EngineIface* h, EngineIface* h1) {
     ENGINE_ERROR_CODE ret;
 
     // binary key with char values beyond 0x7F
@@ -516,8 +524,7 @@ static enum test_result test_binKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_restart_bin_val(ENGINE_HANDLE *h,
-                                             ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_restart_bin_val(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -540,8 +547,7 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_wrong_vb_get(EngineIface* h, EngineIface* h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET, verify_key(h, h1, "key", 1),
             "Expected wrong bucket.");
@@ -549,8 +555,7 @@ static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_vb_get_pending(ENGINE_HANDLE *h,
-                                            ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_get_pending(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
     const void *cookie = testHarness.create_cookie();
@@ -567,8 +572,7 @@ static enum test_result test_vb_get_pending(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_vb_get_replica(ENGINE_HANDLE *h,
-                                            ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_get_replica(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
@@ -579,23 +583,23 @@ static enum test_result test_vb_get_replica(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_wrong_vb_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_wrong_vb_set(EngineIface* h, EngineIface* h1) {
     return test_wrong_vb_mutation(h, h1, OPERATION_SET);
 }
 
-static enum test_result test_wrong_vb_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_wrong_vb_cas(EngineIface* h, EngineIface* h1) {
     return test_wrong_vb_mutation(h, h1, OPERATION_CAS);
 }
 
-static enum test_result test_wrong_vb_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_wrong_vb_add(EngineIface* h, EngineIface* h1) {
     return test_wrong_vb_mutation(h, h1, OPERATION_ADD);
 }
 
-static enum test_result test_wrong_vb_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_wrong_vb_replace(EngineIface* h, EngineIface* h1) {
     return test_wrong_vb_mutation(h, h1, OPERATION_REPLACE);
 }
 
-static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_wrong_vb_del(EngineIface* h, EngineIface* h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
             "Expected wrong bucket.");
@@ -620,9 +624,8 @@ std::string make_time_string(std::chrono::system_clock::time_point time_point) {
     return timeStr;
 }
 
-static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_expiry_pager_settings(EngineIface* h,
+                                                   EngineIface* h1) {
     cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
     checkeq(3600, get_int_stat(h, h1, "ep_exp_pager_stime"),
             "Expiry pager sleep time not expected");
@@ -694,8 +697,8 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
-                                               ENGINE_HANDLE_V1* h1) {
+static enum test_result test_expiry_with_xattr(EngineIface* h,
+                                               EngineIface* h1) {
     const char* key = "test_expiry";
     cb::xattr::Blob blob;
 
@@ -780,7 +783,7 @@ static enum test_result test_expiry_with_xattr(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
     const char *key = "test_expiry";
     const char *data = "some test data here.";
 
@@ -840,7 +843,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -892,8 +895,8 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     return SUCCESS;
 }
 
-static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_expiration_on_compaction(EngineIface* h,
+                                                      EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_exp_pager_enabled")) {
         set_param(h, h1, protocol_binary_engine_param_flush,
                   "exp_pager_enabled", "false");
@@ -1001,8 +1004,8 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_expiration_on_warmup(EngineIface* h,
+                                                  EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -1079,10 +1082,9 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
-
 }
 
-static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -1168,7 +1170,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -1249,8 +1251,8 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_get_replica_active_state(EngineIface* h,
+                                                      EngineIface* h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_active);
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -1261,8 +1263,8 @@ static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_get_replica_pending_state(ENGINE_HANDLE *h,
-                                                       ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_get_replica_pending_state(EngineIface* h,
+                                                       EngineIface* h1) {
     protocol_binary_request_header *pkt;
 
     const void *cookie = testHarness.create_cookie();
@@ -1279,8 +1281,8 @@ static enum test_result test_get_replica_pending_state(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_get_replica_dead_state(EngineIface* h,
+                                                    EngineIface* h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_dead);
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -1290,8 +1292,7 @@ static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_get_replica(ENGINE_HANDLE *h,
-                                         ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_get_replica(EngineIface* h, EngineIface* h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_replica);
     checkeq(ENGINE_SUCCESS,
@@ -1309,8 +1310,8 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_get_replica_non_resident(ENGINE_HANDLE *h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_get_replica_non_resident(EngineIface* h,
+                                                      EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value"),
             "Store Failed");
@@ -1331,8 +1332,8 @@ static enum test_result test_get_replica_non_resident(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_get_replica_invalid_key(EngineIface* h,
+                                                     EngineIface* h1) {
     protocol_binary_request_header *pkt;
     bool makeinvalidkey = true;
     pkt = prepare_get_replica(h, h1, vbucket_state_replica, makeinvalidkey);
@@ -1343,7 +1344,7 @@ static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_del_pending(EngineIface* h, EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
@@ -1354,7 +1355,7 @@ static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
-static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_del_replica(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
@@ -1364,15 +1365,15 @@ static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
-static enum test_result test_vbucket_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vbucket_get_miss(EngineIface* h, EngineIface* h1) {
     return verify_vbucket_missing(h, h1, 1) ? SUCCESS : FAIL;
 }
 
-static enum test_result test_vbucket_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vbucket_get(EngineIface* h, EngineIface* h1) {
     return verify_vbucket_state(h, h1, 0, vbucket_state_active) ? SUCCESS : FAIL;
 }
 
-static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vbucket_create(EngineIface* h, EngineIface* h1) {
     if (!verify_vbucket_missing(h, h1, 1)) {
         fprintf(stderr, "vbucket wasn't missing.\n");
         return FAIL;
@@ -1387,7 +1388,7 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result test_takeover_stats_race_with_vb_create_DCP(
-                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state information");
 
@@ -1399,7 +1400,7 @@ static enum test_result test_takeover_stats_race_with_vb_create_DCP(
 }
 
 static enum test_result test_takeover_stats_num_persisted_deletes(
-                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     /* set an item */
     std::string key("key");
     checkeq(ENGINE_SUCCESS,
@@ -1421,8 +1422,7 @@ static enum test_result test_takeover_stats_num_persisted_deletes(
     return SUCCESS;
 }
 
-static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
-                                             ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
     const char* exp_key = "Carss";
     const char* exp_value = "pollute";
     const char* non_exp_key = "trees";
@@ -1489,9 +1489,8 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_compaction_config(ENGINE_HANDLE *h,
-                                               ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_compaction_config(EngineIface* h,
+                                               EngineIface* h1) {
     checkeq(10000,
             get_int_stat(h, h1, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 10000");
@@ -1503,8 +1502,8 @@ static enum test_result test_compaction_config(ENGINE_HANDLE *h,
 }
 
 struct comp_thread_ctx {
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
+    EngineIface* h;
+    EngineIface* h1;
     uint16_t vbid;
     uint16_t db_file_id;
 };
@@ -1516,8 +1515,8 @@ extern "C" {
     }
 }
 
-static enum test_result test_multiple_vb_compactions(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_multiple_vb_compactions(EngineIface* h,
+                                                     EngineIface* h1) {
     for (uint16_t i = 0; i < 4; ++i) {
         if (!set_vbucket_state(h, h1, i, vbucket_state_active)) {
             fprintf(stderr, "set state failed for vbucket %d.\n", i);
@@ -1580,9 +1579,8 @@ static enum test_result test_multiple_vb_compactions(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result
-test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
-                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_multi_vb_compactions_with_workload(
+        EngineIface* h, EngineIface* h1) {
     for (uint16_t i = 0; i < 4; ++i) {
         if (!set_vbucket_state(h, h1, i, vbucket_state_active)) {
             fprintf(stderr, "set state failed for vbucket %d.\n", i);
@@ -1654,8 +1652,9 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                             const char* value = NULL) {
+static enum test_result vbucket_destroy(EngineIface* h,
+                                        EngineIface* h1,
+                                        const char* value = NULL) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
@@ -1676,9 +1675,8 @@ static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return SUCCESS;
 }
 
-static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_vbucket_destroy_stats(EngineIface* h,
+                                                   EngineIface* h1) {
     int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
     int overhead = get_int_stat(h, h1, "ep_overhead");
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
@@ -1734,7 +1732,8 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+static enum test_result vbucket_destroy_restart(EngineIface* h,
+                                                EngineIface* h1,
                                                 const char* value = NULL) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
@@ -1797,55 +1796,61 @@ static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_
     return SUCCESS;
 }
 
-static enum test_result test_async_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_async_vbucket_destroy(EngineIface* h,
+                                                   EngineIface* h1) {
     return vbucket_destroy(h, h1);
 }
 
-static enum test_result test_sync_vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_sync_vbucket_destroy(EngineIface* h,
+                                                  EngineIface* h1) {
     return vbucket_destroy(h, h1, "async=0");
 }
 
-static enum test_result test_async_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_async_vbucket_destroy_restart(EngineIface* h,
+                                                           EngineIface* h1) {
     return vbucket_destroy_restart(h, h1);
 }
 
-static enum test_result test_sync_vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_sync_vbucket_destroy_restart(EngineIface* h,
+                                                          EngineIface* h1) {
     return vbucket_destroy_restart(h, h1, "async=0");
 }
 
-static enum test_result test_vb_set_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_set_pending(EngineIface* h, EngineIface* h1) {
     return test_pending_vb_mutation(h, h1, OPERATION_SET);
 }
 
-static enum test_result test_vb_add_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_add_pending(EngineIface* h, EngineIface* h1) {
     return test_pending_vb_mutation(h, h1, OPERATION_ADD);
 }
 
-static enum test_result test_vb_cas_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_cas_pending(EngineIface* h, EngineIface* h1) {
     return test_pending_vb_mutation(h, h1, OPERATION_CAS);
 }
 
-static enum test_result test_vb_set_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_set_replica(EngineIface* h, EngineIface* h1) {
     return test_replica_vb_mutation(h, h1, OPERATION_SET);
 }
 
-static enum test_result test_vb_replace_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_replace_replica(EngineIface* h,
+                                                EngineIface* h1) {
     return test_replica_vb_mutation(h, h1, OPERATION_REPLACE);
 }
 
-static enum test_result test_vb_replace_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_replace_pending(EngineIface* h,
+                                                EngineIface* h1) {
     return test_pending_vb_mutation(h, h1, OPERATION_REPLACE);
 }
 
-static enum test_result test_vb_add_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_add_replica(EngineIface* h, EngineIface* h1) {
     return test_replica_vb_mutation(h, h1, OPERATION_ADD);
 }
 
-static enum test_result test_vb_cas_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_cas_replica(EngineIface* h, EngineIface* h1) {
     return test_replica_vb_mutation(h, h1, OPERATION_CAS);
 }
 
-static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_stats_seqno(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
@@ -1904,8 +1909,7 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
-static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
-                                            ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_stats_diskinfo(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
@@ -1943,9 +1947,7 @@ static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_uuid_stats(ENGINE_HANDLE *h,
-                                        ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_uuid_stats(EngineIface* h, EngineIface* h1) {
     vals.clear();
     checkeq(ENGINE_SUCCESS,
             get_stats(h, "uuid"_ccb, add_stats),
@@ -1954,7 +1956,7 @@ static enum test_result test_uuid_stats(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_item_stats(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
@@ -1998,7 +2000,7 @@ static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
-static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_stats(EngineIface* h, EngineIface* h1) {
     vals.clear();
     checkeq(ENGINE_SUCCESS,
             get_stats(h, {}, add_stats),
@@ -2008,7 +2010,7 @@ static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
     char value[2048];
     memset(value, 'b', sizeof(value));
     strcpy(value + sizeof(value) - 4, "\r\n");
@@ -2055,7 +2057,7 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_io_stats(EngineIface* h, EngineIface* h1) {
     int exp_write_bytes;
     std::string backend = get_str_stat(h, h1, "ep_backend");
     if (backend == "couchdb") {
@@ -2137,8 +2139,7 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_vb_file_stats(ENGINE_HANDLE *h,
-                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_file_stats(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_change(h, h1, "ep_db_data_size", 0);
 
@@ -2160,8 +2161,8 @@ static enum test_result test_vb_file_stats(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_vb_file_stats_after_warmup(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vb_file_stats_after_warmup(EngineIface* h,
+                                                        EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -2199,7 +2200,7 @@ static enum test_result test_vb_file_stats_after_warmup(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_bg_stats(EngineIface* h, EngineIface* h1) {
     reset_stats(h);
     wait_for_persisted_value(h, h1, "a", "b\r\n");
     evict_key(h, h1, "a", 0, "Ejected.");
@@ -2232,7 +2233,7 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_bg_meta_stats(EngineIface* h, EngineIface* h1) {
     reset_stats(h);
 
     wait_for_persisted_value(h, h1, "k1", "v1");
@@ -2275,7 +2276,7 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     return SUCCESS;
 }
 
-static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_key_stats(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
 
     // set (k1,v1) in vbucket 0
@@ -2316,7 +2317,7 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
     check(set_vbucket_state(h, h1, 2, vbucket_state_active), "Failed set vbucket 2 state.");
     check(set_vbucket_state(h, h1, 3, vbucket_state_active), "Failed set vbucket 3 state.");
@@ -2398,7 +2399,7 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
-static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -2466,8 +2467,7 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 // Test that all the configuration parameters associated with the ItemPager,
 // can be set.
-static enum test_result test_itempager_conf(ENGINE_HANDLE* h,
-                                            ENGINE_HANDLE_V1* h1) {
+static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
     check(set_param(h,
                     h1,
                     protocol_binary_engine_param_flush,
@@ -2544,9 +2544,7 @@ static enum test_result test_itempager_conf(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_bloomfilter_conf(EngineIface* h, EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                         "bfilter_enabled", "true"),
@@ -2573,9 +2571,7 @@ static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "bfilter_enabled", "true"),
@@ -2716,8 +2712,8 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
+                                                          EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "bfilter_enabled", "true"),
@@ -2810,7 +2806,7 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_bloomfilter_delete_plus_set_scenario(
-                                       ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "bfilter_enabled", "true"),
@@ -2864,7 +2860,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     return SUCCESS;
 }
 
-static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_datatype(EngineIface* h, EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_datatype_support(cookie, true);
 
@@ -2906,8 +2902,8 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
-                                                           ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_datatype_with_unknown_command(EngineIface* h,
+                                                           EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_datatype_support(cookie, true);
     const char* key = "foo";
@@ -2956,8 +2952,8 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_session_cas_validation(EngineIface* h,
+                                                    EngineIface* h1) {
     //Testing PROTOCOL_BINARY_CMD_SET_VBUCKET..
     char ext[4];
     protocol_binary_request_header *pkt;
@@ -2985,8 +2981,8 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_access_scanner_settings(EngineIface* h,
+                                                     EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         // Access scanner n/a without warmup.
         return SKIPPED;
@@ -3069,8 +3065,7 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_access_scanner(ENGINE_HANDLE *h,
-                                            ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         // Access scanner not applicable without warmup.
         return SKIPPED;
@@ -3212,7 +3207,8 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_set_param_message(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_set_param_message(EngineIface* h,
+                                               EngineIface* h1) {
     set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time", "50");
 
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
@@ -3222,7 +3218,7 @@ static enum test_result test_set_param_message(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -3289,8 +3285,8 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
-static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_warmup_with_threshold(EngineIface* h,
+                                                   EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -3348,7 +3344,7 @@ static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
 
 #if 0
 // Comment out the entire test since the hack gave warnings on win32
-static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_warmup_accesslog(EngineIface *h, EngineIface *h1) {
 #ifdef __APPLE__
     /* I'm getting a weird link error from clang.. disable the test until I
     ** understand why
@@ -3420,7 +3416,7 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 // later changed to value-eviction mode, if there isn't sufficient
 // memory to load all item metadata we return NOMEM to the
 // ENABLE_TRAFFIC command.
-static enum test_result test_warmup_oom(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_warmup_oom(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -3456,8 +3452,7 @@ static enum test_result test_warmup_oom(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
-static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_cbd_225(EngineIface* h, EngineIface* h1) {
     // get engine startup token
     time_t token1 = get_int_stat(h, h1, "ep_startup_time");
     check(token1 != 0, "Expected non-zero startup token");
@@ -3490,7 +3485,7 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_workload_stats(EngineIface* h, EngineIface* h1) {
     const void* cookie = testHarness.create_cookie();
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(cookie, "workload"_ccb, add_stats),
@@ -3529,7 +3524,8 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
-static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_max_workload_stats(EngineIface* h,
+                                                EngineIface* h1) {
     const void* cookie = testHarness.create_cookie();
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(cookie, "workload"_ccb, add_stats),
@@ -3568,7 +3564,7 @@ static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_
     return SUCCESS;
 }
 
-static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_worker_stats(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             get_stats(h, "dispatcher"_ccb, add_stats),
             "Failed to get worker stats");
@@ -3622,7 +3618,7 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
-static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_all_keys_api(EngineIface* h, EngineIface* h1) {
     std::vector<std::string> keys;
     const int start_key_idx = 10, del_key_idx = 12, num_keys = 5,
               total_keys = 100;
@@ -3692,8 +3688,7 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 }
 
 static enum test_result test_all_keys_api_during_bucket_creation(
-                                ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
+        EngineIface* h, EngineIface* h1) {
     uint32_t count = htonl(5);
     const char key[] = "key_10";
 
@@ -3729,7 +3724,8 @@ static enum test_result test_all_keys_api_during_bucket_creation(
     return SUCCESS;
 }
 
-static enum test_result test_curr_items_add_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_curr_items_add_set(EngineIface* h,
+                                                EngineIface* h1) {
     // Verify initial case.
     verify_curr_items(h, h1, 0, "init");
 
@@ -3756,8 +3752,8 @@ static enum test_result test_curr_items_add_set(ENGINE_HANDLE *h, ENGINE_HANDLE_
     return SUCCESS;
 }
 
-static enum test_result test_curr_items_delete(ENGINE_HANDLE *h,
-                                               ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_curr_items_delete(EngineIface* h,
+                                               EngineIface* h1) {
     // Verify initial case.
     verify_curr_items(h, h1, 0, "init");
 
@@ -3775,8 +3771,7 @@ static enum test_result test_curr_items_delete(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_curr_items_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
     // Verify initial case.
     verify_curr_items(h, h1, 0, "init");
 
@@ -3816,7 +3811,7 @@ static enum test_result test_curr_items_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return SUCCESS;
 }
 
-static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
     reset_stats(h);
@@ -3892,7 +3887,8 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
-static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_duplicate_items_disk(EngineIface* h,
+                                                  EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -3964,8 +3960,8 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
-static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_disk_gt_ram_golden(EngineIface* h,
+                                                EngineIface* h1) {
     // Check/grab initial state.
     const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
@@ -4020,8 +4016,8 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h,
+                                                  EngineIface* h1) {
     // Check/grab initial state.
     int overhead = get_int_stat(h, h1, "ep_overhead");
     const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
@@ -4050,8 +4046,8 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_disk_gt_ram_update_paged_out(EngineIface* h,
+                                                          EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
     evict_key(h, h1, "k1");
@@ -4067,8 +4063,8 @@ static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h,
+                                                          EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
     evict_key(h, h1, "k1");
@@ -4110,8 +4106,8 @@ extern "C" {
     }
 }
 
-static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_disk_gt_ram_set_race(EngineIface* h,
+                                                  EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
     set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
@@ -4133,8 +4129,8 @@ static enum test_result test_disk_gt_ram_set_race(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
-                                                 ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_disk_gt_ram_rm_race(EngineIface* h,
+                                                 EngineIface* h1) {
     wait_for_persisted_value(h, h1, "k1", "some value");
 
     set_param(h, h1, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
@@ -4156,7 +4152,7 @@ static enum test_result test_disk_gt_ram_rm_race(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_kill9_bucket(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -4203,7 +4199,7 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
-static enum test_result test_revid(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+static enum test_result test_revid(EngineIface* h, EngineIface* h1) {
     ItemMetaData meta;
     for (uint64_t ii = 1; ii < 10; ++ii) {
         checkeq(ENGINE_SUCCESS,
@@ -4218,8 +4214,8 @@ static enum test_result test_revid(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
     return SUCCESS;
 }
 
-static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_regression_mb4314(EngineIface* h,
+                                               EngineIface* h1) {
     cb::EngineErrorMetadataPair errorMetaPair;
     check(!get_meta(h, h1, "test_regression_mb4314", errorMetaPair),
           "Expected get_meta() to fail");
@@ -4244,8 +4240,7 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_mb3466(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             get_stats(h, {}, add_stats),
             "Failed to get stats.");
@@ -4262,15 +4257,15 @@ static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     return SUCCESS;
 }
 
-static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_no_data(EngineIface* h, EngineIface* h1) {
     std::map<std::string, uint16_t> obskeys;
     checkeq(ENGINE_SUCCESS, observe(h, h1, obskeys), "expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     return SUCCESS;
 }
 
-static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
-                                                       ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
+                                                       EngineIface* h1) {
     // Check observe seqno for vbucket with id 1
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
@@ -4365,8 +4360,8 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_observe_seqno_failover(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_seqno_failover(EngineIface* h,
+                                                    EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -4415,9 +4410,8 @@ static enum test_result test_observe_seqno_failover(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
-                                                 ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_observe_seqno_error(EngineIface* h,
+                                                 EngineIface* h1) {
     //not my vbucket test
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -4443,7 +4437,8 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_single_key(EngineIface* h,
+                                                EngineIface* h1) {
     stop_persistence(h, h1);
 
     // Set an item
@@ -4481,7 +4476,8 @@ static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_
     return SUCCESS;
 }
 
-static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_temp_item(EngineIface* h,
+                                               EngineIface* h1) {
     char const *k1 = "key";
 
     checkeq(ENGINE_SUCCESS,
@@ -4547,7 +4543,8 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_multi_key(EngineIface* h,
+                                               EngineIface* h1) {
     // Create some vbuckets
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
@@ -4626,7 +4623,8 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_multiple_observes(EngineIface* h,
+                                               EngineIface* h1) {
     // Holds the result
     uint16_t vb;
     uint16_t keylen;
@@ -4693,7 +4691,8 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_with_not_found(EngineIface* h,
+                                                    EngineIface* h1) {
     // Create some vbuckets
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
@@ -4767,7 +4766,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     return SUCCESS;
 }
 
-static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_errors(EngineIface* h, EngineIface* h1) {
     std::map<std::string, uint16_t> obskeys;
 
     // Check not my vbucket error
@@ -4795,7 +4794,8 @@ static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return SUCCESS;
 }
 
-static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_control_data_traffic(EngineIface* h,
+                                                  EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value1"),
             "Failed to set key");
@@ -4826,8 +4826,7 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
-static enum test_result test_memory_condition(ENGINE_HANDLE* h,
-                                              ENGINE_HANDLE_V1* h1) {
+static enum test_result test_memory_condition(EngineIface* h, EngineIface* h1) {
     char data[1024];
     memset(&data, 'x', sizeof(data)-1);
     data[1023] = '\0';
@@ -4852,8 +4851,7 @@ static enum test_result test_memory_condition(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
     // 1. Create enough 1KB items to hit the high watermark (i.e. get TEMP_OOM).
     char data[1024];
     memset(&data, 'x', sizeof(data)-1);
@@ -4962,8 +4960,8 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     return SUCCESS;
 }
 
-static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_stats_vkey_valid_field(EngineIface* h,
+                                                    EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
 
     // Check vkey when a key doesn't exist
@@ -5005,8 +5003,8 @@ static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_multiple_transactions(EngineIface* h,
+                                                   EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state.");
     for (int j = 0; j < 1000; ++j) {
@@ -5040,8 +5038,7 @@ static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
     // Check that set without cas succeeds
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
@@ -5106,8 +5103,8 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_set_ret_meta_error(EngineIface* h,
+                                                EngineIface* h1) {
     // Check invalid packet constructions
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h, h1, "", 0, "value", 5, 0),
@@ -5156,8 +5153,7 @@ static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_add_ret_meta(EngineIface* h, EngineIface* h1) {
     // Check that add with cas fails
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, h1, "key", 3, "value", 5, 0, 10, 0, 0),
@@ -5203,8 +5199,8 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_add_ret_meta_error(EngineIface* h,
+                                                EngineIface* h1) {
     // Check invalid packet constructions
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, h1, "", 0, "value", 5, 0),
@@ -5253,8 +5249,7 @@ static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_del_ret_meta(EngineIface* h, EngineIface* h1) {
     // Check that deleting a non-existent key fails
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, h1, "key", 3, 0, 0),
@@ -5342,8 +5337,8 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_del_ret_meta_error(EngineIface* h,
+                                                EngineIface* h1) {
     // Check invalid packet constructions
     checkeq(ENGINE_SUCCESS, del_ret_meta(h, h1, "", 0, 0), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
@@ -5390,8 +5385,8 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_set_with_item_eviction(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_set_with_item_eviction(EngineIface* h,
+                                                    EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
@@ -5404,8 +5399,8 @@ static enum test_result test_set_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_setWithMeta_with_item_eviction(ENGINE_HANDLE *h,
-                                                            ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h,
+                                                            EngineIface* h1) {
     const char* key = "set_with_meta_key";
     size_t keylen = strlen(key);
     const char* val = "somevalue";
@@ -5436,8 +5431,8 @@ static enum test_result test_setWithMeta_with_item_eviction(ENGINE_HANDLE *h,
 }
 
 struct multi_meta_args {
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
+    EngineIface* h;
+    EngineIface* h1;
     int start;
     int end;
 };
@@ -5484,7 +5479,7 @@ extern "C" {
 }
 
 static enum test_result test_multiple_set_delete_with_metas_full_eviction(
-                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, get_stats(h, {}, add_stats), "Failed to get stats");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     cb_assert(eviction_policy == "full_eviction");
@@ -5553,9 +5548,8 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
     return SUCCESS;
 }
 
-
-static enum test_result test_add_with_item_eviction(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_add_with_item_eviction(EngineIface* h,
+                                                    EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD, "key", "somevalue"),
             "Failed to add value.");
@@ -5576,8 +5570,8 @@ static enum test_result test_add_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_gat_with_item_eviction(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_gat_with_item_eviction(EngineIface* h,
+                                                    EngineIface* h1) {
     // Store the item!
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue"),
@@ -5605,8 +5599,8 @@ static enum test_result test_gat_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_keyStats_with_item_eviction(ENGINE_HANDLE *h,
-                                                         ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_keyStats_with_item_eviction(EngineIface* h,
+                                                         EngineIface* h1) {
     // set (k1,v1) in vbucket 0
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "k1", "v1"),
@@ -5631,9 +5625,8 @@ static enum test_result test_keyStats_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_delWithMeta_with_item_eviction(ENGINE_HANDLE *h,
-                                                            ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h,
+                                                            EngineIface* h1) {
     const char *key = "delete_with_meta_key";
     const size_t keylen = strlen(key);
     ItemMetaData itemMeta;
@@ -5657,8 +5650,8 @@ static enum test_result test_delWithMeta_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_del_with_item_eviction(EngineIface* h,
+                                                    EngineIface* h1) {
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
@@ -5687,8 +5680,8 @@ static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_observe_with_item_eviction(EngineIface* h,
+                                                        EngineIface* h1) {
     // Create some vbuckets
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
 
@@ -5763,8 +5756,8 @@ static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_expired_item_with_item_eviction(
-        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+static enum test_result test_expired_item_with_item_eviction(EngineIface* h,
+                                                             EngineIface* h1) {
     // Store the item!
     check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue") ==
                   ENGINE_SUCCESS,
@@ -5804,8 +5797,8 @@ static enum test_result test_expired_item_with_item_eviction(
     return SUCCESS;
 }
 
-static enum test_result test_non_existent_get_and_delete(ENGINE_HANDLE *h,
-                                                         ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_non_existent_get_and_delete(EngineIface* h,
+                                                         EngineIface* h1) {
     checkeq(cb::engine_errc::no_such_key,
             get(h, h1, NULL, "key1", 0).first,
             "Unexpected return status");
@@ -5815,8 +5808,7 @@ static enum test_result test_non_existent_get_and_delete(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_mb16421(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_mb16421(EngineIface* h, EngineIface* h1) {
     // Store the item!
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue"),
@@ -5841,8 +5833,8 @@ static enum test_result test_mb16421(ENGINE_HANDLE *h,
  * Test that if we store an object with xattr the datatype is persisted
  * and read back correctly
  */
-static enum test_result test_eviction_with_xattr(ENGINE_HANDLE* h,
-                                                 ENGINE_HANDLE_V1* h1) {
+static enum test_result test_eviction_with_xattr(EngineIface* h,
+                                                 EngineIface* h1) {
     if (!isPersistentBucket(h, h1)) {
         return SKIPPED;
     }
@@ -5874,9 +5866,7 @@ static enum test_result test_eviction_with_xattr(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static enum test_result test_get_random_key(ENGINE_HANDLE *h,
-                                            ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_get_random_key(EngineIface* h, EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
 
     // An empty database should return no key
@@ -5940,8 +5930,8 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_failover_log_behavior(EngineIface* h,
+                                                   EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         // TODO: Ephemeral: We should add a test variant which checks that
         // on restart we generate a new UUID (essentially forcing all clients
@@ -5996,8 +5986,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_hlc_cas(EngineIface* h, EngineIface* h1) {
     const char *key = "key";
     item_info info;
     uint64_t curr_cas = 0, prev_cas = 0;
@@ -6120,8 +6109,8 @@ static void force_vbstate_to_25x(std::string dbname, int vbucket) {
 // Regression test for MB-19635
 // Check that warming up from a 2.x couchfile doesn't end up with a UUID of 0
 // we warmup 2 vbuckets and ensure they get unique IDs.
-static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h,
+                                                      EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -6152,9 +6141,7 @@ static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
 // Regression test the stats calls that they don't blow the snprintf
 // buffers. All of the tests in this batch make sure that all of the stats
 // exists (the stats call return a fixed set of stats)
-static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
-                                           ENGINE_HANDLE_V1* h1) {
-
+static enum test_result test_mb19687_fixed(EngineIface* h, EngineIface* h1) {
     std::vector<std::string> roKVStoreStats = {
                 "ro_0:backend_type",
                 "ro_0:close",
@@ -7158,8 +7145,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
 // Regression test the stats calls that they don't blow the snprintf
 // buffers. All of the tests in this batch make sure that some of the stats
 // exists (the server may return more)
-static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
-                                              ENGINE_HANDLE_V1* h1) {
+static enum test_result test_mb19687_variable(EngineIface* h, EngineIface* h1) {
     // all of these should be const, but g++ seems to have problems with that
     std::map<std::string, std::vector<std::string> > statsKeys{
             {"dispatcher", {}}, // Depends on how how long the dispatcher ran..
@@ -7258,8 +7244,7 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static enum test_result test_mb20697(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_mb20697(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             get_stats(h, {}, add_stats),
             "Failed to get stats.");
@@ -7291,9 +7276,8 @@ static enum test_result test_mb20697(ENGINE_HANDLE *h,
 }
 
 /* Check if vbucket reject ops are incremented on persistence failure */
-static enum test_result test_mb20744_check_incr_reject_ops(ENGINE_HANDLE* h,
-                                                           ENGINE_HANDLE_V1* h1) {
-
+static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h,
+                                                           EngineIface* h1) {
     std::string dbname = get_dbname(testHarness.get_current_testcase()->cfg);
     std::string filename = dbname +
                            DIRECTORY_SEPARATOR_CHARACTER +
@@ -7336,7 +7320,7 @@ static enum test_result test_mb20744_check_incr_reject_ops(ENGINE_HANDLE* h,
 }
 
 static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
-        ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     bool  ready = false;
     std::mutex m;
@@ -7384,8 +7368,8 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
 
 /* This test case checks the purge seqno validity when no items are actually
    purged in a compaction call */
-static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
+                                                      EngineIface* h1) {
     const int num_items = 2;
     const char* key[num_items] = {"k1", "k2"};
     const char* value = "somevalue";
@@ -7445,7 +7429,7 @@ static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
 /**
  * Test that the DocumentState passed in get is properly handled
  */
-static enum test_result test_mb23640(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_mb23640(EngineIface* h, EngineIface* h1) {
     const std::string key{"mb-23640"};
     const std::string value{"my value"};
     checkeq(cb::engine_errc::success,

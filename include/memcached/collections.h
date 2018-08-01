@@ -31,12 +31,12 @@ struct collections_interface {
     /**
      * Inform the engine of the current collection manifest (a JSON document)
      */
-    cb::engine_error (*set_manifest)(gsl::not_null<ENGINE_HANDLE*> handle,
+    cb::engine_error (*set_manifest)(gsl::not_null<EngineIface*> handle,
                                      cb::const_char_buffer json);
 
     /**
      * Retrieve the last manifest set using set_manifest (a JSON document)
      */
     cb::EngineErrorStringPair (*get_manifest)(
-            gsl::not_null<ENGINE_HANDLE*> handle);
+            gsl::not_null<EngineIface*> handle);
 };

@@ -254,7 +254,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                                    cb::const_byte_buffer key,
                                    cb::const_byte_buffer eventData) override;
 
-    ENGINE_HANDLE_V1 *the_engine;
+    EngineIface* the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
     // nullptr if it doesn't implement DcpIface;
@@ -280,11 +280,10 @@ static void alarm_handler(int sig) {
 // execute_test. These are global as the testcase may call reload_engine() and that
 // needs to update the pointers the new engine, so when execute_test is
 // cleaning up it has the correct handles.
-static ENGINE_HANDLE_V1* handle_v1 = NULL;
-static ENGINE_HANDLE* handle = NULL;
+static EngineIface* handle_v1 = NULL;
+static EngineIface* handle = NULL;
 
-
-static struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
+static struct mock_engine* get_handle(EngineIface* handle) {
     return (struct mock_engine*)handle;
 }
 
@@ -331,7 +330,7 @@ void check_and_destroy_mock_connstruct(struct mock_connstruct* c, const void* co
  **/
 template <typename T>
 static std::pair<cb::engine_errc, T> do_blocking_engine_call(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<EngineIface*> handle,
         struct mock_connstruct* c,
         std::function<std::pair<cb::engine_errc, T>()> engine_function) {
     c->nblocks = 0;
@@ -353,7 +352,7 @@ static std::pair<cb::engine_errc, T> do_blocking_engine_call(
 }
 
 static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
-        gsl::not_null<ENGINE_HANDLE*> handle,
+        gsl::not_null<EngineIface*> handle,
         struct mock_connstruct* c,
         std::function<ENGINE_ERROR_CODE()> engine_function) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -870,7 +869,7 @@ ENGINE_ERROR_CODE mock_engine::system_event(gsl::not_null<const void*> cookie,
 }
 
 static cb::engine_error mock_collections_set_manifest(
-        gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json) {
+        gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
     struct mock_engine* me = get_handle(handle);
     if (me->the_engine->collections.set_manifest == nullptr) {
         return cb::engine_error(
@@ -879,7 +878,7 @@ static cb::engine_error mock_collections_set_manifest(
     }
 
     return me->the_engine->collections.set_manifest(
-            (ENGINE_HANDLE*)me->the_engine, json);
+            (EngineIface*)me->the_engine, json);
 }
 
 static void usage(void) {
@@ -1015,14 +1014,14 @@ static void stop_your_engine() {
     engine_ref = NULL;
 }
 
-static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
+static EngineIface* create_bucket(bool initialize, const char* cfg) {
     auto me = std::make_unique<mock_engine>();
-    ENGINE_HANDLE* handle = NULL;
+    EngineIface* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, &handle)) {
         me->collections.set_manifest = mock_collections_set_manifest;
 
-        me->the_engine = (ENGINE_HANDLE_V1*)handle;
+        me->the_engine = (EngineIface*)handle;
         me->the_engine_dcp = dynamic_cast<DcpIface*>(handle);
 
         if (initialize) {
@@ -1037,7 +1036,9 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
     return nullptr;
 }
 
-static void destroy_bucket(ENGINE_HANDLE* handle, ENGINE_HANDLE_V1* handle_v1, bool force) {
+static void destroy_bucket(EngineIface* handle,
+                           EngineIface* handle_v1,
+                           bool force) {
     handle_v1->destroy(force);
     delete handle_v1;
 }
@@ -1045,25 +1046,31 @@ static void destroy_bucket(ENGINE_HANDLE* handle, ENGINE_HANDLE_V1* handle_v1, b
 //
 // Reload the engine, i.e. the shared object and reallocate a single bucket/instance
 //
-static void reload_engine(ENGINE_HANDLE **h, ENGINE_HANDLE_V1 **h1,
-                          const char* engine, const char *cfg, bool init, bool force) {
-
+static void reload_engine(EngineIface** h,
+                          EngineIface** h1,
+                          const char* engine,
+                          const char* cfg,
+                          bool init,
+                          bool force) {
     disconnect_all_mock_connections();
     destroy_bucket(*h, *h1, force);
     destroy_mock_event_callbacks();
     stop_your_engine();
     start_your_engine(engine);
     *h1 = create_bucket(init, cfg);
-    *h = (ENGINE_HANDLE*)(*h1);
+    *h = (EngineIface*)(*h1);
     handle_v1 = *h1;
     handle = *h;
 }
 
-static void reload_bucket(ENGINE_HANDLE **h, ENGINE_HANDLE_V1 **h1,
-                          const char *cfg, bool init, bool force) {
+static void reload_bucket(EngineIface** h,
+                          EngineIface** h1,
+                          const char* cfg,
+                          bool init,
+                          bool force) {
     destroy_bucket(*h, *h1, force);
     *h1 = create_bucket(init, cfg);
-    *h = (ENGINE_HANDLE*)(*h1);
+    *h = (EngineIface*)(*h1);
 }
 
 static engine_test_t* current_testcase;
@@ -1199,7 +1206,7 @@ static test_result execute_test(engine_test_t test,
         if (test_api_1) {
             // all test (API1) get 1 bucket and they are welcome to ask for more.
             handle_v1 = create_bucket(true, test.cfg ? test.cfg : default_cfg);
-            handle = (ENGINE_HANDLE*)handle_v1;
+            handle = (EngineIface*)handle_v1;
             if (test.test_setup != NULL && !test.test_setup(handle, handle_v1)) {
                 fprintf(stderr, "Failed to run setup for test %s\n", test.name);
                 return FAIL;

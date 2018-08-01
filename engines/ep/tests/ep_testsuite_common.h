@@ -127,13 +127,13 @@ private:
 
 class TestCase : public BaseTestCase {
 public:
-    TestCase(const char *_name,
-             enum test_result(*_tfun)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
-             bool(*_test_setup)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
-             bool(*_test_teardown)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
-             const char *_cfg,
-             enum test_result (*_prepare)(engine_test_t *test),
-             void (*_cleanup)(engine_test_t *test, enum test_result result),
+    TestCase(const char* _name,
+             enum test_result (*_tfun)(EngineIface*, EngineIface*),
+             bool (*_test_setup)(EngineIface*, EngineIface*),
+             bool (*_test_teardown)(EngineIface*, EngineIface*),
+             const char* _cfg,
+             enum test_result (*_prepare)(engine_test_t* test),
+             void (*_cleanup)(engine_test_t* test, enum test_result result),
              bool _skip = false);
 };
 
@@ -152,8 +152,8 @@ public:
 // Convenience types //////////////////////////////////////////////////////////
 
 struct handle_pair {
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
+    EngineIface* h;
+    EngineIface* h1;
 };
 
 // Name to use for database directory
@@ -170,10 +170,10 @@ enum test_result rmdb(void);
 
 
 // Default testcase setup function
-bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+bool test_setup(EngineIface* h, EngineIface* h1);
 
 // Default testcase teardown function
-bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+bool teardown(EngineIface* h, EngineIface* h1);
 bool teardown_v2(engine_test_t* test);
 
 
@@ -249,13 +249,12 @@ enum test_result prepare_skip_broken_under_ephemeral(engine_test_t *test);
 void cleanup(engine_test_t *test, enum test_result result);
 
 struct BucketHolder {
-    BucketHolder(ENGINE_HANDLE* _h, ENGINE_HANDLE_V1* _h1, std::string _dbpath)
-      : h(_h),
-        h1(_h1),
-        dbpath(_dbpath) {}
+    BucketHolder(EngineIface* _h, EngineIface* _h1, std::string _dbpath)
+        : h(_h), h1(_h1), dbpath(_dbpath) {
+    }
 
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
+    EngineIface* h;
+    EngineIface* h1;
     std::string dbpath;
 };
 
@@ -271,31 +270,32 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
 void destroy_buckets(std::vector<BucketHolder> &buckets);
 
 // Verifies that the given key and value exist in the store.
-void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                     const char* key, const char* val, size_t vlen,
+void check_key_value(EngineIface* h,
+                     EngineIface* h1,
+                     const char* key,
+                     const char* val,
+                     size_t vlen,
                      uint16_t vbucket = 0);
 
 std::string get_dbname(const char* test_cfg);
 
 // Returns true if Compression is enabled for the given engine.
-bool isCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+bool isCompressionEnabled(EngineIface* h, EngineIface* h1);
 
 // Returns true if passive compression is enabled for the given engine.
-bool isPassiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+bool isPassiveCompressionEnabled(EngineIface* h, EngineIface* h1);
 
 // Returns true if active compression is enabled for the given engine.
-bool isActiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+bool isActiveCompressionEnabled(EngineIface* h, EngineIface* h1);
 
 // Returns true if Warmup is enabled for the given engine.
-bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+bool isWarmupEnabled(EngineIface* h, EngineIface* h1);
 
 // Returns true if the given engine is a persistent bucket (EPBucket).
-bool isPersistentBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+bool isPersistentBucket(EngineIface* h, EngineIface* h1);
 
 // Returns true if the given engine is an ephemeral bucket (EphemeralBucket).
-bool isEphemeralBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
+bool isEphemeralBucket(EngineIface* h, EngineIface* h1);
 
 // Checks number of temp items in a persistent bucket (EPBucket).
-void checkPersistentBucketTempItems(ENGINE_HANDLE* h,
-                                    ENGINE_HANDLE_V1* h1,
-                                    int exp);
+void checkPersistentBucketTempItems(EngineIface* h, EngineIface* h1, int exp);

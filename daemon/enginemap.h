@@ -29,9 +29,9 @@
  *                       underlying engine)
  * @return the allocated handle if successful
  */
-ENGINE_HANDLE_V1* new_engine_instance(BucketType type,
-                                      const std::string& name,
-                                      GET_SERVER_API get_server_api);
+EngineIface* new_engine_instance(BucketType type,
+                                 const std::string& name,
+                                 GET_SERVER_API get_server_api);
 
 /**
  * Try to convert from a module name to a bucket type

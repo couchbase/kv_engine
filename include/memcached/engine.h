@@ -78,7 +78,7 @@ struct server_handle_v1_t {
  * @return See description of ENGINE_ERROR_CODE
  */
 typedef ENGINE_ERROR_CODE (*CREATE_INSTANCE)(GET_SERVER_API get_server_api,
-                                             ENGINE_HANDLE** handle);
+                                             EngineIface** handle);
 
 /**
  * The signature for the "destroy_engine" function exported from the module.
@@ -537,8 +537,7 @@ public:
      *
      * @param handle_ the handle to the the engine who owns the item
      */
-    ItemDeleter(ENGINE_HANDLE* handle_)
-        : handle(handle_) {
+    ItemDeleter(EngineIface* handle_) : handle(handle_) {
         if (handle == nullptr) {
             throw std::invalid_argument(
                 "cb::ItemDeleter: engine handle cannot be nil");
@@ -561,7 +560,7 @@ public:
     }
 
 private:
-    ENGINE_HANDLE* handle;
+    EngineIface* handle;
 };
 
 inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err) {
@@ -570,7 +569,7 @@ inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err) {
 
 inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err,
                                                    item* it,
-                                                   ENGINE_HANDLE* handle) {
+                                                   EngineIface* handle) {
     return {err, unique_item_ptr{it, ItemDeleter{handle}}};
 }
 }

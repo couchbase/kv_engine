@@ -97,7 +97,7 @@ using EPHandle = std::unique_ptr<EventuallyPersistentEngine, EPHandleReleaser>;
  * ObjectRegistry release.
  */
 
-static inline EPHandle acquireEngine(ENGINE_HANDLE* handle) {
+static inline EPHandle acquireEngine(EngineIface* handle) {
     auto ret = reinterpret_cast<EventuallyPersistentEngine*>(handle);
     ObjectRegistry::onSwitchThread(ret);
 
@@ -1657,7 +1657,7 @@ static void EvpHandleDisconnect(const void* cookie,
                                         "is not NULL");
     }
     void* c = const_cast<void*>(cb_data);
-    acquireEngine(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
+    acquireEngine(static_cast<EngineIface*>(c))->handleDisconnect(cookie);
 }
 
 static void EvpHandleDeleteBucket(const void* cookie,
@@ -1674,7 +1674,7 @@ static void EvpHandleDeleteBucket(const void* cookie,
                                         "is not NULL");
     }
     void* c = const_cast<void*>(cb_data);
-    acquireEngine(static_cast<ENGINE_HANDLE*>(c))->handleDeleteBucket(cookie);
+    acquireEngine(static_cast<EngineIface*>(c))->handleDeleteBucket(cookie);
 }
 
 void EventuallyPersistentEngine::set_log_level(EXTENSION_LOG_LEVEL level) {
@@ -1690,7 +1690,7 @@ void EventuallyPersistentEngine::set_log_level(EXTENSION_LOG_LEVEL level) {
  * @return ENGINE_SUCCESS on success
  */
 ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
-                                  ENGINE_HANDLE** handle) {
+                                  EngineIface** handle) {
     SERVER_HANDLE_V1* api = get_server_api();
     if (api == NULL) {
         return ENGINE_ENOTSUP;
@@ -1721,7 +1721,7 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
 
     initialize_time_functions(api->core);
 
-    *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
+    *handle = reinterpret_cast<EngineIface*>(engine);
 
     return ENGINE_SUCCESS;
 }
@@ -1753,13 +1753,13 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
 }
 
 static cb::engine_error EvpCollectionsSetManifest(
-        gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json) {
+        gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
     auto engine = acquireEngine(handle);
     return engine->getKVBucket()->setCollections(json);
 }
 
 static cb::EngineErrorStringPair EvpCollectionsGetManifest(
-        gsl::not_null<ENGINE_HANDLE*> handle) {
+        gsl::not_null<EngineIface*> handle) {
     auto engine = acquireEngine(handle);
     return engine->getKVBucket()->getCollections();
 }
@@ -1787,8 +1787,8 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
       minCompressionRatio(default_min_compression_ratio) {
-    ENGINE_HANDLE_V1::collections.set_manifest = EvpCollectionsSetManifest;
-    ENGINE_HANDLE_V1::collections.get_manifest = EvpCollectionsGetManifest;
+    EngineIface::collections.set_manifest = EvpCollectionsSetManifest;
+    EngineIface::collections.get_manifest = EvpCollectionsGetManifest;
 
     serverApi = getServerApiFunc();
 }
@@ -1887,8 +1887,8 @@ void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
     EventuallyPersistentEngine *epe =
                                     ObjectRegistry::onSwitchThread(NULL, true);
     auto* sapi = getServerApi()->callback;
-    sapi->register_callback(reinterpret_cast<ENGINE_HANDLE*>(this),
-                            type, cb, cb_data);
+    sapi->register_callback(
+            reinterpret_cast<EngineIface*>(this), type, cb, cb_data);
     ObjectRegistry::onSwitchThread(epe);
 }
 
@@ -2248,7 +2248,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
         const DocKey& key,
         uint16_t vbucket,
         uint32_t exptime) {
-    auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
+    auto* handle = reinterpret_cast<EngineIface*>(this);
 
     cb::ExpiryLimit expiryLimit;
     std::tie(expiryLimit, exptime) = getExpiryParameters(exptime);
@@ -2291,7 +2291,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         const DocKey& key,
         uint16_t vbucket,
         std::function<bool(const item_info&)> filter) {
-    auto* handle = reinterpret_cast<ENGINE_HANDLE*>(this);
+    auto* handle = reinterpret_cast<EngineIface*>(this);
 
     ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
             MicrosecondStopwatch(stats.getCmdHisto),

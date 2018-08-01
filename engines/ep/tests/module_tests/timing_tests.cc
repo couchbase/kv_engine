@@ -61,7 +61,7 @@ extern "C" {
 #endif
     }
 
-    static bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    static bool teardown(EngineIface* h, EngineIface* h1) {
         (void)h; (void)h1;
         atexit(rmdb);
         vals.clear();
@@ -75,13 +75,16 @@ static inline void decayingSleep(useconds_t *sleepTime) {
     *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
 }
 
-static ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                      const void *cookie,
+static ENGINE_ERROR_CODE storeCasVb11(EngineIface* h,
+                                      EngineIface* h1,
+                                      const void* cookie,
                                       ENGINE_STORE_OPERATION op,
-                                      const char *key,
-                                      const char *value, size_t vlen,
+                                      const char* key,
+                                      const char* value,
+                                      size_t vlen,
                                       uint32_t flags,
-                                      item **outitem, uint64_t casIn,
+                                      item** outitem,
+                                      uint64_t casIn,
                                       uint16_t vb) {
     uint64_t cas = 0;
 
@@ -124,8 +127,10 @@ static void add_stats(const char* key,
     }
 }
 
-static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const char *statname, const char *statkey = NULL) {
+static int get_int_stat(EngineIface* h,
+                        EngineIface* h1,
+                        const char* statname,
+                        const char* statkey = NULL) {
     vals.clear();
     const auto* cookie = testHarness.create_cookie();
     check(h1->get_stats(cookie,
@@ -137,8 +142,10 @@ static int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return atoi(s.c_str());
 }
 
-static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                              int exp, const char *msg) {
+static void verify_curr_items(EngineIface* h,
+                              EngineIface* h1,
+                              int exp,
+                              const char* msg) {
     int curr_items = get_int_stat(h, h1, "curr_items");
     if (curr_items != exp) {
         std::cerr << "Expected "<< exp << " curr_items after " << msg
@@ -147,7 +154,7 @@ static void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-static void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1) {
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_queue_size") > 0) {
         decayingSleep(&sleepTime);
@@ -163,7 +170,7 @@ static size_t env_int(const char *k, size_t rv) {
 }
 
 extern "C" {
-static test_result test_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static test_result test_persistence(EngineIface* h, EngineIface* h1) {
     size_t total = env_int("TEST_TOTAL_KEYS", 100000);
     size_t size = env_int("TEST_VAL_SIZE", 20);
 

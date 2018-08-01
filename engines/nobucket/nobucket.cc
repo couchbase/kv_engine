@@ -32,11 +32,11 @@
  * the connection to this bucket and it'll handle the appropriate
  * command.
  */
-class NoBucket : public ENGINE_HANDLE_V1, public DcpIface {
+class NoBucket : public EngineIface, public DcpIface {
 public:
     NoBucket() {
-        ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
-        ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
+        EngineIface::collections.set_manifest = collections_set_manifest;
+        EngineIface::collections.get_manifest = collections_get_manifest;
     };
 
     ENGINE_ERROR_CODE initialize(const char* config_str) override {
@@ -358,16 +358,16 @@ public:
 
 private:
     /**
-     * Convert the ENGINE_HANDLE to the underlying class type
+     * Convert the EngineIface to the underlying class type
      *
      * @param handle the handle as provided by the frontend
      * @return the actual no bucket object
      */
-    static NoBucket* get_handle(ENGINE_HANDLE* handle) {
+    static NoBucket* get_handle(EngineIface* handle) {
         return reinterpret_cast<NoBucket*>(handle);
     }
 
-    static bool set_item_info(gsl::not_null<ENGINE_HANDLE*>,
+    static bool set_item_info(gsl::not_null<EngineIface*>,
                               gsl::not_null<item*>,
                               gsl::not_null<const item_info*>) {
         throw std::logic_error(
@@ -376,13 +376,13 @@ private:
     }
 
     static cb::engine_error collections_set_manifest(
-            gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json) {
+            gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
         return {cb::engine_errc::no_bucket,
                 "nobucket::collections_set_manifest"};
     }
 
     static cb::EngineErrorStringPair collections_get_manifest(
-            gsl::not_null<ENGINE_HANDLE*> handle) {
+            gsl::not_null<EngineIface*> handle) {
         return {cb::engine_errc::no_bucket,
                 "nobucket::collections_get_manifest"};
     }
@@ -390,10 +390,10 @@ private:
 
 MEMCACHED_PUBLIC_API
 ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
-                                            ENGINE_HANDLE** handle) {
+                                            EngineIface** handle) {
     try {
         NoBucket* engine = new NoBucket();
-        *handle = reinterpret_cast<ENGINE_HANDLE*>(engine);
+        *handle = reinterpret_cast<EngineIface*>(engine);
     } catch (std::bad_alloc& e) {
         auto logger = get_server_api()->log->get_logger();
         logger->log(EXTENSION_LOG_WARNING, NULL,

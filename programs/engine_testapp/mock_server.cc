@@ -364,7 +364,7 @@ struct MockServerDocumentApi : public ServerDocumentIface {
 };
 
 struct MockServerCallbackApi : public ServerCallbackIface {
-    void register_callback(ENGINE_HANDLE* engine,
+    void register_callback(EngineIface* engine,
                            ENGINE_EVENT_TYPE type,
                            EVENT_CALLBACK cb,
                            const void* cb_data) override {

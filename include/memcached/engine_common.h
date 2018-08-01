@@ -8,8 +8,8 @@ struct EngineIface;
 
 // Temporary type aliases to aid in migration.
 // TODO: remove these when all code is moved over to use EngineIFace.
-using ENGINE_HANDLE = EngineIface;
-using ENGINE_HANDLE_V1 = EngineIface;
+using EngineIface = EngineIface;
+using EngineIface = EngineIface;
 
 /**
  * Callback for any function producing stats.

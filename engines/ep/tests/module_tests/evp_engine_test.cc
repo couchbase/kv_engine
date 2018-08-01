@@ -43,7 +43,7 @@ void EventuallyPersistentEngineTest::SetUp() {
     // Setup an engine with a single active vBucket.
     EXPECT_EQ(ENGINE_SUCCESS, create_instance(get_mock_server_api, &handle))
             << "Failed to create ep engine instance";
-    engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
+    engine_v1 = reinterpret_cast<EngineIface*>(handle);
 
     engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
     ObjectRegistry::onSwitchThread(engine);

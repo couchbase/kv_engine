@@ -43,7 +43,7 @@ class VBucketCountVisitor;
 extern "C" {
     MEMCACHED_PUBLIC_API
     ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
-                                      ENGINE_HANDLE** handle);
+                                      EngineIface** handle);
 
     MEMCACHED_PUBLIC_API
     void destroy_engine(void);
@@ -92,7 +92,7 @@ private:
 /**
  * memcached engine interface to the KVBucket.
  */
-class EventuallyPersistentEngine : public ENGINE_HANDLE_V1, public DcpIface {
+class EventuallyPersistentEngine : public EngineIface, public DcpIface {
     friend class LookupCallback;
 public:
     ENGINE_ERROR_CODE initialize(const char* config) override;
@@ -763,7 +763,7 @@ protected:
 
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
-                                             ENGINE_HANDLE** handle);
+                                             EngineIface** handle);
 
     /**
      * Report the state of a memory condition when out of memory.

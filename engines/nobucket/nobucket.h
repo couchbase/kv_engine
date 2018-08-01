@@ -31,7 +31,7 @@ extern "C" {
 
     MEMCACHED_PUBLIC_API
     ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
-                                                ENGINE_HANDLE** handle);
+                                                EngineIface** handle);
 
     MEMCACHED_PUBLIC_API
     void destroy_engine(void);

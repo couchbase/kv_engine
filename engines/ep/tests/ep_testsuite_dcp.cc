@@ -42,7 +42,7 @@ gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine) {
     return dynamic_cast<DcpIface*>(engine);
 }
 
-void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
+void dcp_step(EngineIface* h, EngineIface* h1, const void* cookie) {
     MockDcpMessageProducers producers(h);
     auto dcp = requireDcpIface(h);
     ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
@@ -53,8 +53,8 @@ void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
     }
 }
 
-void dcpHandleResponse(ENGINE_HANDLE* h,
-                       ENGINE_HANDLE_V1* h1,
+void dcpHandleResponse(EngineIface* h,
+                       EngineIface* h1,
                        const void* cookie,
                        protocol_binary_response_header* response) {
     auto dcp = requireDcpIface(h);
@@ -157,8 +157,8 @@ class TestDcpConsumer {
 public:
     TestDcpConsumer(const std::string& _name,
                     const void* _cookie,
-                    ENGINE_HANDLE* h,
-                    ENGINE_HANDLE_V1* h1)
+                    EngineIface* h,
+                    EngineIface* h1)
         : name(_name),
           cookie(_cookie),
           opaque(0),
@@ -271,8 +271,8 @@ private:
     bool disable_ack;
     /* map of vbstats */
     std::map<uint16_t, VBStats> vb_stats;
-    ENGINE_HANDLE* h;
-    ENGINE_HANDLE_V1* h1;
+    EngineIface* h;
+    EngineIface* h1;
     gsl::not_null<DcpIface*> dcp;
     std::vector<int> nruCounter;
 
@@ -761,11 +761,13 @@ ENGINE_ERROR_CODE TestDcpConsumer::closeStreams(bool fClear) {
     return err;
 }
 
-static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const void* cookie, uint32_t opaque,
-                             uint16_t vbucket, uint64_t start,
+static void notifier_request(EngineIface* h,
+                             EngineIface* h1,
+                             const void* cookie,
+                             uint32_t opaque,
+                             uint16_t vbucket,
+                             uint64_t start,
                              bool shouldSucceed) {
-
     uint32_t flags = 0;
     uint64_t rollback = 0;
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -803,16 +805,21 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           == snap_start_seqno, "snap start seqno didn't match");
 }
 
-static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                  const void *cookie, uint32_t opaque,
-                                  uint16_t vbucket, uint32_t flags,
-                                  uint64_t start, uint64_t end,
+static void dcp_stream_to_replica(EngineIface* h,
+                                  EngineIface* h1,
+                                  const void* cookie,
+                                  uint32_t opaque,
+                                  uint16_t vbucket,
+                                  uint32_t flags,
+                                  uint64_t start,
+                                  uint64_t end,
                                   uint64_t snap_start_seqno,
                                   uint64_t snap_end_seqno,
-                                  uint8_t cas = 0x1, uint8_t datatype = 1,
-                                  uint32_t exprtime = 0, uint32_t lockTime = 0,
-                                  uint64_t revSeqno = 0)
-{
+                                  uint8_t cas = 0x1,
+                                  uint8_t datatype = 1,
+                                  uint32_t exprtime = 0,
+                                  uint32_t lockTime = 0,
+                                  uint64_t revSeqno = 0) {
     /* Send snapshot marker */
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
@@ -854,8 +861,8 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
    correctly only in case there is one vbucket)
    Currently this supports only streaming mutations, but can be extend to stream
    deletion etc */
-static void dcp_stream_from_producer_conn(ENGINE_HANDLE* h,
-                                          ENGINE_HANDLE_V1* h1,
+static void dcp_stream_from_producer_conn(EngineIface* h,
+                                          EngineIface* h1,
                                           const void* cookie,
                                           uint32_t opaque,
                                           uint64_t start,
@@ -931,12 +938,12 @@ static void dcp_stream_from_producer_conn(ENGINE_HANDLE* h,
 }
 
 struct mb16357_ctx {
-    mb16357_ctx(ENGINE_HANDLE* _h, ENGINE_HANDLE_V1* _h1, int _items)
+    mb16357_ctx(EngineIface* _h, EngineIface* _h1, int _items)
         : h(_h), h1(_h1), dcp(requireDcpIface(h)), items(_items) {
     }
 
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
+    EngineIface* h;
+    EngineIface* h1;
     gsl::not_null<DcpIface*> dcp;
     int items;
     std::mutex mutex;
@@ -946,15 +953,15 @@ struct mb16357_ctx {
 };
 
 struct writer_thread_ctx {
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
+    EngineIface* h;
+    EngineIface* h1;
     int items;
     uint16_t vbid;
 };
 
 struct continuous_dcp_ctx {
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
+    EngineIface* h;
+    EngineIface* h1;
     const void *cookie;
     uint16_t vbid;
     const std::string &name;
@@ -963,12 +970,16 @@ struct continuous_dcp_ctx {
 };
 
 //Forward declaration required for dcp_thread_func
-static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                        const void* cookie, uint32_t opaque,
-                                        uint16_t vbucket, uint32_t flags,
-                                        protocol_binary_response_status response,
-                                        uint64_t exp_snap_start = 0,
-                                        uint64_t exp_snap_end = 0);
+static uint32_t add_stream_for_consumer(
+        EngineIface* h,
+        EngineIface* h1,
+        const void* cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t flags,
+        protocol_binary_response_status response,
+        uint64_t exp_snap_start = 0,
+        uint64_t exp_snap_end = 0);
 
 extern "C" {
     static void dcp_thread_func(void *args) {
@@ -1096,10 +1107,11 @@ extern "C" {
 /* DCP step thread that keeps running till it reads upto 'exp_mutations'.
    Note: the exp_mutations is cumulative across all streams in the DCP
          connection */
-static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const void *cookie, uint32_t opaque,
-                             uint64_t exp_mutations)
-{
+static void dcp_waiting_step(EngineIface* h,
+                             EngineIface* h1,
+                             const void* cookie,
+                             uint32_t opaque,
+                             uint64_t exp_mutations) {
     bool done = false;
     size_t bytes_read = 0;
     bool pending_marker_ack = false;
@@ -1176,8 +1188,8 @@ static void dcp_waiting_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 // Testcases //////////////////////////////////////////////////////////////////
 
-static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_vbtakeover_no_stream(EngineIface* h,
+                                                      EngineIface* h1) {
     write_items(h, h1, 10);
     if (isPersistentBucket(h, h1) && is_full_eviction(h, h1)) {
         // MB-21646: FE mode - curr_items (which is part of "estimate") is
@@ -1203,7 +1215,8 @@ static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
  * checks that the new connection was created after the previous connection.
  */
 
-static enum test_result test_dcp_notifier_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_notifier_open(EngineIface* h,
+                                               EngineIface* h1) {
     const auto *cookie1 = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t seqno = 0;
@@ -1237,8 +1250,7 @@ static enum test_result test_dcp_notifier_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_notifier(EngineIface* h, EngineIface* h1) {
     write_items(h, h1, 10);
     const auto *cookie = testHarness.create_cookie();
     const std::string name("unittest");
@@ -1317,7 +1329,7 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
  */
 
 static enum test_result test_dcp_notifier_equal_to_number_of_items(
-                        ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     const std::string key("key0");
     checkeq(ENGINE_SUCCESS,
             store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data", nullptr),
@@ -1350,7 +1362,8 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_open(EngineIface* h,
+                                               EngineIface* h1) {
     const auto *cookie1 = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t opaque = 0;
@@ -1385,8 +1398,8 @@ static enum test_result test_dcp_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_flow_control_none(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_flow_control_none(EngineIface* h,
+                                                            EngineIface* h1) {
     const auto *cookie1 = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t opaque = 0;
@@ -1406,8 +1419,8 @@ static enum test_result test_dcp_consumer_flow_control_none(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_flow_control_static(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_flow_control_static(EngineIface* h,
+                                                              EngineIface* h1) {
     const auto *cookie1 = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t opaque = 0;
@@ -1429,8 +1442,8 @@ static enum test_result test_dcp_consumer_flow_control_static(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_flow_control_dynamic(
+        EngineIface* h, EngineIface* h1) {
     const auto *cookie1 = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t opaque = 0;
@@ -1510,8 +1523,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_dcp_consumer_flow_control_aggressive(
-                                                        ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     const auto max_conns = 6;
     const void *cookie[max_conns];
     const auto flow_ctl_buf_max = 52428800;
@@ -1609,7 +1621,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_open(EngineIface* h,
+                                               EngineIface* h1) {
     const auto *cookie1 = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t opaque = 0;
@@ -1641,8 +1654,8 @@ static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_open_same_cookie(ENGINE_HANDLE *h,
-                                                           ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_open_same_cookie(EngineIface* h,
+                                                           EngineIface* h1) {
     const auto *cookie = testHarness.create_cookie();
     const std::string name("unittest");
     uint32_t opaque = 0;
@@ -1684,7 +1697,7 @@ static enum test_result test_dcp_producer_open_same_cookie(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_noop(EngineIface* h, EngineIface* h1) {
     const auto *cookie = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t seqno = 0;
@@ -1744,8 +1757,7 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
-                                           ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_noop_fail(EngineIface* h, EngineIface* h1) {
     const auto *cookie = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t seqno = 0;
@@ -1797,8 +1809,8 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
-                                               ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_noop(EngineIface* h,
+                                               EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
     const auto *cookie = testHarness.create_cookie();
@@ -1838,8 +1850,8 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
  * noop_enabled, and XATTRs enabled, and then attempts to open a stream,
  * checking for the expectedResult code.
  */
-static void test_dcp_noop_mandatory_combo(ENGINE_HANDLE* h,
-                                          ENGINE_HANDLE_V1* h1,
+static void test_dcp_noop_mandatory_combo(EngineIface* h,
+                                          EngineIface* h1,
                                           bool noopManditory,
                                           bool enableNoop,
                                           bool enableXAttrs,
@@ -1883,8 +1895,8 @@ static void test_dcp_noop_mandatory_combo(ENGINE_HANDLE* h,
     testHarness.destroy_cookie(cookie);
 }
 
-static enum test_result test_dcp_noop_mandatory(ENGINE_HANDLE* h,
-                                                ENGINE_HANDLE_V1* h1) {
+static enum test_result test_dcp_noop_mandatory(EngineIface* h,
+                                                EngineIface* h1) {
     // Test all combinations of {manditoryNoop, enable_noop, includeXAttr}
     test_dcp_noop_mandatory_combo(h, h1, false, false, false, ENGINE_SUCCESS);
     test_dcp_noop_mandatory_combo(h, h1, false, false, true, ENGINE_SUCCESS);
@@ -1898,9 +1910,8 @@ static enum test_result test_dcp_noop_mandatory(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_open(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_dcp_producer_stream_req_open(EngineIface* h,
+                                                          EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     const int num_items = 3;
 
@@ -1947,9 +1958,8 @@ static enum test_result test_dcp_producer_stream_req_open(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
-                                                             ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
+                                                             EngineIface* h1) {
     // Should start at checkpoint_id 2
     const auto initial_ckpt_id = get_int_stat(h, h1, "vb_0:open_checkpoint_id",
                                               "checkpoint");
@@ -2027,8 +2037,7 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
-                                                        ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -2058,9 +2067,8 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_dcp_producer_stream_req_full(EngineIface* h,
+                                                          EngineIface* h1) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -2102,7 +2110,7 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
  * Test that deleted items (with values) backfill correctly
  */
 static enum test_result test_dcp_producer_deleted_item_backfill(
-        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+        EngineIface* h, EngineIface* h1) {
     const int deletions = 10;
     write_items(h,
                 h1,
@@ -2134,8 +2142,8 @@ static enum test_result test_dcp_producer_deleted_item_backfill(
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_backfill(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h,
+                                                              EngineIface* h1) {
     const int num_items = 400, batch_items = 200;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -2166,8 +2174,8 @@ static enum test_result test_dcp_producer_stream_req_backfill(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
-                                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h,
+                                                              EngineIface* h1) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -2197,9 +2205,8 @@ static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_disk_backfill_limits(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_dcp_producer_disk_backfill_limits(
+        EngineIface* h, EngineIface* h1) {
     const int num_items = 3;
     write_items(h, h1, num_items);
 
@@ -2260,7 +2267,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
-                                    ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     const int num_items = 3;
     write_items(h, h1, num_items);
 
@@ -2288,8 +2295,8 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
-                                                         ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_stream_req_mem(EngineIface* h,
+                                                         EngineIface* h1) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -2322,8 +2329,8 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
  * Test that a DCP stream request in DGM scenarios correctly receives items
  * from both memory and disk.
  */
-static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
-                                                         ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
+                                                         EngineIface* h1) {
     // Test only works for the only 2-bit LRU eviction algorithm as it
     // relies on looking at the LRU state.
     // @todo Investigate converting the test to work with the new hifi_mfu
@@ -2390,8 +2397,8 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
 /**
  * Test that eviction hotness data is passed in DCP stream.
  */
-static enum test_result test_dcp_producer_stream_req_coldness(
-        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h,
+                                                              EngineIface* h1) {
     const void* cookie = testHarness.create_cookie();
 
     for (int ii = 0; ii < 10; ii++) {
@@ -2439,8 +2446,8 @@ static enum test_result test_dcp_producer_stream_req_coldness(
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_stream_latest(EngineIface* h,
+                                                        EngineIface* h1) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -2471,9 +2478,8 @@ static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
-                                                           ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h,
+                                                           EngineIface* h1) {
     const std::string conn_name("unittest");
     const int num_items = 2, vb = 0;
 
@@ -2520,9 +2526,7 @@ static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_dcp_producer_keep_stream_open_replica(
-                                                        ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1)
-{
+        EngineIface* h, EngineIface* h1) {
     /* This test case validates if a replica vbucket correctly sends items
        and snapshot end seqno when a stream requests for items till end of time
        (end_seqno in req is 2^64 - 1).
@@ -2631,8 +2635,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 }
 
 static enum test_result test_dcp_producer_stream_cursor_movement(
-                                                        ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     const std::string conn_name("unittest");
     const int num_items = 30;
     uint64_t curr_chkpt_id = 0;
@@ -2699,8 +2702,8 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     return SUCCESS;
 }
 
-static test_result test_dcp_producer_stream_req_nmvb(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static test_result test_dcp_producer_stream_req_nmvb(EngineIface* h,
+                                                     EngineIface* h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
     uint32_t seqno = 0;
@@ -2733,7 +2736,7 @@ static test_result test_dcp_producer_stream_req_nmvb(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static test_result test_dcp_agg_stats(EngineIface* h, EngineIface* h1) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -2781,8 +2784,8 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static test_result test_dcp_cursor_dropping(ENGINE_HANDLE* h,
-                                            ENGINE_HANDLE_V1* h1,
+static test_result test_dcp_cursor_dropping(EngineIface* h,
+                                            EngineIface* h1,
                                             bool replicationStream) {
     /* Initially write a few items */
     int num_items = 25;
@@ -2884,17 +2887,16 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static test_result test_dcp_cursor_dropping(ENGINE_HANDLE* h,
-                                            ENGINE_HANDLE_V1* h1) {
+static test_result test_dcp_cursor_dropping(EngineIface* h, EngineIface* h1) {
     return test_dcp_cursor_dropping(h, h1, false);
 }
 
-static test_result test_dcp_cursor_dropping_replication(ENGINE_HANDLE* h,
-                                                        ENGINE_HANDLE_V1* h1) {
+static test_result test_dcp_cursor_dropping_replication(EngineIface* h,
+                                                        EngineIface* h1) {
     return test_dcp_cursor_dropping(h, h1, true);
 }
-static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
+                                                     EngineIface* h1) {
     /* Initially write a few items */
     int num_items = 50;
     const int initialSnapshotSize = num_items;
@@ -2953,7 +2955,7 @@ static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static test_result test_dcp_takeover(EngineIface* h, EngineIface* h1) {
     const int num_items = 10;
     write_items(h, h1, num_items);
 
@@ -2978,8 +2980,7 @@ static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static test_result test_dcp_takeover_no_items(EngineIface* h, EngineIface* h1) {
     const int num_items = 10;
     write_items(h, h1, num_items);
 
@@ -3063,13 +3064,16 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                        const void* cookie, uint32_t opaque,
-                                        uint16_t vbucket, uint32_t flags,
-                                        protocol_binary_response_status response,
-                                        uint64_t exp_snap_start,
-                                        uint64_t exp_snap_end) {
-
+static uint32_t add_stream_for_consumer(
+        EngineIface* h,
+        EngineIface* h1,
+        const void* cookie,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint32_t flags,
+        protocol_binary_response_status response,
+        uint64_t exp_snap_start,
+        uint64_t exp_snap_end) {
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("connection_buffer_size") == 0);
@@ -3232,9 +3236,10 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return stream_opaque;
 }
 
-static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
-                                           ENGINE_HANDLE_V1 *h1,
-                                           bool full, bool restart) {
+static enum test_result test_dcp_reconnect(EngineIface* h,
+                                           EngineIface* h1,
+                                           bool full,
+                                           bool restart) {
     // Test reconnect when we were disconnected after receiving a full snapshot
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
@@ -3311,20 +3316,20 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_reconnect_full(ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_reconnect_full(EngineIface* h,
+                                                EngineIface* h1) {
     // Test reconnect after a dropped connection with a full snapshot
     return test_dcp_reconnect(h, h1, true, false);
 }
 
-static enum test_result test_dcp_reconnect_partial(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_reconnect_partial(EngineIface* h,
+                                                   EngineIface* h1) {
     // Test reconnect after a dropped connection with a partial snapshot
     return test_dcp_reconnect(h, h1, false, false);
 }
 
-static enum test_result test_dcp_crash_reconnect_full(ENGINE_HANDLE *h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_crash_reconnect_full(EngineIface* h,
+                                                      EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -3333,8 +3338,8 @@ static enum test_result test_dcp_crash_reconnect_full(ENGINE_HANDLE *h,
     return test_dcp_reconnect(h, h1, true, true);
 }
 
-static enum test_result test_dcp_crash_reconnect_partial(ENGINE_HANDLE *h,
-                                                         ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_crash_reconnect_partial(EngineIface* h,
+                                                         EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -3343,8 +3348,8 @@ static enum test_result test_dcp_crash_reconnect_partial(ENGINE_HANDLE *h,
     return test_dcp_reconnect(h, h1, false, true);
 }
 
-static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_takeover(EngineIface* h,
+                                                   EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -3429,10 +3434,8 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_failover_scenario_one_with_dcp(
-                                                        ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
+                                                            EngineIface* h1) {
     const int num_items = 50, batch_items = 10;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
@@ -3492,9 +3495,8 @@ static enum test_result test_failover_scenario_one_with_dcp(
     return SUCCESS;
 }
 
-static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
-                                                            ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h,
+                                                            EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
     wait_for_flusher_to_settle(h, h1);
@@ -3585,8 +3587,7 @@ static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
-                                            ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_add_stream(EngineIface* h, EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -3613,8 +3614,8 @@ static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_consumer_backoff_stat(EngineIface* h,
+                                                   EngineIface* h1) {
     set_param(h, h1, protocol_binary_engine_param_replication,
               "replication_throttle_queue_cap", "10");
     checkeq(10, get_int_stat(h, h1, "ep_replication_throttle_queue_cap"),
@@ -3677,8 +3678,7 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_rollback_to_zero(EngineIface* h, EngineIface* h1) {
     const int num_items = 10;
     write_items(h, h1, num_items);
 
@@ -3717,8 +3717,8 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_chk_manager_rollback(EngineIface* h,
+                                                  EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return SKIPPED;
     }
@@ -3835,8 +3835,8 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
-                                                       ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_fullrollback_for_consumer(EngineIface* h,
+                                                       EngineIface* h1) {
     const int num_items = 10;
     write_items(h, h1, num_items);
 
@@ -3934,9 +3934,8 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_partialrollback_for_consumer(EngineIface* h,
+                                                          EngineIface* h1) {
     stop_persistence(h, h1);
 
     const int numInitialItems = 100;
@@ -4064,8 +4063,8 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_buffer_log_size(EngineIface* h,
+                                                 EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = DCP_OPEN_PRODUCER;
@@ -4120,8 +4119,8 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_flow_control(ENGINE_HANDLE *h,
-                                                       ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_producer_flow_control(EngineIface* h,
+                                                       EngineIface* h1) {
     /* Write 10 items */
     const int num_items = 10;
     write_items(h, h1, 10, 0, "key", "123456789");
@@ -4169,8 +4168,8 @@ static enum test_result test_dcp_producer_flow_control(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_get_failover_log(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_get_failover_log(EngineIface* h,
+                                                  EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = DCP_OPEN_PRODUCER;
@@ -4212,8 +4211,8 @@ static enum test_result test_dcp_get_failover_log(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_add_stream_exists(EngineIface* h,
+                                                   EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -4265,8 +4264,8 @@ static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_add_stream_nmvb(ENGINE_HANDLE *h,
-                                                 ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_add_stream_nmvb(EngineIface* h,
+                                                 EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -4291,8 +4290,8 @@ static enum test_result test_dcp_add_stream_nmvb(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_add_stream_prod_exists(ENGINE_HANDLE*h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_add_stream_prod_exists(EngineIface* h,
+                                                        EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -4313,8 +4312,8 @@ static enum test_result test_dcp_add_stream_prod_exists(ENGINE_HANDLE*h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_add_stream_prod_nmvb(ENGINE_HANDLE*h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_add_stream_prod_nmvb(EngineIface* h,
+                                                      EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -4334,8 +4333,8 @@ static enum test_result test_dcp_add_stream_prod_nmvb(ENGINE_HANDLE*h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_close_stream_no_stream(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_close_stream_no_stream(EngineIface* h,
+                                                        EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -4354,8 +4353,7 @@ static enum test_result test_dcp_close_stream_no_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_close_stream(EngineIface* h, EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -4386,8 +4384,8 @@ static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_end_stream(EngineIface* h,
+                                                     EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
@@ -4423,8 +4421,8 @@ static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
-                                                 ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_mutate(EngineIface* h,
+                                                 EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
@@ -4551,7 +4549,8 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_delete(EngineIface* h,
+                                                 EngineIface* h1) {
     // Store an item
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD, "key", "value"),
@@ -4638,9 +4637,8 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
-static enum test_result test_dcp_replica_stream_backfill(ENGINE_HANDLE *h,
-                                                         ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_dcp_replica_stream_backfill(EngineIface* h,
+                                                         EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
@@ -4688,9 +4686,8 @@ static enum test_result test_dcp_replica_stream_backfill(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_replica_stream_in_memory(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h,
+                                                          EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
@@ -4738,8 +4735,8 @@ static enum test_result test_dcp_replica_stream_in_memory(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_replica_stream_all(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_replica_stream_all(EngineIface* h,
+                                                    EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
@@ -4803,8 +4800,8 @@ static enum test_result test_dcp_replica_stream_all(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_persistence_seqno(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_persistence_seqno(EngineIface* h,
+                                                   EngineIface* h1) {
     /* write 2 items */
     const int num_items = 2;
     write_items(h, h1, num_items, 0, "key", "somevalue");
@@ -4865,7 +4862,7 @@ static enum test_result test_dcp_persistence_seqno(ENGINE_HANDLE *h,
 /* This test checks whether writing of backfill items on a replica vbucket
    would result in notification for a pending "CMD_SEQNO_PERSISTENCE" request */
 static enum test_result test_dcp_persistence_seqno_backfillItems(
-        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+        EngineIface* h, EngineIface* h1) {
     /* we want backfill items on a replica vbucket */
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
@@ -4960,8 +4957,8 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
     return SUCCESS;
 }
 
-static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
-                                                   ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_last_items_purged(EngineIface* h,
+                                                   EngineIface* h1) {
     item_info info;
     mutation_descr_t mut_info;
     uint64_t cas = 0;
@@ -5021,8 +5018,8 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
-                                                      ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
+                                                      EngineIface* h1) {
     item_info info;
     mutation_descr_t mut_info;
     uint64_t vb_uuid = 0;
@@ -5135,8 +5132,8 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
+                                                     EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h, h1);
@@ -5264,9 +5261,8 @@ static enum test_result test_dcp_erroneous_mutations(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_dcp_erroneous_marker(EngineIface* h,
+                                                  EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h, h1);
@@ -5375,9 +5371,8 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_invalid_mutation_deletion(ENGINE_HANDLE* h,
-                                                              ENGINE_HANDLE_V1* h1) {
-
+static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h,
+                                                           EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h, h1);
@@ -5439,8 +5434,8 @@ static enum test_result test_dcp_invalid_mutation_deletion(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
-                                                         ENGINE_HANDLE_V1* h1) {
+static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h,
+                                                         EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state");
     wait_for_flusher_to_settle(h, h1);
@@ -5502,10 +5497,8 @@ static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
  * Test that destroying a DCP producer before it ends
  * works. MB-16915 reveals itself via valgrind.
  */
-static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
-                                                   ENGINE_HANDLE_V1* h1) {
-
-
+static enum test_result test_dcp_early_termination(EngineIface* h,
+                                                   EngineIface* h1) {
     // create enough streams that some backfill tasks should overlap
     // with the connection deletion task.
     const int streams = 100;
@@ -5568,8 +5561,7 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
-static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         // TODO: Ephemeral - Should re-enable some of these tests, where after
         // restart we expect all requests to rollback (as should be no matching
@@ -5713,9 +5705,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_mb16357(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_mb16357(EngineIface* h, EngineIface* h1) {
     // Load up vb0 with n items, expire in 1 second
     const int num_items = 1000;
 
@@ -5746,8 +5736,8 @@ static enum test_result test_mb16357(ENGINE_HANDLE *h,
 
 // Check that an incoming DCP mutation which has an invalid CAS is fixed up
 // by the engine.
-static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
-                                                     ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h,
+                                                     EngineIface* h1) {
     // Attempt to insert a item with CAS of -1 via dcp->
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -5844,9 +5834,8 @@ static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
  * This test case creates and test multiple streams
  * between a single producer and consumer.
  */
-static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_dcp_multiple_streams(EngineIface* h,
+                                                  EngineIface* h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed set vbucket state on 1");
     check(set_vbucket_state(h, h1, 2, vbucket_state_active),
@@ -5920,8 +5909,8 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
-                                                         ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h,
+                                                         EngineIface* h1) {
     const std::string conn_name = "unittest";
     const void *cookie = testHarness.create_cookie();
 
@@ -5959,9 +5948,8 @@ static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
-                                                             ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h,
+                                                             EngineIface* h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
     wait_for_flusher_to_settle(h, h1);
@@ -6036,8 +6024,8 @@ static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
-                                               ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_get_all_vb_seqnos(EngineIface* h,
+                                               EngineIface* h1) {
     const void *cookie = testHarness.create_cookie();
 
     const int num_vbuckets = 10;
@@ -6132,9 +6120,7 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
  * This test demonstrates bucket shutdown when there is a rogue
  * backfill (whose producer and stream are already closed).
  */
-static enum test_result test_mb19153(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_mb19153(EngineIface* h, EngineIface* h1) {
     putenv(cb_strdup("ALLOW_NO_STATS_UPDATE=yeah"));
 
     // Set max num AUX IO to 0, so no backfill would start
@@ -6213,9 +6199,7 @@ static void mb19982_add_stat(const char* key,
  * MB-19982 idenified a lock inversion between these two functional paths and this
  * test proves and protects the issue.
  */
-static enum test_result test_mb19982(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result test_mb19982(EngineIface* h, EngineIface* h1) {
     // Load up vb0 with num_items
     int num_items = 1000;
     int iterations = 1000; // how many stats calls
@@ -6295,9 +6279,7 @@ static enum test_result test_mb19982(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_set_dcp_param(ENGINE_HANDLE *h,
-                                           ENGINE_HANDLE_V1 *h1)
-{
+static enum test_result test_set_dcp_param(EngineIface* h, EngineIface* h1) {
     auto func = [h, h1](std::string key, size_t newValue, bool expectedSetParam){
         std::string statKey = "ep_" + key;
         size_t param = get_int_stat(h,

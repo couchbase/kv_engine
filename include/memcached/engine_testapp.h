@@ -39,8 +39,8 @@ struct test_harness {
     const char *engine_path;
     const char *default_engine_cfg;
     DocNamespace doc_namespace;
-    void(*reload_engine)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
-                         const char *, const char *, bool, bool);
+    void (*reload_engine)(
+            EngineIface**, EngineIface**, const char*, const char*, bool, bool);
     OutputFormat output_format;
     const char* output_file_prefix;
     std::string bucket_type;
@@ -60,10 +60,10 @@ struct test_harness {
     size_t (*get_mapped_bytes)(void);
     void (*release_free_memory)(void);
 
-    ENGINE_HANDLE_V1* (*create_bucket)(bool initialize, const char* cfg);
-    void (*destroy_bucket)(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1, bool force);
-    void (*reload_bucket)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
-                          const char *, bool, bool);
+    EngineIface* (*create_bucket)(bool initialize, const char* cfg);
+    void (*destroy_bucket)(EngineIface* h, EngineIface* h1, bool force);
+    void (*reload_bucket)(
+            EngineIface**, EngineIface**, const char*, bool, bool);
     void (*store_engine_specific)(const void *cookie,void *engine_data);
     int (*get_number_of_mock_cookie_references)(const void *cookie);
     void (*set_pre_link_function)(PreLinkFunction function);
@@ -82,10 +82,9 @@ struct test_api_v2 {
 
 struct test {
     const char *name;
-    enum test_result(*tfun)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *);
-    bool(*test_setup)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *);
-    bool(*test_teardown)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *);
-
+    enum test_result (*tfun)(EngineIface*, EngineIface*);
+    bool (*test_setup)(EngineIface*, EngineIface*);
+    bool (*test_teardown)(EngineIface*, EngineIface*);
 
     const char *cfg;
     /**

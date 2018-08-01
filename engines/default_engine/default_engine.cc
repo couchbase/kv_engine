@@ -86,7 +86,7 @@ void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
 }
 
 extern "C" ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
-                                             ENGINE_HANDLE** handle) {
+                                             EngineIface** handle) {
     SERVER_HANDLE_V1* api = get_server_api();
     struct default_engine* engine;
 
@@ -110,8 +110,8 @@ extern "C" void destroy_engine() {
     assoc_destroy();
 }
 
-static struct default_engine* get_handle(ENGINE_HANDLE* handle) {
-   return (struct default_engine*)handle;
+static struct default_engine* get_handle(EngineIface* handle) {
+    return (struct default_engine*)handle;
 }
 
 static hash_item* get_real_item(item* item) {

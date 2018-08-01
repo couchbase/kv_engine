@@ -51,8 +51,8 @@ protected:
 
     const uint16_t vbid = 0;
 
-    ENGINE_HANDLE* handle;
-    ENGINE_HANDLE_V1* engine_v1;
+    EngineIface* handle;
+    EngineIface* engine_v1;
     EventuallyPersistentEngine* engine;
     std::string bucketType;
 

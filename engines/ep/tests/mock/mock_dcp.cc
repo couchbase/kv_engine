@@ -49,8 +49,8 @@ std::string dcp_last_key;
 vbucket_state_t dcp_last_vbucket_state;
 protocol_binary_datatype_t dcp_last_datatype;
 
-static ENGINE_HANDLE *engine_handle = nullptr;
-static ENGINE_HANDLE_V1 *engine_handle_v1 = nullptr;
+static EngineIface* engine_handle = nullptr;
+static EngineIface* engine_handle_v1 = nullptr;
 
 std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 

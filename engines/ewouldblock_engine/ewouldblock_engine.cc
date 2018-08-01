@@ -92,8 +92,7 @@
 
 extern "C" {
     MEMCACHED_PUBLIC_API
-    ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa,
-                                      ENGINE_HANDLE** handle);
+    ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle);
 
     MEMCACHED_PUBLIC_API
     void destroy_engine(void);
@@ -103,7 +102,7 @@ extern "C" {
 class EWB_Engine;
 
 // Mapping from wrapped handle to EWB handles.
-static std::map<ENGINE_HANDLE*, EWB_Engine*> engine_map;
+static std::map<EngineIface*, EWB_Engine*> engine_map;
 
 class NotificationThread : public Couchbase::Thread {
 public:
@@ -155,7 +154,7 @@ static SERVER_HANDLE_V1 wrapped_api;
 static SERVER_HANDLE_V1 *real_api;
 
 struct EwbServerCallbackApi : public ServerCallbackIface {
-    void register_callback(ENGINE_HANDLE* engine,
+    void register_callback(EngineIface* engine,
                            ENGINE_EVENT_TYPE type,
                            EVENT_CALLBACK cb,
                            const void* cb_data) override {
@@ -169,7 +168,7 @@ struct EwbServerCallbackApi : public ServerCallbackIface {
             }
             abort();
         }
-        auto wrapped_eh = reinterpret_cast<ENGINE_HANDLE*>(p->second);
+        auto wrapped_eh = reinterpret_cast<EngineIface*>(p->second);
         real_api->callback->register_callback(wrapped_eh, type, cb, cb_data);
     }
     void perform_callbacks(ENGINE_EVENT_TYPE type,
@@ -229,7 +228,7 @@ public:
     ~EWB_Engine() override;
 
     // Convert from a handle back to the read object.
-    static EWB_Engine* to_engine(ENGINE_HANDLE* handle) {
+    static EWB_Engine* to_engine(EngineIface* handle) {
         return reinterpret_cast<EWB_Engine*> (handle);
     }
 
@@ -849,9 +848,9 @@ public:
     GET_SERVER_API gsa;
 
     // Actual engine we are proxying requests to.
-    ENGINE_HANDLE*
+    EngineIface*
             real_handle; // TODO: Remove real_handle as same as real_engine now.
-    ENGINE_HANDLE_V1* real_engine;
+    EngineIface* real_engine;
     engine_reference* real_engine_ref;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or
@@ -930,10 +929,10 @@ private:
     std::atomic<bool> stop_notification_thread;
 
     static cb::engine_error collections_set_manifest(
-            gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json);
+            gsl::not_null<EngineIface*> handle, cb::const_char_buffer json);
 
     static cb::EngineErrorStringPair collections_get_manifest(
-            gsl::not_null<ENGINE_HANDLE*> handle);
+            gsl::not_null<EngineIface*> handle);
 
     // Base class for all fault injection modes.
     struct FaultInjectMode {
@@ -1236,9 +1235,9 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 {
     init_wrapped_api(gsa);
 
-    ENGINE_HANDLE_V1::collections = {};
-    ENGINE_HANDLE_V1::collections.set_manifest = collections_set_manifest;
-    ENGINE_HANDLE_V1::collections.get_manifest = collections_get_manifest;
+    EngineIface::collections = {};
+    EngineIface::collections.set_manifest = collections_set_manifest;
+    EngineIface::collections.get_manifest = collections_get_manifest;
 
     clustermap_revno = 1;
 
@@ -1610,7 +1609,7 @@ ENGINE_ERROR_CODE EWB_Engine::system_event(gsl::not_null<const void*> cookie,
 }
 
 cb::engine_error EWB_Engine::collections_set_manifest(
-        gsl::not_null<ENGINE_HANDLE*> handle, cb::const_char_buffer json) {
+        gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->collections.set_manifest == nullptr) {
         return {cb::engine_errc::not_supported,
@@ -1622,7 +1621,7 @@ cb::engine_error EWB_Engine::collections_set_manifest(
 }
 
 cb::EngineErrorStringPair EWB_Engine::collections_get_manifest(
-        gsl::not_null<ENGINE_HANDLE*> handle) {
+        gsl::not_null<EngineIface*> handle) {
     EWB_Engine* ewb = to_engine(handle);
     if (ewb->real_engine->collections.get_manifest == nullptr) {
         return {cb::engine_errc::not_supported,
@@ -1632,10 +1631,10 @@ cb::EngineErrorStringPair EWB_Engine::collections_get_manifest(
     }
 }
 
-ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
+ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
     try {
         EWB_Engine* engine = new EWB_Engine(gsa);
-        *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
+        *handle = reinterpret_cast<EngineIface*>(engine);
         return ENGINE_SUCCESS;
 
     } catch (std::exception& e) {
@@ -1644,7 +1643,6 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
                     "EWB_Engine: failed to create engine: %s", e.what());
         return ENGINE_FAILED;
     }
-
 }
 
 void destroy_engine(void) {

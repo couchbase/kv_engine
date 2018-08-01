@@ -138,9 +138,10 @@ std::mutex stats_mutex;
 /*
  * forward declarations
  */
-static void register_callback(ENGINE_HANDLE *eh,
+static void register_callback(EngineIface* eh,
                               ENGINE_EVENT_TYPE type,
-                              EVENT_CALLBACK cb, const void *cb_data);
+                              EVENT_CALLBACK cb,
+                              const void* cb_data);
 
 static void create_listen_sockets(bool management);
 
@@ -328,11 +329,10 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
     }
 }
 
-static void register_callback(ENGINE_HANDLE *eh,
+static void register_callback(EngineIface* eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb,
-                              const void *cb_data)
-{
+                              const void* cb_data) {
     size_t idx;
     switch (type) {
     /*
@@ -1646,7 +1646,7 @@ struct ServerDocumentApi : public ServerDocumentIface {
 };
 
 struct ServerCallbackApi : public ServerCallbackIface {
-    void register_callback(ENGINE_HANDLE* engine,
+    void register_callback(EngineIface* engine,
                            ENGINE_EVENT_TYPE type,
                            EVENT_CALLBACK cb,
                            const void* cb_data) override {

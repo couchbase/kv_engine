@@ -31,8 +31,7 @@
 
 const char *dbname_env = NULL;
 
-static enum test_result skipped_test_function(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1);
+static enum test_result skipped_test_function(EngineIface* h, EngineIface* h1);
 
 BaseTestCase::BaseTestCase(const char *_name, const char *_cfg, bool _skip)
   : name(_name),
@@ -49,16 +48,16 @@ BaseTestCase::BaseTestCase(const BaseTestCase &o)
     test = o.test;
 }
 
-TestCase::TestCase(const char *_name,
-                   enum test_result(*_tfun)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
-                   bool(*_test_setup)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
-                   bool(*_test_teardown)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
-                   const char *_cfg,
-                   enum test_result (*_prepare)(engine_test_t *test),
-                   void (*_cleanup)(engine_test_t *test, enum test_result result),
+TestCase::TestCase(const char* _name,
+                   enum test_result (*_tfun)(EngineIface*, EngineIface*),
+                   bool (*_test_setup)(EngineIface*, EngineIface*),
+                   bool (*_test_teardown)(EngineIface*, EngineIface*),
+                   const char* _cfg,
+                   enum test_result (*_prepare)(engine_test_t* test),
+                   void (*_cleanup)(engine_test_t* test,
+                                    enum test_result result),
                    bool _skip)
-  : BaseTestCase(_name, _cfg, _skip) {
-
+    : BaseTestCase(_name, _cfg, _skip) {
     memset(&test, 0, sizeof(test));
     test.tfun = _tfun;
     test.test_setup = _test_setup;
@@ -122,9 +121,7 @@ engine_test_t* BaseTestCase::getTest() {
     return ret;
 }
 
-
-static enum test_result skipped_test_function(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result skipped_test_function(EngineIface* h, EngineIface* h1) {
     (void) h;
     (void) h1;
     return SKIPPED;
@@ -143,7 +140,7 @@ enum test_result rmdb(const char* path) {
     return SUCCESS;
 }
 
-bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+bool test_setup(EngineIface* h, EngineIface* h1) {
     wait_for_warmup_complete(h, h1);
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
@@ -174,7 +171,7 @@ bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return true;
 }
 
-bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+bool teardown(EngineIface* h, EngineIface* h1) {
     (void)h; (void)h1;
     vals.clear();
     return true;
@@ -427,9 +424,11 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
                 throw e;
             }
         }
-        ENGINE_HANDLE_V1* handle = testHarness.create_bucket(true, config.str().c_str());
+        EngineIface* handle =
+                testHarness.create_bucket(true, config.str().c_str());
         if (handle) {
-            buckets.push_back(BucketHolder((ENGINE_HANDLE*)handle, handle, dbpath.str()));
+            buckets.push_back(
+                    BucketHolder((EngineIface*)handle, handle, dbpath.str()));
         } else {
             return ii;
         }
@@ -444,8 +443,11 @@ void destroy_buckets(std::vector<BucketHolder> &buckets) {
     }
 }
 
-void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                     const char* key, const char* val, size_t vlen,
+void check_key_value(EngineIface* h,
+                     EngineIface* h1,
+                     const char* key,
+                     const char* val,
+                     size_t vlen,
                      uint16_t vbucket) {
     // Fetch item itself, to ensure we maintain a ref-count on the underlying
     // Blob while comparing the key.
@@ -475,33 +477,31 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(memcmp(payload.data(), val, vlen) == 0, "Data mismatch");
 }
 
-bool isCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+bool isCompressionEnabled(EngineIface* h, EngineIface* h1) {
     return h->getCompressionMode() != BucketCompressionMode::Off;
 }
 
-bool isActiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+bool isActiveCompressionEnabled(EngineIface* h, EngineIface* h1) {
     return h->getCompressionMode() == BucketCompressionMode::Active;
 }
 
-bool isPassiveCompressionEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+bool isPassiveCompressionEnabled(EngineIface* h, EngineIface* h1) {
     return h->getCompressionMode() == BucketCompressionMode::Passive;
 }
 
-bool isWarmupEnabled(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+bool isWarmupEnabled(EngineIface* h, EngineIface* h1) {
     return get_bool_stat(h, h1, "ep_warmup");
 }
 
-bool isPersistentBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+bool isPersistentBucket(EngineIface* h, EngineIface* h1) {
     return get_str_stat(h, h1, "ep_bucket_type") == "persistent";
 }
 
-bool isEphemeralBucket(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+bool isEphemeralBucket(EngineIface* h, EngineIface* h1) {
     return get_str_stat(h, h1, "ep_bucket_type") == "ephemeral";
 }
 
-void checkPersistentBucketTempItems(ENGINE_HANDLE* h,
-                                    ENGINE_HANDLE_V1* h1,
-                                    int exp) {
+void checkPersistentBucketTempItems(EngineIface* h, EngineIface* h1, int exp) {
     if (isPersistentBucket(h, h1)) {
         checkeq(exp,
                 get_int_stat(h, h1, "curr_temp_items"),

@@ -328,8 +328,7 @@ void output_result(const std::string& name,
  * a run (sequence numbers are only supported by DCP, and
  * de-duplication complicates simply counting mutations).
  */
-static void add_sentinel_doc(ENGINE_HANDLE *h,
-                             ENGINE_HANDLE_V1 *h1, uint16_t vbid) {
+static void add_sentinel_doc(EngineIface* h, EngineIface* h1, uint16_t vbid) {
     // Use ADD instead of SET as we only expect to mutate the sentinel
     // doc once per run.
     checkeq(cb::engine_errc::success,
@@ -352,15 +351,14 @@ static void add_sentinel_doc(ENGINE_HANDLE *h,
  *
  * The elapsed time of each operation is pushed to the vector parameters.
  */
-static void perf_latency_core(ENGINE_HANDLE *h,
-                              ENGINE_HANDLE_V1 *h1,
+static void perf_latency_core(EngineIface* h,
+                              EngineIface* h1,
                               int key_prefix,
                               int num_docs,
-                              std::vector<hrtime_t> &add_timings,
-                              std::vector<hrtime_t> &get_timings,
-                              std::vector<hrtime_t> &replace_timings,
-                              std::vector<hrtime_t> &delete_timings) {
-
+                              std::vector<hrtime_t>& add_timings,
+                              std::vector<hrtime_t>& get_timings,
+                              std::vector<hrtime_t>& replace_timings,
+                              std::vector<hrtime_t>& delete_timings) {
     const void *cookie = testHarness.create_cookie();
     const std::string data(100, 'x');
 
@@ -416,10 +414,10 @@ static void perf_latency_core(ENGINE_HANDLE *h,
     testHarness.destroy_cookie(cookie);
 }
 
-static enum test_result perf_latency(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1,
-                                     const char* title, size_t num_docs) {
-
+static enum test_result perf_latency(EngineIface* h,
+                                     EngineIface* h1,
+                                     const char* title,
+                                     size_t num_docs) {
     // Only timing front-end performance, not considering persistence.
     stop_persistence(h, h1);
 
@@ -450,23 +448,21 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
 
 /* Benchmark the baseline latency (without any tasks running) of ep-engine.
  */
-static enum test_result perf_latency_baseline(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
-
+static enum test_result perf_latency_baseline(EngineIface* h, EngineIface* h1) {
     return perf_latency(h, h1, "1_bucket_1_thread_baseline", ITERATIONS);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
  */
-static enum test_result perf_latency_defragmenter(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_latency_defragmenter(EngineIface* h,
+                                                  EngineIface* h1) {
     return perf_latency(h, h1, "With constant defragmention", ITERATIONS);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
  */
-static enum test_result perf_latency_expiry_pager(ENGINE_HANDLE *h,
-                                                  ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_latency_expiry_pager(EngineIface* h,
+                                                  EngineIface* h1) {
     return perf_latency(h, h1, "With constant Expiry pager", ITERATIONS);
 }
 
@@ -486,8 +482,8 @@ public:
         delete_timings.clear();
     }
 
-    ENGINE_HANDLE* h;
-    ENGINE_HANDLE_V1* h1;
+    EngineIface* h;
+    EngineIface* h1;
     int key_prefix;
     int num_docs;
     std::vector<hrtime_t> add_timings;
@@ -631,12 +627,22 @@ enum class Doc_format {
 };
 
 struct Handle_args {
-    Handle_args(ENGINE_HANDLE *_h, ENGINE_HANDLE_V1 *_h1, int _count,
-                Doc_format _type, std::string _name, uint32_t _opaque,
-                uint16_t _vb, bool _getCompressed) :
-        h(_h), h1(_h1), itemCount(_count), typeOfData(_type), name(_name),
-        opaque(_opaque), vb(_vb), retrieveCompressed(_getCompressed)
-    {
+    Handle_args(EngineIface* _h,
+                EngineIface* _h1,
+                int _count,
+                Doc_format _type,
+                std::string _name,
+                uint32_t _opaque,
+                uint16_t _vb,
+                bool _getCompressed)
+        : h(_h),
+          h1(_h1),
+          itemCount(_count),
+          typeOfData(_type),
+          name(_name),
+          opaque(_opaque),
+          vb(_vb),
+          retrieveCompressed(_getCompressed) {
         timings.reserve(_count);
         bytes_received.reserve(_count);
     }
@@ -648,8 +654,8 @@ struct Handle_args {
         timings(ha.timings), bytes_received(ha.bytes_received)
     { }
 
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
+    EngineIface* h;
+    EngineIface* h1;
     int itemCount;
     Doc_format typeOfData;
     std::string name;
@@ -770,12 +776,12 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
 }
 
 /* Function which loads documents into a bucket */
-static void perf_load_client(ENGINE_HANDLE* h,
-                             ENGINE_HANDLE_V1* h1,
+static void perf_load_client(EngineIface* h,
+                             EngineIface* h1,
                              uint16_t vbid,
                              int count,
                              Doc_format typeOfData,
-                             std::vector<hrtime_t> &insertTimes) {
+                             std::vector<hrtime_t>& insertTimes) {
     std::vector<std::string> keys;
     for (int i = 0; i < count; ++i) {
         keys.push_back("key" + std::to_string(i));
@@ -807,16 +813,15 @@ static void perf_load_client(ENGINE_HANDLE* h,
 }
 
 /* Function which loads documents into a bucket until told to stop*/
-static void perf_background_sets(ENGINE_HANDLE* h,
-                                 ENGINE_HANDLE_V1* h1,
+static void perf_background_sets(EngineIface* h,
+                                 EngineIface* h1,
                                  uint16_t vbid,
                                  int count,
                                  Doc_format typeOfData,
-                                 std::vector<hrtime_t> &insertTimes,
-                                 std::condition_variable &cond_var,
-                                 std::atomic<bool> &setup_benchmark,
-                                 std::atomic<bool> &running_benchmark) {
-
+                                 std::vector<hrtime_t>& insertTimes,
+                                 std::condition_variable& cond_var,
+                                 std::atomic<bool>& setup_benchmark,
+                                 std::atomic<bool>& running_benchmark) {
     std::vector<std::string> keys;
     const void* cookie = testHarness.create_cookie();
 
@@ -854,9 +859,12 @@ static void perf_background_sets(ENGINE_HANDLE* h,
  * Function which implements a DCP client sinking mutations from an ep-engine
  * DCP Producer (i.e. simulating the replica side of a DCP pairing).
  */
-static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                            int itemCount, const std::string& name,
-                            uint32_t opaque, uint16_t vbid,
+static void perf_dcp_client(EngineIface* h,
+                            EngineIface* h1,
+                            int itemCount,
+                            const std::string& name,
+                            uint32_t opaque,
+                            uint16_t vbid,
                             bool retrieveCompressed,
                             std::vector<hrtime_t>& recv_timings,
                             std::vector<size_t>& bytes_received) {
@@ -1005,12 +1013,15 @@ struct Ret_vals {
  * Performs a single DCP latency / bandwidth test with the given parameters.
  * Returns vectors of item timings and recived bytes.
  */
-static std::pair<std::vector<hrtime_t>,
-                 std::vector<size_t>>
-single_dcp_latency_bw_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                           uint16_t vb, size_t item_count,
-                           Doc_format typeOfData, const std::string& name,
-                           uint32_t opaque, bool retrieveCompressed) {
+static std::pair<std::vector<hrtime_t>, std::vector<size_t>>
+single_dcp_latency_bw_test(EngineIface* h,
+                           EngineIface* h1,
+                           uint16_t vb,
+                           size_t item_count,
+                           Doc_format typeOfData,
+                           const std::string& name,
+                           uint32_t opaque,
+                           bool retrieveCompressed) {
     std::vector<size_t> received;
 
     check(set_vbucket_state(h, h1, vb, vbucket_state_active),
@@ -1045,12 +1056,11 @@ single_dcp_latency_bw_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return {timings, received};
 }
 
-static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
-                                                       ENGINE_HANDLE_V1 *h1,
+static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
+                                                       EngineIface* h1,
                                                        std::string title,
                                                        Doc_format typeOfData,
                                                        size_t item_count) {
-
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     std::vector<std::pair<std::string, std::vector<size_t>*> > all_sizes;
 
@@ -1090,8 +1100,8 @@ static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result perf_dcp_latency_with_padded_json(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_dcp_latency_with_padded_json(EngineIface* h,
+                                                          EngineIface* h1) {
     return perf_dcp_latency_and_bandwidth(
             h,
             h1,
@@ -1100,15 +1110,15 @@ static enum test_result perf_dcp_latency_with_padded_json(ENGINE_HANDLE *h,
             ITERATIONS / 20);
 }
 
-static enum test_result perf_dcp_latency_with_random_json(ENGINE_HANDLE *h,
-                                                          ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_dcp_latency_with_random_json(EngineIface* h,
+                                                          EngineIface* h1) {
     return perf_dcp_latency_and_bandwidth(h, h1,
                             "DCP In-memory (JSON-RAND) [As_is vs. Compress]",
                             Doc_format::JSON_RANDOM, ITERATIONS / 20);
 }
 
-static enum test_result perf_dcp_latency_with_random_binary(ENGINE_HANDLE *h,
-                                                            ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_dcp_latency_with_random_binary(EngineIface* h,
+                                                            EngineIface* h1) {
     return perf_dcp_latency_and_bandwidth(h, h1,
                             "DCP In-memory (BINARY-RAND) [As_is vs. Compress]",
                             Doc_format::BINARY_RANDOM, ITERATIONS / 20);
@@ -1124,7 +1134,7 @@ static enum test_result perf_dcp_latency_with_random_binary(ENGINE_HANDLE *h,
  * (most times in real executions, always in this test).
  */
 static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
-        ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1) {
+        EngineIface* h, EngineIface* h1) {
     const void* cookie = testHarness.create_cookie();
     const uint16_t vbid = 0;
     const uint32_t opaque = 1;
@@ -1215,8 +1225,8 @@ static enum test_result perf_multi_thread_latency(engine_test_t* test) {
                                                      10000/* documents */);
 }
 
-static enum test_result perf_latency_dcp_impact(ENGINE_HANDLE *h,
-                                                ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_latency_dcp_impact(EngineIface* h,
+                                                EngineIface* h1) {
     // Spin up a DCP replication background thread, then start the normal
     // latency test.
     const size_t num_docs = ITERATIONS;
@@ -1239,11 +1249,10 @@ static enum test_result perf_latency_dcp_impact(ENGINE_HANDLE *h,
     return result;
 }
 
-static void perf_stat_latency_core(ENGINE_HANDLE *h,
-                                   ENGINE_HANDLE_V1 *h1,
+static void perf_stat_latency_core(EngineIface* h,
+                                   EngineIface* h1,
                                    int key_prefix,
                                    StatRuntime statRuntime) {
-
     const int iterations = (statRuntime == StatRuntime::Slow) ?
             iterations_for_slow_stats : iterations_for_fast_stats;
 
@@ -1298,8 +1307,8 @@ static void perf_stat_latency_core(ENGINE_HANDLE *h,
     testHarness.destroy_cookie(cookie);
 }
 
-static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
-                                          ENGINE_HANDLE_V1 *h1,
+static enum test_result perf_stat_latency(EngineIface* h,
+                                          EngineIface* h1,
                                           const char* title,
                                           StatRuntime statRuntime,
                                           BackgroundWork backgroundWork,
@@ -1384,15 +1393,15 @@ static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
 }
 
 /* Benchmark the baseline stats (without any tasks running) of ep-engine */
-static enum test_result perf_stat_latency_baseline(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_stat_latency_baseline(EngineIface* h,
+                                                   EngineIface* h1) {
     return perf_stat_latency(h, h1, "Baseline Stats",
                              StatRuntime::Fast, BackgroundWork::None, 1);
 }
 
 /* Benchmark the stats with 100 active vbuckets */
-static enum test_result perf_stat_latency_100vb(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_stat_latency_100vb(EngineIface* h,
+                                                EngineIface* h1) {
     return perf_stat_latency(h, h1, "Stats with 100 vbuckets",
                              StatRuntime::Fast, BackgroundWork::None, 100);
 }
@@ -1401,23 +1410,23 @@ static enum test_result perf_stat_latency_100vb(ENGINE_HANDLE *h,
  * Benchmark the stats with 100 active vbuckets.  And sets and DCP running on
  * background thread.
  */
-static enum test_result perf_stat_latency_100vb_sets_and_dcp(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_stat_latency_100vb_sets_and_dcp(EngineIface* h,
+                                                             EngineIface* h1) {
     return perf_stat_latency(h, h1, "Stats with 100 vbuckets and background sets and DCP",
                              StatRuntime::Fast, (BackgroundWork::Sets |
                                      BackgroundWork::Dcp), 100);
 }
 
 /* Benchmark the baseline slow stats (without any tasks running) of ep-engine */
-static enum test_result perf_slow_stat_latency_baseline(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_slow_stat_latency_baseline(EngineIface* h,
+                                                        EngineIface* h1) {
     return perf_stat_latency(h, h1, "Baseline Slow Stats",
                              StatRuntime::Slow, BackgroundWork::None, 1);
 }
 
 /* Benchmark the slow stats with 100 active vbuckets */
-static enum test_result perf_slow_stat_latency_100vb(ENGINE_HANDLE *h,
-                                              ENGINE_HANDLE_V1 *h1) {
+static enum test_result perf_slow_stat_latency_100vb(EngineIface* h,
+                                                     EngineIface* h1) {
     return perf_stat_latency(h, h1, "Slow Stats with 100 vbuckets",
                              StatRuntime::Slow, BackgroundWork::None, 100);
 }
@@ -1427,7 +1436,7 @@ static enum test_result perf_slow_stat_latency_100vb(ENGINE_HANDLE *h,
  * on background thread.
  */
 static enum test_result perf_slow_stat_latency_100vb_sets_and_dcp(
-                                      ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+        EngineIface* h, EngineIface* h1) {
     return perf_stat_latency(h, h1, "Slow Stats with 100 vbuckets and background sets and DCP",
                              StatRuntime::Slow, (BackgroundWork::Sets |
                                      BackgroundWork::Dcp), 100);

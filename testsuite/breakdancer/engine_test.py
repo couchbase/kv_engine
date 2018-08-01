@@ -165,7 +165,7 @@ class EngineTestAppDriver(Driver):
             self.writer.addseq(seq)
 
         f = "static enum test_result %s" % self.testName(seq)
-        self.output(("%s(ENGINE_HANDLE *h,\n%sENGINE_HANDLE_V1 *h1) {\n"
+        self.output(("%s(EngineIface *h,\n%sEngineIface *h1) {\n"
                      % (f, " " * (len(f) + 1))))
 
 

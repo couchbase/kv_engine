@@ -37,7 +37,7 @@ public:
         unload_engine(engine_ref);
     }
 
-    bool createInstance(GET_SERVER_API get_server_api, ENGINE_HANDLE **handle) {
+    bool createInstance(GET_SERVER_API get_server_api, EngineIface** handle) {
         return create_engine_instance(engine_ref, get_server_api, handle);
     }
 
@@ -63,10 +63,10 @@ Engine* createEngine(const std::string& so, const std::string& function) {
 
 std::map<BucketType, Engine *> map;
 
-ENGINE_HANDLE_V1* new_engine_instance(BucketType type,
-                                      const std::string& name,
-                                      GET_SERVER_API get_server_api) {
-    ENGINE_HANDLE* ret = nullptr;
+EngineIface* new_engine_instance(BucketType type,
+                                 const std::string& name,
+                                 GET_SERVER_API get_server_api) {
+    EngineIface* ret = nullptr;
     auto iter = map.find(type);
     cb_assert(iter != map.end());
 
@@ -76,7 +76,7 @@ ENGINE_HANDLE_V1* new_engine_instance(BucketType type,
                  iter->second->getModule());
     }
 
-    return reinterpret_cast<ENGINE_HANDLE_V1*>(ret);
+    return reinterpret_cast<EngineIface*>(ret);
 }
 
 void initialize_engine_map() {
@@ -91,7 +91,7 @@ void initialize_engine_map() {
         // the dump files etc
         if (getenv("MEMCACHED_CRASH_TEST") != NULL) {
             auto engine = createEngine("crash_engine.so", "create_instance");
-            ENGINE_HANDLE* h;
+            EngineIface* h;
             if (!engine->createInstance(nullptr, &h)) {
                 delete engine;
                 throw std::runtime_error(

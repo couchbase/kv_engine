@@ -101,9 +101,9 @@ engine_reference* load_engine(const char* soname, const char* create_function) {
 }
 
 bool create_engine_instance(engine_reference* engine_ref,
-                            SERVER_HANDLE_V1 *(*get_server_api)(void),
-                            ENGINE_HANDLE **engine_handle) {
-    ENGINE_HANDLE* engine = NULL;
+                            SERVER_HANDLE_V1* (*get_server_api)(void),
+                            EngineIface** engine_handle) {
+    EngineIface* engine = NULL;
 
     /* request a instance with protocol version 1 */
     ENGINE_ERROR_CODE error =
@@ -117,7 +117,7 @@ bool create_engine_instance(engine_reference* engine_ref,
     return true;
 }
 
-bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str) {
+bool init_engine_instance(EngineIface* engine, const char* config_str) {
     ENGINE_ERROR_CODE error;
 
     error = engine->initialize(config_str);

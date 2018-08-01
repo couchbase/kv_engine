@@ -38,7 +38,7 @@ static void clearCAS(void) {
    cas = (((uint64_t)1) << 31);
 }
 
-bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+bool teardown(EngineIface* h, EngineIface* h1) {
     (void)h; (void)h1;
     clearCAS();
     return true;
@@ -69,8 +69,10 @@ static bool add_response(const void *k, uint16_t keylen,
     return true;
 }
 
-static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      ENGINE_STORE_OPERATION op, bool rememberCAS,
+static void storeItem(EngineIface* h,
+                      EngineIface* h1,
+                      ENGINE_STORE_OPERATION op,
+                      bool rememberCAS,
                       uint64_t usingCASID) {
     item *it = NULL;
     uint64_t mycas = 0;
@@ -112,19 +114,19 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(cas != 0);
 }
 
-void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void add(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_ADD, false, 0);
 }
 
-void append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void append(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_APPEND, false, 0);
 }
 
-void appendUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void appendUsingCAS(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_APPEND, false, cas);
 }
 
-void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void decr(EngineIface* h, EngineIface* h1) {
     uint64_t mycas;
     uint64_t result;
     clearCAS();
@@ -133,7 +135,7 @@ void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               0) != ENGINE_SUCCESS;
 }
 
-void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void decrWithDefault(EngineIface* h, EngineIface* h1) {
     uint64_t mycas;
     uint64_t result;
     clearCAS();
@@ -142,39 +144,39 @@ void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               0) != ENGINE_SUCCESS;
 }
 
-void prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void prepend(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_PREPEND, false, 0);
 }
 
-void prependUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void prependUsingCAS(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_PREPEND, false, cas);
 }
 
-void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void flush(EngineIface* h, EngineIface* h1) {
     hasError = h1->flush(h, NULL, 0);
 }
 
-void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void del(EngineIface* h, EngineIface* h1) {
     hasError = h1->remove(h, NULL, key, strlen(key), 0, 0) != ENGINE_SUCCESS;
 }
 
-void deleteUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void deleteUsingCAS(EngineIface* h, EngineIface* h1) {
     hasError = h1->remove(h, NULL, key, strlen(key), &cas, 0) != ENGINE_SUCCESS;
 }
 
-void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void set(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_SET, false, 0);
 }
 
-void setUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void setUsingCAS(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_SET, false, cas);
 }
 
-void setRetainCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void setRetainCAS(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_SET, true, 0);
 }
 
-void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void incr(EngineIface* h, EngineIface* h1) {
     uint64_t mycas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), true, false, 1, 0, expiry,
@@ -182,7 +184,7 @@ void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               0) != ENGINE_SUCCESS;
 }
 
-void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void incrWithDefault(EngineIface* h, EngineIface* h1) {
     uint64_t mycas;
     uint64_t result;
     hasError = h1->arithmetic(h, NULL, key, strlen(key), true, true, 1, 0, expiry,
@@ -190,13 +192,13 @@ void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               0) != ENGINE_SUCCESS;
 }
 
-void get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void get(EngineIface* h, EngineIface* h1) {
     item *i = NULL;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
     hasError = rv != ENGINE_SUCCESS;
 }
 
-void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
+void checkValue(EngineIface* h, EngineIface* h1, const char* exp) {
     item *i = NULL;
     item_info info;
     char *buf;
@@ -249,7 +251,7 @@ static protocol_binary_request_header* create_packet(uint8_t opcode,
     return req;
 }
 
-void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void getLock(EngineIface* h, EngineIface* h1) {
     uint16_t vbucketId = 0;
 
     protocol_binary_request_header *pkt = create_packet(CMD_GET_LOCKED, "");
@@ -264,8 +266,7 @@ void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     hasError = last_status != 0;
 }
 
-
-void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void assertNotExists(EngineIface* h, EngineIface* h1) {
     item *i;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, strlen(key), 0);
     cb_assert(rv == ENGINE_KEY_ENOENT);

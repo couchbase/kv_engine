@@ -14,13 +14,13 @@ struct test_harness testHarness;
 
 static DocKey key("key", DocNamespace::DefaultCollection);
 
-bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+bool test_setup(EngineIface* h, EngineIface* h1) {
     (void)h; (void)h1;
     delay(2);
     return true;
 }
 
-bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+bool teardown(EngineIface* h, EngineIface* h1) {
     (void)h; (void)h1;
     return true;
 }
@@ -30,7 +30,8 @@ void delay(int amt) {
     hasError = false;
 }
 
-static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+static void storeItem(EngineIface* h,
+                      EngineIface* h1,
                       ENGINE_STORE_OPERATION op) {
     uint64_t cas = 0;
     const char *value = "0";
@@ -58,29 +59,29 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     hasError = rv != ENGINE_SUCCESS;
 }
 
-void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void add(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_ADD);
 }
 
-void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void flush(EngineIface* h, EngineIface* h1) {
     const auto* cookie = testHarness.create_cookie();
     hasError = h1->flush(cookie);
     testHarness.destroy_cookie(cookie);
 }
 
-void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-	uint64_t cas = 0;
-	mutation_descr_t mut_info;
-        const auto* cookie = testHarness.create_cookie();
-        hasError = h1->remove(cookie, key, cas, 0, mut_info) != ENGINE_SUCCESS;
-        testHarness.destroy_cookie(cookie);
+void del(EngineIface* h, EngineIface* h1) {
+    uint64_t cas = 0;
+    mutation_descr_t mut_info;
+    const auto* cookie = testHarness.create_cookie();
+    hasError = h1->remove(cookie, key, cas, 0, mut_info) != ENGINE_SUCCESS;
+    testHarness.destroy_cookie(cookie);
 }
 
-void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void set(EngineIface* h, EngineIface* h1) {
     storeItem(h, h1, OPERATION_SET);
 }
 
-void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
+void checkValue(EngineIface* h, EngineIface* h1, const char* exp) {
     const auto* cookie = testHarness.create_cookie();
     auto rv = h1->get(cookie, key, 0, DocStateFilter::Alive);
     testHarness.destroy_cookie(cookie);
@@ -106,7 +107,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     delete []buf;
 }
 
-void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void assertNotExists(EngineIface* h, EngineIface* h1) {
     const auto* cookie = testHarness.create_cookie();
     auto rv = h1->get(cookie, key, 0, DocStateFilter::Alive);
     testHarness.destroy_cookie(cookie);

@@ -133,8 +133,10 @@ private:
     uint64_t total_count;
 };
 
-static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                  const char *statname, const char *statkey);
+static void get_histo_stat(EngineIface* h,
+                           EngineIface* h1,
+                           const char* statname,
+                           const char* statkey);
 
 void encodeExt(char *buffer, uint32_t val);
 void encodeWithMetaExt(char *buffer, ItemMetaData *meta);
@@ -354,21 +356,29 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     return req;
 }
 
-void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void createCheckpoint(EngineIface* h, EngineIface* h1) {
     protocol_binary_request_header *request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
     check(h1->unknown_command(NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to create a new checkpoint.");
     cb_free(request);
 }
 
-ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                      uint64_t cas, uint16_t vbucket, const void* cookie) {
+ENGINE_ERROR_CODE del(EngineIface* h,
+                      EngineIface* h1,
+                      const char* key,
+                      uint64_t cas,
+                      uint16_t vbucket,
+                      const void* cookie) {
     mutation_descr_t mut_info{};
     return del(h, h1, key, &cas, vbucket, cookie, &mut_info);
 }
 
-ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                      uint64_t* cas, uint16_t vbucket, const void* cookie,
+ENGINE_ERROR_CODE del(EngineIface* h,
+                      EngineIface* h1,
+                      const char* key,
+                      uint64_t* cas,
+                      uint16_t vbucket,
+                      const void* cookie,
                       mutation_descr_t* mut_info) {
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -391,8 +401,8 @@ ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 /** Simplified version of store for handling the common case of performing
  * a delete with a value.
  */
-ENGINE_ERROR_CODE delete_with_value(ENGINE_HANDLE* h,
-                                    ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
+                                    EngineIface* h1,
                                     const void* cookie,
                                     uint64_t cas,
                                     const char* key,
@@ -416,8 +426,8 @@ ENGINE_ERROR_CODE delete_with_value(ENGINE_HANDLE* h,
     return ENGINE_ERROR_CODE(ret.first);
 }
 
-void del_with_meta(ENGINE_HANDLE* h,
-                   ENGINE_HANDLE_V1* h1,
+void del_with_meta(EngineIface* h,
+                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const uint32_t vb,
@@ -446,8 +456,8 @@ void del_with_meta(ENGINE_HANDLE* h,
                   value);
 }
 
-void del_with_meta(ENGINE_HANDLE* h,
-                   ENGINE_HANDLE_V1* h1,
+void del_with_meta(EngineIface* h,
+                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const uint32_t vb,
@@ -496,8 +506,12 @@ void del_with_meta(ENGINE_HANDLE* h,
     cb_free(pkt);
 }
 
-void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-               uint16_t vbucketId, const char *msg, bool expectError) {
+void evict_key(EngineIface* h,
+               EngineIface* h1,
+               const char* key,
+               uint16_t vbucketId,
+               const char* msg,
+               bool expectError) {
     int nonResidentItems = get_int_stat(h, h1, "ep_num_non_resident");
     int numEjectedItems = get_int_stat(h, h1, "ep_num_value_ejects");
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY, 0, 0,
@@ -533,8 +547,10 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
 }
 
-ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                        uint64_t checkpoint_id, uint16_t vb) {
+ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
+                                        EngineIface* h1,
+                                        uint64_t checkpoint_id,
+                                        uint16_t vb) {
     checkpoint_id = htonll(checkpoint_id);
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, vb, 0, NULL, 0, NULL, 0,
@@ -544,8 +560,8 @@ ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return rv;
 }
 
-ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE* h,
-                                   ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
+                                   EngineIface* h1,
                                    const void* cookie,
                                    uint16_t vbucket,
                                    uint64_t seqno) {
@@ -560,8 +576,11 @@ ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE* h,
     return rv;
 }
 
-cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                            const char* key, uint16_t vb, uint32_t exp) {
+cb::EngineErrorItemPair gat(EngineIface* h,
+                            EngineIface* h1,
+                            const char* key,
+                            uint16_t vb,
+                            uint32_t exp) {
     const auto* cookie = testHarness.create_cookie();
     auto ret = h1->get_and_touch(
             cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
@@ -578,8 +597,11 @@ cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return ret;
 }
 
-bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
-                   const char* key, uint16_t vb) {
+bool get_item_info(EngineIface* h,
+                   EngineIface* h1,
+                   item_info* info,
+                   const char* key,
+                   uint16_t vb) {
     auto ret = get(h, h1, NULL, key, vb);
     if (ret.first != cb::engine_errc::success) {
         return false;
@@ -592,9 +614,7 @@ bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
     return true;
 }
 
-bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
-             std::string &key) {
-
+bool get_key(EngineIface* h, EngineIface* h1, item* i, std::string& key) {
     item_info info;
     if (!h1->get_item_info(i, &info)) {
         fprintf(stderr, "get_item_info failed\n");
@@ -605,8 +625,8 @@ bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
     return true;
 }
 
-cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
-                             ENGINE_HANDLE_V1* h1,
+cb::EngineErrorItemPair getl(EngineIface* h,
+                             EngineIface* h1,
                              const void* cookie,
                              const char* key,
                              uint16_t vb,
@@ -625,8 +645,8 @@ cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
     return ret;
 }
 
-bool get_meta(ENGINE_HANDLE* h,
-              ENGINE_HANDLE_V1* h1,
+bool get_meta(EngineIface* h,
+              EngineIface* h1,
               const char* key,
               const void* cookie) {
     cb::EngineErrorMetadataPair out;
@@ -634,8 +654,8 @@ bool get_meta(ENGINE_HANDLE* h,
     return get_meta(h, h1, key, out, cookie);
 }
 
-bool get_meta(ENGINE_HANDLE* h,
-              ENGINE_HANDLE_V1* h1,
+bool get_meta(EngineIface* h,
+              EngineIface* h1,
               const char* key,
               cb::EngineErrorMetadataPair& out,
               const void* cookie) {
@@ -655,8 +675,8 @@ bool get_meta(ENGINE_HANDLE* h,
     return out.first == cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE observe(ENGINE_HANDLE* h,
-                          ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE observe(EngineIface* h,
+                          EngineIface* h1,
                           std::map<std::string, uint16_t> obskeys) {
     std::stringstream value;
     std::map<std::string, uint16_t>::iterator it;
@@ -677,8 +697,8 @@ ENGINE_ERROR_CODE observe(ENGINE_HANDLE* h,
     return ret;
 }
 
-ENGINE_ERROR_CODE observe_seqno(ENGINE_HANDLE* h,
-                                ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE observe_seqno(EngineIface* h,
+                                EngineIface* h1,
                                 uint16_t vb_id,
                                 uint64_t uuid) {
     protocol_binary_request_header *request;
@@ -693,7 +713,9 @@ ENGINE_ERROR_CODE observe_seqno(ENGINE_HANDLE* h,
     return ret;
 }
 
-void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
+void get_replica(EngineIface* h,
+                 EngineIface* h1,
+                 const char* key,
                  uint16_t vbid) {
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
@@ -702,8 +724,8 @@ void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     cb_free(pkt);
 }
 
-protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1,
+protocol_binary_request_header* prepare_get_replica(EngineIface* h,
+                                                    EngineIface* h1,
                                                     vbucket_state_t state,
                                                     bool makeinvalidkey) {
     uint16_t id = 0;
@@ -730,8 +752,12 @@ protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
     return pkt;
 }
 
-bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_param_t paramtype,
-               const char *param, const char *val, uint16_t vb) {
+bool set_param(EngineIface* h,
+               EngineIface* h1,
+               protocol_binary_engine_param_t paramtype,
+               const char* param,
+               const char* val,
+               uint16_t vb) {
     char ext[4];
     protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(paramtype));
@@ -747,9 +773,10 @@ bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_pa
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                       uint16_t vb, vbucket_state_t state) {
-
+bool set_vbucket_state(EngineIface* h,
+                       EngineIface* h1,
+                       uint16_t vb,
+                       vbucket_state_t state) {
     char ext[4];
     protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(state));
@@ -763,8 +790,10 @@ bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                       vbucket_state_t state, const void *cookie) {
+bool get_all_vb_seqnos(EngineIface* h,
+                       EngineIface* h1,
+                       vbucket_state_t state,
+                       const void* cookie) {
     protocol_binary_request_header *pkt;
     if (state) {
         char ext[sizeof(vbucket_state_t)];
@@ -782,8 +811,10 @@ bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          int vb_start, int vb_end) {
+void verify_all_vb_seqnos(EngineIface* h,
+                          EngineIface* h1,
+                          int vb_start,
+                          int vb_end) {
     const int per_vb_resp_size = sizeof(uint16_t) + sizeof(uint64_t);
     const int high_seqno_offset = sizeof(uint16_t);
 
@@ -812,13 +843,20 @@ void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-static void store_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                     protocol_binary_command cmd, const char *key,
-                     const size_t keylen, const char *val, const size_t vallen,
-                     const uint32_t vb, ItemMetaData *itemMeta,
-                     uint64_t cas_for_store, uint32_t options,
-                     uint8_t datatype, const void *cookie,
-                     const std::vector<char>& nmeta) {
+static void store_with_meta(EngineIface* h,
+                            EngineIface* h1,
+                            protocol_binary_command cmd,
+                            const char* key,
+                            const size_t keylen,
+                            const char* val,
+                            const size_t vallen,
+                            const uint32_t vb,
+                            ItemMetaData* itemMeta,
+                            uint64_t cas_for_store,
+                            uint32_t options,
+                            uint8_t datatype,
+                            const void* cookie,
+                            const std::vector<char>& nmeta) {
     int blen = 24;
     std::unique_ptr<char[]> ext(new char[30]);
     std::unique_ptr<ExtendedMetaData> emd;
@@ -847,28 +885,44 @@ static void store_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_free(pkt);
 }
 
-void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                   const size_t keylen, const char *val, const size_t vallen,
-                   const uint32_t vb, ItemMetaData *itemMeta,
-                   uint64_t cas_for_set, uint32_t options, uint8_t datatype,
-                   const void *cookie, const std::vector<char>& nmeta) {
+void set_with_meta(EngineIface* h,
+                   EngineIface* h1,
+                   const char* key,
+                   const size_t keylen,
+                   const char* val,
+                   const size_t vallen,
+                   const uint32_t vb,
+                   ItemMetaData* itemMeta,
+                   uint64_t cas_for_set,
+                   uint32_t options,
+                   uint8_t datatype,
+                   const void* cookie,
+                   const std::vector<char>& nmeta) {
     store_with_meta(h, h1, PROTOCOL_BINARY_CMD_SET_WITH_META, key, keylen, val,
                     vallen, vb, itemMeta, cas_for_set, options, datatype,
                     cookie, nmeta);
 }
 
-void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                   const size_t keylen, const char *val, const size_t vallen,
-                   const uint32_t vb, ItemMetaData *itemMeta,
-                   uint64_t cas_for_add, uint32_t options, uint8_t datatype,
-                   const void *cookie, const std::vector<char>& nmeta) {
+void add_with_meta(EngineIface* h,
+                   EngineIface* h1,
+                   const char* key,
+                   const size_t keylen,
+                   const char* val,
+                   const size_t vallen,
+                   const uint32_t vb,
+                   ItemMetaData* itemMeta,
+                   uint64_t cas_for_add,
+                   uint32_t options,
+                   uint8_t datatype,
+                   const void* cookie,
+                   const std::vector<char>& nmeta) {
     store_with_meta(h, h1, PROTOCOL_BINARY_CMD_ADD_WITH_META, key, keylen, val,
                     vallen, vb, itemMeta, cas_for_add, options, datatype,
                     cookie, nmeta);
 }
 
-static ENGINE_ERROR_CODE return_meta(ENGINE_HANDLE* h,
-                                     ENGINE_HANDLE_V1* h1,
+static ENGINE_ERROR_CODE return_meta(EngineIface* h,
+                                     EngineIface* h1,
                                      const char* key,
                                      const size_t keylen,
                                      const char* val,
@@ -893,8 +947,8 @@ static ENGINE_ERROR_CODE return_meta(ENGINE_HANDLE* h,
     return ret;
 }
 
-ENGINE_ERROR_CODE set_ret_meta(ENGINE_HANDLE* h,
-                               ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
+                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const char* val,
@@ -920,8 +974,8 @@ ENGINE_ERROR_CODE set_ret_meta(ENGINE_HANDLE* h,
                        cookie);
 }
 
-ENGINE_ERROR_CODE add_ret_meta(ENGINE_HANDLE* h,
-                               ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
+                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const char* val,
@@ -947,8 +1001,8 @@ ENGINE_ERROR_CODE add_ret_meta(ENGINE_HANDLE* h,
                        cookie);
 }
 
-ENGINE_ERROR_CODE del_ret_meta(ENGINE_HANDLE* h,
-                               ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
+                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const uint32_t vb,
@@ -969,7 +1023,7 @@ ENGINE_ERROR_CODE del_ret_meta(ENGINE_HANDLE* h,
                        cookie);
 }
 
-void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void disable_traffic(EngineIface* h, EngineIface* h1) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
     check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
@@ -978,7 +1032,7 @@ void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_free(pkt);
 }
 
-void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void enable_traffic(EngineIface* h, EngineIface* h1) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
@@ -987,7 +1041,7 @@ void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_free(pkt);
 }
 
-void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void start_persistence(EngineIface* h, EngineIface* h1) {
     if (!isPersistentBucket(h, h1)) {
         // Nothing to do for non-persistent buckets
         return;
@@ -1001,7 +1055,7 @@ void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_free(pkt);
 }
 
-void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void stop_persistence(EngineIface* h, EngineIface* h1) {
     if (!isPersistentBucket(h, h1)) {
         // Nothing to do for non-persistent buckets
         return;
@@ -1023,11 +1077,18 @@ void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_free(pkt);
 }
 
-ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const void *cookie, ENGINE_STORE_OPERATION op,
-                        const char *key, const char *value, item **outitem,
-                        uint64_t casIn, uint16_t vb, uint32_t exp,
-                        uint8_t datatype, DocumentState docState) {
+ENGINE_ERROR_CODE store(EngineIface* h,
+                        EngineIface* h1,
+                        const void* cookie,
+                        ENGINE_STORE_OPERATION op,
+                        const char* key,
+                        const char* value,
+                        item** outitem,
+                        uint64_t casIn,
+                        uint16_t vb,
+                        uint32_t exp,
+                        uint8_t datatype,
+                        DocumentState docState) {
     auto ret = storeCasVb11(h, h1, cookie, op, key, value, strlen(value),
                         9258, casIn, vb, exp, datatype, docState);
     if (outitem) {
@@ -1036,11 +1097,15 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return ENGINE_ERROR_CODE(ret.first);
 }
 
-ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                              const void *cookie, const uint16_t vb,
-                              const std::string& key, const std::string& value,
+ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
+                              EngineIface* h1,
+                              const void* cookie,
+                              const uint16_t vb,
+                              const std::string& key,
+                              const std::string& value,
                               const protocol_binary_datatype_t datatype,
-                              item*& out_item, uint64_t& out_cas,
+                              item*& out_item,
+                              uint64_t& out_cas,
                               DocumentState docState) {
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -1064,12 +1129,19 @@ ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return res;
 }
 
-cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                               const void *cookie, ENGINE_STORE_OPERATION op,
-                               const char *key, const char *value, size_t vlen,
-                               uint32_t flags, uint64_t casIn,
-                               uint16_t vb, uint32_t exp, uint8_t datatype,
-                               DocumentState docState) {
+cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
+                                     EngineIface* h1,
+                                     const void* cookie,
+                                     ENGINE_STORE_OPERATION op,
+                                     const char* key,
+                                     const char* value,
+                                     size_t vlen,
+                                     uint32_t flags,
+                                     uint64_t casIn,
+                                     uint16_t vb,
+                                     uint32_t exp,
+                                     uint8_t datatype,
+                                     DocumentState docState) {
     uint64_t cas = 0;
 
     auto rv = allocate(h, h1, cookie, key, vlen, flags, exp, datatype, vb);
@@ -1100,8 +1172,11 @@ cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return {cb::engine_errc(storeRet), std::move(rv.second)};
 }
 
-ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-           uint16_t vb, uint32_t exp) {
+ENGINE_ERROR_CODE touch(EngineIface* h,
+                        EngineIface* h1,
+                        const char* key,
+                        uint16_t vb,
+                        uint32_t exp) {
     const auto* cookie = testHarness.create_cookie();
     auto result = h1->get_and_touch(
             cookie, DocKey(key, testHarness.doc_namespace), vb, exp);
@@ -1118,9 +1193,12 @@ ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     return ENGINE_ERROR_CODE(result.first);
 }
 
-ENGINE_ERROR_CODE unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      const void* cookie, const char* key,
-                      uint16_t vb, uint64_t cas) {
+ENGINE_ERROR_CODE unl(EngineIface* h,
+                      EngineIface* h1,
+                      const void* cookie,
+                      const char* key,
+                      uint16_t vb,
+                      uint64_t cas) {
     bool create_cookie = false;
     if (cookie == nullptr) {
         cookie = testHarness.create_cookie();
@@ -1135,12 +1213,13 @@ ENGINE_ERROR_CODE unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return ret;
 }
 
-void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                     const uint16_t vbucket_id,
-                     const uint16_t db_file_id,
-                     const uint64_t purge_before_ts,
-                     const uint64_t purge_before_seq,
-                     const uint8_t  drop_deletes) {
+void compact_db(EngineIface* h,
+                EngineIface* h1,
+                const uint16_t vbucket_id,
+                const uint16_t db_file_id,
+                const uint64_t purge_before_ts,
+                const uint64_t purge_before_seq,
+                const uint8_t drop_deletes) {
     protocol_binary_request_compact_db req;
     memset(&req, 0, sizeof(req));
     req.message.body.purge_before_ts  = htonll(purge_before_ts);
@@ -1166,8 +1245,8 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_free(pkt);
 }
 
-ENGINE_ERROR_CODE vbucketDelete(ENGINE_HANDLE* h,
-                                ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
+                                EngineIface* h1,
                                 uint16_t vb,
                                 const char* args) {
     uint32_t argslen = args ? strlen(args) : 0;
@@ -1181,14 +1260,16 @@ ENGINE_ERROR_CODE vbucketDelete(ENGINE_HANDLE* h,
     return ret;
 }
 
-ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char* key, uint16_t vbucket) {
+ENGINE_ERROR_CODE verify_key(EngineIface* h,
+                             EngineIface* h1,
+                             const char* key,
+                             uint16_t vbucket) {
     auto rv = get(h, h1, NULL, key, vbucket);
     return ENGINE_ERROR_CODE(rv.first);
 }
 
-std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
-                                                    ENGINE_HANDLE_V1* h1,
+std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
+                                                    EngineIface* h1,
                                                     const void* cookie,
                                                     const char* key,
                                                     uint16_t vbucket,
@@ -1206,8 +1287,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
     return make_pair(ENGINE_ERROR_CODE(rv.first), value);
 }
 
-bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                            uint16_t vb) {
+bool verify_vbucket_missing(EngineIface* h, EngineIface* h1, uint16_t vb) {
     const auto vbstr = "vb_" + std::to_string(vb);
 
     // Try up to three times to verify the bucket is missing.  Bucket
@@ -1234,8 +1314,11 @@ bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return false;
 }
 
-bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
-                          vbucket_state_t expected, bool mute) {
+bool verify_vbucket_state(EngineIface* h,
+                          EngineIface* h1,
+                          uint16_t vb,
+                          vbucket_state_t expected,
+                          bool mute) {
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, vb, 0);
 
@@ -1263,9 +1346,12 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     return state == expected;
 }
 
-void sendDcpAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                const void* cookie, protocol_binary_command opcode,
-                protocol_binary_response_status status, uint32_t opaque) {
+void sendDcpAck(EngineIface* h,
+                EngineIface* h1,
+                const void* cookie,
+                protocol_binary_command opcode,
+                protocol_binary_response_status status,
+                uint32_t opaque) {
     protocol_binary_response_header pkt;
     pkt.response.magic = PROTOCOL_BINARY_RES;
     pkt.response.opcode = opcode;
@@ -1295,26 +1381,34 @@ public:
  * If the given statname doesn't exist under the given statname, throws a
  * std::out_of_range exception.
  */
-template<>
-int get_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-             const char *statname, const char *statkey) {
+template <>
+int get_stat(EngineIface* h,
+             EngineIface* h1,
+             const char* statname,
+             const char* statkey) {
     return std::stoi(get_str_stat(h, h1, statname, statkey));
 }
-template<>
-uint64_t get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                  const char* statname, const char* statkey) {
+template <>
+uint64_t get_stat(EngineIface* h,
+                  EngineIface* h1,
+                  const char* statname,
+                  const char* statkey) {
     return std::stoull(get_str_stat(h, h1, statname, statkey));
 }
 
-template<>
-bool get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-              const char* statname, const char* statkey) {
+template <>
+bool get_stat(EngineIface* h,
+              EngineIface* h1,
+              const char* statname,
+              const char* statkey) {
     return get_str_stat(h, h1, statname, statkey) == "true";
 }
 
-template<>
-std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                     const char* statname, const char* statkey) {
+template <>
+std::string get_stat(EngineIface* h,
+                     EngineIface* h1,
+                     const char* statname,
+                     const char* statkey) {
     std::lock_guard<std::mutex> lh(get_stat_context.mutex);
 
     get_stat_context.requested_stat_name = statname;
@@ -1344,33 +1438,45 @@ std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
 }
 
 /// Backward-compatible functions (encode type name in function name).
-int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-             const char *statkey) {
+int get_int_stat(EngineIface* h,
+                 EngineIface* h1,
+                 const char* statname,
+                 const char* statkey) {
     return get_stat<int>(h, h1, statname, statkey);
 }
 
-float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                     const char *statkey) {
+float get_float_stat(EngineIface* h,
+                     EngineIface* h1,
+                     const char* statname,
+                     const char* statkey) {
     return std::stof(get_str_stat(h, h1, statname, statkey));
 }
 
-uint32_t get_ul_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                      const char *statkey) {
+uint32_t get_ul_stat(EngineIface* h,
+                     EngineIface* h1,
+                     const char* statname,
+                     const char* statkey) {
     return std::stoul(get_str_stat(h, h1, statname, statkey));
 }
 
-uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                      const char *statkey) {
+uint64_t get_ull_stat(EngineIface* h,
+                      EngineIface* h1,
+                      const char* statname,
+                      const char* statkey) {
     return get_stat<uint64_t>(h, h1, statname, statkey);
 }
 
-std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                         const char *statname, const char *statkey) {
+std::string get_str_stat(EngineIface* h,
+                         EngineIface* h1,
+                         const char* statname,
+                         const char* statkey) {
     return get_stat<std::string>(h, h1, statname, statkey);
 }
 
-bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                   const char *statkey) {
+bool get_bool_stat(EngineIface* h,
+                   EngineIface* h1,
+                   const char* statname,
+                   const char* statkey) {
     const auto s = get_str_stat(h, h1, statname, statkey);
 
     if (s == "true") {
@@ -1386,9 +1492,11 @@ bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
  * @return te value of statname, or default_value if that statname was not
  * found.
  */
-int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                            int default_value, const char *statname,
-                            const char *statkey) {
+int get_int_stat_or_default(EngineIface* h,
+                            EngineIface* h1,
+                            int default_value,
+                            const char* statname,
+                            const char* statkey) {
     try {
         return get_int_stat(h, h1, statname, statkey);
     } catch (std::out_of_range&) {
@@ -1396,10 +1504,11 @@ int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-uint64_t get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const char *statname, const char *statkey,
-                        const Histo_stat_info histo_info)
-{
+uint64_t get_histo_stat(EngineIface* h,
+                        EngineIface* h1,
+                        const char* statname,
+                        const char* statkey,
+                        const Histo_stat_info histo_info) {
     std::lock_guard<std::mutex> lh(get_stat_context.mutex);
 
     get_stat_context.histogram_stat_int_value = new HistogramStats<uint64_t>();
@@ -1422,9 +1531,10 @@ uint64_t get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return ret_val;
 }
 
-static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                  const char *statname, const char *statkey)
-{
+static void get_histo_stat(EngineIface* h,
+                           EngineIface* h1,
+                           const char* statname,
+                           const char* statkey) {
     get_stat_context.requested_stat_name = statname;
     /* Histo stats for tasks are append as task_name_START,END.
        Hence append _ */
@@ -1444,8 +1554,9 @@ static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return;
 }
 
-statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
-                            const char *statset) {
+statistic_map get_all_stats(EngineIface* h,
+                            EngineIface* h1,
+                            const char* statset) {
     {
         std::lock_guard<std::mutex> lh(vals_mutex);
         vals.clear();
@@ -1465,8 +1576,10 @@ statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
     return vals;
 }
 
-void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
-                       const char *msg) {
+void verify_curr_items(EngineIface* h,
+                       EngineIface* h1,
+                       int exp,
+                       const char* msg) {
     int curr_items = get_int_stat(h, h1, "curr_items");
     if (curr_items != exp) {
         std::cerr << "Expected "<< exp << " curr_items after " << msg
@@ -1475,8 +1588,10 @@ void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
     }
 }
 
-void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char *stat, int final,
+void wait_for_stat_to_be_gte(EngineIface* h,
+                             EngineIface* h1,
+                             const char* stat,
+                             int final,
                              const char* stat_key,
                              const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
@@ -1493,8 +1608,10 @@ void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-void wait_for_stat_to_be_lte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char *stat, int final,
+void wait_for_stat_to_be_lte(EngineIface* h,
+                             EngineIface* h1,
+                             const char* stat,
+                             int final,
                              const char* stat_key,
                              const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
@@ -1511,7 +1628,8 @@ void wait_for_stat_to_be_lte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+void wait_for_expired_items_to_be(EngineIface* h,
+                                  EngineIface* h1,
                                   int final,
                                   const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
@@ -1530,7 +1648,8 @@ void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+void wait_for_memory_usage_below(EngineIface* h,
+                                 EngineIface* h1,
                                  int mem_threshold,
                                  const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
@@ -1547,7 +1666,7 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1) {
     if (!isWarmupEnabled(h, h1)) {
         return true;
     }
@@ -1567,7 +1686,7 @@ bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     } while(true);
 }
 
-void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1) {
     wait_for_stat_to_be(h, h1, "ep_queue_size", 0);
 
     /* check that vb backfill queue is empty as well */
@@ -1587,8 +1706,7 @@ void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_stat_to_be(h, h1, "ep_flusher_todo", 0);
 }
 
-void wait_for_item_compressor_to_settle(ENGINE_HANDLE* h,
-                                        ENGINE_HANDLE_V1* h1) {
+void wait_for_item_compressor_to_settle(EngineIface* h, EngineIface* h1) {
     int visited_count = get_int_stat(h, h1, "ep_item_compressor_num_visited");
 
     // We need to wait for at least one more run of the item compressor
@@ -1596,17 +1714,18 @@ void wait_for_item_compressor_to_settle(ENGINE_HANDLE* h,
             h, h1, "ep_item_compressor_num_visited", visited_count + 1);
 }
 
-void wait_for_rollback_to_finish(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+void wait_for_rollback_to_finish(EngineIface* h, EngineIface* h1) {
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_rollback_count") == 0) {
         decayingSleep(&sleepTime);
     }
 }
 
-void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                              const char *key, const char *val,
+void wait_for_persisted_value(EngineIface* h,
+                              EngineIface* h1,
+                              const char* key,
+                              const char* val,
                               uint16_t vbucketId) {
-
     int commitNum = 0;
     if (isPersistentBucket(h, h1)) {
          commitNum = get_int_stat(h, h1, "ep_commit_num");
@@ -1629,11 +1748,10 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-void set_degraded_mode(ENGINE_HANDLE *h,
-                       ENGINE_HANDLE_V1 *h1,
+void set_degraded_mode(EngineIface* h,
+                       EngineIface* h1,
                        const void* cookie,
-                       bool enable)
-{
+                       bool enable) {
     protocol_binary_request_header *pkt;
     if (enable) {
         pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC, 0, 0);
@@ -1684,8 +1802,8 @@ void validate_store_resp(ENGINE_ERROR_CODE ret, int& num_items)
     }
 }
 
-void write_items(ENGINE_HANDLE* h,
-                 ENGINE_HANDLE_V1* h1,
+void write_items(EngineIface* h,
+                 EngineIface* h1,
                  int num_items,
                  int start_seqno,
                  const char* key_prefix,
@@ -1717,10 +1835,12 @@ void write_items(ENGINE_HANDLE* h,
 
 /* Helper function to write unique items starting from keyXX until memory usage
    hits "mem_thresh_perc" (XX is start_seqno) */
-int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                              int mem_thresh_perc, int start_seqno,
-                              const char *key_prefix, const char *value)
-{
+int write_items_upto_mem_perc(EngineIface* h,
+                              EngineIface* h1,
+                              int mem_thresh_perc,
+                              int start_seqno,
+                              const char* key_prefix,
+                              const char* value) {
     float maxSize = static_cast<float>(get_int_stat(h, h1, "ep_max_size",
                                                     "memory"));
     float mem_thresh = static_cast<float>(mem_thresh_perc) / (100.0);
@@ -1744,9 +1864,7 @@ int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return num_items;
 }
 
-
-uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                 const std::string& key) {
+uint64_t get_CAS(EngineIface* h, EngineIface* h1, const std::string& key) {
     auto ret = get(h, h1, nullptr, key, 0);
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
@@ -1757,8 +1875,8 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return info.cas;
 }
 
-cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
-                                 ENGINE_HANDLE_V1* h1,
+cb::EngineErrorItemPair allocate(EngineIface* h,
+                                 EngineIface* h1,
                                  const void* cookie,
                                  const std::string& key,
                                  size_t nbytes,
@@ -1785,8 +1903,8 @@ cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
     return ret;
 }
 
-cb::EngineErrorItemPair get(ENGINE_HANDLE* h,
-                            ENGINE_HANDLE_V1* h1,
+cb::EngineErrorItemPair get(EngineIface* h,
+                            EngineIface* h1,
                             const void* cookie,
                             const std::string& key,
                             uint16_t vb,
@@ -1822,17 +1940,17 @@ bool repeat_till_true(std::function<bool()> functor,
     return fSuccess;
 }
 
-void reset_stats(gsl::not_null<ENGINE_HANDLE*> h) {
-    auto* h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(h.get());
+void reset_stats(gsl::not_null<EngineIface*> h) {
+    auto* h1 = reinterpret_cast<EngineIface*>(h.get());
     const auto* cookie = testHarness.create_cookie();
     h1->reset_stats(cookie);
     testHarness.destroy_cookie(cookie);
 }
 
-ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> h,
+ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
                             cb::const_char_buffer key,
                             ADD_STAT callback) {
-    auto* h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(h.get());
+    auto* h1 = reinterpret_cast<EngineIface*>(h.get());
     const auto* cookie = testHarness.create_cookie();
     auto ret = h1->get_stats(cookie, key, callback);
     testHarness.destroy_cookie(cookie);

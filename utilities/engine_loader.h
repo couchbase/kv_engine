@@ -55,9 +55,9 @@ engine_reference* load_engine(const char* soname, const char* create_function)
 MCD_UTIL_PUBLIC_API
 bool create_engine_instance(engine_reference* engine,
                             SERVER_HANDLE_V1* (*get_server_api)(void),
-                            ENGINE_HANDLE** engine_handle);
+                            EngineIface** engine_handle);
 /*
     Initialise the engine handle using the engine's exported initialize method.
 */
 MCD_UTIL_PUBLIC_API
-bool init_engine_instance(ENGINE_HANDLE* engine, const char* config_str);
+bool init_engine_instance(EngineIface* engine, const char* config_str);

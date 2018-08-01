@@ -293,15 +293,15 @@ public:
 
     Bucket& getBucket() const;
 
-    ENGINE_HANDLE_V1* getBucketEngine() const {
+    EngineIface* getBucketEngine() const {
         return bucketEngine;
     };
 
-    ENGINE_HANDLE* getBucketEngineAsV0() const {
-        return reinterpret_cast<ENGINE_HANDLE*>(bucketEngine);
+    EngineIface* getBucketEngineAsV0() const {
+        return bucketEngine;
     }
 
-    void setBucketEngine(ENGINE_HANDLE_V1* bucketEngine) {
+    void setBucketEngine(EngineIface* bucketEngine) {
         Connection::bucketEngine = bucketEngine;
     };
 
@@ -1140,7 +1140,7 @@ protected:
     /**
      * The engine interface for the connected bucket
      */
-    ENGINE_HANDLE_V1* bucketEngine{nullptr};
+    EngineIface* bucketEngine{nullptr};
 
     /** Name of the peer if known */
     const std::string peername;

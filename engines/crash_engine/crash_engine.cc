@@ -34,7 +34,7 @@
 
 extern "C" {
 MEMCACHED_PUBLIC_API
-ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle);
+ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle);
 
 MEMCACHED_PUBLIC_API
 void destroy_engine(void);
@@ -284,7 +284,7 @@ bool CrashEngine::get_item_info(gsl::not_null<const item*> item,
     return false;
 }
 
-ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, ENGINE_HANDLE** handle) {
+ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
     CrashEngine* engine;
 
     try {

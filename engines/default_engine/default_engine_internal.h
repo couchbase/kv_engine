@@ -220,7 +220,7 @@ struct default_engine : public EngineIface {
 
 char* item_get_data(const hash_item* item);
 hash_key* item_get_key(const hash_item* item);
-void item_set_cas(gsl::not_null<ENGINE_HANDLE*> handle,
+void item_set_cas(gsl::not_null<EngineIface*> handle,
                   gsl::not_null<item*> item,
                   uint64_t val);
 #ifdef __cplusplus

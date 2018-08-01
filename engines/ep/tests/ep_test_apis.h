@@ -200,69 +200,95 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint16_t nmeta = 0) CB_MUST_USE_RESULT;
 
 // Basic Operations
-ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                      uint64_t cas, uint16_t vbucket,
+ENGINE_ERROR_CODE del(EngineIface* h,
+                      EngineIface* h1,
+                      const char* key,
+                      uint64_t cas,
+                      uint16_t vbucket,
                       const void* cookie = nullptr);
 
-ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                      uint64_t* cas, uint16_t vbucket, const void* cookie,
+ENGINE_ERROR_CODE del(EngineIface* h,
+                      EngineIface* h1,
+                      const char* key,
+                      uint64_t* cas,
+                      uint16_t vbucket,
+                      const void* cookie,
                       mutation_descr_t* mut_info);
 
 /** Simplified version of store for handling the common case of performing
  * a delete with a value.
  */
 ENGINE_ERROR_CODE delete_with_value(
-        ENGINE_HANDLE* h,
-        ENGINE_HANDLE_V1* h1,
+        EngineIface* h,
+        EngineIface* h1,
         const void* cookie,
         uint64_t cas,
         const char* key,
         cb::const_char_buffer value,
         cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
 
-void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-               uint16_t vbucketId = 0, const char *msg = NULL,
+void disable_traffic(EngineIface* h, EngineIface* h1);
+void enable_traffic(EngineIface* h, EngineIface* h1);
+void evict_key(EngineIface* h,
+               EngineIface* h1,
+               const char* key,
+               uint16_t vbucketId = 0,
+               const char* msg = NULL,
                bool expectError = false);
-cb::EngineErrorItemPair gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                            const char* key, uint16_t vb, uint32_t exp);
-bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
-                   const char* key, uint16_t vb = 0);
-bool get_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item *i,
-             std::string &key);
+cb::EngineErrorItemPair gat(EngineIface* h,
+                            EngineIface* h1,
+                            const char* key,
+                            uint16_t vb,
+                            uint32_t exp);
+bool get_item_info(EngineIface* h,
+                   EngineIface* h1,
+                   item_info* info,
+                   const char* key,
+                   uint16_t vb = 0);
+bool get_key(EngineIface* h, EngineIface* h1, item* i, std::string& key);
 
-cb::EngineErrorItemPair getl(ENGINE_HANDLE* h,
-                             ENGINE_HANDLE_V1* h1,
+cb::EngineErrorItemPair getl(EngineIface* h,
+                             EngineIface* h1,
                              const void* cookie,
                              const char* key,
                              uint16_t vb,
                              uint32_t lock_timeout);
 
-void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
-                 uint16_t vb);
-ENGINE_ERROR_CODE observe(ENGINE_HANDLE* h,
-                          ENGINE_HANDLE_V1* h1,
+void get_replica(EngineIface* h, EngineIface* h1, const char* key, uint16_t vb);
+ENGINE_ERROR_CODE observe(EngineIface* h,
+                          EngineIface* h1,
                           std::map<std::string, uint16_t> obskeys);
-ENGINE_ERROR_CODE observe_seqno(ENGINE_HANDLE* h,
-                                ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE observe_seqno(EngineIface* h,
+                                EngineIface* h1,
                                 uint16_t vb_id,
                                 uint64_t uuid);
 
-protocol_binary_request_header*
-prepare_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                    vbucket_state_t state, bool makeinvalidkey = false) CB_MUST_USE_RESULT;
+protocol_binary_request_header* prepare_get_replica(EngineIface* h,
+                                                    EngineIface* h1,
+                                                    vbucket_state_t state,
+                                                    bool makeinvalidkey = false)
+        CB_MUST_USE_RESULT;
 
-bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_param_t paramtype,
-               const char *param, const char *val, uint16_t vb = 0);
-bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                       uint16_t vb, vbucket_state_t state);
-bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                       vbucket_state_t state, const void *cookie);
-void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          int vb_start, int vb_end);
-void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+bool set_param(EngineIface* h,
+               EngineIface* h1,
+               protocol_binary_engine_param_t paramtype,
+               const char* param,
+               const char* val,
+               uint16_t vb = 0);
+bool set_vbucket_state(EngineIface* h,
+                       EngineIface* h1,
+                       uint16_t vb,
+                       vbucket_state_t state);
+bool get_all_vb_seqnos(EngineIface* h,
+                       EngineIface* h1,
+                       vbucket_state_t state,
+                       const void* cookie);
+void verify_all_vb_seqnos(EngineIface* h,
+                          EngineIface* h1,
+                          int vb_start,
+                          int vb_end);
+void start_persistence(EngineIface* h, EngineIface* h1);
+void stop_persistence(EngineIface* h, EngineIface* h1);
 
 /**
  * Store an item.
@@ -270,8 +296,8 @@ void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
  * @param outitem If non-null, address of the stored item is saved here.
  * @return
  */
-ENGINE_ERROR_CODE store(ENGINE_HANDLE* h,
-                        ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE store(EngineIface* h,
+                        EngineIface* h1,
                         const void* cookie,
                         ENGINE_STORE_OPERATION op,
                         const char* key,
@@ -283,8 +309,8 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE* h,
                         uint8_t datatype = 0x00,
                         DocumentState docState = DocumentState::Alive);
 
-cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
-                                 ENGINE_HANDLE_V1* h1,
+cb::EngineErrorItemPair allocate(EngineIface* h,
+                                 EngineIface* h1,
                                  const void* cookie,
                                  const std::string& key,
                                  size_t nbytes,
@@ -294,8 +320,8 @@ cb::EngineErrorItemPair allocate(ENGINE_HANDLE* h,
                                  uint16_t vb);
 
 cb::EngineErrorItemPair get(
-        ENGINE_HANDLE* h,
-        ENGINE_HANDLE_V1* h1,
+        EngineIface* h,
+        EngineIface* h1,
         const void* cookie,
         const std::string& key,
         uint16_t vb,
@@ -304,83 +330,122 @@ cb::EngineErrorItemPair get(
 /* Stores the specified document; returning the new CAS value via
  * {out_cas}.
  */
-ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                              const void *cookie, const uint16_t vb,
-                              const std::string& key, const std::string& value,
+ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
+                              EngineIface* h1,
+                              const void* cookie,
+                              const uint16_t vb,
+                              const std::string& key,
+                              const std::string& value,
                               const protocol_binary_datatype_t datatype,
-                              item*& out_item, uint64_t& out_cas,
+                              item*& out_item,
+                              uint64_t& out_cas,
                               DocumentState docState = DocumentState::Alive);
 
-cb::EngineErrorItemPair storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                               const void *cookie, ENGINE_STORE_OPERATION op,
-                               const char *key, const char *value, size_t vlen,
-                               uint32_t flags, uint64_t casIn,
-                               uint16_t vb, uint32_t exp = 3600,
-                               uint8_t datatype = 0x00,
-                               DocumentState docState = DocumentState::Alive);
-ENGINE_ERROR_CODE touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const char* key, uint16_t vb, uint32_t exp);
-ENGINE_ERROR_CODE unl(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                      const void* cookie, const char* key,
-                      uint16_t vb, uint64_t cas = 0);
-ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char* key, uint16_t vbucket = 0);
+cb::EngineErrorItemPair storeCasVb11(
+        EngineIface* h,
+        EngineIface* h1,
+        const void* cookie,
+        ENGINE_STORE_OPERATION op,
+        const char* key,
+        const char* value,
+        size_t vlen,
+        uint32_t flags,
+        uint64_t casIn,
+        uint16_t vb,
+        uint32_t exp = 3600,
+        uint8_t datatype = 0x00,
+        DocumentState docState = DocumentState::Alive);
+ENGINE_ERROR_CODE touch(EngineIface* h,
+                        EngineIface* h1,
+                        const char* key,
+                        uint16_t vb,
+                        uint32_t exp);
+ENGINE_ERROR_CODE unl(EngineIface* h,
+                      EngineIface* h1,
+                      const void* cookie,
+                      const char* key,
+                      uint16_t vb,
+                      uint64_t cas = 0);
+ENGINE_ERROR_CODE verify_key(EngineIface* h,
+                             EngineIface* h1,
+                             const char* key,
+                             uint16_t vbucket = 0);
 
 /**
  * Attempts to fetch the given key. On success returns ENGINE_SUCCESS and the
  * value, on failure returns the reason and an empty string.
  */
-std::pair<ENGINE_ERROR_CODE, std::string> get_value(ENGINE_HANDLE* h,
-                                                    ENGINE_HANDLE_V1* h1,
+std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
+                                                    EngineIface* h1,
                                                     const void* cookie,
                                                     const char* key,
                                                     uint16_t vbucket,
                                                     DocStateFilter state);
 
-bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                            uint16_t vb);
-bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
-                          vbucket_state_t expected, bool mute = false);
+bool verify_vbucket_missing(EngineIface* h, EngineIface* h1, uint16_t vb);
+bool verify_vbucket_state(EngineIface* h,
+                          EngineIface* h1,
+                          uint16_t vb,
+                          vbucket_state_t expected,
+                          bool mute = false);
 
-void sendDcpAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                const void* cookie, protocol_binary_command opcode,
-                protocol_binary_response_status status, uint32_t opaque);
+void sendDcpAck(EngineIface* h,
+                EngineIface* h1,
+                const void* cookie,
+                protocol_binary_command opcode,
+                protocol_binary_response_status status,
+                uint32_t opaque);
 
 // Checkpoint Operations
-void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void extendCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                      uint32_t checkpoint_num);
-ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                        uint64_t checkpoint_id, uint16_t vb);
-ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE* h,
-                                   ENGINE_HANDLE_V1* h1,
+void createCheckpoint(EngineIface* h, EngineIface* h1);
+void extendCheckpoint(EngineIface* h, EngineIface* h1, uint32_t checkpoint_num);
+ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
+                                        EngineIface* h1,
+                                        uint64_t checkpoint_id,
+                                        uint16_t vb);
+ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
+                                   EngineIface* h1,
                                    const void* cookie,
                                    uint16_t vbucket,
                                    uint64_t seqno);
 
 // Stats Operations
-int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                 const char *statkey = NULL);
-float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                     const char *statkey = NULL);
-uint32_t get_ul_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                     const char *statname, const char *statkey = NULL);
-uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                      const char *statkey = NULL);
-std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                         const char *statname, const char *statkey = NULL);
-bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                   const char *statname, const char *statkey = NULL);
+int get_int_stat(EngineIface* h,
+                 EngineIface* h1,
+                 const char* statname,
+                 const char* statkey = NULL);
+float get_float_stat(EngineIface* h,
+                     EngineIface* h1,
+                     const char* statname,
+                     const char* statkey = NULL);
+uint32_t get_ul_stat(EngineIface* h,
+                     EngineIface* h1,
+                     const char* statname,
+                     const char* statkey = NULL);
+uint64_t get_ull_stat(EngineIface* h,
+                      EngineIface* h1,
+                      const char* statname,
+                      const char* statkey = NULL);
+std::string get_str_stat(EngineIface* h,
+                         EngineIface* h1,
+                         const char* statname,
+                         const char* statkey = NULL);
+bool get_bool_stat(EngineIface* h,
+                   EngineIface* h1,
+                   const char* statname,
+                   const char* statkey = NULL);
 
-ENGINE_ERROR_CODE get_stats(gsl::not_null<ENGINE_HANDLE*> h,
+ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
                             cb::const_char_buffer key,
                             ADD_STAT callback);
 
 /* This is used to get stat info specified by 'histo_info' from histogram of
  * "statname" which is got by running stats on "statkey"
  */
-uint64_t get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                        const char *statname, const char *statkey,
+uint64_t get_histo_stat(EngineIface* h,
+                        EngineIface* h1,
+                        const char* statname,
+                        const char* statkey,
                         const Histo_stat_info histo_info);
 
 typedef std::map<std::string, std::string> statistic_map;
@@ -389,71 +454,94 @@ typedef std::map<std::string, std::string> statistic_map;
  * @param statset The set of statistics to fetch. May be nullptr, in which case
  *                the default set will be returned.
  */
-statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
-                            const char *statset = nullptr);
+statistic_map get_all_stats(EngineIface* h,
+                            EngineIface* h1,
+                            const char* statset = nullptr);
 
 // Returns the value of the given stat, or the default value if the stat isn't
 // present.
-int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                            int default_value, const char *statname,
-                            const char *statkey = NULL);
+int get_int_stat_or_default(EngineIface* h,
+                            EngineIface* h1,
+                            int default_value,
+                            const char* statname,
+                            const char* statkey = NULL);
 
 /**
  * Templated function prototype to return a stat of the given type.
  * Should replace above uses of get_XXX_stat with this.
  */
 template <typename T>
-T get_stat(ENGINE_HANDLE* h,
-           ENGINE_HANDLE_V1* h1,
+T get_stat(EngineIface* h,
+           EngineIface* h1,
            const char* statname,
            const char* statkey = nullptr);
 
 // Explicit template instantiations declarations of get_stat<T>
-template<>
-std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                     const char *statname, const char *statkey);
-template<>
-int get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-             const char *statname, const char *statkey);
+template <>
+std::string get_stat(EngineIface* h,
+                     EngineIface* h1,
+                     const char* statname,
+                     const char* statkey);
+template <>
+int get_stat(EngineIface* h,
+             EngineIface* h1,
+             const char* statname,
+             const char* statkey);
 
-template<>
-uint64_t get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                  const char *statname, const char *statkey);
+template <>
+uint64_t get_stat(EngineIface* h,
+                  EngineIface* h1,
+                  const char* statname,
+                  const char* statkey);
 
-void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
-                       const char *msg);
-template<typename T>
-void wait_for_stat_change(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                          const char* stat, T initial,
+void verify_curr_items(EngineIface* h,
+                       EngineIface* h1,
+                       int exp,
+                       const char* msg);
+template <typename T>
+void wait_for_stat_change(EngineIface* h,
+                          EngineIface* h1,
+                          const char* stat,
+                          T initial,
                           const char* stat_key = nullptr,
                           const time_t max_wait_time_in_secs = 60);
 
-template<typename T>
-void wait_for_stat_to_be(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
-                         const char* stat, T final,
+template <typename T>
+void wait_for_stat_to_be(EngineIface* h,
+                         EngineIface* h1,
+                         const char* stat,
+                         T final,
                          const char* stat_key = nullptr,
                          const time_t max_wait_time_in_secs = 60);
 
-void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char *stat, int final,
+void wait_for_stat_to_be_gte(EngineIface* h,
+                             EngineIface* h1,
+                             const char* stat,
+                             int final,
                              const char* stat_key = NULL,
                              const time_t max_wait_time_in_secs = 60);
-void wait_for_stat_to_be_lte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char *stat, int final,
+void wait_for_stat_to_be_lte(EngineIface* h,
+                             EngineIface* h1,
+                             const char* stat,
+                             int final,
                              const char* stat_key = NULL,
                              const time_t max_wait_time_in_secs = 60);
-void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+void wait_for_expired_items_to_be(EngineIface* h,
+                                  EngineIface* h1,
                                   int final,
                                   const time_t max_wait_time_in_secs = 60);
-bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void wait_for_item_compressor_to_settle(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1);
-void wait_for_rollback_to_finish(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                              const char *key, const char *val,
+bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1);
+void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1);
+void wait_for_item_compressor_to_settle(EngineIface* h, EngineIface* h1);
+void wait_for_rollback_to_finish(EngineIface* h, EngineIface* h1);
+void wait_for_persisted_value(EngineIface* h,
+                              EngineIface* h1,
+                              const char* key,
+                              const char* val,
                               uint16_t vbucketId = 0);
 
-void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+void wait_for_memory_usage_below(EngineIface* h,
+                                 EngineIface* h1,
                                  int mem_threshold,
                                  const time_t max_wait_time_in_secs = 60);
 
@@ -468,51 +556,65 @@ bool repeat_till_true(std::function<bool()> functor,
                               std::chrono::microseconds(1000 * 100));
 
 // VBucket operations
-ENGINE_ERROR_CODE vbucketDelete(ENGINE_HANDLE* h,
-                                ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
+                                EngineIface* h1,
                                 uint16_t vb,
                                 const char* args = NULL);
 
-void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+void compact_db(EngineIface* h,
+                EngineIface* h1,
                 const uint16_t vbid,
                 const uint16_t db_file_id,
                 const uint64_t purge_before_ts,
                 const uint64_t purge_before_seq,
-                const uint8_t  drop_deletes);
+                const uint8_t drop_deletes);
 
 // XDCR Operations
-void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+void set_drift_counter_state(EngineIface* h,
+                             EngineIface* h1,
                              int64_t initialDrift);
 
-bool get_meta(ENGINE_HANDLE* h,
-              ENGINE_HANDLE_V1* h1,
+bool get_meta(EngineIface* h,
+              EngineIface* h1,
               const char* key,
               const void* cookie = nullptr);
 
-bool get_meta(ENGINE_HANDLE* h,
-              ENGINE_HANDLE_V1* h1,
+bool get_meta(EngineIface* h,
+              EngineIface* h1,
               const char* key,
               cb::EngineErrorMetadataPair& out,
               const void* cookie = nullptr);
 
-void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                   const size_t keylen, const char *val, const size_t vallen,
-                   const uint32_t vb, ItemMetaData *itemMeta,
-                   uint64_t cas_for_set, uint32_t options = 0,
+void set_with_meta(EngineIface* h,
+                   EngineIface* h1,
+                   const char* key,
+                   const size_t keylen,
+                   const char* val,
+                   const size_t vallen,
+                   const uint32_t vb,
+                   ItemMetaData* itemMeta,
+                   uint64_t cas_for_set,
+                   uint32_t options = 0,
                    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
                    const void* cookie = nullptr,
                    const std::vector<char>& nmeta = {});
 
-void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
-                   const size_t keylen, const char *val, const size_t vallen,
-                   const uint32_t vb, ItemMetaData *itemMeta,
-                   uint64_t cas_for_add = 0, uint32_t options = 0,
+void add_with_meta(EngineIface* h,
+                   EngineIface* h1,
+                   const char* key,
+                   const size_t keylen,
+                   const char* val,
+                   const size_t vallen,
+                   const uint32_t vb,
+                   ItemMetaData* itemMeta,
+                   uint64_t cas_for_add = 0,
+                   uint32_t options = 0,
                    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
                    const void* cookie = nullptr,
                    const std::vector<char>& nmeta = {});
 
-void del_with_meta(ENGINE_HANDLE* h,
-                   ENGINE_HANDLE_V1* h1,
+void del_with_meta(EngineIface* h,
+                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const uint32_t vb,
@@ -525,8 +627,8 @@ void del_with_meta(ENGINE_HANDLE* h,
                    const std::vector<char>& value = {} /*optional value*/);
 
 // This version takes a RawItemMetaData allowing for 64-bit rev-seqno tests
-void del_with_meta(ENGINE_HANDLE* h,
-                   ENGINE_HANDLE_V1* h1,
+void del_with_meta(EngineIface* h,
+                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const uint32_t vb,
@@ -538,8 +640,8 @@ void del_with_meta(ENGINE_HANDLE* h,
                    protocol_binary_datatype_t datatype = 0,
                    const std::vector<char>& value = {} /*optional value*/);
 
-ENGINE_ERROR_CODE set_ret_meta(ENGINE_HANDLE* h,
-                               ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
+                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const char* val,
@@ -551,8 +653,8 @@ ENGINE_ERROR_CODE set_ret_meta(ENGINE_HANDLE* h,
                                uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
                                const void* cookie = nullptr);
 
-ENGINE_ERROR_CODE add_ret_meta(ENGINE_HANDLE* h,
-                               ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
+                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const char* val,
@@ -564,22 +666,21 @@ ENGINE_ERROR_CODE add_ret_meta(ENGINE_HANDLE* h,
                                uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
                                const void* cookie = nullptr);
 
-ENGINE_ERROR_CODE del_ret_meta(ENGINE_HANDLE* h,
-                               ENGINE_HANDLE_V1* h1,
+ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
+                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const uint32_t vb,
                                const uint64_t cas = 0,
                                const void* cookie = nullptr);
 
-void set_degraded_mode(ENGINE_HANDLE *h,
-                       ENGINE_HANDLE_V1 *h1,
+void set_degraded_mode(EngineIface* h,
+                       EngineIface* h1,
                        const void* cookie,
                        bool enable);
 
 // Fetches the CAS of the specified key.
-uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                 const std::string& key);
+uint64_t get_CAS(EngineIface* h, EngineIface* h1, const std::string& key);
 
 /**
  * Helper function to write unique "num_items" starting from {key_prefix}XX,
@@ -592,8 +693,8 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
  * @param vb vbucket to use, default to 0
  * @param docState document state to write
  */
-void write_items(ENGINE_HANDLE* h,
-                 ENGINE_HANDLE_V1* h1,
+void write_items(EngineIface* h,
+                 EngineIface* h1,
                  int num_items,
                  int start_seqno = 0,
                  const char* key_prefix = "key",
@@ -604,15 +705,19 @@ void write_items(ENGINE_HANDLE* h,
 
 /* Helper function to write unique items starting from keyXX until memory usage
    hits "mem_thresh_perc" (XX is start_seqno) */
-int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                              int mem_thresh_perc, int start_seqno = 0,
-                              const char *key_prefix = "key",
-                              const char *value = "data");
+int write_items_upto_mem_perc(EngineIface* h,
+                              EngineIface* h1,
+                              int mem_thresh_perc,
+                              int start_seqno = 0,
+                              const char* key_prefix = "key",
+                              const char* value = "data");
 
-template<typename T>
-inline void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                 const char *stat, T initial,
-                                 const char *stat_key,
+template <typename T>
+inline void wait_for_stat_change(EngineIface* h,
+                                 EngineIface* h1,
+                                 const char* stat,
+                                 T initial,
+                                 const char* stat_key,
                                  const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<T> accumulator("to change from", stat, stat_key,
@@ -627,9 +732,12 @@ inline void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
-template<typename T>
-void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                         const char *stat, T final, const char* stat_key,
+template <typename T>
+void wait_for_stat_to_be(EngineIface* h,
+                         EngineIface* h1,
+                         const char* stat,
+                         T final,
+                         const char* stat_key,
                          const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<T> accumulator("to be", stat, stat_key, final,
@@ -672,10 +780,10 @@ void wait_for_val_to_be(const char* val_description,
 /**
  * Check via the stats interface if full_eviction mode is enabled
  */
-inline bool is_full_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+inline bool is_full_eviction(EngineIface* h, EngineIface* h1) {
     return get_str_stat(h, h1, "ep_item_eviction_policy") == "full_eviction";
 }
 
-void reset_stats(gsl::not_null<ENGINE_HANDLE*> h);
+void reset_stats(gsl::not_null<EngineIface*> h);
 
 #endif  // TESTS_EP_TEST_APIS_H_

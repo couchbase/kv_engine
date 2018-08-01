@@ -24,29 +24,29 @@
 
 #include "ep_testsuite.h"
 
-bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+bool teardown(EngineIface* h, EngineIface* h1);
 void delay(int amt);
 
-void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void setRetainCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void setUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void deleteUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void appendUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-void prependUsingCAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+void add(EngineIface* h, EngineIface* h1);
+void append(EngineIface* h, EngineIface* h1);
+void decr(EngineIface* h, EngineIface* h1);
+void decrWithDefault(EngineIface* h, EngineIface* h1);
+void prepend(EngineIface* h, EngineIface* h1);
+void flush(EngineIface* h, EngineIface* h1);
+void del(EngineIface* h, EngineIface* h1);
+void get(EngineIface* h, EngineIface* h1);
+void set(EngineIface* h, EngineIface* h1);
+void setRetainCAS(EngineIface* h, EngineIface* h1);
+void incr(EngineIface* h, EngineIface* h1);
+void incrWithDefault(EngineIface* h, EngineIface* h1);
+void getLock(EngineIface* h, EngineIface* h1);
+void setUsingCAS(EngineIface* h, EngineIface* h1);
+void deleteUsingCAS(EngineIface* h, EngineIface* h1);
+void appendUsingCAS(EngineIface* h, EngineIface* h1);
+void prependUsingCAS(EngineIface* h, EngineIface* h1);
 
-void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp);
-void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+void checkValue(EngineIface* h, EngineIface* h1, const char* exp);
+void assertNotExists(EngineIface* h, EngineIface* h1);
 
 #define assertHasError() cb_assert(hasError)
 #define assertHasNoError() cb_assert(!hasError)
