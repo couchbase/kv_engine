@@ -280,8 +280,7 @@ static void alarm_handler(int sig) {
 // execute_test. These are global as the testcase may call reload_engine() and that
 // needs to update the pointers the new engine, so when execute_test is
 // cleaning up it has the correct handles.
-static EngineIface* handle_v1 = NULL;
-static EngineIface* handle = NULL;
+static EngineIface* handle = nullptr;
 
 static struct mock_engine* get_handle(EngineIface* handle) {
     return (struct mock_engine*)handle;
@@ -1057,10 +1056,7 @@ static void reload_engine(EngineIface** h,
     destroy_mock_event_callbacks();
     stop_your_engine();
     start_your_engine(engine);
-    *h1 = create_bucket(init, cfg);
-    *h = (EngineIface*)(*h1);
-    handle_v1 = *h1;
-    handle = *h;
+    handle = *h = *h1 = create_bucket(init, cfg);
 }
 
 static void reload_bucket(EngineIface** h,
@@ -1205,16 +1201,16 @@ static test_result execute_test(engine_test_t test,
 
         if (test_api_1) {
             // all test (API1) get 1 bucket and they are welcome to ask for more.
-            handle_v1 = create_bucket(true, test.cfg ? test.cfg : default_cfg);
-            handle = (EngineIface*)handle_v1;
-            if (test.test_setup != NULL && !test.test_setup(handle, handle_v1)) {
+            handle = create_bucket(true, test.cfg ? test.cfg : default_cfg);
+            if (test.test_setup != NULL && !test.test_setup(handle, handle)) {
                 fprintf(stderr, "Failed to run setup for test %s\n", test.name);
                 return FAIL;
             }
 
-            ret = test.tfun(handle, handle_v1);
+            ret = test.tfun(handle, handle);
 
-            if (test.test_teardown != NULL && !test.test_teardown(handle, handle_v1)) {
+            if (test.test_teardown != NULL &&
+                !test.test_teardown(handle, handle)) {
                 fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);
             }
 
@@ -1234,10 +1230,9 @@ static test_result execute_test(engine_test_t test,
 
 
         if (handle) {
-            destroy_bucket(handle, handle_v1, false);
+            destroy_bucket(handle, handle, false);
         }
         handle = nullptr;
-        handle_v1 = nullptr;
 
         destroy_mock_event_callbacks();
         stop_your_engine();
