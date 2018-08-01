@@ -370,7 +370,6 @@ void sendDcpAck(EngineIface* h,
 
 // Checkpoint Operations
 void createCheckpoint(EngineIface* h, EngineIface* h1);
-void extendCheckpoint(EngineIface* h, EngineIface* h1, uint32_t checkpoint_num);
 ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
                                         EngineIface* h1,
                                         uint64_t checkpoint_id,
