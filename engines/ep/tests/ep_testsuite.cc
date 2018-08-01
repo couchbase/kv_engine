@@ -559,7 +559,8 @@ static enum test_result test_restart_bin_val(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_wrong_vb_get(EngineIface* h, EngineIface* h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET, verify_key(h, h1, "key", 1),
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            verify_key(h, "key", 1),
             "Expected wrong bucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -587,7 +588,7 @@ static enum test_result test_vb_get_replica(EngineIface* h, EngineIface* h1) {
           "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            verify_key(h, h1, "key", 1),
+            verify_key(h, "key", 1),
             "Expected not my bucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -1469,7 +1470,7 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
     // Touch expiring key with an expire time
     const int exp_time = 11;
     checkeq(ENGINE_SUCCESS,
-            touch(h, h1, exp_key, 0, exp_time),
+            touch(h, exp_key, 0, exp_time),
             "Touch expiring key failed");
 
     // Move beyond expire time
@@ -1482,10 +1483,10 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
 
     // non_exp_key and its value should be intact...
     checkeq(ENGINE_SUCCESS,
-            verify_key(h, h1, non_exp_key),
+            verify_key(h, non_exp_key),
             "key trees should be found.");
     // exp_key should have disappeared...
-    ENGINE_ERROR_CODE val = verify_key(h, h1, exp_key);
+    ENGINE_ERROR_CODE val = verify_key(h, exp_key);
     checkeq(ENGINE_KEY_ENOENT, val, "Key Carss has not expired.");
 
     // Store a dummy item since we do not purge the item with highest seqno
@@ -4161,7 +4162,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed to delete.");
 
-    check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
+    check(verify_key(h, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
     checkeq(0,
             get_int_stat(h, h1, "ep_bg_fetched"),
@@ -4231,7 +4232,7 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h,
         abort();
     }
 
-    check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
+    check(verify_key(h, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
     // Should have bg_fetched, but discarded the old value.
     cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
@@ -5836,7 +5837,7 @@ static enum test_result test_del_with_item_eviction(EngineIface* h,
             del(h, h1, "key", &cas, 0, nullptr, &mut_info),
             "Failed remove with value.");
     check(orig_cas != cas, "Expected CAS to be different on delete");
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    check(ENGINE_KEY_ENOENT == verify_key(h, "key"), "Expected missing key");
     check(vb_uuid == mut_info.vbucket_uuid, "Expected valid vbucket uuid");
     check(high_seqno + 1 == mut_info.seqno, "Expected valid sequence number");
 

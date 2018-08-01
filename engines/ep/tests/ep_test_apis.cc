@@ -1154,19 +1154,18 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
 }
 
 ENGINE_ERROR_CODE touch(EngineIface* h,
-                        EngineIface* h1,
                         const char* key,
                         uint16_t vb,
                         uint32_t exp) {
     const auto* cookie = testHarness->create_cookie();
-    auto result = h1->get_and_touch(
+    auto result = h->get_and_touch(
             cookie, DocKey(key, testHarness->doc_namespace), vb, exp);
     testHarness->destroy_cookie(cookie);
 
     // Update the global cas value (used by some tests)
     if (result.first == cb::engine_errc::success) {
         item_info info{};
-        check(h1->get_item_info(result.second.get(), &info),
+        check(h->get_item_info(result.second.get(), &info),
               "Failed to get item info");
         last_cas.store(info.cas);
     }
@@ -1175,7 +1174,6 @@ ENGINE_ERROR_CODE touch(EngineIface* h,
 }
 
 ENGINE_ERROR_CODE unl(EngineIface* h,
-                      EngineIface* h1,
                       const void* cookie,
                       const char* key,
                       uint16_t vb,
@@ -1185,8 +1183,8 @@ ENGINE_ERROR_CODE unl(EngineIface* h,
         cookie = testHarness->create_cookie();
         create_cookie = true;
     }
-    auto ret = h1->unlock(
-            cookie, DocKey(key, testHarness->doc_namespace), vb, cas);
+    auto ret =
+            h->unlock(cookie, DocKey(key, testHarness->doc_namespace), vb, cas);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1242,7 +1240,6 @@ ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
 }
 
 ENGINE_ERROR_CODE verify_key(EngineIface* h,
-                             EngineIface* h1,
                              const char* key,
                              uint16_t vbucket) {
     auto rv = get(h, NULL, key, vbucket);
@@ -1250,7 +1247,6 @@ ENGINE_ERROR_CODE verify_key(EngineIface* h,
 }
 
 std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
-                                                    EngineIface* h1,
                                                     const void* cookie,
                                                     const char* key,
                                                     uint16_t vbucket,
@@ -1260,7 +1256,7 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
         return {ENGINE_ERROR_CODE(rv.first), ""};
     }
     item_info info;
-    if (!h1->get_item_info(rv.second.get(), &info)) {
+    if (!h->get_item_info(rv.second.get(), &info)) {
         return {ENGINE_FAILED, ""};
     }
     auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),

@@ -333,18 +333,15 @@ cb::EngineErrorItemPair storeCasVb11(
         uint8_t datatype = 0x00,
         DocumentState docState = DocumentState::Alive);
 ENGINE_ERROR_CODE touch(EngineIface* h,
-                        EngineIface* h1,
                         const char* key,
                         uint16_t vb,
                         uint32_t exp);
 ENGINE_ERROR_CODE unl(EngineIface* h,
-                      EngineIface* h1,
                       const void* cookie,
                       const char* key,
                       uint16_t vb,
                       uint64_t cas = 0);
 ENGINE_ERROR_CODE verify_key(EngineIface* h,
-                             EngineIface* h1,
                              const char* key,
                              uint16_t vbucket = 0);
 
@@ -353,7 +350,6 @@ ENGINE_ERROR_CODE verify_key(EngineIface* h,
  * value, on failure returns the reason and an empty string.
  */
 std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
-                                                    EngineIface* h1,
                                                     const void* cookie,
                                                     const char* key,
                                                     uint16_t vbucket,

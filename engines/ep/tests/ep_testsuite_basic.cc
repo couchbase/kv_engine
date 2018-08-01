@@ -206,7 +206,7 @@ static enum test_result test_whitespace_db(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_get_miss(EngineIface* h, EngineIface* h1) {
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "k"), "Expected miss.");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "k"), "Expected miss.");
     return SUCCESS;
 }
 
@@ -662,11 +662,11 @@ static enum test_result test_unl(EngineIface* h, EngineIface* h1) {
 
     if (eviction_policy == "full_eviction") {
         checkeq(ENGINE_TMPFAIL,
-                unl(h, h1, nullptr, key, vbucketId),
+                unl(h, nullptr, key, vbucketId),
                 "expected a TMPFAIL");
     } else {
         checkeq(ENGINE_KEY_ENOENT,
-                unl(h, h1, nullptr, key, vbucketId),
+                unl(h, nullptr, key, vbucketId),
                 "expected the key to be missing...");
     }
 
@@ -694,11 +694,11 @@ static enum test_result test_unl(EngineIface* h, EngineIface* h1) {
 
     /* lock's taken unlocking with a random cas value should fail */
     checkeq(ENGINE_LOCKED_TMPFAIL,
-            unl(h, h1, nullptr, key, vbucketId),
+            unl(h, nullptr, key, vbucketId),
             "Expected to fail getl on second try");
 
     checkeq(ENGINE_SUCCESS,
-            unl(h, h1, nullptr, key, vbucketId, cas),
+            unl(h, nullptr, key, vbucketId, cas),
             "Expected to succed unl with correct cas");
 
     /* acquire lock, should succeed */
@@ -711,7 +711,7 @@ static enum test_result test_unl(EngineIface* h, EngineIface* h1) {
 
     /* lock has expired, unl should fail */
     checkeq(ENGINE_TMPFAIL,
-            unl(h, h1, nullptr, key, vbucketId, last_cas),
+            unl(h, nullptr, key, vbucketId, last_cas),
             "Expected to fail unl on lock timeout");
 
     return SUCCESS;
@@ -722,8 +722,9 @@ static enum test_result test_unl_nmvb(EngineIface* h, EngineIface* h1) {
     uint16_t vbucketId = 10;
 
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            unl(h, h1, nullptr, key, vbucketId),
-          "expected NOT_MY_VBUCKET to unlocking a key in a vbucket we don't own");
+            unl(h, nullptr, key, vbucketId),
+            "expected NOT_MY_VBUCKET to unlocking a key in a vbucket we don't "
+            "own");
 
     return SUCCESS;
 }
@@ -930,10 +931,12 @@ static enum test_result test_replace(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_touch(EngineIface* h, EngineIface* h1) {
     // Try to touch an unknown item...
-    checkeq(ENGINE_KEY_ENOENT, touch(h, h1, "mykey", 0, 0), "Testing unknown key");
+    checkeq(ENGINE_KEY_ENOENT, touch(h, "mykey", 0, 0), "Testing unknown key");
 
     // illegal vbucket
-    checkeq(ENGINE_NOT_MY_VBUCKET, touch(h, h1, "mykey", 5, 0), "Testing illegal vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            touch(h, "mykey", 5, 0),
+            "Testing illegal vbucket");
 
     // Store the item!
     checkeq(ENGINE_SUCCESS,
@@ -949,7 +952,7 @@ static enum test_result test_touch(EngineIface* h, EngineIface* h1) {
     item_info currMeta = errorMetaPair.second;
 
     checkeq(ENGINE_SUCCESS,
-            touch(h, h1, "mykey", 0, uint32_t(time(NULL) + 10)),
+            touch(h, "mykey", 0, uint32_t(time(NULL) + 10)),
             "touch mykey");
     check(last_cas != currMeta.cas,
           "touch should have returned an updated CAS");
@@ -986,7 +989,7 @@ static enum test_result test_touch_mb7342(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_SET, key, "v"),
             "Failed set.");
 
-    checkeq(ENGINE_SUCCESS, touch(h, h1, key, 0, 0), "touch key");
+    checkeq(ENGINE_SUCCESS, touch(h, key, 0, 0), "touch key");
 
     check_key_value(h, h1, key, "v", 1);
 
@@ -1009,7 +1012,10 @@ static enum test_result test_touch_mb10277(EngineIface* h, EngineIface* h1) {
     evict_key(h, key, 0, "Ejected.");
 
     checkeq(ENGINE_SUCCESS,
-            touch(h, h1, key, 0, 3600), // A new expiration time remains in the same.
+            touch(h,
+                  key,
+                  0,
+                  3600), // A new expiration time remains in the same.
             "touch key");
 
     return SUCCESS;
@@ -1111,11 +1117,10 @@ static enum test_result test_touch_locked(EngineIface* h, EngineIface* h1) {
             getl(h, nullptr, "key", 0, 15).first,
             "Expected getl to succeed on key");
 
-    checkeq(ENGINE_LOCKED, touch(h, h1, "key", 0, 10),
-            "Expected tmp fail");
+    checkeq(ENGINE_LOCKED, touch(h, "key", 0, 10), "Expected tmp fail");
 
     testHarness->time_travel(16);
-    checkeq(ENGINE_SUCCESS, touch(h, h1, "key", 0, 10), "Expected success");
+    checkeq(ENGINE_SUCCESS, touch(h, "key", 0, 10), "Expected success");
 
     testHarness->time_travel(11);
     checkeq(cb::engine_errc::no_such_key,
@@ -1139,8 +1144,7 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
     // set new exptime to 111
     int expTime = time(NULL) + 111;
 
-    checkeq(ENGINE_SUCCESS, touch(h, h1, "coolkey", 0, expTime),
-            "touch coolkey");
+    checkeq(ENGINE_SUCCESS, touch(h, "coolkey", 0, expTime), "touch coolkey");
 
     //reload engine
     testHarness->reload_engine(&h,
@@ -1164,8 +1168,7 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
     evict_key(h, "coolkey", 0, "Ejected.");
 
     expTime = time(NULL) + 222;
-    checkeq(ENGINE_SUCCESS ,touch(h, h1, "coolkey", 0, expTime),
-            "touch coolkey");
+    checkeq(ENGINE_SUCCESS, touch(h, "coolkey", 0, expTime), "touch coolkey");
 
     testHarness->reload_engine(&h,
                                testHarness->engine_path,
@@ -1216,12 +1219,12 @@ static enum test_result test_delete_with_value(EngineIface* h,
             get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
             "Unexpected num_items after Alive -> Delete-with-value");
 
-    auto res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
+    auto res = get_value(h, cookie, "key", vbid, DocStateFilter::Alive);
     checkeq(ENGINE_KEY_ENOENT,
             res.first,
             "Unexpectedly accessed Deleted-with-value via DocState::Alive");
 
-    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
+    res = get_value(h, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
     checkeq(ENGINE_SUCCESS,
             res.first,
             "Failed to fetch Alive -> Delete-with-value");
@@ -1237,7 +1240,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
             "Unexpected num_items after Delete-with-value -> "
             "Delete-with-value");
 
-    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
+    res = get_value(h, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
     checkeq(ENGINE_SUCCESS, res.first, "Failed to fetch key (deleted 2)");
     checkeq(std::string("deleted 2"),
             res.second,
@@ -1253,14 +1256,14 @@ static enum test_result test_delete_with_value(EngineIface* h,
             get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
             "Unexpected num_items after Delete-with-value -> Alive");
 
-    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
+    res = get_value(h, cookie, "key", vbid, DocStateFilter::Alive);
     checkeq(ENGINE_SUCCESS,
             res.first,
             "Failed to fetch Delete-with-value -> Alive via DocState::Alive");
     checkeq(std::string("alive 2"), res.second, "Unexpected value (alive 2)");
 
     // Also check via DocState::Deleted
-    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
+    res = get_value(h, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
     checkeq(ENGINE_SUCCESS,
             res.first,
             "Failed to fetch Delete-with-value -> Alive via DocState::Deleted");
@@ -1278,7 +1281,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
             get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
             "Unexpected num_items after Alive -> Delete-no-value");
 
-    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::Alive);
+    res = get_value(h, cookie, "key", vbid, DocStateFilter::Alive);
     checkeq(ENGINE_KEY_ENOENT,
             res.first,
             "Unexpectedly accessed Deleted-no-value via DocState::Alive");
@@ -1288,7 +1291,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
             delete_with_value(h, cookie, cas_0, "key", "deleted 3"),
             "Failed delete with value (deleted 2)");
 
-    res = get_value(h, h1, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
+    res = get_value(h, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
     checkeq(ENGINE_SUCCESS, res.first, "Failed to fetch key (deleted 3)");
     checkeq(std::string("deleted 3"),
             res.second,
@@ -1495,7 +1498,7 @@ static enum test_result test_delete(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", &cas, 0, nullptr, &mut_info),
             "Failed remove with value.");
     check(orig_cas != cas, "Expected CAS to be updated on delete");
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
     checkeq(vb_uuid, mut_info.vbucket_uuid, "Expected valid vbucket uuid");
     checkeq(high_seqno + 1, mut_info.seqno, "Expected valid sequence number");
 
@@ -1507,7 +1510,7 @@ static enum test_result test_delete(EngineIface* h, EngineIface* h1) {
     testHarness->time_travel(3617);
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key", 0, 0),
             "Did not get ENOENT removing an expired object.");
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
 
     return SUCCESS;
 }
@@ -1519,7 +1522,7 @@ static enum test_result test_set_delete(EngineIface* h, EngineIface* h1) {
     check_key_value(h, h1, "key", "somevalue", 9);
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0),
             "Failed remove with value.");
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
     return SUCCESS;
@@ -1578,7 +1581,7 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
 
     return SUCCESS;
 }
