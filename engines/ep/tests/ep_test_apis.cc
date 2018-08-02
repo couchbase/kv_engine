@@ -1718,36 +1718,6 @@ void wait_for_persisted_value(EngineIface* h,
     }
 }
 
-void set_degraded_mode(EngineIface* h,
-                       EngineIface* h1,
-                       const void* cookie,
-                       bool enable) {
-    protocol_binary_request_header *pkt;
-    if (enable) {
-        pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC, 0, 0);
-    } else {
-        pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC, 0, 0);
-    }
-
-    ENGINE_ERROR_CODE errcode = h1->unknown_command(NULL, pkt, add_response);
-    cb_free(pkt);
-    if (errcode != ENGINE_SUCCESS) {
-        std::cerr << "Failed to set degraded mode to " << enable
-                  << ". api call return engine code: " << errcode << std::endl;
-        cb_assert(false);
-    }
-
-    if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        std::cerr << "Failed to set degraded mode to " << enable
-                  << ". protocol code: " << last_status << std::endl;
-        if (last_body.size() > 0) {
-            std::cerr << "\tBody: [" << last_body << "]" << std::endl;
-        }
-
-        cb_assert(false);
-    }
-}
-
 void abort_msg(const char* expr, const char* msg, const char* file, int line) {
     fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
             file, line, msg, expr);

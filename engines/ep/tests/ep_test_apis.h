@@ -639,11 +639,6 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
                                const uint64_t cas = 0,
                                const void* cookie = nullptr);
 
-void set_degraded_mode(EngineIface* h,
-                       EngineIface* h1,
-                       const void* cookie,
-                       bool enable);
-
 // Fetches the CAS of the specified key.
 uint64_t get_CAS(EngineIface* h, const std::string& key);
 
