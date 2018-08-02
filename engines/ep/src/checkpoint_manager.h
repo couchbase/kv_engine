@@ -492,8 +492,6 @@ protected:
     // by this object.
     std::atomic<size_t>      numItems;
     Monotonic<int64_t>       lastBySeqno;
-    bool                     isCollapsedCheckpoint;
-    uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
 
     /**

@@ -38,7 +38,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
       vbucketId(vbucket),
       numItems(0),
       lastBySeqno(lastSeqno),
-      isCollapsedCheckpoint(false),
       pCursorPreCheckpointId(0),
       flusherCB(cb) {
     LockHolder lh(queueLock);
@@ -70,11 +69,8 @@ uint64_t CheckpointManager::getOpenCheckpointId() {
 
 uint64_t CheckpointManager::getLastClosedCheckpointId_UNLOCKED(
         const LockHolder& lh) {
-    if (!isCollapsedCheckpoint) {
-        uint64_t id = getOpenCheckpointId_UNLOCKED(lh);
-        lastClosedCheckpointId = id > 0 ? (id - 1) : 0;
-    }
-    return lastClosedCheckpointId;
+    auto id = getOpenCheckpointId_UNLOCKED(lh);
+    return id > 0 ? (id - 1) : 0;
 }
 
 uint64_t CheckpointManager::getLastClosedCheckpointId() {
@@ -1043,14 +1039,6 @@ void CheckpointManager::checkAndAddNewCheckpoint() {
         setOpenCheckpointId_UNLOCKED(lh, newId);
         resetCursors(false);
         return;
-    }
-
-    if ((openCkptId + 1) < newId) {
-        isCollapsedCheckpoint = true;
-        uint64_t oid = getOpenCheckpointId_UNLOCKED(lh);
-        lastClosedCheckpointId = oid > 0 ? (oid - 1) : 0;
-    } else if ((openCkptId + 1) == newId) {
-        isCollapsedCheckpoint = false;
     }
 
     if (openCkpt.getNumItems() == 0) {
