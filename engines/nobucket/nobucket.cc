@@ -357,24 +357,6 @@ public:
     }
 
 private:
-    /**
-     * Convert the EngineIface to the underlying class type
-     *
-     * @param handle the handle as provided by the frontend
-     * @return the actual no bucket object
-     */
-    static NoBucket* get_handle(EngineIface* handle) {
-        return reinterpret_cast<NoBucket*>(handle);
-    }
-
-    static bool set_item_info(gsl::not_null<EngineIface*>,
-                              gsl::not_null<item*>,
-                              gsl::not_null<const item_info*>) {
-        throw std::logic_error(
-                "NoBucket::set_item_info: no items should have"
-                " been allocated from this engine");
-    }
-
     static cb::engine_error collections_set_manifest(
             gsl::not_null<EngineIface*> handle, cb::const_char_buffer json) {
         return {cb::engine_errc::no_bucket,
