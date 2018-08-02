@@ -1066,7 +1066,7 @@ extern "C" {
         std::unique_lock<std::mutex> lk(ctx->mutex);
         ctx->compactor_waiting = true;
         ctx->cv.wait(lk, [ctx]{return ctx->compaction_start;});
-        compact_db(ctx->h, ctx->h1, 0, 0, 99, ctx->items, 1);
+        compact_db(ctx->h, 0, 0, 99, ctx->items, 1);
     }
 
     static void writer_thread(void *args) {
@@ -5000,7 +5000,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h,
     wait_for_flusher_to_settle(h, h1);
 
     /* Run compaction */
-    compact_db(h, h1, 0, 0, 2, high_seqno, 1);
+    compact_db(h, 0, 0, 2, high_seqno, 1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(static_cast<int>(high_seqno - 1),
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
@@ -5079,7 +5079,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
     wait_for_flusher_to_settle(h, h1);
 
     /* Run compaction */
-    compact_db(h, h1, 0, 0, 2, high_seqno, 1);
+    compact_db(h, 0, 0, 2, high_seqno, 1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
             static_cast<int>(high_seqno - 1),

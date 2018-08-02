@@ -1649,7 +1649,7 @@ static enum test_result test_bug7023(EngineIface* h, EngineIface* h1) {
     for (int j = 0; j < iterations; ++j) {
         check(set_vbucket_state(h, 0, vbucket_state_dead),
               "Failed set set vbucket 0 dead.");
-        checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 0), "expected success");
+        checkeq(ENGINE_SUCCESS, vbucketDelete(h, 0), "expected success");
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
                 last_status.load(),
                 "Expected vbucket deletion to work.");

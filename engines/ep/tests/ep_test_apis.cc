@@ -1196,7 +1196,6 @@ ENGINE_ERROR_CODE unl(EngineIface* h,
 }
 
 void compact_db(EngineIface* h,
-                EngineIface* h1,
                 const uint16_t vbucket_id,
                 const uint16_t db_file_id,
                 const uint64_t purge_before_ts,
@@ -1208,7 +1207,7 @@ void compact_db(EngineIface* h,
     req.message.body.purge_before_seq = htonll(purge_before_seq);
     req.message.body.drop_deletes     = drop_deletes;
 
-    std::string backend = get_str_stat(h, h1, "ep_backend");
+    std::string backend = get_str_stat(h, h, "ep_backend");
     const char *args = (const char *)&(req.message.body);
     uint32_t argslen = 24;
 
@@ -1222,13 +1221,12 @@ void compact_db(EngineIface* h,
                          0,
                          NULL,
                          0);
-    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request compact vbucket");
     cb_free(pkt);
 }
 
 ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
-                                EngineIface* h1,
                                 uint16_t vb,
                                 const char* args) {
     uint32_t argslen = args ? strlen(args) : 0;
@@ -1236,7 +1234,7 @@ ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
         createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, vb, 0, NULL, 0, NULL, 0,
                      args, argslen);
 
-    auto ret = h1->unknown_command(NULL, pkt, add_response);
+    auto ret = h->unknown_command(NULL, pkt, add_response);
     cb_free(pkt);
 
     return ret;

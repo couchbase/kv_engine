@@ -1018,7 +1018,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
     testHarness->time_travel(15);
 
     // Compaction on VBucket
-    compact_db(h, h1, 0, 0, 0, 0, 0);
+    compact_db(h, 0, 0, 0, 0, 0);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
 
     checkeq(50, get_int_stat(h, h1, "ep_expired_compactor"),
@@ -1501,7 +1501,6 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
     // Compaction on VBucket
     compact_db(
             h,
-            h1,
             0 /* vbucket_id */,
             0 /* db_file_id */,
             2 /* purge_before_ts */,
@@ -1531,7 +1530,6 @@ static enum test_result test_compaction_config(EngineIface* h,
 
 struct comp_thread_ctx {
     EngineIface* h;
-    EngineIface* h1;
     uint16_t vbid;
     uint16_t db_file_id;
 };
@@ -1539,7 +1537,7 @@ struct comp_thread_ctx {
 extern "C" {
     static void compaction_thread(void *arg) {
         struct comp_thread_ctx *ctx = static_cast<comp_thread_ctx *>(arg);
-        compact_db(ctx->h, ctx->h1, ctx->vbid, ctx->db_file_id, 0, 0, 0);
+        compact_db(ctx->h, ctx->vbid, ctx->db_file_id, 0, 0, 0);
     }
 }
 
@@ -1589,7 +1587,6 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h,
 
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
-        ctx[i].h1 = h1;
         ctx[i].vbid = static_cast<uint16_t>(i);
         ctx[i].db_file_id = ctx[i].vbid % num_shards;
         int r = cb_create_thread(&threads[i], compaction_thread, &ctx[i], 0);
@@ -1662,7 +1659,6 @@ static enum test_result test_multi_vb_compactions_with_workload(
 
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
-        ctx[i].h1 = h1;
         ctx[i].vbid = static_cast<uint16_t>(i);
         int r = cb_create_thread(&threads[i], compaction_thread, &ctx[i], 0);
         cb_assert(r == 0);
@@ -1684,14 +1680,12 @@ static enum test_result vbucket_destroy(EngineIface* h,
     check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
-    checkeq(ENGINE_NOT_MY_VBUCKET,
-            vbucketDelete(h, h1, 2, value),
-            "Expected NMVB");
+    checkeq(ENGINE_NOT_MY_VBUCKET, vbucketDelete(h, 2, value), "Expected NMVB");
 
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1, value), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1, value), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
@@ -1740,7 +1734,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
           "Failed set set vbucket 1 state.");
 
     int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(),
             "Expected failure deleting non-existent bucket.");
@@ -1798,7 +1792,7 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1, value), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1, value), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
@@ -2721,7 +2715,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
                 "Expected bgFetch attempts to increase by five");
 
         // Run compaction, with drop_deletes
-        compact_db(h, h1, 0, 0, 15, 15, 1);
+        compact_db(h, 0, 0, 15, 15, 1);
         while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -2750,7 +2744,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
 
         // Run compaction, with drop_deletes, to exclude deleted items
         // from bloomfilter.
-        compact_db(h, h1, 0, 0, 15, 15, 1);
+        compact_db(h, 0, 0, 15, 15, 1);
         while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -3272,7 +3266,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
              ") should exist (got errno:" + std::to_string(errno)).c_str());
 
     /* Increase resident ratio by deleting items */
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 0), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 0), "Expected success");
     check(set_vbucket_state(h, 0, vbucket_state_active),
           "Failed to set VB0 state.");
 
@@ -3906,7 +3900,7 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
             get_stat<uint64_t>(h, h1, "ep_queue_size"),
             "ep_queue_size is not zero after setting to dead (2)");
 
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 0), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 0), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success deleting vbucket.");
     verify_curr_items(h, h1, 0, "del vbucket");
@@ -4028,7 +4022,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
     // don't need to explicitly set the vbucket state to dead as this is
     // done as part of the vbucketDelete. See KVBucket::deleteVBucket
     int vb_del_num = get_int_stat(h, h1, "ep_vbucket_del");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, 1),
@@ -5328,14 +5322,14 @@ static enum test_result test_set_ret_meta_error(EngineIface* h,
     checkeq(ENGINE_NOT_MY_VBUCKET,
             set_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
 
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             set_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
 
     return SUCCESS;
 }
@@ -5424,14 +5418,14 @@ static enum test_result test_add_ret_meta_error(EngineIface* h,
     checkeq(ENGINE_NOT_MY_VBUCKET,
             add_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
 
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             add_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
 
     return SUCCESS;
 }
@@ -5558,14 +5552,14 @@ static enum test_result test_del_ret_meta_error(EngineIface* h,
     checkeq(ENGINE_NOT_MY_VBUCKET,
             del_ret_meta(h, "key", 3, 1, 0, nullptr),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
 
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             del_ret_meta(h, "key", 3, 1, 0, nullptr),
             "Expected NMVB");
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
 
     return SUCCESS;
 }
@@ -6006,7 +6000,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h,
     testHarness->time_travel(11);
 
     // Compaction on VBucket 0
-    compact_db(h, h1, 0, 0, 10, 10, 0);
+    compact_db(h, 0, 0, 10, 10, 0);
 
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
@@ -7594,7 +7588,7 @@ static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
     // Wait until spawned thread has locked the cookie.
     cv.wait(lk, [&ready]{return ready;});
     lk.unlock();
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
     // Wait for the thread to finish, which will occur when the thread has been
     // notified.
     notify_waiter.join();
@@ -7636,16 +7630,24 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
     /* Compact once */
     int exp_purge_seqno = get_int_stat(h, h1, "vb_0:high_seqno",
                                        "vbucket-seqno") - 1;
-    compact_db(h, h1, 0, 2,
-               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"), 1, 1);
+    compact_db(h,
+               0,
+               2,
+               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
+               1,
+               1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(exp_purge_seqno,
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
     /* Compact again, this time we don't expect to purge any items */
-    compact_db(h, h1, 0, 2,
-               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"), 1, 1);
+    compact_db(h,
+               0,
+               2,
+               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
+               1,
+               1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(exp_purge_seqno,
             get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),

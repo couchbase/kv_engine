@@ -249,7 +249,7 @@ static enum test_result test_wait_for_persist_vb_del(EngineIface* h,
 
     wait_for_stat_to_be(h, "ep_chk_persistence_remains", 1);
 
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, 1),

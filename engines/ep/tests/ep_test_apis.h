@@ -523,12 +523,10 @@ bool repeat_till_true(std::function<bool()> functor,
 
 // VBucket operations
 ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
-                                EngineIface* h1,
                                 uint16_t vb,
-                                const char* args = NULL);
+                                const char* args = nullptr);
 
 void compact_db(EngineIface* h,
-                EngineIface* h1,
                 const uint16_t vbid,
                 const uint16_t db_file_id,
                 const uint64_t purge_before_ts,

@@ -465,7 +465,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
 
         // Run compaction to start using the bloomfilter
         useconds_t sleepTime = 128;
-        compact_db(h, h1, 0, 0, 1, 1, 0);
+        compact_db(h, 0, 0, 1, 1, 0);
         while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -725,7 +725,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
 
     // Run compaction to start using the bloomfilter
     useconds_t sleepTime = 128;
-    compact_db(h, h1, 0, 0, 1, 1, 0);
+    compact_db(h, 0, 0, 1, 1, 0);
     while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
         decayingSleep(&sleepTime);
     }
