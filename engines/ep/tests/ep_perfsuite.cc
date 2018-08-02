@@ -835,7 +835,7 @@ static void perf_load_client(EngineIface* h,
 
     add_sentinel_doc(h, h1, vbid);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 }
 
 /* Function which loads documents into a bucket until told to stop*/
@@ -1061,7 +1061,7 @@ single_dcp_latency_bw_test(EngineIface* h,
 
     check(set_vbucket_state(h, vb, vbucket_state_active),
           "Failed set_vbucket_state for vbucket");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     std::vector<hrtime_t> insert_times;
 

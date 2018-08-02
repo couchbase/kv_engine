@@ -252,7 +252,7 @@ static enum test_result test_set(EngineIface* h, EngineIface* h1) {
     }
 
     if (isPersistentBucket(h)) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
 
         std::stringstream error1, error2;
         error1 << "Expected ep_total_persisted >= num_keys (" << num_keys << ")";
@@ -288,7 +288,7 @@ static enum test_result test_conc_set(EngineIface* h, EngineIface* h1) {
     const int n_threads = 8;
     cb_thread_t threads[n_threads];
 
-    wait_for_persisted_value(h, h1, "key", "value1");
+    wait_for_persisted_value(h, "key", "value1");
 
     for (int i = 0; i < n_threads; i++) {
         int r = cb_create_thread(&threads[i], conc_del_set_thread, h, 0);
@@ -301,7 +301,7 @@ static enum test_result test_conc_set(EngineIface* h, EngineIface* h1) {
     }
 
     if (isWarmupEnabled(h)) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
 
         testHarness->reload_engine(&h,
                                    testHarness->engine_path,
@@ -361,7 +361,7 @@ static enum test_result test_multi_set(EngineIface* h, EngineIface* h1) {
     cb_assert(cb_join_thread(thread1) == 0);
     cb_assert(cb_join_thread(thread2) == 0);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(100000, get_int_stat(h, h1, "curr_items"),
             "Mismatch in number of items inserted");
@@ -1002,7 +1002,7 @@ static enum test_result test_touch_mb10277(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key, "v"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     evict_key(h, key, 0, "Ejected.");
 
     checkeq(ENGINE_SUCCESS,
@@ -1198,7 +1198,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, cookie, OPERATION_SET, "key", "somevalue"),
             "Failed set");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(uint64_t(1),
             get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
@@ -1244,7 +1244,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, cookie, OPERATION_SET, "key", "alive 2", nullptr),
             "Failed Delete-with-value -> Alive");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(uint64_t(1),
             get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
@@ -1269,7 +1269,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "key", cas_0, vbid, cookie),
             "Failed Alive -> Deleted-no-value");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(uint64_t(0),
             get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
@@ -1360,7 +1360,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
                   DocumentState::Deleted),
             "Failed delete value with cas");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
@@ -1384,7 +1384,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
                   DocumentState::Deleted),
             "Failed delete value with cas");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     check(h1->get_item_info(i, &info), "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
@@ -1433,7 +1433,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
                   DocumentState::Deleted),
             "Failed delete value with cas");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     auto ret = get(h, nullptr, "key2", 0, DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value");
@@ -1517,7 +1517,7 @@ static enum test_result test_set_delete(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0),
             "Failed remove with value.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
     return SUCCESS;
 }
@@ -1547,12 +1547,12 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
         return SKIPPED;
     }
 
-    wait_for_persisted_value(h, h1, "key", "value1");
+    wait_for_persisted_value(h, "key", "value1");
 
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "key", 0, 0), "Failed remove with value.");
 
-    wait_for_persisted_value(h, h1, "key", "value2");
+    wait_for_persisted_value(h, "key", "value2");
 
     testHarness->reload_engine(&h,
                                testHarness->engine_path,
@@ -1565,7 +1565,7 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
     check_key_value(h, "key", "value2", 6);
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "key", 0, 0), "Failed remove with value.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     testHarness->reload_engine(&h,
                                testHarness->engine_path,
@@ -1587,7 +1587,7 @@ static enum test_result test_get_delete_missing_file(EngineIface* h,
             "Failed to get stats.");
 
     const char *key = "key";
-    wait_for_persisted_value(h, h1, key, "value2delete");
+    wait_for_persisted_value(h, key, "value2delete");
 
     // whack the db file and directory where the key is stored
     std::string dbname = vals["ep_dbname"];
@@ -1661,7 +1661,7 @@ static enum test_result test_bug7023(EngineIface* h, EngineIface* h1) {
                     "Failed to store a value");
         }
     }
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     if (isWarmupEnabled(h)) {
         // Restart again, to verify no data loss.
@@ -1704,7 +1704,7 @@ static enum test_result test_mb3169(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "set", "value2"),
             "Failed to store a value");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(3, get_int_stat(h, h1, "curr_items"), "Expected 3 items");
     checkeq(2, get_int_stat(h, h1, "ep_num_non_resident"),
@@ -1713,7 +1713,7 @@ static enum test_result test_mb3169(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, del(h, h1, "delete", 0, 0),
             "Delete failed");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(2, get_int_stat(h, h1, "curr_items"), "Expected 2 items after del");
     checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
@@ -1740,7 +1740,7 @@ static enum test_result test_mb5172(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_SET, "key-2", "value-2"),
             "Failed to store a value");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
             "Expected all items to be resident");
@@ -1810,16 +1810,16 @@ static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
     const int num_items = 10;
     write_items(h, num_items, 0, "vb1", "value", 0 /*expiry*/, 1 /*vb*/);
     write_items(h, num_items, 0, "vb2", "value", 0 /*expiry*/, 2 /*vb*/);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // flip replica to active to drive more _local writes
     check(set_vbucket_state(h, 2, vbucket_state_replica),
           "Failed to set vbucket state (replica) for vb2");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     check(set_vbucket_state(h, 2, vbucket_state_active),
           "Failed to set vbucket state (replica) for vb2");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // Force a shutdown so the warmup will create failover entries
     testHarness->reload_engine(&h,
@@ -1916,7 +1916,7 @@ static test_result get_if(EngineIface* h, EngineIface* h1) {
             "Failed set.");
 
     if (isPersistentBucket(h)) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         evict_key(h, key.c_str(), 0, "Ejected.");
     }
 

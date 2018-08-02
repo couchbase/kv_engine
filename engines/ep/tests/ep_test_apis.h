@@ -497,17 +497,15 @@ void wait_for_expired_items_to_be(EngineIface* h,
                                   int final,
                                   const time_t max_wait_time_in_secs = 60);
 bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1);
-void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1);
-void wait_for_item_compressor_to_settle(EngineIface* h, EngineIface* h1);
-void wait_for_rollback_to_finish(EngineIface* h, EngineIface* h1);
+void wait_for_flusher_to_settle(EngineIface* h);
+void wait_for_item_compressor_to_settle(EngineIface* h);
+void wait_for_rollback_to_finish(EngineIface* h);
 void wait_for_persisted_value(EngineIface* h,
-                              EngineIface* h1,
                               const char* key,
                               const char* val,
                               uint16_t vbucketId = 0);
 
 void wait_for_memory_usage_below(EngineIface* h,
-                                 EngineIface* h1,
                                  int mem_threshold,
                                  const time_t max_wait_time_in_secs = 60);
 

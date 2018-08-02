@@ -101,7 +101,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h,
             store(h, NULL, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     Item *it1 = reinterpret_cast<Item*>(i);
     // check the stat
@@ -148,10 +148,10 @@ static enum test_result test_get_meta_deleted(EngineIface* h, EngineIface* h1) {
             "Failed set.");
 
     Item *it = reinterpret_cast<Item*>(i);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(ENGINE_SUCCESS, del(h, h1, key, it->getCas(), 0), "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // check the stat
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
@@ -207,7 +207,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     // check the stat
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
@@ -225,7 +225,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h,
 
     // test get_meta followed by get for a deleted key. should fail.
     checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
@@ -263,7 +263,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 1);
 
     // check the stat
@@ -286,7 +286,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
 
     // test get_meta followed by set for a deleted key. should pass.
     checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     wait_for_stat_to_be(h, "curr_items", 0);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
@@ -298,7 +298,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
@@ -331,7 +331,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     // check the stat
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
@@ -345,7 +345,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
     check(temp == 1, "Expect one getMeta op");
 
     // test get_meta followed by delete for a deleted key. should fail.
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
@@ -391,7 +391,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h,
             "Failed to store xattr document");
 
     if (isPersistentBucket(h)) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
     }
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -445,7 +445,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
             "Failed to store xattr document");
 
     if (isPersistentBucket(h)) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
     }
 
     if (isPersistentBucket(h)) {
@@ -597,12 +597,12 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // delete the key
     checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0),
             "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -631,7 +631,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, key, keylen, 0, &itm_meta, valid_cas);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect some ops");
@@ -694,7 +694,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, key, keylen, 0, &itm_meta, valid_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // check the stat
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
@@ -740,7 +740,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     // skipConflictResolution false
     del_with_meta(h, key1, keylen1, 0, &itm_meta1, 0, false);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
     wait_for_stat_to_be(h, "curr_items", 0);
@@ -760,7 +760,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
 
     del_with_meta(h, key2, keylen2, 0, &itm_meta2, 0, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
     wait_for_stat_to_be(h, "curr_items", 0);
@@ -791,7 +791,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -816,7 +816,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h,
 
     // do get_meta for the deleted key
     checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
@@ -856,7 +856,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -892,7 +892,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
     //
 
     // do get_meta for the deleted key
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
@@ -954,7 +954,7 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key, val),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // get metadata for the key
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -1075,7 +1075,7 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h,
     // Pass true to force SetWithMeta.
     set_with_meta(h, key, keylen, val, strlen(val), 0, &itm_meta, 0, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // get metadata again to verify that the warmup loads an item correctly.
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -1106,13 +1106,13 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key, val),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // delete the key
     checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0), "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -1142,7 +1142,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // check the stat
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
@@ -1198,7 +1198,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h,
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, key, keylen, val, valLen, 0, &itm_meta, cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // check the stat
     checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
@@ -1231,7 +1231,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     cb::EngineErrorMetadataPair errorMetaPair;
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
 
@@ -1259,7 +1259,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h,
 
     // do get_meta for the deleted key
     checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
@@ -1303,7 +1303,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     cb::EngineErrorMetadataPair errorMetaPair;
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
 
@@ -1340,7 +1340,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
     //
 
     // do get_meta for the deleted key
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
@@ -1451,7 +1451,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h,
         "Expected datatype to be JSON and XATTR");
 
     if (isPersistentBucket(h)) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         //evict the key
         evict_key(h, key);
 
@@ -1495,7 +1495,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h,
             "Failed to store key1.");
 
     if (isPersistentBucket(h)) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
     }
 
     // Get the metadata so we can build a del_with_meta
@@ -1614,7 +1614,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h,
     // previous set - slow disk), or the compactor (unlikely).
     wait_for_expired_items_to_be(h, h1, 1);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     check(get_meta(h, "key3", errorMetaPair), "Expected to get meta");
@@ -1633,10 +1633,10 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, k1, "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(ENGINE_SUCCESS, del(h, h1, k1, 0, 0), "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Issue a get_meta for a deleted key. This will need to bring in a temp
@@ -1722,7 +1722,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h,
             "Expected no bg meta fetches, thanks to bloom filters");
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0), "Delete failed");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
@@ -1877,7 +1877,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     // put some random metadata
     ItemMetaData itemMeta;
@@ -1888,7 +1888,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h,
 
     del_with_meta(h, "key", 3, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
@@ -1937,7 +1937,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h,
             "Failed set.");
 
     h1->get_item_info(i, &info);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     h->release(i);
 
     // put some random metadata
@@ -1953,7 +1953,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h,
 
     del_with_meta(h, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
@@ -1986,7 +1986,7 @@ static enum test_result test_getMeta_with_item_eviction(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     evict_key(h, key, 0, "Ejected.");
 
     Item *it = reinterpret_cast<Item*>(i);
@@ -2688,7 +2688,7 @@ static enum test_result test_MB29119(EngineIface* h, EngineIface* h1) {
             last_status.load(),
             "Expected success");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     // evict the key
     evict_key(h, key1);
 

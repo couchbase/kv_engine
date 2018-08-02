@@ -1198,7 +1198,7 @@ static enum test_result test_dcp_vbtakeover_no_stream(EngineIface* h,
         // MB-21646: FE mode - curr_items (which is part of "estimate") is
         // updated as part of flush, and thus if the writes are flushed in
         // blocks < 10 we may see an estimate < 10
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
     }
 
     const auto est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
@@ -1950,7 +1950,7 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h,
 
     /* Write items */
     write_items(h, num_items, 0);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     /* If the notification (to 'dcp_waiting_step' thread upon writing an item)
@@ -1975,14 +1975,14 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
     const auto max_ckpt_items = get_int_stat(h, h1, "ep_chk_max_items");
 
     write_items(h, max_ckpt_items);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items);
     checkeq(initial_ckpt_id + 1,
             get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 1 after storing items");
 
     write_items(h, max_ckpt_items, max_ckpt_items);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
     checkeq(initial_ckpt_id + 2,
             get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
@@ -2046,11 +2046,11 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         write_items(h, batch_items, start_seqno);
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
@@ -2077,11 +2077,11 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h,
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         write_items(h, batch_items, start_seqno);
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
@@ -2125,7 +2125,7 @@ static enum test_result test_dcp_producer_deleted_item_backfill(
                 0 /*exp*/,
                 0 /*vb*/,
                 DocumentState::Deleted);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2152,7 +2152,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h,
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         if (200 == start_seqno) {
-            wait_for_flusher_to_settle(h, h1);
+            wait_for_flusher_to_settle(h);
             wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", 200);
             stop_persistence(h);
         }
@@ -2183,11 +2183,11 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h,
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         write_items(h, batch_items, start_seqno);
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
@@ -2214,7 +2214,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(
     const int num_items = 3;
     write_items(h, num_items);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
@@ -2275,7 +2275,7 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
     const int num_items = 3;
     write_items(h, num_items);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     /* Wait for the checkpoint to be removed so that upon DCP connection
@@ -2304,11 +2304,11 @@ static enum test_result test_dcp_producer_stream_req_mem(EngineIface* h,
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         write_items(h, batch_items, start_seqno);
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     const void* cookie = testHarness->create_cookie();
@@ -2369,7 +2369,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
     checkge(i, 1000,
             "Does not have expected min items; Check max_size setting");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     verify_curr_items(h, h1, i, "Wrong number of items");
     double num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
@@ -2411,7 +2411,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h,
         store(h, cookie, OPERATION_SET, ss.str().c_str(), "somevalue");
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, 10, "Wrong number of items");
 
     for (int ii = 0; ii < 5; ii++) {
@@ -2419,7 +2419,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h,
         ss << "key" << ii;
         evict_key(h, ss.str().c_str(), 0, "Ejected.");
     }
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_num_value_ejects", 5);
 
     TestDcpConsumer tdc("unittest", cookie, h, h1);
@@ -2455,11 +2455,11 @@ static enum test_result test_dcp_producer_stream_latest(EngineIface* h,
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         write_items(h, batch_items, start_seqno);
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     const void* cookie = testHarness->create_cookie();
@@ -2488,7 +2488,7 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h,
 
     write_items(h, num_items);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     const void* cookie = testHarness->create_cookie();
@@ -2573,7 +2573,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
                           start + 10, start, start + 10);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     stop_persistence(h);
     checkeq(2 * num_items, get_int_stat(h, h1, "vb_replica_curr_items"),
             "wrong number of items in replica vbucket");
@@ -2646,7 +2646,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     uint64_t curr_chkpt_id = 0;
     for (int j = 0; j < num_items; ++j) {
         if (j % 10 == 0) {
-            wait_for_flusher_to_settle(h, h1);
+            wait_for_flusher_to_settle(h);
         }
         if (j == (num_items - 1)) {
             /* Since checkpoint max items is set to 10 and we are going to
@@ -2664,7 +2664,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
                 "Failed to store a value");
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     const void* cookie = testHarness->create_cookie();
@@ -2745,11 +2745,11 @@ static test_result test_dcp_agg_stats(EngineIface* h, EngineIface* h1) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         write_items(h, batch_items, start_seqno);
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     const void *cookie[5];
@@ -2802,7 +2802,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
 
     write_items(h, num_items, 1);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     /* Set up a dcp producer conn and stream a few items. This will cause the
@@ -2859,7 +2859,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
 
     /* Persist all items */
     start_persistence(h);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     /* wait for cursor to be dropped. You need to make sure that there are
        2 checkpoints so that the cursors of one of the checkpoint is dropped.
@@ -2910,7 +2910,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
 
     write_items(h, num_items, 1);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
@@ -2945,7 +2945,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
     /* Persist all items so that we can drop the replication cursor and
        schedule another backfill */
     start_persistence(h);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     wait_for_stat_to_be_gte(h, h1, "ep_cursors_dropped", 1);
 
@@ -3293,7 +3293,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                 "Failed to send dcp mutation");
     }
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "vb_replica_curr_items", items);
 
     testHarness->destroy_cookie(cookie);
@@ -3449,12 +3449,12 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         write_items(h, batch_items, start_seqno);
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         createCheckpoint(h);
     }
 
     createCheckpoint(h);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -3496,7 +3496,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
             "Error in SET operation.");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     checkeq(0, get_int_stat(h, h1, "ep_diskqueue_items"),
             "Unexpected diskqueue");
 
@@ -3508,7 +3508,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h,
                                                             EngineIface* h1) {
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -3559,7 +3559,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h,
     // Simulate failover
     check(set_vbucket_state(h, 0, vbucket_state_active),
           "Failed to set vbucket state.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     int openCheckpointId = get_int_stat(h, h1, "vb_0:open_checkpoint_id",
                                         "checkpoint");
@@ -3693,7 +3693,7 @@ static enum test_result test_rollback_to_zero(EngineIface* h, EngineIface* h1) {
     const int num_items = 10;
     write_items(h, num_items);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     check(set_vbucket_state(h, 0, vbucket_state_replica),
@@ -3713,8 +3713,8 @@ static enum test_result test_rollback_to_zero(EngineIface* h, EngineIface* h1) {
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_ROLLBACK);
 
-    wait_for_flusher_to_settle(h, h1);
-    wait_for_rollback_to_finish(h, h1);
+    wait_for_flusher_to_settle(h);
+    wait_for_rollback_to_finish(h);
 
     checkeq(0, get_int_stat(h, h1, "curr_items"),
             "All items should be rolled back");
@@ -3740,7 +3740,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
     write_items(h, num_items);
 
     start_persistence(h);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     testHarness->reload_engine(&h,
@@ -3762,7 +3762,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
     }
 
     start_persistence(h);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, 60, "Wrong amount of items");
     set_vbucket_state(h, vbid, vbucket_state_replica);
 
@@ -3853,7 +3853,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
     const int num_items = 10;
     write_items(h, num_items);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     checkeq(num_items,
             get_int_stat(h, h1, "curr_items"),
             "Item count should've been 10");
@@ -3932,7 +3932,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
     cb_free(pkt2);
 
     //Verify that all items have been removed from consumer
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     checkeq(0, get_int_stat(h, h1, "vb_replica_curr_items"),
             "Item count should've been 0");
     checkeq(1, get_int_stat(h, h1, "ep_rollback_count"),
@@ -3955,7 +3955,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
     write_items(h, numInitialItems, 0, "key_");
 
     start_persistence(h);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     checkeq(100, get_int_stat(h, h1, "curr_items"),
             "Item count should've been 100");
 
@@ -3965,7 +3965,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
     const int numUpdateAndWrites = 20, updateStartSeqno = 90;
     write_items(h, numUpdateAndWrites, updateStartSeqno, "key_");
     start_persistence(h);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const int expItems = std::max((numUpdateAndWrites + updateStartSeqno),
                                   numInitialItems);
@@ -4043,7 +4043,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
     cb_free(pkt2);
 
     //?Verify that 10 items plus 10 updates have been removed from consumer
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     checkeq(1,
             get_int_stat(h, h1, "ep_rollback_count"),
             "Rollback count expected to be 1");
@@ -4138,7 +4138,7 @@ static enum test_result test_dcp_producer_flow_control(EngineIface* h,
     const int num_items = 10;
     write_items(h, 10, 0, "key", "123456789");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
     /* Disable flow control and stream all items. The producer should stream all
@@ -4568,7 +4568,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_ADD, "key", "value"),
             "Failed to fail to store an item.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, 1, "one item stored");
 
     check(set_vbucket_state(h, 0, vbucket_state_replica),
@@ -4678,7 +4678,7 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h,
                           num_items);
 
     /* Stream in mutations from replica */
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "vb_0:high_seqno", num_items, "vbucket-seqno");
 
     DcpStreamCtx ctx;
@@ -4726,7 +4726,7 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h,
                           num_items);
 
     /* Stream in memory mutations from replica */
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "vb_0:high_seqno", num_items, "vbucket-seqno");
 
     DcpStreamCtx ctx;
@@ -4778,7 +4778,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
     dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
                           start + 100, start, start + 100);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     stop_persistence(h);
     checkeq(2 * num_items, get_int_stat(h, h1, "vb_replica_curr_items"),
             "wrong number of items in replica vbucket");
@@ -4816,7 +4816,7 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h,
     const int num_items = 2;
     write_items(h, num_items, 0, "key", "somevalue");
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(ENGINE_SUCCESS,
             seqnoPersistence(h, nullptr, /*vbid*/ 0, /*seqno*/ num_items),
@@ -4997,7 +4997,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h,
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
     /* wait for flusher to settle */
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     /* Run compaction */
     compact_db(h, 0, 0, 2, high_seqno, 1);
@@ -5049,7 +5049,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
     }
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     /* wait for flusher to settle */
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     /* Create a DCP stream to send 3 items to the replica */
     DcpStreamCtx ctx;
@@ -5076,7 +5076,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
     }
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     /* wait for flusher to settle */
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     /* Run compaction */
     compact_db(h, 0, 0, 2, high_seqno, 1);
@@ -5145,7 +5145,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
                                                      EngineIface* h1) {
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -5256,7 +5256,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
     // Full Evictions: must wait for all items to have been flushed before
     // asserting item counts
     if (isPersistentBucket(h) && is_full_eviction(h)) {
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
     }
 
     checkeq(6, get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
@@ -5274,7 +5274,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h,
                                                   EngineIface* h1) {
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie1 = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -5384,7 +5384,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h,
                                                            EngineIface* h1) {
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -5447,7 +5447,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h,
                                                          EngineIface* h1) {
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -5525,7 +5525,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h,
         /* Set n items */
         write_items(h, num_items, 0, "KEY", "somevalue");
     }
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 1;
@@ -5584,7 +5584,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
 
     write_items(h, num_items);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", num_items);
 
     testHarness->reload_engine(&h,
@@ -5721,7 +5721,7 @@ static enum test_result test_mb16357(EngineIface* h, EngineIface* h1) {
 
     write_items(h, num_items, 0, "key-", "value", /*expiration*/ 1);
 
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     testHarness->time_travel(3617); // force expiry pushing time forward.
 
     struct mb16357_ctx ctx(h, h1, num_items);
@@ -5850,7 +5850,7 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h,
           "Failed set vbucket state on 1");
     check(set_vbucket_state(h, 2, vbucket_state_active),
           "Failed set vbucket state on 2");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     int num_items = 100;
     for (int i = 0; i < num_items; ++i) {
@@ -5960,7 +5960,7 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h,
                                                              EngineIface* h1) {
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -6042,7 +6042,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h,
     const int rep_vb_num = 0;
     check(set_vbucket_state(h, rep_vb_num, vbucket_state_replica),
           "Failed to set vbucket state");
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;

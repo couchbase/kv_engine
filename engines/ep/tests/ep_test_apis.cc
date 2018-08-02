@@ -419,7 +419,7 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
                             /*exp*/ 0,
                             uint8_t(datatype),
                             DocumentState::Deleted);
-    wait_for_flusher_to_settle(h, h);
+    wait_for_flusher_to_settle(h);
 
     return ENGINE_ERROR_CODE(ret.first);
 }
@@ -1625,7 +1625,6 @@ void wait_for_expired_items_to_be(EngineIface* h,
 }
 
 void wait_for_memory_usage_below(EngineIface* h,
-                                 EngineIface* h1,
                                  int mem_threshold,
                                  const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
@@ -1633,7 +1632,7 @@ void wait_for_memory_usage_below(EngineIface* h,
                                          mem_threshold,
                                          max_wait_time_in_secs);
     for (;;) {
-        auto current = get_int_stat(h, h1, "mem_used");
+        auto current = get_int_stat(h, h, "mem_used");
         if (current <= mem_threshold) {
             break;
         }
@@ -1662,12 +1661,12 @@ bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1) {
     } while(true);
 }
 
-void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1) {
+void wait_for_flusher_to_settle(EngineIface* h) {
     wait_for_stat_to_be(h, "ep_queue_size", 0);
 
     /* check that vb backfill queue is empty as well */
     checkeq(0,
-            get_int_stat(h, h1, "ep_vb_backfill_queue_size", 0),
+            get_int_stat(h, h, "ep_vb_backfill_queue_size", 0),
             "even though disk queue is empty, vb backfill queue is not!!");
 
     if (!isPersistentBucket(h)) {
@@ -1682,28 +1681,27 @@ void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1) {
     wait_for_stat_to_be(h, "ep_flusher_todo", 0);
 }
 
-void wait_for_item_compressor_to_settle(EngineIface* h, EngineIface* h1) {
-    int visited_count = get_int_stat(h, h1, "ep_item_compressor_num_visited");
+void wait_for_item_compressor_to_settle(EngineIface* h) {
+    int visited_count = get_int_stat(h, h, "ep_item_compressor_num_visited");
 
     // We need to wait for at least one more run of the item compressor
     wait_for_stat_to_be(h, "ep_item_compressor_num_visited", visited_count + 1);
 }
 
-void wait_for_rollback_to_finish(EngineIface* h, EngineIface* h1) {
+void wait_for_rollback_to_finish(EngineIface* h) {
     useconds_t sleepTime = 128;
-    while (get_int_stat(h, h1, "ep_rollback_count") == 0) {
+    while (get_int_stat(h, h, "ep_rollback_count") == 0) {
         decayingSleep(&sleepTime);
     }
 }
 
 void wait_for_persisted_value(EngineIface* h,
-                              EngineIface* h1,
                               const char* key,
                               const char* val,
                               uint16_t vbucketId) {
     int commitNum = 0;
     if (isPersistentBucket(h)) {
-        commitNum = get_int_stat(h, h1, "ep_commit_num");
+        commitNum = get_int_stat(h, h, "ep_commit_num");
     }
     check(ENGINE_SUCCESS == store(h,
                                   NULL,
@@ -1717,7 +1715,7 @@ void wait_for_persisted_value(EngineIface* h,
 
     if (isPersistentBucket(h)) {
         // Wait for persistence...
-        wait_for_flusher_to_settle(h, h1);
+        wait_for_flusher_to_settle(h);
         wait_for_stat_change(h, "ep_commit_num", commitNum);
     }
 }

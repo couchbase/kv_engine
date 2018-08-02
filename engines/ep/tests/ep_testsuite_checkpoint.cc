@@ -34,7 +34,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
     // checkpoint with id 2 to be created.
 
     write_items(h, 5);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(1,
             get_int_stat(
@@ -44,7 +44,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
 
     // Store 1 more - should push it over to the next checkpoint.
     write_items(h, 1, 5);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     checkeq(2,
             get_int_stat(
@@ -160,7 +160,7 @@ static enum test_result test_collapse_checkpoints(EngineIface* h,
           "Failed to set vbucket state.");
     wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
     start_persistence(h);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
     return SUCCESS;
 }
 
