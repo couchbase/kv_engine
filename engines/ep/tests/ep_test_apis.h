@@ -535,11 +535,6 @@ void compact_db(EngineIface* h,
                 const uint64_t purge_before_seq,
                 const uint8_t drop_deletes);
 
-// XDCR Operations
-void set_drift_counter_state(EngineIface* h,
-                             EngineIface* h1,
-                             int64_t initialDrift);
-
 bool get_meta(EngineIface* h,
               const char* key,
               const void* cookie = nullptr);
