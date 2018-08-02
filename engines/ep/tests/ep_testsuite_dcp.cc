@@ -1193,7 +1193,7 @@ static void dcp_waiting_step(EngineIface* h,
 
 static enum test_result test_dcp_vbtakeover_no_stream(EngineIface* h,
                                                       EngineIface* h1) {
-    write_items(h, h1, 10);
+    write_items(h, 10);
     if (isPersistentBucket(h) && is_full_eviction(h)) {
         // MB-21646: FE mode - curr_items (which is part of "estimate") is
         // updated as part of flush, and thus if the writes are flushed in
@@ -1254,7 +1254,7 @@ static enum test_result test_dcp_notifier_open(EngineIface* h,
 }
 
 static enum test_result test_dcp_notifier(EngineIface* h, EngineIface* h1) {
-    write_items(h, h1, 10);
+    write_items(h, 10);
     const auto* cookie = testHarness->create_cookie();
     const std::string name("unittest");
     const uint32_t seqno = 0;
@@ -1949,7 +1949,7 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h,
     tdc.openStreams();
 
     /* Write items */
-    write_items(h, h1, num_items, 0);
+    write_items(h, num_items, 0);
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
@@ -1974,14 +1974,14 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
     // into the VBucket.
     const auto max_ckpt_items = get_int_stat(h, h1, "ep_chk_max_items");
 
-    write_items(h, h1, max_ckpt_items);
+    write_items(h, max_ckpt_items);
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items);
     checkeq(initial_ckpt_id + 1,
             get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 1 after storing items");
 
-    write_items(h, h1, max_ckpt_items, max_ckpt_items);
+    write_items(h, max_ckpt_items, max_ckpt_items);
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
     checkeq(initial_ckpt_id + 2,
@@ -2047,7 +2047,7 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         wait_for_flusher_to_settle(h, h1);
-        write_items(h, h1, batch_items, start_seqno);
+        write_items(h, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2078,7 +2078,7 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h,
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         wait_for_flusher_to_settle(h, h1);
-        write_items(h, h1, batch_items, start_seqno);
+        write_items(h, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2118,7 +2118,6 @@ static enum test_result test_dcp_producer_deleted_item_backfill(
         EngineIface* h, EngineIface* h1) {
     const int deletions = 10;
     write_items(h,
-                h1,
                 deletions,
                 0,
                 "del",
@@ -2157,7 +2156,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h,
             wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", 200);
             stop_persistence(h);
         }
-        write_items(h, h1, batch_items, start_seqno);
+        write_items(h, batch_items, start_seqno);
     }
 
     wait_for_stat_to_be_gte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
@@ -2185,7 +2184,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h,
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         wait_for_flusher_to_settle(h, h1);
-        write_items(h, h1, batch_items, start_seqno);
+        write_items(h, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2213,7 +2212,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h,
 static enum test_result test_dcp_producer_disk_backfill_limits(
         EngineIface* h, EngineIface* h1) {
     const int num_items = 3;
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -2274,7 +2273,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(
 static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
         EngineIface* h, EngineIface* h1) {
     const int num_items = 3;
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -2306,7 +2305,7 @@ static enum test_result test_dcp_producer_stream_req_mem(EngineIface* h,
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         wait_for_flusher_to_settle(h, h1);
-        write_items(h, h1, batch_items, start_seqno);
+        write_items(h, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2457,7 +2456,7 @@ static enum test_result test_dcp_producer_stream_latest(EngineIface* h,
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         wait_for_flusher_to_settle(h, h1);
-        write_items(h, h1, batch_items, start_seqno);
+        write_items(h, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2487,7 +2486,7 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h,
     const std::string conn_name("unittest");
     const int num_items = 2, vb = 0;
 
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -2747,7 +2746,7 @@ static test_result test_dcp_agg_stats(EngineIface* h, EngineIface* h1) {
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         wait_for_flusher_to_settle(h, h1);
-        write_items(h, h1, batch_items, start_seqno);
+        write_items(h, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2801,7 +2800,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
     // the thresholds required for cursor dropping
     const int cursor_dropping_mem_thres_perc = 75;
 
-    write_items(h, h1, num_items, 1);
+    write_items(h, num_items, 1);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -2878,7 +2877,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
 
     /* Write 10 more items to test if stream transitions correctly from
        backfill -> in-memory and sends out items */
-    write_items(h, h1, 10, num_items + 1);
+    write_items(h, 10, num_items + 1);
     num_items += 10;
     dcp_stream_from_producer_conn(h,
                                   h1,
@@ -2909,7 +2908,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
     // the thresholds required for cursor dropping
     const int cursor_dropping_mem_thres_perc = 75;
 
-    write_items(h, h1, num_items, 1);
+    write_items(h, num_items, 1);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -2961,7 +2960,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
 
 static test_result test_dcp_takeover(EngineIface* h, EngineIface* h1) {
     const int num_items = 10;
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2986,7 +2985,7 @@ static test_result test_dcp_takeover(EngineIface* h, EngineIface* h1) {
 
 static test_result test_dcp_takeover_no_items(EngineIface* h, EngineIface* h1) {
     const int num_items = 10;
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     const void* cookie = testHarness->create_cookie();
     const char *name = "unittest";
@@ -3449,7 +3448,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
     const int num_items = 50, batch_items = 10;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
-        write_items(h, h1, batch_items, start_seqno);
+        write_items(h, batch_items, start_seqno);
         wait_for_flusher_to_settle(h, h1);
         createCheckpoint(h);
     }
@@ -3566,7 +3565,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h,
                                         "checkpoint");
 
     // Front-end operations (sets)
-    write_items(h, h1, 2, 1, "key_");
+    write_items(h, 2, 1, "key_");
 
     // Wait for a new open checkpoint
     wait_for_stat_to_be(
@@ -3692,7 +3691,7 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h,
 
 static enum test_result test_rollback_to_zero(EngineIface* h, EngineIface* h1) {
     const int num_items = 10;
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -3738,7 +3737,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
     uint16_t vbid = 0;
     const int num_items = 40;
     stop_persistence(h);
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
@@ -3852,7 +3851,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
 static enum test_result test_fullrollback_for_consumer(EngineIface* h,
                                                        EngineIface* h1) {
     const int num_items = 10;
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     checkeq(num_items,
@@ -3953,7 +3952,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
     stop_persistence(h);
 
     const int numInitialItems = 100;
-    write_items(h, h1, numInitialItems, 0, "key_");
+    write_items(h, numInitialItems, 0, "key_");
 
     start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
@@ -3964,7 +3963,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
 
     /* Write items from 90 to 109 */
     const int numUpdateAndWrites = 20, updateStartSeqno = 90;
-    write_items(h, h1, numUpdateAndWrites, updateStartSeqno, "key_");
+    write_items(h, numUpdateAndWrites, updateStartSeqno, "key_");
     start_persistence(h);
     wait_for_flusher_to_settle(h, h1);
 
@@ -4137,7 +4136,7 @@ static enum test_result test_dcp_producer_flow_control(EngineIface* h,
                                                        EngineIface* h1) {
     /* Write 10 items */
     const int num_items = 10;
-    write_items(h, h1, 10, 0, "key", "123456789");
+    write_items(h, 10, 0, "key", "123456789");
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -4815,7 +4814,7 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h,
                                                    EngineIface* h1) {
     /* write 2 items */
     const int num_items = 2;
-    write_items(h, h1, num_items, 0, "key", "somevalue");
+    write_items(h, num_items, 0, "key", "somevalue");
 
     wait_for_flusher_to_settle(h, h1);
 
@@ -5524,7 +5523,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h,
         vbuuid[i] = get_ull_stat(h, h1, statkey.str().c_str(), "failovers");
 
         /* Set n items */
-        write_items(h, h1, num_items, 0, "KEY", "somevalue");
+        write_items(h, num_items, 0, "KEY", "somevalue");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -5583,7 +5582,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
     uint64_t end_seqno = num_items + 1000;
     uint32_t high_seqno = 0;
 
-    write_items(h, h1, num_items);
+    write_items(h, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, "curr_items", num_items);
@@ -5720,7 +5719,7 @@ static enum test_result test_mb16357(EngineIface* h, EngineIface* h1) {
     // Load up vb0 with n items, expire in 1 second
     const int num_items = 1000;
 
-    write_items(h, h1, num_items, 0, "key-", "value", /*expiration*/1);
+    write_items(h, num_items, 0, "key-", "value", /*expiration*/ 1);
 
     wait_for_flusher_to_settle(h, h1);
     testHarness->time_travel(3617); // force expiry pushing time forward.
@@ -5833,7 +5832,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h,
 
     // Check that a valid CAS was regenerated for the (non-deleted) mutation.
     std::string key{prefix + "1"};
-    auto cas = get_CAS(h, h1, key);
+    auto cas = get_CAS(h, key);
     checkne(~uint64_t(0), cas, "CAS via get() is still -1");
 
     testHarness->destroy_cookie(cookie);

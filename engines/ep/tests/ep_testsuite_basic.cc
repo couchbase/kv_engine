@@ -1809,8 +1809,8 @@ static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
           "Failed to set vbucket state for vb2");
 
     const int num_items = 10;
-    write_items(h, h1, num_items, 0, "vb1", "value", 0/*expiry*/, 1/*vb*/);
-    write_items(h, h1, num_items, 0, "vb2", "value", 0/*expiry*/, 2/*vb*/);
+    write_items(h, num_items, 0, "vb1", "value", 0 /*expiry*/, 1 /*vb*/);
+    write_items(h, num_items, 0, "vb2", "value", 0 /*expiry*/, 2 /*vb*/);
     wait_for_flusher_to_settle(h, h1);
 
     // flip replica to active to drive more _local writes

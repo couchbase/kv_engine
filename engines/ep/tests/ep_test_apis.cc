@@ -975,14 +975,13 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
 }
 
 ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
-                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const uint32_t vb,
                                const uint64_t cas,
                                const void* cookie) {
     return return_meta(h,
-                       h1,
+                       h,
                        key,
                        keylen,
                        NULL,
@@ -1774,7 +1773,6 @@ void validate_store_resp(ENGINE_ERROR_CODE ret, int& num_items)
 }
 
 void write_items(EngineIface* h,
-                 EngineIface* h1,
                  int num_items,
                  int start_seqno,
                  const char* key_prefix,
@@ -1833,12 +1831,12 @@ int write_items_upto_mem_perc(EngineIface* h,
     return num_items;
 }
 
-uint64_t get_CAS(EngineIface* h, EngineIface* h1, const std::string& key) {
+uint64_t get_CAS(EngineIface* h, const std::string& key) {
     auto ret = get(h, nullptr, key, 0);
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
-    check(h1->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(ret.second.get(), &info),
           "get_CAS: Failed to get item info for key");
 
     return info.cas;

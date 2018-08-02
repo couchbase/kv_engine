@@ -633,7 +633,6 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
                                const void* cookie = nullptr);
 
 ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
-                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const uint32_t vb,
@@ -646,7 +645,7 @@ void set_degraded_mode(EngineIface* h,
                        bool enable);
 
 // Fetches the CAS of the specified key.
-uint64_t get_CAS(EngineIface* h, EngineIface* h1, const std::string& key);
+uint64_t get_CAS(EngineIface* h, const std::string& key);
 
 /**
  * Helper function to write unique "num_items" starting from {key_prefix}XX,
@@ -660,7 +659,6 @@ uint64_t get_CAS(EngineIface* h, EngineIface* h1, const std::string& key);
  * @param docState document state to write
  */
 void write_items(EngineIface* h,
-                 EngineIface* h1,
                  int num_items,
                  int start_seqno = 0,
                  const char* key_prefix = "key",

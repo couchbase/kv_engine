@@ -33,7 +33,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
     // Inserting more than 5 items (see testcase config) will cause a new open
     // checkpoint with id 2 to be created.
 
-    write_items(h, h1, 5);
+    write_items(h, 5);
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(1,
@@ -43,7 +43,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
             "storing 50 items");
 
     // Store 1 more - should push it over to the next checkpoint.
-    write_items(h, h1, 1, 5);
+    write_items(h, 1, 5);
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(2,
