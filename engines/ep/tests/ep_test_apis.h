@@ -541,18 +541,15 @@ void set_drift_counter_state(EngineIface* h,
                              int64_t initialDrift);
 
 bool get_meta(EngineIface* h,
-              EngineIface* h1,
               const char* key,
               const void* cookie = nullptr);
 
 bool get_meta(EngineIface* h,
-              EngineIface* h1,
               const char* key,
               cb::EngineErrorMetadataPair& out,
               const void* cookie = nullptr);
 
 void set_with_meta(EngineIface* h,
-                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const char* val,
@@ -566,7 +563,6 @@ void set_with_meta(EngineIface* h,
                    const std::vector<char>& nmeta = {});
 
 void add_with_meta(EngineIface* h,
-                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const char* val,
@@ -580,7 +576,6 @@ void add_with_meta(EngineIface* h,
                    const std::vector<char>& nmeta = {});
 
 void del_with_meta(EngineIface* h,
-                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const uint32_t vb,
@@ -594,7 +589,6 @@ void del_with_meta(EngineIface* h,
 
 // This version takes a RawItemMetaData allowing for 64-bit rev-seqno tests
 void del_with_meta(EngineIface* h,
-                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const uint32_t vb,
@@ -607,7 +601,6 @@ void del_with_meta(EngineIface* h,
                    const std::vector<char>& value = {} /*optional value*/);
 
 ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
-                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const char* val,
@@ -620,7 +613,6 @@ ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
                                const void* cookie = nullptr);
 
 ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
-                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const char* val,

@@ -428,14 +428,13 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h,
             "Expected getl to succeed on key");
 
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(get_meta(h, h1, key, errorMetaPair), "Expected to get meta");
+    check(get_meta(h, key, errorMetaPair), "Expected to get meta");
 
     //init some random metadata
     ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(NULL) + 300);
 
     //do a set with meta
     set_with_meta(h,
-                  h1,
                   key,
                   strlen(key),
                   newval,
@@ -447,7 +446,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h,
           "Expected item to be locked");
 
     //do a del with meta
-    del_with_meta(h, h1, key, strlen(key), 0, &itm_meta, last_cas);
+    del_with_meta(h, key, strlen(key), 0, &itm_meta, last_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_LOCKED, last_status.load(),
           "Expected item to be locked");
     return SUCCESS;
@@ -942,7 +941,7 @@ static enum test_result test_touch(EngineIface* h, EngineIface* h1) {
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
-    check(get_meta(h, h1, "mykey", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "mykey", errorMetaPair), "Get meta failed");
 
     item_info currMeta = errorMetaPair.second;
 
@@ -952,7 +951,7 @@ static enum test_result test_touch(EngineIface* h, EngineIface* h1) {
     check(last_cas != currMeta.cas,
           "touch should have returned an updated CAS");
 
-    check(get_meta(h, h1, "mykey", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "mykey", errorMetaPair), "Get meta failed");
 
     check(errorMetaPair.second.cas != currMeta.cas,
           "touch should have updated the CAS");
@@ -1307,7 +1306,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
-    check(get_meta(h, h1, "key1", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "key1", errorMetaPair), "Get meta failed");
 
     uint64_t curr_revseqno = errorMetaPair.second.seqno;
 
@@ -1326,7 +1325,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
                   DocumentState::Deleted),
             "Failed delete with value");
 
-    check(get_meta(h, h1, "key1", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "key1", errorMetaPair), "Get meta failed");
 
     checkeq(errorMetaPair.second.seqno,
             curr_revseqno + 1,
@@ -1342,7 +1341,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
 
     h->release(i);
 
-    check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
     curr_revseqno = errorMetaPair.second.seqno;
 
@@ -1363,7 +1362,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
 
     wait_for_flusher_to_settle(h, h1);
 
-    check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
     checkeq(errorMetaPair.second.seqno,
             curr_revseqno + 1,
@@ -1395,7 +1394,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
 
     h->release(i);
 
-    check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
     checkeq(errorMetaPair.second.seqno,
             curr_revseqno + 1,
@@ -1439,7 +1438,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
     auto ret = get(h, nullptr, "key2", 0, DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value");
 
-    check(get_meta(h, h1, "key2", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
     checkeq(errorMetaPair.second.seqno,
             curr_revseqno + 1,
@@ -1994,7 +1993,7 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
             "Failed set.");
 
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(get_meta(h, h1, "key-abs", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "key-abs", errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2021,7 +2020,7 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
             store(h, nullptr, OPERATION_SET, "key-rel", "somevalue"),
             "Failed set.");
 
-    check(get_meta(h, h1, "key-rel", errorMetaPair), "Get meta failed");
+    check(get_meta(h, "key-rel", errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2063,7 +2062,6 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
     // SWM with 0 expiry which results in an expiry being set
     ItemMetaData itemMeta(0xdeadbeef, 10, 0xf1a95, 0 /*expiry*/);
     set_with_meta(h,
-                  h1,
                   keyAbs.c_str(),
                   keyAbs.size(),
                   keyAbs.c_str(),
@@ -2073,7 +2071,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
                   0 /*cas*/);
 
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(get_meta(h, h1, keyAbs.c_str(), errorMetaPair), "Get meta failed");
+    check(get_meta(h, keyAbs.c_str(), errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2096,7 +2094,6 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
             "max_ttl didn't change");
 
     set_with_meta(h,
-                  h1,
                   keyRel.c_str(),
                   keyRel.size(),
                   keyRel.c_str(),
@@ -2105,7 +2102,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
                   &itemMeta,
                   0 /*cas*/);
 
-    check(get_meta(h, h1, keyRel.c_str(), errorMetaPair), "Get meta failed");
+    check(get_meta(h, keyRel.c_str(), errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2121,7 +2118,6 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
     // Final test, exceed the maxTTL and check we got capped!
     itemMeta.exptime = errorMetaPair.second.exptime + 1000;
     set_with_meta(h,
-                  h1,
                   keyRel.c_str(),
                   keyRel.size(),
                   keyRel.c_str(),
@@ -2130,7 +2126,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
                   &itemMeta,
                   0 /*cas*/);
 
-    check(get_meta(h, h1, keyRel.c_str(), errorMetaPair), "Get meta failed");
+    check(get_meta(h, keyRel.c_str(), errorMetaPair), "Get meta failed");
     checkne(itemMeta.exptime,
             errorMetaPair.second.exptime,
             "expiry should have been changed/capped");

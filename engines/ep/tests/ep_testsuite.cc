@@ -758,7 +758,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h,
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
-    check(get_meta(h, h1, "test_expiry", errorMetaPair, cookie),
+    check(get_meta(h, "test_expiry", errorMetaPair, cookie),
           "Get meta command failed");
     auto prev_revseqno = errorMetaPair.second.seqno;
 
@@ -771,7 +771,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h,
             ret.first,
             "Unable to get a deleted item");
 
-    check(get_meta(h, h1, "test_expiry", errorMetaPair, cookie),
+    check(get_meta(h, "test_expiry", errorMetaPair, cookie),
           "Get meta command failed");
 
     checkeq(errorMetaPair.second.seqno,
@@ -2292,7 +2292,7 @@ static enum test_result test_bg_meta_stats(EngineIface* h, EngineIface* h1) {
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 0");
 
-    check(get_meta(h, h1, "k2"), "Get meta failed");
+    check(get_meta(h, "k2"), "Get meta failed");
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
 
@@ -2310,10 +2310,10 @@ static enum test_result test_bg_meta_stats(EngineIface* h, EngineIface* h1) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    add_with_meta(h, h1, "k3", keylen, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, "k3", keylen, NULL, 0, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Set meta failed");
 
-    check(get_meta(h, h1, "k2"), "Get meta failed");
+    check(get_meta(h, "k2"), "Get meta failed");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"),
             "Expected bg_meta_fetched to remain at 1");
@@ -2711,7 +2711,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
         for (i = 0; i < 5; ++i) {
             std::stringstream key;
             key << "key-" << i;
-            check(get_meta(h, h1, key.str().c_str()), "Get meta failed");
+            check(get_meta(h, key.str().c_str()), "Get meta failed");
         }
 
         // GetMeta would cause bgFetches as bloomfilter contains
@@ -2729,7 +2729,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
         for (i = 0; i < 5; ++i) {
             std::stringstream key;
             key << "key-" << i;
-            check(get_meta(h, h1, key.str().c_str()), "Get meta failed");
+            check(get_meta(h, key.str().c_str()), "Get meta failed");
         }
         checkeq(num_read_attempts + 5,
                 get_int_stat(h, h1, "ep_bg_num_samples"),
@@ -2794,8 +2794,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
     for (int i = 0; i < 1000; i++) {
         std::stringstream key;
         key << "key-" << i;
-        check(!get_meta(h, h1, key.str().c_str()),
-                "Get meta should fail.");
+        check(!get_meta(h, key.str().c_str()), "Get meta should fail.");
     }
 
     checkeq(num_read_attempts,
@@ -2821,8 +2820,14 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
 
             std::stringstream key;
             key << "swm-" << j;
-            set_with_meta(h, h1, key.str().c_str(), key.str().length(),
-                          "somevalue", 9, 0, &itm_meta, cas_for_set);
+            set_with_meta(h,
+                          key.str().c_str(),
+                          key.str().length(),
+                          "somevalue",
+                          9,
+                          0,
+                          &itm_meta,
+                          cas_for_set);
         }
 
         checkeq(num_read_attempts,
@@ -2950,8 +2955,17 @@ static enum test_result test_datatype(EngineIface* h, EngineIface* h1) {
     itm_meta.cas = info.cas;
     itm_meta.exptime = info.exptime;
     itm_meta.flags = info.flags;
-    set_with_meta(h, h1, key1, strlen(key1), val1, strlen(val1), 0, &itm_meta,
-                  last_cas, 0, info.datatype, cookie);
+    set_with_meta(h,
+                  key1,
+                  strlen(key1),
+                  val1,
+                  strlen(val1),
+                  0,
+                  &itm_meta,
+                  last_cas,
+                  0,
+                  info.datatype,
+                  cookie);
 
     ret = get(h, cookie, key1, 0);
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
@@ -2979,8 +2993,17 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h,
     itm_meta.flags = 0;
 
     //SET_WITH_META
-    set_with_meta(h, h1, key, strlen(key), val, strlen(val), 0, &itm_meta,
-                  0, 0, datatype, cookie);
+    set_with_meta(h,
+                  key,
+                  strlen(key),
+                  val,
+                  strlen(val),
+                  0,
+                  &itm_meta,
+                  0,
+                  0,
+                  datatype,
+                  cookie);
 
     auto ret = get(h, cookie, key, 0);
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
@@ -2993,7 +3016,6 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h,
     //SET_RETURN_META
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h,
-                         h1,
                          "foo1",
                          4,
                          val,
@@ -4312,7 +4334,7 @@ static enum test_result test_revid(EngineIface* h, EngineIface* h1) {
                 "Failed to store a value");
 
         cb::EngineErrorMetadataPair erroMetaPair;
-        check(get_meta(h, h1, "test_revid", erroMetaPair), "Get meta failed");
+        check(get_meta(h, "test_revid", erroMetaPair), "Get meta failed");
         checkeq(ii, erroMetaPair.second.seqno, "Unexpected sequence number");
     }
 
@@ -4322,12 +4344,11 @@ static enum test_result test_revid(EngineIface* h, EngineIface* h1) {
 static enum test_result test_regression_mb4314(EngineIface* h,
                                                EngineIface* h1) {
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(!get_meta(h, h1, "test_regression_mb4314", errorMetaPair),
+    check(!get_meta(h, "test_regression_mb4314", errorMetaPair),
           "Expected get_meta() to fail");
 
     ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, 0);
     set_with_meta(h,
-                  h1,
                   "test_regression_mb4314",
                   22,
                   NULL,
@@ -4613,7 +4634,7 @@ static enum test_result test_observe_temp_item(EngineIface* h,
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
-    check(get_meta(h, h1, k1, errorMetaPair), "Expected to get meta");
+    check(get_meta(h, k1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
@@ -5209,7 +5230,7 @@ static enum test_result test_multiple_transactions(EngineIface* h,
 static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
     // Check that set without cas succeeds
     checkeq(ENGINE_SUCCESS,
-            set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            set_ret_meta(h, "key", 3, "value", 5, 0, 0, 0, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5224,7 +5245,6 @@ static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
     // Check that set with correct cas succeeds
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h,
-                         h1,
                          "key",
                          3,
                          "value",
@@ -5246,7 +5266,7 @@ static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
 
     // Check that updating an item with no cas succeeds
     checkeq(ENGINE_SUCCESS,
-            set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0),
+            set_ret_meta(h, "key", 3, "value", 5, 0, 0, 5, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5260,8 +5280,7 @@ static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
 
     // Check that updating an item with the wrong cas fails
     checkeq(ENGINE_SUCCESS,
-            set_ret_meta(
-                    h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0),
+            set_ret_meta(h, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected set returing meta to fail");
@@ -5275,7 +5294,7 @@ static enum test_result test_set_ret_meta_error(EngineIface* h,
                                                 EngineIface* h1) {
     // Check invalid packet constructions
     checkeq(ENGINE_SUCCESS,
-            set_ret_meta(h, h1, "", 0, "value", 5, 0),
+            set_ret_meta(h, "", 0, "value", 5, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5293,7 +5312,7 @@ static enum test_result test_set_ret_meta_error(EngineIface* h,
     // Check tmp fail errors
     disable_traffic(h);
     checkeq(ENGINE_SUCCESS,
-            set_ret_meta(h, h1, "key", 3, "value", 5, 0),
+            set_ret_meta(h, "key", 3, "value", 5, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected set returing meta to fail");
@@ -5301,20 +5320,20 @@ static enum test_result test_set_ret_meta_error(EngineIface* h,
 
     // Check not my vbucket errors
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            set_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            set_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
 
     check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            set_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            set_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            set_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            set_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
@@ -5324,14 +5343,14 @@ static enum test_result test_set_ret_meta_error(EngineIface* h,
 static enum test_result test_add_ret_meta(EngineIface* h, EngineIface* h1) {
     // Check that add with cas fails
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 10, 0, 0),
+            add_ret_meta(h, "key", 3, "value", 5, 0, 10, 0, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_STORED, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that add without cas succeeds.
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            add_ret_meta(h, "key", 3, "value", 5, 0, 0, 0, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5345,14 +5364,14 @@ static enum test_result test_add_ret_meta(EngineIface* h, EngineIface* h1) {
 
     // Check that re-adding a key fails
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            add_ret_meta(h, "key", 3, "value", 5, 0, 0, 0, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_STORED, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that adding a key with flags and exptime returns the correct values
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "key2", 4, "value", 5, 0, 0, 10, 1735689600),
+            add_ret_meta(h, "key2", 4, "value", 5, 0, 0, 10, 1735689600),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5371,7 +5390,7 @@ static enum test_result test_add_ret_meta_error(EngineIface* h,
                                                 EngineIface* h1) {
     // Check invalid packet constructions
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "", 0, "value", 5, 0),
+            add_ret_meta(h, "", 0, "value", 5, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
@@ -5389,7 +5408,7 @@ static enum test_result test_add_ret_meta_error(EngineIface* h,
     // Check tmp fail errors
     disable_traffic(h);
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 0),
+            add_ret_meta(h, "key", 3, "value", 5, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected add returing meta to fail");
@@ -5397,20 +5416,20 @@ static enum test_result test_add_ret_meta_error(EngineIface* h,
 
     // Check not my vbucket errors
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            add_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
 
     check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            add_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 1),
+            add_ret_meta(h, "key", 3, "value", 5, 1),
             "Expected NMVB");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, h1, 1), "Expected success");
 
@@ -5434,7 +5453,7 @@ static enum test_result test_del_ret_meta(EngineIface* h, EngineIface* h1) {
 
     // Check that deleting a key with no cas succeeds
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            add_ret_meta(h, "key", 3, "value", 5, 0, 0, 0, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5459,7 +5478,7 @@ static enum test_result test_del_ret_meta(EngineIface* h, EngineIface* h1) {
 
     // Check that deleting a key with a cas succeeds.
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 10, 1735689600),
+            add_ret_meta(h, "key", 3, "value", 5, 0, 0, 10, 1735689600),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5484,7 +5503,7 @@ static enum test_result test_del_ret_meta(EngineIface* h, EngineIface* h1) {
 
     // Check that deleting a key with the wrong cas fails
     checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0),
+            add_ret_meta(h, "key", 3, "value", 5, 0, 0, 0, 0),
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5590,7 +5609,7 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h,
     itm_meta.flags = 0xdeadbeef;
 
     // set with meta for a non-resident item should pass.
-    set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
+    set_with_meta(h, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     return SUCCESS;
@@ -5618,9 +5637,14 @@ extern "C" {
             std::stringstream key;
             key << "key" << i;
 
-            set_with_meta(mma->h, mma->h1, key.str().c_str(),
-                          key.str().length(), "somevalueEdited", 15,
-                          0, &itm_meta, last_cas);
+            set_with_meta(mma->h,
+                          key.str().c_str(),
+                          key.str().length(),
+                          "somevalueEdited",
+                          15,
+                          0,
+                          &itm_meta,
+                          last_cas);
         }
     }
 
@@ -5638,8 +5662,12 @@ extern "C" {
             std::stringstream key;
             key << "key" << i;
 
-            del_with_meta(mma->h, mma->h1, key.str().c_str(),
-                          key.str().length(), 0, &itm_meta, last_cas);
+            del_with_meta(mma->h,
+                          key.str().c_str(),
+                          key.str().length(),
+                          0,
+                          &itm_meta,
+                          last_cas);
         }
     }
 }
@@ -5663,8 +5691,14 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
         std::stringstream key;
         key << "key" << i;
 
-        set_with_meta(h, h1, key.str().c_str(), key.str().length(),
-                "somevalue", 9, 0, &itm_meta, cas_for_set);
+        set_with_meta(h,
+                      key.str().c_str(),
+                      key.str().length(),
+                      "somevalue",
+                      9,
+                      0,
+                      &itm_meta,
+                      cas_for_set);
         i++;
     }
 
@@ -5812,7 +5846,7 @@ static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h,
     evict_key(h, key, 0, "Ejected.");
 
     // delete an item with meta data
-    del_with_meta(h, h1, key, keylen, 0, &itemMeta);
+    del_with_meta(h, key, keylen, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     return SUCCESS;
@@ -6013,7 +6047,7 @@ static enum test_result test_mb16421(EngineIface* h, EngineIface* h1) {
     evict_key(h, "mykey", 0, "Ejected.");
 
     // Issue Get Meta
-    check(get_meta(h, h1, "mykey"), "Expected to get meta");
+    check(get_meta(h, "mykey"), "Expected to get meta");
 
     // Issue Get
     checkeq(cb::engine_errc::success,

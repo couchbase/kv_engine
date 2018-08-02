@@ -425,7 +425,6 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
 }
 
 void del_with_meta(EngineIface* h,
-                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const uint32_t vb,
@@ -441,7 +440,6 @@ void del_with_meta(EngineIface* h,
                          itemMeta->flags,
                          itemMeta->exptime};
     del_with_meta(h,
-                  h1,
                   key,
                   keylen,
                   vb,
@@ -455,7 +453,6 @@ void del_with_meta(EngineIface* h,
 }
 
 void del_with_meta(EngineIface* h,
-                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const uint32_t vb,
@@ -498,7 +495,7 @@ void del_with_meta(EngineIface* h,
                        nmeta.data(),
                        nmeta.size());
 
-    check(h1->unknown_command(cookie, pkt, add_response_set_del_meta) ==
+    check(h->unknown_command(cookie, pkt, add_response_set_del_meta) ==
                   ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
     cb_free(pkt);
@@ -630,16 +627,14 @@ cb::EngineErrorItemPair getl(EngineIface* h,
 }
 
 bool get_meta(EngineIface* h,
-              EngineIface* h1,
               const char* key,
               const void* cookie) {
     cb::EngineErrorMetadataPair out;
 
-    return get_meta(h, h1, key, out, cookie);
+    return get_meta(h, key, out, cookie);
 }
 
 bool get_meta(EngineIface* h,
-              EngineIface* h1,
               const char* key,
               cb::EngineErrorMetadataPair& out,
               const void* cookie) {
@@ -650,7 +645,7 @@ bool get_meta(EngineIface* h,
         cookie_create = true;
     }
 
-    out = h1->get_meta(cookie, docKey, /*vb*/ 0);
+    out = h->get_meta(cookie, docKey, /*vb*/ 0);
 
     if (cookie_create) {
         testHarness->destroy_cookie(cookie);
@@ -817,7 +812,6 @@ void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end) {
 }
 
 static void store_with_meta(EngineIface* h,
-                            EngineIface* h1,
                             protocol_binary_command cmd,
                             const char* key,
                             const size_t keylen,
@@ -852,14 +846,13 @@ static void store_with_meta(EngineIface* h,
     pkt = createPacket(cmd, vb, cas_for_store, ext.get(), blen, key, keylen,
                        val, vallen, datatype, nmeta.data(), nmeta.size());
 
-    check(h1->unknown_command(cookie, pkt, add_response_set_del_meta) ==
+    check(h->unknown_command(cookie, pkt, add_response_set_del_meta) ==
                   ENGINE_SUCCESS,
           "Expected to be able to store with meta");
     cb_free(pkt);
 }
 
 void set_with_meta(EngineIface* h,
-                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const char* val,
@@ -871,13 +864,22 @@ void set_with_meta(EngineIface* h,
                    uint8_t datatype,
                    const void* cookie,
                    const std::vector<char>& nmeta) {
-    store_with_meta(h, h1, PROTOCOL_BINARY_CMD_SET_WITH_META, key, keylen, val,
-                    vallen, vb, itemMeta, cas_for_set, options, datatype,
-                    cookie, nmeta);
+    store_with_meta(h,
+                    PROTOCOL_BINARY_CMD_SET_WITH_META,
+                    key,
+                    keylen,
+                    val,
+                    vallen,
+                    vb,
+                    itemMeta,
+                    cas_for_set,
+                    options,
+                    datatype,
+                    cookie,
+                    nmeta);
 }
 
 void add_with_meta(EngineIface* h,
-                   EngineIface* h1,
                    const char* key,
                    const size_t keylen,
                    const char* val,
@@ -889,13 +891,22 @@ void add_with_meta(EngineIface* h,
                    uint8_t datatype,
                    const void* cookie,
                    const std::vector<char>& nmeta) {
-    store_with_meta(h, h1, PROTOCOL_BINARY_CMD_ADD_WITH_META, key, keylen, val,
-                    vallen, vb, itemMeta, cas_for_add, options, datatype,
-                    cookie, nmeta);
+    store_with_meta(h,
+                    PROTOCOL_BINARY_CMD_ADD_WITH_META,
+                    key,
+                    keylen,
+                    val,
+                    vallen,
+                    vb,
+                    itemMeta,
+                    cas_for_add,
+                    options,
+                    datatype,
+                    cookie,
+                    nmeta);
 }
 
 static ENGINE_ERROR_CODE return_meta(EngineIface* h,
-                                     EngineIface* h1,
                                      const char* key,
                                      const size_t keylen,
                                      const char* val,
@@ -914,14 +925,13 @@ static ENGINE_ERROR_CODE return_meta(EngineIface* h,
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, vb, cas, ext, 12, key, keylen, val,
                        vallen, datatype);
-    auto ret = h1->unknown_command(cookie, pkt, add_response_ret_meta);
+    auto ret = h->unknown_command(cookie, pkt, add_response_ret_meta);
     cb_free(pkt);
 
     return ret;
 }
 
 ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
-                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const char* val,
@@ -933,7 +943,6 @@ ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
                                uint8_t datatype,
                                const void* cookie) {
     return return_meta(h,
-                       h1,
                        key,
                        keylen,
                        val,
@@ -948,7 +957,6 @@ ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
 }
 
 ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
-                               EngineIface* h1,
                                const char* key,
                                const size_t keylen,
                                const char* val,
@@ -960,7 +968,6 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
                                uint8_t datatype,
                                const void* cookie) {
     return return_meta(h,
-                       h1,
                        key,
                        keylen,
                        val,
@@ -981,7 +988,6 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
                                const uint64_t cas,
                                const void* cookie) {
     return return_meta(h,
-                       h,
                        key,
                        keylen,
                        NULL,
