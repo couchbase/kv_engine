@@ -299,7 +299,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             /* Try backfill again later; here we do not snooze because we
                want to check if other backfills can be run by the
                backfillMgr */
-            TRACE_INSTANT("dcp/backfill", "ScanDefer", "seqno", seqnoDbg);
+            TRACE_INSTANT1("dcp/backfill", "ScanDefer", "seqno", seqnoDbg);
             stream->log(EXTENSION_LOG_INFO,
                         "vb:%" PRIu16 " Deferring backfill at seqno:%" PRIi64
                         "as scan buffer or backfill buffer is full",
