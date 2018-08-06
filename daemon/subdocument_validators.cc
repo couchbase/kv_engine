@@ -81,7 +81,7 @@ static bool is_valid_virtual_xattr(cb::const_char_buffer value) {
  * @return PROTOCOL_BINARY_RESPONSE_SUCCESS if everything is correct
  */
 static inline protocol_binary_response_status validate_xattr_section(
-        const Cookie& cookie,
+        Cookie& cookie,
         bool mutator,
         protocol_binary_subdoc_flag flags,
         mcbp::subdoc::doc_flag doc_flags,
@@ -137,7 +137,7 @@ static inline protocol_binary_response_status validate_xattr_section(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
+static protocol_binary_response_status subdoc_validator(Cookie& cookie,
                                                         const SubdocCmdTraits traits) {
     auto req = reinterpret_cast<const protocol_binary_request_subdocument*>(
             cookie.getPacketAsVoidPtr());
@@ -248,51 +248,51 @@ static protocol_binary_response_status subdoc_validator(const Cookie& cookie,
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-protocol_binary_response_status subdoc_get_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_get_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>());
 }
 
-protocol_binary_response_status subdoc_exists_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_exists_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>());
 }
 
-protocol_binary_response_status subdoc_dict_add_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_dict_add_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>());
 }
 
-protocol_binary_response_status subdoc_dict_upsert_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_dict_upsert_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
 }
 
-protocol_binary_response_status subdoc_delete_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_delete_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>());
 }
 
-protocol_binary_response_status subdoc_replace_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_replace_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>());
 }
 
-protocol_binary_response_status subdoc_array_push_last_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_array_push_last_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
 }
 
-protocol_binary_response_status subdoc_array_push_first_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_array_push_first_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
 }
 
-protocol_binary_response_status subdoc_array_insert_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_array_insert_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
 }
 
-protocol_binary_response_status subdoc_array_add_unique_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_array_add_unique_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
 }
 
-protocol_binary_response_status subdoc_counter_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_counter_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }
 
-protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_get_count_validator(Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>());
 }
 
@@ -315,7 +315,7 @@ protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie)
  *         error to return to the client otherwise
  */
 static protocol_binary_response_status is_valid_multipath_spec(
-        const Cookie& cookie,
+        Cookie& cookie,
         const char* ptr,
         const SubdocMultiCmdTraits traits,
         size_t& spec_len,
@@ -423,7 +423,7 @@ static protocol_binary_response_status is_valid_multipath_spec(
 
 // Multi-path commands are a bit special - don't use the subdoc_validator<>
 // for them.
-static protocol_binary_response_status subdoc_multi_validator(const Cookie& cookie,
+static protocol_binary_response_status subdoc_multi_validator(Cookie& cookie,
                                                               const SubdocMultiCmdTraits traits)
 {
     auto req = static_cast<protocol_binary_request_header*>(
@@ -539,11 +539,11 @@ static protocol_binary_response_status subdoc_multi_validator(const Cookie& cook
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-protocol_binary_response_status subdoc_multi_lookup_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_multi_lookup_validator(Cookie& cookie) {
     return subdoc_multi_validator(cookie, get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
 }
 
-protocol_binary_response_status subdoc_multi_mutation_validator(const Cookie& cookie) {
+protocol_binary_response_status subdoc_multi_mutation_validator(Cookie& cookie) {
     return subdoc_multi_validator(cookie, get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
 }
 

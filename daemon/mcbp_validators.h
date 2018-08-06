@@ -40,7 +40,7 @@ public:
      * Invoke the chain for the command
      */
     protocol_binary_response_status invoke(protocol_binary_command command,
-                                           const Cookie& cookie) {
+                                           Cookie& cookie) {
         return commandChains[command].invoke(cookie);
     }
 
@@ -48,10 +48,10 @@ public:
      * Silently ignores any attempt to push the same function onto the chain.
      */
     void push_unique(protocol_binary_command command,
-                     protocol_binary_response_status(*f)(const Cookie&)) {
+                     protocol_binary_response_status(*f)(Cookie&)) {
         commandChains[command].push_unique(makeFunction<protocol_binary_response_status,
                                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                           const Cookie&>(f));
+                                           Cookie&>(f));
     }
 
     /*
@@ -63,7 +63,7 @@ private:
 
     std::array<FunctionChain<protocol_binary_response_status,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                             const Cookie&>, 0x100> commandChains;
+                             Cookie&>, 0x100> commandChains;
 };
 
 /// @return true if the keylen represents a valid key for the connection

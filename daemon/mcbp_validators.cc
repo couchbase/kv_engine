@@ -72,7 +72,7 @@ static inline std::string get_peer_description(const Cookie& cookie) {
  * @param cookie The command cookie
  */
 static protocol_binary_response_status verify_common_dcp_restrictions(
-        const Cookie& cookie) {
+        Cookie& cookie) {
     auto* dcp = cookie.getConnection().getBucket().getDcpIface();
     if (!dcp) {
         // The attached bucket does not support DCP
@@ -91,7 +91,7 @@ static protocol_binary_response_status verify_common_dcp_restrictions(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_open_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_open*>(
             cookie.getPacketAsVoidPtr());
@@ -138,7 +138,7 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_add_stream_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_add_stream_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_add_stream*>(
             cookie.getPacketAsVoidPtr());
@@ -172,7 +172,7 @@ static protocol_binary_response_status dcp_add_stream_validator(const Cookie& co
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_close_stream_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_close_stream_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_close_stream*>(
             cookie.getPacketAsVoidPtr());
@@ -187,7 +187,7 @@ static protocol_binary_response_status dcp_close_stream_validator(const Cookie& 
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_get_failover_log_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_get_failover_log_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_get_failover_log*>(
             cookie.getPacketAsVoidPtr());
@@ -201,7 +201,7 @@ static protocol_binary_response_status dcp_get_failover_log_validator(const Cook
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_stream_req_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_stream_req_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_stream_req*>(
             cookie.getPacketAsVoidPtr());
@@ -215,7 +215,7 @@ static protocol_binary_response_status dcp_stream_req_validator(const Cookie& co
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_stream_end_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_stream_end_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_stream_end*>(
             cookie.getPacketAsVoidPtr());
@@ -229,7 +229,7 @@ static protocol_binary_response_status dcp_stream_end_validator(const Cookie& co
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_snapshot_marker_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_snapshot_marker_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_snapshot_marker*>(
             cookie.getPacketAsVoidPtr());
@@ -244,7 +244,7 @@ static protocol_binary_response_status dcp_snapshot_marker_validator(const Cooki
 }
 
 static protocol_binary_response_status dcp_system_event_validator(
-        const Cookie& cookie) {
+        Cookie& cookie) {
     // keylen + bodylen > ??
     auto req = static_cast<protocol_binary_request_dcp_system_event*>(
             cookie.getPacketAsVoidPtr());
@@ -286,7 +286,7 @@ static bool is_valid_xattr_blob(const protocol_binary_request_header& header) {
     return cb::xattr::validate(xattr);
 }
 
-static protocol_binary_response_status dcp_mutation_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_mutation_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_mutation*>(
             cookie.getPacketAsVoidPtr());
@@ -335,7 +335,7 @@ static bool valid_dcp_delete_datatype(protocol_binary_datatype_t datatype) {
     return false;
 }
 
-static protocol_binary_response_status dcp_deletion_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_deletion_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_deletion*>(
             cookie.getPacketAsVoidPtr());
@@ -363,7 +363,7 @@ static protocol_binary_response_status dcp_deletion_validator(const Cookie& cook
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_expiration_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_expiration_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_deletion*>(
             cookie.getPacketAsVoidPtr());
@@ -384,7 +384,7 @@ static protocol_binary_response_status dcp_expiration_validator(const Cookie& co
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_set_vbucket_state_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_set_vbucket_state_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_set_vbucket_state*>(
             cookie.getPacketAsVoidPtr());
@@ -402,7 +402,7 @@ static protocol_binary_response_status dcp_set_vbucket_state_validator(const Coo
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_noop_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_noop*>(
             cookie.getPacketAsVoidPtr());
@@ -416,7 +416,7 @@ static protocol_binary_response_status dcp_noop_validator(const Cookie& cookie)
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_buffer_acknowledgement_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_buffer_acknowledgement_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(
             cookie.getPacketAsVoidPtr());
@@ -430,7 +430,7 @@ static protocol_binary_response_status dcp_buffer_acknowledgement_validator(cons
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status dcp_control_validator(const Cookie& cookie)
+static protocol_binary_response_status dcp_control_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_dcp_control*>(
             cookie.getPacketAsVoidPtr());
@@ -446,7 +446,7 @@ static protocol_binary_response_status dcp_control_validator(const Cookie& cooki
 }
 
 static protocol_binary_response_status revoke_user_permissions_validator(
-        const Cookie& cookie) {
+        Cookie& cookie) {
     const auto& req = cookie.getRequest(Cookie::PacketContent::Header);
     if (!req.isValid() || req.getExtlen() != 0 || req.getKeylen() == 0 ||
         req.getKeylen() != req.getBodylen() || req.getCas() != 0 ||
@@ -457,7 +457,7 @@ static protocol_binary_response_status revoke_user_permissions_validator(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status configuration_refresh_validator(const Cookie& cookie)
+static protocol_binary_response_status configuration_refresh_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -474,7 +474,7 @@ static protocol_binary_response_status configuration_refresh_validator(const Coo
 }
 
 static protocol_binary_response_status rbac_provider_validator(
-        const Cookie& cookie) {
+        Cookie& cookie) {
     auto& header = cookie.getHeader();
 
     if (!header.isValid() || // Does the internal header fields add up?
@@ -489,7 +489,7 @@ static protocol_binary_response_status rbac_provider_validator(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status verbosity_validator(const Cookie& cookie)
+static protocol_binary_response_status verbosity_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -505,7 +505,7 @@ static protocol_binary_response_status verbosity_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status hello_validator(const Cookie& cookie)
+static protocol_binary_response_status hello_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -522,7 +522,7 @@ static protocol_binary_response_status hello_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status version_validator(const Cookie& cookie)
+static protocol_binary_response_status version_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -539,7 +539,7 @@ static protocol_binary_response_status version_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status quit_validator(const Cookie& cookie)
+static protocol_binary_response_status quit_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -556,7 +556,7 @@ static protocol_binary_response_status quit_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status sasl_list_mech_validator(const Cookie& cookie)
+static protocol_binary_response_status sasl_list_mech_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -573,7 +573,7 @@ static protocol_binary_response_status sasl_list_mech_validator(const Cookie& co
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status sasl_auth_validator(const Cookie& cookie)
+static protocol_binary_response_status sasl_auth_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -589,7 +589,7 @@ static protocol_binary_response_status sasl_auth_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status noop_validator(const Cookie& cookie)
+static protocol_binary_response_status noop_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -606,7 +606,7 @@ static protocol_binary_response_status noop_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status flush_validator(const Cookie& cookie)
+static protocol_binary_response_status flush_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -640,7 +640,7 @@ static protocol_binary_response_status flush_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status add_validator(const Cookie& cookie)
+static protocol_binary_response_status add_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -658,7 +658,7 @@ static protocol_binary_response_status add_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status set_replace_validator(const Cookie& cookie)
+static protocol_binary_response_status set_replace_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -674,7 +674,7 @@ static protocol_binary_response_status set_replace_validator(const Cookie& cooki
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status append_prepend_validator(const Cookie& cookie)
+static protocol_binary_response_status append_prepend_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -690,7 +690,7 @@ static protocol_binary_response_status append_prepend_validator(const Cookie& co
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status get_validator(const Cookie& cookie)
+static protocol_binary_response_status get_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -708,7 +708,7 @@ static protocol_binary_response_status get_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status gat_validator(const Cookie& cookie) {
+static protocol_binary_response_status gat_validator(Cookie& cookie) {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
     uint32_t klen = ntohs(req->message.header.request.keylen);
@@ -725,7 +725,7 @@ static protocol_binary_response_status gat_validator(const Cookie& cookie) {
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status delete_validator(const Cookie& cookie)
+static protocol_binary_response_status delete_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -742,7 +742,7 @@ static protocol_binary_response_status delete_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status stat_validator(const Cookie& cookie)
+static protocol_binary_response_status stat_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -759,7 +759,7 @@ static protocol_binary_response_status stat_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status arithmetic_validator(const Cookie& cookie)
+static protocol_binary_response_status arithmetic_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -777,7 +777,7 @@ static protocol_binary_response_status arithmetic_validator(const Cookie& cookie
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status get_cmd_timer_validator(const Cookie& cookie)
+static protocol_binary_response_status get_cmd_timer_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -795,7 +795,7 @@ static protocol_binary_response_status get_cmd_timer_validator(const Cookie& coo
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status set_ctrl_token_validator(const Cookie& cookie)
+static protocol_binary_response_status set_ctrl_token_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_set_ctrl_token*>(
             cookie.getPacketAsVoidPtr());
@@ -812,7 +812,7 @@ static protocol_binary_response_status set_ctrl_token_validator(const Cookie& co
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status get_ctrl_token_validator(const Cookie& cookie)
+static protocol_binary_response_status get_ctrl_token_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -828,7 +828,7 @@ static protocol_binary_response_status get_ctrl_token_validator(const Cookie& co
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status ioctl_get_validator(const Cookie& cookie)
+static protocol_binary_response_status ioctl_get_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_ioctl_get*>(
             cookie.getPacketAsVoidPtr());
@@ -846,7 +846,7 @@ static protocol_binary_response_status ioctl_get_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status ioctl_set_validator(const Cookie& cookie)
+static protocol_binary_response_status ioctl_set_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_ioctl_set*>(
             cookie.getPacketAsVoidPtr());
@@ -865,7 +865,7 @@ static protocol_binary_response_status ioctl_set_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status audit_put_validator(const Cookie& cookie)
+static protocol_binary_response_status audit_put_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_audit_put*>(
             cookie.getPacketAsVoidPtr());
@@ -881,7 +881,7 @@ static protocol_binary_response_status audit_put_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status audit_config_reload_validator(const Cookie& cookie)
+static protocol_binary_response_status audit_config_reload_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -898,7 +898,7 @@ static protocol_binary_response_status audit_config_reload_validator(const Cooki
 }
 
 static protocol_binary_response_status config_reload_validator(
-        const Cookie& cookie) {
+        Cookie& cookie) {
     auto& header = cookie.getHeader();
 
     if (!header.isValid() || // Does the internal header fields add up?
@@ -914,7 +914,7 @@ static protocol_binary_response_status config_reload_validator(
 }
 
 static protocol_binary_response_status config_validate_validator(
-        const Cookie& cookie) {
+        Cookie& cookie) {
     auto& header = cookie.getHeader();
     const auto bodylen = header.getBodylen();
 
@@ -931,7 +931,7 @@ static protocol_binary_response_status config_validate_validator(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status observe_seqno_validator(const Cookie& cookie)
+static protocol_binary_response_status observe_seqno_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -947,7 +947,7 @@ static protocol_binary_response_status observe_seqno_validator(const Cookie& coo
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status get_adjusted_time_validator(const Cookie& cookie)
+static protocol_binary_response_status get_adjusted_time_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_get_adjusted_time*>(
             cookie.getPacketAsVoidPtr());
@@ -963,7 +963,7 @@ static protocol_binary_response_status get_adjusted_time_validator(const Cookie&
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status set_drift_counter_state_validator(const Cookie& cookie)
+static protocol_binary_response_status set_drift_counter_state_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_set_drift_counter_state*>(
             cookie.getPacketAsVoidPtr());
@@ -983,7 +983,7 @@ static protocol_binary_response_status set_drift_counter_state_validator(const C
  *    key: bucket name
  *    body: module\nconfig
  */
-static protocol_binary_response_status create_bucket_validator(const Cookie& cookie)
+static protocol_binary_response_status create_bucket_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -1005,7 +1005,7 @@ static protocol_binary_response_status create_bucket_validator(const Cookie& coo
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status list_bucket_validator(const Cookie& cookie)
+static protocol_binary_response_status list_bucket_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -1021,7 +1021,7 @@ static protocol_binary_response_status list_bucket_validator(const Cookie& cooki
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status delete_bucket_validator(const Cookie& cookie)
+static protocol_binary_response_status delete_bucket_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -1037,7 +1037,7 @@ static protocol_binary_response_status delete_bucket_validator(const Cookie& coo
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status select_bucket_validator(const Cookie& cookie)
+static protocol_binary_response_status select_bucket_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -1055,7 +1055,7 @@ static protocol_binary_response_status select_bucket_validator(const Cookie& coo
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status get_all_vb_seqnos_validator(const Cookie& cookie)
+static protocol_binary_response_status get_all_vb_seqnos_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_get_all_vb_seqnos*>(
             cookie.getPacketAsVoidPtr());
@@ -1087,7 +1087,7 @@ static protocol_binary_response_status get_all_vb_seqnos_validator(const Cookie&
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status shutdown_validator(const Cookie& cookie)
+static protocol_binary_response_status shutdown_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -1105,7 +1105,7 @@ static protocol_binary_response_status shutdown_validator(const Cookie& cookie)
 
 
 
-static protocol_binary_response_status get_meta_validator(const Cookie& cookie)
+static protocol_binary_response_status get_meta_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -1133,7 +1133,7 @@ static protocol_binary_response_status get_meta_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status mutate_with_meta_validator(const Cookie& cookie) {
+static protocol_binary_response_status mutate_with_meta_validator(Cookie& cookie) {
     auto req = static_cast<protocol_binary_request_get_meta*>(
             cookie.getPacketAsVoidPtr());
 
@@ -1173,7 +1173,7 @@ static protocol_binary_response_status mutate_with_meta_validator(const Cookie& 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status get_errmap_validator(const Cookie& cookie) {
+static protocol_binary_response_status get_errmap_validator(Cookie& cookie) {
     const auto& hdr = *static_cast<const protocol_binary_request_header*>(
             cookie.getPacketAsVoidPtr());
     if (hdr.request.magic == PROTOCOL_BINARY_REQ &&
@@ -1189,7 +1189,7 @@ static protocol_binary_response_status get_errmap_validator(const Cookie& cookie
     }
 }
 
-static protocol_binary_response_status get_locked_validator(const Cookie& cookie)
+static protocol_binary_response_status get_locked_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -1208,7 +1208,7 @@ static protocol_binary_response_status get_locked_validator(const Cookie& cookie
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status unlock_validator(const Cookie& cookie)
+static protocol_binary_response_status unlock_validator(Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
@@ -1227,7 +1227,7 @@ static protocol_binary_response_status unlock_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status evict_key_validator(const Cookie& cookie)
+static protocol_binary_response_status evict_key_validator(Cookie& cookie)
 {
    auto& header = cookie.getHeader();
    if (!header.isValid() || // Does the internal header fields add up?
@@ -1243,7 +1243,7 @@ static protocol_binary_response_status evict_key_validator(const Cookie& cookie)
 }
 
 static protocol_binary_response_status collections_set_manifest_validator(
-        const Cookie& cookie) {
+        Cookie& cookie) {
     auto packet = static_cast<protocol_binary_collections_set_manifest*>(
             cookie.getPacketAsVoidPtr());
     auto& req = packet->message.header.request;
@@ -1266,7 +1266,7 @@ static protocol_binary_response_status collections_set_manifest_validator(
 }
 
 static protocol_binary_response_status collections_get_manifest_validator(
-        const Cookie& cookie) {
+        Cookie& cookie) {
     auto req = static_cast<protocol_binary_request_no_extras*>(
             cookie.getPacketAsVoidPtr());
 
@@ -1289,7 +1289,7 @@ static protocol_binary_response_status collections_get_manifest_validator(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status adjust_timeofday_validator(const Cookie& cookie)
+static protocol_binary_response_status adjust_timeofday_validator(Cookie& cookie)
 {
     const auto& header = cookie.getHeader();
 
