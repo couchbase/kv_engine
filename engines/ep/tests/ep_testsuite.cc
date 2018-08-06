@@ -2655,8 +2655,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
           "Bloom filter wasn't enabled");
 
     // Key is only present if bgOperations is non-zero.
-    int num_read_attempts = get_int_stat_or_default(h, h1, 0,
-                                                    "ep_bg_num_samples");
+    int num_read_attempts = get_int_stat_or_default(h, 0, "ep_bg_num_samples");
 
     // Ensure vbucket's bloom filter is enabled
     checkeq(std::string("ENABLED"),
@@ -2719,7 +2718,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
                 "Unexpected no. of keys in bloom filter");
 
         checkeq(num_read_attempts,
-                get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
+                get_int_stat_or_default(h, 0, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to remain unchanged");
 
         for (i = 0; i < 5; ++i) {
@@ -2796,8 +2795,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
     check(get_bool_stat(h, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
 
-    int num_read_attempts = get_int_stat_or_default(h, h1, 0,
-                                                    "ep_bg_num_samples");
+    int num_read_attempts = get_int_stat_or_default(h, 0, "ep_bg_num_samples");
 
     // Ensure vbucket's bloom filter is enabled
     checkeq(std::string("ENABLED"),
@@ -2811,7 +2809,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
     }
 
     checkeq(num_read_attempts,
-            get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
+            get_int_stat_or_default(h, 0, "ep_bg_num_samples"),
             "Expected no bgFetch attempts");
 
     checkeq(ENGINE_SUCCESS,
@@ -2844,7 +2842,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
         }
 
         checkeq(num_read_attempts,
-                get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
+                get_int_stat_or_default(h, 0, "ep_bg_num_samples"),
                 "Expected no bgFetch attempts");
 
         // Add
@@ -2862,7 +2860,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
         }
 
         checkeq(num_read_attempts,
-                get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
+                get_int_stat_or_default(h, 0, "ep_bg_num_samples"),
                 "Expected no bgFetch attempts");
 
         // Delete
@@ -2875,9 +2873,8 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
         }
 
         checkeq(num_read_attempts,
-                get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
+                get_int_stat_or_default(h, 0, "ep_bg_num_samples"),
                 "Expected no bgFetch attempts");
-
     }
 
     return SUCCESS;

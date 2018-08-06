@@ -1458,7 +1458,6 @@ bool get_bool_stat(EngineIface* h,
  * found.
  */
 int get_int_stat_or_default(EngineIface* h,
-                            EngineIface* h1,
                             int default_value,
                             const char* statname,
                             const char* statkey) {
