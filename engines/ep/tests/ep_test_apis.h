@@ -405,7 +405,6 @@ ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
  * "statname" which is got by running stats on "statkey"
  */
 uint64_t get_histo_stat(EngineIface* h,
-                        EngineIface* h1,
                         const char* statname,
                         const char* statkey,
                         const Histo_stat_info histo_info);

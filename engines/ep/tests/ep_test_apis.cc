@@ -134,7 +134,6 @@ private:
 };
 
 static void get_histo_stat(EngineIface* h,
-                           EngineIface* h1,
                            const char* statname,
                            const char* statkey);
 
@@ -1471,14 +1470,13 @@ int get_int_stat_or_default(EngineIface* h,
 }
 
 uint64_t get_histo_stat(EngineIface* h,
-                        EngineIface* h1,
                         const char* statname,
                         const char* statkey,
                         const Histo_stat_info histo_info) {
     std::lock_guard<std::mutex> lh(get_stat_context.mutex);
 
     get_stat_context.histogram_stat_int_value = new HistogramStats<uint64_t>();
-    get_histo_stat(h, h1, statname, statkey);
+    get_histo_stat(h, statname, statkey);
 
     /* Get the necessary info from the histogram */
     uint64_t ret_val = 0;
@@ -1498,7 +1496,6 @@ uint64_t get_histo_stat(EngineIface* h,
 }
 
 static void get_histo_stat(EngineIface* h,
-                           EngineIface* h1,
                            const char* statname,
                            const char* statkey) {
     get_stat_context.requested_stat_name = statname;
@@ -1507,10 +1504,9 @@ static void get_histo_stat(EngineIface* h,
     get_stat_context.requested_stat_name.append("_");
 
     const auto* cookie = testHarness->create_cookie();
-    ENGINE_ERROR_CODE err =
-            h1->get_stats(cookie,
-                          {statkey, statkey == NULL ? 0 : strlen(statkey)},
-                          add_individual_histo_stat);
+    auto err = h->get_stats(cookie,
+                            {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                            add_individual_histo_stat);
     testHarness->destroy_cookie(cookie);
 
     if (err != ENGINE_SUCCESS) {
