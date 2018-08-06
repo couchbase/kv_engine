@@ -238,8 +238,9 @@ static enum test_result test_set(EngineIface* h, EngineIface* h1) {
                     err_str_store.c_str());
 
             std::string err_str_get_item_info("Error getting " + key_arr[k]);
-            checkeq(true, get_item_info(h, h1, &info, key_arr[k].c_str()),
-                  err_str_get_item_info.c_str());
+            checkeq(true,
+                    get_item_info(h, &info, key_arr[k].c_str()),
+                    err_str_get_item_info.c_str());
 
             std::string err_str_vb_uuid("Expected valid vbucket uuid for " +
                                         key_arr[k]);
@@ -775,7 +776,7 @@ static enum test_result test_set_change_flags(EngineIface* h, EngineIface* h1) {
 
     item_info info;
     uint32_t flags = 828258;
-    check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
+    check(get_item_info(h, &info, "key"), "Failed to get value.");
     cb_assert(info.flags != flags);
 
     checkeq(cb::engine_errc::success,
@@ -791,7 +792,7 @@ static enum test_result test_set_change_flags(EngineIface* h, EngineIface* h1) {
                     .first,
             "Failed to set again.");
 
-    check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
+    check(get_item_info(h, &info, "key"), "Failed to get value.");
 
     return info.flags == flags ? SUCCESS : FAIL;
 }
@@ -810,7 +811,7 @@ static enum test_result test_add(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_ADD, "key", "somevalue"),
             "Failed to add value.");
 
-    check(get_item_info(h, h1, &info, "key"), "Error getting item info");
+    check(get_item_info(h, &info, "key"), "Error getting item info");
     checkeq(vb_uuid, info.vbucket_uuid, "Expected valid vbucket uuid");
     checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
@@ -916,7 +917,7 @@ static enum test_result test_replace(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_REPLACE, "key", "somevalue"),
             "Failed to replace existing value.");
 
-    check(get_item_info(h, h1, &info, "key"), "Error getting item info");
+    check(get_item_info(h, &info, "key"), "Error getting item info");
 
     checkeq(vb_uuid, info.vbucket_uuid, "Expected valid vbucket uuid");
     checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");

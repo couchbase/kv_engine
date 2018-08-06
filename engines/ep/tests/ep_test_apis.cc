@@ -590,7 +590,6 @@ cb::EngineErrorItemPair gat(EngineIface* h,
 }
 
 bool get_item_info(EngineIface* h,
-                   EngineIface* h1,
                    item_info* info,
                    const char* key,
                    uint16_t vb) {
@@ -598,7 +597,7 @@ bool get_item_info(EngineIface* h,
     if (ret.first != cb::engine_errc::success) {
         return false;
     }
-    if (!h1->get_item_info(ret.second.get(), info)) {
+    if (!h->get_item_info(ret.second.get(), info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }

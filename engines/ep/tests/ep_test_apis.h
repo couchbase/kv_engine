@@ -238,7 +238,6 @@ cb::EngineErrorItemPair gat(EngineIface* h,
                             uint16_t vb,
                             uint32_t exp);
 bool get_item_info(EngineIface* h,
-                   EngineIface* h1,
                    item_info* info,
                    const char* key,
                    uint16_t vb = 0);

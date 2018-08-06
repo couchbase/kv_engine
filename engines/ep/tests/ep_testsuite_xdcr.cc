@@ -1027,7 +1027,7 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
 
     // Check that set_with_meta has marked the JSON input as JSON
     item_info info;
-    check(get_item_info(h, h1, &info, key, 0/*vb0*/), "get_item_info failed");
+    check(get_item_info(h, &info, key, 0 /*vb0*/), "get_item_info failed");
     checkeq(int(PROTOCOL_BINARY_DATATYPE_JSON), int(info.datatype),
         "Expected datatype to now include JSON");
 
@@ -1465,7 +1465,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h,
 
     // set_with_meta will mark JSON input as JSON
     item_info info;
-    check(get_item_info(h, h1, &info, key, 0/*vb0*/), "get_item_info failed");
+    check(get_item_info(h, &info, key, 0 /*vb0*/), "get_item_info failed");
     checkeq(int(PROTOCOL_BINARY_DATATYPE_JSON|PROTOCOL_BINARY_DATATYPE_XATTR),
         int(info.datatype),
         "Expected datatype to be JSON and XATTR");

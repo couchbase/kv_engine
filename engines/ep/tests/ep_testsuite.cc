@@ -6141,7 +6141,7 @@ static enum test_result test_eviction_with_xattr(EngineIface* h,
     evict_key(h, key, 0, "Ejected.");
 
     item_info info;
-    check(get_item_info(h, h1, &info, key), "Error getting item info");
+    check(get_item_info(h, &info, key), "Error getting item info");
 
     checkeq(PROTOCOL_BINARY_DATATYPE_XATTR, info.datatype,
             "Incorrect datatype read back");
@@ -6283,7 +6283,7 @@ static enum test_result test_hlc_cas(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_ADD, key, "data1"),
             "Failed to store an item");
 
-    check(get_item_info(h, h1, &info, key), "Error in getting item info");
+    check(get_item_info(h, &info, key), "Error in getting item info");
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
@@ -6292,7 +6292,7 @@ static enum test_result test_hlc_cas(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_SET, key, "data2"),
             "Failed to store an item");
 
-    check(get_item_info(h, h1, &info, key), "Error getting item info");
+    check(get_item_info(h, &info, key), "Error getting item info");
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
@@ -6301,7 +6301,7 @@ static enum test_result test_hlc_cas(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_REPLACE, key, "data3"),
             "Failed to store an item");
 
-    check(get_item_info(h, h1, &info, key), "Error in getting item info");
+    check(get_item_info(h, &info, key), "Error in getting item info");
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
@@ -6309,7 +6309,7 @@ static enum test_result test_hlc_cas(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success,
             getl(h, nullptr, key, 0, 10).first,
             "Expected to be able to getl on first try");
-    check(get_item_info(h, h1, &info, key), "Error in getting item info");
+    check(get_item_info(h, &info, key), "Error in getting item info");
 
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
