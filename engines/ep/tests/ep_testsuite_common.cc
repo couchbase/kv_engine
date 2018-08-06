@@ -150,7 +150,7 @@ bool test_setup(EngineIface* h) {
     if (bucket_type == "persistent") {
         // Wait for vb0's state (active) to be persisted to disk, that way
         // we know the KVStore files exist on disk.
-        wait_for_stat_to_be_gte(h, h, "ep_persist_vbstate_total", 1);
+        wait_for_stat_to_be_gte(h, "ep_persist_vbstate_total", 1);
     } else if (bucket_type == "ephemeral") {
         // No persistence to wait for here.
     } else {

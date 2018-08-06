@@ -1546,7 +1546,6 @@ void verify_curr_items(EngineIface* h,
 }
 
 void wait_for_stat_to_be_gte(EngineIface* h,
-                             EngineIface* h1,
                              const char* stat,
                              int final,
                              const char* stat_key,
@@ -1566,7 +1565,6 @@ void wait_for_stat_to_be_gte(EngineIface* h,
 }
 
 void wait_for_stat_to_be_lte(EngineIface* h,
-                             EngineIface* h1,
                              const char* stat,
                              int final,
                              const char* stat_key,

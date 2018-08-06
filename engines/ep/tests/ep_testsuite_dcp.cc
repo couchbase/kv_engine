@@ -157,8 +157,7 @@ class TestDcpConsumer {
 public:
     TestDcpConsumer(const std::string& _name,
                     const void* _cookie,
-                    EngineIface* h,
-                    EngineIface* h1)
+                    EngineIface* h)
         : name(_name),
           cookie(_cookie),
           opaque(0),
@@ -167,7 +166,6 @@ public:
           flow_control_buf_size(1024),
           disable_ack(false),
           h(h),
-          h1(h1),
           dcp(requireDcpIface(h)),
           nruCounter(2) {
     }
@@ -272,7 +270,6 @@ private:
     /* map of vbstats */
     std::map<uint16_t, VBStats> vb_stats;
     EngineIface* h;
-    EngineIface* h1;
     gsl::not_null<DcpIface*> dcp;
     std::vector<int> nruCounter;
 
@@ -715,7 +712,9 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
             std::stringstream stats_takeover;
             stats_takeover << "dcp-vbtakeover " << ctx.vbucket
             << " " << name.c_str();
-            wait_for_stat_to_be_lte(h, h1, "estimate", static_cast<int>(est),
+            wait_for_stat_to_be_lte(h,
+                                    "estimate",
+                                    static_cast<int>(est),
                                     stats_takeover.str().c_str());
         }
 
@@ -723,8 +722,8 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
             /* Wait for backfill to start */
             std::string stats_backfill_read_bytes("eq_dcpq:" + name +
                                                   ":backfill_buffer_bytes_read");
-            wait_for_stat_to_be_gte(h, h1, stats_backfill_read_bytes.c_str(), 0,
-                                    "dcp");
+            wait_for_stat_to_be_gte(
+                    h, stats_backfill_read_bytes.c_str(), 0, "dcp");
             /* Verify that we have no dcp cursors in the checkpoint. (There will
              just be one persistence cursor) */
             std::string stats_num_conn_cursors("vb_" +
@@ -1106,7 +1105,7 @@ extern "C" {
         ctx.skip_verification = true;
 
         cdc->dcpConsumer = std::make_unique<TestDcpConsumer>(
-                cdc->name, cdc->cookie, cdc->h, cdc->h1);
+                cdc->name, cdc->cookie, cdc->h);
         cdc->dcpConsumer->addStreamCtx(ctx);
         cdc->dcpConsumer->run();
     }
@@ -1886,7 +1885,7 @@ static void test_dcp_noop_mandatory_combo(EngineIface* h,
             "Incorrect value for dcp_noop_mandatory_for_v5_features");
 
     // Create DCP consumer with requested flags.
-    TestDcpConsumer tdc("dcp_noop_manditory_test", cookie, h, h1);
+    TestDcpConsumer tdc("dcp_noop_manditory_test", cookie, h);
     uint32_t flags = DCP_OPEN_PRODUCER;
     if (enableXAttrs) {
         flags |= DCP_OPEN_INCLUDE_XATTRS;
@@ -1937,7 +1936,7 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h,
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
 
     std::string name("unittest");
-    TestDcpConsumer tdc(name.c_str(), cookie, h, h1);
+    TestDcpConsumer tdc(name.c_str(), cookie, h);
     tdc.addStreamCtx(ctx);
 
     tdc.openConnection();
@@ -2045,7 +2044,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
         ctx.exp_markers = 1;
     }
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2076,7 +2075,7 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
     /* Disk backfill sends all items in disk as one snapshot */
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2114,7 +2113,7 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h,
        Relies on backfill only when checkpoint snapshot is cleaned up */
     ctx.exp_markers = 2;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2149,7 +2148,7 @@ static enum test_result test_dcp_producer_deleted_item_backfill(
     ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2171,7 +2170,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h,
         write_items(h, batch_items, start_seqno);
     }
 
-    wait_for_stat_to_be_gte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be_gte(h, "vb_0:num_checkpoints", 2, "checkpoint");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2181,7 +2180,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h,
     ctx.exp_mutations = 200;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2212,7 +2211,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h,
     ctx.exp_mutations = 300;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2239,7 +2238,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(
     ctx.exp_mutations = 3;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2301,7 +2300,7 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
     ctx.exp_mutations = 3;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2331,7 +2330,7 @@ static enum test_result test_dcp_producer_stream_req_mem(EngineIface* h,
     ctx.exp_mutations = 100;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2400,7 +2399,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
     ctx.exp_mutations = i;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2433,7 +2432,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h,
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_num_value_ejects", 5);
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     uint32_t flags = DCP_OPEN_PRODUCER;
 
     tdc.openConnection(flags);
@@ -2483,7 +2482,7 @@ static enum test_result test_dcp_producer_stream_latest(EngineIface* h,
     ctx.exp_mutations = 100;
     ctx.exp_markers = 1;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -2598,7 +2597,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
     /* Expecting for Disk backfill + in memory snapshot merge.
        Wait for a checkpoint to be removed */
-    wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be_lte(h, "vb_0:num_checkpoints", 2, "checkpoint");
 
     /* Part (ii): Open a stream (in a DCP conn) and see if all the items are
                   received correctly */
@@ -2778,7 +2777,7 @@ static test_result test_dcp_agg_stats(EngineIface* h, EngineIface* h1) {
         ctx.exp_mutations = 100;
         ctx.exp_markers = 1;
 
-        TestDcpConsumer tdc(name, cookie[j], h, h1);
+        TestDcpConsumer tdc(name, cookie[j], h);
         tdc.addStreamCtx(ctx);
         tdc.run();
         total_bytes += tdc.getTotalBytes();
@@ -2834,7 +2833,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.snapshot = {0, 0};
 
-    TestDcpConsumer tdc(conn_name, cookie, h, h1);
+    TestDcpConsumer tdc(conn_name, cookie, h);
 
     tdc.addStreamCtx(ctx);
 
@@ -2880,7 +2879,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
        2 checkpoints so that the cursors of one of the checkpoint is dropped.
        For this we need to have correct combination of max_size and
        chk_max_items (max_size=6291456;chk_max_items=8000 in this case) */
-    wait_for_stat_to_be_gte(h, h1, "ep_cursors_dropped", 1);
+    wait_for_stat_to_be_gte(h, "ep_cursors_dropped", 1);
     dcp_stream_from_producer_conn(h,
                                   h1,
                                   cookie,
@@ -2939,7 +2938,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.snapshot = {0, 0};
 
-    TestDcpConsumer tdc(conn_name, cookie, h, h1);
+    TestDcpConsumer tdc(conn_name, cookie, h);
 
     tdc.addStreamCtx(ctx);
 
@@ -2962,7 +2961,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
     start_persistence(h);
     wait_for_flusher_to_settle(h);
 
-    wait_for_stat_to_be_gte(h, h1, "ep_cursors_dropped", 1);
+    wait_for_stat_to_be_gte(h, "ep_cursors_dropped", 1);
 
     /* Read all the items from the producer. This ensures that the items are
        backfilled correctly after scheduling 2 successive backfills. */
@@ -2987,7 +2986,7 @@ static test_result test_dcp_takeover(EngineIface* h, EngineIface* h1) {
     ctx.exp_markers = 2;
     ctx.extra_takeover_ops = 10;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -4181,7 +4180,7 @@ static enum test_result test_dcp_producer_flow_control(EngineIface* h,
     ctx1.exp_markers = 1;
 
     const void* cookie = testHarness->create_cookie();
-    TestDcpConsumer tdc1(name, cookie, h, h1);
+    TestDcpConsumer tdc1(name, cookie, h);
     tdc1.setFlowControlBufSize(0);  // Disabling flow control
     tdc1.disableAcking();           // Do not ack
     tdc1.addStreamCtx(ctx1);
@@ -4198,7 +4197,7 @@ static enum test_result test_dcp_producer_flow_control(EngineIface* h,
     ctx2.exp_markers = 1;
 
     const void* cookie1 = testHarness->create_cookie();
-    TestDcpConsumer tdc2(name1, cookie1, h, h1);
+    TestDcpConsumer tdc2(name1, cookie1, h);
     tdc2.setFlowControlBufSize(100);    // Flow control buf set to low value
     tdc2.disableAcking();               // Do not ack
     tdc2.addStreamCtx(ctx2);
@@ -4717,7 +4716,7 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h,
     ctx.exp_markers = 1;
 
     const void* cookie1 = testHarness->create_cookie();
-    TestDcpConsumer tdc("unittest1", cookie1, h, h1);
+    TestDcpConsumer tdc("unittest1", cookie1, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -4765,7 +4764,7 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h,
     ctx.exp_markers = 1;
 
     const void* cookie1 = testHarness->create_cookie();
-    TestDcpConsumer tdc("unittest1", cookie1, h, h1);
+    TestDcpConsumer tdc("unittest1", cookie1, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -4821,7 +4820,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
 
     /* Disk backfill + in memory stream from replica */
     /* Wait for a checkpoint to be removed */
-    wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be_lte(h, "vb_0:num_checkpoints", 2, "checkpoint");
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
@@ -4830,7 +4829,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
     ctx.exp_markers = 1;
 
     const void* cookie1 = testHarness->create_cookie();
-    TestDcpConsumer tdc("unittest1", cookie1, h, h1);
+    TestDcpConsumer tdc("unittest1", cookie1, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -5049,7 +5048,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h,
     ctx.skip_estimate_check = true;
 
     const void* cookie = testHarness->create_cookie();
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -5090,7 +5089,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
     ctx.skip_estimate_check = true;
 
     const void* cookie = testHarness->create_cookie();
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx);
     tdc.run();
 
@@ -5127,7 +5126,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
     ctx1.exp_rollback = 0;
 
     const void* cookie1 = testHarness->create_cookie();
-    TestDcpConsumer tdc1("unittest1", cookie1, h, h1);
+    TestDcpConsumer tdc1("unittest1", cookie1, h);
     tdc1.addStreamCtx(ctx1);
 
     tdc1.openConnection();
@@ -5144,7 +5143,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
     ctx2.exp_err = ENGINE_SUCCESS;
 
     const void* cookie2 = testHarness->create_cookie();
-    TestDcpConsumer tdc2("unittest2", cookie2, h, h1);
+    TestDcpConsumer tdc2("unittest2", cookie2, h);
     tdc2.addStreamCtx(ctx2);
 
     tdc2.openConnection();
@@ -5160,7 +5159,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
     ctx3.exp_err = ENGINE_SUCCESS;
 
     const void* cookie3 = testHarness->create_cookie();
-    TestDcpConsumer tdc3("unittest3", cookie3, h, h1);
+    TestDcpConsumer tdc3("unittest3", cookie3, h);
     tdc3.addStreamCtx(ctx3);
 
     tdc3.openConnection();
@@ -5735,7 +5734,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
 
         const void* cookie = testHarness->create_cookie();
         std::string conn_name("test_failover_log_dcp");
-        TestDcpConsumer tdc(conn_name.c_str(), cookie, h, h1);
+        TestDcpConsumer tdc(conn_name.c_str(), cookie, h);
         tdc.addStreamCtx(ctx);
 
         tdc.openConnection();
@@ -5928,7 +5927,7 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h,
     ctx2.exp_mutations = num_items + extra_items;
     ctx2.live_frontend_client = true;
 
-    TestDcpConsumer tdc("unittest", cookie, h, h1);
+    TestDcpConsumer tdc("unittest", cookie, h);
     tdc.addStreamCtx(ctx1);
     tdc.addStreamCtx(ctx2);
 
@@ -6053,7 +6052,7 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h,
     // CANNOT_PROCESS, because of numerous backoffs.
     check(get_int_stat(h, "eq_dcpq:unittest:stream_0_buffer_items", "dcp") > 0,
           "Expected buffered items for the stream");
-    wait_for_stat_to_be_gte(h, h1, "eq_dcpq:unittest:total_backoffs", 1, "dcp");
+    wait_for_stat_to_be_gte(h, "eq_dcpq:unittest:total_backoffs", 1, "dcp");
     checkne(std::string("ALL_PROCESSED"),
             get_str_stat(h, "eq_dcpq:unittest:processor_task_state", "dcp"),
             "Expected Processer's task state not to be ALL_PROCESSED!");

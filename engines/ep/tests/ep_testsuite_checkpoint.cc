@@ -158,7 +158,7 @@ static enum test_result test_collapse_checkpoints(EngineIface* h,
     }
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
-    wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+    wait_for_stat_to_be_lte(h, "vb_0:num_checkpoints", 2, "checkpoint");
     start_persistence(h);
     wait_for_flusher_to_settle(h);
     return SUCCESS;

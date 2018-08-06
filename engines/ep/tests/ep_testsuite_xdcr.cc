@@ -1621,7 +1621,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h,
     set_with_meta(h, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
 
     // MB-21725 Depending on how fast the flusher is, we may see 1 or 2.
-    wait_for_stat_to_be_gte(h, h1, "ep_total_persisted", 1);
+    wait_for_stat_to_be_gte(h, "ep_total_persisted", 1);
 
     itm_meta.revSeqno = 3;
     itm_meta.cas = 3;
@@ -1701,7 +1701,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     // done. That is if first bgfetch restores in HT, the deleted item from
     // disk, before the second get_meta call tries to find that item in HT,
     // we will have only 1 bgfetch
-    wait_for_stat_to_be_gte(h, h1, "ep_bg_meta_fetched", 1);
+    wait_for_stat_to_be_gte(h, "ep_bg_meta_fetched", 1);
     int exp_get_meta_ops = get_int_stat(h, "ep_num_ops_get_meta");
 
     // Do get_meta for a non-existing key.

@@ -655,7 +655,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
     checkeq(1,
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
-    wait_for_stat_to_be_gte(h, h1, "ep_num_expiry_pager_runs", 1);
+    wait_for_stat_to_be_gte(h, "ep_num_expiry_pager_runs", 1);
 
     // Reload engine
     testHarness->reload_engine(&h,
@@ -1095,7 +1095,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
           "Expiry pager should be enabled on warmup");
 
     // Wait for the expiry pager to run and expire our item.
-    wait_for_stat_to_be_gte(h, h1, "ep_expired_pager", 1, nullptr, /*secs*/10);
+    wait_for_stat_to_be_gte(h, "ep_expired_pager", 1, nullptr, /*secs*/ 10);
 
     // Note: previously we checked that curr_items was zero here (immediately
     // after waiting for ep_expired_pager == 1), however we cannot assume that
@@ -5111,7 +5111,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h);
 
     // The pager should of ran
-    wait_for_stat_to_be_gte(h, h1, "ep_num_value_ejects", 1);
+    wait_for_stat_to_be_gte(h, "ep_num_value_ejects", 1);
 
     check(docs_stored > 10,
           "Failed to store enough documents before hitting TempOOM\n");
