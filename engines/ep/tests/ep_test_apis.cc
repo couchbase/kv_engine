@@ -1535,7 +1535,6 @@ statistic_map get_all_stats(EngineIface* h, const char* statset) {
 }
 
 void verify_curr_items(EngineIface* h,
-                       EngineIface* h1,
                        int exp,
                        const char* msg) {
     int curr_items = get_int_stat(h, "curr_items");

@@ -3266,7 +3266,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong number of items");
+    verify_curr_items(h, num_items, "Wrong number of items");
     int num_non_resident = get_int_stat(h, "vb_active_num_non_resident");
     checkge(num_non_resident, num_items * 6 / 100,
             "Expected num_non_resident to be at least 6% of total items");
@@ -3850,7 +3850,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
 static enum test_result test_curr_items_add_set(EngineIface* h,
                                                 EngineIface* h1) {
     // Verify initial case.
-    verify_curr_items(h, h1, 0, "init");
+    verify_curr_items(h, 0, "init");
 
     const auto initial_enqueued = get_int_stat(h, "ep_total_enqueued");
 
@@ -3868,7 +3868,7 @@ static enum test_result test_curr_items_add_set(EngineIface* h,
         // MB-21957: FE mode - curr_items is only valid once we flush documents
         wait_for_flusher_to_settle(h);
     }
-    verify_curr_items(h, h1, 3, "three items stored");
+    verify_curr_items(h, 3, "three items stored");
     checkeq(initial_enqueued + 3,
             get_int_stat(h, "ep_total_enqueued"),
             "Expected total_enqueued to increase by 3 after 3 new items");
@@ -3879,7 +3879,7 @@ static enum test_result test_curr_items_add_set(EngineIface* h,
 static enum test_result test_curr_items_delete(EngineIface* h,
                                                EngineIface* h1) {
     // Verify initial case.
-    verify_curr_items(h, h1, 0, "init");
+    verify_curr_items(h, 0, "init");
 
     // Store some items
     write_items(h, 3);
@@ -3890,14 +3890,14 @@ static enum test_result test_curr_items_delete(EngineIface* h,
             "Failed remove with value.");
 
     wait_for_stat_change(h, "curr_items", 3);
-    verify_curr_items(h, h1, 2, "one item deleted - persisted");
+    verify_curr_items(h, 2, "one item deleted - persisted");
 
     return SUCCESS;
 }
 
 static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
     // Verify initial case.
-    verify_curr_items(h, h1, 0, "init");
+    verify_curr_items(h, 0, "init");
 
     // Store some items
     write_items(h, 3);
@@ -3907,7 +3907,7 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, 0, vbucket_state_dead),
           "Failed set vbucket 0 state to dead");
 
-    verify_curr_items(h, h1, 0, "dead vbucket");
+    verify_curr_items(h, 0, "dead vbucket");
     checkeq(0,
             get_int_stat(h, "curr_items_tot"),
             "Expected curr_items_tot to be 0 with a dead vbucket");
@@ -3916,7 +3916,7 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, 0, vbucket_state_active),
           "Failed set vbucket 0 state to active");
 
-    verify_curr_items(h, h1, 3, "resurrected vbucket");
+    verify_curr_items(h, 3, "resurrected vbucket");
 
     // Now completely delete it.
     check(set_vbucket_state(h, 0, vbucket_state_dead),
@@ -3929,7 +3929,7 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, 0), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success deleting vbucket.");
-    verify_curr_items(h, h1, 0, "del vbucket");
+    verify_curr_items(h, 0, "del vbucket");
     checkeq(0,
             get_int_stat(h, "curr_items_tot"),
             "Expected curr_items_tot to be 0 after deleting a vbucket");

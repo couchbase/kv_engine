@@ -1963,7 +1963,7 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h,
     /* Write items */
     write_items(h, num_items, 0);
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     /* If the notification (to 'dcp_waiting_step' thread upon writing an item)
      mechanism is efficient, we must see the 'dcp_waiting_step' finish before
@@ -2064,7 +2064,7 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     const void* cookie = testHarness->create_cookie();
@@ -2095,7 +2095,7 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     checkne(num_items - get_stat<uint64_t>(h, "ep_items_rm_from_checkpoints"),
@@ -2200,7 +2200,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     const void* cookie = testHarness->create_cookie();
@@ -2227,7 +2227,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(
     write_items(h, num_items);
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
     const void* cookie = testHarness->create_cookie();
@@ -2287,7 +2287,7 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
     write_items(h, num_items);
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     /* Wait for the checkpoint to be removed so that upon DCP connection
        backfill is scheduled */
@@ -2320,7 +2320,7 @@ static enum test_result test_dcp_producer_stream_req_mem(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2382,7 +2382,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
 
     wait_for_flusher_to_settle(h);
 
-    verify_curr_items(h, h1, i, "Wrong number of items");
+    verify_curr_items(h, i, "Wrong number of items");
     double num_non_resident = get_int_stat(h, "vb_active_num_non_resident");
     checkge(num_non_resident,
             i * 0.5,
@@ -2423,7 +2423,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, 10, "Wrong number of items");
+    verify_curr_items(h, 10, "Wrong number of items");
 
     for (int ii = 0; ii < 5; ii++) {
         std::stringstream ss;
@@ -2471,7 +2471,7 @@ static enum test_result test_dcp_producer_stream_latest(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2500,7 +2500,7 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h,
     write_items(h, num_items);
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2677,7 +2677,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -2762,7 +2762,7 @@ static test_result test_dcp_agg_stats(EngineIface* h, EngineIface* h1) {
     }
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     const void *cookie[5];
 
@@ -2818,7 +2818,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
     write_items(h, num_items, 1);
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     /* Set up a dcp producer conn and stream a few items. This will cause the
        stream to transition from pending -> backfill -> in-memory state */
@@ -2926,7 +2926,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
     write_items(h, num_items, 1);
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
     /* Set up a connection */
@@ -3216,7 +3216,7 @@ static uint32_t add_stream_for_consumer(
 
     if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ) {
         cb_assert(dcp_last_opaque != opaque);
-        verify_curr_items(h, h1, 0, "Wrong amount of items");
+        verify_curr_items(h, 0, "Wrong amount of items");
 
         protocol_binary_response_header* pkt =
             (protocol_binary_response_header*)cb_malloc(pkt_len);
@@ -3711,7 +3711,7 @@ static enum test_result test_rollback_to_zero(EngineIface* h, EngineIface* h1) {
     write_items(h, num_items);
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
@@ -3761,7 +3761,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
 
     start_persistence(h);
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     testHarness->reload_engine(&h,
                                testHarness->engine_path,
@@ -3783,7 +3783,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
 
     start_persistence(h);
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, 60, "Wrong amount of items");
+    verify_curr_items(h, 60, "Wrong amount of items");
     set_vbucket_state(h, vbid, vbucket_state_replica);
 
     // Create rollback stream
@@ -4168,7 +4168,7 @@ static enum test_result test_dcp_producer_flow_control(EngineIface* h,
     write_items(h, 10, 0, "key", "123456789");
 
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    verify_curr_items(h, num_items, "Wrong amount of items");
 
     /* Disable flow control and stream all items. The producer should stream all
      items even when we do not send acks */
@@ -4598,7 +4598,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h,
             store(h, NULL, OPERATION_ADD, "key", "value"),
             "Failed to fail to store an item.");
     wait_for_flusher_to_settle(h);
-    verify_curr_items(h, h1, 1, "one item stored");
+    verify_curr_items(h, 1, "one item stored");
 
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
@@ -4672,7 +4672,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h,
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     wait_for_stat_change(h, "curr_items", 1);
-    verify_curr_items(h, h1, 0, "one item deleted");
+    verify_curr_items(h, 0, "one item deleted");
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;

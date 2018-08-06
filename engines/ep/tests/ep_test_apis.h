@@ -449,7 +449,6 @@ uint64_t get_stat(EngineIface* h,
                   const char* statkey);
 
 void verify_curr_items(EngineIface* h,
-                       EngineIface* h1,
                        int exp,
                        const char* msg);
 template <typename T>
