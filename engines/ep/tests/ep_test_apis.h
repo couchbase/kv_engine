@@ -416,9 +416,7 @@ typedef std::map<std::string, std::string> statistic_map;
  * @param statset The set of statistics to fetch. May be nullptr, in which case
  *                the default set will be returned.
  */
-statistic_map get_all_stats(EngineIface* h,
-                            EngineIface* h1,
-                            const char* statset = nullptr);
+statistic_map get_all_stats(EngineIface* h, const char* statset = nullptr);
 
 // Returns the value of the given stat, or the default value if the stat isn't
 // present.

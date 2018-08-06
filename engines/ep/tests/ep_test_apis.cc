@@ -1520,18 +1520,15 @@ static void get_histo_stat(EngineIface* h,
     return;
 }
 
-statistic_map get_all_stats(EngineIface* h,
-                            EngineIface* h1,
-                            const char* statset) {
+statistic_map get_all_stats(EngineIface* h, const char* statset) {
     {
         std::lock_guard<std::mutex> lh(vals_mutex);
         vals.clear();
     }
     const auto* cookie = testHarness->create_cookie();
-    ENGINE_ERROR_CODE err =
-            h1->get_stats(cookie,
-                          {statset, statset == NULL ? 0 : strlen(statset)},
-                          add_stats);
+    auto err = h->get_stats(cookie,
+                            {statset, statset == NULL ? 0 : strlen(statset)},
+                            add_stats);
     testHarness->destroy_cookie(cookie);
 
     if (err != ENGINE_SUCCESS) {

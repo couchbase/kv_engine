@@ -1920,7 +1920,7 @@ static enum test_result test_stats_seqno(EngineIface* h, EngineIface* h1) {
 
     uint64_t vb_uuid = get_ull_stat(h, "vb_1:0:id", "failovers");
 
-    auto seqno_stats = get_all_stats(h, h1, "vbucket-seqno 1");
+    auto seqno_stats = get_all_stats(h, "vbucket-seqno 1");
     checkeq(vb_uuid, uint64_t(std::stoull(seqno_stats.at("vb_1:uuid"))),
             "Invalid uuid");
 
@@ -2251,7 +2251,7 @@ static enum test_result test_bg_stats(EngineIface* h, EngineIface* h1) {
     testHarness->time_travel(43);
     check_key_value(h, "a", "b\r\n", 3, 0);
 
-    auto stats = get_all_stats(h, h1);
+    auto stats = get_all_stats(h);
     checkeq(1, std::stoi(stats.at("ep_bg_num_samples")),
                "Expected one sample");
 
@@ -3357,7 +3357,7 @@ static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    const auto warmup_stats = get_all_stats(h, h1, "warmup");
+    const auto warmup_stats = get_all_stats(h, "warmup");
 
     // Check all expected warmup stats exists.
     const char* warmup_keys[] = { "ep_warmup_thread",
@@ -3374,7 +3374,7 @@ static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
     std::string warmup_time = warmup_stats.at("ep_warmup_time");
     cb_assert(std::stoi(warmup_time) > 0);
 
-    const auto prev_vb_stats = get_all_stats(h, h1, "prev-vbucket");
+    const auto prev_vb_stats = get_all_stats(h, "prev-vbucket");
 
     check(prev_vb_stats.find("vb_0") != prev_vb_stats.end(),
           "Found no previous state for VB0");
@@ -3386,7 +3386,7 @@ static enum test_result test_warmup_stats(EngineIface* h, EngineIface* h1) {
     checkeq(std::string("replica"), prev_vb_stats.at("vb_1"),
             "Unexpected stats for vb 1");
 
-    const auto vb_details_stats = get_all_stats(h, h1, "vbucket-details");
+    const auto vb_details_stats = get_all_stats(h, "vbucket-details");
     checkeq(5000, std::stoi(vb_details_stats.at("vb_0:num_items")),
             "Unexpected item count for vb 0");
     checkeq(0, std::stoi(vb_details_stats.at("vb_1:num_items")),
