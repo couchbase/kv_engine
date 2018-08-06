@@ -379,29 +379,23 @@ ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
 
 // Stats Operations
 int get_int_stat(EngineIface* h,
-                 EngineIface* h1,
                  const char* statname,
-                 const char* statkey = NULL);
+                 const char* statkey = nullptr);
 float get_float_stat(EngineIface* h,
-                     EngineIface* h1,
                      const char* statname,
-                     const char* statkey = NULL);
+                     const char* statkey = nullptr);
 uint32_t get_ul_stat(EngineIface* h,
-                     EngineIface* h1,
                      const char* statname,
-                     const char* statkey = NULL);
+                     const char* statkey = nullptr);
 uint64_t get_ull_stat(EngineIface* h,
-                      EngineIface* h1,
                       const char* statname,
-                      const char* statkey = NULL);
+                      const char* statkey = nullptr);
 std::string get_str_stat(EngineIface* h,
-                         EngineIface* h1,
                          const char* statname,
-                         const char* statkey = NULL);
+                         const char* statkey = nullptr);
 bool get_bool_stat(EngineIface* h,
-                   EngineIface* h1,
                    const char* statname,
-                   const char* statkey = NULL);
+                   const char* statkey = nullptr);
 
 ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
                             cb::const_char_buffer key,
@@ -440,25 +434,21 @@ int get_int_stat_or_default(EngineIface* h,
  */
 template <typename T>
 T get_stat(EngineIface* h,
-           EngineIface* h1,
            const char* statname,
            const char* statkey = nullptr);
 
 // Explicit template instantiations declarations of get_stat<T>
 template <>
 std::string get_stat(EngineIface* h,
-                     EngineIface* h1,
                      const char* statname,
                      const char* statkey);
 template <>
 int get_stat(EngineIface* h,
-             EngineIface* h1,
              const char* statname,
              const char* statkey);
 
 template <>
 uint64_t get_stat(EngineIface* h,
-                  EngineIface* h1,
                   const char* statname,
                   const char* statkey);
 
@@ -663,7 +653,7 @@ inline void wait_for_stat_change(EngineIface* h,
     WaitTimeAccumulator<T> accumulator("to change from", stat, stat_key,
                                          initial, max_wait_time_in_secs);
     for (;;) {
-        auto current = get_stat<T>(h, h, stat, stat_key);
+        auto current = get_stat<T>(h, stat, stat_key);
         if (current != initial) {
             break;
         }
@@ -682,7 +672,7 @@ void wait_for_stat_to_be(EngineIface* h,
     WaitTimeAccumulator<T> accumulator("to be", stat, stat_key, final,
                                        max_wait_time_in_secs);
     for (;;) {
-        auto current = get_stat<T>(h, h, stat, stat_key);
+        auto current = get_stat<T>(h, stat, stat_key);
         if (current == final) {
             break;
         }
@@ -720,7 +710,7 @@ void wait_for_val_to_be(const char* val_description,
  * Check via the stats interface if full_eviction mode is enabled
  */
 inline bool is_full_eviction(EngineIface* h) {
-    return get_str_stat(h, h, "ep_item_eviction_policy") == "full_eviction";
+    return get_str_stat(h, "ep_item_eviction_policy") == "full_eviction";
 }
 
 void reset_stats(gsl::not_null<EngineIface*> h);

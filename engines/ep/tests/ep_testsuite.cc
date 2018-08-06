@@ -146,7 +146,7 @@ static enum test_result test_replace_with_eviction(EngineIface* h,
             "Failed to set value.");
     wait_for_flusher_to_settle(h);
     evict_key(h, "key");
-    int numBgFetched = get_int_stat(h, h1, "ep_bg_fetched");
+    int numBgFetched = get_int_stat(h, "ep_bg_fetched");
 
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_REPLACE, "key", "somevalue1"),
@@ -161,7 +161,7 @@ static enum test_result test_replace_with_eviction(EngineIface* h,
     }
 
     checkeq(numBgFetched,
-            get_int_stat(h, h1, "ep_bg_fetched"),
+            get_int_stat(h, "ep_bg_fetched"),
             "Bg fetched value didn't match");
 
     check_key_value(h, "key", "somevalue1", 10);
@@ -171,7 +171,7 @@ static enum test_result test_replace_with_eviction(EngineIface* h,
 static enum test_result test_wrong_vb_mutation(EngineIface* h,
                                                EngineIface* h1,
                                                ENGINE_STORE_OPERATION op) {
-    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
     uint64_t cas = 11;
     if (op == OPERATION_ADD) {
         // Add operation with cas != 0 doesn't make sense
@@ -212,7 +212,7 @@ static enum test_result test_replica_vb_mutation(EngineIface* h,
           "Failed to set vbucket state.");
     check(verify_vbucket_state(h, 1, vbucket_state_replica),
           "Bucket state was not set to replica.");
-    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
 
     uint64_t cas = 11;
     if (op == OPERATION_ADD) {
@@ -249,10 +249,10 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     }
 
     // Check preconditions.
-    checkeq(0, get_int_stat(h, h1, "ep_total_persisted"),
+    checkeq(0,
+            get_int_stat(h, "ep_total_persisted"),
             "Expected ep_total_persisted equals 0");
-    checkeq(0, get_int_stat(h, h1, "curr_items"),
-            "Expected curr_items equals 0");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected curr_items equals 0");
 
     // stop flusher before loading new items
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
@@ -271,15 +271,16 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
                 "Failed to store a value");
     }
 
-    checkeq(0, get_int_stat(h, h1, "ep_total_persisted"),
+    checkeq(0,
+            get_int_stat(h, "ep_total_persisted"),
             "Incorrect ep_total_persisted, expected 0");
 
     // Can only check curr_items in value_only eviction; full-eviction
     // relies on persistence to complete (via flusher) to update count.
-    const auto evictionPolicy = get_str_stat(h, h1, "ep_item_eviction_policy");
+    const auto evictionPolicy = get_str_stat(h, "ep_item_eviction_policy");
     if (evictionPolicy == "value_only") {
         checkeq(numItems2Load,
-                get_int_stat(h, h1, "curr_items"),
+                get_int_stat(h, "curr_items"),
                 "Expected curr_items to reflect item count");
     }
 
@@ -300,7 +301,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
                                shutdownForce);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    return get_int_stat(h, h1, "curr_items");
+    return get_int_stat(h, "curr_items");
 }
 
 static enum test_result test_flush_shutdown_force(EngineIface* h,
@@ -349,7 +350,7 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h);
-    int end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    int end = get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     /* change vb state to replica before restarting (as it happens in graceful
        failover)*/
@@ -373,11 +374,11 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h,
     wait_for_warmup_complete(h, h1);
 
     /* Check if snapshot range is persisted correctly */
-    checkeq(end, get_int_stat(h, h1, "vb_0:last_persisted_snap_start",
-                              "vbucket-seqno"),
+    checkeq(end,
+            get_int_stat(h, "vb_0:last_persisted_snap_start", "vbucket-seqno"),
             "Wrong snapshot start persisted");
-    checkeq(end, get_int_stat(h, h1, "vb_0:last_persisted_snap_end",
-                                    "vbucket-seqno"),
+    checkeq(end,
+            get_int_stat(h, "vb_0:last_persisted_snap_end", "vbucket-seqno"),
             "Wrong snapshot end persisted");
 
     return SUCCESS;
@@ -558,7 +559,7 @@ static enum test_result test_restart_bin_val(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_wrong_vb_get(EngineIface* h, EngineIface* h1) {
-    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             verify_key(h, "key", 1),
             "Expected wrong bucket.");
@@ -575,9 +576,7 @@ static enum test_result test_vb_get_pending(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::would_block,
             get(h, cookie, "key", 1).first,
             "Expected wouldblock.");
-    checkeq(1,
-            get_int_stat(h, h1, "vb_pending_ops_get"),
-            "Expected 1 get");
+    checkeq(1, get_int_stat(h, "vb_pending_ops_get"), "Expected 1 get");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -586,7 +585,7 @@ static enum test_result test_vb_get_pending(EngineIface* h, EngineIface* h1) {
 static enum test_result test_vb_get_replica(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
-    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             verify_key(h, "key", 1),
             "Expected not my bucket.");
@@ -611,7 +610,7 @@ static enum test_result test_wrong_vb_replace(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_wrong_vb_del(EngineIface* h, EngineIface* h1) {
-    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
             "Expected wrong bucket.");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
@@ -637,20 +636,24 @@ std::string make_time_string(std::chrono::system_clock::time_point time_point) {
 
 static enum test_result test_expiry_pager_settings(EngineIface* h,
                                                    EngineIface* h1) {
-    cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
-    checkeq(3600, get_int_stat(h, h1, "ep_exp_pager_stime"),
+    cb_assert(!get_bool_stat(h, "ep_exp_pager_enabled"));
+    checkeq(3600,
+            get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not expected");
     set_param(h, protocol_binary_engine_param_flush, "exp_pager_stime", "1");
-    checkeq(1, get_int_stat(h, h1, "ep_exp_pager_stime"),
+    checkeq(1,
+            get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
-    cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
+    cb_assert(!get_bool_stat(h, "ep_exp_pager_enabled"));
     sleep(1);
-    checkeq(0, get_int_stat(h, h1, "ep_num_expiry_pager_runs"),
+    checkeq(0,
+            get_int_stat(h, "ep_num_expiry_pager_runs"),
             "Expiry pager run count is not zero");
 
     set_param(
             h, protocol_binary_engine_param_flush, "exp_pager_enabled", "true");
-    checkeq(1, get_int_stat(h, h1, "ep_exp_pager_stime"),
+    checkeq(1,
+            get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
     wait_for_stat_to_be_gte(h, h1, "ep_num_expiry_pager_runs", 1);
 
@@ -662,13 +665,14 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
                                false);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
+    cb_assert(!get_bool_stat(h, "ep_exp_pager_enabled"));
 
     // Enable expiry pager again
     set_param(
             h, protocol_binary_engine_param_flush, "exp_pager_enabled", "true");
 
-    checkeq(get_int_stat(h, h1, "ep_exp_pager_initial_run_time"), -1,
+    checkeq(get_int_stat(h, "ep_exp_pager_initial_run_time"),
+            -1,
             "Task time should be disable upon warmup");
 
     std::string err_msg;
@@ -682,7 +686,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
     // [MB-21806] - Need to repeat the fetch as the set_param for
     // "exp_pager_initial_run_time" schedules a task that sets the stats later
     repeat_till_true([&]() {
-        str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
+        str = get_str_stat(h, "ep_expiry_pager_task_time");
         return 0 == str.substr(11, 5).compare(expected_time);
     });
     err_msg.assign("Updated time incorrect, expect: " +
@@ -698,7 +702,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h,
               protocol_binary_engine_param_flush,
               "exp_pager_stime",
               std::to_string(update_by.count() * 60).c_str());
-    str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
+    str = get_str_stat(h, "ep_expiry_pager_task_time");
 
     std::string targetTaskTime2{make_time_string(std::chrono::system_clock::now() +
                                                  update_by)};
@@ -842,9 +846,9 @@ static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
             get(h, cookie, key, 0).first,
             "Item didn't expire");
 
-    int expired_access = get_int_stat(h, h1, "ep_expired_access");
-    int expired_pager = get_int_stat(h, h1, "ep_expired_pager");
-    int active_expired = get_int_stat(h, h1, "vb_active_expired");
+    int expired_access = get_int_stat(h, "ep_expired_access");
+    int expired_pager = get_int_stat(h, "ep_expired_pager");
+    int active_expired = get_int_stat(h, "vb_active_expired");
     checkeq(0, expired_pager, "Expected zero expired item by pager");
     checkeq(1, expired_access, "Expected an expired item on access");
     checkeq(1, active_expired, "Expected an expired active item");
@@ -860,7 +864,7 @@ static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
     std::stringstream ss;
     ss << "curr_items stat should be still 1 after ";
     ss << "overwriting the key that was expired, but not purged yet";
-    checkeq(1, get_int_stat(h, h1, "curr_items"), ss.str().c_str());
+    checkeq(1, get_int_stat(h, "curr_items"), ss.str().c_str());
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -912,7 +916,7 @@ static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
                                false);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    cb_assert(0 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
+    cb_assert(0 == get_int_stat(h, "ep_warmup_value_count", "warmup"));
 
     testHarness->destroy_cookie(cookie);
 
@@ -921,7 +925,7 @@ static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_expiration_on_compaction(EngineIface* h,
                                                       EngineIface* h1) {
-    if (get_bool_stat(h, h1, "ep_exp_pager_enabled")) {
+    if (get_bool_stat(h, "ep_exp_pager_enabled")) {
         set_param(h,
                   protocol_binary_engine_param_flush,
                   "exp_pager_enabled",
@@ -929,7 +933,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
     }
 
     checkeq(1,
-            get_int_stat(h, h1, "vb_0:persistence:num_visits", "checkpoint"),
+            get_int_stat(h, "vb_0:persistence:num_visits", "checkpoint"),
             "Cursor moved before item load");
 
     for (int i = 0; i < 25; i++) {
@@ -1010,9 +1014,10 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
     }
 
     wait_for_flusher_to_settle(h);
-    checkeq(50, get_int_stat(h, h1, "curr_items"),
+    checkeq(50,
+            get_int_stat(h, "curr_items"),
             "Unexpected number of items on database");
-    check(1 < get_int_stat(h, h1, "vb_0:persistence:num_visits", "checkpoint"),
+    check(1 < get_int_stat(h, "vb_0:persistence:num_visits", "checkpoint"),
           "Cursor not moved even after flusher runs");
 
     testHarness->time_travel(15);
@@ -1021,7 +1026,8 @@ static enum test_result test_expiration_on_compaction(EngineIface* h,
     compact_db(h, 0, 0, 0, 0, 0);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
 
-    checkeq(50, get_int_stat(h, h1, "ep_expired_compactor"),
+    checkeq(50,
+            get_int_stat(h, "ep_expired_compactor"),
             "Unexpected expirations by compactor");
 
     return SUCCESS;
@@ -1038,7 +1044,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
               protocol_binary_engine_param_flush,
               "exp_pager_enabled",
               "false");
-    int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
+    int pager_runs = get_int_stat(h, "ep_num_expiry_pager_runs");
 
     const char *key = "KEY";
     const char *data = "VALUE";
@@ -1070,10 +1076,11 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
     ret.second.reset();
     wait_for_flusher_to_settle(h);
 
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Failed store item");
+    checkeq(1, get_int_stat(h, "curr_items"), "Failed store item");
     testHarness->time_travel(15);
 
-    checkeq(pager_runs, get_int_stat(h, h1, "ep_num_expiry_pager_runs"),
+    checkeq(pager_runs,
+            get_int_stat(h, "ep_num_expiry_pager_runs"),
             "Expiry pager shouldn't have run during this time");
 
     // Restart the engine to ensure the above item is expired
@@ -1084,7 +1091,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
                                false);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    check(get_bool_stat(h, h1, "ep_exp_pager_enabled"),
+    check(get_bool_stat(h, "ep_exp_pager_enabled"),
           "Expiry pager should be enabled on warmup");
 
     // Wait for the expiry pager to run and expire our item.
@@ -1103,7 +1110,8 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
     // callback to be called) for the curr_items stat to be accurate.
     wait_for_flusher_to_settle(h);
 
-    checkeq(0, get_int_stat(h, h1, "curr_items"),
+    checkeq(0,
+            get_int_stat(h, "curr_items"),
             "The item should have been expired.");
 
     testHarness->destroy_cookie(cookie);
@@ -1189,8 +1197,8 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
                                false);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    cb_assert(1 == get_int_stat(h, h1, "ep_warmup_value_count", "warmup"));
-    cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
+    cb_assert(1 == get_int_stat(h, "ep_warmup_value_count", "warmup"));
+    cb_assert(0 == get_int_stat(h, "ep_warmup_dups", "warmup"));
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -1248,7 +1256,7 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
     }
     memcpy(info.value[0].iov_base, new_data, strlen(new_data));
 
-    int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
+    int pager_runs = get_int_stat(h, "ep_num_expiry_pager_runs");
     cas = 0;
     rv = h1->store(cookie,
                    ret.second.get(),
@@ -1271,7 +1279,7 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
     h1 = h;
     wait_for_warmup_complete(h, h1);
     // TODO: modify this for a better test case
-    cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups", "warmup"));
+    cb_assert(0 == get_int_stat(h, "ep_warmup_dups", "warmup"));
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -1299,9 +1307,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h,
     checkeq(ENGINE_EWOULDBLOCK,
             h1->unknown_command(cookie, pkt, add_response),
             "Should have returned error for pending state");
-    checkeq(1,
-            get_int_stat(h, h1, "vb_pending_ops_get"),
-            "Expected 1 get");
+    checkeq(1, get_int_stat(h, "vb_pending_ops_get"), "Expected 1 get");
     testHarness->destroy_cookie(cookie);
     cb_free(pkt);
     return SUCCESS;
@@ -1328,9 +1334,7 @@ static enum test_result test_get_replica(EngineIface* h, EngineIface* h1) {
             "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
     checkeq(std::string("replicadata"), last_body,
             "Should have returned identical value");
-    checkeq(1,
-            get_int_stat(h, h1, "vb_replica_ops_get"),
-            "Expected 1 get");
+    checkeq(1, get_int_stat(h, "vb_replica_ops_get"), "Expected 1 get");
 
     cb_free(pkt);
     return SUCCESS;
@@ -1351,9 +1355,7 @@ static enum test_result test_get_replica_non_resident(EngineIface* h,
     get_replica(h, "key", 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success");
-    checkeq(1,
-            get_int_stat(h, h1, "vb_replica_ops_get"),
-            "Expected 1 get");
+    checkeq(1, get_int_stat(h, "vb_replica_ops_get"), "Expected 1 get");
 
     return SUCCESS;
 }
@@ -1384,7 +1386,7 @@ static enum test_result test_vb_del_pending(EngineIface* h, EngineIface* h1) {
 static enum test_result test_vb_del_replica(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
-    int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
+    int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
             "Expected not my vbucket.");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
@@ -1419,7 +1421,7 @@ static enum test_result test_takeover_stats_race_with_vb_create_DCP(
           "Failed to set vbucket state information");
 
     checkeq(0,
-            get_int_stat(h, h1, "on_disk_deletes", "dcp-vbtakeover 1"),
+            get_int_stat(h, "on_disk_deletes", "dcp-vbtakeover 1"),
             "Invalid number of on-disk deletes");
 
     return SUCCESS;
@@ -1442,7 +1444,7 @@ static enum test_result test_takeover_stats_num_persisted_deletes(
 
     /* check if persisted deletes stats is got correctly */
     checkeq(1,
-            get_int_stat(h, h1, "on_disk_deletes", "dcp-vbtakeover 0"),
+            get_int_stat(h, "on_disk_deletes", "dcp-vbtakeover 0"),
             "Invalid number of on-disk deletes");
 
     return SUCCESS;
@@ -1479,7 +1481,7 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
     // Wait for the item to be expired
     wait_for_stat_to_be(h, "vb_active_expired", 1);
     const int exp_purge_seqno =
-            get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+            get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     // non_exp_key and its value should be intact...
     checkeq(ENGINE_SUCCESS,
@@ -1495,7 +1497,8 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
             "Error setting dummy key");
     wait_for_flusher_to_settle(h);
 
-    checkeq(0, get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+    checkeq(0,
+            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno not found to be zero before compaction");
 
     // Compaction on VBucket
@@ -1508,7 +1511,7 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
             1 /* drop deletes (forces purge irrespective purge_before_seq) */);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(exp_purge_seqno,
-            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
     return SUCCESS;
@@ -1517,13 +1520,14 @@ static enum test_result test_vbucket_compact(EngineIface* h, EngineIface* h1) {
 static enum test_result test_compaction_config(EngineIface* h,
                                                EngineIface* h1) {
     checkeq(10000,
-            get_int_stat(h, h1, "ep_compaction_write_queue_cap"),
+            get_int_stat(h, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 10000");
     set_param(h,
               protocol_binary_engine_param_flush,
               "compaction_write_queue_cap",
               "100000");
-    checkeq(100000, get_int_stat(h, h1, "ep_compaction_write_queue_cap"),
+    checkeq(100000,
+            get_int_stat(h, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 100000");
     return SUCCESS;
 }
@@ -1582,8 +1586,8 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h,
     cb_thread_t threads[n_threads];
     struct comp_thread_ctx ctx[n_threads];
 
-    const int num_shards = get_int_stat(h, h1, "ep_workload:num_shards",
-                                        "workload");
+    const int num_shards =
+            get_int_stat(h, "ep_workload:num_shards", "workload");
 
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
@@ -1697,9 +1701,9 @@ static enum test_result vbucket_destroy(EngineIface* h,
 
 static enum test_result test_vbucket_destroy_stats(EngineIface* h,
                                                    EngineIface* h1) {
-    int cacheSize = get_int_stat(h, h1, "ep_total_cache_size");
-    int overhead = get_int_stat(h, h1, "ep_overhead");
-    int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
+    int cacheSize = get_int_stat(h, "ep_total_cache_size");
+    int overhead = get_int_stat(h, "ep_overhead");
+    int nonResident = get_int_stat(h, "ep_num_non_resident");
 
     check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
@@ -1712,7 +1716,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
         keys.push_back(key);
     }
 
-    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
+    int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         checkeq(ENGINE_SUCCESS,
@@ -1733,7 +1737,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h,
     check(set_vbucket_state(h, 1, vbucket_state_dead),
           "Failed set set vbucket 1 state.");
 
-    int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
+    int vbucketDel = get_int_stat(h, "ep_vbucket_del");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(),
@@ -1893,25 +1897,28 @@ static enum test_result test_stats_seqno(EngineIface* h, EngineIface* h1) {
     }
     wait_for_flusher_to_settle(h);
 
-    checkeq(100, get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
+    checkeq(100,
+            get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"),
             "Invalid seqno");
 
     if (isPersistentBucket(h)) {
         checkeq(100,
-                get_int_stat(h, h1, "vb_0:last_persisted_seqno", "vbucket-seqno"),
+                get_int_stat(h, "vb_0:last_persisted_seqno", "vbucket-seqno"),
                 "Unexpected last_persisted_seqno");
     }
-    checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno"),
+    checkeq(0,
+            get_int_stat(h, "vb_1:high_seqno", "vbucket-seqno"),
             "Invalid seqno");
-    checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno 1"),
+    checkeq(0,
+            get_int_stat(h, "vb_1:high_seqno", "vbucket-seqno 1"),
             "Invalid seqno");
     if (isPersistentBucket(h)) {
         checkeq(0,
-                get_int_stat(h, h1, "vb_1:last_persisted_seqno", "vbucket-seqno 1"),
+                get_int_stat(h, "vb_1:last_persisted_seqno", "vbucket-seqno 1"),
                 "Invalid last_persisted_seqno");
     }
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, "vb_1:0:id", "failovers");
 
     auto seqno_stats = get_all_stats(h, h1, "vbucket-seqno 1");
     checkeq(vb_uuid, uint64_t(std::stoull(seqno_stats.at("vb_1:uuid"))),
@@ -1958,12 +1965,12 @@ static enum test_result test_stats_diskinfo(EngineIface* h, EngineIface* h1) {
     }
     wait_for_flusher_to_settle(h);
 
-    size_t file_size = get_int_stat(h, h1, "ep_db_file_size", "diskinfo");
-    size_t data_size = get_int_stat(h, h1, "ep_db_data_size", "diskinfo");
+    size_t file_size = get_int_stat(h, "ep_db_file_size", "diskinfo");
+    size_t data_size = get_int_stat(h, "ep_db_data_size", "diskinfo");
     check(file_size > 0, "DB file size should be greater than 0");
     check(data_size > 0, "DB data size should be greater than 0");
     check(file_size >= data_size, "DB file size should be >= DB data size");
-    check(get_int_stat(h, h1, "vb_1:data_size", "diskinfo detail") > 0,
+    check(get_int_stat(h, "vb_1:data_size", "diskinfo detail") > 0,
           "VB 1 data size should be greater than 0");
 
     checkeq(ENGINE_EINVAL,
@@ -2018,18 +2025,10 @@ static enum test_result test_item_stats(EngineIface* h, EngineIface* h1) {
 
     check_key_value(h, "key1", "someothervalue", 14);
 
-    checkeq(3,
-            get_int_stat(h, h1, "vb_active_ops_create"),
-            "Expected 3 creations");
-    checkeq(1,
-            get_int_stat(h, h1, "vb_active_ops_update"),
-            "Expected 1 updation");
-    checkeq(1,
-            get_int_stat(h, h1, "vb_active_ops_delete"),
-            "Expected 1 deletion");
-    checkeq(3,
-            get_int_stat(h, h1, "vb_active_ops_get"),
-            "Expected 3 gets");
+    checkeq(3, get_int_stat(h, "vb_active_ops_create"), "Expected 3 creations");
+    checkeq(1, get_int_stat(h, "vb_active_ops_update"), "Expected 1 updation");
+    checkeq(1, get_int_stat(h, "vb_active_ops_delete"), "Expected 1 deletion");
+    checkeq(3, get_int_stat(h, "vb_active_ops_get"), "Expected 3 gets");
 
     return SUCCESS;
 }
@@ -2048,7 +2047,7 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
     char value[2048];
     memset(value, 'b', sizeof(value));
     strcpy(value + sizeof(value) - 4, "\r\n");
-    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
+    int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     wait_for_persisted_value(h, "key", value);
     testHarness->time_travel(65);
     if (isPersistentBucket(h)) {
@@ -2059,10 +2058,10 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
         wait_for_item_compressor_to_settle(h);
     }
 
-    int mem_used = get_int_stat(h, h1, "mem_used");
-    int cache_size = get_int_stat(h, h1, "ep_total_cache_size");
-    int overhead = get_int_stat(h, h1, "ep_overhead");
-    int value_size = get_int_stat(h, h1, "ep_value_size");
+    int mem_used = get_int_stat(h, "mem_used");
+    int cache_size = get_int_stat(h, "ep_total_cache_size");
+    int overhead = get_int_stat(h, "ep_overhead");
+    int value_size = get_int_stat(h, "ep_value_size");
     check((mem_used - overhead) > cache_size,
           "ep_kv_size should be greater than the hashtable cache size due to "
           "the checkpoint overhead");
@@ -2070,9 +2069,9 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
     if (isPersistentBucket(h)) {
         evict_key(h, "key", 0, "Ejected.");
 
-        check(get_int_stat(h, h1, "ep_total_cache_size") <= cache_size,
+        check(get_int_stat(h, "ep_total_cache_size") <= cache_size,
               "Evict a value shouldn't increase the total cache size");
-        check(get_int_stat(h, h1, "mem_used") < mem_used,
+        check(get_int_stat(h, "mem_used") < mem_used,
               "Expected mem_used to decrease when an item is evicted");
 
         check_key_value(h,
@@ -2085,9 +2084,10 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
             wait_for_item_compressor_to_settle(h);
         }
 
-        check(get_int_stat(h, h1, "mem_used") >= mem_used,
-              "Expected mem_used to remain the same after an item is loaded from disk");
-        check(get_int_stat(h, h1, "ep_value_size") == value_size,
+        check(get_int_stat(h, "mem_used") >= mem_used,
+              "Expected mem_used to remain the same after an item is loaded "
+              "from disk");
+        check(get_int_stat(h, "ep_value_size") == value_size,
               "Expected ep_value_size to remain the same after item is "
               "loaded from disk");
     }
@@ -2097,7 +2097,7 @@ static enum test_result test_mem_stats(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_io_stats(EngineIface* h, EngineIface* h1) {
     int exp_write_bytes;
-    std::string backend = get_str_stat(h, h1, "ep_backend");
+    std::string backend = get_str_stat(h, "ep_backend");
     if (backend == "couchdb") {
         exp_write_bytes = 22; /* TBD: Do not hard code the value */
     } else if (backend == "rocksdb") {
@@ -2111,29 +2111,32 @@ static enum test_result test_io_stats(EngineIface* h, EngineIface* h1) {
     reset_stats(h);
 
     checkeq(0,
-            get_int_stat(h, h1, "rw_0:io_bg_fetch_docs_read", "kvstore"),
+            get_int_stat(h, "rw_0:io_bg_fetch_docs_read", "kvstore"),
             "Expected reset stats to set io_bg_fetch_docs_read to zero");
-    checkeq(0, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
+    checkeq(0,
+            get_int_stat(h, "rw_0:io_num_write", "kvstore"),
             "Expected reset stats to set io_num_write to zero");
     checkeq(0,
-            get_int_stat(h, h1, "rw_0:io_bg_fetch_doc_bytes", "kvstore"),
+            get_int_stat(h, "rw_0:io_bg_fetch_doc_bytes", "kvstore"),
             "Expected reset stats to set io_bg_fetch_doc_bytes to zero");
-    checkeq(0, get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
+    checkeq(0,
+            get_int_stat(h, "rw_0:io_write_bytes", "kvstore"),
             "Expected reset stats to set io_write_bytes to zero");
 
     const std::string key("a");
     const std::string value("b\r\n");
     wait_for_persisted_value(h, key.c_str(), value.c_str());
     checkeq(0,
-            get_int_stat(h, h1, "rw_0:io_bg_fetch_docs_read", "kvstore"),
+            get_int_stat(h, "rw_0:io_bg_fetch_docs_read", "kvstore"),
             "Expected storing one value to not change the read counter");
     checkeq(0,
-            get_int_stat(h, h1, "rw_0:io_bg_fetch_doc_bytes", "kvstore"),
+            get_int_stat(h, "rw_0:io_bg_fetch_doc_bytes", "kvstore"),
             "Expected storing one value to not change the bgfetch doc bytes");
-    checkeq(1, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
+    checkeq(1,
+            get_int_stat(h, "rw_0:io_num_write", "kvstore"),
             "Expected storing the key to update the write counter");
     checkeq(exp_write_bytes,
-            get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
+            get_int_stat(h, "rw_0:io_write_bytes", "kvstore"),
             "Expected storing the key to update the write bytes");
 
     evict_key(h, key.c_str(), 0, "Ejected.");
@@ -2151,27 +2154,28 @@ static enum test_result test_io_stats(EngineIface* h, EngineIface* h1) {
     }
 
     checkeq(1,
-            get_int_stat(h, h1, numReadStatStr.str().c_str(), "kvstore"),
+            get_int_stat(h, numReadStatStr.str().c_str(), "kvstore"),
             "Expected reading the value back in to update the read counter");
 
     const uint64_t exp_read_bytes =
             key.size() + value.size() +
             MetaData::getMetaDataSize(MetaData::Version::V1);
     checkeq(exp_read_bytes,
-            get_stat<uint64_t>(
-                    h, h1, readBytesStatStr.str().c_str(), "kvstore"),
+            get_stat<uint64_t>(h, readBytesStatStr.str().c_str(), "kvstore"),
             "Expected reading the value back in to update the read bytes");
 
     // For read amplification, exact value depends on couchstore file layout,
     // but generally see a value of 2 here.
-    checkge(get_float_stat(h, h1, "ep_bg_fetch_avg_read_amplification"),
+    checkge(get_float_stat(h, "ep_bg_fetch_avg_read_amplification"),
             2.0f,
             "Expected sensible bgFetch read amplification value");
 
-    checkeq(1, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
-            "Expected reading the value back in to not update the write counter");
+    checkeq(1,
+            get_int_stat(h, "rw_0:io_num_write", "kvstore"),
+            "Expected reading the value back in to not update the write "
+            "counter");
     checkeq(exp_write_bytes,
-            get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore"),
+            get_int_stat(h, "rw_0:io_write_bytes", "kvstore"),
             "Expected reading the value back in to not update the write bytes");
 
     return SUCCESS;
@@ -2181,20 +2185,20 @@ static enum test_result test_vb_file_stats(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h);
     wait_for_stat_change(h, "ep_db_data_size", 0);
 
-    int old_data_size = get_int_stat(h, h1, "ep_db_data_size");
-    int old_file_size = get_int_stat(h, h1, "ep_db_file_size");
+    int old_data_size = get_int_stat(h, "ep_db_data_size");
+    int old_file_size = get_int_stat(h, "ep_db_file_size");
     check(old_file_size != 0, "Expected a non-zero value for ep_db_file_size");
 
     // Write a value and test ...
     wait_for_persisted_value(h, "a", "b\r\n");
-    check(get_int_stat(h, h1, "ep_db_data_size") > old_data_size,
+    check(get_int_stat(h, "ep_db_data_size") > old_data_size,
           "Expected the DB data size to increase");
-    check(get_int_stat(h, h1, "ep_db_file_size") > old_file_size,
+    check(get_int_stat(h, "ep_db_file_size") > old_file_size,
           "Expected the DB file size to increase");
 
-    check(get_int_stat(h, h1, "vb_0:db_data_size", "vbucket-details 0") > 0,
+    check(get_int_stat(h, "vb_0:db_data_size", "vbucket-details 0") > 0,
           "Expected the vbucket DB data size to non-zero");
-    check(get_int_stat(h, h1, "vb_0:db_file_size", "vbucket-details 0") > 0,
+    check(get_int_stat(h, "vb_0:db_file_size", "vbucket-details 0") > 0,
           "Expected the vbucket DB file size to non-zero");
     return SUCCESS;
 }
@@ -2218,8 +2222,8 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h,
     }
     wait_for_flusher_to_settle(h);
 
-    int fileSize = get_int_stat(h, h1, "vb_0:db_file_size", "vbucket-details 0");
-    int spaceUsed = get_int_stat(h, h1, "vb_0:db_data_size", "vbucket-details 0");
+    int fileSize = get_int_stat(h, "vb_0:db_file_size", "vbucket-details 0");
+    int spaceUsed = get_int_stat(h, "vb_0:db_data_size", "vbucket-details 0");
 
     // Restart the engine.
     testHarness->reload_engine(&h,
@@ -2230,8 +2234,9 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h,
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    int newFileSize = get_int_stat(h, h1, "vb_0:db_file_size", "vbucket-details 0");
-    int newSpaceUsed = get_int_stat(h, h1, "vb_0:db_data_size", "vbucket-details 0");
+    int newFileSize = get_int_stat(h, "vb_0:db_file_size", "vbucket-details 0");
+    int newSpaceUsed =
+            get_int_stat(h, "vb_0:db_data_size", "vbucket-details 0");
 
     check((float)newFileSize >= 0.9 * fileSize, "Unexpected fileSize for vbucket");
     check((float)newSpaceUsed >= 0.9 * spaceUsed, "Unexpected spaceUsed for vbucket");
@@ -2263,11 +2268,11 @@ static enum test_result test_bg_stats(EngineIface* h, EngineIface* h1) {
 
     evict_key(h, "a", 0, "Ejected.");
     check_key_value(h, "a", "b\r\n", 3, 0);
-    check(get_int_stat(h, h1, "ep_bg_num_samples") == 2,
-          "Expected one sample");
+    check(get_int_stat(h, "ep_bg_num_samples") == 2, "Expected one sample");
 
     reset_stats(h);
-    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
+    checkeq(0,
+            get_int_stat(h, "ep_bg_fetched"),
             "ep_bg_fetched is not reset to 0");
     return SUCCESS;
 }
@@ -2283,18 +2288,24 @@ static enum test_result test_bg_meta_stats(EngineIface* h, EngineIface* h1) {
             del(h, h1, "k2", 0, 0), "Failed remove with value.");
     wait_for_flusher_to_settle(h);
 
-    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
-    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 0");
+    checkeq(0, get_int_stat(h, "ep_bg_fetched"), "Expected bg_fetched to be 0");
+    checkeq(0,
+            get_int_stat(h, "ep_bg_meta_fetched"),
+            "Expected bg_meta_fetched to be 0");
 
     check(get_meta(h, "k2"), "Get meta failed");
-    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
-    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
+    checkeq(0, get_int_stat(h, "ep_bg_fetched"), "Expected bg_fetched to be 0");
+    checkeq(1,
+            get_int_stat(h, "ep_bg_meta_fetched"),
+            "Expected bg_meta_fetched to be 1");
 
     checkeq(cb::engine_errc::success,
             get(h, NULL, "k1", 0).first,
             "Missing key");
-    checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
-    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
+    checkeq(1, get_int_stat(h, "ep_bg_fetched"), "Expected bg_fetched to be 1");
+    checkeq(1,
+            get_int_stat(h, "ep_bg_meta_fetched"),
+            "Expected bg_meta_fetched to be 1");
 
     // store new key with some random metadata
     const size_t keylen = strlen("k3");
@@ -2308,8 +2319,9 @@ static enum test_result test_bg_meta_stats(EngineIface* h, EngineIface* h1) {
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Set meta failed");
 
     check(get_meta(h, "k2"), "Get meta failed");
-    checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
-    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+    checkeq(1, get_int_stat(h, "ep_bg_fetched"), "Expected bg_fetched to be 1");
+    checkeq(1,
+            get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected bg_meta_fetched to remain at 1");
 
     return SUCCESS;
@@ -2451,9 +2463,11 @@ static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
         return SKIPPED;
     }
 
-    checkeq(100, get_int_stat(h, h1, "ep_warmup_min_items_threshold"),
+    checkeq(100,
+            get_int_stat(h, "ep_warmup_min_items_threshold"),
             "Incorrect initial warmup min items threshold.");
-    checkeq(100, get_int_stat(h, h1, "ep_warmup_min_memory_threshold"),
+    checkeq(100,
+            get_int_stat(h, "ep_warmup_min_memory_threshold"),
             "Incorrect initial warmup min memory threshold.");
 
     check(!set_param(h,
@@ -2478,9 +2492,11 @@ static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
                     "80"),
           "Set warmup_min_memory_threshold should have worked");
 
-    checkeq(80, get_int_stat(h, h1, "ep_warmup_min_items_threshold"),
+    checkeq(80,
+            get_int_stat(h, "ep_warmup_min_items_threshold"),
             "Incorrect smaller warmup min items threshold.");
-    checkeq(80, get_int_stat(h, h1, "ep_warmup_min_memory_threshold"),
+    checkeq(80,
+            get_int_stat(h, "ep_warmup_min_memory_threshold"),
             "Incorrect smaller warmup min memory threshold.");
 
     for (int i = 0; i < 100; ++i) {
@@ -2503,16 +2519,20 @@ static enum test_result test_warmup_conf(EngineIface* h, EngineIface* h1) {
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    const std::string eviction_policy = get_str_stat(h, h1, "ep_item_eviction_policy");
+    const std::string eviction_policy =
+            get_str_stat(h, "ep_item_eviction_policy");
     if (eviction_policy == "value_only") {
-        checkeq(100, get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
+        checkeq(100,
+                get_int_stat(h, "ep_warmup_key_count", "warmup"),
                 "Expected 100 keys loaded after warmup");
     } else { // Full eviction mode
-        checkeq(0, get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
+        checkeq(0,
+                get_int_stat(h, "ep_warmup_key_count", "warmup"),
                 "Expected 0 keys loaded after warmup");
     }
 
-    checkeq(0, get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
+    checkeq(0,
+            get_int_stat(h, "ep_warmup_value_count", "warmup"),
             "Expected 0 values loaded after warmup");
 
     return SUCCESS;
@@ -2527,7 +2547,7 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
                     "50"),
           "Setting pager_active_vb_pcnt should have worked");
     checkeq(50,
-            get_int_stat(h, h1, "ep_pager_active_vb_pcnt"),
+            get_int_stat(h, "ep_pager_active_vb_pcnt"),
             "pager_active_vb_pcnt did not get set to the correct value");
 
     check(set_param(h,
@@ -2536,7 +2556,7 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
                     "1000"),
           "Setting pager_sleep_time_ms should have worked");
     checkeq(1000,
-            get_int_stat(h, h1, "ep_pager_sleep_time_ms"),
+            get_int_stat(h, "ep_pager_sleep_time_ms"),
             "pager_sleep_time_ms did not get set to the correct value");
 
     check(set_param(h,
@@ -2545,7 +2565,7 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
                     "2-bit_lru"),
           "Setting ht_eviction_policy should have worked");
     checkeq(std::string("2-bit_lru"),
-            get_str_stat(h, h1, "ep_ht_eviction_policy"),
+            get_str_stat(h, "ep_ht_eviction_policy"),
             "ht_eviction_policy did not get set to the correct value");
 
     check(set_param(h,
@@ -2554,7 +2574,7 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
                     "100"),
           "Set item_eviction_age_percentage should have worked");
     checkeq(100,
-            get_int_stat(h, h1, "ep_item_eviction_age_percentage"),
+            get_int_stat(h, "ep_item_eviction_age_percentage"),
             "item_eviction_age_percentage did not get set to the correct "
             "value");
 
@@ -2564,7 +2584,7 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
                     "10"),
           "Set item_eviction_freq_counter_age_threshold should have worked");
     checkeq(10,
-            get_int_stat(h, h1, "ep_item_eviction_freq_counter_age_threshold"),
+            get_int_stat(h, "ep_item_eviction_freq_counter_age_threshold"),
             "item_eviction_freq_counter_age_threshold did not get set to the "
             "correct value");
 
@@ -2574,7 +2594,7 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
                     "1000"),
           "Set item_freq_decayer_chunk_duration should have worked");
     checkeq(1000,
-            get_int_stat(h, h1, "ep_item_freq_decayer_chunk_duration"),
+            get_int_stat(h, "ep_item_freq_decayer_chunk_duration"),
             "item_freq_decayer_chunk_duration did not get set to the correct "
             "value");
 
@@ -2584,24 +2604,24 @@ static enum test_result test_itempager_conf(EngineIface* h, EngineIface* h1) {
                     "100"),
           "Set item_freq_decayer_percent should have worked");
     checkeq(100,
-            get_int_stat(h, h1, "ep_item_freq_decayer_percent"),
+            get_int_stat(h, "ep_item_freq_decayer_percent"),
             "item_freq_decayer_percent did not get set to the correct value");
 
     return SUCCESS;
 }
 
 static enum test_result test_bloomfilter_conf(EngineIface* h, EngineIface* h1) {
-    if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
+    if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         check(set_param(h,
                         protocol_binary_engine_param_flush,
                         "bfilter_enabled",
                         "true"),
               "Set bloomfilter_enabled should have worked");
     }
-    check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
+    check(get_bool_stat(h, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
 
-    check(get_float_stat(h, h1, "ep_bfilter_residency_threshold") == (float)0.1,
+    check(get_float_stat(h, "ep_bfilter_residency_threshold") == (float)0.1,
           "Incorrect initial bfilter_residency_threshold.");
 
     check(set_param(h,
@@ -2615,24 +2635,24 @@ static enum test_result test_bloomfilter_conf(EngineIface* h, EngineIface* h1) {
                     "0.15"),
           "Set bfilter_residency_threshold should have worked.");
 
-    check(get_bool_stat(h, h1, "ep_bfilter_enabled") == false,
+    check(get_bool_stat(h, "ep_bfilter_enabled") == false,
           "Bloom filter should have been disabled.");
-    check(get_float_stat(h, h1, "ep_bfilter_residency_threshold") == (float)0.15,
+    check(get_float_stat(h, "ep_bfilter_residency_threshold") == (float)0.15,
           "Incorrect bfilter_residency_threshold.");
 
     return SUCCESS;
 }
 
 static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
-    if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
+    if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         check(set_param(h,
                         protocol_binary_engine_param_flush,
                         "bfilter_enabled",
                         "true"),
               "Set bloomfilter_enabled should have worked");
     }
-    check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
-            "Bloom filter wasn't enabled");
+    check(get_bool_stat(h, "ep_bfilter_enabled"),
+          "Bloom filter wasn't enabled");
 
     // Key is only present if bgOperations is non-zero.
     int num_read_attempts = get_int_stat_or_default(h, h1, 0,
@@ -2640,7 +2660,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
 
     // Ensure vbucket's bloom filter is enabled
     checkeq(std::string("ENABLED"),
-            get_str_stat(h, h1, "vb_0:bloom_filter", "vbucket-details 0"),
+            get_str_stat(h, "vb_0:bloom_filter", "vbucket-details 0"),
             "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
     int i;
@@ -2668,7 +2688,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h);
 
     // Ensure 10 items are non-resident.
-    cb_assert(10 == get_int_stat(h, h1, "ep_num_non_resident"));
+    cb_assert(10 == get_int_stat(h, "ep_num_non_resident"));
 
     // Issue delete on first 5 items.
     for (i = 0; i < 5; ++i) {
@@ -2681,8 +2701,8 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h);
 
     // Ensure that there are 5 non-resident items
-    cb_assert(5 == get_int_stat(h, h1, "ep_num_non_resident"));
-    cb_assert(5 == get_int_stat(h, h1, "curr_items"));
+    cb_assert(5 == get_int_stat(h, "ep_num_non_resident"));
+    cb_assert(5 == get_int_stat(h, "curr_items"));
 
     checkeq(ENGINE_SUCCESS,
             get_stats(h, {}, add_stats),
@@ -2694,8 +2714,8 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
     if (eviction_policy == "value_only") {  // VALUE-ONLY EVICTION MODE
 
         checkeq(5,
-                get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
-                             "vbucket-details 0"),
+                get_int_stat(
+                        h, "vb_0:bloom_filter_key_count", "vbucket-details 0"),
                 "Unexpected no. of keys in bloom filter");
 
         checkeq(num_read_attempts,
@@ -2711,12 +2731,12 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
         // GetMeta would cause bgFetches as bloomfilter contains
         // the deleted items.
         checkeq(num_read_attempts + 5,
-                get_int_stat(h, h1, "ep_bg_num_samples"),
+                get_int_stat(h, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to increase by five");
 
         // Run compaction, with drop_deletes
         compact_db(h, 0, 0, 15, 15, 1);
-        while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+        while (get_int_stat(h, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
 
@@ -2726,26 +2746,25 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
             check(get_meta(h, key.str().c_str()), "Get meta failed");
         }
         checkeq(num_read_attempts + 5,
-                get_int_stat(h, h1, "ep_bg_num_samples"),
+                get_int_stat(h, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to stay as before");
 
     } else {                                // FULL EVICTION MODE
 
         checkeq(10,
-                get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
-                             "vbucket-details 0"),
+                get_int_stat(
+                        h, "vb_0:bloom_filter_key_count", "vbucket-details 0"),
                 "Unexpected no. of keys in bloom filter");
-
 
         // Because of issuing deletes on non-resident items
         checkeq(num_read_attempts + 5,
-                get_int_stat(h, h1, "ep_bg_num_samples"),
+                get_int_stat(h, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to increase by five, after deletes");
 
         // Run compaction, with drop_deletes, to exclude deleted items
         // from bloomfilter.
         compact_db(h, 0, 0, 15, 15, 1);
-        while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+        while (get_int_stat(h, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
 
@@ -2758,7 +2777,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
         }
         // + 6 because last delete is not purged by the compactor
         checkeq(num_read_attempts + 6,
-                get_int_stat(h, h1, "ep_bg_num_samples"),
+                get_int_stat(h, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to stay as before");
     }
 
@@ -2767,22 +2786,22 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
                                                           EngineIface* h1) {
-    if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
+    if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         check(set_param(h,
                         protocol_binary_engine_param_flush,
                         "bfilter_enabled",
                         "true"),
               "Set bloomfilter_enabled should have worked");
     }
-    check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
-            "Bloom filter wasn't enabled");
+    check(get_bool_stat(h, "ep_bfilter_enabled"),
+          "Bloom filter wasn't enabled");
 
     int num_read_attempts = get_int_stat_or_default(h, h1, 0,
                                                     "ep_bg_num_samples");
 
     // Ensure vbucket's bloom filter is enabled
     checkeq(std::string("ENABLED"),
-            get_str_stat(h, h1, "vb_0:bloom_filter", "vbucket-details 0"),
+            get_str_stat(h, "vb_0:bloom_filter", "vbucket-details 0"),
             "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
     for (int i = 0; i < 1000; i++) {
@@ -2866,19 +2885,19 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
 
 static enum test_result test_bloomfilter_delete_plus_set_scenario(
         EngineIface* h, EngineIface* h1) {
-    if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
+    if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         check(set_param(h,
                         protocol_binary_engine_param_flush,
                         "bfilter_enabled",
                         "true"),
               "Set bloomfilter_enabled should have worked");
     }
-    check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
-            "Bloom filter wasn't enabled");
+    check(get_bool_stat(h, "ep_bfilter_enabled"),
+          "Bloom filter wasn't enabled");
 
     // Ensure vbucket's bloom filter is enabled
     checkeq(std::string("ENABLED"),
-            get_str_stat(h, h1, "vb_0:bloom_filter", "vbucket-details 0"),
+            get_str_stat(h, "vb_0:bloom_filter", "vbucket-details 0"),
             "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
     checkeq(ENGINE_SUCCESS,
@@ -2886,8 +2905,8 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
             "Failed to fail to store an item.");
 
     wait_for_flusher_to_settle(h);
-    int num_writes = get_int_stat(h, h1, "rw_0:io_num_write", "kvstore");
-    int num_persisted = get_int_stat(h, h1, "ep_total_persisted");
+    int num_writes = get_int_stat(h, "rw_0:io_num_write", "kvstore");
+    int num_persisted = get_int_stat(h, "ep_total_persisted");
     cb_assert(num_writes == 1 && num_persisted == 1);
 
     checkeq(ENGINE_SUCCESS,
@@ -2896,25 +2915,28 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "k1", "v2", nullptr, 0, 0),
             "Failed to fail to store an item.");
-    int key_count = get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
-                                 "vbucket-details 0");
+    int key_count =
+            get_int_stat(h, "vb_0:bloom_filter_key_count", "vbucket-details 0");
 
     if (key_count == 0) {
-        check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") <= 2,
-                "Unexpected number of writes");
+        check(get_int_stat(h, "rw_0:io_num_write", "kvstore") <= 2,
+              "Unexpected number of writes");
         start_persistence(h);
         wait_for_flusher_to_settle(h);
-        checkeq(0, get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
-                                "vbucket-details 0"),
+        checkeq(0,
+                get_int_stat(
+                        h, "vb_0:bloom_filter_key_count", "vbucket-details 0"),
                 "Unexpected number of keys in bloomfilter");
     } else {
         cb_assert(key_count == 1);
-        checkeq(2, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
+        checkeq(2,
+                get_int_stat(h, "rw_0:io_num_write", "kvstore"),
                 "Unexpected number of writes");
         start_persistence(h);
         wait_for_flusher_to_settle(h);
-        checkeq(1, get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
-                                "vbucket-details 0"),
+        checkeq(1,
+                get_int_stat(
+                        h, "vb_0:bloom_filter_key_count", "vbucket-details 0"),
                 "Unexpected number of keys in bloomfilter");
     }
 
@@ -3084,16 +3106,17 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
 
     std::string err_msg;
     // Check access scanner is enabled and alog_task_time is at default
-    checkeq(true, get_bool_stat(h, h1, "ep_access_scanner_enabled"),
+    checkeq(true,
+            get_bool_stat(h, "ep_access_scanner_enabled"),
             "Expected access scanner to be enabled");
-    cb_assert(get_int_stat(h, h1, "ep_alog_task_time") == 2);
+    cb_assert(get_int_stat(h, "ep_alog_task_time") == 2);
 
     // Ensure access_scanner_task_time is what its expected to be.
     // Need to wait until the AccessScanner task has been setup.
     wait_for_stat_change(
             h, "ep_access_scanner_task_time", std::string{"NOT_SCHEDULED"});
 
-    std::string str = get_str_stat(h, h1, "ep_access_scanner_task_time");
+    std::string str = get_str_stat(h, "ep_access_scanner_task_time");
     std::string expected_time = "02:00";
     err_msg.assign("Initial time incorrect, expect: " +
                    expected_time + ", actual: " + str.substr(11, 5));
@@ -3109,7 +3132,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
                   protocol_binary_engine_param_flush,
                   "alog_task_time",
                   "5");
-        str = get_str_stat(h, h1, "ep_access_scanner_task_time");
+        str = get_str_stat(h, "ep_access_scanner_task_time");
         return (0 == str.substr(11, 5).compare(expected_time));
     });
 
@@ -3126,7 +3149,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h,
               protocol_binary_engine_param_flush,
               "alog_sleep_time",
               std::to_string(update_by.count()).c_str());
-    str = get_str_stat(h, h1, "ep_access_scanner_task_time");
+    str = get_str_stat(h, "ep_access_scanner_task_time");
 
     // Recalculate now() + 10mins as upper bound on when the task should be
     // scheduled.
@@ -3179,7 +3202,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
     wait_for_warmup_complete(h, h1);
 
     /* Check that alog_task_time was correctly updated. */
-    checkeq(get_int_stat(h, h1, "ep_alog_task_time"),
+    checkeq(get_int_stat(h, "ep_alog_task_time"),
             two_hours_hence,
             "Failed to set alog_task_time to 2 hours in the future");
 
@@ -3189,11 +3212,12 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
     std::string name = vals.find("ep_alog_path")->second;
 
     /* Check access scanner is enabled */
-    checkeq(true, get_bool_stat(h, h1, "ep_access_scanner_enabled"),
+    checkeq(true,
+            get_bool_stat(h, "ep_access_scanner_enabled"),
             "Access scanner task not enabled by default. Check test config");
 
-    const int num_shards = get_int_stat(h, h1, "ep_workload:num_shards",
-                                        "workload");
+    const int num_shards =
+            get_int_stat(h, "ep_workload:num_shards", "workload");
     name = name + ".0";
     std::string prev(name + ".old");
 
@@ -3207,7 +3231,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
     while (true) {
         // Gathering stats on every store is expensive, just check every 100 iterations
         if ((num_items % 100) == 0) {
-            if (get_int_stat(h, h1, "vb_active_perc_mem_resident") < 94) {
+            if (get_int_stat(h, "vb_active_perc_mem_resident") < 94) {
                 break;
             }
         }
@@ -3246,7 +3270,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
 
     wait_for_flusher_to_settle(h);
     verify_curr_items(h, h1, num_items, "Wrong number of items");
-    int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
+    int num_non_resident = get_int_stat(h, "vb_active_num_non_resident");
     checkge(num_non_resident, num_items * 6 / 100,
             "Expected num_non_resident to be at least 6% of total items");
 
@@ -3272,7 +3296,7 @@ static enum test_result test_access_scanner(EngineIface* h, EngineIface* h1) {
 
     /* Run access scanner task once */
     const int access_scanner_skips =
-            get_int_stat(h, h1, "ep_num_access_scanner_skips");
+            get_int_stat(h, "ep_num_access_scanner_skips");
     check(set_param(h,
                     protocol_binary_engine_param_flush,
                     "access_scanner_run",
@@ -3412,23 +3436,24 @@ static enum test_result test_warmup_with_threshold(EngineIface* h,
     wait_for_warmup_complete(h, h1);
 
     checkeq(1,
-            get_int_stat(h, h1, "ep_warmup_min_item_threshold", "warmup"),
+            get_int_stat(h, "ep_warmup_min_item_threshold", "warmup"),
             "Unable to set warmup_min_item_threshold to 1%");
 
-    const std::string policy = get_str_stat(h, h1, "ep_item_eviction_policy");
+    const std::string policy = get_str_stat(h, "ep_item_eviction_policy");
 
     if (policy == "full_eviction") {
-        checkeq(get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
-                get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
+        checkeq(get_int_stat(h, "ep_warmup_key_count", "warmup"),
+                get_int_stat(h, "ep_warmup_value_count", "warmup"),
                 "Warmed up key count didn't match warmed up value count");
     } else {
-        checkeq(10000, get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
+        checkeq(10000,
+                get_int_stat(h, "ep_warmup_key_count", "warmup"),
                 "Warmup didn't warmup all keys");
     }
-    check(get_int_stat(h, h1, "ep_warmup_value_count", "warmup") <= 110,
-            "Warmed up value count found to be greater than 1%");
+    check(get_int_stat(h, "ep_warmup_value_count", "warmup") <= 110,
+          "Warmed up value count found to be greater than 1%");
 
-    cb_assert(get_int_stat(h, h1, "ep_warmup_time", "warmup") > 0);
+    cb_assert(get_int_stat(h, "ep_warmup_time", "warmup") > 0);
 
     return SUCCESS;
 }
@@ -3493,7 +3518,7 @@ static enum test_result test_warmup_accesslog(EngineIface *h, EngineIface *h1) {
     // n_items_to_access items should be loaded from access log first
     // but we continue to load until we hit 75% item watermark
 
-    int warmedup = get_int_stat(h, h1, "ep_warmup_value_count", "warmup");
+    int warmedup = get_int_stat(h, "ep_warmup_value_count", "warmup");
     //    std::cout << "ep_warmup_value_count = " << warmedup << std::endl;
     int expected = (n_items_to_store1 + n_items_to_store2) * 0.75 + 1;
 
@@ -3514,7 +3539,7 @@ static enum test_result test_warmup_oom(EngineIface* h, EngineIface* h1) {
 
     // Requires memory tracking for us to be able to correctly monitor memory
     // usage.
-    if (!get_bool_stat(h, h1, "ep_mem_tracker_enabled")) {
+    if (!get_bool_stat(h, "ep_mem_tracker_enabled")) {
         return SKIPPED;
     }
 
@@ -3544,7 +3569,7 @@ static enum test_result test_warmup_oom(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_cbd_225(EngineIface* h, EngineIface* h1) {
     // get engine startup token
-    time_t token1 = get_int_stat(h, h1, "ep_startup_time");
+    time_t token1 = get_int_stat(h, "ep_startup_time");
     check(token1 != 0, "Expected non-zero startup token");
 
     // store some random data
@@ -3557,7 +3582,7 @@ static enum test_result test_cbd_225(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h);
 
     // check token again, which should be the same as before
-    time_t token2 = get_int_stat(h, h1, "ep_startup_time");
+    time_t token2 = get_int_stat(h, "ep_startup_time");
     check(token2 == token1, "Expected the same startup token");
 
     // reload the engine
@@ -3571,7 +3596,7 @@ static enum test_result test_cbd_225(EngineIface* h, EngineIface* h1) {
     wait_for_warmup_complete(h, h1);
 
     // check token, this time we should get a different one
-    time_t token3 = get_int_stat(h, h1, "ep_startup_time");
+    time_t token3 = get_int_stat(h, "ep_startup_time");
     check(token3 != token1, "Expected a different startup token");
 
     return SUCCESS;
@@ -3583,23 +3608,23 @@ static enum test_result test_workload_stats(EngineIface* h, EngineIface* h1) {
             h1->get_stats(cookie, "workload"_ccb, add_stats),
             "Falied to get workload stats");
     testHarness->destroy_cookie(cookie);
-    int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
-                                               "workload");
-    int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers",
-                                                "workload");
-    int num_auxio_threads = get_int_stat(h, h1, "ep_workload:num_auxio",
-                                                "workload");
-    int num_nonio_threads = get_int_stat(h, h1, "ep_workload:num_nonio",
-                                                "workload");
-    int max_read_threads = get_int_stat(h, h1, "ep_workload:max_readers",
-                                               "workload");
-    int max_write_threads = get_int_stat(h, h1, "ep_workload:max_writers",
-                                                "workload");
-    int max_auxio_threads = get_int_stat(h, h1, "ep_workload:max_auxio",
-                                                "workload");
-    int max_nonio_threads = get_int_stat(h, h1, "ep_workload:max_nonio",
-                                                "workload");
-    int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
+    int num_read_threads =
+            get_int_stat(h, "ep_workload:num_readers", "workload");
+    int num_write_threads =
+            get_int_stat(h, "ep_workload:num_writers", "workload");
+    int num_auxio_threads =
+            get_int_stat(h, "ep_workload:num_auxio", "workload");
+    int num_nonio_threads =
+            get_int_stat(h, "ep_workload:num_nonio", "workload");
+    int max_read_threads =
+            get_int_stat(h, "ep_workload:max_readers", "workload");
+    int max_write_threads =
+            get_int_stat(h, "ep_workload:max_writers", "workload");
+    int max_auxio_threads =
+            get_int_stat(h, "ep_workload:max_auxio", "workload");
+    int max_nonio_threads =
+            get_int_stat(h, "ep_workload:max_nonio", "workload");
+    int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
     checkeq(4, num_read_threads, "Incorrect number of readers");
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
     checkeq(4, num_write_threads, "Incorrect number of writers");
@@ -3623,23 +3648,23 @@ static enum test_result test_max_workload_stats(EngineIface* h,
             h1->get_stats(cookie, "workload"_ccb, add_stats),
             "Failed to get workload stats");
     testHarness->destroy_cookie(cookie);
-    int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
-                                               "workload");
-    int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers",
-                                                "workload");
-    int num_auxio_threads = get_int_stat(h, h1, "ep_workload:num_auxio",
-                                                "workload");
-    int num_nonio_threads = get_int_stat(h, h1, "ep_workload:num_nonio",
-                                                "workload");
-    int max_read_threads = get_int_stat(h, h1, "ep_workload:max_readers",
-                                               "workload");
-    int max_write_threads = get_int_stat(h, h1, "ep_workload:max_writers",
-                                                "workload");
-    int max_auxio_threads = get_int_stat(h, h1, "ep_workload:max_auxio",
-                                                "workload");
-    int max_nonio_threads = get_int_stat(h, h1, "ep_workload:max_nonio",
-                                                "workload");
-    int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
+    int num_read_threads =
+            get_int_stat(h, "ep_workload:num_readers", "workload");
+    int num_write_threads =
+            get_int_stat(h, "ep_workload:num_writers", "workload");
+    int num_auxio_threads =
+            get_int_stat(h, "ep_workload:num_auxio", "workload");
+    int num_nonio_threads =
+            get_int_stat(h, "ep_workload:num_nonio", "workload");
+    int max_read_threads =
+            get_int_stat(h, "ep_workload:max_readers", "workload");
+    int max_write_threads =
+            get_int_stat(h, "ep_workload:max_writers", "workload");
+    int max_auxio_threads =
+            get_int_stat(h, "ep_workload:max_auxio", "workload");
+    int max_nonio_threads =
+            get_int_stat(h, "ep_workload:max_nonio", "workload");
+    int num_shards = get_int_stat(h, "ep_workload:num_shards", "workload");
     // if max limit on other groups missing use remaining for readers & writers
     checkeq(5, num_read_threads, "Incorrect number of readers");
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
@@ -3705,7 +3730,8 @@ static enum test_result test_worker_stats(EngineIface* h, EngineIface* h1) {
     check(statelist.find(worker_1_state)!=statelist.end(),
           "worker_1's state incorrect");
 
-    checkeq(11, get_int_stat(h, h1, "ep_num_workers"), // cannot spawn less
+    checkeq(11,
+            get_int_stat(h, "ep_num_workers"), // cannot spawn less
             "Incorrect number of threads spawned");
     return SUCCESS;
 }
@@ -3738,7 +3764,8 @@ static enum test_result test_all_keys_api(EngineIface* h, EngineIface* h1) {
     checkeq(ENGINE_SUCCESS, del(h, h1, del_key.c_str(), 0, 0),
             "Failed to delete key");
     wait_for_flusher_to_settle(h);
-    checkeq(total_keys - 1, get_int_stat(h, h1, "curr_items"),
+    checkeq(total_keys - 1,
+            get_int_stat(h, "curr_items"),
             "Item count mismatch");
 
     std::string start_key("key_" + std::to_string(start_key_idx));
@@ -3828,7 +3855,7 @@ static enum test_result test_curr_items_add_set(EngineIface* h,
     // Verify initial case.
     verify_curr_items(h, h1, 0, "init");
 
-    const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
+    const auto initial_enqueued = get_int_stat(h, "ep_total_enqueued");
 
     // Verify set and add case
     checkeq(ENGINE_SUCCESS,
@@ -3845,7 +3872,8 @@ static enum test_result test_curr_items_add_set(EngineIface* h,
         wait_for_flusher_to_settle(h);
     }
     verify_curr_items(h, h1, 3, "three items stored");
-    checkeq(initial_enqueued + 3, get_int_stat(h, h1, "ep_total_enqueued"),
+    checkeq(initial_enqueued + 3,
+            get_int_stat(h, "ep_total_enqueued"),
             "Expected total_enqueued to increase by 3 after 3 new items");
 
     return SUCCESS;
@@ -3883,7 +3911,8 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
           "Failed set vbucket 0 state to dead");
 
     verify_curr_items(h, h1, 0, "dead vbucket");
-    checkeq(0, get_int_stat(h, h1, "curr_items_tot"),
+    checkeq(0,
+            get_int_stat(h, "curr_items_tot"),
             "Expected curr_items_tot to be 0 with a dead vbucket");
 
     // Then resurrect.
@@ -3897,14 +3926,15 @@ static enum test_result test_curr_items_dead(EngineIface* h, EngineIface* h1) {
           "Failed set vbucket 0 state to dead (2)");
     wait_for_flusher_to_settle(h);
     checkeq(uint64_t(0),
-            get_stat<uint64_t>(h, h1, "ep_queue_size"),
+            get_stat<uint64_t>(h, "ep_queue_size"),
             "ep_queue_size is not zero after setting to dead (2)");
 
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, 0), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success deleting vbucket.");
     verify_curr_items(h, h1, 0, "del vbucket");
-    checkeq(0, get_int_stat(h, h1, "curr_items_tot"),
+    checkeq(0,
+            get_int_stat(h, "curr_items_tot"),
             "Expected curr_items_tot to be 0 after deleting a vbucket");
 
     return SUCCESS;
@@ -3916,11 +3946,14 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
 
     reset_stats(h);
 
-    checkeq(0, get_int_stat(h, h1, "ep_num_value_ejects"),
+    checkeq(0,
+            get_int_stat(h, "ep_num_value_ejects"),
             "Expected reset stats to set ep_num_value_ejects to zero");
-    checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
+    checkeq(0,
+            get_int_stat(h, "ep_num_non_resident"),
             "Expected all items to be resident");
-    checkeq(0, get_int_stat(h, h1, "vb_active_num_non_resident"),
+    checkeq(0,
+            get_int_stat(h, "vb_active_num_non_resident"),
             "Expected all active vbucket items to be resident");
 
     stop_persistence(h);
@@ -3941,7 +3974,8 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
     evict_key(h, "k1", 0, "Ejected.");
     evict_key(h, "k2", 1, "Ejected.");
 
-    checkeq(2, get_int_stat(h, h1, "vb_active_num_non_resident"),
+    checkeq(2,
+            get_int_stat(h, "vb_active_num_non_resident"),
             "Expected two non-resident items for active vbuckets");
 
     evict_key(h, "k1", 0, "Already ejected.");
@@ -3971,18 +4005,21 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
     cb_free(pkt);
 
     reset_stats(h);
-    checkeq(0, get_int_stat(h, h1, "ep_num_value_ejects"),
+    checkeq(0,
+            get_int_stat(h, "ep_num_value_ejects"),
             "Expected reset stats to set ep_num_value_ejects to zero");
 
     check_key_value(h, "k1", "v1", 2);
-    checkeq(1, get_int_stat(h, h1, "vb_active_num_non_resident"),
+    checkeq(1,
+            get_int_stat(h, "vb_active_num_non_resident"),
             "Expected only one active vbucket item to be non-resident");
 
     check(set_vbucket_state(h, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
     check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
-    checkeq(0, get_int_stat(h, h1, "vb_active_num_non_resident"),
+    checkeq(0,
+            get_int_stat(h, "vb_active_num_non_resident"),
             "Expected no non-resident items");
 
     return SUCCESS;
@@ -4021,7 +4058,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
 
     // don't need to explicitly set the vbucket state to dead as this is
     // done as part of the vbucketDelete. See KVBucket::deleteVBucket
-    int vb_del_num = get_int_stat(h, h1, "ep_vbucket_del");
+    int vb_del_num = get_int_stat(h, "ep_vbucket_del");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failure deleting dead bucket.");
@@ -4066,7 +4103,8 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
     for (it = keys.begin(); it != keys.end(); ++it) {
         check_key_value(h, it->c_str(), it->data(), it->size(), 1);
     }
-    checkeq(0, get_int_stat(h, h1, "ep_warmup_dups"),
+    checkeq(0,
+            get_int_stat(h, "ep_warmup_dups"),
             "Expected no duplicate items from disk");
 
     return SUCCESS;
@@ -4075,27 +4113,28 @@ static enum test_result test_duplicate_items_disk(EngineIface* h,
 static enum test_result test_disk_gt_ram_golden(EngineIface* h,
                                                 EngineIface* h1) {
     // Check/grab initial state.
-    const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
-    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
+    const auto initial_enqueued = get_int_stat(h, "ep_total_enqueued");
+    int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
 
     // Store some data and check post-set state.
     wait_for_persisted_value(h, "k1", "some value");
     testHarness->time_travel(65);
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
+    checkeq(0,
+            get_int_stat(h, "ep_bg_fetched"),
             "Should start with zero bg fetches");
     checkeq((initial_enqueued + 1),
-            get_int_stat(h, h1, "ep_total_enqueued"),
+            get_int_stat(h, "ep_total_enqueued"),
             "Should have additional item enqueued after store");
-    int kv_size = get_int_stat(h, h1, "ep_kv_size");
-    int mem_used = get_int_stat(h, h1, "mem_used");
+    int kv_size = get_int_stat(h, "ep_kv_size");
+    int mem_used = get_int_stat(h, "mem_used");
 
     // Evict the data.
     evict_key(h, "k1");
 
-    int kv_size2 = get_int_stat(h, h1, "ep_kv_size");
-    int mem_used2 = get_int_stat(h, h1, "mem_used");
+    int kv_size2 = get_int_stat(h, "ep_kv_size");
+    int mem_used2 = get_int_stat(h, "mem_used");
 
     checkgt(kv_size, kv_size2, "kv_size should have decreased after eviction");
     checkgt(mem_used, mem_used2, "mem_used should have decreased after eviction");
@@ -4103,12 +4142,14 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
     // Reload the data.
     check_key_value(h, "k1", "some value", 10);
 
-    int kv_size3 = get_int_stat(h, h1, "ep_kv_size");
-    int mem_used3 = get_int_stat(h, h1, "mem_used");
+    int kv_size3 = get_int_stat(h, "ep_kv_size");
+    int mem_used3 = get_int_stat(h, "mem_used");
 
-    checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"),
+    checkeq(1,
+            get_int_stat(h, "ep_bg_fetched"),
             "BG fetches should be one after reading an evicted key");
-    checkeq((initial_enqueued + 1), get_int_stat(h, h1, "ep_total_enqueued"),
+    checkeq((initial_enqueued + 1),
+            get_int_stat(h, "ep_total_enqueued"),
             "Item should not be marked dirty after reading an evicted key");
 
     checkeq(kv_size, kv_size3,
@@ -4116,9 +4157,9 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
     checkle(mem_used, mem_used3,
             "mem_used should have returned to initial value (or less) after restoring evicted item");
 
-    itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
+    itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
-    int numStored = get_int_stat(h, h1, "ep_total_persisted");
+    int numStored = get_int_stat(h, "ep_total_persisted");
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
@@ -4131,24 +4172,27 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
 static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h,
                                                   EngineIface* h1) {
     // Check/grab initial state.
-    int overhead = get_int_stat(h, h1, "ep_overhead");
-    const auto initial_enqueued = get_int_stat(h, h1, "ep_total_enqueued");
+    int overhead = get_int_stat(h, "ep_overhead");
+    const auto initial_enqueued = get_int_stat(h, "ep_total_enqueued");
 
     // Store some data and check post-set state.
     wait_for_persisted_value(h, "k1", "some value");
-    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
+    checkeq(0,
+            get_int_stat(h, "ep_bg_fetched"),
             "bg_fetched should initially be zero");
-    checkeq(initial_enqueued + 1, get_int_stat(h, h1, "ep_total_enqueued"),
+    checkeq(initial_enqueued + 1,
+            get_int_stat(h, "ep_total_enqueued"),
             "Expected total_enqueued to increase by 1 after storing 1 value");
-    checkge(get_int_stat(h, h1, "ep_overhead"), overhead,
+    checkge(get_int_stat(h, "ep_overhead"),
+            overhead,
             "Fell below initial overhead.");
 
     // Evict the data.
     evict_key(h, "k1");
 
     // Delete the value and make sure things return correctly.
-    int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
-    int numStored = get_int_stat(h, h1, "ep_total_persisted");
+    int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
+    int numStored = get_int_stat(h, "ep_total_persisted");
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "k1", 0, 0), "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
@@ -4170,7 +4214,7 @@ static enum test_result test_disk_gt_ram_update_paged_out(EngineIface* h,
 
     check_key_value(h, "k1", "new value", 9);
 
-    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "bg fetched something");
+    checkeq(0, get_int_stat(h, "ep_bg_fetched"), "bg fetched something");
 
     return SUCCESS;
 }
@@ -4187,7 +4231,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h,
     check(verify_key(h, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
     checkeq(0,
-            get_int_stat(h, h1, "ep_bg_fetched"),
+            get_int_stat(h, "ep_bg_fetched"),
             "Unexpected bg_fetched after del/get");
 
     return SUCCESS;
@@ -4234,7 +4278,7 @@ static enum test_result test_disk_gt_ram_set_race(EngineIface* h,
     check_key_value(h, "k1", "new value", 9);
 
     // Should have bg_fetched, but discarded the old value.
-    cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(1 == get_int_stat(h, "ep_bg_fetched"));
 
     cb_assert(cb_join_thread(tid) == 0);
 
@@ -4257,7 +4301,7 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h,
     check(verify_key(h, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
     // Should have bg_fetched, but discarded the old value.
-    cb_assert(1 == get_int_stat(h, h1, "ep_bg_fetched"));
+    cb_assert(1 == get_int_stat(h, "ep_bg_fetched"));
 
     cb_assert(cb_join_thread(tid) == 0);
 
@@ -4391,8 +4435,8 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
           "Failed to set vbucket state.");
 
     //Check the output when there is no data in the vbucket
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
-    uint64_t high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, "vb_1:0:id", "failovers");
+    uint64_t high_seqno = get_int_stat(h, "vb_1:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS, observe_seqno(h, 1, vb_uuid), "Expected success");
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -4425,10 +4469,10 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     int total_persisted = 0;
-    high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
+    high_seqno = get_int_stat(h, "vb_1:high_seqno", "vbucket-seqno");
 
     if (isPersistentBucket(h)) {
-        total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+        total_persisted = get_int_stat(h, "ep_total_persisted");
         checkeq(total_persisted,
                 num_items,
                 "Expected ep_total_persisted equals the number of items");
@@ -4460,7 +4504,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
               "Expected set to succeed");
     }
 
-    high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
+    high_seqno = get_int_stat(h, "vb_1:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS, observe_seqno(h, 1, vb_uuid), "Expected success");
 
     if (!isPersistentBucket(h)) {
@@ -4473,7 +4517,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     if (isPersistentBucket(h)) {
-        total_persisted = get_int_stat(h, h1, "ep_total_persisted");
+        total_persisted = get_int_stat(h, "ep_total_persisted");
     } else {
         total_persisted = high_seqno;
     }
@@ -4510,8 +4554,8 @@ static enum test_result test_observe_seqno_failover(EngineIface* h,
 
     wait_for_flusher_to_settle(h);
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    uint64_t high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    uint64_t high_seqno = get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     // restart
     testHarness->reload_engine(&h,
@@ -4522,7 +4566,7 @@ static enum test_result test_observe_seqno_failover(EngineIface* h,
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    uint64_t new_vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t new_vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
 
     checkeq(ENGINE_SUCCESS, observe_seqno(h, 0, vb_uuid), "Expected success");
 
@@ -4544,7 +4588,7 @@ static enum test_result test_observe_seqno_failover(EngineIface* h,
 static enum test_result test_observe_seqno_error(EngineIface* h,
                                                  EngineIface* h1) {
     //not my vbucket test
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             observe_seqno(h, 10, vb_uuid),
             "Expected NMVB");
@@ -4631,13 +4675,13 @@ static enum test_result test_observe_temp_item(EngineIface* h,
     check(get_meta(h, k1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
 
     if (isPersistentBucket(h)) {
         // Persistent: make sure there is one temp_item (as Persistent buckets
         // don't keep deleted items in HashTable, unlike Ephemeral).
         checkeq(1,
-                get_int_stat(h, h1, "curr_temp_items"),
+                get_int_stat(h, "curr_temp_items"),
                 "Expected single temp_items");
     }
 
@@ -5049,7 +5093,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
 
     // Calculate the number of items to store, we ensure we will fill the memory
     // quota, but we don't want to overfill (and go heavy DGM)
-    int nDocs = get_int_stat(h, h1, "ep_max_size") / sizeof(data);
+    int nDocs = get_int_stat(h, "ep_max_size") / sizeof(data);
     for (int j = 0; j < nDocs; ++j) {
         std::stringstream ss;
         ss << "key-" << j;
@@ -5078,8 +5122,8 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
     // If the item pager hasn't run already, set mem_high_wat
     // to a value less than mem_used which would force the
     // item pager to run at least once.
-    if (get_int_stat(h, h1, "ep_num_non_resident") == 0) {
-        int mem_used = get_int_stat(h, h1, "mem_used");
+    if (get_int_stat(h, "ep_num_non_resident") == 0) {
+        int mem_used = get_int_stat(h, "mem_used");
         int new_low_wat = mem_used * 0.75;
         set_param(h,
                   protocol_binary_engine_param_flush,
@@ -5094,7 +5138,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
 
     testHarness->time_travel(5);
 
-    wait_for_memory_usage_below(h, get_int_stat(h, h1, "ep_mem_high_wat"));
+    wait_for_memory_usage_below(h, get_int_stat(h, "ep_mem_high_wat"));
 
 #ifdef _MSC_VER
     // It seems like the scheduling of the tasks is different on windows
@@ -5103,7 +5147,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
     // figure out a better fix for this at a later time..
     // For now just spend some time waiting for it to bump the values
     int max = 0;
-    while (get_int_stat(h, h1, "ep_num_non_resident") == 0) {
+    while (get_int_stat(h, "ep_num_non_resident") == 0) {
         sleep(1);
         if (++max == 30) {
             std::cerr << "Giving up waiting for item_pager to eject data.. "
@@ -5113,7 +5157,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
     }
 #endif
 
-    int num_non_resident = get_int_stat(h, h1, "ep_num_non_resident");
+    int num_non_resident = get_int_stat(h, "ep_num_non_resident");
 
     if (num_non_resident == 0) {
         wait_for_stat_change(h, "ep_num_non_resident", 0);
@@ -5139,7 +5183,7 @@ static enum test_result test_item_pager(EngineIface* h, EngineIface* h1) {
 
     //Tmp ooms now trigger the item_pager task to eject some items,
     //thus there would be a few background fetches at least.
-    check(get_int_stat(h, h1, "ep_bg_fetched") > 0,
+    check(get_int_stat(h, "ep_bg_fetched") > 0,
           "Expected a few disk reads for referenced items");
 
     return SUCCESS;
@@ -5216,7 +5260,7 @@ static enum test_result test_multiple_transactions(EngineIface* h,
                 "Failed to store a value");
     }
     wait_for_stat_to_be(h, "ep_total_persisted", 2000);
-    check(get_int_stat(h, h1, "ep_commit_num") > 1,
+    check(get_int_stat(h, "ep_commit_num") > 1,
           "Expected 20 transaction completions at least");
     return SUCCESS;
 }
@@ -5228,8 +5272,9 @@ static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
-                       "Expected 1 set rm op");
+    checkeq(1,
+            get_int_stat(h, "ep_num_ops_set_ret_meta"),
+            "Expected 1 set rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
@@ -5250,8 +5295,9 @@ static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
-                       "Expected 2 set rm ops");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_set_ret_meta"),
+            "Expected 2 set rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
@@ -5264,8 +5310,9 @@ static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
-                       "Expected 3 set rm ops");
+    checkeq(3,
+            get_int_stat(h, "ep_num_ops_set_ret_meta"),
+            "Expected 3 set rm ops");
 
     check(last_meta.flags == 5, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
@@ -5278,8 +5325,9 @@ static enum test_result test_set_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected set returing meta to fail");
-    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
-                       "Expected 3 set rm ops");
+    checkeq(3,
+            get_int_stat(h, "ep_num_ops_set_ret_meta"),
+            "Expected 3 set rm ops");
 
     return SUCCESS;
 }
@@ -5348,8 +5396,9 @@ static enum test_result test_add_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
-                       "Expected 1 set rm op");
+    checkeq(1,
+            get_int_stat(h, "ep_num_ops_set_ret_meta"),
+            "Expected 1 set rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
@@ -5369,8 +5418,9 @@ static enum test_result test_add_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
-                       "Expected 2 set rm ops");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_set_ret_meta"),
+            "Expected 2 set rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
@@ -5462,8 +5512,9 @@ static enum test_result test_del_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
-                       "Expected 1 del rm op");
+    checkeq(1,
+            get_int_stat(h, "ep_num_ops_del_ret_meta"),
+            "Expected 1 del rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
     check(last_meta.exptime == 0, "Invalid result for expiration");
@@ -5487,8 +5538,9 @@ static enum test_result test_del_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
-                       "Expected 2 del rm ops");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_del_ret_meta"),
+            "Expected 2 del rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
     check(last_meta.exptime == 1735689600, "Invalid result for expiration");
@@ -5512,8 +5564,9 @@ static enum test_result test_del_ret_meta(EngineIface* h, EngineIface* h1) {
             "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected set returing meta to fail");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
-                       "Expected 2 del rm ops");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_del_ret_meta"),
+            "Expected 2 del rm ops");
 
     return SUCCESS;
 }
@@ -5698,8 +5751,8 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 
     wait_for_flusher_to_settle(h);
 
-    int curr_vb_items = get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0");
-    int num_ops_set_with_meta = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    int curr_vb_items = get_int_stat(h, "vb_0:num_items", "vbucket-details 0");
+    int num_ops_set_with_meta = get_int_stat(h, "ep_num_ops_set_meta");
     cb_assert(curr_vb_items == num_ops_set_with_meta && curr_vb_items > 0);
 
     cb_thread_t thread1, thread2;
@@ -5721,10 +5774,10 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 
     wait_for_flusher_to_settle(h);
 
-    cb_assert(get_int_stat(h, h1, "ep_num_ops_set_meta") > num_ops_set_with_meta);
-    cb_assert(get_int_stat(h ,h1, "ep_num_ops_del_meta") > 0);
+    cb_assert(get_int_stat(h, "ep_num_ops_set_meta") > num_ops_set_with_meta);
+    cb_assert(get_int_stat(h, "ep_num_ops_del_meta") > 0);
 
-    curr_vb_items = get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0");
+    curr_vb_items = get_int_stat(h, "vb_0:num_items", "vbucket-details 0");
 
     if (isWarmupEnabled(h)) {
         // Restart, and check data is warmed up correctly.
@@ -5737,7 +5790,7 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
         wait_for_warmup_complete(h, h1);
 
         checkeq(curr_vb_items,
-                get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
+                get_int_stat(h, "vb_0:num_items", "vbucket-details 0"),
                 "Unexpected item count in vbucket");
     }
 
@@ -5863,8 +5916,8 @@ static enum test_result test_del_with_item_eviction(EngineIface* h,
     uint64_t vb_uuid;
     mutation_descr_t mut_info;
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    auto high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    auto high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS,
             del(h, h1, "key", &cas, 0, nullptr, &mut_info),
             "Failed remove with value.");
@@ -6003,14 +6056,15 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h,
     compact_db(h, 0, 0, 10, 10, 0);
 
     useconds_t sleepTime = 128;
-    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+    while (get_int_stat(h, "ep_pending_compactions") != 0) {
         decayingSleep(&sleepTime);
     }
 
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
-    checkeq(1, get_int_stat(h, h1, "vb_active_expired"),
-          "Expect the compactor to delete an expired item");
+    checkeq(1,
+            get_int_stat(h, "vb_active_expired"),
+            "Expect the compactor to delete an expired item");
 
     // The item is already expired...
     checkeq(cb::engine_errc::no_such_key,
@@ -6024,9 +6078,9 @@ static enum test_result test_non_existent_get_and_delete(EngineIface* h,
     checkeq(cb::engine_errc::no_such_key,
             get(h, NULL, "key1", 0).first,
             "Unexpected return status");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Unexpected temp item");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Unexpected temp item");
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key3", 0, 0), "Unexpected return status");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Unexpected temp item");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Unexpected temp item");
     return SUCCESS;
 }
 
@@ -6173,10 +6227,10 @@ static enum test_result test_failover_log_behavior(EngineIface* h,
     uint64_t num_entries, top_entry_id;
     // warm up
     wait_for_warmup_complete(h, h1);
-    num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
+    num_entries = get_int_stat(h, "vb_0:num_entries", "failovers");
 
     check(num_entries == 1, "Failover log should have one entry for new vbucket");
-    top_entry_id = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    top_entry_id = get_ull_stat(h, "vb_0:0:id", "failovers");
 
     // restart
     testHarness->reload_engine(&h,
@@ -6186,11 +6240,11 @@ static enum test_result test_failover_log_behavior(EngineIface* h,
                                true);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
+    num_entries = get_int_stat(h, "vb_0:num_entries", "failovers");
 
     check(num_entries == 2, "Failover log should have grown");
-    check(get_ull_stat(h, h1, "vb_0:0:id", "failovers") != top_entry_id,
-            "Entry at current seq should be overwritten after restart");
+    check(get_ull_stat(h, "vb_0:0:id", "failovers") != top_entry_id,
+          "Entry at current seq should be overwritten after restart");
 
     int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
@@ -6212,11 +6266,11 @@ static enum test_result test_failover_log_behavior(EngineIface* h,
                                true);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    num_entries = get_int_stat(h, h1, "vb_0:num_entries", "failovers");
+    num_entries = get_int_stat(h, "vb_0:num_entries", "failovers");
 
     check(num_entries == 3, "Failover log should have grown");
-    check(get_ull_stat(h, h1, "vb_0:0:seq", "failovers") == 10,
-            "Latest failover log entry should have correct high sequence number");
+    check(get_ull_stat(h, "vb_0:0:seq", "failovers") == 10,
+          "Latest failover log entry should have correct high sequence number");
 
     return SUCCESS;
 }
@@ -6348,7 +6402,7 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h,
         return SKIPPED;
     }
 
-    std::string backend = get_str_stat(h, h1, "ep_backend");
+    std::string backend = get_str_stat(h, "ep_backend");
     if (backend == "rocksdb") {
         // TODO RDB:
         return SKIPPED_UNDER_ROCKSDB;
@@ -6367,8 +6421,8 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h,
                                false);
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    uint64_t vb_uuid0 = get_ull_stat(h, h1, "vb_0:uuid", "vbucket-details");
-    uint64_t vb_uuid1 = get_ull_stat(h, h1, "vb_1:uuid", "vbucket-details");
+    uint64_t vb_uuid0 = get_ull_stat(h, "vb_0:uuid", "vbucket-details");
+    uint64_t vb_uuid1 = get_ull_stat(h, "vb_1:uuid", "vbucket-details");
     checkne(vb_uuid0, vb_uuid1, "UUID is not unique");
     return SUCCESS;
 }
@@ -6519,7 +6573,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h, EngineIface* h1) {
                 "rw_3:open"
     };
 
-    std::string backend = get_str_stat(h, h1, "ep_backend");
+    std::string backend = get_str_stat(h, "ep_backend");
     std::vector<std::string> kvstats;
 
     /* initialize with all the read write stats */
@@ -7542,7 +7596,8 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h,
 
     wait_for_stat_change(h, "vb_active_ops_reject", 0);
 
-    checkeq(1, get_int_stat(h, h1, "vb_0:ops_reject", "vbucket-details 0"),
+    checkeq(1,
+            get_int_stat(h, "vb_0:ops_reject", "vbucket-details 0"),
             "Expected rejected ops to be equal to 1");
 
     fclose(fp);
@@ -7628,29 +7683,21 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     /* Compact once */
-    int exp_purge_seqno = get_int_stat(h, h1, "vb_0:high_seqno",
-                                       "vbucket-seqno") - 1;
-    compact_db(h,
-               0,
-               2,
-               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
-               1,
-               1);
+    int exp_purge_seqno =
+            get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno") - 1;
+    compact_db(
+            h, 0, 2, get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"), 1, 1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(exp_purge_seqno,
-            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
     /* Compact again, this time we don't expect to purge any items */
-    compact_db(h,
-               0,
-               2,
-               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
-               1,
-               1);
+    compact_db(
+            h, 0, 2, get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"), 1, 1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(exp_purge_seqno,
-            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value after another compaction");
 
     if (isWarmupEnabled(h)) {
@@ -7665,7 +7712,7 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
 
         /* Purge seqno should not change after reload */
         checkeq(exp_purge_seqno,
-                get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+                get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
                 "purge_seqno didn't match expected value after reload");
     }
     return SUCCESS;

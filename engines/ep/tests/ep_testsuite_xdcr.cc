@@ -75,7 +75,7 @@ static enum test_result test_get_meta(EngineIface* h, EngineIface* h1) {
             "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    size_t temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -86,7 +86,7 @@ static enum test_result test_get_meta(EngineIface* h, EngineIface* h1) {
     verifyMetaData(metadata, errorMetaPair.second);
 
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
     h->release(i);
@@ -105,7 +105,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h,
 
     Item *it1 = reinterpret_cast<Item*>(i);
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    size_t temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -115,7 +115,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h,
                            it1->getFlags(), it1->getExptime());
     verifyMetaData(metadata1, errorMetaPair.second);
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
     h->release(i);
 
@@ -154,7 +154,7 @@ static enum test_result test_get_meta_deleted(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h);
 
     // check the stat
-    int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -169,7 +169,7 @@ static enum test_result test_get_meta_deleted(EngineIface* h, EngineIface* h1) {
           "Expected flags to match");
 
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(1, temp, "Expect one getMeta op");
 
     h->release(i);
@@ -181,7 +181,7 @@ static enum test_result test_get_meta_nonexistent(EngineIface* h,
     char const *key = "k1";
 
     // check the stat
-    int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -192,7 +192,7 @@ static enum test_result test_get_meta_nonexistent(EngineIface* h,
             "Expected no_such_key");
 
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(1, temp, "Expect one getMeta ops");
 
     return SUCCESS;
@@ -209,7 +209,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h,
             "Failed set.");
     wait_for_flusher_to_settle(h);
     // check the stat
-    int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -220,7 +220,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h,
             "Expected get success");
     ret.second.reset();
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
     // test get_meta followed by get for a deleted key. should fail.
@@ -233,7 +233,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h,
             get(h, NULL, key1, 0).first,
             "Expected enoent");
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(2, temp, "Expect more getMeta ops");
 
     // test get_meta followed by get for a nonexistent key. should fail.
@@ -246,7 +246,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h,
             get(h, NULL, key2, 0).first,
             "Expected enoent");
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(3, temp, "Expected one extra getMeta ops");
 
     return SUCCESS;
@@ -267,7 +267,9 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
     wait_for_stat_to_be(h, "curr_items", 1);
 
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect zero getMeta ops");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_get_meta"),
+            "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -276,13 +278,13 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
             store(h, NULL, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
     // check the stat
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect one getMeta op");
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, "ep_num_ops_get_meta"), "Expect one getMeta op");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // check curr, temp item counts
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // test get_meta followed by set for a deleted key. should pass.
     checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
@@ -290,7 +292,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
 
     wait_for_stat_to_be(h, "curr_items", 0);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
@@ -300,11 +302,13 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // check the stat
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect more getMeta ops");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_get_meta"),
+            "Expect more getMeta ops");
 
     // test get_meta followed by set for a nonexistent key. should pass.
     check(!get_meta(h, key2, errorMetaPair),
@@ -316,7 +320,8 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
             store(h, NULL, OPERATION_SET, key2, "someothervalue"),
             "Failed set.");
     // check the stat again
-    checkeq(3, get_int_stat(h, h1, "ep_num_ops_get_meta"),
+    checkeq(3,
+            get_int_stat(h, "ep_num_ops_get_meta"),
             "Expected one extra getMeta ops");
 
     return SUCCESS;
@@ -333,7 +338,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
             "Failed set.");
     wait_for_flusher_to_settle(h);
     // check the stat
-    int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -341,7 +346,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
     // test get_meta followed by delete for a deleted key. should fail.
@@ -351,7 +356,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
           "Expected deleted flag to be set");
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Expected enoent");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(2, temp, "Expect more getMeta op");
 
     // test get_meta followed by delete for a nonexistent key. should fail.
@@ -362,7 +367,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
             "Expected no_such_key");
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, key2, 0, 0), "Expected enoent");
     // check the stat again
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(3, temp, "Expected one extra getMeta ops");
 
     return SUCCESS;
@@ -466,7 +471,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
         // Run compaction to start using the bloomfilter
         useconds_t sleepTime = 128;
         compact_db(h, 0, 0, 1, 1, 0);
-        while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+        while (get_int_stat(h, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
 
@@ -498,7 +503,7 @@ static enum test_result test_add_with_meta(EngineIface* h, EngineIface* h1) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 0, "Expect zero setMeta ops");
 
     // store an item with meta data
@@ -510,7 +515,7 @@ static enum test_result test_add_with_meta(EngineIface* h, EngineIface* h1) {
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
             "Expected add to fail when the item exists already");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 1, "Failed op does not count");
 
     return SUCCESS;
@@ -525,7 +530,7 @@ static enum test_result test_delete_with_meta(EngineIface* h, EngineIface* h1) {
     uint64_t vb_uuid;
     uint32_t high_seqno;
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    size_t temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero setMeta ops");
 
     // put some random meta data
@@ -547,8 +552,8 @@ static enum test_result test_delete_with_meta(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_SET, key3, "somevalue3"),
             "Failed set.");
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     const void* cookie = testHarness->create_cookie();
 
@@ -560,7 +565,7 @@ static enum test_result test_delete_with_meta(EngineIface* h, EngineIface* h1) {
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 1, "Expect more setMeta ops");
 
     testHarness->set_mutation_extras_handling(cookie, false);
@@ -590,7 +595,8 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     const size_t keylen = strlen(key);
 
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"),
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_del_meta"),
             "Expect zero setMeta ops");
 
     // add a key
@@ -611,7 +617,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
     // this is the cas to be used with a subsequent delete with meta
@@ -625,8 +631,10 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     del_with_meta(h, key, keylen, 0, &itm_meta, invalid_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
             "Expected invalid cas error");
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Faild ops does not count");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_del_meta"),
+            "Faild ops does not count");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
     // do delete with meta with the correct cas value. should pass.
@@ -634,9 +642,9 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect some ops");
+    checkeq(1, get_int_stat(h, "ep_num_ops_del_meta"), "Expect some ops");
     wait_for_stat_to_be(h, "curr_items", 0);
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
@@ -648,7 +656,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     check(itm_meta.flags == errorMetaPair.second.flags,
           "Expected flags to match");
 
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
     return SUCCESS;
@@ -660,7 +668,8 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
     const size_t keylen = strlen(key);
 
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"),
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_del_meta"),
             "Expect zero setMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -671,7 +680,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
     checkeq(cb::engine_errc::no_such_key,
             errorMetaPair.first,
             "Expected no_such_key");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
 
     // this is the cas to be used with a subsequent delete with meta
     uint64_t valid_cas = last_cas;
@@ -687,8 +696,10 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
             "Expected invalid cas error");
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Failed op does not count");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_del_meta"),
+            "Failed op does not count");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
     // do delete with meta with the correct cas value. should pass.
@@ -697,9 +708,9 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     // check the stat
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
+    checkeq(1, get_int_stat(h, "ep_num_ops_del_meta"), "Expect one op");
     wait_for_stat_to_be(h, "curr_items", 0);
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
@@ -711,7 +722,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
     check(itm_meta.flags == errorMetaPair.second.flags,
           "Expected flags to match");
 
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
     return SUCCESS;
@@ -726,7 +737,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     // Run compaction to start using the bloomfilter
     useconds_t sleepTime = 128;
     compact_db(h, 0, 0, 1, 1, 0);
-    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+    while (get_int_stat(h, "ep_pending_compactions") != 0) {
         decayingSleep(&sleepTime);
     }
 
@@ -742,9 +753,9 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
+    checkeq(1, get_int_stat(h, "ep_num_ops_del_meta"), "Expect one op");
     wait_for_stat_to_be(h, "curr_items", 0);
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // do delete with meta with the correct cas value.
     // skipConflictResolution true
@@ -762,9 +773,9 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
+    checkeq(2, get_int_stat(h, "ep_num_ops_del_meta"), "Expect one op");
     wait_for_stat_to_be(h, "curr_items", 0);
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     return SUCCESS;
 }
@@ -780,7 +791,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h,
     itm_meta.exptime = 1735689600; // expires in 2025
     itm_meta.flags = 0xdeadbeef;
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    size_t temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero ops");
 
     //
@@ -807,7 +818,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 0, "Failed op does not count");
 
     //
@@ -831,7 +842,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 0, "Failed op does not count");
 
     return SUCCESS;
@@ -845,7 +856,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
     uint16_t keylen2 = (uint16_t)strlen(key2);
 
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    size_t temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero ops");
 
     //
@@ -883,7 +894,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 0, "Failed op does not count");
 
     //
@@ -905,7 +916,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 1, "Expect some ops");
 
     //
@@ -928,7 +939,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
+    temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 2, "Expect some ops");
 
     return SUCCESS;
@@ -944,11 +955,12 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
     uint32_t high_seqno;
 
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect zero ops");
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta"),
+    checkeq(0, get_int_stat(h, "ep_num_ops_set_meta"), "Expect zero ops");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_get_meta_on_set_meta"),
             "Expect zero ops");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expect zero items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expect zero temp items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expect zero items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expect zero temp items");
 
     // create a new key
     checkeq(ENGINE_SUCCESS,
@@ -959,8 +971,8 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
     // get metadata for the key
     cb::EngineErrorMetadataPair errorMetaPair;
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expect one item");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expect zero temp item");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expect one item");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expect zero temp item");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = errorMetaPair.second.cas;
@@ -986,10 +998,12 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Failed op does not count");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_set_meta"),
+            "Failed op does not count");
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     const void* cookie = testHarness->create_cookie();
     // We are explicitly going to test the !datatype paths, so turn it off.
@@ -1018,9 +1032,9 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
         "Expected datatype to now include JSON");
 
     // check the stat
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expect one item");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expect zero temp item");
+    checkeq(1, get_int_stat(h, "ep_num_ops_set_meta"), "Expect some ops");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expect one item");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expect zero temp item");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
@@ -1098,8 +1112,9 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     uint16_t newValLen = (uint16_t)strlen(newVal);
 
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect zero ops");
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta"),
+    checkeq(0, get_int_stat(h, "ep_num_ops_set_meta"), "Expect zero ops");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_get_meta_on_set_meta"),
             "Expect zero ops");
 
     // create a new key
@@ -1107,8 +1122,8 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
             store(h, NULL, OPERATION_SET, key, val),
             "Failed set.");
     wait_for_flusher_to_settle(h);
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // delete the key
     checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0), "Delete failed");
@@ -1121,7 +1136,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
     // this is the cas to be used with a subsequent set with meta
@@ -1135,8 +1150,10 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected key_not_found error");
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Failed op does not count");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_set_meta"),
+            "Failed op does not count");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
     // do set with meta with the correct cas value. should pass.
@@ -1145,18 +1162,19 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     // check the stat
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta"),
+    checkeq(1, get_int_stat(h, "ep_num_ops_set_meta"), "Expect some ops");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_get_meta_on_set_meta"),
             "Expect some ops");
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
     ItemMetaData metadata(0xdeadbeef, 10, 0xdeadbeef, 1735689600);
     verifyMetaData(metadata, errorMetaPair.second);
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     return SUCCESS;
 }
@@ -1169,7 +1187,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h,
     size_t valLen = strlen(val);
 
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect zero ops");
+    checkeq(0, get_int_stat(h, "ep_num_ops_set_meta"), "Expect zero ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -1179,7 +1197,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h,
     checkeq(cb::engine_errc::no_such_key,
             errorMetaPair.first,
             "Expected no_such_key");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = errorMetaPair.second.cas;
@@ -1192,8 +1210,10 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected key_not_found error");
     // check the stat
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Failed op does not count");
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_set_meta"),
+            "Failed op does not count");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, key, keylen, val, valLen, 0, &itm_meta, cas_for_set);
@@ -1201,16 +1221,16 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     // check the stat
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, "ep_num_ops_set_meta"), "Expect some ops");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
     ItemMetaData metadata(0xdeadbeef, 10, 0xdeadbeef, 1735689600);
     verifyMetaData(metadata, errorMetaPair.second);
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
-    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, "curr_items"), "Expected single curr_items");
 
     return SUCCESS;
 }
@@ -1220,7 +1240,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h,
     char const *key1 = "key1";
     size_t keylen1 = strlen(key1);
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    size_t temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 0, "Expect zero ops");
 
     //
@@ -1250,7 +1270,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 0, "Failed op does not count");
 
     //
@@ -1279,7 +1299,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 0, "Failed op does not count");
 
     return SUCCESS;
@@ -1292,7 +1312,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
     char const *key2 = "key2";
     size_t keylen2 = strlen(key2);
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    size_t temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 0, "Expect zero op");
 
     //
@@ -1331,7 +1351,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
              std::to_string(last_status.load())).c_str());
 
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 0, "Expect zero op");
 
     //
@@ -1364,7 +1384,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
                   true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 1, "Expect some op");
 
     //
@@ -1387,7 +1407,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
     set_with_meta(h, key2, keylen2, NULL, 0, 0, &meta, 0, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
-    temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
+    temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 2, "Expect some ops");
 
     return SUCCESS;
@@ -1663,8 +1683,10 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
             errorMetaPair.first,
             "Expected EWOULDBLOCK");
 
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
+    checkeq(1,
+            get_int_stat(h, "curr_temp_items"),
+            "Expected single temp_items");
 
     // Re-enable EWOULDBLOCK handling (and reader threads), and re-issue.
     testHarness->set_ewouldblock_handling(cookie, true);
@@ -1680,7 +1702,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     // disk, before the second get_meta call tries to find that item in HT,
     // we will have only 1 bgfetch
     wait_for_stat_to_be_gte(h, h1, "ep_bg_meta_fetched", 1);
-    int exp_get_meta_ops = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int exp_get_meta_ops = get_int_stat(h, "ep_num_ops_get_meta");
 
     // Do get_meta for a non-existing key.
     char const *k2 = "k2";
@@ -1692,15 +1714,16 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     // This call for get_meta may or may not result in bg fetch because
     // bloomfilter may predict that key does not exist.
     // However we still must increment the ep_num_ops_get_meta count
-    checkeq(exp_get_meta_ops + 1, get_int_stat(h, h1, "ep_num_ops_get_meta"),
+    checkeq(exp_get_meta_ops + 1,
+            get_int_stat(h, "ep_num_ops_get_meta"),
             "Num get meta ops not as expected");
 
     // Trigger the expiry pager and verify that two temp items are deleted
     set_param(h, protocol_binary_engine_param_flush, "num_nonio_threads", "1");
 
     wait_for_stat_to_be(h, "ep_expired_pager", 1);
-    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
-    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     testHarness->destroy_cookie(cookie);
 
@@ -1718,7 +1741,8 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h,
 
     add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+    checkeq(0,
+            get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0), "Delete failed");
@@ -1731,30 +1755,34 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h,
     add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(isPersistentBucket(h) ? 1 : 0,
-            get_int_stat(h, h1, "ep_bg_meta_fetched"),
+            get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected bg meta fetches");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(1,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
     add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(3,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(3,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     return SUCCESS;
 }
@@ -1768,26 +1796,30 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h,
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"),
-          "Expect zero setMeta ops");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_set_meta"),
+            "Expect zero setMeta ops");
 
     set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+    checkeq(0,
+            get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
 
     // Check all meta data is the same
     set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(1,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     // Check has newer flags passes
     itemMeta.flags = 0xdeadbeff;
@@ -1803,23 +1835,27 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h,
     itemMeta.exptime = 0;
     set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(3,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
     set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(4, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(4,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    checkeq(4, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(4,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
-    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+    checkeq(0,
+            get_int_stat(h, "ep_bg_meta_fetched"),
             "Expect no bg meta fetches");
 
     return SUCCESS;
@@ -1834,29 +1870,33 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h,
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"),
-          "Expect zero setMeta ops");
+    checkeq(0,
+            get_int_stat(h, "ep_num_ops_set_meta"),
+            "Expect zero setMeta ops");
 
     set_with_meta(
             h, "key", 3, NULL, 0, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+    checkeq(0,
+            get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetchs, thanks to bloom filters");
 
     // Check all meta data is the same
     set_with_meta(
             h, "key", 3, NULL, 0, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(1,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     // Check that an older cas fails
     itemMeta.cas = 0xdeadbeee;
     set_with_meta(
             h, "key", 3, NULL, 0, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
-          "Expected set meta conflict resolution failure");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
+            "Expected set meta conflict resolution failure");
 
     // Check that a higher cas passes
     itemMeta.cas = 0xdeadbeff;
@@ -1894,34 +1934,37 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h,
     // Check all meta data is the same
     del_with_meta(h, "key", 3, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
-          "Expected delete meta conflict resolution failure");
+    checkeq(1,
+            get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
+            "Expected delete meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     del_with_meta(h, "key", 3, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
-          "Expected delete meta conflict resolution failure");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
+            "Expected delete meta conflict resolution failure");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
     del_with_meta(h, "key", 3, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(3, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
-          "Expected delete meta conflict resolution failure");
+    checkeq(3,
+            get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
+            "Expected delete meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
     del_with_meta(h, "key", 3, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
+    check(get_int_stat(h, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected delete meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     del_with_meta(h, "key", 3, 0, &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
+    check(get_int_stat(h, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected delete meta conflict resolution failure");
 
     return SUCCESS;
@@ -1959,16 +2002,18 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h,
     // Check all meta data is the same
     del_with_meta(h, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
-          "Expected delete meta conflict resolution failure");
+    checkeq(1,
+            get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
+            "Expected delete meta conflict resolution failure");
 
     // Check that higher rev seqno but lower cas fails
     itemMeta.cas = info.cas;
     itemMeta.revSeqno = 11;
     del_with_meta(h, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
-          "Expected delete meta conflict resolution failure");
+    checkeq(2,
+            get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
+            "Expected delete meta conflict resolution failure");
 
     // Check that a higher cas and lower rev seqno passes
     itemMeta.cas = info.cas + 2;
@@ -2021,9 +2066,8 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
             std::chrono::microseconds(0) /*behind threshold*/);
 
     // grab the drift behind threshold
-    uint64_t driftBehindThreshold = get_ull_stat(h, h1,
-                                                 "ep_hlc_drift_ahead_threshold_us",
-                                                 nullptr);
+    uint64_t driftBehindThreshold =
+            get_ull_stat(h, "ep_hlc_drift_ahead_threshold_us", nullptr);
     // Create n keys
     const int n_keys = 5;
     for (int ii = 0 ; ii < n_vbuckets; ii++) {
@@ -2056,9 +2100,11 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
     }
 
     // Bucket stats should report drift
-    checkge(get_ull_stat(h, h1, "ep_active_hlc_drift"), uint64_t(0),
+    checkge(get_ull_stat(h, "ep_active_hlc_drift"),
+            uint64_t(0),
             "Expected drift above zero");
-    checkeq(uint64_t(n_keys*n_vbuckets), get_ull_stat(h, h1, "ep_active_hlc_drift_count"),
+    checkeq(uint64_t(n_keys * n_vbuckets),
+            get_ull_stat(h, "ep_active_hlc_drift_count"),
             "Expected ahead counter to match mutations");
 
     // Victim VBs should have exceptions
@@ -2068,11 +2114,16 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
         std::string behind_threshold_exceeded = vbAheadName + ":drift_behind_threshold_exceeded";
         std::string total_abs_drift = vbAheadName + ":total_abs_drift";
         std::string details = "vbucket-details " + std::to_string(aheadVb);
-            checkeq(uint64_t(n_keys), get_ull_stat(h, h1, ahead_threshold_exceeded.data(), details.data()),
+        checkeq(uint64_t(n_keys),
+                get_ull_stat(
+                        h, ahead_threshold_exceeded.data(), details.data()),
                 "Expected ahead threshold to match mutations");
-        checkeq(uint64_t(0), get_ull_stat(h, h1, behind_threshold_exceeded.data(), details.data()),
+        checkeq(uint64_t(0),
+                get_ull_stat(
+                        h, behind_threshold_exceeded.data(), details.data()),
                 "Expected no behind exceptions");
-        checkge(get_ull_stat(h, h1, total_abs_drift.data(), details.data()), uint64_t(0),
+        checkge(get_ull_stat(h, total_abs_drift.data(), details.data()),
+                uint64_t(0),
                 "Expected some drift");
     }
 
@@ -2082,11 +2133,16 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
         std::string behind_threshold_exceeded = vbBehindName + ":drift_behind_threshold_exceeded";
         std::string total_abs_drift = vbBehindName + ":total_abs_drift";
         std::string details = "vbucket-details " + std::to_string(behindVb);
-        checkeq(uint64_t(n_keys), get_ull_stat(h, h1, behind_threshold_exceeded.data(), details.data()),
+        checkeq(uint64_t(n_keys),
+                get_ull_stat(
+                        h, behind_threshold_exceeded.data(), details.data()),
                 "Expected behind threshold to match mutations");
-        checkeq(uint64_t(0), get_ull_stat(h, h1, ahead_threshold_exceeded.data(), details.data()),
+        checkeq(uint64_t(0),
+                get_ull_stat(
+                        h, ahead_threshold_exceeded.data(), details.data()),
                 "Expected no ahead exceptions");
-        checkge(get_ull_stat(h, h1, total_abs_drift.data(), details.data()), uint64_t(0),
+        checkge(get_ull_stat(h, total_abs_drift.data(), details.data()),
+                uint64_t(0),
                 "Expected some drift");
     }
 
@@ -2114,9 +2170,8 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
             std::chrono::microseconds(0) /*behind threshold*/);
 
     // grab the drift behind threshold
-    uint64_t driftBehindThreshold = get_ull_stat(h, h1,
-                                                 "ep_hlc_drift_ahead_threshold_us",
-                                                 nullptr);
+    uint64_t driftBehindThreshold =
+            get_ull_stat(h, "ep_hlc_drift_ahead_threshold_us", nullptr);
     // Create n keys * n_vbuckets
     const int n_keys = 5;
     for (int ii = 0 ; ii < n_vbuckets; ii++) {
@@ -2145,9 +2200,11 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
         }
     }
 
-    checkeq(uint64_t(0), get_ull_stat(h, h1, "ep_active_ahead_exceptions"),
+    checkeq(uint64_t(0),
+            get_ull_stat(h, "ep_active_ahead_exceptions"),
             "Expected ahead counter to match mutations");
-    checkeq(uint64_t(n_keys*n_vbuckets), get_ull_stat(h, h1, "ep_active_behind_exceptions"),
+    checkeq(uint64_t(n_keys * n_vbuckets),
+            get_ull_stat(h, "ep_active_behind_exceptions"),
             "Expected behind counter to match mutations");
 
     // Del_with_meta n_keys to n_vbuckets
@@ -2179,15 +2236,19 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
     }
 
     // Bucket stats should report drift
-    checkge(get_ull_stat(h, h1, "ep_active_hlc_drift"), uint64_t(0),
+    checkge(get_ull_stat(h, "ep_active_hlc_drift"),
+            uint64_t(0),
             "Expected drift above zero");
-    checkeq(2*uint64_t(n_keys*n_vbuckets), get_ull_stat(h, h1, "ep_active_hlc_drift_count"),
+    checkeq(2 * uint64_t(n_keys * n_vbuckets),
+            get_ull_stat(h, "ep_active_hlc_drift_count"),
             "Expected ahead counter to match mutations");
 
     // and should report total exception of all VBs
-    checkeq(uint64_t(n_keys), get_ull_stat(h, h1, "ep_active_ahead_exceptions"),
+    checkeq(uint64_t(n_keys),
+            get_ull_stat(h, "ep_active_ahead_exceptions"),
             "Expected ahead counter to match mutations");
-    checkeq(uint64_t(n_keys + (n_keys*n_vbuckets)), get_ull_stat(h, h1, "ep_active_behind_exceptions"),
+    checkeq(uint64_t(n_keys + (n_keys * n_vbuckets)),
+            get_ull_stat(h, "ep_active_behind_exceptions"),
             "Expected behind counter to match mutations");
 
     // Victim VBs should have exceptions
@@ -2199,9 +2260,11 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
         std::string details = "vbucket-details " + std::to_string(aheadVb);
 
         checkeq(uint64_t(n_keys),
-                get_ull_stat(h, h1, ahead_threshold_exceeded.data(), details.data()),
+                get_ull_stat(
+                        h, ahead_threshold_exceeded.data(), details.data()),
                 "Expected ahead threshold to match mutations");
-        checkge(get_ull_stat(h, h1, total_abs_drift.data(), details.data()), uint64_t(0),
+        checkge(get_ull_stat(h, total_abs_drift.data(), details.data()),
+                uint64_t(0),
                 "Expected some drift");
     }
 
@@ -2213,11 +2276,16 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
         std::string details = "vbucket-details " + std::to_string(behindVb);
 
         // *2 behind due to the initial set_with_meta
-        checkeq(uint64_t(n_keys*2), get_ull_stat(h, h1, behind_threshold_exceeded.data(), details.data()),
+        checkeq(uint64_t(n_keys * 2),
+                get_ull_stat(
+                        h, behind_threshold_exceeded.data(), details.data()),
                 "Expected behind threshold to match mutations");
-        checkeq(uint64_t(0), get_ull_stat(h, h1, ahead_threshold_exceeded.data(), details.data()),
+        checkeq(uint64_t(0),
+                get_ull_stat(
+                        h, ahead_threshold_exceeded.data(), details.data()),
                 "Expected no ahead exceptions");
-        checkge(get_ull_stat(h, h1, total_abs_drift.data(), details.data()), uint64_t(0),
+        checkge(get_ull_stat(h, total_abs_drift.data(), details.data()),
+                uint64_t(0),
                 "Expected some drift");
     }
 
@@ -2252,12 +2320,14 @@ static enum test_result test_setting_drift_threshold(EngineIface* h,
                   "Expected set_param success");
 
             checkeq(int64_t(data.second.count()),
-                    int64_t(get_ull_stat(h, h1, std::get<0>(conf).c_str(), nullptr)),
+                    int64_t(get_ull_stat(
+                            h, std::get<0>(conf).c_str(), nullptr)),
                     "Expected the stat to change to the new value");
 
             // The VB stat values are in nanoseconds
             checkeq(int64_t(std::chrono::nanoseconds(data.second).count()),
-                    int64_t(get_ull_stat(h, h1, std::get<2>(conf).c_str(), "vbucket-details 0")),
+                    int64_t(get_ull_stat(
+                            h, std::get<2>(conf).c_str(), "vbucket-details 0")),
                     "Expected the VB stats to change to the new value");
         }
     }

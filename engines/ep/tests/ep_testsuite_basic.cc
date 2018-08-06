@@ -71,7 +71,7 @@ static enum test_result test_alloc_limit(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_memory_tracking(EngineIface* h, EngineIface* h1) {
     // Need memory tracker to be able to check our memory usage.
-    std::string tracker = get_str_stat(h, h1, "ep_mem_tracker_enabled");
+    std::string tracker = get_str_stat(h, "ep_mem_tracker_enabled");
     if (tracker == "true") {
         return SUCCESS;
     } else {
@@ -82,64 +82,66 @@ static enum test_result test_memory_tracking(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_max_size_and_water_marks_settings(
         EngineIface* h, EngineIface* h1) {
-    checkeq(1000, get_int_stat(h, h1, "ep_max_size"), "Incorrect initial size.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750),
+    checkeq(1000, get_int_stat(h, "ep_max_size"), "Incorrect initial size.");
+    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750),
           "Incorrect initial low wat.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
+    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850),
           "Incorrect initial high wat.");
-    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.75),
+    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.75),
           "Incorrect initial low wat. percent");
-    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.85),
+    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.85),
           "Incorrect initial high wat. percent");
 
     set_param(h, protocol_binary_engine_param_flush, "max_size", "1000000");
 
-    checkeq(1000000, get_int_stat(h, h1, "ep_max_size"),
-            "Incorrect new size.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750000),
+    checkeq(1000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
+    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750000),
           "Incorrect larger low wat.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850000),
+    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850000),
           "Incorrect larger high wat.");
-    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.75),
+    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.75),
           "Incorrect larger low wat. percent");
-    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.85),
+    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.85),
           "Incorrect larger high wat. percent");
 
     set_param(h, protocol_binary_engine_param_flush, "mem_low_wat", "700000");
     set_param(h, protocol_binary_engine_param_flush, "mem_high_wat", "800000");
 
-    checkeq(700000, get_int_stat(h, h1, "ep_mem_low_wat"),
+    checkeq(700000,
+            get_int_stat(h, "ep_mem_low_wat"),
             "Incorrect even larger low wat.");
-    checkeq(800000, get_int_stat(h, h1, "ep_mem_high_wat"),
+    checkeq(800000,
+            get_int_stat(h, "ep_mem_high_wat"),
             "Incorrect even larger high wat.");
-    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.7),
+    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.7),
           "Incorrect even larger low wat. percent");
-    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.8),
+    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.8),
           "Incorrect even larger high wat. percent");
 
     set_param(h, protocol_binary_engine_param_flush, "max_size", "100");
 
-    checkeq(100, get_int_stat(h, h1, "ep_max_size"),
-            "Incorrect smaller size.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 70),
+    checkeq(100, get_int_stat(h, "ep_max_size"), "Incorrect smaller size.");
+    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 70),
           "Incorrect smaller low wat.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 80),
+    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 80),
           "Incorrect smaller high wat.");
-    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.7),
+    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.7),
           "Incorrect smaller low wat. percent");
-    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.8),
+    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.8),
           "Incorrect smaller high wat. percent");
 
     set_param(h, protocol_binary_engine_param_flush, "mem_low_wat", "50");
     set_param(h, protocol_binary_engine_param_flush, "mem_high_wat", "70");
 
-    checkeq(50, get_int_stat(h, h1, "ep_mem_low_wat"),
+    checkeq(50,
+            get_int_stat(h, "ep_mem_low_wat"),
             "Incorrect even smaller low wat.");
-    checkeq(70, get_int_stat(h, h1, "ep_mem_high_wat"),
+    checkeq(70,
+            get_int_stat(h, "ep_mem_high_wat"),
             "Incorrect even smaller high wat.");
-    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.5),
+    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.5),
           "Incorrect even smaller low wat. percent");
-    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.7),
+    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.7),
           "Incorrect even smaller high wat. percent");
 
     testHarness->reload_engine(&h,
@@ -150,15 +152,14 @@ static enum test_result test_max_size_and_water_marks_settings(
     h1 = h;
     wait_for_warmup_complete(h, h1);
 
-    checkeq(1000, get_int_stat(h, h1, "ep_max_size"),
-            "Incorrect initial size.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750),
+    checkeq(1000, get_int_stat(h, "ep_max_size"), "Incorrect initial size.");
+    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750),
           "Incorrect intial low wat.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
+    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850),
           "Incorrect initial high wat.");
-    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.75),
+    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.75),
           "Incorrect initial low wat. percent");
-    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.85),
+    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.85),
           "Incorrect initial high wat. percent");
 
     return SUCCESS;
@@ -224,9 +225,8 @@ static enum test_result test_set(EngineIface* h, EngineIface* h1) {
     for (int k = 0; k < num_keys; k++) {
         for (int j = 0; j < num_sets; j++) {
             memset(&info, 0, sizeof(info));
-            vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-            high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno",
-                                      "vbucket-seqno");
+            vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+            high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
             std::string err_str_store("Error setting " + key_arr[k]);
             checkeq(ENGINE_SUCCESS,
@@ -261,9 +261,9 @@ static enum test_result test_set(EngineIface* h, EngineIface* h1) {
 
         // The flusher could of ran > 1 times. We can only assert
         // that we persisted between num_keys and upto num_keys*num_sets
-        check(get_int_stat(h, h1, "ep_total_persisted") >= num_keys,
+        check(get_int_stat(h, "ep_total_persisted") >= num_keys,
               error1.str().c_str());
-        check(get_int_stat(h, h1, "ep_total_persisted") <= num_sets*num_keys,
+        check(get_int_stat(h, "ep_total_persisted") <= num_sets * num_keys,
               error2.str().c_str());
     }
     return SUCCESS;
@@ -311,7 +311,7 @@ static enum test_result test_conc_set(EngineIface* h, EngineIface* h1) {
         h1 = h;
         wait_for_warmup_complete(h, h1);
 
-        cb_assert(0 == get_int_stat(h, h1, "ep_warmup_dups"));
+        cb_assert(0 == get_int_stat(h, "ep_warmup_dups"));
     }
 
     return SUCCESS;
@@ -363,9 +363,11 @@ static enum test_result test_multi_set(EngineIface* h, EngineIface* h1) {
 
     wait_for_flusher_to_settle(h);
 
-    checkeq(100000, get_int_stat(h, h1, "curr_items"),
+    checkeq(100000,
+            get_int_stat(h, "curr_items"),
             "Mismatch in number of items inserted");
-    checkeq(100000, get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
+    checkeq(100000,
+            get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno"),
             "Unexpected high sequence number");
 
     return SUCCESS;
@@ -801,8 +803,8 @@ static enum test_result test_add(EngineIface* h, EngineIface* h1) {
 
     memset(&info, 0, sizeof(info));
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_ADD, "key", "somevalue"),
@@ -907,8 +909,8 @@ static enum test_result test_replace(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed to set value.");
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_REPLACE, "key", "somevalue"),
@@ -1155,7 +1157,7 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success,
             get(h, NULL, "coolkey", 0).first,
             "Missing key");
-    newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
+    newExpTime = get_int_stat(h, "key_exptime", statkey);
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
 
     // evict key, touch expiration time, and verify
@@ -1175,7 +1177,7 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success,
             get(h, NULL, "coolkey", 0).first,
             "Missing key");
-    newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
+    newExpTime = get_int_stat(h, "key_exptime", statkey);
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
 
     return SUCCESS;
@@ -1201,7 +1203,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     checkeq(uint64_t(1),
-            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            get_stat<uint64_t>(h, "vb_0:num_items", "vbucket-details 0"),
             "Unexpected initial item count");
 
     /* Alive -> Deleted-with-value */
@@ -1210,7 +1212,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
             "Failed Alive -> Delete-with-value");
 
     checkeq(uint64_t(0),
-            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            get_stat<uint64_t>(h, "vb_0:num_items", "vbucket-details 0"),
             "Unexpected num_items after Alive -> Delete-with-value");
 
     auto res = get_value(h, cookie, "key", vbid, DocStateFilter::Alive);
@@ -1230,7 +1232,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
             "Failed Deleted-with-value -> Deleted-with-value");
 
     checkeq(uint64_t(0),
-            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            get_stat<uint64_t>(h, "vb_0:num_items", "vbucket-details 0"),
             "Unexpected num_items after Delete-with-value -> "
             "Delete-with-value");
 
@@ -1247,7 +1249,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     checkeq(uint64_t(1),
-            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            get_stat<uint64_t>(h, "vb_0:num_items", "vbucket-details 0"),
             "Unexpected num_items after Delete-with-value -> Alive");
 
     res = get_value(h, cookie, "key", vbid, DocStateFilter::Alive);
@@ -1272,7 +1274,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     checkeq(uint64_t(0),
-            get_stat<uint64_t>(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            get_stat<uint64_t>(h, "vb_0:num_items", "vbucket-details 0"),
             "Unexpected num_items after Alive -> Delete-no-value");
 
     res = get_value(h, cookie, "key", vbid, DocStateFilter::Alive);
@@ -1487,8 +1489,8 @@ static enum test_result test_delete(EngineIface* h, EngineIface* h1) {
 
     memset(&mut_info, 0, sizeof(mut_info));
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS, del(h, h1, "key", &cas, 0, nullptr, &mut_info),
             "Failed remove with value.");
     check(orig_cas != cas, "Expected CAS to be updated on delete");
@@ -1631,7 +1633,7 @@ static enum test_result test_bug2509(EngineIface* h, EngineIface* h1) {
         h1 = h;
         wait_for_warmup_complete(h, h1);
 
-        return get_int_stat(h, h1, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
+        return get_int_stat(h, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
     }
     return SUCCESS;
 }
@@ -1673,7 +1675,7 @@ static enum test_result test_bug7023(EngineIface* h, EngineIface* h1) {
         h1 = h;
         wait_for_warmup_complete(h, h1);
         checkeq(nitems,
-                get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
+                get_int_stat(h, "ep_warmup_value_count", "warmup"),
                 "Incorrect items following warmup");
     }
     return SUCCESS;
@@ -1696,9 +1698,9 @@ static enum test_result test_mb3169(EngineIface* h, EngineIface* h1) {
     evict_key(h, "delete", 0, "Ejected.");
     evict_key(h, "get", 0, "Ejected.");
 
-    checkeq(3, get_int_stat(h, h1, "curr_items"), "Expected 3 items");
+    checkeq(3, get_int_stat(h, "curr_items"), "Expected 3 items");
     checkeq(3,
-            get_int_stat(h, h1, "ep_num_non_resident"),
+            get_int_stat(h, "ep_num_non_resident"),
             "Expected all items to be resident");
 
     checkeq(ENGINE_SUCCESS,
@@ -1706,23 +1708,26 @@ static enum test_result test_mb3169(EngineIface* h, EngineIface* h1) {
             "Failed to store a value");
     wait_for_flusher_to_settle(h);
 
-    checkeq(3, get_int_stat(h, h1, "curr_items"), "Expected 3 items");
-    checkeq(2, get_int_stat(h, h1, "ep_num_non_resident"),
-          "Expected mutation to mark item resident");
+    checkeq(3, get_int_stat(h, "curr_items"), "Expected 3 items");
+    checkeq(2,
+            get_int_stat(h, "ep_num_non_resident"),
+            "Expected mutation to mark item resident");
 
     checkeq(ENGINE_SUCCESS, del(h, h1, "delete", 0, 0),
             "Delete failed");
 
     wait_for_flusher_to_settle(h);
 
-    checkeq(2, get_int_stat(h, h1, "curr_items"), "Expected 2 items after del");
-    checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
+    checkeq(2, get_int_stat(h, "curr_items"), "Expected 2 items after del");
+    checkeq(1,
+            get_int_stat(h, "ep_num_non_resident"),
             "Expected delete to remove non-resident item");
 
     check_key_value(h, "get", "getvalue", 8);
 
-    checkeq(2, get_int_stat(h, h1, "curr_items"), "Expected 2 items after get");
-    checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
+    checkeq(2, get_int_stat(h, "curr_items"), "Expected 2 items after get");
+    checkeq(0,
+            get_int_stat(h, "ep_num_non_resident"),
             "Expected all items to be resident");
     return SUCCESS;
 }
@@ -1742,7 +1747,8 @@ static enum test_result test_mb5172(EngineIface* h, EngineIface* h1) {
 
     wait_for_flusher_to_settle(h);
 
-    checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
+    checkeq(0,
+            get_int_stat(h, "ep_num_non_resident"),
             "Expected all items to be resident");
 
     // restart the server.
@@ -1754,7 +1760,8 @@ static enum test_result test_mb5172(EngineIface* h, EngineIface* h1) {
 
     h1 = h;
     wait_for_warmup_complete(h, h1);
-    checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
+    checkeq(0,
+            get_int_stat(h, "ep_num_non_resident"),
             "Expected all items to be resident");
     return SUCCESS;
 }
@@ -1767,7 +1774,7 @@ static enum test_result test_set_vbucket_out_of_range(EngineIface* h,
 }
 
 static enum test_result set_max_cas_mb21190(EngineIface* h, EngineIface* h1) {
-    uint64_t max_cas = get_ull_stat(h, h1, "vb_0:max_cas", "vbucket-details 0");
+    uint64_t max_cas = get_ull_stat(h, "vb_0:max_cas", "vbucket-details 0");
     std::string max_cas_str = std::to_string(max_cas+1);
     set_param(h,
               protocol_binary_engine_param_vbucket,
@@ -1777,7 +1784,7 @@ static enum test_result set_max_cas_mb21190(EngineIface* h, EngineIface* h1) {
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failed to set_param max_cas");
     checkeq(max_cas + 1,
-            get_ull_stat(h, h1, "vb_0:max_cas", "vbucket-details 0"),
+            get_ull_stat(h, "vb_0:max_cas", "vbucket-details 0"),
             "max_cas didn't change");
     set_param(h,
               protocol_binary_engine_param_vbucket,
@@ -1848,17 +1855,22 @@ static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
         std::string failovers_key = "failovers " + std::to_string(vb);
 
         checkeq(high_seqnos[vb],
-                get_ull_stat(h, h1, high_seqno.c_str(), vb_group_key.c_str()),
-                std::string("high_seqno incorrect vb:" + std::to_string(vb)).c_str());
+                get_ull_stat(h, high_seqno.c_str(), vb_group_key.c_str()),
+                std::string("high_seqno incorrect vb:" + std::to_string(vb))
+                        .c_str());
         checkeq(snap_starts[vb],
-                get_ull_stat(h, h1, snap_start.c_str(), vb_group_key.c_str()),
-                std::string("snap_start incorrect vb:" + std::to_string(vb)).c_str());
+                get_ull_stat(h, snap_start.c_str(), vb_group_key.c_str()),
+                std::string("snap_start incorrect vb:" + std::to_string(vb))
+                        .c_str());
         checkeq(snap_ends[vb],
-                get_ull_stat(h, h1, snap_end.c_str(), vb_group_key.c_str()),
-                std::string("snap_end incorrect vb:" + std::to_string(vb)).c_str());
+                get_ull_stat(h, snap_end.c_str(), vb_group_key.c_str()),
+                std::string("snap_end incorrect vb:" + std::to_string(vb))
+                        .c_str());
         checkeq(failover_entry0[vb],
-                get_ull_stat(h, h1, fail0.c_str(), failovers_key.c_str()),
-                std::string("failover table entry 0 is incorrect vb:" + std::to_string(vb)).c_str());
+                get_ull_stat(h, fail0.c_str(), failovers_key.c_str()),
+                std::string("failover table entry 0 is incorrect vb:" +
+                            std::to_string(vb))
+                        .c_str());
     }
 
     return SUCCESS;
@@ -1975,7 +1987,7 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
     const int relativeExpiry = 100;
     auto relativeExpiryStr = std::to_string(relativeExpiry);
 
-    checkeq(0, get_int_stat(h, h1, "ep_max_ttl"), "max_ttl should be 0");
+    checkeq(0, get_int_stat(h, "ep_max_ttl"), "max_ttl should be 0");
 
     // Test absolute first as this is the bigger time travel
     check(set_param(h,
@@ -1984,7 +1996,7 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
                     absoluteExpiryStr.c_str()),
           "Failed to set max_ttl");
     checkeq(absoluteExpiry,
-            get_int_stat(h, h1, "ep_max_ttl"),
+            get_int_stat(h, "ep_max_ttl"),
             "max_ttl didn't change");
 
     // Store will set 0 expiry, which results in 100 seconds of ttl
@@ -2012,7 +2024,7 @@ static test_result max_ttl(EngineIface* h, EngineIface* h1) {
                     relativeExpiryStr.c_str()),
           "Failed to set max_ttl");
     checkeq(relativeExpiry,
-            get_int_stat(h, h1, "ep_max_ttl"),
+            get_int_stat(h, "ep_max_ttl"),
             "max_ttl didn't change");
 
     // Store will set 0 expiry, which results in 100 seconds of ttl
@@ -2047,7 +2059,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
     auto relativeExpiryStr = std::to_string(relativeExpiry);
     std::string keyRel = "key-rel";
 
-    checkeq(0, get_int_stat(h, h1, "ep_max_ttl"), "max_ttl should be 0");
+    checkeq(0, get_int_stat(h, "ep_max_ttl"), "max_ttl should be 0");
 
     // Test absolute first as this is the bigger time travel
     check(set_param(h,
@@ -2056,7 +2068,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
                     absoluteExpiryStr.c_str()),
           "Failed to set max_ttl");
     checkeq(absoluteExpiry,
-            get_int_stat(h, h1, "ep_max_ttl"),
+            get_int_stat(h, "ep_max_ttl"),
             "max_ttl didn't change");
 
     // SWM with 0 expiry which results in an expiry being set
@@ -2090,7 +2102,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h, EngineIface* h1) {
                     relativeExpiryStr.c_str()),
           "Failed to set max_ttl");
     checkeq(relativeExpiry,
-            get_int_stat(h, h1, "ep_max_ttl"),
+            get_int_stat(h, "ep_max_ttl"),
             "max_ttl didn't change");
 
     set_with_meta(h,

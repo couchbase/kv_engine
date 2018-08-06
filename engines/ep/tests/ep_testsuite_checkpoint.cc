@@ -37,8 +37,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     checkeq(1,
-            get_int_stat(
-                    h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
+            get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
             "Last closed checkpoint Id for VB 0 should still be 1 after "
             "storing 50 items");
 
@@ -47,8 +46,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     checkeq(2,
-            get_int_stat(
-                    h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
+            get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
             "Last closed checkpoint Id for VB 0 should increase to 2 after "
             "storing 51 items");
 
@@ -56,8 +54,8 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected success response from creating a new checkpoint");
 
-    checkeq(3, get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id",
-                            "checkpoint 0"),
+    checkeq(3,
+            get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0"),
             "Last closed checkpoint Id for VB 0 should be 3");
 
     return SUCCESS;
@@ -102,9 +100,11 @@ static enum test_result test_checkpoint_create(EngineIface* h,
                 store(h, NULL, OPERATION_SET, key, "value"),
                 "Failed to store an item.");
     }
-    checkeq(3, get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
+    checkeq(3,
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "New checkpoint wasn't create after 5001 item creates");
-    checkeq(1, get_int_stat(h, h1, "vb_0:num_open_checkpoint_items", "checkpoint"),
+    checkeq(1,
+            get_int_stat(h, "vb_0:num_open_checkpoint_items", "checkpoint"),
             "New open checkpoint should has only one dirty item");
     return SUCCESS;
 }
@@ -172,7 +172,7 @@ extern "C" {
         // will cause timeout.
         check(checkpointPersistence(h, 100, 0) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
-        check(get_int_stat(h, h, "ep_chk_persistence_timeout") > 10,
+        check(get_int_stat(h, "ep_chk_persistence_timeout") > 10,
               "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be "
               "greater"
               " than 10 secs");
@@ -220,8 +220,8 @@ static enum test_result test_checkpoint_persistence(EngineIface* h,
     }
 
     // Last closed checkpoint id for vbucket 0.
-    int closed_chk_id = get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id",
-                                     "checkpoint 0");
+    int closed_chk_id =
+            get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0");
     // Request to prioritize persisting vbucket 0.
     check(checkpointPersistence(h, closed_chk_id, 0) == ENGINE_SUCCESS,
           "Failed to request checkpoint persistence");

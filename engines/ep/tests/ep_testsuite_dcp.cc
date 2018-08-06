@@ -497,7 +497,7 @@ void TestDcpConsumer::run(bool openConn) {
             } else {
                 // Account for cursors that may have been dropped because
                 // of high memory usage
-                if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
+                if (get_int_stat(h, "ep_cursors_dropped") > 0) {
                     // Hard to predict exact number of markers to be received
                     // if in case of a live parallel front end load
                     if (!ctx.live_frontend_client) {
@@ -541,7 +541,9 @@ void TestDcpConsumer::run(bool openConn) {
                                          << ":stream_" << ctx.vbucket
                                          << "_ready_queue_memory";
                 checkeq(static_cast<uint64_t>(0),
-                        get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp"),
+                        get_ull_stat(h,
+                                     stats_ready_queue_memory.str().c_str(),
+                                     "dcp"),
                         "readyQ size did not go to zero");
 
                 std::string stats_backfill_buffer_items(
@@ -549,7 +551,6 @@ void TestDcpConsumer::run(bool openConn) {
                         std::to_string(ctx.vbucket) + "_backfill_buffer_items");
                 checkeq(static_cast<uint64_t>(0),
                         get_ull_stat(h,
-                                     h1,
                                      stats_backfill_buffer_items.c_str(),
                                      "dcp"),
                         "backfill buffer items did not go to zero");
@@ -568,7 +569,7 @@ void TestDcpConsumer::run(bool openConn) {
         snprintf(stats_buffer, sizeof(stats_buffer), "eq_dcpq:%s:unacked_bytes",
                  name.c_str());
         checkeq((all_bytes - total_acked_bytes),
-                get_ull_stat(h, h1, stats_buffer, "dcp"),
+                get_ull_stat(h, stats_buffer, "dcp"),
                 "Buffer Size did not get set correctly");
     }
 }
@@ -603,13 +604,13 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
         snprintf(stats_buffer, sizeof(stats_buffer),
                  "eq_dcpq:%s:max_buffer_bytes", name.c_str());
         checkeq(static_cast<int>(flow_control_buf_size),
-                get_int_stat(h, h1, stats_buffer, "dcp"),
+                get_int_stat(h, stats_buffer, "dcp"),
                 "TestDcpConsumer::openConnection() : "
                 "Buffer Size did not get set correctly");
     } else {
         snprintf(stats_buffer, sizeof(stats_buffer),
                  "eq_dcpq:%s:flow_control", name.c_str());
-        std::string status = get_str_stat(h, h1, stats_buffer, "dcp");
+        std::string status = get_str_stat(h, stats_buffer, "dcp");
         checkeq(status, std::string("disabled"), "Flow control enabled!");
     }
 
@@ -655,21 +656,22 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
         } else if (ctx.flags & DCP_ADD_STREAM_FLAG_LATEST ||
                    ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
             std::string high_seqno("vb_" + std::to_string(ctx.vbucket) + ":high_seqno");
-            ctx.seqno.end = get_ull_stat(h, h1, high_seqno.c_str(), "vbucket-seqno");
+            ctx.seqno.end =
+                    get_ull_stat(h, high_seqno.c_str(), "vbucket-seqno");
         }
 
         std::stringstream stats_flags;
         stats_flags << "eq_dcpq:" << name.c_str() << ":stream_"
         << ctx.vbucket << "_flags";
         checkeq(ctx.flags,
-                (uint32_t)get_int_stat(h, h1, stats_flags.str().c_str(), "dcp"),
+                (uint32_t)get_int_stat(h, stats_flags.str().c_str(), "dcp"),
                 "Flags didn't match");
 
         std::stringstream stats_opaque;
         stats_opaque << "eq_dcpq:" << name.c_str() << ":stream_"
         << ctx.vbucket << "_opaque";
         checkeq(opaque,
-                (uint32_t)get_int_stat(h, h1, stats_opaque.str().c_str(), "dcp"),
+                (uint32_t)get_int_stat(h, stats_opaque.str().c_str(), "dcp"),
                 "Opaque didn't match");
         ctx.opaque = opaque;
 
@@ -677,36 +679,38 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
         stats_start_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
         << ctx.vbucket << "_start_seqno";
         checkeq(ctx.seqno.start,
-                (uint64_t)get_ull_stat(h, h1, stats_start_seqno.str().c_str(), "dcp"),
+                (uint64_t)get_ull_stat(
+                        h, stats_start_seqno.str().c_str(), "dcp"),
                 "Start Seqno Didn't match");
 
         std::stringstream stats_end_seqno;
         stats_end_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
         << ctx.vbucket << "_end_seqno";
         checkeq(ctx.seqno.end,
-                (uint64_t)get_ull_stat(h, h1, stats_end_seqno.str().c_str(), "dcp"),
+                (uint64_t)get_ull_stat(h, stats_end_seqno.str().c_str(), "dcp"),
                 "End Seqno didn't match");
 
         std::stringstream stats_vb_uuid;
         stats_vb_uuid << "eq_dcpq:" << name.c_str() << ":stream_"
         << ctx.vbucket << "_vb_uuid";
         checkeq(ctx.vb_uuid,
-                (uint64_t)get_ull_stat(h, h1, stats_vb_uuid.str().c_str(), "dcp"),
+                (uint64_t)get_ull_stat(h, stats_vb_uuid.str().c_str(), "dcp"),
                 "VBucket UUID didn't match");
 
         std::stringstream stats_snap_seqno;
         stats_snap_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
         << ctx.vbucket << "_snap_start_seqno";
         checkeq(ctx.snapshot.start,
-                (uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp"),
+                (uint64_t)get_ull_stat(
+                        h, stats_snap_seqno.str().c_str(), "dcp"),
                 "snap start seqno didn't match");
 
         if ((ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) &&
             !ctx.skip_estimate_check) {
             std::string high_seqno_str("vb_" + std::to_string(ctx.vbucket) +
                                        ":high_seqno");
-            uint64_t vb_high_seqno = get_ull_stat(h, h1, high_seqno_str.c_str(),
-                                                  "vbucket-seqno");
+            uint64_t vb_high_seqno =
+                    get_ull_stat(h, high_seqno_str.c_str(), "vbucket-seqno");
             uint64_t est = vb_high_seqno - ctx.seqno.start;
             std::stringstream stats_takeover;
             stats_takeover << "dcp-vbtakeover " << ctx.vbucket
@@ -729,7 +733,6 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
             /* In case of persistent buckets there will be 1 persistent cursor,
                in case of ephemeral buckets there will be no cursor */
             check(get_int_stat(h,
-                               h1,
                                stats_num_conn_cursors.c_str(),
                                "checkpoint") <= 1,
                   "DCP cursors not expected to be registered");
@@ -772,8 +775,8 @@ static void notifier_request(EngineIface* h,
                              bool shouldSucceed) {
     uint32_t flags = 0;
     uint64_t rollback = 0;
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    uint64_t snap_start_seqno = get_ull_stat(h, h1, "vb_0:0:seq", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    uint64_t snap_start_seqno = get_ull_stat(h, "vb_0:0:seq", "failovers");
     uint64_t snap_end_seqno = snap_start_seqno;
     auto dcp = requireDcpIface(h);
 
@@ -790,21 +793,28 @@ static void notifier_request(EngineIface* h,
                                             mock_dcp_add_failover_log);
     checkeq(ENGINE_SUCCESS, err, "Failed to initiate stream request");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("notifier") == 0, "Consumer not found");
 
-    check((uint32_t)get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_flags", "dcp")
-          == flags, "Flags didn't match");
-    check((uint32_t)get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp")
-          == opaque, "Opaque didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_dcpq:unittest:stream_0_start_seqno", "dcp")
-          == start, "Start Seqno Didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_dcpq:unittest:stream_0_end_seqno", "dcp")
-          == 0, "End Seqno didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_dcpq:unittest:stream_0_vb_uuid", "dcp")
-          == vb_uuid, "VBucket UUID didn't match");
-    check((uint64_t)get_ull_stat(h, h1, "eq_dcpq:unittest:stream_0_snap_start_seqno", "dcp")
-          == snap_start_seqno, "snap start seqno didn't match");
+    check((uint32_t)get_int_stat(h, "eq_dcpq:unittest:stream_0_flags", "dcp") ==
+                  flags,
+          "Flags didn't match");
+    check((uint32_t)get_int_stat(
+                  h, "eq_dcpq:unittest:stream_0_opaque", "dcp") == opaque,
+          "Opaque didn't match");
+    check((uint64_t)get_ull_stat(
+                  h, "eq_dcpq:unittest:stream_0_start_seqno", "dcp") == start,
+          "Start Seqno Didn't match");
+    check((uint64_t)get_ull_stat(
+                  h, "eq_dcpq:unittest:stream_0_end_seqno", "dcp") == 0,
+          "End Seqno didn't match");
+    check((uint64_t)get_ull_stat(
+                  h, "eq_dcpq:unittest:stream_0_vb_uuid", "dcp") == vb_uuid,
+          "VBucket UUID didn't match");
+    check((uint64_t)get_ull_stat(h,
+                                 "eq_dcpq:unittest:stream_0_snap_start_seqno",
+                                 "dcp") == snap_start_seqno,
+          "snap start seqno didn't match");
 }
 
 static void dcp_stream_to_replica(EngineIface* h,
@@ -1021,11 +1031,8 @@ extern "C" {
         add_stream_for_consumer(ctx->h, ctx->h1, cookie, opaque++, 0, 0,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-
-        uint32_t stream_opaque = get_int_stat(ctx->h, ctx->h1,
-                                              "eq_dcpq:unittest:stream_0_opaque",
-                                              "dcp");
-
+        uint32_t stream_opaque =
+                get_int_stat(ctx->h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
         for (int i = 1; i <= ctx->items; i++) {
             std::stringstream ss;
@@ -1093,8 +1100,7 @@ extern "C" {
         DcpStreamCtx ctx;
         ctx.vbucket = cdc->vbid;
         std::string vbuuid_entry("vb_" + std::to_string(cdc->vbid) + ":0:id");
-        ctx.vb_uuid = get_ull_stat(cdc->h, cdc->h1,
-                                   vbuuid_entry.c_str(), "failovers");
+        ctx.vb_uuid = get_ull_stat(cdc->h, vbuuid_entry.c_str(), "failovers");
         ctx.seqno = {cdc->start_seqno, std::numeric_limits<uint64_t>::max()};
         ctx.snapshot = {cdc->start_seqno, cdc->start_seqno};
         ctx.skip_verification = true;
@@ -1201,7 +1207,7 @@ static enum test_result test_dcp_vbtakeover_no_stream(EngineIface* h,
         wait_for_flusher_to_settle(h);
     }
 
-    const auto est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
+    const auto est = get_int_stat(h, "estimate", "dcp-vbtakeover 0");
     checkeq(10, est, "Invalid estimate for non-existent stream");
     checkeq(ENGINE_NOT_MY_VBUCKET,
             get_stats(h, "dcp-vbtakeover 1"_ccb, add_stats),
@@ -1231,9 +1237,9 @@ static enum test_result test_dcp_notifier_open(EngineIface* h,
             "Failed dcp consumer open connection.");
 
     const std::string stat_type("eq_dcpq:" + name + ":type");
-    auto type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    auto type = get_str_stat(h, stat_type.c_str(), "dcp");
     const std::string stat_created("eq_dcpq:" + name + ":created");
-    const auto created = get_int_stat(h, h1, stat_created.c_str(), "dcp");
+    const auto created = get_int_stat(h, stat_created.c_str(), "dcp");
     checkeq(0, type.compare("notifier"), "Notifier not found");
     testHarness->destroy_cookie(cookie1);
 
@@ -1244,9 +1250,9 @@ static enum test_result test_dcp_notifier_open(EngineIface* h,
             dcp->open(cookie2, opaque, seqno, DCP_OPEN_NOTIFIER, name, {}),
             "Failed dcp consumer open connection.");
 
-    type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    type = get_str_stat(h, stat_type.c_str(), "dcp");
     checkeq(0, type.compare("notifier"), "Notifier not found");
-    check(get_int_stat(h, h1, stat_created.c_str(), "dcp") >= created + 600,
+    check(get_int_stat(h, stat_created.c_str(), "dcp") >= created + 600,
           "New dcp stream is not newer");
     testHarness->destroy_cookie(cookie2);
 
@@ -1377,9 +1383,9 @@ static enum test_result test_dcp_consumer_open(EngineIface* h,
             "Failed dcp consumer open connection.");
 
     const auto stat_type("eq_dcpq:" + name + ":type");
-    auto type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    auto type = get_str_stat(h, stat_type.c_str(), "dcp");
     const auto stat_created("eq_dcpq:" + name + ":created");
-    const auto created = get_int_stat(h, h1, stat_created.c_str(), "dcp");
+    const auto created = get_int_stat(h, stat_created.c_str(), "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
     testHarness->destroy_cookie(cookie1);
 
@@ -1390,9 +1396,9 @@ static enum test_result test_dcp_consumer_open(EngineIface* h,
             dcp->open(cookie2, opaque, seqno, flags, name, {}),
             "Failed dcp consumer open connection.");
 
-    type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    type = get_str_stat(h, stat_type.c_str(), "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
-    check(get_int_stat(h, h1, stat_created.c_str(), "dcp") > created,
+    check(get_int_stat(h, stat_created.c_str(), "dcp") > created,
           "New dcp stream is not newer");
     testHarness->destroy_cookie(cookie2);
 
@@ -1413,7 +1419,8 @@ static enum test_result test_dcp_consumer_flow_control_none(EngineIface* h,
             "Failed dcp consumer open connection.");
 
     const auto stat_name("eq_dcpq:" + name + ":max_buffer_bytes");
-    checkeq(0, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+    checkeq(0,
+            get_int_stat(h, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not zero");
     testHarness->destroy_cookie(cookie1);
 
@@ -1436,7 +1443,7 @@ static enum test_result test_dcp_consumer_flow_control_static(EngineIface* h,
 
     const auto stat_name("eq_dcpq:" + name + ":max_buffer_bytes");
     checkeq(flow_ctl_buf_def_size,
-            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            get_int_stat(h, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to default value");
     testHarness->destroy_cookie(cookie1);
 
@@ -1452,8 +1459,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(
     const uint32_t flags = 0;
     /* Check the min limit */
     set_param(h, protocol_binary_engine_param_flush, "max_size", "500000000");
-    checkeq(500000000, get_int_stat(h, h1, "ep_max_size"),
-            "Incorrect new size.");
+    checkeq(500000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
@@ -1462,22 +1468,21 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(
 
     const auto stat_name("eq_dcpq:" + name + ":max_buffer_bytes");
     checkeq(10485760,
-            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            get_int_stat(h, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to min");
     testHarness->destroy_cookie(cookie1);
 
     /* Check the size as percentage of the bucket memory */
     const auto* cookie2 = testHarness->create_cookie();
     set_param(h, protocol_binary_engine_param_flush, "max_size", "2000000000");
-    checkeq(2000000000, get_int_stat(h, h1, "ep_max_size"),
-            "Incorrect new size.");
+    checkeq(2000000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie2, opaque, seqno, flags, name, {}),
             "Failed dcp consumer open connection.");
 
     checkeq(20000000,
-            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            get_int_stat(h, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to 1% of mem size");
     testHarness->destroy_cookie(cookie2);
 
@@ -1498,7 +1503,7 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(
             "Failed dcp consumer open connection.");
 
     checkeq(10485760,
-            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            get_int_stat(h, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to min after threshold is hit");
     testHarness->destroy_cookie(cookie3);
 
@@ -1506,14 +1511,15 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(
     const auto* cookie4 = testHarness->create_cookie();
     set_param(h, protocol_binary_engine_param_flush, "max_size", "7000000000");
     checkeq(static_cast<uint64_t>(7000000000),
-            get_ull_stat(h, h1, "ep_max_size"), "Incorrect new size.");
+            get_ull_stat(h, "ep_max_size"),
+            "Incorrect new size.");
 
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie4, opaque, seqno, flags, name, {}),
             "Failed dcp consumer open connection.");
 
     checkeq(52428800,
-            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            get_int_stat(h, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size beyond max");
     testHarness->destroy_cookie(cookie4);
 
@@ -1532,7 +1538,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
               protocol_binary_engine_param_flush,
               "max_size",
               std::to_string(ep_max_size).c_str());
-    checkeq(ep_max_size, get_int_stat(h, h1, "ep_max_size"), "Incorrect new size.");
+    checkeq(ep_max_size, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
     /* Create first connection */
     const std::string name("unittest_");
@@ -1549,7 +1555,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
 
     /* Check the max limit */
     auto stat_name = "eq_dcpq:" + name1 + ":max_buffer_bytes";
-    checkeq(flow_ctl_buf_max, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+    checkeq(flow_ctl_buf_max,
+            get_int_stat(h, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to max");
 
     /* Create at least 4 more connections */
@@ -1564,8 +1571,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
             /* Check if the buffer size of all connections has changed */
             const auto stat_name("eq_dcpq:" + name + std::to_string(i) +
                                ":max_buffer_bytes");
-            checkeq((int)((ep_max_size * bucketMemQuotaFraction) / (count+1)),
-                    get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            checkeq((int)((ep_max_size * bucketMemQuotaFraction) / (count + 1)),
+                    get_int_stat(h, stat_name.c_str(), "dcp"),
                     "Flow Control Buffer Size not correct");
         }
     }
@@ -1577,7 +1584,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie[max_conns - 1], opaque, seqno, flags, name3, {}),
             "Failed dcp consumer open connection.");
-    checkeq(flow_ctl_buf_min, get_int_stat(h, h1, stat_name2.c_str(), "dcp"),
+    checkeq(flow_ctl_buf_min,
+            get_int_stat(h, stat_name2.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to min");
 
     /* Disconnect connections and see if flow control
@@ -1601,7 +1609,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
         /* Check if the buffer size of all connections has changed */
         const auto name4(name + std::to_string(i));
         const auto stat_name3("eq_dcpq:" + name4 + ":max_buffer_bytes");
-        checkeq(exp_buf_size, get_int_stat(h, h1, stat_name3.c_str(), "dcp"),
+        checkeq(exp_buf_size,
+                get_int_stat(h, stat_name3.c_str(), "dcp"),
                 "Flow Control Buffer Size not correct");
         checkeq(ENGINE_SUCCESS,
                 dcp->step(cookie[i], &producers),
@@ -1633,9 +1642,9 @@ static enum test_result test_dcp_producer_open(EngineIface* h,
             dcp->open(cookie1, opaque, seqno, DCP_OPEN_PRODUCER, name, {}),
             "Failed dcp producer open connection.");
     const auto stat_type("eq_dcpq:" + name + ":type");
-    auto type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    auto type = get_str_stat(h, stat_type.c_str(), "dcp");
     const auto stat_created("eq_dcpq:" + name + ":created");
-    const auto created = get_int_stat(h, h1, stat_created.c_str(), "dcp");
+    const auto created = get_int_stat(h, stat_created.c_str(), "dcp");
     checkeq(0, type.compare("producer"), "Producer not found");
     testHarness->destroy_cookie(cookie1);
 
@@ -1645,9 +1654,9 @@ static enum test_result test_dcp_producer_open(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie2, opaque, seqno, DCP_OPEN_PRODUCER, name, {}),
             "Failed dcp producer open connection.");
-    type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    type = get_str_stat(h, stat_type.c_str(), "dcp");
     checkeq(0, type.compare("producer"), "Producer not found");
-    check(get_int_stat(h, h1, stat_created.c_str(), "dcp") > created,
+    check(get_int_stat(h, stat_created.c_str(), "dcp") > created,
           "New dcp stream is not newer");
     testHarness->destroy_cookie(cookie2);
 
@@ -1667,7 +1676,7 @@ static enum test_result test_dcp_producer_open_same_cookie(EngineIface* h,
             "Failed dcp producer open connection.");
 
     const auto stat_type("eq_dcpq:" + name + ":type");
-    auto type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    auto type = get_str_stat(h, stat_type.c_str(), "dcp");
     checkeq(0, type.compare("producer"), "Producer not found");
     /*
      * Number of references is 2 (as opposed to 1) because a
@@ -1744,14 +1753,16 @@ static enum test_result test_dcp_noop(EngineIface* h, EngineIface* h1) {
             checkeq(10000001, (int)dcp_last_opaque,
                     "dcp_last_opaque != 10,000,001");
             const auto stat_name("eq_dcpq:" + name + ":noop_wait");
-            checkeq(1, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            checkeq(1,
+                    get_int_stat(h, stat_name.c_str(), "dcp"),
                     "Didn't send noop");
             sendDcpAck(h,
                        cookie,
                        PROTOCOL_BINARY_CMD_DCP_NOOP,
                        PROTOCOL_BINARY_RESPONSE_SUCCESS,
                        dcp_last_opaque);
-            checkeq(0, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            checkeq(0,
+                    get_int_stat(h, stat_name.c_str(), "dcp"),
                     "Didn't ack noop");
         } else if (dcp_last_op != 0) {
             abort();
@@ -1803,7 +1814,8 @@ static enum test_result test_dcp_noop_fail(EngineIface* h, EngineIface* h1) {
             checkeq(10000001, (int)dcp_last_opaque,
                     "dcp_last_opaque != 10,000,001");
             const auto stat_name("eq_dcpq:" + name + ":noop_wait");
-            checkeq(1, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+            checkeq(1,
+                    get_int_stat(h, stat_name.c_str(), "dcp"),
                     "Didn't send noop");
             testHarness->time_travel(201);
         } else if (dcp_last_op != 0) {
@@ -1870,7 +1882,7 @@ static void test_dcp_noop_mandatory_combo(EngineIface* h,
               "dcp_noop_mandatory_for_v5_features",
               noopManditory ? "true" : "false");
     checkeq(noopManditory,
-            get_bool_stat(h, h1, "ep_dcp_noop_mandatory_for_v5_features"),
+            get_bool_stat(h, "ep_dcp_noop_mandatory_for_v5_features"),
             "Incorrect value for dcp_noop_mandatory_for_v5_features");
 
     // Create DCP consumer with requested flags.
@@ -1890,7 +1902,7 @@ static void test_dcp_noop_mandatory_combo(EngineIface* h,
     // Finally, attempt to create the stream and verify we get the expeced
     // response.
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.exp_err = expectedResult;
     tdc.addStreamCtx(ctx);
@@ -1921,7 +1933,7 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h,
     const int num_items = 3;
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
 
     std::string name("unittest");
@@ -1966,27 +1978,28 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h,
 static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
                                                              EngineIface* h1) {
     // Should start at checkpoint_id 2
-    const auto initial_ckpt_id = get_int_stat(h, h1, "vb_0:open_checkpoint_id",
-                                              "checkpoint");
+    const auto initial_ckpt_id =
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
     checkeq(2, initial_ckpt_id, "Expected to start at checkpoint ID 2");
 
     // Create two 'full' checkpoints by storing exactly 2 x 'chk_max_items'
     // into the VBucket.
-    const auto max_ckpt_items = get_int_stat(h, h1, "ep_chk_max_items");
+    const auto max_ckpt_items = get_int_stat(h, "ep_chk_max_items");
 
     write_items(h, max_ckpt_items);
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items);
     checkeq(initial_ckpt_id + 1,
-            get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
             "Expected #checkpoints to increase by 1 after storing items");
 
     write_items(h, max_ckpt_items, max_ckpt_items);
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_items_rm_from_checkpoints", max_ckpt_items * 2);
     checkeq(initial_ckpt_id + 2,
-            get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
-            "Expected #checkpoints to increase by 2 after storing 2x max_ckpt_items");
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint"),
+            "Expected #checkpoints to increase by 2 after storing 2x "
+            "max_ckpt_items");
 
     // Stop persistece (so the persistence cursor cannot advance into the
     // deletions below, and hence de-dupe them with respect to the
@@ -2018,7 +2031,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
     // start at 105 and end at 209. We should recieve to the end of
     // complete checkpoints, i.e. from 105 all the way to 300.
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {105, 209};
     ctx.snapshot = {105, 105};
     ctx.exp_mutations = 95; // 105 to 200
@@ -2057,8 +2070,8 @@ static enum test_result test_dcp_producer_stream_req_full_merged_snapshots(
     const void* cookie = testHarness->create_cookie();
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = num_items;
     /* Disk backfill sends all items in disk as one snapshot */
     ctx.exp_markers = 1;
@@ -2085,18 +2098,17 @@ static enum test_result test_dcp_producer_stream_req_full(EngineIface* h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, "vb_0:num_checkpoints", 1, "checkpoint");
 
-    checkne(num_items -
-            get_stat<uint64_t>(h, h1, "ep_items_rm_from_checkpoints"),
+    checkne(num_items - get_stat<uint64_t>(h, "ep_items_rm_from_checkpoints"),
             uint64_t{0},
             "Require a non-zero number of items to still be present in "
-                    "CheckpointManager to be able to get 2x snapshot markers "
-                    "(1x disk, 1x memory)");
+            "CheckpointManager to be able to get 2x snapshot markers "
+            "(1x disk, 1x memory)");
 
     const void* cookie = testHarness->create_cookie();
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = num_items;
     /* Memory backfill sends items from checkpoint snapshots as much as possible
        Relies on backfill only when checkpoint snapshot is cleaned up */
@@ -2130,7 +2142,7 @@ static enum test_result test_dcp_producer_deleted_item_backfill(
     const void* cookie = testHarness->create_cookie();
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, deletions};
     ctx.exp_deletions = deletions;
     ctx.expected_values = deletions;
@@ -2164,7 +2176,7 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h,
     const void* cookie = testHarness->create_cookie();
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, 200};
     ctx.exp_mutations = 200;
     ctx.exp_markers = 1;
@@ -2195,7 +2207,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h,
 
     DcpStreamCtx ctx;
     ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.exp_mutations = 300;
     ctx.exp_markers = 1;
@@ -2222,7 +2234,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(
 
     DcpStreamCtx ctx;
     ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.exp_mutations = 3;
     ctx.exp_markers = 1;
@@ -2241,7 +2253,7 @@ static enum test_result test_dcp_producer_disk_backfill_limits(
            backfill_state_scanning state. */
         exp_backfill_task_runs = 4 + num_items;
     } else {
-        if (get_str_stat(h, h1, "ep_dcp_ephemeral_backfill_type") ==
+        if (get_str_stat(h, "ep_dcp_ephemeral_backfill_type") ==
             std::string("buffered")) {
             /* Backfill task runs are expected as below:
                once for backfill_state_init + once post all backfills are
@@ -2285,7 +2297,7 @@ static enum test_result test_dcp_producer_disk_backfill_buffer_limits(
     const void* cookie = testHarness->create_cookie();
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, num_items};
     ctx.exp_mutations = 3;
     ctx.exp_markers = 1;
@@ -2314,7 +2326,7 @@ static enum test_result test_dcp_producer_stream_req_mem(EngineIface* h,
     const void* cookie = testHarness->create_cookie();
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {200, 300};
     ctx.snapshot = {200, 200};
     ctx.exp_mutations = 100;
@@ -2339,7 +2351,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
     // relies on looking at the LRU state.
     // @todo Investigate converting the test to work with the new hifi_mfu
     // eviction algorithm.
-    if (get_str_stat(h, h1, "ep_ht_eviction_policy") == "hifi_mfu") {
+    if (get_str_stat(h, "ep_ht_eviction_policy") == "hifi_mfu") {
         return SUCCESS;
     }
 
@@ -2349,7 +2361,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
     while (true) {
         // Gathering stats on every store is expensive, just check every 100 iterations
         if ((i % 100) == 0) {
-            if (get_int_stat(h, h1, "vb_active_perc_mem_resident") < 50) {
+            if (get_int_stat(h, "vb_active_perc_mem_resident") < 50) {
                 break;
             }
         }
@@ -2372,7 +2384,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     verify_curr_items(h, h1, i, "Wrong number of items");
-    double num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
+    double num_non_resident = get_int_stat(h, "vb_active_num_non_resident");
     checkge(num_non_resident,
             i * 0.5,
             "Expected at least 50% of items to be non-resident");
@@ -2380,12 +2392,12 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h,
     // Reduce max_size from 6291456 to 6000000
     set_param(h, protocol_binary_engine_param_flush, "max_size", "6000000");
     checkgt(50,
-            get_int_stat(h, h1, "vb_active_perc_mem_resident"),
+            get_int_stat(h, "vb_active_perc_mem_resident"),
             "Too high percentage of memory resident");
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = i;
     ctx.exp_markers = 1;
 
@@ -2433,8 +2445,8 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h,
             "Failed to configure MFU");
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = 10;
     ctx.exp_markers = 1;
 
@@ -2466,7 +2478,7 @@ static enum test_result test_dcp_producer_stream_latest(EngineIface* h,
 
     DcpStreamCtx ctx;
     ctx.flags = DCP_ADD_STREAM_FLAG_LATEST;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {200, 205};
     ctx.snapshot = {200, 200};
     ctx.exp_mutations = 100;
@@ -2515,7 +2527,7 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h,
     /* Check if the stream is still open after sending out latest items */
     std::string stat_stream_state("eq_dcpq:" + conn_name + ":stream_" +
                              std::to_string(vb) + "_state");
-    std::string state = get_str_stat(h, h1, stat_stream_state.c_str(), "dcp");
+    std::string state = get_str_stat(h, stat_stream_state.c_str(), "dcp");
     checkeq(state.compare("in-memory"), 0, "Stream is not open");
 
     /* Before closing the connection stop the thread that continuously polls
@@ -2558,7 +2570,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
             dcp->open(cookie, opaque, seqno, flags, conn_name, {}),
             "Failed dcp producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
@@ -2575,7 +2587,8 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
 
     wait_for_flusher_to_settle(h);
     stop_persistence(h);
-    checkeq(2 * num_items, get_int_stat(h, h1, "vb_replica_curr_items"),
+    checkeq(2 * num_items,
+            get_int_stat(h, "vb_replica_curr_items"),
             "wrong number of items in replica vbucket");
 
     /* Add 10 more items to the replica node on a new checkpoint.
@@ -2624,7 +2637,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     /* Check if the stream is still open after sending out latest items */
     std::string stat_stream_state("eq_dcpq:" + conn_name1 + ":stream_" +
                                   std::to_string(vb) + "_state");
-    std::string state = get_str_stat(h, h1, stat_stream_state.c_str(), "dcp");
+    std::string state = get_str_stat(h, stat_stream_state.c_str(), "dcp");
     checkeq(state.compare("in-memory"), 0, "Stream is not open");
 
     /* Before closing the connection stop the thread that continuously polls
@@ -2655,8 +2668,8 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
                id is got outside the while loop, there could be an error due to
                race (flusher and checkpoint remover could run before getting
                this stat) */
-            curr_chkpt_id = get_ull_stat(h, h1, "vb_0:open_checkpoint_id",
-                                         "checkpoint");
+            curr_chkpt_id =
+                    get_ull_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
         }
         std::string key("key" + std::to_string(j));
         checkeq(ENGINE_SUCCESS,
@@ -2760,7 +2773,7 @@ static test_result test_dcp_agg_stats(EngineIface* h, EngineIface* h1) {
         cookie[j] = testHarness->create_cookie();
 
         DcpStreamCtx ctx;
-        ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+        ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
         ctx.seqno = {200, 300};
         ctx.snapshot = {200, 200};
         ctx.exp_mutations = 100;
@@ -2772,14 +2785,17 @@ static test_result test_dcp_agg_stats(EngineIface* h, EngineIface* h1) {
         total_bytes += tdc.getTotalBytes();
     }
 
-    checkeq(5, get_int_stat(h, h1, "unittest:producer_count", "dcpagg _"),
+    checkeq(5,
+            get_int_stat(h, "unittest:producer_count", "dcpagg _"),
             "producer count mismatch");
     checkeq((int)total_bytes,
-            get_int_stat(h, h1, "unittest:total_bytes", "dcpagg _"),
+            get_int_stat(h, "unittest:total_bytes", "dcpagg _"),
             "aggregate total bytes sent mismatch");
-    checkeq(500, get_int_stat(h, h1, "unittest:items_sent", "dcpagg _"),
+    checkeq(500,
+            get_int_stat(h, "unittest:items_sent", "dcpagg _"),
             "aggregate total items sent mismatch");
-    checkeq(0, get_int_stat(h, h1, "unittest:items_remaining", "dcpagg _"),
+    checkeq(0,
+            get_int_stat(h, "unittest:items_remaining", "dcpagg _"),
             "aggregate total items remaining mismatch");
 
     for (int j = 0; j < 5; ++j) {
@@ -2815,7 +2831,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
     uint64_t last_seqno_streamed = 0;
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.snapshot = {0, 0};
 
@@ -2842,7 +2858,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
        items */
     std::string stat_stream_state("eq_dcpq:" + conn_name + ":stream_" +
                                   std::to_string(0) + "_state");
-    std::string state = get_str_stat(h, h1, stat_stream_state.c_str(), "dcp");
+    std::string state = get_str_stat(h, stat_stream_state.c_str(), "dcp");
     checkeq(state.compare("in-memory"), 0, "Stream is in memory state");
 
     /* Write items such that cursor is dropped due to heavy memory usage and
@@ -2920,7 +2936,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
     uint32_t opaque = 1;
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.snapshot = {0, 0};
 
@@ -2966,7 +2982,7 @@ static test_result test_dcp_takeover(EngineIface* h, EngineIface* h1) {
 
     DcpStreamCtx ctx;
     ctx.flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, 1000};
     ctx.exp_mutations = 20;
     ctx.exp_markers = 2;
@@ -3000,7 +3016,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h, EngineIface* h1) {
     uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
     uint64_t start_seqno = 10;
     uint64_t end_seqno = std::numeric_limits<uint64_t>::max();
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     uint64_t snap_start_seqno = 10;
     uint64_t snap_end_seqno = 10;
 
@@ -3085,7 +3101,7 @@ static uint32_t add_stream_for_consumer(
     cb_assert(dcp_last_key.compare("connection_buffer_size") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
-    if (get_bool_stat(h, h1, "ep_dcp_enable_noop")) {
+    if (get_bool_stat(h, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
         dcp_step(h, h1, cookie);
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_GET_ERROR_MAP);
@@ -3233,8 +3249,8 @@ static uint32_t add_stream_for_consumer(
     }
 
     if (response == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        uint64_t uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-        uint64_t seq = get_ull_stat(h, h1, "vb_0:0:seq", "failovers");
+        uint64_t uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+        uint64_t seq = get_ull_stat(h, "vb_0:0:seq", "failovers");
         cb_assert(uuid == 123456789);
         cb_assert(seq == 0);
     }
@@ -3266,7 +3282,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     checkeq(ENGINE_SUCCESS,
             dcp->snapshot_marker(cookie, stream_opaque, 0, 0, 10, 2),
             "Failed to send snapshot marker");
@@ -3378,7 +3394,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     dcp->snapshot_marker(cookie, stream_opaque, 0, 1, 5, 10);
     for (int i = 1; i <= 5; i++) {
@@ -3475,7 +3491,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     checkeq(ENGINE_SUCCESS,
             dcp->snapshot_marker(cookie, stream_opaque, 0, 200, 300, 300),
@@ -3497,8 +3513,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
             "Error in SET operation.");
 
     wait_for_flusher_to_settle(h);
-    checkeq(0, get_int_stat(h, h1, "ep_diskqueue_items"),
-            "Unexpected diskqueue");
+    checkeq(0, get_int_stat(h, "ep_diskqueue_items"), "Unexpected diskqueue");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -3525,7 +3540,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     // Snapshot marker indicating 5 mutations will follow
     checkeq(ENGINE_SUCCESS,
@@ -3561,8 +3576,8 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h,
           "Failed to set vbucket state.");
     wait_for_flusher_to_settle(h);
 
-    int openCheckpointId = get_int_stat(h, h1, "vb_0:open_checkpoint_id",
-                                        "checkpoint");
+    int openCheckpointId =
+            get_int_stat(h, "vb_0:open_checkpoint_id", "checkpoint");
 
     // Front-end operations (sets)
     write_items(h, 2, 1, "key_");
@@ -3612,7 +3627,8 @@ static enum test_result test_dcp_add_stream(EngineIface* h, EngineIface* h1) {
             "Failed dcp Consumer open connection.");
 
     std::string flow_ctl_stat_buf("eq_dcpq:" + name + ":unacked_bytes");
-    checkeq(0, get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+    checkeq(0,
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl unacked bytes not starting from 0");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
@@ -3629,7 +3645,8 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h,
               protocol_binary_engine_param_replication,
               "replication_throttle_queue_cap",
               "10");
-    checkeq(10, get_int_stat(h, h1, "ep_replication_throttle_queue_cap"),
+    checkeq(10,
+            get_int_stat(h, "ep_replication_throttle_queue_cap"),
             "Incorrect replication_throttle_queue_cap value.");
 
     stop_persistence(h);
@@ -3652,11 +3669,12 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     testHarness->time_travel(30);
-    checkeq(0, get_int_stat(h, h1, "eq_dcpq:unittest:total_backoffs", "dcp"),
+    checkeq(0,
+            get_int_stat(h, "eq_dcpq:unittest:total_backoffs", "dcp"),
             "Expected backoffs to be 0");
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     checkeq(dcp->snapshot_marker(cookie, stream_opaque, 0, 0, 20, 1),
             ENGINE_SUCCESS,
             "Failed to send snapshot marker");
@@ -3716,11 +3734,14 @@ static enum test_result test_rollback_to_zero(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h);
     wait_for_rollback_to_finish(h);
 
-    checkeq(0, get_int_stat(h, h1, "curr_items"),
+    checkeq(0,
+            get_int_stat(h, "curr_items"),
             "All items should be rolled back");
-    checkeq(num_items, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+    checkeq(num_items,
+            get_int_stat(h, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
-    checkeq(num_items, get_int_stat(h, h1, "rollback_item_count"),
+    checkeq(num_items,
+            get_int_stat(h, "rollback_item_count"),
             "Aggr rollback count does not match");
 
     testHarness->destroy_cookie(cookie);
@@ -3833,14 +3854,16 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
     dcp_step(h, h1, cookie);
     cb_free(pkt);
 
-    int items = get_int_stat(h, h1, "curr_items_tot");
-    int seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    int items = get_int_stat(h, "curr_items_tot");
+    int seqno = get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     checkeq(40, items, "Got invalid amount of items");
     checkeq(40, seqno, "Seqno should be 40 after rollback");
-    checkeq(num_items/2, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+    checkeq(num_items / 2,
+            get_int_stat(h, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
-    checkeq(num_items/2, get_int_stat(h, h1, "rollback_item_count"),
+    checkeq(num_items / 2,
+            get_int_stat(h, "rollback_item_count"),
             "Aggr rollback count does not match");
 
     testHarness->destroy_cookie(cookie);
@@ -3855,7 +3878,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
 
     wait_for_flusher_to_settle(h);
     checkeq(num_items,
-            get_int_stat(h, h1, "curr_items"),
+            get_int_stat(h, "curr_items"),
             "Item count should've been 10");
 
     const void* cookie = testHarness->create_cookie();
@@ -3933,13 +3956,17 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
 
     //Verify that all items have been removed from consumer
     wait_for_flusher_to_settle(h);
-    checkeq(0, get_int_stat(h, h1, "vb_replica_curr_items"),
+    checkeq(0,
+            get_int_stat(h, "vb_replica_curr_items"),
             "Item count should've been 0");
-    checkeq(1, get_int_stat(h, h1, "ep_rollback_count"),
+    checkeq(1,
+            get_int_stat(h, "ep_rollback_count"),
             "Rollback count expected to be 1");
-    checkeq(num_items, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+    checkeq(num_items,
+            get_int_stat(h, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
-    checkeq(num_items, get_int_stat(h, h1, "rollback_item_count"),
+    checkeq(num_items,
+            get_int_stat(h, "rollback_item_count"),
             "Aggr rollback count does not match");
 
     testHarness->destroy_cookie(cookie);
@@ -3956,7 +3983,8 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
 
     start_persistence(h);
     wait_for_flusher_to_settle(h);
-    checkeq(100, get_int_stat(h, h1, "curr_items"),
+    checkeq(100,
+            get_int_stat(h, "curr_items"),
             "Item count should've been 100");
 
     stop_persistence(h);
@@ -3970,7 +3998,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
     const int expItems = std::max((numUpdateAndWrites + updateStartSeqno),
                                   numInitialItems);
     checkeq(expItems,
-            get_int_stat(h, h1, "curr_items"),
+            get_int_stat(h, "curr_items"),
             "Item count should've been 110");
 
     check(set_vbucket_state(h, 0, vbucket_state_replica),
@@ -4045,29 +4073,29 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
     //?Verify that 10 items plus 10 updates have been removed from consumer
     wait_for_flusher_to_settle(h);
     checkeq(1,
-            get_int_stat(h, h1, "ep_rollback_count"),
+            get_int_stat(h, "ep_rollback_count"),
             "Rollback count expected to be 1");
 
     if (isPersistentBucket(h)) {
         checkeq(rollbackSeqno,
-                get_ull_stat(h, h1, "vb_replica_curr_items"),
+                get_ull_stat(h, "vb_replica_curr_items"),
                 "Item count should've been 100");
         checkeq(numUpdateAndWrites,
-                get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+                get_int_stat(h, "vb_replica_rollback_item_count"),
                 "Replica rollback count does not match");
         checkeq(numUpdateAndWrites,
-                get_int_stat(h, h1, "rollback_item_count"),
+                get_int_stat(h, "rollback_item_count"),
                 "Aggr rollback count does not match");
     } else {
         /* We always rollback to 0 in 'Ephemeral Buckets' */
         checkeq(0,
-                get_int_stat(h, h1, "vb_replica_curr_items"),
+                get_int_stat(h, "vb_replica_curr_items"),
                 "Item count should've been 0");
         checkeq(numInitialItems + numUpdateAndWrites,
-                get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+                get_int_stat(h, "vb_replica_rollback_item_count"),
                 "Replica rollback count does not match");
         checkeq(numInitialItems + numUpdateAndWrites,
-                get_int_stat(h, h1, "rollback_item_count"),
+                get_int_stat(h, "rollback_item_count"),
                 "Aggr rollback count does not match");
     }
 
@@ -4097,7 +4125,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h,
             "Failed to establish connection buffer");
     snprintf(status_buffer, sizeof(status_buffer),
              "eq_dcpq:%s:flow_control", name);
-    std::string status = get_str_stat(h, h1, status_buffer, "dcp");
+    std::string status = get_str_stat(h, status_buffer, "dcp");
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
 
     checkeq(ENGINE_SUCCESS,
@@ -4108,7 +4136,8 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h,
     snprintf(stats_buffer, sizeof(stats_buffer),
              "eq_dcpq:%s:max_buffer_bytes", name);
 
-    checkeq(512, get_int_stat(h, h1, stats_buffer, "dcp"),
+    checkeq(512,
+            get_int_stat(h, stats_buffer, "dcp"),
             "Buffer Size did not get set");
 
     checkeq(ENGINE_SUCCESS,
@@ -4116,7 +4145,8 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h,
                     cookie, ++opaque, "connection_buffer_size", 22, "1024", 4),
             "Failed to establish connection buffer");
 
-    checkeq(1024, get_int_stat(h, h1, stats_buffer, "dcp"),
+    checkeq(1024,
+            get_int_stat(h, stats_buffer, "dcp"),
             "Buffer Size did not get reset");
 
     /* Set flow control buffer size to zero which implies disable it */
@@ -4124,7 +4154,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h,
             dcp->control(
                     cookie, ++opaque, "connection_buffer_size", 22, "0", 1),
             "Failed to establish connection buffer");
-    status = get_str_stat(h, h1, status_buffer, "dcp");
+    status = get_str_stat(h, status_buffer, "dcp");
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
 
     testHarness->destroy_cookie(cookie);
@@ -4146,7 +4176,7 @@ static enum test_result test_dcp_producer_flow_control(EngineIface* h,
     std::string name("unittest");
 
     DcpStreamCtx ctx1;
-    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx1.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx1.seqno = {0, num_items};
     ctx1.exp_mutations = num_items;
     ctx1.exp_markers = 1;
@@ -4163,7 +4193,7 @@ static enum test_result test_dcp_producer_flow_control(EngineIface* h,
     std::string name1("unittest1");
 
     DcpStreamCtx ctx2;
-    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx2.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx2.seqno = {0, num_items};
     ctx2.exp_mutations = 1;
     ctx2.exp_markers = 1;
@@ -4385,9 +4415,9 @@ static enum test_result test_dcp_close_stream(EngineIface* h, EngineIface* h1) {
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     std::string state =
-        get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
+            get_str_stat(h, "eq_dcpq:unittest:stream_0_state", "dcp");
     checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
     checkeq(ENGINE_SUCCESS,
@@ -4419,9 +4449,9 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     std::string state =
-        get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
+            get_str_stat(h, "eq_dcpq:unittest:stream_0_state", "dcp");
     checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
     checkeq(ENGINE_SUCCESS,
@@ -4452,13 +4482,13 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h,
             dcp->open(cookie, opaque, seqno, flags, name, {}),
             "Failed dcp producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     int exp_unacked_bytes = 0;
     std::string flow_ctl_stat_buf("eq_dcpq:" + name + ":unacked_bytes");
     checkeq(exp_unacked_bytes,
-            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl unacked bytes not starting from 0");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
@@ -4485,7 +4515,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h,
        acks by calling dcp->step(), the unacked bytes will increase */
     exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
     checkeq(exp_unacked_bytes,
-            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl snapshot marker bytes not accounted correctly");
 
     // Ensure that we don't accept invalid opaque values
@@ -4512,7 +4542,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h,
        acks by calling dcp->step(), the unacked bytes will increase */
     exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
     checkeq(exp_unacked_bytes,
-            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
     // Send snapshot marker
@@ -4522,7 +4552,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h,
 
     exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
     checkeq(exp_unacked_bytes,
-            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl snapshot marker bytes not accounted correctly");
 
     // Consume an DCP mutation
@@ -4546,7 +4576,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h,
 
     exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
     checkeq(exp_unacked_bytes,
-            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
@@ -4590,7 +4620,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h,
             dcp->open(cookie, opaque, seqno, flags, name, {}),
             "Failed dcp producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
 
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
@@ -4637,7 +4667,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h,
 
     exp_unacked_bytes += dcp_deletion_base_msg_bytes + key.length();
     checkeq(exp_unacked_bytes,
-            get_int_stat(h, h1, "eq_dcpq:unittest:unacked_bytes", "dcp"),
+            get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
@@ -4667,7 +4697,7 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h,
             dcp->open(cookie, opaque, seqno, flags, name, {}),
             "Failed dcp producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
@@ -4682,7 +4712,7 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h,
     wait_for_stat_to_be(h, "vb_0:high_seqno", num_items, "vbucket-seqno");
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, num_items};
     ctx.exp_mutations = num_items;
     ctx.exp_markers = 1;
@@ -4715,7 +4745,7 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h,
             dcp->open(cookie, opaque, seqno, flags, name, {}),
             "Failed dcp producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
@@ -4730,7 +4760,7 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h,
     wait_for_stat_to_be(h, "vb_0:high_seqno", num_items, "vbucket-seqno");
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, num_items};
     ctx.exp_mutations = num_items;
     ctx.exp_markers = 1;
@@ -4763,7 +4793,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
             dcp->open(cookie, opaque, seqno, flags, name, {}),
             "Failed dcp producer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
@@ -4780,7 +4810,8 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
 
     wait_for_flusher_to_settle(h);
     stop_persistence(h);
-    checkeq(2 * num_items, get_int_stat(h, h1, "vb_replica_curr_items"),
+    checkeq(2 * num_items,
+            get_int_stat(h, "vb_replica_curr_items"),
             "wrong number of items in replica vbucket");
 
     /* Add 100 more items to the replica node on a new checkpoint */
@@ -4794,8 +4825,8 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
     wait_for_stat_to_be_lte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = 300;
     ctx.exp_markers = 1;
 
@@ -4831,7 +4862,7 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h,
             seqnoPersistence(h, cookie, /*vbid*/ 0, /*seqno*/ num_items + 1),
             "Expected temp failure for seqno persistence request");
     checkeq(1,
-            get_int_stat(h, h1, "vb_0:hp_vb_req_size", "vbucket-details 0"),
+            get_int_stat(h, "vb_0:hp_vb_req_size", "vbucket-details 0"),
             "High priority request count incorrect");
 
     /* acquire the mutex to wait on the condition variable */
@@ -4892,7 +4923,7 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
                       {}),
             "Failed dcp consumer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h,
@@ -4916,7 +4947,7 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
             seqnoPersistence(h, cookie, /*vbid*/ 0, /*seqno*/ num_items),
             "Expected temp failure for seqno persistence request");
     checkeq(1,
-            get_int_stat(h, h1, "vb_0:hp_vb_req_size", "vbucket-details 0"),
+            get_int_stat(h, "vb_0:hp_vb_req_size", "vbucket-details 0"),
             "High priority request count incorrect");
 
     /* acquire the mutex to wait on the condition variable */
@@ -4994,7 +5025,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h,
         cas = 0;
     }
 
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
 
     /* wait for flusher to settle */
     wait_for_flusher_to_settle(h);
@@ -5003,7 +5034,7 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h,
     compact_db(h, 0, 0, 2, high_seqno, 1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
     checkeq(static_cast<int>(high_seqno - 1),
-            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno didn't match expected value");
 
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
@@ -5011,8 +5042,8 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h,
 
     /* Create a DCP stream */
     DcpStreamCtx ctx;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno")};
     ctx.exp_mutations = 1;
     ctx.exp_deletions = 1;
     ctx.exp_markers = 1;
@@ -5039,7 +5070,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
 
     memset(&info, 0, sizeof(info));
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
 
     /* Set 3 items */
     for (int count = 0; count < num_items; count++){
@@ -5047,7 +5078,7 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
                 store(h, NULL, OPERATION_SET, key[count], "somevalue"),
                 "Error setting.");
     }
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
     /* wait for flusher to settle */
     wait_for_flusher_to_settle(h);
 
@@ -5074,15 +5105,15 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
                 "Failed remove with value.");
         cas = 0;
     }
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
     /* wait for flusher to settle */
     wait_for_flusher_to_settle(h);
 
     /* Run compaction */
     compact_db(h, 0, 0, 2, high_seqno, 1);
     wait_for_stat_to_be(h, "ep_pending_compactions", 0);
-    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
-            static_cast<int>(high_seqno - 1),
+    check(get_int_stat(h, "vb_0:purge_seqno", "vbucket-seqno") ==
+                  static_cast<int>(high_seqno - 1),
           "purge_seqno didn't match expected value");
 
     wait_for_stat_to_be(h, "vb_0:open_checkpoint_id", 3, "checkpoint");
@@ -5161,7 +5192,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
-    uint32_t  stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
+    uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
     checkeq(dcp->snapshot_marker(cookie, stream_opaque, 0, 5, 10, 300),
             ENGINE_SUCCESS,
@@ -5225,7 +5256,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
 
     std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
 
-    int buffered_items = get_int_stat(h, h1, bufferItemsStr.c_str(), "dcp");
+    int buffered_items = get_int_stat(h, bufferItemsStr.c_str(), "dcp");
 
     const DocKey docKey20{(const uint8_t*)"key20", 5,
                           DocNamespace::DefaultCollection};
@@ -5259,7 +5290,8 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
         wait_for_flusher_to_settle(h);
     }
 
-    checkeq(6, get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
+    checkeq(6,
+            get_int_stat(h, "vb_0:num_items", "vbucket-details 0"),
             "The last mutation should've been dropped!");
 
     checkeq(dcp->close_stream(cookie, stream_opaque, 0),
@@ -5289,7 +5321,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
-    uint32_t stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
+    uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
     checkeq(dcp->snapshot_marker(cookie1, stream_opaque, 0, 1, 10, 300),
             ENGINE_SUCCESS,
@@ -5335,7 +5367,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     opaqueStr.assign("eq_dcpq:" + name + ":stream_0_opaque");
-    stream_opaque = get_int_stat(h , h1, opaqueStr.c_str(), "dcp");
+    stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
     // Send a snapshot marker that would be rejected
     checkeq(dcp->snapshot_marker(cookie2, stream_opaque, 0, 5, 10, 1),
@@ -5399,7 +5431,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
-    uint32_t  stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
+    uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
     // Mutation(s) or deletion(s) with seqno 0 are invalid!
     const std::string key("key");
@@ -5462,7 +5494,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
-    uint32_t stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
+    uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
     checkeq(dcp->snapshot_marker(cookie, stream_opaque, 0, 1, 10, 300),
             ENGINE_SUCCESS,
@@ -5520,7 +5552,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h,
               "Failed to set vbucket state");
         std::stringstream statkey;
         statkey << "vb_" << i <<  ":0:id";
-        vbuuid[i] = get_ull_stat(h, h1, statkey.str().c_str(), "failovers");
+        vbuuid[i] = get_ull_stat(h, statkey.str().c_str(), "failovers");
 
         /* Set n items */
         write_items(h, num_items, 0, "KEY", "somevalue");
@@ -5597,8 +5629,8 @@ static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
 
     wait_for_stat_to_be(h, "curr_items", num_items);
 
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    uint64_t uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
+    high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t uuid = get_ull_stat(h, "vb_0:1:id", "failovers");
 
     typedef struct dcp_params {
         uint32_t flags;
@@ -5767,9 +5799,8 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h,
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    uint32_t stream_opaque = get_int_stat(h, h1,
-                                          ("eq_dcpq:" + name + ":stream_0_opaque").c_str(),
-                                          "dcp");
+    uint32_t stream_opaque = get_int_stat(
+            h, ("eq_dcpq:" + name + ":stream_0_opaque").c_str(), "dcp");
 
     dcp->snapshot_marker(cookie,
                          stream_opaque,
@@ -5887,13 +5918,13 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h,
     int extra_items = 100;
 
     ctx1.vbucket = 1;
-    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
+    ctx1.vb_uuid = get_ull_stat(h, "vb_1:0:id", "failovers");
     ctx1.seqno = {0, static_cast<uint64_t>(num_items + extra_items)};
     ctx1.exp_mutations = num_items + extra_items;
     ctx1.live_frontend_client = true;
 
     ctx2.vbucket = 2;
-    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_2:0:id", "failovers");
+    ctx2.vb_uuid = get_ull_stat(h, "vb_2:0:id", "failovers");
     ctx2.seqno = {0, static_cast<uint64_t>(num_items + extra_items)};
     ctx2.exp_mutations = num_items + extra_items;
     ctx2.live_frontend_client = true;
@@ -5977,7 +6008,7 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
-        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     int i = 1;
     while (true) {
@@ -5985,8 +6016,8 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h,
         // iterations (we only need to be greater than 1.25 *
         // ep_max_size, not exactly at that point).
         if ((i % 100) == 0) {
-            if (get_int_stat(h, h1, "mem_used") >=
-                1.25 * get_int_stat(h, h1, "ep_max_size")) {
+            if (get_int_stat(h, "mem_used") >=
+                1.25 * get_int_stat(h, "ep_max_size")) {
                 break;
             }
         }
@@ -6021,11 +6052,11 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h,
 
     // Expect buffered items and the processer's task state to be
     // CANNOT_PROCESS, because of numerous backoffs.
-    check(get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", "dcp") > 0,
+    check(get_int_stat(h, "eq_dcpq:unittest:stream_0_buffer_items", "dcp") > 0,
           "Expected buffered items for the stream");
     wait_for_stat_to_be_gte(h, h1, "eq_dcpq:unittest:total_backoffs", 1, "dcp");
     checkne(std::string("ALL_PROCESSED"),
-            get_str_stat(h, h1, "eq_dcpq:unittest:processor_task_state", "dcp"),
+            get_str_stat(h, "eq_dcpq:unittest:processor_task_state", "dcp"),
             "Expected Processer's task state not to be ALL_PROCESSED!");
 
     testHarness->destroy_cookie(cookie);
@@ -6062,7 +6093,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
-    uint32_t stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
+    uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
 
     checkeq(ENGINE_SUCCESS,
             dcp->snapshot_marker(cookie, stream_opaque, rep_vb_num, 0, 10, 1),
@@ -6166,7 +6197,7 @@ static enum test_result test_mb19153(EngineIface* h, EngineIface* h1) {
             "Failed dcp Consumer open connection.");
 
     // Initiate a stream request
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     uint64_t rollback = 0;
     checkeq(ENGINE_SUCCESS,
             dcp->stream_req(cookie,
@@ -6241,9 +6272,8 @@ static enum test_result test_mb19982(EngineIface* h, EngineIface* h1) {
         }
     });
 
-    uint32_t stream_opaque = get_int_stat(h, h1,
-                                          "eq_dcpq:unittest:stream_0_opaque",
-                                          "dcp");
+    uint32_t stream_opaque =
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     for (int i = 1; i <= num_items; i++) {
         checkeq(dcp->snapshot_marker(cookie,
@@ -6292,11 +6322,9 @@ static enum test_result test_mb19982(EngineIface* h, EngineIface* h1) {
 }
 
 static enum test_result test_set_dcp_param(EngineIface* h, EngineIface* h1) {
-    auto func = [h, h1](std::string key, size_t newValue, bool expectedSetParam){
+    auto func = [h](std::string key, size_t newValue, bool expectedSetParam) {
         std::string statKey = "ep_" + key;
-        size_t param = get_int_stat(h,
-                                    h1,
-                                    statKey.c_str());
+        size_t param = get_int_stat(h, statKey.c_str());
         std::string value = std::to_string(newValue);
         check(expectedSetParam == set_param(h,
                                             protocol_binary_engine_param_dcp,
@@ -6308,10 +6336,8 @@ static enum test_result test_set_dcp_param(EngineIface* h, EngineIface* h1) {
 
         if (expectedSetParam) {
             checkeq(newValue,
-                    size_t(get_int_stat(h,
-                                        h1,
-                                        statKey.c_str())),
-                "Incorrect dcp param value after calling set_param");
+                    size_t(get_int_stat(h, statKey.c_str())),
+                    "Incorrect dcp param value after calling set_param");
         }
     };
 

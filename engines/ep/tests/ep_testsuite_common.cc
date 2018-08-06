@@ -146,7 +146,7 @@ bool test_setup(EngineIface* h) {
     check(set_vbucket_state(h, 0, vbucket_state_active),
           "Failed to set VB0 state.");
 
-    const auto bucket_type = get_str_stat(h, h, "ep_bucket_type");
+    const auto bucket_type = get_str_stat(h, "ep_bucket_type");
     if (bucket_type == "persistent") {
         // Wait for vb0's state (active) to be persisted to disk, that way
         // we know the KVStore files exist on disk.
@@ -487,21 +487,21 @@ bool isPassiveCompressionEnabled(EngineIface* h) {
 }
 
 bool isWarmupEnabled(EngineIface* h) {
-    return get_bool_stat(h, h, "ep_warmup");
+    return get_bool_stat(h, "ep_warmup");
 }
 
 bool isPersistentBucket(EngineIface* h) {
-    return get_str_stat(h, h, "ep_bucket_type") == "persistent";
+    return get_str_stat(h, "ep_bucket_type") == "persistent";
 }
 
 bool isEphemeralBucket(EngineIface* h) {
-    return get_str_stat(h, h, "ep_bucket_type") == "ephemeral";
+    return get_str_stat(h, "ep_bucket_type") == "ephemeral";
 }
 
 void checkPersistentBucketTempItems(EngineIface* h, int exp) {
     if (isPersistentBucket(h)) {
         checkeq(exp,
-                get_int_stat(h, h, "curr_temp_items"),
+                get_int_stat(h, "curr_temp_items"),
                 "CheckPersistentBucketTempItems(): Num temp items not as "
                 "expected");
     }

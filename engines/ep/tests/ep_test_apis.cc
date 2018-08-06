@@ -506,8 +506,8 @@ void evict_key(EngineIface* h,
                uint16_t vbucketId,
                const char* msg,
                bool expectError) {
-    int nonResidentItems = get_int_stat(h, h, "ep_num_non_resident");
-    int numEjectedItems = get_int_stat(h, h, "ep_num_value_ejects");
+    int nonResidentItems = get_int_stat(h, "ep_num_non_resident");
+    int numEjectedItems = get_int_stat(h, "ep_num_value_ejects");
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY, 0, 0,
                                                        NULL, 0, key, strlen(key));
     pkt->request.vbucket = htons(vbucketId);
@@ -530,10 +530,10 @@ void evict_key(EngineIface* h,
     }
 
     checkeq(nonResidentItems,
-            get_int_stat(h, h, "ep_num_non_resident"),
+            get_int_stat(h, "ep_num_non_resident"),
             "Incorrect number of non-resident items");
     checkeq(numEjectedItems,
-            get_int_stat(h, h, "ep_num_value_ejects"),
+            get_int_stat(h, "ep_num_value_ejects"),
             "Incorrect number of ejected items");
 
     if (msg != NULL && last_body != msg) {
@@ -802,7 +802,7 @@ void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end) {
         std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
                                   ":high_seqno");
         uint64_t high_seqno_vb =
-                get_ull_stat(h, h, vb_stat_seqno.c_str(), "vbucket-seqno");
+                get_ull_stat(h, vb_stat_seqno.c_str(), "vbucket-seqno");
         checkeq(high_seqno_vb,
                 ntohll(*(reinterpret_cast<const uint64_t*>(last_body.data() +
                                                            per_vb_resp_size*i +
@@ -1041,7 +1041,7 @@ void stop_persistence(EngineIface* h) {
 
     useconds_t sleepTime = 128;
     while (true) {
-        if (get_str_stat(h, h, "ep_flusher_state", 0) == "running") {
+        if (get_str_stat(h, "ep_flusher_state", 0) == "running") {
             break;
         }
         decayingSleep(&sleepTime);
@@ -1207,7 +1207,7 @@ void compact_db(EngineIface* h,
     req.message.body.purge_before_seq = htonll(purge_before_seq);
     req.message.body.drop_deletes     = drop_deletes;
 
-    std::string backend = get_str_stat(h, h, "ep_backend");
+    std::string backend = get_str_stat(h, "ep_backend");
     const char *args = (const char *)&(req.message.body);
     uint32_t argslen = 24;
 
@@ -1359,30 +1359,26 @@ public:
  */
 template <>
 int get_stat(EngineIface* h,
-             EngineIface* h1,
              const char* statname,
              const char* statkey) {
-    return std::stoi(get_str_stat(h, h1, statname, statkey));
+    return std::stoi(get_str_stat(h, statname, statkey));
 }
 template <>
 uint64_t get_stat(EngineIface* h,
-                  EngineIface* h1,
                   const char* statname,
                   const char* statkey) {
-    return std::stoull(get_str_stat(h, h1, statname, statkey));
+    return std::stoull(get_str_stat(h, statname, statkey));
 }
 
 template <>
 bool get_stat(EngineIface* h,
-              EngineIface* h1,
               const char* statname,
               const char* statkey) {
-    return get_str_stat(h, h1, statname, statkey) == "true";
+    return get_str_stat(h, statname, statkey) == "true";
 }
 
 template <>
 std::string get_stat(EngineIface* h,
-                     EngineIface* h1,
                      const char* statname,
                      const char* statkey) {
     std::lock_guard<std::mutex> lh(get_stat_context.mutex);
@@ -1392,9 +1388,9 @@ std::string get_stat(EngineIface* h,
 
     const auto* cookie = testHarness->create_cookie();
     ENGINE_ERROR_CODE err =
-            h1->get_stats(cookie,
-                          {statkey, statkey == NULL ? 0 : strlen(statkey)},
-                          add_individual_stat);
+            h->get_stats(cookie,
+                         {statkey, statkey == NULL ? 0 : strlen(statkey)},
+                         add_individual_stat);
     testHarness->destroy_cookie(cookie);
 
     if (err != ENGINE_SUCCESS) {
@@ -1415,45 +1411,39 @@ std::string get_stat(EngineIface* h,
 
 /// Backward-compatible functions (encode type name in function name).
 int get_int_stat(EngineIface* h,
-                 EngineIface* h1,
                  const char* statname,
                  const char* statkey) {
-    return get_stat<int>(h, h1, statname, statkey);
+    return get_stat<int>(h, statname, statkey);
 }
 
 float get_float_stat(EngineIface* h,
-                     EngineIface* h1,
                      const char* statname,
                      const char* statkey) {
-    return std::stof(get_str_stat(h, h1, statname, statkey));
+    return std::stof(get_str_stat(h, statname, statkey));
 }
 
 uint32_t get_ul_stat(EngineIface* h,
-                     EngineIface* h1,
                      const char* statname,
                      const char* statkey) {
-    return std::stoul(get_str_stat(h, h1, statname, statkey));
+    return std::stoul(get_str_stat(h, statname, statkey));
 }
 
 uint64_t get_ull_stat(EngineIface* h,
-                      EngineIface* h1,
                       const char* statname,
                       const char* statkey) {
-    return get_stat<uint64_t>(h, h1, statname, statkey);
+    return get_stat<uint64_t>(h, statname, statkey);
 }
 
 std::string get_str_stat(EngineIface* h,
-                         EngineIface* h1,
                          const char* statname,
                          const char* statkey) {
-    return get_stat<std::string>(h, h1, statname, statkey);
+    return get_stat<std::string>(h, statname, statkey);
 }
 
 bool get_bool_stat(EngineIface* h,
-                   EngineIface* h1,
                    const char* statname,
                    const char* statkey) {
-    const auto s = get_str_stat(h, h1, statname, statkey);
+    const auto s = get_str_stat(h, statname, statkey);
 
     if (s == "true") {
         return true;
@@ -1474,7 +1464,7 @@ int get_int_stat_or_default(EngineIface* h,
                             const char* statname,
                             const char* statkey) {
     try {
-        return get_int_stat(h, h1, statname, statkey);
+        return get_int_stat(h, statname, statkey);
     } catch (std::out_of_range&) {
         return default_value;
     }
@@ -1556,7 +1546,7 @@ void verify_curr_items(EngineIface* h,
                        EngineIface* h1,
                        int exp,
                        const char* msg) {
-    int curr_items = get_int_stat(h, h1, "curr_items");
+    int curr_items = get_int_stat(h, "curr_items");
     if (curr_items != exp) {
         std::cerr << "Expected "<< exp << " curr_items after " << msg
                   << ", got " << curr_items << std::endl;
@@ -1575,7 +1565,7 @@ void wait_for_stat_to_be_gte(EngineIface* h,
                                          stat_key, final,
                                          max_wait_time_in_secs);
     for (;;) {
-        auto current = get_int_stat(h, h1, stat, stat_key);
+        auto current = get_int_stat(h, stat, stat_key);
         if (current >= final) {
             break;
         }
@@ -1595,7 +1585,7 @@ void wait_for_stat_to_be_lte(EngineIface* h,
                                          stat_key, final,
                                          max_wait_time_in_secs);
     for (;;) {
-        auto current = get_int_stat(h, h1, stat, stat_key);
+        auto current = get_int_stat(h, stat, stat_key);
         if (current <= final) {
             break;
         }
@@ -1613,9 +1603,9 @@ void wait_for_expired_items_to_be(EngineIface* h,
                                          NULL, final,
                                          max_wait_time_in_secs);
     for (;;) {
-        auto current = get_int_stat(h, h1, "ep_expired_access") +
-                       get_int_stat(h, h1, "ep_expired_compactor") +
-                       get_int_stat(h, h1, "ep_expired_pager");
+        auto current = get_int_stat(h, "ep_expired_access") +
+                       get_int_stat(h, "ep_expired_compactor") +
+                       get_int_stat(h, "ep_expired_pager");
         if (current == final) {
             break;
         }
@@ -1632,7 +1622,7 @@ void wait_for_memory_usage_below(EngineIface* h,
                                          mem_threshold,
                                          max_wait_time_in_secs);
     for (;;) {
-        auto current = get_int_stat(h, h, "mem_used");
+        auto current = get_int_stat(h, "mem_used");
         if (current <= mem_threshold) {
             break;
         }
@@ -1649,7 +1639,7 @@ bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1) {
     useconds_t sleepTime = 128;
     do {
         try {
-            if (get_str_stat(h, h1, "ep_warmup_thread", "warmup") == "complete") {
+            if (get_str_stat(h, "ep_warmup_thread", "warmup") == "complete") {
                 return true;
             }
         } catch (engine_error&) {
@@ -1666,7 +1656,7 @@ void wait_for_flusher_to_settle(EngineIface* h) {
 
     /* check that vb backfill queue is empty as well */
     checkeq(0,
-            get_int_stat(h, h, "ep_vb_backfill_queue_size", 0),
+            get_int_stat(h, "ep_vb_backfill_queue_size", 0),
             "even though disk queue is empty, vb backfill queue is not!!");
 
     if (!isPersistentBucket(h)) {
@@ -1682,7 +1672,7 @@ void wait_for_flusher_to_settle(EngineIface* h) {
 }
 
 void wait_for_item_compressor_to_settle(EngineIface* h) {
-    int visited_count = get_int_stat(h, h, "ep_item_compressor_num_visited");
+    int visited_count = get_int_stat(h, "ep_item_compressor_num_visited");
 
     // We need to wait for at least one more run of the item compressor
     wait_for_stat_to_be(h, "ep_item_compressor_num_visited", visited_count + 1);
@@ -1690,7 +1680,7 @@ void wait_for_item_compressor_to_settle(EngineIface* h) {
 
 void wait_for_rollback_to_finish(EngineIface* h) {
     useconds_t sleepTime = 128;
-    while (get_int_stat(h, h, "ep_rollback_count") == 0) {
+    while (get_int_stat(h, "ep_rollback_count") == 0) {
         decayingSleep(&sleepTime);
     }
 }
@@ -1701,7 +1691,7 @@ void wait_for_persisted_value(EngineIface* h,
                               uint16_t vbucketId) {
     int commitNum = 0;
     if (isPersistentBucket(h)) {
-        commitNum = get_int_stat(h, h, "ep_commit_num");
+        commitNum = get_int_stat(h, "ep_commit_num");
     }
     check(ENGINE_SUCCESS == store(h,
                                   NULL,
@@ -1781,7 +1771,7 @@ int write_items_upto_mem_perc(EngineIface* h,
                               const char* key_prefix,
                               const char* value) {
     float maxSize =
-            static_cast<float>(get_int_stat(h, h, "ep_max_size", "memory"));
+            static_cast<float>(get_int_stat(h, "ep_max_size", "memory"));
     float mem_thresh = static_cast<float>(mem_thresh_perc) / (100.0);
     int num_items = 0;
     while (1) {
@@ -1789,7 +1779,7 @@ int write_items_upto_mem_perc(EngineIface* h,
          is used. Getting stats is expensive, only check every 100
          iterations. */
         if ((num_items % 100) == 0) {
-            float memUsed = float(get_int_stat(h, h, "mem_used", "memory"));
+            float memUsed = float(get_int_stat(h, "mem_used", "memory"));
             if (memUsed > (maxSize * mem_thresh)) {
                 /* Persist all items written so far. */
                 break;

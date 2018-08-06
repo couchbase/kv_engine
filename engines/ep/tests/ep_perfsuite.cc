@@ -905,7 +905,7 @@ static void perf_dcp_client(EngineIface* h,
     const void* cookie = testHarness->create_cookie();
 
     std::string uuid("vb_" + std::to_string(vbid) + ":0:id");
-    uint64_t vb_uuid = get_ull_stat(h, h1, uuid.c_str(), "failovers");
+    uint64_t vb_uuid = get_ull_stat(h, uuid.c_str(), "failovers");
     uint32_t streamOpaque = opaque;
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
