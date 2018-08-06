@@ -137,7 +137,7 @@ void Audit::log_error(const AuditErrorCode return_code,
         break;
     case AuditErrorCode::OPEN_AUDITFILE_ERROR:
         LOG_WARNING("Audit: error opening audit file. Dropping event: {}",
-                    cb::logtags::tagUserData(string));
+                    cb::UserDataView(string));
         break;
     case AuditErrorCode::SETTING_AUDITFILE_OPEN_TIME_ERROR:
         LOG_WARNING("Audit: error: setting auditfile open time = {}", string);
@@ -147,7 +147,7 @@ void Audit::log_error(const AuditErrorCode return_code,
         break;
     case AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR:
         LOG_WARNING("Audit: error writing event to disk. Dropping event: {}",
-                    cb::logtags::tagUserData(string));
+                    cb::UserDataView(string));
         break;
     case AuditErrorCode::UNKNOWN_EVENT_ERROR:
         LOG_WARNING("Audit: error: unknown event {}", string);

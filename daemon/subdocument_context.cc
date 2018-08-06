@@ -380,7 +380,7 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
                             " size. Key: '{}' may have an "
                             "incorrect datatype of COMPRESSED_JSON.",
                             c.getId(),
-                            cb::logtags::tagUserData(clean_key));
+                            cb::UserDataView(clean_key));
                 }
 
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;

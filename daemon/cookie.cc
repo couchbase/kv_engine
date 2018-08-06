@@ -412,7 +412,7 @@ std::string Cookie::getPrintableRequestKey() const {
         }
     }
 
-    return cb::logtags::tagUserData(buffer);
+    return cb::tagUserData(buffer);
 }
 
 void Cookie::logCommand() const {

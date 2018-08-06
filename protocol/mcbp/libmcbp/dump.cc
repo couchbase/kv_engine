@@ -119,8 +119,8 @@ protected:
                     return;
                 }
             }
-            out << "The textual string \"" << cb::logtags::tagUserData(str)
-                << "\"" << std::endl;
+            out << "The textual string \"" << cb::tagUserData(str) << "\""
+                << std::endl;
         }
     }
 

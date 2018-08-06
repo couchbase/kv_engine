@@ -16,13 +16,15 @@ add_library(mcd_util SHARED
             config_parser.cc
             engine_loader.cc
             engine_loader.h
+            logtags.cc
+            logtags.h
             protocol2text.cc
             protocol2text.h
             string_utilities.cc
             string_utilities.h
             terminate_handler.cc
             terminate_handler.h
-            util.cc)
+            util.cc )
 target_link_libraries(mcd_util memcached_logger engine_utilities platform
                       ${BREAKPAD_LIBRARIES})
 set_target_properties(mcd_util PROPERTIES SOVERSION 1.0.0)

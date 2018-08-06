@@ -1139,8 +1139,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
         if (o != m) {
             LOG_INFO(R"(Change scram fallback salt from {} to {})",
-                     cb::logtags::tagUserData(m),
-                     cb::logtags::tagUserData(o));
+                     cb::UserDataView(m),
+                     cb::UserDataView(o));
             setScramshaFallbackSalt(o);
         }
     }

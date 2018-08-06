@@ -446,7 +446,7 @@ void Connection::updateDescription() {
         if (isInternal()) {
             description += "System, ";
         }
-        description += cb::logtags::tagUserData(getUsername());
+        description += cb::tagUserData(getUsername());
 
         if (domain == cb::sasl::Domain::External) {
             description += " (LDAP)";
@@ -673,7 +673,7 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
                 "certificate",
                 getId(),
                 getPeername(),
-                cb::logtags::tagUserData(getUsername()));
+                cb::UserDataView(getUsername()));
         // Connections authenticated by using X.509 certificates should not
         // be able to use SASL to change it's identity.
         saslAuthEnabled = false;
@@ -681,7 +681,7 @@ bool Connection::tryAuthFromSslCert(const std::string& userName) {
         setAuthenticated(false);
         LOG_WARNING("{}: User [{}] is not defined as a user in Couchbase",
                     getId(),
-                    cb::logtags::tagUserData(e.what()));
+                    cb::UserDataView(e.what()));
         return false;
     }
     return true;

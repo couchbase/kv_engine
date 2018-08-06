@@ -723,9 +723,8 @@ protocol_binary_response_status EventuallyPersistentEngine::evictKey(
     size_t keylen = ntohs(req->message.header.request.keylen);
     uint16_t vbucket = ntohs(request->request.vbucket);
 
-    EP_LOG_DEBUG(
-            "Manually evicting object with key {}",
-            cb::logtags::tagUserData(std::string{(const char*)keyPtr, keylen}));
+    EP_LOG_DEBUG("Manually evicting object with key {}",
+                 cb::UserDataView(keyPtr, keylen));
     msg_size = 0;
     auto rv = kvBucket->evictKey(
             makeDocKey(cookie, {keyPtr, keylen}), vbucket, msg);
@@ -3670,8 +3669,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
                 valid.assign("ram_but_not_disk");
             }
             EP_LOG_DEBUG("doKeyStats key {} is {}",
-                         cb::logtags::tagUserData(std::string{
-                                 (const char*)key.data(), key.size()}),
+                         cb::UserDataView(key.data(), key.size()),
                          valid);
         }
         add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
@@ -4246,8 +4244,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         DocKey key = makeDocKey(cookie, {data + offset, keylen});
         offset += keylen;
         EP_LOG_DEBUG("Observing key {} in vb:{}",
-                     cb::logtags::tagUserData(
-                             std::string{(const char*)key.data(), key.size()}),
+                     cb::UserDataView(key.data(), key.size()),
                      vb_id);
 
         // Get key stats

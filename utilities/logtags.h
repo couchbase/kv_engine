@@ -16,13 +16,23 @@
  */
 #pragma once
 
+#include <memcached/mcd_util-visibility.h>
+#include <platform/sized_buffer.h>
+#include <spdlog/fmt/ostr.h>
 #include <string>
+
+/**
+ * UserDataView technically makes tagUserData obsolete, but tagUserData
+ * is used elsewhere for purposes other than logging, so have not been
+ * changed.
+ */
+
 namespace cb {
 /**
  * Wrap user/customer specific data with specific tags so that these data can
  * be scrubbed away during log collection.
  */
-namespace logtags {
+
 const std::string userdataStartTag = "<ud>";
 const std::string userdataEndTag = "</ud>";
 
@@ -35,5 +45,22 @@ const std::string userdataEndTag = "</ud>";
 static inline std::string tagUserData(const std::string& data) {
     return userdataStartTag + data + userdataEndTag;
 }
-} // namespace logtags
+
+/**
+ * Tag user data when objects of this type are printed, with surrounding
+ * userdata tags
+ */
+class UserDataView {
+public:
+    explicit UserDataView(const uint8_t* dataParam, size_t dataLen)
+        : data(cb::const_char_buffer{(const char*)dataParam, dataLen}){};
+
+    explicit UserDataView(cb::const_char_buffer dataParam) : data(dataParam){};
+
+    MCD_UTIL_PUBLIC_API
+    friend std::ostream& operator<<(std::ostream& os, const UserDataView& d);
+
+private:
+    cb::const_char_buffer data;
+};
 } // namespace cb

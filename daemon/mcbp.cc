@@ -160,7 +160,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
                     "Key: {} may have an incorrect datatype, "
                     "Datatype indicates that document is {}",
                     c->getId(),
-                    cb::logtags::tagUserData(mykey),
+                    cb::UserDataView(mykey),
                     mcbp::datatype::to_string(datatype));
             return false;
         }

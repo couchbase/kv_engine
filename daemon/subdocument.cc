@@ -92,15 +92,15 @@ static void subdoc_print_command(Connection& c,
                                                     sizeof(clean_value), value,
                                                     vallen) != -1)) {
             LOG_DEBUG("{} path:'{}' value:'{}'",
-                      cb::logtags::tagUserData(clean_key),
-                      cb::logtags::tagUserData(clean_path),
-                      cb::logtags::tagUserData(clean_value));
+                      cb::UserDataView(clean_key),
+                      cb::UserDataView(clean_path),
+                      cb::UserDataView(clean_value));
 
         } else {
             // key & path only
             LOG_DEBUG("{} path:'{}'",
-                      cb::logtags::tagUserData(clean_key),
-                      cb::logtags::tagUserData(clean_path));
+                      cb::UserDataView(clean_key),
+                      cb::UserDataView(clean_path));
         }
     }
 }

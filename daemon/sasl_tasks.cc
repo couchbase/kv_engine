@@ -146,7 +146,7 @@ void SaslAuthTask::notifyExecutionComplete() {
         LOG_INFO("{}: Client {} authenticated as {}",
                  connection.getId(),
                  connection.getPeername(),
-                 cb::logtags::tagUserData(connection.getUsername()));
+                 cb::UserDataView(connection.getUsername()));
 
         /* associate the connection with the appropriate bucket */
         {
@@ -178,14 +178,14 @@ void SaslAuthTask::notifyExecutionComplete() {
     case cb::sasl::Error::NO_USER:
         LOG_WARNING("{}: User [{}] not found. UUID:[{}]",
                     connection.getId(),
-                    cb::logtags::tagUserData(connection.getUsername()),
+                    cb::UserDataView(connection.getUsername()),
                     cookie.getEventId());
         break;
 
     case cb::sasl::Error::PASSWORD_ERROR:
         LOG_WARNING("{}: Invalid password specified for [{}] UUID:[{}]",
                     connection.getId(),
-                    cb::logtags::tagUserData(connection.getUsername()),
+                    cb::UserDataView(connection.getUsername()),
                     cookie.getEventId());
         break;
     case cb::sasl::Error::NO_RBAC_PROFILE:
@@ -193,7 +193,7 @@ void SaslAuthTask::notifyExecutionComplete() {
                 "{}: User [{}] is not defined as a user in Couchbase. "
                 "UUID:[{}]",
                 connection.getId(),
-                cb::logtags::tagUserData(connection.getUsername()),
+                cb::UserDataView(connection.getUsername()),
                 cookie.getEventId());
         break;
     }

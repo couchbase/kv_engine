@@ -64,8 +64,8 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str()) ||
         !SSL_CTX_use_PrivateKey_file(ctx, pkey.c_str(), SSL_FILETYPE_PEM)) {
         LOG_WARNING("Failed to use SSL cert {} and pkey {}",
-                    cb::logtags::tagUserData(cert),
-                    cb::logtags::tagUserData(pkey));
+                    cb::UserDataView(cert),
+                    cb::UserDataView(pkey));
         return false;
     }
 
@@ -79,8 +79,7 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
         ssl_flags |= SSL_VERIFY_PEER;
         STACK_OF(X509_NAME)* certNames = SSL_load_client_CA_file(cert.c_str());
         if (certNames == NULL) {
-            LOG_WARNING("Failed to read SSL cert {}",
-                        cb::logtags::tagUserData(cert));
+            LOG_WARNING("Failed to read SSL cert {}", cb::UserDataView(cert));
             return false;
         }
         SSL_CTX_set_client_CA_list(ctx, certNames);
