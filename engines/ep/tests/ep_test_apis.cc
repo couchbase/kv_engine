@@ -1586,7 +1586,6 @@ void wait_for_stat_to_be_lte(EngineIface* h,
 }
 
 void wait_for_expired_items_to_be(EngineIface* h,
-                                  EngineIface* h1,
                                   int final,
                                   const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;

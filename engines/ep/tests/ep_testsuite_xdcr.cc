@@ -1632,7 +1632,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h,
     // Wait for the item to be expired, either by the pager,
     // or by access (as part of persistence callback from a
     // previous set - slow disk), or the compactor (unlikely).
-    wait_for_expired_items_to_be(h, h1, 1);
+    wait_for_expired_items_to_be(h, 1);
 
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
