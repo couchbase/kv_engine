@@ -113,6 +113,9 @@ TARGET_LINK_LIBRARIES(gencode cJSON platform)
 ADD_EXECUTABLE(genconfig tools/genconfig.cc)
 TARGET_LINK_LIBRARIES(genconfig cJSON platform)
 
+add_subdirectory(tools/couchfile_upgrade)
+include_directories(tools/couchfile_upgrade)
+
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                           ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h
                   COMMAND
@@ -346,6 +349,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    $<TARGET_OBJECTS:ep_objs>
                    $<TARGET_OBJECTS:memory_tracking>
                    $<TARGET_OBJECTS:couchstore_test_fileops>
+                   $<TARGET_OBJECTS:couchfile_upgrade_objects>
                    ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                    ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                    ${Memcached_SOURCE_DIR}/daemon/protocol/mcbp/engine_errc_2_mcbp.cc

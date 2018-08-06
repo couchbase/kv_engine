@@ -30,6 +30,8 @@
 #include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"
 #include "thread_gate.h"
+#include "tools/couchfile_upgrade/input_couchfile.h"
+#include "tools/couchfile_upgrade/output_couchfile.h"
 #include "vbucket_bgfetch_item.h"
 
 #include <gmock/gmock.h>
@@ -396,6 +398,74 @@ TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
 
     // Expect to get a system_error (ENOENT)
     EXPECT_THROW(kvstore.ro->getDbFileInfo(0), std::system_error);
+}
+
+class CollectionsOfflineUpgadeCallback : public StatusCallback<CacheLookup> {
+public:
+    CollectionsOfflineUpgadeCallback(CollectionID cid) : expectedCid(cid) {
+    }
+
+    void callback(CacheLookup& lookup) {
+        EXPECT_EQ(expectedCid, lookup.getKey().getCollectionID());
+        callbacks++;
+    }
+
+    int callbacks = 0;
+    CollectionID expectedCid;
+};
+
+// Test the InputCouchFile/OutputCouchFile objects (in a simple test) to
+// check they do what we expect, that is create a new couchfile with all keys
+// moved into a specified collection.
+TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
+    KVStoreConfig config1(
+            1024, 4, data_dir, "couchdb", 0, false /*persistnamespace*/);
+
+    KVStoreConfig config2(
+            1024, 4, data_dir, "couchdb", 0, true /*persistnamespace*/);
+
+    // Test setup, create a new file
+    auto kvstore = setup_kv_store(config1);
+    kvstore->begin(std::make_unique<TransactionContext>());
+    const int keys = 5;
+    WriteCallback wc;
+    for (int i = 0; i < keys; i++) {
+        std::string key("key" + std::to_string(i));
+        Item item(makeStoredDocKey(key),
+                  0,
+                  0,
+                  "value",
+                  5,
+                  PROTOCOL_BINARY_RAW_BYTES,
+                  0,
+                  i + 1);
+        kvstore->set(item, wc);
+    }
+
+    kvstore->commit(flush);
+
+    // Use the upgrade tool's objects to run an upgrade
+    // setup_kv_store will have progressed the rev to .2
+    Collections::InputCouchFile input({}, data_dir + "/0.couch.2");
+    Collections::OutputCouchFile output({}, data_dir + "/0.couch.3", 500);
+    input.upgrade(output);
+    output.commit();
+
+    auto kvstore2 = KVStoreFactory::create(config2);
+    auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
+    auto cl = std::make_shared<CollectionsOfflineUpgadeCallback>(500);
+    ScanContext* scanCtx;
+    scanCtx = kvstore2.rw->initScanContext(cb,
+                                           cl,
+                                           0,
+                                           1,
+                                           DocumentFilter::ALL_ITEMS,
+                                           ValueFilter::VALUES_COMPRESSED);
+
+    ASSERT_NE(nullptr, scanCtx);
+    EXPECT_EQ(scan_success, kvstore2.rw->scan(scanCtx));
+    kvstore2.rw->destroyScanContext(scanCtx);
+    EXPECT_EQ(keys, cl->callbacks);
 }
 
 /**
