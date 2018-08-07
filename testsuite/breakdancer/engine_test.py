@@ -173,11 +173,11 @@ class EngineTestAppDriver(Driver):
         if isinstance(action, Delay):
             s = "    delay(expiry+1);"
         elif isinstance(action, Flush):
-            s = "    flush(h, h1);"
+            s = "    flush(h);"
         elif isinstance(action, Delete):
-            s = '    del(h, h1);'
+            s = '    del(h);'
         else:
-            s = '    %s(h, h1);' % (action.name)
+            s = '    %s(h);' % (action.name)
         self.output(s + "\n")
 
     def _writeList(self, writer, fname, seq):
@@ -206,9 +206,9 @@ class EngineTestAppDriver(Driver):
     def endSequence(self, seq, state):
         val = state.get(TESTKEY)
         if val:
-            self.output('    checkValue(h, h1, "%s");\n' % val)
+            self.output('    checkValue(h, "%s");\n' % val)
         else:
-            self.output('    assertNotExists(h, h1);\n')
+            self.output('    assertNotExists(h);\n')
         self.output("    return SUCCESS;\n")
         self.output("}\n\n")
 

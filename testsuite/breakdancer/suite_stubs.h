@@ -1,6 +1,5 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef TESTSUITE_H
-#define TESTSUITE_H 1
+#pragma once
 
 #include "disable_optimize.h"
 
@@ -21,13 +20,13 @@ bool setup_suite(struct test_harness *th);
 bool test_setup(EngineIface* h);
 bool teardown(EngineIface* h);
 void delay(int amt);
-void add(EngineIface* h, EngineIface* h1);
-void flush(EngineIface* h, EngineIface* h1);
-void del(EngineIface* h, EngineIface* h1);
-void set(EngineIface* h, EngineIface* h1);
+void add(EngineIface* h);
+void flush(EngineIface* h);
+void del(EngineIface* h);
+void set(EngineIface* h);
 
-void checkValue(EngineIface* h, EngineIface* h1, const char* exp);
-void assertNotExists(EngineIface* h, EngineIface* h1);
+void checkValue(EngineIface* h, const char* exp);
+void assertNotExists(EngineIface* h);
 
 #define assertHasError() cb_assert(hasError)
 #define assertHasNoError() cb_assert(!hasError)
@@ -39,5 +38,3 @@ extern struct test_harness* testHarness;
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* SUITE_STUBS_H */

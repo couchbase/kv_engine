@@ -28,9 +28,7 @@ void delay(int amt) {
     hasError = false;
 }
 
-static void storeItem(EngineIface* h,
-                      EngineIface* h1,
-                      ENGINE_STORE_OPERATION op) {
+static void storeItem(EngineIface* h, ENGINE_STORE_OPERATION op) {
     uint64_t cas = 0;
     const char *value = "0";
     const int flags = 0;
@@ -39,54 +37,53 @@ static void storeItem(EngineIface* h,
     item_info info;
 
     vlen = strlen(value);
-    auto ret = h1->allocate(
+    auto ret = h->allocate(
             cookie, key, vlen, flags, expiry, PROTOCOL_BINARY_RAW_BYTES, 0);
     cb_assert(ret.first == cb::engine_errc::success);
 
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
 
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(ret.second.get(), 0);
+    h->item_set_cas(ret.second.get(), 0);
 
-    auto rv =
-            h1->store(cookie, ret.second.get(), cas, op, DocumentState::Alive);
+    auto rv = h->store(cookie, ret.second.get(), cas, op, DocumentState::Alive);
 
     testHarness->destroy_cookie(cookie);
     hasError = rv != ENGINE_SUCCESS;
 }
 
-void add(EngineIface* h, EngineIface* h1) {
-    storeItem(h, h1, OPERATION_ADD);
+void add(EngineIface* h) {
+    storeItem(h, OPERATION_ADD);
 }
 
-void flush(EngineIface* h, EngineIface* h1) {
+void flush(EngineIface* h) {
     const auto* cookie = testHarness->create_cookie();
-    hasError = h1->flush(cookie);
+    hasError = h->flush(cookie);
     testHarness->destroy_cookie(cookie);
 }
 
-void del(EngineIface* h, EngineIface* h1) {
+void del(EngineIface* h) {
     uint64_t cas = 0;
     mutation_descr_t mut_info;
     const auto* cookie = testHarness->create_cookie();
-    hasError = h1->remove(cookie, key, cas, 0, mut_info) != ENGINE_SUCCESS;
+    hasError = h->remove(cookie, key, cas, 0, mut_info) != ENGINE_SUCCESS;
     testHarness->destroy_cookie(cookie);
 }
 
-void set(EngineIface* h, EngineIface* h1) {
-    storeItem(h, h1, OPERATION_SET);
+void set(EngineIface* h) {
+    storeItem(h, OPERATION_SET);
 }
 
-void checkValue(EngineIface* h, EngineIface* h1, const char* exp) {
+void checkValue(EngineIface* h, const char* exp) {
     const auto* cookie = testHarness->create_cookie();
-    auto rv = h1->get(cookie, key, 0, DocStateFilter::Alive);
+    auto rv = h->get(cookie, key, 0, DocStateFilter::Alive);
     testHarness->destroy_cookie(cookie);
     cb_assert(rv.first == cb::engine_errc::success);
 
     item_info info;
-    h1->get_item_info(rv.second.get(), &info);
+    h->get_item_info(rv.second.get(), &info);
 
     char* buf = new char[info.value[0].iov_len + 1];
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
@@ -105,9 +102,9 @@ void checkValue(EngineIface* h, EngineIface* h1, const char* exp) {
     delete []buf;
 }
 
-void assertNotExists(EngineIface* h, EngineIface* h1) {
+void assertNotExists(EngineIface* h) {
     const auto* cookie = testHarness->create_cookie();
-    auto rv = h1->get(cookie, key, 0, DocStateFilter::Alive);
+    auto rv = h->get(cookie, key, 0, DocStateFilter::Alive);
     testHarness->destroy_cookie(cookie);
     cb_assert(rv.first == cb::engine_errc::no_such_key);
 }
