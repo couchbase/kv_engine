@@ -38,11 +38,11 @@
  * DcpIface then throws.
  * @returns non-null ptr to DcpIface.
  */
-gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine) {
+static gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine) {
     return dynamic_cast<DcpIface*>(engine);
 }
 
-void dcp_step(EngineIface* h, EngineIface* h1, const void* cookie) {
+static void dcp_step(EngineIface* h, const void* cookie) {
     MockDcpMessageProducers producers(h);
     auto dcp = requireDcpIface(h);
     ENGINE_ERROR_CODE err = dcp->step(cookie, &producers);
@@ -53,10 +53,9 @@ void dcp_step(EngineIface* h, EngineIface* h1, const void* cookie) {
     }
 }
 
-void dcpHandleResponse(EngineIface* h,
-                       EngineIface* h1,
-                       const void* cookie,
-                       protocol_binary_response_header* response) {
+static void dcpHandleResponse(EngineIface* h,
+                              const void* cookie,
+                              protocol_binary_response_header* response) {
     auto dcp = requireDcpIface(h);
     auto erroCode = dcp->response_handler(cookie, response);
     check(erroCode == ENGINE_SUCCESS || erroCode == ENGINE_EWOULDBLOCK,
@@ -766,7 +765,6 @@ ENGINE_ERROR_CODE TestDcpConsumer::closeStreams(bool fClear) {
 }
 
 static void notifier_request(EngineIface* h,
-                             EngineIface* h1,
                              const void* cookie,
                              uint32_t opaque,
                              uint16_t vbucket,
@@ -817,7 +815,6 @@ static void notifier_request(EngineIface* h,
 }
 
 static void dcp_stream_to_replica(EngineIface* h,
-                                  EngineIface* h1,
                                   const void* cookie,
                                   uint32_t opaque,
                                   uint16_t vbucket,
@@ -873,7 +870,6 @@ static void dcp_stream_to_replica(EngineIface* h,
    Currently this supports only streaming mutations, but can be extend to stream
    deletion etc */
 static void dcp_stream_from_producer_conn(EngineIface* h,
-                                          EngineIface* h1,
                                           const void* cookie,
                                           uint32_t opaque,
                                           uint64_t start,
@@ -950,12 +946,11 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
 }
 
 struct mb16357_ctx {
-    mb16357_ctx(EngineIface* _h, EngineIface* _h1, int _items)
-        : h(_h), h1(_h1), dcp(requireDcpIface(h)), items(_items) {
+    mb16357_ctx(EngineIface* _h, int _items)
+        : h(_h), dcp(requireDcpIface(h)), items(_items) {
     }
 
     EngineIface* h;
-    EngineIface* h1;
     gsl::not_null<DcpIface*> dcp;
     int items;
     std::mutex mutex;
@@ -966,14 +961,12 @@ struct mb16357_ctx {
 
 struct writer_thread_ctx {
     EngineIface* h;
-    EngineIface* h1;
     int items;
     uint16_t vbid;
 };
 
 struct continuous_dcp_ctx {
     EngineIface* h;
-    EngineIface* h1;
     const void *cookie;
     uint16_t vbid;
     const std::string &name;
@@ -984,7 +977,6 @@ struct continuous_dcp_ctx {
 //Forward declaration required for dcp_thread_func
 static uint32_t add_stream_for_consumer(
         EngineIface* h,
-        EngineIface* h1,
         const void* cookie,
         uint32_t opaque,
         uint16_t vbucket,
@@ -1027,7 +1019,11 @@ extern "C" {
                 ENGINE_SUCCESS,
                 "Failed dcp Consumer open connection.");
 
-        add_stream_for_consumer(ctx->h, ctx->h1, cookie, opaque++, 0, 0,
+        add_stream_for_consumer(ctx->h,
+                                cookie,
+                                opaque++,
+                                0,
+                                0,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
         uint32_t stream_opaque =
@@ -1272,20 +1268,20 @@ static enum test_result test_dcp_notifier(EngineIface* h, EngineIface* h1) {
             dcp->open(cookie, opaque, seqno, DCP_OPEN_NOTIFIER, name, {}),
             "Failed dcp notifier open connection.");
     // Get notification for an old item
-    notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
-    dcp_step(h, h1, cookie);
+    notifier_request(h, cookie, ++opaque, vbucket, start, true);
+    dcp_step(h, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
             dcp_last_op, "Expected stream end");
     // Get notification when we're slightly behind
     start += 9;
-    notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
-    dcp_step(h, h1, cookie);
+    notifier_request(h, cookie, ++opaque, vbucket, start, true);
+    dcp_step(h, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
             dcp_last_op, "Expected stream end");
     // Wait for notification of a future item
     start += 11;
-    notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
-    dcp_step(h, h1, cookie);
+    notifier_request(h, cookie, ++opaque, vbucket, start, true);
+    dcp_step(h, cookie);
     for (auto j = 0; j < 5; ++j) {
         const auto key = "key" + std::to_string(j);
         checkeq(ENGINE_SUCCESS,
@@ -1298,7 +1294,7 @@ static enum test_result test_dcp_notifier(EngineIface* h, EngineIface* h1) {
                 "Failed to store a value");
     }
     // Shouldn't get a stream end yet
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     check(dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Wasn't expecting a stream end");
     for (auto j = 0; j < 6; ++j) {
@@ -1313,7 +1309,7 @@ static enum test_result test_dcp_notifier(EngineIface* h, EngineIface* h1) {
                 "Failed to store a value");
     }
     // Should get a stream end
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
             dcp_last_op, "Expected stream end");
     testHarness->destroy_cookie(cookie);
@@ -1353,14 +1349,14 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
             dcp->open(cookie, opaque, seqno, DCP_OPEN_NOTIFIER, name, {}),
             "Failed dcp notifier open connection.");
     // Should not get a stream end
-    notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
-    dcp_step(h, h1, cookie);
+    notifier_request(h, cookie, ++opaque, vbucket, start, true);
+    dcp_step(h, cookie);
     check(dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Wasn't expecting a stream end");
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, "key0", "data"),
             "Failed to store a value");
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
             dcp_last_op, "Expected stream end");
     testHarness->destroy_cookie(cookie);
@@ -1842,7 +1838,11 @@ static enum test_result test_dcp_consumer_noop(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie, opaque, seqno, flags, name, {}),
             "Failed dcp Consumer open connection.");
-    add_stream_for_consumer(h, h1, cookie, opaque, vbucket, flags,
+    add_stream_for_consumer(h,
+                            cookie,
+                            opaque,
+                            vbucket,
+                            flags,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
     testHarness->time_travel(201);
     // No-op not recieved for 201 seconds. Should be ok.
@@ -2505,7 +2505,7 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h,
 
     /* We want to stream items till end and keep the stream open. Then we want
        to verify the stream is still open */
-    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 0};
+    struct continuous_dcp_ctx cdc = {h, cookie, 0, conn_name, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
               == 0);
@@ -2571,17 +2571,24 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     /* Send DCP mutations with in memory flag (0x01) */
-    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x01, 1, num_items, 0,
-                          num_items);
+    dcp_stream_to_replica(
+            h, cookie, opaque, 0, 0x01, 1, num_items, 0, num_items);
 
     /* Send 10 more DCP mutations with checkpoint creation flag (0x04) */
     uint64_t start = num_items;
-    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
-                          start + 10, start, start + 10);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          0,
+                          0x04,
+                          start + 1,
+                          start + 10,
+                          start,
+                          start + 10);
 
     wait_for_flusher_to_settle(h);
     stop_persistence(h);
@@ -2592,8 +2599,15 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     /* Add 10 more items to the replica node on a new checkpoint.
        Send with flag (0x04) indicating checkpoint creation */
     start = 2 * num_items;
-    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
-                          start + 10, start, start + 10);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          0,
+                          0x04,
+                          start + 1,
+                          start + 10,
+                          start,
+                          start + 10);
 
     /* Expecting for Disk backfill + in memory snapshot merge.
        Wait for a checkpoint to be removed */
@@ -2605,7 +2619,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
        to verify the stream is still open */
     const void* cookie1 = testHarness->create_cookie();
     const std::string conn_name1("unittest1");
-    struct continuous_dcp_ctx cdc = {h, h1, cookie1, 0, conn_name1, 0};
+    struct continuous_dcp_ctx cdc = {h, cookie1, 0, conn_name1, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
               == 0);
@@ -2682,7 +2696,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
 
     /* We want to stream items till end and keep the stream open. We want to
        verify if the DCP cursor has moved to new open checkpoint */
-    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 20};
+    struct continuous_dcp_ctx cdc = {h, cookie, 0, conn_name, 20};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
               == 0);
@@ -2849,7 +2863,7 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
        We want to do this because we want to test if the stream drops the items
        in the readyQ when we later switch from in-memory -> backfill state */
     dcp_stream_from_producer_conn(
-            h, h1, cookie, opaque, last_seqno_streamed + 1, num_items - 5, 0);
+            h, cookie, opaque, last_seqno_streamed + 1, num_items - 5, 0);
     last_seqno_streamed = num_items - 5;
 
     /* Check if the stream is still in in-memory state after sending out
@@ -2881,7 +2895,6 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
        chk_max_items (max_size=6291456;chk_max_items=8000 in this case) */
     wait_for_stat_to_be_gte(h, "ep_cursors_dropped", 1);
     dcp_stream_from_producer_conn(h,
-                                  h1,
                                   cookie,
                                   opaque,
                                   last_seqno_streamed + 1,
@@ -2894,7 +2907,6 @@ static test_result test_dcp_cursor_dropping(EngineIface* h,
     write_items(h, 10, num_items + 1);
     num_items += 10;
     dcp_stream_from_producer_conn(h,
-                                  h1,
                                   cookie,
                                   opaque,
                                   last_seqno_streamed + 1,
@@ -2966,7 +2978,7 @@ static test_result test_dcp_cursor_dropping_backfill(EngineIface* h,
     /* Read all the items from the producer. This ensures that the items are
        backfilled correctly after scheduling 2 successive backfills. */
     dcp_stream_from_producer_conn(
-            h, h1, cookie, opaque, 1, num_items, initialSnapshotSize + 1);
+            h, cookie, opaque, 1, num_items, initialSnapshotSize + 1);
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -3086,7 +3098,6 @@ static test_result test_dcp_takeover_no_items(EngineIface* h, EngineIface* h1) {
 
 static uint32_t add_stream_for_consumer(
         EngineIface* h,
-        EngineIface* h1,
         const void* cookie,
         uint32_t opaque,
         uint16_t vbucket,
@@ -3094,14 +3105,14 @@ static uint32_t add_stream_for_consumer(
         protocol_binary_response_status response,
         uint64_t exp_snap_start,
         uint64_t exp_snap_end) {
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("connection_buffer_size") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     if (get_bool_stat(h, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
-        dcp_step(h, h1, cookie);
+        dcp_step(h, cookie);
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_GET_ERROR_MAP);
         cb_assert(dcp_last_key.empty());
         // Simulate that the GetErrorMap response has been received.
@@ -3111,42 +3122,42 @@ static uint32_t add_stream_for_consumer(
         protocol_binary_response_header resp{};
         resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
         resp.response.status = ntohs(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        dcpHandleResponse(h, h1, cookie, &resp);
+        dcpHandleResponse(h, cookie, &resp);
 
         // Check that the enable noop message is sent
-        dcp_step(h, h1, cookie);
+        dcp_step(h, cookie);
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
         cb_assert(dcp_last_key.compare("enable_noop") == 0);
         cb_assert(dcp_last_opaque != opaque);
 
         // Check that the set noop interval message is sent
-        dcp_step(h, h1, cookie);
+        dcp_step(h, cookie);
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
         cb_assert(dcp_last_key.compare("set_noop_interval") == 0);
         cb_assert(dcp_last_opaque != opaque);
     }
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("set_priority") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("enable_ext_metadata") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("supports_cursor_dropping_vulcan") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("supports_hifi_MFU") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("send_stream_end_on_client_close_stream") ==
               0);
@@ -3157,7 +3168,7 @@ static uint32_t add_stream_for_consumer(
             dcp->add_stream(cookie, opaque, vbucket, flags),
             "Add stream request failed");
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     uint32_t stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
     cb_assert(dcp_last_opaque != opaque);
@@ -3206,7 +3217,7 @@ static uint32_t add_stream_for_consumer(
     checkeq(ENGINE_SUCCESS,
             dcp->response_handler(cookie, pkt),
             "Expected success");
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_free(pkt);
 
     if (response == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
@@ -3234,7 +3245,7 @@ static uint32_t add_stream_for_consumer(
         checkeq(ENGINE_SUCCESS,
                 dcp->response_handler(cookie, pkt),
                 "Expected success");
-        dcp_step(h, h1, cookie);
+        dcp_step(h, cookie);
 
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
         cb_assert(dcp_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -3276,8 +3287,8 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -3318,7 +3329,6 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    true);
-        h1 = h;
         wait_for_warmup_complete(h);
         dcp = requireDcpIface(h);
     }
@@ -3331,8 +3341,13 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
 
     uint64_t snap_start = full ? 10 : 0;
     uint64_t snap_end = 10;
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS, snap_start,
+    add_stream_for_consumer(h,
+                            cookie,
+                            opaque++,
+                            0,
+                            0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                            snap_start,
                             snap_end);
 
     testHarness->destroy_cookie(cookie);
@@ -3387,7 +3402,10 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    add_stream_for_consumer(h,
+                            cookie,
+                            opaque++,
+                            0,
                             DCP_ADD_STREAM_FLAG_TAKEOVER,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -3442,12 +3460,12 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h,
 
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
     cb_assert(dcp_last_status == ENGINE_SUCCESS);
     cb_assert(dcp_last_opaque != opaque);
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
     cb_assert(dcp_last_status == ENGINE_SUCCESS);
     cb_assert(dcp_last_opaque != opaque);
@@ -3484,7 +3502,10 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0,
+    add_stream_for_consumer(h,
+                            cookie,
+                            opaque++,
+                            0,
                             DCP_ADD_STREAM_FLAG_TAKEOVER,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -3534,8 +3555,8 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h,
             "Failed dcp Consumer open connection.");
 
     // Set up a passive stream
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -3629,8 +3650,8 @@ static enum test_result test_dcp_add_stream(EngineIface* h, EngineIface* h1) {
             get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl unacked bytes not starting from 0");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     testHarness->destroy_cookie(cookie);
 
@@ -3663,8 +3684,8 @@ static enum test_result test_consumer_backoff_stat(EngineIface* h,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     testHarness->time_travel(30);
     checkeq(0,
@@ -3726,8 +3747,8 @@ static enum test_result test_rollback_to_zero(EngineIface* h, EngineIface* h1) {
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_ROLLBACK);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_ROLLBACK);
 
     wait_for_flusher_to_settle(h);
     wait_for_rollback_to_finish(h);
@@ -3768,7 +3789,6 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
                                true,
                                false);
 
-    h1 = h;
     wait_for_warmup_complete(h);
     stop_persistence(h);
 
@@ -3797,14 +3817,14 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
             "Failed dcp Consumer open connection.");
 
     do {
-        dcp_step(h, h1, cookie);
+        dcp_step(h, cookie);
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, ++opaque, vbid, 0),
             "Add stream request failed");
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     uint32_t stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
     cb_assert(dcp_last_opaque != opaque);
@@ -3825,7 +3845,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
             "Expected success");
 
     do {
-        dcp_step(h, h1, cookie);
+        dcp_step(h, cookie);
         usleep(100);
     } while (dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
 
@@ -3849,7 +3869,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             dcp->response_handler(cookie, pkt),
             "Expected success");
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_free(pkt);
 
     int items = get_int_stat(h, "curr_items_tot");
@@ -3894,14 +3914,14 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
             "Failed dcp Consumer open connection.");
 
     do {
-        dcp_step(h, h1, cookie);
+        dcp_step(h, cookie);
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, 0, 0),
             "Add stream request failed");
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
     cb_assert(dcp_last_opaque != opaque);
 
@@ -3922,7 +3942,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
             dcp->response_handler(cookie, pkt1),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, "ep_rollback_count", 1);
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
 
     opaque++;
 
@@ -3946,7 +3966,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h,
             dcp->response_handler(cookie, pkt2),
             "Expected success");
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
 
     cb_free(pkt1);
@@ -4014,14 +4034,14 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
             "Failed dcp Consumer open connection.");
 
     do {
-        dcp_step(h, h1, cookie);
+        dcp_step(h, cookie);
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, 0, 0),
             "Add stream request failed");
 
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
     cb_assert(dcp_last_opaque != opaque);
 
@@ -4043,7 +4063,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
             dcp->response_handler(cookie, pkt1),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, "ep_rollback_count", 1);
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
     opaque++;
 
     bodylen = 2 * sizeof(uint64_t);
@@ -4063,7 +4083,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             dcp->response_handler(cookie, pkt2),
             "Expected success");
-    dcp_step(h, h1, cookie);
+    dcp_step(h, cookie);
 
     cb_free(pkt1);
     cb_free(pkt2);
@@ -4348,8 +4368,8 @@ static enum test_result test_dcp_add_stream_prod_exists(EngineIface* h,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -4369,8 +4389,8 @@ static enum test_result test_dcp_add_stream_prod_nmvb(EngineIface* h,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp producer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -4409,8 +4429,8 @@ static enum test_result test_dcp_close_stream(EngineIface* h, EngineIface* h1) {
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp producer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -4443,8 +4463,8 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp producer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, vbucket, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, vbucket, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -4489,8 +4509,8 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h,
             get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl unacked bytes not starting from 0");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string key("key");
     uint32_t dataLen = 100;
@@ -4622,8 +4642,8 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h,
 
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     int exp_unacked_bytes = dcp_snapshot_marker_base_msg_bytes;
     checkeq(ENGINE_SUCCESS,
@@ -4698,12 +4718,12 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h,
     std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     /* Write backfill elements on to replica, flag (0x02) */
-    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x02, 1, num_items, 0,
-                          num_items);
+    dcp_stream_to_replica(
+            h, cookie, opaque, 0, 0x02, 1, num_items, 0, num_items);
 
     /* Stream in mutations from replica */
     wait_for_flusher_to_settle(h);
@@ -4746,12 +4766,12 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h,
     std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     /* Send DCP mutations with in memory flag (0x01) */
-    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x01, 1, num_items, 0,
-                          num_items);
+    dcp_stream_to_replica(
+            h, cookie, opaque, 0, 0x01, 1, num_items, 0, num_items);
 
     /* Stream in memory mutations from replica */
     wait_for_flusher_to_settle(h);
@@ -4794,17 +4814,24 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
     std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
-    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     /* Send DCP mutations with in memory flag (0x01) */
-    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x01, 1, num_items, 0,
-                          num_items);
+    dcp_stream_to_replica(
+            h, cookie, opaque, 0, 0x01, 1, num_items, 0, num_items);
 
     /* Send 100 more DCP mutations with checkpoint creation flag (0x04) */
     uint64_t start = num_items;
-    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
-                          start + 100, start, start + 100);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          0,
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100);
 
     wait_for_flusher_to_settle(h);
     stop_persistence(h);
@@ -4815,8 +4842,15 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h,
     /* Add 100 more items to the replica node on a new checkpoint */
     /* Send with flag (0x04) indicating checkpoint creation */
     start = 2 * num_items;
-    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
-                          start + 100, start, start + 100);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          0,
+                          0x04,
+                          start + 1,
+                          start + 100,
+                          start,
+                          start + 100);
 
     /* Disk backfill + in memory stream from replica */
     /* Wait for a checkpoint to be removed */
@@ -4874,7 +4908,7 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h,
              hence it cannot be this thread (as we are in the mutex associated
              with the condition variable) */
     cb_thread_t writerThread;
-    struct writer_thread_ctx t1 = {h, h1, 1, /*vbid*/0};
+    struct writer_thread_ctx t1 = {h, 1, /*vbid*/ 0};
     checkeq(0,
             cb_create_thread(&writerThread, writer_thread, &t1, 0),
             "Error creating the writer thread");
@@ -4925,7 +4959,6 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h,
-                                     h1,
                                      consumerCookie,
                                      opaque,
                                      0,
@@ -4960,7 +4993,6 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
        with the condition variable) */
     std::thread backfillWriter(dcp_stream_to_replica,
                                h,
-                               h1,
                                consumerCookie,
                                opaque,
                                /*vbucket*/ 0,
@@ -5196,8 +5228,8 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h,
     checkeq(dcp->open(cookie, opaque, 0, flags, name, {}),
             ENGINE_SUCCESS,
             "Failed to open DCP consumer connection!");
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -5325,8 +5357,8 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h,
     checkeq(dcp->open(cookie1, opaque, 0, flags, name, {}),
             ENGINE_SUCCESS,
             "Failed to open DCP consumer connection!");
-    add_stream_for_consumer(h, h1, cookie1, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie1, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -5371,8 +5403,8 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h,
     checkeq(dcp->open(cookie2, opaque, 0, flags, name, {}),
             ENGINE_SUCCESS,
             "Failed to open DCP consumer connection!");
-    add_stream_for_consumer(h, h1, cookie2, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie2, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     opaqueStr.assign("eq_dcpq:" + name + ":stream_0_opaque");
     stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -5435,8 +5467,8 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h,
     checkeq(dcp->open(cookie, opaque, 0, flags, name, {}),
             ENGINE_SUCCESS,
             "Failed to open DCP consumer connection!");
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -5498,8 +5530,8 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h,
     checkeq(dcp->open(cookie, opaque, 0, flags, name, {}),
             ENGINE_SUCCESS,
             "Failed to open DCP consumer connection!");
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -5763,7 +5795,7 @@ static enum test_result test_mb16357(EngineIface* h, EngineIface* h1) {
     wait_for_flusher_to_settle(h);
     testHarness->time_travel(3617); // force expiry pushing time forward.
 
-    struct mb16357_ctx ctx(h, h1, num_items);
+    struct mb16357_ctx ctx(h, num_items);
     cb_thread_t cp_thread, dcp_thread;
 
     // First thread used to start a background compaction; note this waits
@@ -5803,8 +5835,8 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h,
             ENGINE_SUCCESS,
             "Failed DCP Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque = get_int_stat(
             h, ("eq_dcpq:" + name + ":stream_0_opaque").c_str(), "dcp");
@@ -5941,8 +5973,8 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h,
     tdc.addStreamCtx(ctx2);
 
     cb_thread_t thread1, thread2;
-    struct writer_thread_ctx t1 = {h, h1, extra_items, /*vbid*/1};
-    struct writer_thread_ctx t2 = {h, h1, extra_items, /*vbid*/2};
+    struct writer_thread_ctx t1 = {h, extra_items, /*vbid*/ 1};
+    struct writer_thread_ctx t2 = {h, extra_items, /*vbid*/ 2};
     cb_assert(cb_create_thread(&thread1, writer_thread, &t1, 0) == 0);
     cb_assert(cb_create_thread(&thread2, writer_thread, &t2, 0) == 0);
 
@@ -5961,7 +5993,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h,
     const void* cookie = testHarness->create_cookie();
 
     // Set up a DcpTestConsumer that would remain in in-memory mode
-    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name, 0};
+    struct continuous_dcp_ctx cdc = {h, cookie, 0, conn_name, 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0) == 0);
 
@@ -6011,8 +6043,8 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed dcp Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -6096,7 +6128,11 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             dcp->open(cookie, opaque, 0, flags, name, {}),
             "Failed to open DCP consumer connection!");
-    add_stream_for_consumer(h, h1, cookie, opaque++, rep_vb_num, 0,
+    add_stream_for_consumer(h,
+                            cookie,
+                            opaque++,
+                            rep_vb_num,
+                            0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
@@ -6268,8 +6304,8 @@ static enum test_result test_mb19982(EngineIface* h, EngineIface* h1) {
             ENGINE_SUCCESS,
             "Failed dcp Consumer open connection.");
 
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    add_stream_for_consumer(
+            h, cookie, opaque++, 0, 0, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     std::thread thread([h, iterations]() {
         for (int ii = 0; ii < iterations; ii++) {
