@@ -128,7 +128,7 @@ private:
 class TestCase : public BaseTestCase {
 public:
     TestCase(const char* _name,
-             enum test_result (*_tfun)(EngineIface*, EngineIface*),
+             enum test_result (*_tfun)(EngineIface*),
              bool (*_test_setup)(EngineIface*),
              bool (*_test_teardown)(EngineIface*),
              const char* _cfg,

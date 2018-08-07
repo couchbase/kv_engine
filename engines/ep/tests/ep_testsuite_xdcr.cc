@@ -67,7 +67,7 @@ static std::vector<char> createXattrValue(const std::string& body) {
 
 // Testcases //////////////////////////////////////////////////////////////////
 
-static enum test_result test_get_meta(EngineIface* h, EngineIface* h1) {
+static enum test_result test_get_meta(EngineIface* h) {
     char const *key = "test_get_meta";
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
@@ -93,8 +93,7 @@ static enum test_result test_get_meta(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result test_get_meta_with_extras(EngineIface* h,
-                                                  EngineIface* h1) {
+static enum test_result test_get_meta_with_extras(EngineIface* h) {
     const char *key1 = "test_getm_one";
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
@@ -136,7 +135,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_get_meta_deleted(EngineIface* h, EngineIface* h1) {
+static enum test_result test_get_meta_deleted(EngineIface* h) {
     char const *key = "k1";
     item *i = NULL;
 
@@ -176,8 +175,7 @@ static enum test_result test_get_meta_deleted(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result test_get_meta_nonexistent(EngineIface* h,
-                                                  EngineIface* h1) {
+static enum test_result test_get_meta_nonexistent(EngineIface* h) {
     char const *key = "k1";
 
     // check the stat
@@ -198,8 +196,7 @@ static enum test_result test_get_meta_nonexistent(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_get_meta_with_get(EngineIface* h,
-                                               EngineIface* h1) {
+static enum test_result test_get_meta_with_get(EngineIface* h) {
     char const *key1 = "key1";
     char const *key2 = "key2";
 
@@ -252,8 +249,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_get_meta_with_set(EngineIface* h,
-                                               EngineIface* h1) {
+static enum test_result test_get_meta_with_set(EngineIface* h) {
     char const *key1 = "key1";
     char const *key2 = "key2";
 
@@ -327,8 +323,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_get_meta_with_delete(EngineIface* h,
-                                                  EngineIface* h1) {
+static enum test_result test_get_meta_with_delete(EngineIface* h) {
     char const *key1 = "key1";
     char const *key2 = "key2";
 
@@ -373,8 +368,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_get_meta_with_xattr(EngineIface* h,
-                                                 EngineIface* h1) {
+static enum test_result test_get_meta_with_xattr(EngineIface* h) {
     const char* key = "get_meta_key";
     std::vector<char> data = createXattrValue({"test_expiry_value"});
 
@@ -428,7 +422,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h,
 /**
  * Test that we can still get datatype of the deleted item after compaction
  */
-static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
+static enum test_result test_get_meta_mb23905(EngineIface* h) {
     const char* key = "get_meta_key";
     std::vector<char> data = createXattrValue({"test_expiry_value"});
 
@@ -491,7 +485,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result test_add_with_meta(EngineIface* h, EngineIface* h1) {
+static enum test_result test_add_with_meta(EngineIface* h) {
     const char *key = "mykey";
     const size_t keylen = strlen(key);
     ItemMetaData itemMeta;
@@ -521,7 +515,7 @@ static enum test_result test_add_with_meta(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result test_delete_with_meta(EngineIface* h, EngineIface* h1) {
+static enum test_result test_delete_with_meta(EngineIface* h) {
     const char *key1 = "delete_with_meta_key1";
     const char *key2 = "delete_with_meta_key2";
     const char *key3 = "delete_with_meta_key3";
@@ -589,8 +583,7 @@ static enum test_result test_delete_with_meta(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result test_delete_with_meta_deleted(EngineIface* h,
-                                                      EngineIface* h1) {
+static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
     const char *key = "delete_with_meta_key";
     const size_t keylen = strlen(key);
 
@@ -661,8 +654,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
-                                                          EngineIface* h1) {
+static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
     const char *key = "delete_with_meta_key";
     const size_t keylen = strlen(key);
 
@@ -728,7 +720,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h,
 }
 
 static enum test_result test_delete_with_meta_nonexistent_no_temp(
-        EngineIface* h, EngineIface* h1) {
+        EngineIface* h) {
     const char *key1 = "delete_with_meta_no_temp_key1";
     const size_t keylen1 = strlen(key1);
     ItemMetaData itm_meta1;
@@ -779,8 +771,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     return SUCCESS;
 }
 
-static enum test_result test_delete_with_meta_race_with_set(EngineIface* h,
-                                                            EngineIface* h1) {
+static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
     char const *key1 = "key1";
     const size_t keylen1 = strlen(key1);
 
@@ -847,8 +838,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_delete_with_meta_race_with_delete(
-        EngineIface* h, EngineIface* h1) {
+static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
     char const *key1 = "key1";
     uint16_t keylen1 = (uint16_t)strlen(key1);
     char const *key2 = "key2";
@@ -944,7 +934,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
     return SUCCESS;
 }
 
-static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
+static enum test_result test_set_with_meta(EngineIface* h) {
     const char* key = "set_with_meta_key";
     size_t keylen = strlen(key);
     const char* val = "somevalue";
@@ -1076,8 +1066,7 @@ static enum test_result test_set_with_meta(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result test_set_with_meta_by_force(EngineIface* h,
-                                                    EngineIface* h1) {
+static enum test_result test_set_with_meta_by_force(EngineIface* h) {
     const char* key = "set_with_meta_key";
     size_t keylen = strlen(key);
     const char* val = "somevalue";
@@ -1102,8 +1091,7 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_set_with_meta_deleted(EngineIface* h,
-                                                   EngineIface* h1) {
+static enum test_result test_set_with_meta_deleted(EngineIface* h) {
     const char* key = "set_with_meta_key";
     size_t keylen = strlen(key);
     const char* val = "somevalue";
@@ -1178,8 +1166,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_set_with_meta_nonexistent(EngineIface* h,
-                                                       EngineIface* h1) {
+static enum test_result test_set_with_meta_nonexistent(EngineIface* h) {
     const char* key = "set_with_meta_key";
     size_t keylen = strlen(key);
     const char* val = "somevalue";
@@ -1234,8 +1221,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_set_with_meta_race_with_set(EngineIface* h,
-                                                         EngineIface* h1) {
+static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
     char const *key1 = "key1";
     size_t keylen1 = strlen(key1);
     // check the stat
@@ -1304,8 +1290,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
-                                                            EngineIface* h1) {
+static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     char const *key1 = "key1";
     size_t keylen1 = strlen(key1);
     char const *key2 = "key2";
@@ -1412,8 +1397,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_set_with_meta_xattr(EngineIface* h,
-                                                 EngineIface* h1) {
+static enum test_result test_set_with_meta_xattr(EngineIface* h) {
     const char* key = "set_with_meta_xattr_key";
 
     // Create XATTR doc with JSON body
@@ -1497,8 +1481,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_delete_with_meta_xattr(EngineIface* h,
-                                                    EngineIface* h1) {
+static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
     const char* key1 = "delete_with_meta_xattr_key1";
 
     const void* cookie = testHarness->create_cookie();
@@ -1599,8 +1582,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_exp_persisted_set_del(EngineIface* h,
-                                                   EngineIface* h1) {
+static enum test_result test_exp_persisted_set_del(EngineIface* h) {
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(!get_meta(h, "key3", errorMetaPair), "Expected get_meta() to fail");
@@ -1644,8 +1626,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_temp_item_deletion(EngineIface* h,
-                                                EngineIface* h1) {
+static enum test_result test_temp_item_deletion(EngineIface* h) {
     // Do get_meta for an existing key
     char const *k1 = "k1";
 
@@ -1729,8 +1710,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_add_meta_conflict_resolution(EngineIface* h,
-                                                          EngineIface* h1) {
+static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     // put some random metadata
     ItemMetaData itemMeta;
     itemMeta.revSeqno = 10;
@@ -1786,8 +1766,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_set_meta_conflict_resolution(EngineIface* h,
-                                                          EngineIface* h1) {
+static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
     // put some random metadata
     ItemMetaData itemMeta;
     itemMeta.revSeqno = 10;
@@ -1860,8 +1839,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h,
-                                                              EngineIface* h1) {
+static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
     // put some random metadata
     ItemMetaData itemMeta;
     itemMeta.revSeqno = 10;
@@ -1911,8 +1889,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_del_meta_conflict_resolution(EngineIface* h,
-                                                          EngineIface* h1) {
+static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
@@ -1969,8 +1946,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h,
-                                                              EngineIface* h1) {
+static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     item *i = NULL;
     item_info info;
 
@@ -2023,8 +1999,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_getMeta_with_item_eviction(EngineIface* h,
-                                                        EngineIface* h1) {
+static enum test_result test_getMeta_with_item_eviction(EngineIface* h) {
     char const *key = "test_get_meta";
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
@@ -2046,7 +2021,7 @@ static enum test_result test_getMeta_with_item_eviction(EngineIface* h,
 }
 
 static enum test_result test_set_with_meta_and_check_drift_stats(
-        EngineIface* h, EngineIface* h1) {
+        EngineIface* h) {
     // Activate n vbuckets (vb 0 is already)
     const int n_vbuckets = 10;
     for (int ii = 1; ii < n_vbuckets; ii++) {
@@ -2150,7 +2125,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
 }
 
 static enum test_result test_del_with_meta_and_check_drift_stats(
-        EngineIface* h, EngineIface* h1) {
+        EngineIface* h) {
     // Activate n vbuckets (vb 0 is already)
     const int n_vbuckets = 10;
     for (int ii = 1; ii < n_vbuckets; ii++) {
@@ -2292,8 +2267,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
     return SUCCESS;
 }
 
-static enum test_result test_setting_drift_threshold(EngineIface* h,
-                                                     EngineIface* h1) {
+static enum test_result test_setting_drift_threshold(EngineIface* h) {
     std::vector<std::tuple<std::string, std::string, std::string> > configData =
         {std::make_tuple("ep_hlc_drift_ahead_threshold_us",
                          "hlc_drift_ahead_threshold_us",
@@ -2336,7 +2310,7 @@ static enum test_result test_setting_drift_threshold(EngineIface* h,
 /*
  * Perform set_with_meta and check CAS regeneration is ok.
  */
-static enum test_result test_cas_regeneration(EngineIface* h, EngineIface* h1) {
+static enum test_result test_cas_regeneration(EngineIface* h) {
     // First store a key from the past (small CAS).
     ItemMetaData itemMeta;
     itemMeta.revSeqno = 10;
@@ -2422,8 +2396,7 @@ static enum test_result test_cas_regeneration(EngineIface* h, EngineIface* h1) {
 /*
  * Perform del_with_meta and check CAS regeneration is ok.
  */
-static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h,
-                                                            EngineIface* h1) {
+static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
     const std::string key("key");
     // First store a key from the past (small CAS).
     ItemMetaData itemMeta;
@@ -2514,8 +2487,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h,
  * Test that we can send options and nmeta
  * The nmeta is just going to be ignored though, but should not fail
  */
-static enum test_result test_cas_options_and_nmeta(EngineIface* h,
-                                                   EngineIface* h1) {
+static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
     ItemMetaData itemMeta;
     itemMeta.revSeqno = 10;
     itemMeta.cas = 0x1;
@@ -2730,7 +2702,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h,
 
 // A delete_with_meta with a large seqno (upper 16-bits dirty) should trigger
 // a conflict if evicted and a second identical delete_with_meta occurs
-static enum test_result test_MB29119(EngineIface* h, EngineIface* h1) {
+static enum test_result test_MB29119(EngineIface* h) {
     const char* key1 = "delete_with_meta_key1";
     const size_t keylen = strlen(key1);
     RawItemMetaData itemMeta;

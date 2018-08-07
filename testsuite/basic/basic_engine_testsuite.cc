@@ -65,7 +65,7 @@ static void assert_ge_impl(const T& a_value, const T& b_value,
  * Make sure we can successfully allocate an item, allocate op returns success
  * and that item struct is populated
  */
-static enum test_result allocate_test(EngineIface* h, EngineIface* h1) {
+static enum test_result allocate_test(EngineIface* h) {
     DocKey key("akey", test_harness->doc_namespace);
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, 0);
@@ -78,7 +78,7 @@ static enum test_result allocate_test(EngineIface* h, EngineIface* h1) {
 /*
  * Verify set behavior
  */
-static enum test_result set_test(EngineIface* h, EngineIface* h1) {
+static enum test_result set_test(EngineIface* h) {
     DocKey key("key", test_harness->doc_namespace);
     uint64_t prev_cas;
     uint64_t cas = 0;
@@ -104,7 +104,7 @@ static enum test_result set_test(EngineIface* h, EngineIface* h1) {
 /*
  * Verify add behavior
  */
-static enum test_result add_test(EngineIface* h, EngineIface* h1) {
+static enum test_result add_test(EngineIface* h) {
     DocKey key("key", test_harness->doc_namespace);
     uint64_t cas;
     int ii;
@@ -132,13 +132,13 @@ static enum test_result add_test(EngineIface* h, EngineIface* h1) {
 /*
  * Verify replace behavior
  */
-static enum test_result replace_test(EngineIface* h, EngineIface* h1) {
+static enum test_result replace_test(EngineIface* h) {
     uint64_t prev_cas;
     uint64_t cas = 0;
     int ii;
     item_info item_info;
 
-    cb_assert(set_test(h, h1) == SUCCESS);
+    cb_assert(set_test(h) == SUCCESS);
     DocKey key("key", test_harness->doc_namespace);
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(
@@ -171,7 +171,7 @@ static enum test_result replace_test(EngineIface* h, EngineIface* h1) {
  * Make sure when we can successfully store an item after it has been allocated
  * and that the cas for the stored item has been generated.
  */
-static enum test_result store_test(EngineIface* h, EngineIface* h1) {
+static enum test_result store_test(EngineIface* h) {
     DocKey key("bkey", test_harness->doc_namespace);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
@@ -191,7 +191,7 @@ static enum test_result store_test(EngineIface* h, EngineIface* h1) {
  * Make sure when we can successfully retrieve an item that has been stored in
  * the engine
  */
-static enum test_result get_test(EngineIface* h, EngineIface* h1) {
+static enum test_result get_test(EngineIface* h) {
     DocKey key("get_test_key", test_harness->doc_namespace);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
@@ -212,7 +212,7 @@ static enum test_result get_test(EngineIface* h, EngineIface* h1) {
  * Make sure when we can successfully retrieve an item that has been stored in
  * the engine and then deleted.
  */
-static enum test_result get_deleted_test(EngineIface* h, EngineIface* h1) {
+static enum test_result get_deleted_test(EngineIface* h) {
     DocKey key("get_removed_test_key", test_harness->doc_namespace);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
@@ -247,7 +247,7 @@ static enum test_result get_deleted_test(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result expiry_test(EngineIface* h, EngineIface* h1) {
+static enum test_result expiry_test(EngineIface* h) {
     DocKey key("get_test_key", test_harness->doc_namespace);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
@@ -270,7 +270,7 @@ static enum test_result expiry_test(EngineIface* h, EngineIface* h1) {
  * is ensure that thinds dont go splat when we call release. It does nothing to
  * ensure that release did much of anything.
  */
-static enum test_result release_test(EngineIface* h, EngineIface* h1) {
+static enum test_result release_test(EngineIface* h) {
     DocKey key("release_test_key", test_harness->doc_namespace);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
@@ -289,7 +289,7 @@ static enum test_result release_test(EngineIface* h, EngineIface* h1) {
  * Make sure that we can remove an item and that after the item has been
  * removed it can not be retrieved.
  */
-static enum test_result remove_test(EngineIface* h, EngineIface* h1) {
+static enum test_result remove_test(EngineIface* h) {
     DocKey key("remove_test_key", test_harness->doc_namespace);
     uint64_t cas = 0;
     mutation_descr_t mut_info;
@@ -314,7 +314,7 @@ static enum test_result remove_test(EngineIface* h, EngineIface* h1) {
  * Make sure we can successfully perform a flush operation and that any item
  * stored before the flush can not be retrieved
  */
-static enum test_result flush_test(EngineIface* h, EngineIface* h1) {
+static enum test_result flush_test(EngineIface* h) {
     DocKey key("flush_test_key", test_harness->doc_namespace);
     uint64_t cas = 0;
 
@@ -341,7 +341,7 @@ static enum test_result flush_test(EngineIface* h, EngineIface* h1) {
  * Make sure we can successfully retrieve the item info struct for an item and
  * that the contents of the item_info are as expected.
  */
-static enum test_result get_item_info_test(EngineIface* h, EngineIface* h1) {
+static enum test_result get_item_info_test(EngineIface* h) {
     DocKey key("get_item_info_test_key", test_harness->doc_namespace);
     uint64_t cas = 0;
     const time_t exp = 1;
@@ -372,7 +372,7 @@ static enum test_result get_item_info_test(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result item_set_cas_test(EngineIface* h, EngineIface* h1) {
+static enum test_result item_set_cas_test(EngineIface* h) {
     DocKey key("item_set_cas_test_key", test_harness->doc_namespace);
     uint64_t cas = 0;
     const rel_time_t exp = 1;
@@ -410,7 +410,7 @@ static void eviction_stats_handler(const char* key,
     }
 }
 
-static enum test_result lru_test(EngineIface* h, EngineIface* h1) {
+static enum test_result lru_test(EngineIface* h) {
     DocKey hot_key("hot_key", test_harness->doc_namespace);
     uint64_t cas = 0;
     int ii;
@@ -475,23 +475,23 @@ static enum test_result lru_test(EngineIface* h, EngineIface* h1) {
     return SUCCESS;
 }
 
-static enum test_result get_stats_test(EngineIface* h, EngineIface* h1) {
+static enum test_result get_stats_test(EngineIface* h) {
     return PENDING;
 }
 
-static enum test_result reset_stats_test(EngineIface* h, EngineIface* h1) {
+static enum test_result reset_stats_test(EngineIface* h) {
     return PENDING;
 }
 
-static enum test_result get_stats_struct_test(EngineIface* h, EngineIface* h1) {
+static enum test_result get_stats_struct_test(EngineIface* h) {
     return PENDING;
 }
 
-static enum test_result aggregate_stats_test(EngineIface* h, EngineIface* h1) {
+static enum test_result aggregate_stats_test(EngineIface* h) {
     return PENDING;
 }
 
-static enum test_result test_datatype(EngineIface* h, EngineIface* h1) {
+static enum test_result test_datatype(EngineIface* h) {
     DocKey key("{foo:1}", test_harness->doc_namespace);
     uint64_t cas = 0;
     item_info ii;

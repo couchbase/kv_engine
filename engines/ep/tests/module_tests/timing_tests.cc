@@ -165,7 +165,7 @@ static size_t env_int(const char *k, size_t rv) {
 }
 
 extern "C" {
-static test_result test_persistence(EngineIface* h, EngineIface* h1) {
+static test_result test_persistence(EngineIface* h) {
     size_t total = env_int("TEST_TOTAL_KEYS", 100000);
     size_t size = env_int("TEST_VAL_SIZE", 20);
 

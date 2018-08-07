@@ -165,8 +165,7 @@ class EngineTestAppDriver(Driver):
             self.writer.addseq(seq)
 
         f = "static enum test_result %s" % self.testName(seq)
-        self.output(("%s(EngineIface *h,\n%sEngineIface *h1) {\n"
-                     % (f, " " * (len(f) + 1))))
+        self.output(("%s(EngineIface *h) {\n" %f))
 
 
     def startAction(self, action):

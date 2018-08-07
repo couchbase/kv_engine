@@ -440,7 +440,6 @@ static void perf_latency_core(EngineIface* h,
 }
 
 static enum test_result perf_latency(EngineIface* h,
-                                     EngineIface* h1,
                                      const char* title,
                                      size_t num_docs) {
     // Only timing front-end performance, not considering persistence.
@@ -478,22 +477,20 @@ static enum test_result perf_latency(EngineIface* h,
 
 /* Benchmark the baseline latency (without any tasks running) of ep-engine.
  */
-static enum test_result perf_latency_baseline(EngineIface* h, EngineIface* h1) {
-    return perf_latency(h, h1, "1_bucket_1_thread_baseline", ITERATIONS);
+static enum test_result perf_latency_baseline(EngineIface* h) {
+    return perf_latency(h, "1_bucket_1_thread_baseline", ITERATIONS);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
  */
-static enum test_result perf_latency_defragmenter(EngineIface* h,
-                                                  EngineIface* h1) {
-    return perf_latency(h, h1, "With constant defragmention", ITERATIONS);
+static enum test_result perf_latency_defragmenter(EngineIface* h) {
+    return perf_latency(h, "With constant defragmention", ITERATIONS);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
  */
-static enum test_result perf_latency_expiry_pager(EngineIface* h,
-                                                  EngineIface* h1) {
-    return perf_latency(h, h1, "With constant Expiry pager", ITERATIONS);
+static enum test_result perf_latency_expiry_pager(EngineIface* h) {
+    return perf_latency(h, "With constant Expiry pager", ITERATIONS);
 }
 
 class ThreadArguments {
@@ -1148,8 +1145,7 @@ static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result perf_dcp_latency_with_padded_json(EngineIface* h,
-                                                          EngineIface* h1) {
+static enum test_result perf_dcp_latency_with_padded_json(EngineIface* h) {
     return perf_dcp_latency_and_bandwidth(
             h,
             "DCP In-memory (JSON-PADDED) [As_is vs. Compress]",
@@ -1157,8 +1153,7 @@ static enum test_result perf_dcp_latency_with_padded_json(EngineIface* h,
             ITERATIONS / 20);
 }
 
-static enum test_result perf_dcp_latency_with_random_json(EngineIface* h,
-                                                          EngineIface* h1) {
+static enum test_result perf_dcp_latency_with_random_json(EngineIface* h) {
     return perf_dcp_latency_and_bandwidth(
             h,
             "DCP In-memory (JSON-RAND) [As_is vs. Compress]",
@@ -1166,8 +1161,7 @@ static enum test_result perf_dcp_latency_with_random_json(EngineIface* h,
             ITERATIONS / 20);
 }
 
-static enum test_result perf_dcp_latency_with_random_binary(EngineIface* h,
-                                                            EngineIface* h1) {
+static enum test_result perf_dcp_latency_with_random_binary(EngineIface* h) {
     return perf_dcp_latency_and_bandwidth(
             h,
             "DCP In-memory (BINARY-RAND) [As_is vs. Compress]",
@@ -1185,7 +1179,7 @@ static enum test_result perf_dcp_latency_with_random_binary(EngineIface* h,
  * (most times in real executions, always in this test).
  */
 static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
-        EngineIface* h, EngineIface* h1) {
+        EngineIface* h) {
     const uint16_t vbid = 0;
     const uint32_t opaque = 1;
 
@@ -1316,8 +1310,7 @@ static enum test_result perf_multi_thread_latency(engine_test_t* test) {
                                                      10000/* documents */);
 }
 
-static enum test_result perf_latency_dcp_impact(EngineIface* h,
-                                                EngineIface* h1) {
+static enum test_result perf_latency_dcp_impact(EngineIface* h) {
     // Spin up a DCP replication background thread, then start the normal
     // latency test.
     const size_t num_docs = ITERATIONS;
@@ -1337,8 +1330,7 @@ static enum test_result perf_latency_dcp_impact(EngineIface* h,
                            std::ref(ignored_send_times),
                            std::ref(ignored_send_bytes)};
 
-    enum test_result result = perf_latency(h, h1, "With background DCP",
-                                           num_docs);
+    enum test_result result = perf_latency(h, "With background DCP", num_docs);
 
     dcp_thread.join();
 
@@ -1346,7 +1338,6 @@ static enum test_result perf_latency_dcp_impact(EngineIface* h,
 }
 
 static void perf_stat_latency_core(EngineIface* h,
-                                   EngineIface* h1,
                                    int key_prefix,
                                    StatRuntime statRuntime) {
     const int iterations = (statRuntime == StatRuntime::Slow) ?
@@ -1412,7 +1403,6 @@ static void perf_stat_latency_core(EngineIface* h,
 }
 
 static enum test_result perf_stat_latency(EngineIface* h,
-                                          EngineIface* h1,
                                           const char* title,
                                           StatRuntime statRuntime,
                                           BackgroundWork backgroundWork,
@@ -1470,7 +1460,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
         }
 
         // run and measure on this thread.
-        perf_stat_latency_core(h, h1, 0, statRuntime);
+        perf_stat_latency_core(h, 0, statRuntime);
 
         // Need to tell the thread performing sets to stop
         running_benchmark = false;
@@ -1485,7 +1475,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
         }
     } else {
         // run and measure on this thread.
-        perf_stat_latency_core(h, h1, 0, statRuntime);
+        perf_stat_latency_core(h, 0, statRuntime);
     }
 
     for (auto& stat : stat_tests) {
@@ -1506,42 +1496,49 @@ static enum test_result perf_stat_latency(EngineIface* h,
 }
 
 /* Benchmark the baseline stats (without any tasks running) of ep-engine */
-static enum test_result perf_stat_latency_baseline(EngineIface* h,
-                                                   EngineIface* h1) {
-    return perf_stat_latency(h, h1, "Baseline Stats",
-                             StatRuntime::Fast, BackgroundWork::None, 1);
+static enum test_result perf_stat_latency_baseline(EngineIface* h) {
+    return perf_stat_latency(
+            h, "Baseline Stats", StatRuntime::Fast, BackgroundWork::None, 1);
 }
 
 /* Benchmark the stats with 100 active vbuckets */
-static enum test_result perf_stat_latency_100vb(EngineIface* h,
-                                                EngineIface* h1) {
-    return perf_stat_latency(h, h1, "Stats with 100 vbuckets",
-                             StatRuntime::Fast, BackgroundWork::None, 100);
+static enum test_result perf_stat_latency_100vb(EngineIface* h) {
+    return perf_stat_latency(h,
+                             "Stats with 100 vbuckets",
+                             StatRuntime::Fast,
+                             BackgroundWork::None,
+                             100);
 }
 
 /*
  * Benchmark the stats with 100 active vbuckets.  And sets and DCP running on
  * background thread.
  */
-static enum test_result perf_stat_latency_100vb_sets_and_dcp(EngineIface* h,
-                                                             EngineIface* h1) {
-    return perf_stat_latency(h, h1, "Stats with 100 vbuckets and background sets and DCP",
-                             StatRuntime::Fast, (BackgroundWork::Sets |
-                                     BackgroundWork::Dcp), 100);
+static enum test_result perf_stat_latency_100vb_sets_and_dcp(EngineIface* h) {
+    return perf_stat_latency(
+            h,
+            "Stats with 100 vbuckets and background sets and DCP",
+            StatRuntime::Fast,
+            (BackgroundWork::Sets | BackgroundWork::Dcp),
+            100);
 }
 
 /* Benchmark the baseline slow stats (without any tasks running) of ep-engine */
-static enum test_result perf_slow_stat_latency_baseline(EngineIface* h,
-                                                        EngineIface* h1) {
-    return perf_stat_latency(h, h1, "Baseline Slow Stats",
-                             StatRuntime::Slow, BackgroundWork::None, 1);
+static enum test_result perf_slow_stat_latency_baseline(EngineIface* h) {
+    return perf_stat_latency(h,
+                             "Baseline Slow Stats",
+                             StatRuntime::Slow,
+                             BackgroundWork::None,
+                             1);
 }
 
 /* Benchmark the slow stats with 100 active vbuckets */
-static enum test_result perf_slow_stat_latency_100vb(EngineIface* h,
-                                                     EngineIface* h1) {
-    return perf_stat_latency(h, h1, "Slow Stats with 100 vbuckets",
-                             StatRuntime::Slow, BackgroundWork::None, 100);
+static enum test_result perf_slow_stat_latency_100vb(EngineIface* h) {
+    return perf_stat_latency(h,
+                             "Slow Stats with 100 vbuckets",
+                             StatRuntime::Slow,
+                             BackgroundWork::None,
+                             100);
 }
 
 /*
@@ -1549,10 +1546,13 @@ static enum test_result perf_slow_stat_latency_100vb(EngineIface* h,
  * on background thread.
  */
 static enum test_result perf_slow_stat_latency_100vb_sets_and_dcp(
-        EngineIface* h, EngineIface* h1) {
-    return perf_stat_latency(h, h1, "Slow Stats with 100 vbuckets and background sets and DCP",
-                             StatRuntime::Slow, (BackgroundWork::Sets |
-                                     BackgroundWork::Dcp), 100);
+        EngineIface* h) {
+    return perf_stat_latency(
+            h,
+            "Slow Stats with 100 vbuckets and background sets and DCP",
+            StatRuntime::Slow,
+            (BackgroundWork::Sets | BackgroundWork::Dcp),
+            100);
 }
 
 /*****************************************************************************

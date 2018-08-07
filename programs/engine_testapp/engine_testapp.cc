@@ -1238,7 +1238,7 @@ static test_result execute_test(engine_test_t test,
                 return FAIL;
             }
 
-            ret = test.tfun(handle, handle);
+            ret = test.tfun(handle);
 
             if (test.test_teardown != nullptr && !test.test_teardown(handle)) {
                 fprintf(stderr, "WARNING: Failed to run teardown for test %s\n", test.name);

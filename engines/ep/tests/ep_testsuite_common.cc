@@ -31,7 +31,7 @@
 
 const char *dbname_env = NULL;
 
-static enum test_result skipped_test_function(EngineIface* h, EngineIface* h1);
+static enum test_result skipped_test_function(EngineIface* h);
 
 BaseTestCase::BaseTestCase(const char *_name, const char *_cfg, bool _skip)
   : name(_name),
@@ -49,7 +49,7 @@ BaseTestCase::BaseTestCase(const BaseTestCase &o)
 }
 
 TestCase::TestCase(const char* _name,
-                   enum test_result (*_tfun)(EngineIface*, EngineIface*),
+                   enum test_result (*_tfun)(EngineIface*),
                    bool (*_test_setup)(EngineIface*),
                    bool (*_test_teardown)(EngineIface*),
                    const char* _cfg,
@@ -121,9 +121,7 @@ engine_test_t* BaseTestCase::getTest() {
     return ret;
 }
 
-static enum test_result skipped_test_function(EngineIface* h, EngineIface* h1) {
-    (void) h;
-    (void) h1;
+static enum test_result skipped_test_function(EngineIface*) {
     return SKIPPED;
 }
 

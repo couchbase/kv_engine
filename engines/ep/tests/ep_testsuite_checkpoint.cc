@@ -28,8 +28,7 @@
 
 // Testcases //////////////////////////////////////////////////////////////////
 
-static enum test_result test_create_new_checkpoint(EngineIface* h,
-                                                   EngineIface* h1) {
+static enum test_result test_create_new_checkpoint(EngineIface* h) {
     // Inserting more than 5 items (see testcase config) will cause a new open
     // checkpoint with id 2 to be created.
 
@@ -61,8 +60,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_validate_checkpoint_params(EngineIface* h,
-                                                        EngineIface* h1) {
+static enum test_result test_validate_checkpoint_params(EngineIface* h) {
     set_param(h,
               protocol_binary_engine_param_checkpoint,
               "chk_max_items",
@@ -91,8 +89,7 @@ static enum test_result test_validate_checkpoint_params(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_checkpoint_create(EngineIface* h,
-                                               EngineIface* h1) {
+static enum test_result test_checkpoint_create(EngineIface* h) {
     for (int i = 0; i < 5001; i++) {
         char key[8];
         sprintf(key, "key%d", i);
@@ -109,8 +106,7 @@ static enum test_result test_checkpoint_create(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_checkpoint_timeout(EngineIface* h,
-                                                EngineIface* h1) {
+static enum test_result test_checkpoint_timeout(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "value"),
             "Failed to store an item.");
@@ -119,8 +115,7 @@ static enum test_result test_checkpoint_timeout(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_checkpoint_deduplication(EngineIface* h,
-                                                      EngineIface* h1) {
+static enum test_result test_checkpoint_deduplication(EngineIface* h) {
     for (int i = 0; i < 5; i++) {
         for (int j = 0; j < 4500; j++) {
             char key[8];
@@ -135,8 +130,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h,
     return SUCCESS;
 }
 
-static enum test_result test_collapse_checkpoints(EngineIface* h,
-                                                  EngineIface* h1) {
+static enum test_result test_collapse_checkpoints(EngineIface* h) {
     stop_persistence(h);
     for (size_t i = 0; i < 5; ++i) {
         for (size_t j = 0; j < 497; ++j) {
@@ -193,8 +187,7 @@ extern "C" {
     }
 }
 
-static enum test_result test_checkpoint_persistence(EngineIface* h,
-                                                    EngineIface* h1) {
+static enum test_result test_checkpoint_persistence(EngineIface* h) {
     if (!isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
                 checkpointPersistence(h, 0, 0),
@@ -238,8 +231,7 @@ extern "C" {
     }
 }
 
-static enum test_result test_wait_for_persist_vb_del(EngineIface* h,
-                                                     EngineIface* h1) {
+static enum test_result test_wait_for_persist_vb_del(EngineIface* h) {
     cb_thread_t th;
     check(set_vbucket_state(h, 1, vbucket_state_active),
           "Failed to set vbucket state.");
