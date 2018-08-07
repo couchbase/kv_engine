@@ -260,7 +260,7 @@ TEST_F(AddValidatorTest, CorrectMessage) {
 }
 
 TEST_F(AddValidatorTest, NoValue) {
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.bodylen = htonl(18);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               validate(PROTOCOL_BINARY_CMD_ADD));
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -326,7 +326,7 @@ TEST_F(SetReplaceValidatorTest, CorrectMessage) {
 }
 
 TEST_F(SetReplaceValidatorTest, NoValue) {
-    request.message.header.request.bodylen = htonl(10);
+    request.message.header.request.bodylen = htonl(18);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               validate(PROTOCOL_BINARY_CMD_SET));
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -1856,6 +1856,7 @@ public:
         header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
         if (GetParam()) {
             header.request.keylen = htons(5); // min-collection key
+            header.request.bodylen = htonl(header.request.extlen + 5);
         }
     }
 
