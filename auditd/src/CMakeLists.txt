@@ -1,4 +1,4 @@
-ADD_LIBRARY(auditd SHARED
+add_library(auditd STATIC
             audit.cc audit.h
             auditconfig.cc auditconfig.h
             auditd.cc auditd.h
@@ -7,11 +7,5 @@ ADD_LIBRARY(auditd SHARED
             event.cc event.h
             eventdescriptor.cc
             eventdescriptor.h)
-SET_TARGET_PROPERTIES(auditd PROPERTIES SOVERSION 0.1.0)
-TARGET_LINK_LIBRARIES(auditd memcached_logger mcd_time cJSON JSON_checker platform dirutils)
-ADD_DEPENDENCIES(auditd generate_audit_descriptors)
-
-INSTALL(TARGETS auditd
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+target_link_libraries(auditd memcached_logger mcd_time cJSON JSON_checker platform dirutils)
+add_dependencies(auditd generate_audit_descriptors)

@@ -17,7 +17,6 @@
 #pragma once
 
 #include <memcached/engine.h>
-#include <memcached/visibility.h>
 #include <platform/platform.h>
 
 /**
@@ -72,7 +71,6 @@ class Audit;
  * @param handle where to store the audit handle
  * @return AUDIT_SUCCESS for success, AUDIT_FAILED if an error occurred
  */
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
                                    Audit **handle);
 
@@ -86,7 +84,6 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
  *                           will be signalled when it is done)
  *         AUDIT_FAILED if we failed to update the configuration
  */
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE configure_auditdaemon(Audit* handle,
                                        const char* config,
                                        const void* cookie);
@@ -102,7 +99,6 @@ AUDIT_ERROR_CODE configure_auditdaemon(Audit* handle,
  *         AUDIT_FAILED if an error occured while trying to insert the
  *                      event to the audit queue.
  */
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(Audit* handle,
                                  const uint32_t audit_eventid,
                                  const void* payload,
@@ -114,7 +110,6 @@ AUDIT_ERROR_CODE put_audit_event(Audit* handle,
  * @param handle the audit daemon handle
  *
  */
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle);
 
 /**
@@ -124,7 +119,6 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle);
  * @param add_stats a callback function to add information to the response
  * @param cookie the cookie representing the command
  */
-MEMCACHED_PUBLIC_API
 void process_auditd_stats(Audit* handle,
                           ADD_STAT add_stats,
                           const void* cookie);
@@ -149,7 +143,6 @@ typedef void (*EventStateListener)(uint32_t id, bool enabled);
  * disabled in memcached (to avoid building up audit events in the frontend
  * threads which will be dropped by the audit daemon later on).
  */
-MEMCACHED_PUBLIC_API
 void add_event_state_listener(Audit* handle, EventStateListener listener);
 
 /**
@@ -163,7 +156,6 @@ void add_event_state_listener(Audit* handle, EventStateListener listener);
  *       the internal datastructures without locking it (the event
  *       descriptor array).
  */
-MEMCACHED_PUBLIC_API
 void notify_all_event_states(Audit* handle);
 
 }

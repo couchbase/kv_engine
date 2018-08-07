@@ -93,7 +93,6 @@ static std::string gethostname(void) {
     return std::string(host);
 }
 
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
                                    Audit** handle) {
     if (handle == nullptr) {
@@ -143,7 +142,6 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
     return AUDIT_SUCCESS;
 }
 
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE configure_auditdaemon(Audit* handle,
                                        const char* config,
                                        const void* cookie) {
@@ -162,7 +160,6 @@ AUDIT_ERROR_CODE configure_auditdaemon(Audit* handle,
     }
 }
 
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE put_audit_event(Audit* handle,
                                  const uint32_t audit_eventid,
                                  const void* payload,
@@ -180,7 +177,6 @@ AUDIT_ERROR_CODE put_audit_event(Audit* handle,
     return AUDIT_SUCCESS;
 }
 
-MEMCACHED_PUBLIC_API
 AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle) {
     if (handle == nullptr) {
         throw std::invalid_argument(
@@ -210,7 +206,6 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(Audit* handle) {
     return AUDIT_FAILED;
 }
 
-MEMCACHED_PUBLIC_API
 void process_auditd_stats(Audit* handle,
                           ADD_STAT add_stats,
                           const void* cookie) {
@@ -232,12 +227,10 @@ void process_auditd_stats(Audit* handle,
 namespace cb {
 namespace audit {
 
-MEMCACHED_PUBLIC_API
 void add_event_state_listener(Audit* handle, EventStateListener listener) {
     handle->add_event_state_listener(listener);
 }
 
-MEMCACHED_PUBLIC_API
 void notify_all_event_states(Audit* handle) {
     handle->notify_all_event_states();
 }
