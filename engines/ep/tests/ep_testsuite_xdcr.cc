@@ -150,7 +150,7 @@ static enum test_result test_get_meta_deleted(EngineIface* h, EngineIface* h1) {
     Item *it = reinterpret_cast<Item*>(i);
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, key, it->getCas(), 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key, it->getCas(), 0), "Delete failed");
     wait_for_flusher_to_settle(h);
 
     // check the stat
@@ -224,7 +224,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h,
     check(temp == 1, "Expect one getMeta op");
 
     // test get_meta followed by get for a deleted key. should fail.
-    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
@@ -287,7 +287,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h,
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // test get_meta followed by set for a deleted key. should pass.
-    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
 
     wait_for_stat_to_be(h, "curr_items", 0);
@@ -344,7 +344,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
@@ -354,7 +354,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Expected enoent");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, 0), "Expected enoent");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(2, temp, "Expect more getMeta op");
@@ -365,7 +365,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h,
     checkeq(cb::engine_errc::no_such_key,
             errorMetaPair.first,
             "Expected no_such_key");
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key2, 0, 0), "Expected enoent");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key2, 0, 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(3, temp, "Expected one extra getMeta ops");
@@ -606,8 +606,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     // delete the key
-    checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0),
-            "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -826,7 +825,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h,
     //
 
     // do get_meta for the deleted key
-    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
@@ -877,7 +876,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
     uint64_t cas_from_store = errorMetaPair.second.cas;
 
     //Do a concurrent delete. This should modify the CAS
-    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
 
     //Get the latest meta data
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
@@ -909,7 +908,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
           "Expected deleted flag to be set");
 
     // do a concurrent delete
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, 0), "Delete failed");
 
     // attempt delete_with_meta. should pass.
     del_with_meta(h, key1, keylen1, 0, &itm_meta, last_cas);
@@ -932,7 +931,7 @@ static enum test_result test_delete_with_meta_race_with_delete(
             "Expected no_such_key");
 
     // do a concurrent delete
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, 0), "Delete failed");
 
     // attempt delete_with_meta. should pass.
     del_with_meta(h, key2, keylen2, 0, &itm_meta, errorMetaPair.second.cas);
@@ -1126,7 +1125,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h,
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // delete the key
-    checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -1278,7 +1277,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h,
     //
 
     // do get_meta for the deleted key
-    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
@@ -1328,7 +1327,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
 
     // do a concurrent delete that changes the cas
-    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     ItemMetaData meta(errorMetaPair.second.cas,
@@ -1366,7 +1365,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
           "Expected deleted flag to be set");
 
     // do a concurrent delete. should fail.
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, 0), "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
     meta = ItemMetaData(errorMetaPair.second.cas,
@@ -1400,7 +1399,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h,
             "Expected no_such_key");
 
     // do a concurrent delete. should fail.
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key2, 0, 0), "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key2, 0, 0), "Delete failed");
 
     // Attempt set_with_meta. This should pass as we set a new key passing 0 as
     // command CAS.
@@ -1655,7 +1654,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h,
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, k1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, k1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -1745,7 +1744,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h,
             get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 

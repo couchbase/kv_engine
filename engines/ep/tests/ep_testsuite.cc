@@ -611,7 +611,8 @@ static enum test_result test_wrong_vb_replace(EngineIface* h, EngineIface* h1) {
 
 static enum test_result test_wrong_vb_del(EngineIface* h, EngineIface* h1) {
     int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            del(h, "key", 0, 1),
             "Expected wrong bucket.");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -1377,7 +1378,8 @@ static enum test_result test_vb_del_pending(EngineIface* h, EngineIface* h1) {
     testHarness->set_ewouldblock_handling(cookie, false);
     check(set_vbucket_state(h, 1, vbucket_state_pending),
           "Failed to set vbucket state.");
-    checkeq(ENGINE_EWOULDBLOCK, del(h, h1, "key", 0, 1, cookie),
+    checkeq(ENGINE_EWOULDBLOCK,
+            del(h, "key", 0, 1, cookie),
             "Expected woodblock.");
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -1387,7 +1389,8 @@ static enum test_result test_vb_del_replica(EngineIface* h, EngineIface* h1) {
     check(set_vbucket_state(h, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, "ep_num_not_my_vbuckets");
-    checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            del(h, "key", 0, 1),
             "Expected not my vbucket.");
     wait_for_stat_change(h, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -1436,7 +1439,8 @@ static enum test_result test_takeover_stats_num_persisted_deletes(
             "Failed to store an item");
 
     /* delete the item */
-    checkeq(ENGINE_SUCCESS, del(h, h1, key.c_str(), 0, 0),
+    checkeq(ENGINE_SUCCESS,
+            del(h, key.c_str(), 0, 0),
             "Failed to delete the item");
 
     /* wait for persistence */
@@ -2014,8 +2018,7 @@ static enum test_result test_item_stats(EngineIface* h, EngineIface* h1) {
     check_key_value(h, "key", "somevalueX", 10);
     check_key_value(h, "key1", "somevalueY", 10);
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, "key1", 0, 0),
-            "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "key1", 0, 0), "Failed remove with value.");
     wait_for_flusher_to_settle(h);
 
     checkeq(ENGINE_SUCCESS,
@@ -2284,8 +2287,7 @@ static enum test_result test_bg_meta_stats(EngineIface* h, EngineIface* h1) {
     wait_for_persisted_value(h, "k2", "v2");
 
     evict_key(h, "k1", 0, "Ejected.");
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, "k2", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "k2", 0, 0), "Failed remove with value.");
     wait_for_flusher_to_settle(h);
 
     checkeq(0, get_int_stat(h, "ep_bg_fetched"), "Expected bg_fetched to be 0");
@@ -2694,7 +2696,7 @@ static enum test_result test_bloomfilters(EngineIface* h, EngineIface* h1) {
         std::stringstream key;
         key << "key-" << i;
         checkeq(ENGINE_SUCCESS,
-                del(h, h1, key.str().c_str(), 0, 0),
+                del(h, key.str().c_str(), 0, 0),
                 "Failed remove with value.");
     }
     wait_for_flusher_to_settle(h);
@@ -2868,7 +2870,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h,
             std::stringstream key;
             key << "del-" << j;
             checkeq(ENGINE_KEY_ENOENT,
-                    del(h, h1, key.str().c_str(), 0, 0),
+                    del(h, key.str().c_str(), 0, 0),
                     "Failed remove with value.");
         }
 
@@ -2906,8 +2908,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     int num_persisted = get_int_stat(h, "ep_total_persisted");
     cb_assert(num_writes == 1 && num_persisted == 1);
 
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, "k1", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "k1", 0, 0), "Failed remove with value.");
     stop_persistence(h);
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "k1", "v2", nullptr, 0, 0),
@@ -3758,7 +3759,8 @@ static enum test_result test_all_keys_api(EngineIface* h, EngineIface* h1) {
         h->release(itm);
     }
     std::string del_key("key_" + std::to_string(del_key_idx));
-    checkeq(ENGINE_SUCCESS, del(h, h1, del_key.c_str(), 0, 0),
+    checkeq(ENGINE_SUCCESS,
+            del(h, del_key.c_str(), 0, 0),
             "Failed to delete key");
     wait_for_flusher_to_settle(h);
     checkeq(total_keys - 1,
@@ -3886,8 +3888,7 @@ static enum test_result test_curr_items_delete(EngineIface* h,
     wait_for_flusher_to_settle(h);
 
     // Verify delete case.
-    checkeq(ENGINE_SUCCESS, del(h, h1, "key1", 0, 0),
-            "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "key1", 0, 0), "Failed remove with value.");
 
     wait_for_stat_change(h, "curr_items", 3);
     verify_curr_items(h, 2, "one item deleted - persisted");
@@ -4157,8 +4158,7 @@ static enum test_result test_disk_gt_ram_golden(EngineIface* h,
     itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
     int numStored = get_int_stat(h, "ep_total_persisted");
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, "k1", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "k1", 0, 0), "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
     testHarness->time_travel(65);
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
@@ -4190,8 +4190,7 @@ static enum test_result test_disk_gt_ram_paged_rm(EngineIface* h,
     // Delete the value and make sure things return correctly.
     int itemsRemoved = get_int_stat(h, "ep_items_rm_from_checkpoints");
     int numStored = get_int_stat(h, "ep_total_persisted");
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, "k1", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "k1", 0, 0), "Failed remove with value.");
     wait_for_stat_change(h, "ep_total_persisted", numStored);
     testHarness->time_travel(65);
     wait_for_stat_change(h, "ep_items_rm_from_checkpoints", itemsRemoved);
@@ -4222,8 +4221,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h,
 
     evict_key(h, "k1");
 
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, "k1", 0, 0), "Failed to delete.");
+    checkeq(ENGINE_SUCCESS, del(h, "k1", 0, 0), "Failed to delete.");
 
     check(verify_key(h, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
@@ -4252,8 +4250,7 @@ extern "C" {
 
         usleep(2600); // Exacerbate race condition.
 
-        checkeq(ENGINE_SUCCESS,
-                del(td->h, td->h1, "k1", 0, 0), "Failed to delete.");
+        checkeq(ENGINE_SUCCESS, del(td->h, "k1", 0, 0), "Failed to delete.");
 
         delete td;
     }
@@ -4663,7 +4660,7 @@ static enum test_result test_observe_temp_item(EngineIface* h,
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, k1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, k1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -4935,7 +4932,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h,
                       cas3) == ENGINE_SUCCESS,
           "Set should work");
 
-    check(del(h, h1, "key3", 0, 1) == ENGINE_SUCCESS, "Failed to remove a key");
+    check(del(h, "key3", 0, 1) == ENGINE_SUCCESS, "Failed to remove a key");
 
     // Do observe
     std::map<std::string, uint16_t> obskeys;
@@ -5916,7 +5913,7 @@ static enum test_result test_del_with_item_eviction(EngineIface* h,
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     auto high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS,
-            del(h, h1, "key", &cas, 0, nullptr, &mut_info),
+            del(h, "key", &cas, 0, nullptr, &mut_info),
             "Failed remove with value.");
     check(orig_cas != cas, "Expected CAS to be different on delete");
     check(ENGINE_KEY_ENOENT == verify_key(h, "key"), "Expected missing key");
@@ -6076,7 +6073,9 @@ static enum test_result test_non_existent_get_and_delete(EngineIface* h,
             get(h, NULL, "key1", 0).first,
             "Unexpected return status");
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Unexpected temp item");
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key3", 0, 0), "Unexpected return status");
+    checkeq(ENGINE_KEY_ENOENT,
+            del(h, "key3", 0, 0),
+            "Unexpected return status");
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Unexpected temp item");
     return SUCCESS;
 }
@@ -7669,9 +7668,7 @@ static enum test_result test_vbucket_compact_no_purge(EngineIface* h,
     }
 
     /* Delete one key */
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, key[0], 0, 0),
-            "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, key[0], 0, 0), "Failed remove with value.");
 
     /* Store a dummy item since we do not purge the item with highest seqno */
     checkeq(ENGINE_SUCCESS,

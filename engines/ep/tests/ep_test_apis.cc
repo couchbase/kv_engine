@@ -363,17 +363,15 @@ void createCheckpoint(EngineIface* h) {
 }
 
 ENGINE_ERROR_CODE del(EngineIface* h,
-                      EngineIface* h1,
                       const char* key,
                       uint64_t cas,
                       uint16_t vbucket,
                       const void* cookie) {
     mutation_descr_t mut_info{};
-    return del(h, h1, key, &cas, vbucket, cookie, &mut_info);
+    return del(h, key, &cas, vbucket, cookie, &mut_info);
 }
 
 ENGINE_ERROR_CODE del(EngineIface* h,
-                      EngineIface* h1,
                       const char* key,
                       uint64_t* cas,
                       uint16_t vbucket,
@@ -385,11 +383,11 @@ ENGINE_ERROR_CODE del(EngineIface* h,
         create_cookie = true;
     }
 
-    auto ret = h1->remove(cookie,
-                          DocKey(key, testHarness->doc_namespace),
-                          *cas,
-                          vbucket,
-                          *mut_info);
+    auto ret = h->remove(cookie,
+                         DocKey(key, testHarness->doc_namespace),
+                         *cas,
+                         vbucket,
+                         *mut_info);
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
     }

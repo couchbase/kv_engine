@@ -430,7 +430,7 @@ static void perf_latency_core(EngineIface* h,
     for (auto& key : keys) {
         const auto start = ProcessClock::now();
         checkeq(ENGINE_SUCCESS,
-                del(h, h, key.c_str(), 0, 0, cookie),
+                del(h, key.c_str(), 0, 0, cookie),
                 "Failed to delete a value");
         const auto end = ProcessClock::now();
         delete_timings.push_back((end - start).count());

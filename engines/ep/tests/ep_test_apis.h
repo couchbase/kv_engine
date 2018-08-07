@@ -201,14 +201,12 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 
 // Basic Operations
 ENGINE_ERROR_CODE del(EngineIface* h,
-                      EngineIface* h1,
                       const char* key,
                       uint64_t cas,
                       uint16_t vbucket,
                       const void* cookie = nullptr);
 
 ENGINE_ERROR_CODE del(EngineIface* h,
-                      EngineIface* h1,
                       const char* key,
                       uint64_t* cas,
                       uint16_t vbucket,

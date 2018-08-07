@@ -280,7 +280,7 @@ extern "C" {
                     store(h, nullptr, OPERATION_SET, "key", "somevalue"),
                     "Error setting.");
             // Ignoring the result here -- we're racing.
-            del(h, h, "key", 0, 0);
+            del(h, "key", 0, 0);
         }
     }
 }
@@ -396,7 +396,7 @@ static enum test_result test_getl_delete_with_cas(EngineIface* h,
     check(h1->get_item_info(ret.second.get(), &info),
           "Failed to get item info");
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, "key", info.cas, 0), "Expected SUCCESS");
+    checkeq(ENGINE_SUCCESS, del(h, "key", info.cas, 0), "Expected SUCCESS");
 
     return SUCCESS;
 }
@@ -412,7 +412,7 @@ static enum test_result test_getl_delete_with_bad_cas(EngineIface* h,
             getl(h, nullptr, "key", 0, 15).first,
             "Expected getl to succeed on key");
 
-    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, h1, "key", cas, 0), "Expected TMPFAIL");
+    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, "key", cas, 0), "Expected TMPFAIL");
 
     return SUCCESS;
 }
@@ -549,8 +549,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
     /* try an delete operation which should fail */
     uint64_t cas = 0;
 
-    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, h1, key, 0, 0), "Delete failed");
-
+    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, key, 0, 0), "Delete failed");
 
     /* bug MB 2699 append after getl should fail with ENGINE_TMPFAIL */
 
@@ -1270,7 +1269,7 @@ static enum test_result test_delete_with_value(EngineIface* h,
 
     /* Alive -> Deleted-no-value */
     checkeq(ENGINE_SUCCESS,
-            del(h, h1, "key", cas_0, vbid, cookie),
+            del(h, "key", cas_0, vbid, cookie),
             "Failed Alive -> Deleted-no-value");
     wait_for_flusher_to_settle(h);
 
@@ -1474,7 +1473,8 @@ static enum test_result test_delete(EngineIface* h, EngineIface* h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
     checkeq(ENGINE_KEY_ENOENT,
-            del(h, h1, "key", 0, 0), "Failed to fail initial delete.");
+            del(h, "key", 0, 0),
+            "Failed to fail initial delete.");
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
@@ -1492,7 +1492,8 @@ static enum test_result test_delete(EngineIface* h, EngineIface* h1) {
 
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
-    checkeq(ENGINE_SUCCESS, del(h, h1, "key", &cas, 0, nullptr, &mut_info),
+    checkeq(ENGINE_SUCCESS,
+            del(h, "key", &cas, 0, nullptr, &mut_info),
             "Failed remove with value.");
     check(orig_cas != cas, "Expected CAS to be updated on delete");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
@@ -1505,7 +1506,8 @@ static enum test_result test_delete(EngineIface* h, EngineIface* h1) {
             "Failed set.");
     h->release(i);
     testHarness->time_travel(3617);
-    checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key", 0, 0),
+    checkeq(ENGINE_KEY_ENOENT,
+            del(h, "key", 0, 0),
             "Did not get ENOENT removing an expired object.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
 
@@ -1517,8 +1519,7 @@ static enum test_result test_set_delete(EngineIface* h, EngineIface* h1) {
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
-    checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0),
-            "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Failed remove with value.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
@@ -1536,11 +1537,13 @@ static enum test_result test_set_delete_invalid_cas(EngineIface* h,
     check(h1->get_item_info(i, &info), "Should be able to get info");
     h->release(i);
 
-    checkeq(ENGINE_KEY_EEXISTS, del(h, h1, "key", info.cas + 1, 0),
-          "Didn't expect to be able to remove the item with wrong cas");
+    checkeq(ENGINE_KEY_EEXISTS,
+            del(h, "key", info.cas + 1, 0),
+            "Didn't expect to be able to remove the item with wrong cas");
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, "key", info.cas, 0),
-        "Subsequent delete with correct CAS did not succeed");
+    checkeq(ENGINE_SUCCESS,
+            del(h, "key", info.cas, 0),
+            "Subsequent delete with correct CAS did not succeed");
 
     return SUCCESS;
 }
@@ -1552,8 +1555,7 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
 
     wait_for_persisted_value(h, "key", "value1");
 
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, "key", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Failed remove with value.");
 
     wait_for_persisted_value(h, "key", "value2");
 
@@ -1566,8 +1568,7 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
     wait_for_warmup_complete(h, h1);
 
     check_key_value(h, "key", "value2", 6);
-    checkeq(ENGINE_SUCCESS,
-            del(h, h1, "key", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Failed remove with value.");
     wait_for_flusher_to_settle(h);
 
     testHarness->reload_engine(&h,
@@ -1620,7 +1621,9 @@ static enum test_result test_bug2509(EngineIface* h, EngineIface* h1) {
                 store(h, NULL, OPERATION_SET, "key", "somevalue"),
                 "Failed set.");
         usleep(10);
-        checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0), "Failed remove with value.");
+        checkeq(ENGINE_SUCCESS,
+                del(h, "key", 0, 0),
+                "Failed remove with value.");
         usleep(10);
     }
 
@@ -1714,8 +1717,7 @@ static enum test_result test_mb3169(EngineIface* h, EngineIface* h1) {
             get_int_stat(h, "ep_num_non_resident"),
             "Expected mutation to mark item resident");
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, "delete", 0, 0),
-            "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, "delete", 0, 0), "Delete failed");
 
     wait_for_flusher_to_settle(h);
 
@@ -1952,7 +1954,8 @@ static test_result get_if(EngineIface* h, EngineIface* h1) {
                      [](const item_info&) { return true; });
     check(!doc.second, "non-existing document should not be found");
 
-    checkeq(ENGINE_SUCCESS, del(h, h1, key.c_str(), 0, 0),
+    checkeq(ENGINE_SUCCESS,
+            del(h, key.c_str(), 0, 0),
             "Failed remove with value");
 
     doc = h1->get_if(cookie,

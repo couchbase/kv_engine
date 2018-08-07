@@ -2012,7 +2012,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h,
         std::stringstream ss;
         ss << "key" << j;
         checkeq(ENGINE_SUCCESS,
-                del(h, h1, ss.str().c_str(), 0, 0),
+                del(h, ss.str().c_str(), 0, 0),
                 "Expected delete to succeed");
     }
 
@@ -5018,7 +5018,12 @@ static enum test_result test_dcp_last_items_purged(EngineIface* h,
     /* Delete last 2 items */
     for (int count = 1; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
-                del(h, h1, key[count], &cas, 0/*vb*/, nullptr/*cookie*/, &mut_info),
+                del(h,
+                    key[count],
+                    &cas,
+                    0 /*vb*/,
+                    nullptr /*cookie*/,
+                    &mut_info),
                 "Failed remove with value.");
         cas = 0;
     }
@@ -5099,7 +5104,12 @@ static enum test_result test_dcp_rollback_after_purge(EngineIface* h,
     /* Delete last 2 items */
     for (int count = 1; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
-                del(h, h1, key[count], &cas, 0/*vb*/, nullptr/*cookie*/, &mut_info),
+                del(h,
+                    key[count],
+                    &cas,
+                    0 /*vb*/,
+                    nullptr /*cookie*/,
+                    &mut_info),
                 "Failed remove with value.");
         cas = 0;
     }
