@@ -138,8 +138,7 @@ bool put_audit_event(Audit& handle,
                      uint32_t audit_eventid,
                      cb::const_char_buffer payload) {
     if (handle.config.is_auditd_enabled()) {
-        if (!handle.add_to_filleventqueue(
-                    audit_eventid, payload.data(), payload.size())) {
+        if (!handle.add_to_filleventqueue(audit_eventid, payload)) {
             return false;
         }
     }

@@ -422,16 +422,15 @@ bool Audit::configure() {
     return true;
 }
 
-bool Audit::add_to_filleventqueue(const uint32_t event_id,
-                                  const char *payload,
-                                  const size_t length) {
+bool Audit::add_to_filleventqueue(uint32_t event_id,
+                                  cb::const_char_buffer payload) {
     // @todo I think we should do full validation of the content
     //       in debug mode to ensure that developers actually fill
     //       in the correct fields.. if not we should add an
     //       event to the audit trail saying it is one in an illegal
     //       format (or missing fields)
     bool res;
-    Event* new_event = new Event(event_id, payload, length);
+    Event* new_event = new Event(event_id, payload);
     cb_mutex_enter(&producer_consumer_lock);
     if (filleventqueue->size() < max_audit_queue) {
         filleventqueue->push(new_event);
@@ -447,11 +446,6 @@ bool Audit::add_to_filleventqueue(const uint32_t event_id,
     }
     cb_mutex_exit(&producer_consumer_lock);
     return res;
-}
-
-bool Audit::add_to_filleventqueue(const uint32_t event_id,
-                                  const std::string& payload) {
-    return add_to_filleventqueue(event_id, payload.data(), payload.length());
 }
 
 bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {

@@ -19,6 +19,7 @@
 
 #include <inttypes.h>
 #include <nlohmann/json_fwd.hpp>
+#include <platform/sized_buffer.h>
 #include <string>
 
 class Audit;
@@ -34,10 +35,9 @@ public:
     Event()
         : id(0) {}
 
-    Event(const uint32_t event_id, const char* p,
-          size_t length)
-        : id(event_id),
-          payload(p,length) {}
+    Event(const uint32_t event_id, cb::const_char_buffer payload)
+        : id(event_id), payload(payload.data(), payload.size()) {
+    }
 
     virtual bool process(Audit& audit);
 

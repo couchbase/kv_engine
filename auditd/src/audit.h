@@ -63,11 +63,8 @@ public:
     bool process_module_data_structures(cJSON *module);
     bool process_module_descriptor(cJSON *module_descriptor);
     bool configure();
-    bool add_to_filleventqueue(const uint32_t event_id,
-                               const char *payload,
-                               const size_t length);
-    bool add_to_filleventqueue(const uint32_t event_id,
-                               const std::string& payload);
+    bool add_to_filleventqueue(uint32_t event_id,
+                               cb::const_char_buffer payload);
 
     bool add_reconfigure_event(const char *configfile, const void *cookie);
     bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
