@@ -126,8 +126,8 @@ static enum test_result test_get_meta_with_extras(EngineIface* h,
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    true);
-        h1 = h;
-        wait_for_warmup_complete(h, h1);
+
+        wait_for_warmup_complete(h);
 
         check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
         verifyMetaData(metadata1, errorMetaPair.second);

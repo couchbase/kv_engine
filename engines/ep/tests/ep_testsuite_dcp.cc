@@ -3319,7 +3319,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                                    true,
                                    true);
         h1 = h;
-        wait_for_warmup_complete(h, h1);
+        wait_for_warmup_complete(h);
         dcp = requireDcpIface(h);
     }
 
@@ -3769,7 +3769,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h,
                                false);
 
     h1 = h;
-    wait_for_warmup_complete(h, h1);
+    wait_for_warmup_complete(h);
     stop_persistence(h);
 
     for (int j = 0; j < num_items / 2; ++j) {
@@ -5632,8 +5632,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h, EngineIface* h1) {
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+    wait_for_warmup_complete(h);
 
     wait_for_stat_to_be(h, "curr_items", num_items);
 

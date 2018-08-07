@@ -475,7 +475,7 @@ void wait_for_stat_to_be_lte(EngineIface* h,
 void wait_for_expired_items_to_be(EngineIface* h,
                                   int final,
                                   const time_t max_wait_time_in_secs = 60);
-bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1);
+bool wait_for_warmup_complete(EngineIface* h);
 void wait_for_flusher_to_settle(EngineIface* h);
 void wait_for_item_compressor_to_settle(EngineIface* h);
 void wait_for_rollback_to_finish(EngineIface* h);

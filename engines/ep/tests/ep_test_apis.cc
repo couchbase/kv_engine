@@ -1616,7 +1616,7 @@ void wait_for_memory_usage_below(EngineIface* h,
     }
 }
 
-bool wait_for_warmup_complete(EngineIface* h, EngineIface* h1) {
+bool wait_for_warmup_complete(EngineIface* h) {
     if (!isWarmupEnabled(h)) {
         return true;
     }

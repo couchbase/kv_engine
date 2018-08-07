@@ -149,8 +149,8 @@ static enum test_result test_max_size_and_water_marks_settings(
                                testHarness->get_current_testcase()->cfg,
                                true,
                                true);
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+
+    wait_for_warmup_complete(h);
 
     checkeq(1000, get_int_stat(h, "ep_max_size"), "Incorrect initial size.");
     check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750),
@@ -188,8 +188,7 @@ static enum test_result test_whitespace_db(EngineIface* h, EngineIface* h1) {
     }
     testHarness->reload_engine(
             &h, testHarness->engine_path, config.c_str(), true, false);
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+    wait_for_warmup_complete(h);
 
     vals.clear();
     checkeq(ENGINE_SUCCESS,
@@ -309,8 +308,7 @@ static enum test_result test_conc_set(EngineIface* h, EngineIface* h1) {
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
-        h1 = h;
-        wait_for_warmup_complete(h, h1);
+        wait_for_warmup_complete(h);
 
         cb_assert(0 == get_int_stat(h, "ep_warmup_dups"));
     }
@@ -1144,8 +1142,7 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+    wait_for_warmup_complete(h);
 
     //verify persisted expiration time
     const char *statkey = "key coolkey 0";
@@ -1167,8 +1164,8 @@ static enum test_result test_mb5215(EngineIface* h, EngineIface* h1) {
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+
+    wait_for_warmup_complete(h);
 
     checkeq(cb::engine_errc::success,
             get(h, NULL, "coolkey", 0).first,
@@ -1560,8 +1557,8 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+
+    wait_for_warmup_complete(h);
 
     check_key_value(h, "key", "value2", 6);
     checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Failed remove with value.");
@@ -1572,8 +1569,8 @@ static enum test_result test_delete_set(EngineIface* h, EngineIface* h1) {
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+
+    wait_for_warmup_complete(h);
 
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
 
@@ -1630,8 +1627,8 @@ static enum test_result test_bug2509(EngineIface* h, EngineIface* h1) {
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
-        h1 = h;
-        wait_for_warmup_complete(h, h1);
+
+        wait_for_warmup_complete(h);
 
         return get_int_stat(h, "ep_warmup_dups") == 0 ? SUCCESS : FAIL;
     }
@@ -1672,8 +1669,8 @@ static enum test_result test_bug7023(EngineIface* h, EngineIface* h1) {
                                    testHarness->get_current_testcase()->cfg,
                                    true,
                                    false);
-        h1 = h;
-        wait_for_warmup_complete(h, h1);
+
+        wait_for_warmup_complete(h);
         checkeq(nitems,
                 get_int_stat(h, "ep_warmup_value_count", "warmup"),
                 "Incorrect items following warmup");
@@ -1757,8 +1754,7 @@ static enum test_result test_mb5172(EngineIface* h, EngineIface* h1) {
                                true,
                                false);
 
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+    wait_for_warmup_complete(h);
     checkeq(0,
             get_int_stat(h, "ep_num_non_resident"),
             "Expected all items to be resident");
@@ -1834,8 +1830,7 @@ static enum test_result warmup_mb21769(EngineIface* h, EngineIface* h1) {
                                true,
                                true);
 
-    h1 = h;
-    wait_for_warmup_complete(h, h1);
+    wait_for_warmup_complete(h);
 
     // values of interested stats for each VB
     std::array<uint64_t, 3> high_seqnos = {{0, num_items, num_items}};
