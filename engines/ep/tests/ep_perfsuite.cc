@@ -328,7 +328,7 @@ void output_result(const std::string& name,
  * a run (sequence numbers are only supported by DCP, and
  * de-duplication complicates simply counting mutations).
  */
-static void add_sentinel_doc(EngineIface* h, EngineIface* h1, uint16_t vbid) {
+static void add_sentinel_doc(EngineIface* h, uint16_t vbid) {
     // Use ADD instead of SET as we only expect to mutate the sentinel
     // doc once per run.
     checkeq(cb::engine_errc::success,
@@ -465,7 +465,7 @@ static enum test_result perf_latency(EngineIface* h,
                       replace_timings,
                       delete_timings);
 
-    add_sentinel_doc(h, h1, /*vbid*/0);
+    add_sentinel_doc(h, /*vbid*/ 0);
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     all_timings.push_back(std::make_pair("Add", &add_timings));
@@ -804,7 +804,6 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
 
 /* Function which loads documents into a bucket */
 static void perf_load_client(EngineIface* h,
-                             EngineIface* h1,
                              uint16_t vbid,
                              int count,
                              Doc_format typeOfData,
@@ -833,14 +832,13 @@ static void perf_load_client(EngineIface* h,
         insertTimes.push_back(ProcessClock::now().time_since_epoch().count());
     }
 
-    add_sentinel_doc(h, h1, vbid);
+    add_sentinel_doc(h, vbid);
 
     wait_for_flusher_to_settle(h);
 }
 
 /* Function which loads documents into a bucket until told to stop*/
 static void perf_background_sets(EngineIface* h,
-                                 EngineIface* h1,
                                  uint16_t vbid,
                                  int count,
                                  Doc_format typeOfData,
@@ -894,7 +892,6 @@ static void perf_background_sets(EngineIface* h,
  * DCP Producer (i.e. simulating the replica side of a DCP pairing).
  */
 static void perf_dcp_client(EngineIface* h,
-                            EngineIface* h1,
                             int itemCount,
                             const std::string& name,
                             uint32_t opaque,
@@ -1050,7 +1047,6 @@ struct Ret_vals {
  */
 static std::pair<std::vector<hrtime_t>, std::vector<size_t>>
 single_dcp_latency_bw_test(EngineIface* h,
-                           EngineIface* h1,
                            uint16_t vb,
                            size_t item_count,
                            Doc_format typeOfData,
@@ -1065,13 +1061,23 @@ single_dcp_latency_bw_test(EngineIface* h,
 
     std::vector<hrtime_t> insert_times;
 
-    std::thread load_thread{perf_load_client, h, h1, vb, item_count,
-                            typeOfData, std::ref(insert_times)};
+    std::thread load_thread{perf_load_client,
+                            h,
+                            vb,
+                            item_count,
+                            typeOfData,
+                            std::ref(insert_times)};
 
     std::vector<hrtime_t> recv_times;
-    std::thread dcp_thread{perf_dcp_client, h, h1, item_count, name,
-                           opaque, vb, retrieveCompressed,
-                           std::ref(recv_times), std::ref(received)};
+    std::thread dcp_thread{perf_dcp_client,
+                           h,
+                           item_count,
+                           name,
+                           opaque,
+                           vb,
+                           retrieveCompressed,
+                           std::ref(recv_times),
+                           std::ref(received)};
     load_thread.join();
     dcp_thread.join();
 
@@ -1092,7 +1098,6 @@ single_dcp_latency_bw_test(EngineIface* h,
 }
 
 static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
-                                                       EngineIface* h1,
                                                        std::string title,
                                                        Doc_format typeOfData,
                                                        size_t item_count) {
@@ -1102,16 +1107,24 @@ static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
     std::vector<struct Ret_vals> iterations;
 
     // For Loader & DCP client to get documents as is from vbucket 0
-    auto as_is_results =
-            single_dcp_latency_bw_test(h, h1, /*vb*/0, item_count, typeOfData,
-                                       "As_is", /*opaque*/0xFFFFFF00, false);
+    auto as_is_results = single_dcp_latency_bw_test(h,
+                                                    /*vb*/ 0,
+                                                    item_count,
+                                                    typeOfData,
+                                                    "As_is",
+                                                    /*opaque*/ 0xFFFFFF00,
+                                                    false);
     all_timings.push_back({"As_is", &as_is_results.first});
     all_sizes.push_back({"As_is", &as_is_results.second});
 
     // For Loader & DCP client to get documents compressed from vbucket 1
-    auto compress_results =
-            single_dcp_latency_bw_test(h, h1, /*vb*/1, item_count, typeOfData,
-                                      "Compress", /*opaque*/0xFF000000, true);
+    auto compress_results = single_dcp_latency_bw_test(h,
+                                                       /*vb*/ 1,
+                                                       item_count,
+                                                       typeOfData,
+                                                       "Compress",
+                                                       /*opaque*/ 0xFF000000,
+                                                       true);
     all_timings.push_back({"Compress", &compress_results.first});
     all_sizes.push_back({"Compress", &compress_results.second});
 
@@ -1139,7 +1152,6 @@ static enum test_result perf_dcp_latency_with_padded_json(EngineIface* h,
                                                           EngineIface* h1) {
     return perf_dcp_latency_and_bandwidth(
             h,
-            h1,
             "DCP In-memory (JSON-PADDED) [As_is vs. Compress]",
             Doc_format::JSON_PADDED,
             ITERATIONS / 20);
@@ -1147,16 +1159,20 @@ static enum test_result perf_dcp_latency_with_padded_json(EngineIface* h,
 
 static enum test_result perf_dcp_latency_with_random_json(EngineIface* h,
                                                           EngineIface* h1) {
-    return perf_dcp_latency_and_bandwidth(h, h1,
-                            "DCP In-memory (JSON-RAND) [As_is vs. Compress]",
-                            Doc_format::JSON_RANDOM, ITERATIONS / 20);
+    return perf_dcp_latency_and_bandwidth(
+            h,
+            "DCP In-memory (JSON-RAND) [As_is vs. Compress]",
+            Doc_format::JSON_RANDOM,
+            ITERATIONS / 20);
 }
 
 static enum test_result perf_dcp_latency_with_random_binary(EngineIface* h,
                                                             EngineIface* h1) {
-    return perf_dcp_latency_and_bandwidth(h, h1,
-                            "DCP In-memory (BINARY-RAND) [As_is vs. Compress]",
-                            Doc_format::BINARY_RANDOM, ITERATIONS / 20);
+    return perf_dcp_latency_and_bandwidth(
+            h,
+            "DCP In-memory (BINARY-RAND) [As_is vs. Compress]",
+            Doc_format::BINARY_RANDOM,
+            ITERATIONS / 20);
 }
 
 /*
@@ -1311,8 +1327,13 @@ static enum test_result perf_latency_dcp_impact(EngineIface* h,
     // Don't actually care about send times & bytes for this test.
     std::vector<hrtime_t> ignored_send_times;
     std::vector<size_t> ignored_send_bytes;
-    std::thread dcp_thread{perf_dcp_client, h, h1, num_dcp_ops, "DCP",
-                           /*opaque*/0x1, /*vb*/0, /*compressed*/false,
+    std::thread dcp_thread{perf_dcp_client,
+                           h,
+                           num_dcp_ops,
+                           "DCP",
+                           /*opaque*/ 0x1,
+                           /*vb*/ 0,
+                           /*compressed*/ false,
                            std::ref(ignored_send_times),
                            std::ref(ignored_send_bytes)};
 
@@ -1420,17 +1441,26 @@ static enum test_result perf_stat_latency(EngineIface* h,
     stop_persistence(h);
 
     if ((backgroundWork & BackgroundWork::Sets) == BackgroundWork::Sets) {
-        std::thread load_thread { perf_background_sets, h, h1, /*vbid*/0,
-                                  iterations_for_fast_stats,
-                                  Doc_format::JSON_RANDOM,
-                                  std::ref(insert_timings),
-                                  std::ref(cond_var), std::ref(setup_benchmark),
-                                  std::ref(running_benchmark) };
+        std::thread load_thread{perf_background_sets,
+                                h,
+                                /*vbid*/ 0,
+                                iterations_for_fast_stats,
+                                Doc_format::JSON_RANDOM,
+                                std::ref(insert_timings),
+                                std::ref(cond_var),
+                                std::ref(setup_benchmark),
+                                std::ref(running_benchmark)};
 
         if ((backgroundWork & BackgroundWork::Dcp) == BackgroundWork::Dcp) {
-            std::thread local_dcp_thread{perf_dcp_client, h, h1, 0, "DCP",
-                /*opaque*/0x1, /*vb*/0, /*compressed*/false,
-                std::ref(ignored_send_times), std::ref(ignored_send_bytes)};
+            std::thread local_dcp_thread{perf_dcp_client,
+                                         h,
+                                         0,
+                                         "DCP",
+                                         /*opaque*/ 0x1,
+                                         /*vb*/ 0,
+                                         /*compressed*/ false,
+                                         std::ref(ignored_send_times),
+                                         std::ref(ignored_send_bytes)};
             dcp_thread.swap(local_dcp_thread);
         }
 
@@ -1447,7 +1477,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
         load_thread.join();
         if ((backgroundWork & BackgroundWork::Dcp) == BackgroundWork::Dcp) {
             // Need to tell the thread performing DCP to stop
-            add_sentinel_doc(h, h1, /*vbid*/0);
+            add_sentinel_doc(h, /*vbid*/ 0);
             dcp_thread.join();
             all_timings.emplace_back("Sets and DCP (bg)", &insert_timings);
         } else {
