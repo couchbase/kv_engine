@@ -1853,18 +1853,16 @@ bool repeat_till_true(std::function<bool()> functor,
 }
 
 void reset_stats(gsl::not_null<EngineIface*> h) {
-    auto* h1 = reinterpret_cast<EngineIface*>(h.get());
     const auto* cookie = testHarness->create_cookie();
-    h1->reset_stats(cookie);
+    h->reset_stats(cookie);
     testHarness->destroy_cookie(cookie);
 }
 
 ENGINE_ERROR_CODE get_stats(gsl::not_null<EngineIface*> h,
                             cb::const_char_buffer key,
                             ADD_STAT callback) {
-    auto* h1 = reinterpret_cast<EngineIface*>(h.get());
     const auto* cookie = testHarness->create_cookie();
-    auto ret = h1->get_stats(cookie, key, callback);
+    auto ret = h->get_stats(cookie, key, callback);
     testHarness->destroy_cookie(cookie);
     return ret;
 }
