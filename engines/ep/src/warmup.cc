@@ -824,6 +824,17 @@ void Warmup::createVBuckets(uint16_t shardId) {
         uint16_t vbid = itr.first;
         vbucket_state vbs = itr.second;
 
+        // Collections requires that the VBucket datafiles have the collection
+        // meta-data applied.
+        if (!vbs.supportsCollections &&
+            config.isCollectionsPrototypeEnabled()) {
+            EP_LOG_CRITICAL(
+                    "Warmup::createVBuckets aborting warmup as vb:{} datafile "
+                    "is unusable (does not support collections)",
+                    vbid);
+            return;
+        }
+
         VBucketPtr vb = store.getVBucket(vbid);
         if (!vb) {
             std::unique_ptr<FailoverTable> table;

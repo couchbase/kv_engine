@@ -472,7 +472,8 @@ vbucket_state::vbucket_state(vbucket_state_t _state,
                              uint64_t _maxCas,
                              int64_t _hlcCasEpochSeqno,
                              bool _mightContainXattrs,
-                             std::string _failovers)
+                             std::string _failovers,
+                             bool _supportsCollections)
     : state(_state),
       checkpointId(_chkid),
       maxDeletedSeqno(_maxDelSeqNum),
@@ -483,7 +484,8 @@ vbucket_state::vbucket_state(vbucket_state_t _state,
       maxCas(_maxCas),
       hlcCasEpochSeqno(_hlcCasEpochSeqno),
       mightContainXattrs(_mightContainXattrs),
-      failovers(std::move(_failovers)) {
+      failovers(std::move(_failovers)),
+      supportsCollections(_supportsCollections) {
 }
 
 std::string vbucket_state::toJSON() const {
@@ -491,11 +493,14 @@ std::string vbucket_state::toJSON() const {
     jsonState << "{\"state\": \"" << VBucket::toString(state) << "\""
               << ",\"checkpoint_id\": \"" << checkpointId << "\""
               << ",\"max_deleted_seqno\": \"" << maxDeletedSeqno << "\""
-              << ",\"failover_table\": " << failovers
-              << ",\"snap_start\": \"" << lastSnapStart << "\""
+              << ",\"failover_table\": " << failovers << ",\"snap_start\": \""
+              << lastSnapStart << "\""
               << ",\"snap_end\": \"" << lastSnapEnd << "\""
               << ",\"max_cas\": \"" << maxCas << "\""
-              << "}";
+              << ",\"might_contain_xattrs\": "
+              << (mightContainXattrs ? "true" : "false")
+              << ",\"supports_collections\": "
+              << (supportsCollections ? "true" : "false") << "}";
 
     return jsonState.str();
 }

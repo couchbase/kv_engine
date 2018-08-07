@@ -398,7 +398,8 @@ vbucket_state VBucket::getVBucketState() const {
                           getMaxCas(),
                           hlc.getEpochSeqno(),
                           mightContainXattrs(),
-                          failovers->toJSON()};
+                          failovers->toJSON(),
+                          true /*will only be written if collections enabled*/};
 }
 
 

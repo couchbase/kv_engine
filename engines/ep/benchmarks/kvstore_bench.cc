@@ -151,7 +151,8 @@ private:
                             0 /*maxCas*/,
                             0 /*hlcCasEpochSeqno*/,
                             false /*mightContainXattrs*/,
-                            "" /*failovers*/);
+                            "" /*failovers*/,
+                            false);
         kvstore.rw->snapshotVBucket(
                 vbid, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
         return std::move(kvstore.rw);

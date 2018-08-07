@@ -174,7 +174,8 @@ struct vbucket_state {
                   uint64_t _maxCas,
                   int64_t _hlcCasEpochSeqno,
                   bool _mightContainXattrs,
-                  std::string _failovers);
+                  std::string _failovers,
+                  bool _supportsCollections);
 
     std::string toJSON() const;
 
@@ -193,6 +194,7 @@ struct vbucket_state {
     int64_t hlcCasEpochSeqno;
     bool mightContainXattrs;
     std::string failovers;
+    bool supportsCollections;
 };
 
 struct DBFileInfo {

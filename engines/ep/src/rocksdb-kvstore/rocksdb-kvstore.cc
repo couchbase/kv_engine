@@ -1055,7 +1055,8 @@ void RocksDBKVStore::readVBState(const VBHandle& vbh) {
                                             maxCas,
                                             hlcCasEpochSeqno,
                                             mightContainXattrs,
-                                            failovers);
+                                            failovers,
+                                            false);
 }
 
 rocksdb::Status RocksDBKVStore::saveVBStateToBatch(const VBHandle& vbh,

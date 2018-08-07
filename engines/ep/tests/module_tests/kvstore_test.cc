@@ -177,8 +177,18 @@ static void initialize_kv_store(KVStore* kvstore, uint16_t vbid = 0) {
     std::string failoverLog("");
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(vbid);
-    vbucket_state state(
-            vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0, false, failoverLog);
+    vbucket_state state(vbucket_state_active,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        false,
+                        failoverLog,
+                        false);
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(vbid);
     kvstore->snapshotVBucket(
@@ -372,7 +382,8 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
                         /*maxCas*/ -1,
                         /*hlcEpoch*/ 0,
                         /*xattrs_present*/ false,
-                        failoverLog);
+                        failoverLog,
+                        false);
     EXPECT_TRUE(kvstore.rw->snapshotVBucket(
             /*vbid*/ 0, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
     EXPECT_EQ(~0ull, kvstore.rw->listPersistedVbuckets()[0]->maxCas);
@@ -1365,7 +1376,8 @@ public:
                             0,
                             0,
                             false,
-                            failoverLog);
+                            failoverLog,
+                            false);
         // simulate a setVBState - increment the dbFile revision
         kvstore->incrementRevision(0);
         kvstore->snapshotVBucket(0, state,

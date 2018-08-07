@@ -2187,6 +2187,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, uint16_t vbId) {
     uint64_t maxCas = 0;
     int64_t hlcCasEpochSeqno = HlcCasSeqnoUninitialised;
     bool mightContainXattrs = false;
+    bool supportsCollections = false;
 
     DbInfo info;
     errCode = couchstore_db_info(db, &info);
@@ -2245,6 +2246,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, uint16_t vbId) {
         auto maxCasValue = json.find("max_cas");
         auto hlcCasEpoch = json.find("hlc_epoch");
         mightContainXattrs = json.value("might_contain_xattrs", false);
+        supportsCollections = json.value("collections_supported", false);
 
         auto failover_json = json.find("failover_table");
         if (vb_state.empty() || checkpoint_id.empty() ||
@@ -2364,7 +2366,8 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, uint16_t vbId) {
                                                            maxCas,
                                                            hlcCasEpochSeqno,
                                                            mightContainXattrs,
-                                                           failovers);
+                                                           failovers,
+                                                           supportsCollections);
 
     return couchErr2EngineErr(errCode);
 }
@@ -2388,6 +2391,12 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db,
         jsonState << ",\"might_contain_xattrs\": true";
     } else {
         jsonState << ",\"might_contain_xattrs\": false";
+    }
+
+    // Only mark the VB as supporting collections if enabled in the config
+    if (vbState.supportsCollections &&
+        configuration.shouldPersistDocNamespace()) {
+        jsonState << ",\"collections_supported\": true";
     }
 
     jsonState << "}";
