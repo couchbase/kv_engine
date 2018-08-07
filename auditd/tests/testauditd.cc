@@ -81,11 +81,9 @@ public:
         }
 
         // Start the audit daemon
-        AUDIT_EXTENSION_DATA audit_extension_data;
-        memset(&audit_extension_data, 0, sizeof(audit_extension_data));
-        audit_extension_data.notify_io_complete = notify_io_complete;
+        sapi.notify_io_complete = notify_io_complete;
+        auditHandle = start_auditdaemon({}, &sapi);
 
-        auditHandle = start_auditdaemon(&audit_extension_data);
         if (!auditHandle) {
             throw std::runtime_error(
                     "AuditDaemonTest::SetUpTestCase() Failed to start audit "
@@ -176,11 +174,14 @@ protected:
         return false;
     }
 
+    static SERVER_COOKIE_API sapi;
     MockAuditConfig config;
     static std::unique_ptr<Audit, AuditDeleter> auditHandle;
     static std::string testdir;
     static std::string cfgfile;
 };
+
+SERVER_COOKIE_API AuditDaemonTest::sapi = {};
 
 std::string AuditDaemonTest::testdir;
 std::string AuditDaemonTest::cfgfile;

@@ -94,12 +94,7 @@ static std::string gethostname() {
 }
 
 std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
-        const AUDIT_EXTENSION_DATA* extension_data) {
-    if (extension_data == nullptr) {
-        throw std::invalid_argument(
-            "start_auditdaemon: extension_data can't be null");
-    }
-
+        const std::string& config_file, SERVER_COOKIE_API* server_cookie_api) {
     if (!cb::logger::isInitialized()) {
         throw std::invalid_argument(
                 "start_auditdaemon: logger must have been created");
@@ -108,25 +103,20 @@ std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
     std::unique_ptr<Audit, AuditDeleter> holder;
 
     try {
-        holder.reset(new Audit);
-
-        Audit* audit = holder.get();
-        audit->notify_io_complete = extension_data->notify_io_complete;
-        audit->hostname = gethostname();
-        if (extension_data->configfile != nullptr) {
-            audit->configfile.assign(extension_data->configfile);
-        }
-
-        if (!audit->configfile.empty() && !audit->configure()) {
+        holder.reset(new Audit(config_file, server_cookie_api, gethostname()));
+        if (!holder->configfile.empty() && !holder->configure()) {
             return {};
         }
 
-        if (cb_create_named_thread(&audit->consumer_tid, consume_events,
-                                   audit, 0, "mc:auditd") != 0) {
+        if (cb_create_named_thread(&holder->consumer_tid,
+                                   consume_events,
+                                   holder.get(),
+                                   0,
+                                   "mc:auditd") != 0) {
             LOG_WARNING("Failed to create audit thread");
             return {};
         }
-        audit->consumer_thread_running.store(true);
+        holder->consumer_thread_running.store(true);
     } catch (std::runtime_error& err) {
         LOG_WARNING("{}", err.what());
         return {};

@@ -53,17 +53,19 @@ public:
     cb_cond_t events_arrived;
     cb_mutex_t producer_consumer_lock;
     static std::string hostname;
-    static void (*notify_io_complete)(gsl::not_null<const void*> cookie,
-                                      ENGINE_ERROR_CODE status);
     AuditFile auditfile;
     std::atomic<uint32_t> dropped_events;
 
-    Audit()
+    explicit Audit(std::string config_file,
+                   SERVER_COOKIE_API* sapi,
+                   const std::string& host)
         : processeventqueue(new std::queue<Event*>()),
           filleventqueue(new std::queue<Event*>()),
           terminate_audit_daemon(false),
+          configfile(std::move(config_file)),
           dropped_events(0),
-          max_audit_queue(50000) {
+          cookie_api(sapi) {
+        hostname.assign(host);
         consumer_thread_running.store(false);
         cb_cond_initialize(&processeventqueue_empty);
         cb_cond_initialize(&events_arrived);
@@ -109,6 +111,9 @@ public:
 
     void notify_all_event_states();
 
+    void notify_io_complete(gsl::not_null<const void*> cookie,
+                            ENGINE_ERROR_CODE status);
+
 protected:
     void notify_event_state_changed(uint32_t id, bool enabled) const;
     struct {
@@ -116,8 +121,10 @@ protected:
         std::vector<cb::audit::EventStateListener> clients;
     } event_state_listener;
 
+    SERVER_COOKIE_API* cookie_api;
+
 private:
-    size_t max_audit_queue;
+    const size_t max_audit_queue = 50000;
 };
 
 #endif

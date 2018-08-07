@@ -20,27 +20,6 @@
 #include <platform/platform.h>
 
 /**
- * The following structure is passed between the memcached core in order
- * to create the audit subsystem
- */
-typedef struct {
-    /**
-     * The name of the configuration file to use
-     */
-    const char* configfile;
-
-    /**
-     * Pointer to the method to notify that the background task for the
-     * requested command represented by the cookie completed
-     *
-     * @param cookie the cookie representing the command
-     * @param status the return code for the operation
-     */
-    void (*notify_io_complete)(gsl::not_null<const void*> cookie,
-                               ENGINE_ERROR_CODE status);
-} AUDIT_EXTENSION_DATA;
-
-/**
  * Forward declaration of the AuditHandle which holds the instance data
  */
 class Audit;
@@ -53,11 +32,12 @@ public:
 /**
  * Start the audit daemon
  *
- * @param extension_data the default configuration data to be used
+ * @param config_file where to read the configuration
+ * @param server_cookie_api the server cookie api to operate on the cookies
  * @return The newly created audit daemon handle upon success
  */
 std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
-        const AUDIT_EXTENSION_DATA* extension_data);
+        const std::string& config_file, SERVER_COOKIE_API* server_cookie_api);
 
 /**
  * Update the audit daemon with the specified configuration file

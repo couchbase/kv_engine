@@ -320,12 +320,8 @@ static void event_state_listener(uint32_t id, bool enabled) {
 
 void initialize_audit() {
     /* Start the audit daemon */
-    AUDIT_EXTENSION_DATA audit_extension_data;
-    memset(&audit_extension_data, 0, sizeof(audit_extension_data));
-    audit_extension_data.notify_io_complete = notify_io_complete;
-    audit_extension_data.configfile = settings.getAuditFile().c_str();
-
-    auditHandle = start_auditdaemon(&audit_extension_data);
+    auditHandle = start_auditdaemon(settings.getAuditFile(),
+                                    get_server_api()->cookie);
     if (!auditHandle) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }

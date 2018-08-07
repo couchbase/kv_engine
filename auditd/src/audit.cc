@@ -39,8 +39,6 @@
 #include "eventdescriptor.h"
 
 std::string Audit::hostname;
-void (*Audit::notify_io_complete)(gsl::not_null<const void*> cookie,
-                                  ENGINE_ERROR_CODE status);
 
 void Audit::log_error(const AuditErrorCode return_code,
                       const std::string& string) {
@@ -528,4 +526,9 @@ void Audit::notify_event_state_changed(uint32_t id, bool enabled) const {
     for (const auto& func : event_state_listener.clients) {
         func(id, enabled);
     }
+}
+
+void Audit::notify_io_complete(gsl::not_null<const void*> cookie,
+                               ENGINE_ERROR_CODE status) {
+    cookie_api->notify_io_complete(cookie, status);
 }
