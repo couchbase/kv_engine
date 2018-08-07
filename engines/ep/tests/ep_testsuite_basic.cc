@@ -393,8 +393,7 @@ static enum test_result test_getl_delete_with_cas(EngineIface* h,
             ret.first,
             "Expected getl to succeed on key");
     item_info info;
-    check(h1->get_item_info(ret.second.get(), &info),
-          "Failed to get item info");
+    check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
 
     checkeq(ENGINE_SUCCESS, del(h, "key", info.cas, 0), "Expected SUCCESS");
 
@@ -486,8 +485,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
             "Expected to be able to getl on first try");
 
     item_info info;
-    check(h1->get_item_info(ret.second.get(), &info),
-          "Failed to get item info");
+    check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
 
     checkeq(std::string{"{\"lock\":\"data\"}"},
             std::string((const char*)info.value[0].iov_base,
@@ -541,8 +539,7 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success,
             ret.first,
             "Acquire lock should have succeeded");
-    check(h1->get_item_info(ret.second.get(), &info),
-          "Failed to get item info");
+    check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES), info.datatype,
             "Expected datatype to be RAW BYTES");
 
@@ -595,17 +592,16 @@ static enum test_result test_getl(EngineIface* h, EngineIface* h1) {
                    0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation Failed");
 
-    check(h1->get_item_info(ret.second.get(), &info),
-          "Failed to get item info");
+    check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
 
     memcpy(info.value[0].iov_base, edata, strlen(edata));
 
     checkeq(ENGINE_SUCCESS,
-            h1->store(cookie,
-                      ret.second.get(),
-                      cas,
-                      OPERATION_SET,
-                      DocumentState::Alive),
+            h->store(cookie,
+                     ret.second.get(),
+                     cas,
+                     OPERATION_SET,
+                     DocumentState::Alive),
             "Failed to Store item");
     check_key_value(h, ekey, edata, strlen(edata));
 
@@ -684,7 +680,7 @@ static enum test_result test_unl(EngineIface* h, EngineIface* h1) {
             "Expected to be able to getl on first try");
     item_info info;
     checkeq(true,
-            h1->get_item_info(ret.second.get(), &info),
+            h->get_item_info(ret.second.get(), &info),
             "failed to get item info");
     uint64_t cas = info.cas;
 
@@ -757,11 +753,11 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h,
 
     uint64_t cas = 0;
     checkeq(ENGINE_KEY_ENOENT,
-            h1->store(cookie,
-                      ret.second.get(),
-                      cas,
-                      OPERATION_SET,
-                      DocumentState::Alive),
+            h->store(cookie,
+                     ret.second.get(),
+                     cas,
+                     OPERATION_SET,
+                     DocumentState::Alive),
             "Expected not found");
 
     testHarness->destroy_cookie(cookie);
@@ -839,7 +835,7 @@ static enum test_result test_add_add_with_cas(EngineIface* h, EngineIface* h1) {
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
-    check(h1->get_item_info(i, &info), "Should be able to get info");
+    check(h->get_item_info(i, &info), "Should be able to get info");
 
     checkeq(ENGINE_KEY_EEXISTS,
             store(h,
@@ -867,7 +863,7 @@ static enum test_result test_cas(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value.");
 
     item_info info;
-    check(h1->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(ret.second.get(), &info),
           "Failed to get item info.");
 
     checkeq(ENGINE_SUCCESS,
@@ -1050,7 +1046,7 @@ static enum test_result test_gat(EngineIface* h, EngineIface* h1) {
             ENGINE_ERROR_CODE(ret.first), "gat mykey");
 
     item_info info;
-    check(h1->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(ret.second.get(), &info),
           "Getting item info failed");
 
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
@@ -1339,7 +1335,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
             "Failed set");
 
     item_info info;
-    check(h1->get_item_info(i, &info), "Getting item info failed");
+    check(h->get_item_info(i, &info), "Getting item info failed");
 
     h->release(i);
 
@@ -1388,7 +1384,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
 
     wait_for_flusher_to_settle(h);
 
-    check(h1->get_item_info(i, &info), "Getting item info failed");
+    check(h->get_item_info(i, &info), "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
             "Incorrect DocState for deleted item");
@@ -1446,7 +1442,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h,
             curr_revseqno + 1,
             "rev seqno should have incremented");
 
-    check(h1->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(ret.second.get(), &info),
           "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
@@ -1534,7 +1530,7 @@ static enum test_result test_set_delete_invalid_cas(EngineIface* h,
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
-    check(h1->get_item_info(i, &info), "Should be able to get info");
+    check(h->get_item_info(i, &info), "Should be able to get info");
     h->release(i);
 
     checkeq(ENGINE_KEY_EEXISTS,
@@ -1911,7 +1907,7 @@ static test_result pre_link_document(EngineIface* h, EngineIface* h1) {
     // Fetch the value and verify that the callback was called!
     auto ret = get(h, nullptr, "key", 0);
     checkeq(cb::engine_errc::success, ret.first, "get failed");
-    check(h1->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(ret.second.get(), &info),
           "Failed to get item info.");
     checkeq(0, memcmp(info.value[0].iov_base, "valuesome", 9),
            "Expected value to be modified");
@@ -1936,32 +1932,32 @@ static test_result get_if(EngineIface* h, EngineIface* h1) {
     }
 
     const auto* cookie = testHarness->create_cookie();
-    auto doc = h1->get_if(cookie,
-                          DocKey(key, testHarness->doc_namespace),
-                          0,
-                          [](const item_info&) { return true; });
+    auto doc = h->get_if(cookie,
+                         DocKey(key, testHarness->doc_namespace),
+                         0,
+                         [](const item_info&) { return true; });
     check(doc.second, "document should be found");
 
-    doc = h1->get_if(cookie,
-                     DocKey(key, testHarness->doc_namespace),
-                     0,
-                     [](const item_info&) { return false; });
+    doc = h->get_if(cookie,
+                    DocKey(key, testHarness->doc_namespace),
+                    0,
+                    [](const item_info&) { return false; });
     check(!doc.second, "document should not be found");
 
-    doc = h1->get_if(cookie,
-                     DocKey("no", testHarness->doc_namespace),
-                     0,
-                     [](const item_info&) { return true; });
+    doc = h->get_if(cookie,
+                    DocKey("no", testHarness->doc_namespace),
+                    0,
+                    [](const item_info&) { return true; });
     check(!doc.second, "non-existing document should not be found");
 
     checkeq(ENGINE_SUCCESS,
             del(h, key.c_str(), 0, 0),
             "Failed remove with value");
 
-    doc = h1->get_if(cookie,
-                     DocKey(key, testHarness->doc_namespace),
-                     0,
-                     [](const item_info&) { return true; });
+    doc = h->get_if(cookie,
+                    DocKey(key, testHarness->doc_namespace),
+                    0,
+                    [](const item_info&) { return true; });
     check(!doc.second, "deleted document should not be found");
 
     testHarness->destroy_cookie(cookie);

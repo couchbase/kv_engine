@@ -1577,7 +1577,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h,
     auto ret = get(h, nullptr, key1, 0, DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get(key1)");
 
-    check(h1->get_item_info(ret.second.get(), &info),
+    check(h->get_item_info(ret.second.get(), &info),
           "Failed get_item_info of key1");
     checkeq(data.size(), info.value[0].iov_len, "Value length mismatch");
     checkeq(0, memcmp(info.value[0].iov_base, data.data(), data.size()),
@@ -1978,7 +1978,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h,
             store(h, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
 
-    h1->get_item_info(i, &info);
+    h->get_item_info(i, &info);
     wait_for_flusher_to_settle(h);
     h->release(i);
 

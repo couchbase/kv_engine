@@ -257,7 +257,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     // stop flusher before loading new items
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "CMD_STOP_PERSISTENCE failed!");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(),
@@ -287,7 +287,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     // resume flusher before shutdown + warmup
     pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "CMD_START_PERSISTENCE failed!");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Failed to start persistence!");
@@ -786,7 +786,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h,
     /* Retrieve the item info and create a new blob out of the data */
     item_info info;
     checkeq(true,
-            h1->get_item_info(ret.second.get(), &info),
+            h->get_item_info(ret.second.get(), &info),
             "Unable to retrieve item info");
 
     cb::char_buffer value_buf{static_cast<char*>(info.value[0].iov_base),
@@ -828,17 +828,14 @@ static enum test_result test_expiry(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(cookie,
-                        ret.second.get(),
-                        cas,
-                        OPERATION_SET,
-                        DocumentState::Alive);
+    auto rv = h->store(
+            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
 
@@ -890,17 +887,14 @@ static enum test_result test_expiry_loader(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(cookie,
-                        ret.second.get(),
-                        cas,
-                        OPERATION_SET,
-                        DocumentState::Alive);
+    auto rv = h->store(
+            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
 
@@ -1061,17 +1055,14 @@ static enum test_result test_expiration_on_warmup(EngineIface* h,
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(cookie,
-                        ret.second.get(),
-                        cas,
-                        OPERATION_SET,
-                        DocumentState::Alive);
+    auto rv = h->store(
+            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     ret.second.reset();
@@ -1139,17 +1130,14 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(cookie,
-                        ret.second.get(),
-                        cas,
-                        OPERATION_SET,
-                        DocumentState::Alive);
+    auto rv = h->store(
+            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h);
@@ -1169,18 +1157,15 @@ static enum test_result test_bug3454(EngineIface* h, EngineIface* h1) {
                    0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     cas = 0;
     // Add a new item with the same key.
-    rv = h1->store(cookie,
-                   ret.second.get(),
-                   cas,
-                   OPERATION_ADD,
-                   DocumentState::Alive);
+    rv = h->store(
+            cookie, ret.second.get(), cas, OPERATION_ADD, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Add failed.");
     check_key_value(h, key, data, strlen(data));
     ret.second.reset();
@@ -1225,17 +1210,14 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h1->store(cookie,
-                        ret.second.get(),
-                        cas,
-                        OPERATION_SET,
-                        DocumentState::Alive);
+    auto rv = h->store(
+            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h);
@@ -1252,18 +1234,15 @@ static enum test_result test_bug3522(EngineIface* h, EngineIface* h1) {
                    0);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, new_data, strlen(new_data));
 
     int pager_runs = get_int_stat(h, "ep_num_expiry_pager_runs");
     cas = 0;
-    rv = h1->store(cookie,
-                   ret.second.get(),
-                   cas,
-                   OPERATION_SET,
-                   DocumentState::Alive);
+    rv = h->store(
+            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, new_data, strlen(new_data));
     ret.second.reset();
@@ -1291,7 +1270,7 @@ static enum test_result test_get_replica_active_state(EngineIface* h,
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, vbucket_state_active);
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
 
     cb_free(pkt);
@@ -1306,7 +1285,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h,
     testHarness->set_ewouldblock_handling(cookie, false);
     pkt = prepare_get_replica(h, vbucket_state_pending);
     checkeq(ENGINE_EWOULDBLOCK,
-            h1->unknown_command(cookie, pkt, add_response),
+            h->unknown_command(cookie, pkt, add_response),
             "Should have returned error for pending state");
     checkeq(1, get_int_stat(h, "vb_pending_ops_get"), "Expected 1 get");
     testHarness->destroy_cookie(cookie);
@@ -1319,7 +1298,7 @@ static enum test_result test_get_replica_dead_state(EngineIface* h,
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, vbucket_state_dead);
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
     cb_free(pkt);
     return SUCCESS;
@@ -1329,7 +1308,7 @@ static enum test_result test_get_replica(EngineIface* h, EngineIface* h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, vbucket_state_replica);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
@@ -1367,7 +1346,7 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h,
     bool makeinvalidkey = true;
     pkt = prepare_get_replica(h, vbucket_state_replica, makeinvalidkey);
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
     cb_free(pkt);
     return SUCCESS;
@@ -2348,7 +2327,7 @@ static enum test_result test_key_stats(EngineIface* h, EngineIface* h1) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
+            h->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2359,7 +2338,7 @@ static enum test_result test_key_stats(EngineIface* h, EngineIface* h1) {
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {statkey2, strlen(statkey2)}, add_stats),
+            h->get_stats(cookie, {statkey2, strlen(statkey2)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2399,7 +2378,7 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "vkey k1 0";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
+            h->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2411,7 +2390,7 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "vkey k2 1";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {statkey2, strlen(statkey2)}, add_stats),
+            h->get_stats(cookie, {statkey2, strlen(statkey2)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2423,7 +2402,7 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     // stat for key "k3" and vbucket "2"
     const char *statkey3 = "vkey k3 2";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {statkey3, strlen(statkey3)}, add_stats),
+            h->get_stats(cookie, {statkey3, strlen(statkey3)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2435,7 +2414,7 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     // stat for key "k4" and vbucket "3"
     const char *statkey4 = "vkey k4 3";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {statkey4, strlen(statkey4)}, add_stats),
+            h->get_stats(cookie, {statkey4, strlen(statkey4)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2447,7 +2426,7 @@ static enum test_result test_vkey_stats(EngineIface* h, EngineIface* h1) {
     // stat for key "k5" and vbucket "4"
     const char *statkey5 = "vkey k5 4";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {statkey5, strlen(statkey5)}, add_stats),
+            h->get_stats(cookie, {statkey5, strlen(statkey5)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -2958,7 +2937,7 @@ static enum test_result test_datatype(EngineIface* h, EngineIface* h1) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h1->get_item_info(ret.second.get(), &info);
+    h->get_item_info(ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype");
 
@@ -2984,7 +2963,7 @@ static enum test_result test_datatype(EngineIface* h, EngineIface* h1) {
     ret = get(h, cookie, key1, 0);
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
-    h1->get_item_info(ret.second.get(), &info);
+    h->get_item_info(ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 
@@ -3023,7 +3002,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h,
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h1->get_item_info(ret.second.get(), &info);
+    h->get_item_info(ret.second.get(), &info);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Invalid datatype, when setWithMeta");
 
@@ -3063,7 +3042,7 @@ static enum test_result test_session_cas_validation(EngineIface* h,
     uint64_t cas = 0x0101010101010101;
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, 0, cas, ext, 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "SET_VBUCKET command failed");
     cb_free(pkt);
     cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
@@ -3071,7 +3050,7 @@ static enum test_result test_session_cas_validation(EngineIface* h,
     cas = 0x0102030405060708;
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, 0, cas, ext, 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "SET_VBUCKET command failed");
     cb_free(pkt);
     cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -3475,7 +3454,7 @@ static enum test_result test_warmup_accesslog(EngineIface *h, EngineIface *h1) {
         checkeq(ENGINE_SUCCESS,
                 store(h, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
                 "Error setting.");
-        h1->release(h, NULL, it);
+        h->release(h, NULL, it);
     }
 
     wait_for_flusher_to_settle(h);
@@ -3488,7 +3467,7 @@ static enum test_result test_warmup_accesslog(EngineIface *h, EngineIface *h1) {
         checkeq(ENGINE_SUCCESS,
                 get(h, NULL, &it, keystr, 0),
                 "Error getting.");
-        h1->release(h, NULL, it);
+        h->release(h, NULL, it);
     }
 
     // sleep so that scanner task can have timew to generate access log
@@ -3503,7 +3482,7 @@ static enum test_result test_warmup_accesslog(EngineIface *h, EngineIface *h1) {
         checkeq(ENGINE_SUCCESS,
                 store(h, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
                 "Error setting.");
-        h1->release(h, NULL, it);
+        h->release(h, NULL, it);
     }
 
     // Restart the server.
@@ -3556,7 +3535,7 @@ static enum test_result test_warmup_oom(EngineIface* h, EngineIface* h1) {
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Failed to send data traffic command to the services");
     checkeq(PROTOCOL_BINARY_RESPONSE_ENOMEM, last_status.load(),
             "Data traffic command should have failed with enomem");
@@ -3603,7 +3582,7 @@ static enum test_result test_cbd_225(EngineIface* h, EngineIface* h1) {
 static enum test_result test_workload_stats(EngineIface* h, EngineIface* h1) {
     const void* cookie = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, "workload"_ccb, add_stats),
+            h->get_stats(cookie, "workload"_ccb, add_stats),
             "Falied to get workload stats");
     testHarness->destroy_cookie(cookie);
     int num_read_threads =
@@ -3643,7 +3622,7 @@ static enum test_result test_max_workload_stats(EngineIface* h,
                                                 EngineIface* h1) {
     const void* cookie = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, "workload"_ccb, add_stats),
+            h->get_stats(cookie, "workload"_ccb, add_stats),
             "Failed to get workload stats");
     testHarness->destroy_cookie(cookie);
     int num_read_threads =
@@ -3778,14 +3757,14 @@ static enum test_result test_all_keys_api(EngineIface* h, EngineIface* h1) {
 
     if (isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
-                h1->unknown_command(nullptr, pkt1, add_response),
+                h->unknown_command(nullptr, pkt1, add_response),
                 "Failed to get all_keys, sort: ascending");
         cb_free(pkt1);
     } else {
         /* We intend to support PROTOCOL_BINARY_CMD_GET_KEYS in ephemeral
            buckets in the future */
         checkeq(ENGINE_ENOTSUP,
-                h1->unknown_command(nullptr, pkt1, add_response),
+                h->unknown_command(nullptr, pkt1, add_response),
                 "Should return not supported");
         cb_free(pkt1);
         return SUCCESS;
@@ -3828,14 +3807,14 @@ static enum test_result test_all_keys_api_during_bucket_creation(
 
     if (isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
-                h1->unknown_command(nullptr, pkt1, add_response),
+                h->unknown_command(nullptr, pkt1, add_response),
                 "Unexpected return code from all_keys_api");
         cb_free(pkt1);
     } else {
         /* We intend to support PROTOCOL_BINARY_CMD_GET_KEYS in ephemeral
            buckets in the future */
         checkeq(ENGINE_ENOTSUP,
-                h1->unknown_command(nullptr, pkt1, add_response),
+                h->unknown_command(nullptr, pkt1, add_response),
                 "Should return not supported");
         cb_free(pkt1);
         return SUCCESS;
@@ -3984,7 +3963,7 @@ static enum test_result test_value_eviction(EngineIface* h, EngineIface* h1) {
     pkt->request.vbucket = htons(0);
 
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Failed to evict key.");
 
     checkeq(ENGINE_SUCCESS,
@@ -4597,7 +4576,7 @@ static enum test_result test_observe_seqno_error(EngineIface* h,
     request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, 0, 0, NULL, 0,
                            NULL, 0, invalid_data.str().data(),
                            invalid_data.str().length());
-    h1->unknown_command(NULL, request, add_response);
+    h->unknown_command(NULL, request, add_response);
 
     cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
@@ -4998,14 +4977,14 @@ static enum test_result test_observe_errors(EngineIface* h, EngineIface* h1) {
     // Check invalid packets
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0", 1);
-    check(h1->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
     cb_free(pkt);
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0000", 4);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Observe failed.");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
     cb_free(pkt);
@@ -5021,7 +5000,7 @@ static enum test_result test_control_data_traffic(EngineIface* h,
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Faile to disable data traffic");
@@ -5033,7 +5012,7 @@ static enum test_result test_control_data_traffic(EngineIface* h,
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Faile to enable data traffic");
@@ -5190,7 +5169,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
     // Check vkey when a key doesn't exist
     const char* stats_key = "vkey key 0";
     checkeq(ENGINE_KEY_ENOENT,
-            h1->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
+            h->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Expected not found.");
 
     stop_persistence(h);
@@ -5201,7 +5180,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
 
     // Check to make sure a non-persisted item is 'dirty'
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
+            h->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("dirty") == 0,
           "Expected 'dirty'");
@@ -5210,7 +5189,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
     start_persistence(h);
     wait_for_stat_to_be(h, "ep_total_persisted", 1);
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
+            h->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("valid") == 0,
           "Expected 'valid'");
@@ -5218,7 +5197,7 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h,
     // Check that an evicted key still returns valid
     evict_key(h, "key", 0, "Ejected.");
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, "vkey key 0"_ccb, add_stats),
+            h->get_stats(cookie, "vkey key 0"_ccb, add_stats),
             "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("valid") == 0, "Expected 'valid'");
 
@@ -5339,7 +5318,7 @@ static enum test_result test_set_ret_meta_error(EngineIface* h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
                        "key", 3, "val", 3);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Expected to be able to store ret meta");
     cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
@@ -5437,7 +5416,7 @@ static enum test_result test_add_ret_meta_error(EngineIface* h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
                        "key", 3, "val", 3);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Expected to be able to add ret meta");
     cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
@@ -5576,7 +5555,7 @@ static enum test_result test_del_ret_meta_error(EngineIface* h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
                        "key", 3);
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(NULL, pkt, add_response),
+            h->unknown_command(NULL, pkt, add_response),
             "Expected to be able to del ret meta");
     cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
@@ -5856,7 +5835,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h,
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
     checkeq(ENGINE_SUCCESS,
-            h1->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
+            h->get_stats(cookie, {statkey1, strlen(statkey1)}, add_stats),
             "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
@@ -6157,7 +6136,7 @@ static enum test_result test_get_random_key(EngineIface* h, EngineIface* h1) {
     pkt.request.opcode = PROTOCOL_BINARY_CMD_GET_RANDOM_KEY;
 
     checkeq(ENGINE_KEY_ENOENT,
-            h1->unknown_command(cookie, &pkt, add_response),
+            h->unknown_command(cookie, &pkt, add_response),
             "Database should be empty");
 
     // Store a key
@@ -6179,7 +6158,7 @@ static enum test_result test_get_random_key(EngineIface* h, EngineIface* h1) {
 
     // We should be able to get one if there is something in there
     checkeq(ENGINE_SUCCESS,
-            h1->unknown_command(cookie, &pkt, add_response),
+            h->unknown_command(cookie, &pkt, add_response),
             "get random should work");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
@@ -6192,19 +6171,19 @@ static enum test_result test_get_random_key(EngineIface* h, EngineIface* h1) {
     // Check for invalid packets
     pkt.request.extlen = 1;
     checkeq(ENGINE_EINVAL,
-            h1->unknown_command(cookie, &pkt, add_response),
+            h->unknown_command(cookie, &pkt, add_response),
             "extlen not allowed");
 
     pkt.request.extlen = 0;
     pkt.request.keylen = 1;
     checkeq(ENGINE_EINVAL,
-            h1->unknown_command(cookie, &pkt, add_response),
+            h->unknown_command(cookie, &pkt, add_response),
             "keylen not allowed");
 
     pkt.request.keylen = 0;
     pkt.request.bodylen = 1;
     checkeq(ENGINE_EINVAL,
-            h1->unknown_command(cookie, &pkt, add_response),
+            h->unknown_command(cookie, &pkt, add_response),
             "bodylen not allowed");
 
     testHarness->destroy_cookie(cookie);
