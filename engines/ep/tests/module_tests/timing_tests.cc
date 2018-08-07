@@ -75,7 +75,6 @@ static inline void decayingSleep(useconds_t *sleepTime) {
 }
 
 static ENGINE_ERROR_CODE storeCasVb11(EngineIface* h,
-                                      EngineIface* h1,
                                       const void* cookie,
                                       ENGINE_STORE_OPERATION op,
                                       const char* key,
@@ -87,7 +86,7 @@ static ENGINE_ERROR_CODE storeCasVb11(EngineIface* h,
                                       uint16_t vb) {
     uint64_t cas = 0;
 
-    auto ret = h1->allocate(cookie,
+    auto ret = h->allocate(cookie,
                             DocKey(key, DocNamespace::DefaultCollection),
                             vlen,
                             flags,
@@ -97,15 +96,14 @@ static ENGINE_ERROR_CODE storeCasVb11(EngineIface* h,
     check(ret.first == cb::engine_errc::success, "Allocation failed.");
 
     item_info info;
-    if (!h1->get_item_info(ret.second.get(), &info)) {
+    if (!h->get_item_info(ret.second.get(), &info)) {
         abort();
     }
 
     memcpy(info.value[0].iov_base, value, vlen);
-    h1->item_set_cas(ret.second.get(), casIn);
+    h->item_set_cas(ret.second.get(), casIn);
 
-    auto rv =
-            h1->store(cookie, ret.second.get(), cas, op, DocumentState::Alive);
+    auto rv = h->store(cookie, ret.second.get(), cas, op, DocumentState::Alive);
 
     if (outitem) {
         *outitem = ret.second.release();
@@ -127,12 +125,11 @@ static void add_stats(const char* key,
 }
 
 static int get_int_stat(EngineIface* h,
-                        EngineIface* h1,
                         const char* statname,
                         const char* statkey = NULL) {
     vals.clear();
     const auto* cookie = testHarness->create_cookie();
-    check(h1->get_stats(cookie,
+    check(h->get_stats(cookie,
                         {statkey, statkey == NULL ? 0 : strlen(statkey)},
                         add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
@@ -142,10 +139,9 @@ static int get_int_stat(EngineIface* h,
 }
 
 static void verify_curr_items(EngineIface* h,
-                              EngineIface* h1,
                               int exp,
                               const char* msg) {
-    int curr_items = get_int_stat(h, h1, "curr_items");
+    int curr_items = get_int_stat(h, "curr_items");
     if (curr_items != exp) {
         std::cerr << "Expected "<< exp << " curr_items after " << msg
                   << ", got " << curr_items << std::endl;
@@ -153,9 +149,9 @@ static void verify_curr_items(EngineIface* h,
     }
 }
 
-static void wait_for_flusher_to_settle(EngineIface* h, EngineIface* h1) {
+static void wait_for_flusher_to_settle(EngineIface* h) {
     useconds_t sleepTime = 128;
-    while (get_int_stat(h, h1, "ep_queue_size") > 0) {
+    while (get_int_stat(h, "ep_queue_size") > 0) {
         decayingSleep(&sleepTime);
     }
 }
@@ -186,18 +182,18 @@ static test_result test_persistence(EngineIface* h, EngineIface* h1) {
         item *it = NULL;
         snprintf(key, sizeof(key), "k%d", static_cast<int>(i));
 
-        check(storeCasVb11(h, h1, NULL, OPERATION_SET, key, data,
+        check(storeCasVb11(h, NULL, OPERATION_SET, key, data,
                            size, 9713, &it, 0, 0) == ENGINE_SUCCESS,
                   "store failure");
     }
     cb_free(data);
-    wait_for_flusher_to_settle(h, h1);
+    wait_for_flusher_to_settle(h);
 
     std::cout << total << " at " << size << " - "
-              << get_int_stat(h, h1, "ep_flush_duration_total")
-              << ", " << get_int_stat(h, h1, "ep_commit_time_total") << std::endl;
+              << get_int_stat(h, "ep_flush_duration_total")
+              << ", " << get_int_stat(h, "ep_commit_time_total") << std::endl;
 
-        verify_curr_items(h, h1, total, "storing something");
+        verify_curr_items(h, total, "storing something");
 
     return SUCCESS;
 }
