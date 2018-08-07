@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,25 +14,23 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef AUDIT_H
-#define AUDIT_H
+#pragma once
 
-#include <inttypes.h>
-#include <map>
-#include <memory>
-#include <queue>
-#include <atomic>
-
-#include <cJSON.h>
-#include <logger/logger.h>
 #include "auditconfig.h"
 #include "auditd.h"
 #include "auditfile.h"
-#include "eventdescriptor.h"
-#include "memcached/audit_interface.h"
-#include "memcached/types.h"
+
+#include <memcached/audit_interface.h>
+
+#include <atomic>
+#include <cinttypes>
+#include <map>
+#include <memory>
+#include <queue>
 
 class Event;
+class EventDescriptor;
+struct cJSON;
 
 class Audit {
 public:
@@ -58,46 +56,25 @@ public:
 
     explicit Audit(std::string config_file,
                    SERVER_COOKIE_API* sapi,
-                   const std::string& host)
-        : processeventqueue(new std::queue<Event*>()),
-          filleventqueue(new std::queue<Event*>()),
-          terminate_audit_daemon(false),
-          configfile(std::move(config_file)),
-          dropped_events(0),
-          cookie_api(sapi) {
-        hostname.assign(host);
-        consumer_thread_running.store(false);
-        cb_cond_initialize(&processeventqueue_empty);
-        cb_cond_initialize(&events_arrived);
-        cb_mutex_initialize(&producer_consumer_lock);
-    }
-
-    ~Audit(void) {
-        clean_up();
-        cb_cond_destroy(&processeventqueue_empty);
-        cb_cond_destroy(&events_arrived);
-        cb_mutex_destroy(&producer_consumer_lock);
-    }
+                   const std::string& host);
+    ~Audit();
 
     bool initialize_event_data_structures(cJSON *event_ptr);
     bool process_module_data_structures(cJSON *module);
     bool process_module_descriptor(cJSON *module_descriptor);
-    bool configure(void);
+    bool configure();
     bool add_to_filleventqueue(const uint32_t event_id,
                                const char *payload,
                                const size_t length);
     bool add_to_filleventqueue(const uint32_t event_id,
-                               const std::string& payload) {
-        return add_to_filleventqueue(event_id, payload.data(),
-                                     payload.length());
-    }
+                               const std::string& payload);
 
     bool add_reconfigure_event(const char *configfile, const void *cookie);
     bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
-    bool terminate_consumer_thread(void);
-    void clear_events_map(void);
-    void clear_events_queues(void);
-    bool clean_up(void);
+    bool terminate_consumer_thread();
+    void clear_events_map();
+    void clear_events_queues();
+    bool clean_up();
 
     static void log_error(const AuditErrorCode return_code,
                           const std::string& string = "");
@@ -127,4 +104,3 @@ private:
     const size_t max_audit_queue = 50000;
 };
 
-#endif

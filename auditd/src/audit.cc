@@ -14,8 +14,17 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "config.h"
+
+#include "audit.h"
+#include "auditd.h"
+#include "auditd_audit_events.h"
+#include "configureevent.h"
+#include "event.h"
+#include "eventdescriptor.h"
 
 #include <cJSON.h>
+#include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -31,14 +40,30 @@
 #include <sstream>
 #include <string>
 
-#include "auditd.h"
-#include "audit.h"
-#include "event.h"
-#include "configureevent.h"
-#include "auditd_audit_events.h"
-#include "eventdescriptor.h"
-
 std::string Audit::hostname;
+
+Audit::Audit(std::string config_file,
+             SERVER_COOKIE_API* sapi,
+             const std::string& host)
+    : processeventqueue(new std::queue<Event*>()),
+      filleventqueue(new std::queue<Event*>()),
+      terminate_audit_daemon(false),
+      configfile(std::move(config_file)),
+      dropped_events(0),
+      cookie_api(sapi) {
+    hostname.assign(host);
+    consumer_thread_running.store(false);
+    cb_cond_initialize(&processeventqueue_empty);
+    cb_cond_initialize(&events_arrived);
+    cb_mutex_initialize(&producer_consumer_lock);
+}
+
+Audit::~Audit() {
+    clean_up();
+    cb_cond_destroy(&processeventqueue_empty);
+    cb_cond_destroy(&events_arrived);
+    cb_mutex_destroy(&producer_consumer_lock);
+}
 
 void Audit::log_error(const AuditErrorCode return_code,
                       const std::string& string) {
@@ -266,8 +291,7 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
     return true;
 }
 
-
-bool Audit::configure(void) {
+bool Audit::configure() {
     bool is_enabled_before_reconfig = config.is_auditd_enabled();
     const auto configuration = cb::io::loadFile(configfile);
     if (configuration.empty()) {
@@ -398,7 +422,6 @@ bool Audit::configure(void) {
     return true;
 }
 
-
 bool Audit::add_to_filleventqueue(const uint32_t event_id,
                                   const char *payload,
                                   const size_t length) {
@@ -426,6 +449,10 @@ bool Audit::add_to_filleventqueue(const uint32_t event_id,
     return res;
 }
 
+bool Audit::add_to_filleventqueue(const uint32_t event_id,
+                                  const std::string& payload) {
+    return add_to_filleventqueue(event_id, payload.data(), payload.length());
+}
 
 bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {
     ConfigureEvent* new_event = new ConfigureEvent(configfile, cookie);
@@ -436,8 +463,7 @@ bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {
     return true;
 }
 
-
-void Audit::clear_events_map(void) {
+void Audit::clear_events_map() {
     typedef std::map<uint32_t, EventDescriptor*>::iterator it_type;
     for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
         delete iterator->second;
@@ -445,8 +471,7 @@ void Audit::clear_events_map(void) {
     events.clear();
 }
 
-
-void Audit::clear_events_queues(void) {
+void Audit::clear_events_queues() {
     while(!processeventqueue->empty()) {
         Event *event = processeventqueue->front();
         processeventqueue->pop();
@@ -459,8 +484,7 @@ void Audit::clear_events_queues(void) {
     }
 }
 
-bool Audit::terminate_consumer_thread(void)
-{
+bool Audit::terminate_consumer_thread() {
     cb_mutex_enter(&producer_consumer_lock);
     terminate_audit_daemon = true;
     cb_mutex_exit(&producer_consumer_lock);
@@ -483,7 +507,7 @@ bool Audit::terminate_consumer_thread(void)
     }
 }
 
-bool Audit::clean_up(void) {
+bool Audit::clean_up() {
     /* clean_up is called from shutdown_auditdaemon
      * which in turn is called from memcached when
      * performing a graceful shutdown.

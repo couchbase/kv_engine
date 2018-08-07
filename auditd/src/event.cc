@@ -17,6 +17,7 @@
 
 #include "event.h"
 #include "audit.h"
+#include "eventdescriptor.h"
 #include <cJSON.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>

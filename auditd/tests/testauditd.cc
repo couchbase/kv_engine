@@ -19,6 +19,7 @@
 #include <cJSON.h>
 #include <getopt.h>
 #include <gtest/gtest.h>
+#include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
