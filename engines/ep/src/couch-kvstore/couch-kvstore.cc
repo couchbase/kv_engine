@@ -1935,13 +1935,13 @@ bool CouchKVStore::commit2couchstore(const Item* collectionsManifest) {
 
 // Callback when the btree is updated which we use for tracking create/update
 // type statistics.
-static void saveDocsCallback(const DocInfo* info,
-                             couchstore_updated_how how,
+static void saveDocsCallback(const DocInfo* oldInfo,
+                             const DocInfo* newInfo,
                              void* context) {
-    if (how == COUCHSTORE_REPLACED && !info->deleted) {
+    if (oldInfo && newInfo && !oldInfo->deleted) {
         kvstats_ctx* cbCtx = static_cast<kvstats_ctx*>(context);
         auto itr = cbCtx->keyStats.find(
-                makeDocKey(info->id, cbCtx->persistDocNamespace));
+                makeDocKey(oldInfo->id, cbCtx->persistDocNamespace));
         if (itr != cbCtx->keyStats.end()) {
             itr->second = true; // mark this key as replaced
         }
