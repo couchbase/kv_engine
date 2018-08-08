@@ -184,9 +184,9 @@ backfill_status_t DCPBackfillDisk::create() {
     if (!stream) {
         EP_LOG_WARN(
                 "DCPBackfillDisk::create(): "
-                "(vb:{}) backfill create ended prematurely as the associated "
+                "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
-                getVBucketId());
+                Vbid(getVBucketId()));
         transitionState(backfill_state_done);
         return backfill_finished;
     }
@@ -296,9 +296,9 @@ backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
     if (!stream) {
         EP_LOG_WARN(
                 "DCPBackfillDisk::complete(): "
-                "(vb:{}) backfill create ended prematurely as the associated "
+                "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn; {}",
-                getVBucketId(),
+                Vbid(getVBucketId()),
                 cancelled ? "cancelled" : "finished");
         transitionState(backfill_state_done);
         return backfill_finished;

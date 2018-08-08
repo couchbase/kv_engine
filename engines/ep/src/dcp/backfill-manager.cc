@@ -164,9 +164,9 @@ void BackfillManager::schedule(VBucket& vb,
     if (engine.getDcpConnMap().canAddBackfillToActiveQ()) {
         activeBackfills.push_back(std::move(backfill));
     } else {
-        EP_LOG_INFO("Backfill for {} vb:{} is pending",
+        EP_LOG_INFO("Backfill for {} {} is pending",
                     stream->getName(),
-                    vb.getId());
+                    Vbid(vb.getId()));
         pendingBackfills.push_back(std::move(backfill));
     }
 
@@ -335,9 +335,9 @@ backfill_status_t BackfillManager::backfill() {
             } else {
                 lh.unlock();
                 EP_LOG_WARN(
-                        "Deleting the backfill, as vb:{}"
+                        "Deleting the backfill, as {} "
                         "seems to have been deleted!",
-                        vbid);
+                        Vbid(vbid));
                 backfill->cancel();
                 engine.getDcpConnMap().decrNumActiveSnoozingBackfills();
             }

@@ -8,6 +8,7 @@ endif ()
 
 add_library(mcd_util STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/config_parser.h
+            ${PROJECT_SOURCE_DIR}/include/memcached/vbucket.h
             ${PROJECT_SOURCE_DIR}/include/memcached/util.h
             breakpad.h
             breakpad.cc
@@ -24,7 +25,8 @@ add_library(mcd_util STATIC
             string_utilities.h
             terminate_handler.cc
             terminate_handler.h
-            util.cc )
+            util.cc
+            vbucket.cc )
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(mcd_util memcached_logger engine_utilities platform
                       ${BREAKPAD_LIBRARIES})

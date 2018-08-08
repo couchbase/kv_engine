@@ -170,11 +170,10 @@ std::unique_ptr<DcpResponse> Stream::popFromReadyQ(void) {
             readyQueueMemory.fetch_sub(respSize, std::memory_order_relaxed);
         } else {
             EP_LOG_DEBUG(
-                    "readyQ size for stream {} (vb:{})"
-                    "underflow, likely wrong stat calculation! curr size: "
-                    "{}; new size: {}",
+                    "readyQ size for stream {} ({}) underflow, likely wrong "
+                    "stat calculation! curr size: {}; new size: {}",
                     name_.c_str(),
-                    getVBucket(),
+                    Vbid(getVBucket()),
                     readyQueueMemory.load(std::memory_order_relaxed),
                     respSize);
             readyQueueMemory.store(0, std::memory_order_relaxed);

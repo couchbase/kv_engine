@@ -59,11 +59,9 @@ public:
 
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
         if (removed > 0) {
-            EP_LOG_DEBUG(
-                    "Removed {} closed unreferenced checkpoints from "
-                    "vb:{}",
-                    removed,
-                    vb->getId());
+            EP_LOG_DEBUG("Removed {} closed unreferenced checkpoints from {}",
+                         removed,
+                         Vbid(vb->getId()));
         }
         removed = 0;
     }

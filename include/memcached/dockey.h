@@ -237,6 +237,10 @@ struct DocKey : DocKeyInterface<DocKey> {
     DocKey(const std::string&& key,
            DocKeyEncodesCollectionId encoding) = delete;
 
+    explicit operator cb::const_char_buffer() const {
+        return cb::const_char_buffer((const char*)buffer.buf, buffer.len);
+    }
+
     template <class T>
     DocKey(const DocKeyInterface<T>& key) {
         buffer.len = key.size();

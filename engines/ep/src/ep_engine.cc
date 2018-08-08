@@ -690,11 +690,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setVbucketParam(
         } else if (strcmp(keyz, "max_cas") == 0) {
             uint64_t v = std::strtoull(valz, nullptr, 10);
             checkNumeric(valz);
-            EP_LOG_WARN(
-                    "setVbucketParam: max_cas:{} "
-                    "vb:{}",
-                    v,
-                    vbucket);
+            EP_LOG_WARN("setVbucketParam: max_cas:{} {}", v, Vbid(vbucket));
             if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
                 rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 msg = "Not my vbucket";
@@ -895,7 +891,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
             e->storeEngineSpecific(cookie, e);
         } else {
             e->storeEngineSpecific(cookie, NULL);
-            EP_LOG_DEBUG("Completed sync deletion of vb:{}", vbucket);
+            EP_LOG_DEBUG("Completed sync deletion of {}", Vbid(vbucket));
             err = ENGINE_SUCCESS;
         }
     } else {
@@ -903,20 +899,19 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     }
     switch (err) {
     case ENGINE_SUCCESS:
-        EP_LOG_INFO("Deletion of vb:{} was completed.", vbucket);
+        EP_LOG_INFO("Deletion of {} was completed.", Vbid(vbucket));
         break;
     case ENGINE_NOT_MY_VBUCKET:
         EP_LOG_WARN(
-                "Deletion of vb:{} failed "
-                "because the vbucket doesn't exist!!!",
-                vbucket);
+                "Deletion of {} failed because the vbucket doesn't exist!!!",
+                Vbid(vbucket));
         res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         break;
     case ENGINE_EINVAL:
         EP_LOG_WARN(
-                "Deletion of vb:{} failed "
+                "Deletion of {} failed "
                 "because the vbucket is not in a dead state",
-                vbucket);
+                Vbid(vbucket));
         e->setErrorContext(
                 cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
@@ -924,16 +919,14 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         break;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
-                "Request for vb:{} deletion is in"
+                "Request for {} deletion is in"
                 " EWOULDBLOCK until the database file is removed from disk",
-                vbucket);
+                Vbid(vbucket));
         e->storeEngineSpecific(cookie, req);
         return ENGINE_EWOULDBLOCK;
     default:
-        EP_LOG_WARN(
-                "Deletion of vb:{} failed "
-                "because of unknown reasons",
-                vbucket);
+        EP_LOG_WARN("Deletion of {} failed because of unknown reasons",
+                    Vbid(vbucket));
         e->setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
@@ -1412,11 +1405,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         EP_LOG_WARN(
-                "{} (vb:{}) Get Failover Log failed because this vbucket "
-                "doesn't "
-                "exist",
+                "{} ({}) Get Failover Log failed because this "
+                "vbucket doesn't exist",
                 conn ? conn->logHeader() : "MCBP-Connection",
-                vbucket);
+                Vbid(vbucket));
         return ENGINE_NOT_MY_VBUCKET;
     }
     auto failoverEntries = vb->failovers->getFailoverLog();
@@ -4216,9 +4208,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 
         DocKey key = makeDocKey(cookie, {data + offset, keylen});
         offset += keylen;
-        EP_LOG_DEBUG("Observing key {} in vb:{}",
+        EP_LOG_DEBUG("Observing key {} in {}",
                      cb::UserDataView(key.data(), key.size()),
-                     vb_id);
+                     Vbid(vb_id));
 
         // Get key stats
         uint16_t keystatus = 0;
@@ -4294,7 +4286,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     memcpy(&vb_uuid, data, sizeof(uint64_t));
     vb_uuid = ntohll(vb_uuid);
 
-    EP_LOG_DEBUG("Observing vbucket: {} with uuid: {}", vb_id, vb_uuid);
+    EP_LOG_DEBUG("Observing {} with uuid: {}", Vbid(vb_id), vb_uuid);
 
     VBucketPtr vb = kvBucket->getVBucket(vb_id);
 
@@ -4462,8 +4454,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                 "EventuallyPersistentEngine::"
                                 "handleCheckpointCmds(): "
                                 "High priority async chk request "
-                                "for vb:{} is NOT supported",
-                                vbucket);
+                                "for {} is NOT supported",
+                                Vbid(vbucket));
                         break;
 
                     case HighPriorityVBReqStatus::RequestNotScheduled:
@@ -4473,16 +4465,16 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                 "EventuallyPersistentEngine::"
                                 "handleCheckpointCmds(): "
                                 "Did NOT add high priority async chk request "
-                                "for vb:{}",
-                                vbucket);
+                                "for {}",
+                                Vbid(vbucket));
 
                         break;
                     }
                 } else {
                     storeEngineSpecific(cookie, NULL);
-                    EP_LOG_DEBUG("Checkpoint {} persisted for vb:{}",
+                    EP_LOG_DEBUG("Checkpoint {} persisted for {}",
                                  chk_id,
-                                 vbucket);
+                                 Vbid(vbucket));
                 }
             }
         }
@@ -4542,8 +4534,8 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                     EP_LOG_WARN(
                             "EventuallyPersistentEngine::handleSeqnoCmds(): "
                             "High priority async seqno request "
-                            "for vb:{} is NOT supported",
-                            vbucket);
+                            "for {} is NOT supported",
+                            Vbid(vbucket));
                     break;
 
                 case HighPriorityVBReqStatus::RequestNotScheduled:
@@ -4552,9 +4544,9 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                     EP_LOG_INFO(
                             "EventuallyPersistentEngine::handleSeqnoCmds(): "
                             "Did NOT add high priority async seqno request "
-                            "for vb:{}, Persisted seqno {} > requested seqno "
+                            "for {}, Persisted seqno {} > requested seqno "
                             "{}",
-                            vbucket,
+                            Vbid(vbucket),
                             persisted_seqno,
                             seqno);
                     break;
@@ -4562,8 +4554,9 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
             }
         } else {
             storeEngineSpecific(cookie, NULL);
-            EP_LOG_DEBUG(
-                    "Sequence number {} persisted for vb:{}", seqno, vbucket);
+            EP_LOG_DEBUG("Sequence number {} persisted for {}",
+                         seqno,
+                         Vbid(vbucket));
         }
     }
 
@@ -5190,11 +5183,9 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
 
     const auto conn = dcpConnMap_->findByName(dcpName);
     if (!conn) {
-        EP_LOG_DEBUG(
-                "doDcpVbTakeoverStats - cannot find "
-                "connection {} for vb:{}",
-                dcpName,
-                vbid);
+        EP_LOG_DEBUG("doDcpVbTakeoverStats - cannot find connection {} for {}",
+                     dcpName,
+                     Vbid(vbid));
         size_t vb_items = vb->getNumItems();
 
         size_t del_items = 0;
@@ -5203,9 +5194,9 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
         } catch (std::runtime_error& e) {
             EP_LOG_WARN(
                     "doDcpVbTakeoverStats: exception while getting num "
-                    "persisted deletes for vb:{} - treating as 0 "
+                    "persisted deletes for {} - treating as 0 "
                     "deletes. Details: {}",
-                    vbid,
+                    Vbid(vbid),
                     e.what());
         }
         size_t chk_items =
@@ -5229,9 +5220,9 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
           */
         EP_LOG_WARN(
                 "doDcpVbTakeoverStats: connection {} for "
-                "vb:{} is not a DcpProducer",
+                "{} is not a DcpProducer",
                 dcpName,
-                vbid);
+                Vbid(vbid));
         return ENGINE_KEY_ENOENT;
     }
 

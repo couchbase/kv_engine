@@ -79,14 +79,14 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
             if (v) {
                 EP_LOG_WARN(
                         "PersistenceCallback::callback: Persisting on "
-                        "vb:{}, seqno:{} returned 0 updates",
-                        queuedItem->getVBucketId(),
+                        "{}, seqno:{} returned 0 updates",
+                        Vbid(queuedItem->getVBucketId()),
                         v->getBySeqno());
             } else {
                 EP_LOG_WARN(
                         "PersistenceCallback::callback: Error persisting, a key"
-                        "is missing from vb:{}",
-                        queuedItem->getVBucketId());
+                        "is missing from {}",
+                        Vbid(queuedItem->getVBucketId()));
             }
 
             vbucket.doStatsForFlushing(*queuedItem, queuedItem->size());
@@ -94,8 +94,8 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
         } else {
             EP_LOG_WARN(
                     "PersistenceCallback::callback: Fatal error in persisting "
-                    "SET on vb:{}",
-                    queuedItem->getVBucketId());
+                    "SET on {}",
+                    Vbid(queuedItem->getVBucketId()));
             redirty(epCtx.stats, vbucket);
         }
     }
@@ -126,8 +126,8 @@ void PersistenceCallback::callback(TransactionContext& txCtx, int& value) {
     } else {
         EP_LOG_WARN(
                 "PersistenceCallback::callback: Fatal error in persisting "
-                "DELETE on vb:{}",
-                queuedItem->getVBucketId());
+                "DELETE on {}",
+                Vbid(queuedItem->getVBucketId()));
         redirty(epCtx.stats, vbucket);
     }
 }

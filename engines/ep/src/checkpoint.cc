@@ -108,9 +108,9 @@ Checkpoint::Checkpoint(EPStats& st,
 }
 
 Checkpoint::~Checkpoint() {
-    EP_LOG_DEBUG("Checkpoint {} for vb:{} is purged from memory",
+    EP_LOG_DEBUG("Checkpoint {} for {} is purged from memory",
                  checkpointId,
-                 vbucketId);
+                 Vbid(vbucketId));
     stats.coreLocal.get()->memOverhead.fetch_sub(memorySize());
 }
 

@@ -17,7 +17,9 @@
 
 #pragma once
 
+#include <memcached/mcd_util-visibility.h>
 #include <platform/bitset.h>
+#include <string>
 
 typedef enum : int {
     vbucket_state_active = 1, /**< Actively servicing a vbucket. */
@@ -44,3 +46,55 @@ struct PermittedVBStatesMap {
 };
 
 using PermittedVBStates = cb::bitset<4, vbucket_state_t, PermittedVBStatesMap>;
+
+/**
+ * Vbid - a custom type class to control the use of vBucket ID's and their
+ * output formatting, wrapping it with "vb:"
+ */
+class MCD_UTIL_PUBLIC_API Vbid {
+public:
+    // TODO: Not explicit to support conversion with previous usage
+    Vbid(uint16_t vbidParam) : vbid(vbidParam){};
+
+    // Retrieve the vBucket ID in the form of uint16_t
+    const uint16_t get() const {
+        return vbid;
+    }
+
+    // Retrieve the vBucket ID in a printable/loggable form
+    std::string to_string() const {
+        return "vb:" + std::to_string(vbid);
+    }
+
+    bool operator<(const Vbid& other) {
+        return (vbid < other.get());
+    }
+
+    bool operator<=(const Vbid& other) {
+        return (vbid <= other.get());
+    }
+
+    bool operator>(const Vbid& other) {
+        return (vbid > other.get());
+    }
+
+    bool operator>=(const Vbid& other) {
+        return (vbid >= other.get());
+    }
+
+    bool operator==(const Vbid& other) {
+        return (vbid == other.get());
+    }
+
+    // TODO: Support previous usage of vBucket ID as a uint16_t, which is
+    // planned to be phased out in stages due to size of change
+    operator uint16_t() const {
+        return vbid;
+    }
+
+protected:
+    uint16_t vbid;
+};
+
+MCD_UTIL_PUBLIC_API
+std::ostream& operator<<(std::ostream& os, const Vbid& d);

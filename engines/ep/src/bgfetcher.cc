@@ -71,9 +71,9 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
                  itemsToFetch.size());
     ProcessClock::time_point startTime(ProcessClock::now());
     EP_LOG_DEBUG(
-            "BgFetcher is fetching data, vb:{} numDocs:{} "
+            "BgFetcher is fetching data, {} numDocs:{} "
             "startTime:{}",
-            vbId,
+            Vbid(vbId),
             itemsToFetch.size(),
             std::chrono::duration_cast<std::chrono::milliseconds>(
                     startTime.time_since_epoch())

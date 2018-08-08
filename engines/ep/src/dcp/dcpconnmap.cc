@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include <daemon/tracing.h>
+#include <memcached/vbucket.h>
 #include <phosphor/phosphor.h>
 
 #include "configuration.h"
@@ -110,9 +111,9 @@ bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(uint16_t vbucket) {
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer && dcpConsumer->isStreamPresent(vbucket)) {
             EP_LOG_DEBUG(
-                    "(vb:{}) A DCP passive stream "
+                    "({}) A DCP passive stream "
                     "is already exists for the vbucket in connection: {}",
-                    vbucket,
+                    Vbid(vbucket),
                     dcpConsumer->logHeader());
             return true;
         }
@@ -129,10 +130,10 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
     /* Check if a stream (passive) for the vbucket is already present */
     if (isPassiveStreamConnected_UNLOCKED(vbucket)) {
         EP_LOG_WARN(
-                "{} (vb:{}) Failing to add passive stream, "
+                "{} ({}) Failing to add passive stream, "
                 "as one already exists for the vbucket!",
                 conn.logHeader(),
-                vbucket);
+                Vbid(vbucket));
         return ENGINE_KEY_EEXISTS;
     }
 

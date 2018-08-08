@@ -729,8 +729,8 @@ bool RocksDBKVStore::snapshotVBucket(uint16_t vbucketId,
         }
     }
 
-    EP_LOG_DEBUG("RocksDBKVStore::snapshotVBucket: Snapshotted vb:{} state:{}",
-                 vbucketId,
+    EP_LOG_DEBUG("RocksDBKVStore::snapshotVBucket: Snapshotted {} state:{}",
+                 Vbid(vbucketId),
                  vbstate.toJSON());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(

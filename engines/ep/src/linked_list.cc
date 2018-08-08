@@ -16,10 +16,10 @@
  */
 
 #include "linked_list.h"
-
 #include "bucket_logger.h"
 #include "stats.h"
 
+#include <memcached/vbucket.h>
 #include <mutex>
 
 BasicLinkedList::BasicLinkedList(uint16_t vbucketId, EPStats& st)
@@ -94,9 +94,8 @@ std::tuple<ENGINE_ERROR_CODE, std::vector<UniqueItemPtr>, seqno_t>
 BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     if ((start > end) || (start <= 0)) {
         EP_LOG_WARN(
-                "BasicLinkedList::rangeRead(): "
-                "(vb:{}) ERANGE: start {} > end {}",
-                vbid,
+                "BasicLinkedList::rangeRead(): ({}) ERANGE: start {} > end {}",
+                Vbid(vbid),
                 start,
                 end);
         return std::make_tuple(ENGINE_ERANGE, std::vector<UniqueItemPtr>(), 0);
@@ -111,8 +110,8 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
         if (start > highSeqno) {
             EP_LOG_WARN(
                     "BasicLinkedList::rangeRead(): "
-                    "(vb:{}) ERANGE: start {} > highSeqno {}",
-                    vbid,
+                    "({}) ERANGE: start {} > highSeqno {}",
+                    Vbid(vbid),
                     start,
                     static_cast<seqno_t>(highSeqno));
             /* If the request is for an invalid range, return before iterating
@@ -174,9 +173,9 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
              */
             EP_LOG_WARN(
                     "BasicLinkedList::rangeRead(): "
-                    "(vb:{}) ENOMEM while trying to copy "
+                    "({}) ENOMEM while trying to copy "
                     "item with seqno {}before streaming it",
-                    vbid,
+                    Vbid(vbid),
                     currSeqno);
             return std::make_tuple(
                     ENGINE_ENOMEM, std::vector<UniqueItemPtr>(), 0);
@@ -521,7 +520,8 @@ BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
         list.readRange.reset();
         auto severity = isBackfill ? spdlog::level::level_enum::info
                                    : spdlog::level::level_enum::debug;
-        EP_LOG_FMT(severity, "vb:{} Releasing the range iterator", list.vbid);
+        EP_LOG_FMT(
+                severity, "{} Releasing the range iterator", Vbid(list.vbid));
     }
     /* As readLockHolder goes out of scope here, it will automatically release
        the snapshot read lock on the linked list */
@@ -571,7 +571,8 @@ void BasicLinkedList::RangeIteratorLL::incrOperatorHelper() {
         list.readRange.reset();
         auto severity = isBackfill ? spdlog::level::level_enum::info
                                    : spdlog::level::level_enum::debug;
-        EP_LOG_FMT(severity, "vb:{} Releasing the range iterator", list.vbid);
+        EP_LOG_FMT(
+                severity, "{} Releasing the range iterator", Vbid(list.vbid));
         readLockHolder.unlock();
 
         /* Update the begin to end() so the client can see that the iteration

@@ -420,7 +420,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
                 }
 
                 if (vb->setBucketCreation(false)) {
-                    EP_LOG_DEBUG("vb:{} created", vbid);
+                    EP_LOG_DEBUG("{} created", Vbid(vbid));
                 }
             }
 
@@ -434,7 +434,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
-                    EP_LOG_DEBUG("vb:{} created", vbid);
+                    EP_LOG_DEBUG("{} created", Vbid(vbid));
                 }
             }
 

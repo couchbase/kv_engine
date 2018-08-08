@@ -89,7 +89,7 @@ Manifest::Manifest(const std::string& manifest)
 bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     auto rv = processManifest(manifest);
     if (!rv.is_initialized()) {
-        EP_LOG_WARN("VB::Manifest::update cannot update vb:{}", vb.getId());
+        EP_LOG_WARN("VB::Manifest::update cannot update {}", Vbid(vb.getId()));
         return false;
     } else {
         const std::vector<CollectionID>& additions = rv->first;

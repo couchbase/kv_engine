@@ -1176,8 +1176,8 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId,
         }
     }
 
-    EP_LOG_DEBUG("CouchKVStore::snapshotVBucket: Snapshotted vb:{} state:{}",
-                 vbucketId,
+    EP_LOG_DEBUG("CouchKVStore::snapshotVBucket: Snapshotted {} state:{}",
+                 Vbid(vbucketId),
                  vbstate.toJSON());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1296,8 +1296,8 @@ ScanContext* CouchKVStore::initScanContext(
                 couchstore_strerror(errorCode));
         EP_LOG_WARN(
                 "CouchKVStore::initScanContext: Failed to read DB info for "
-                "backfill. vb:{} rev:{} error: {}",
-                vbid,
+                "backfill. {} rev:{} error: {}",
+                Vbid(vbid),
                 db.getFileRev(),
                 couchstore_strerror(errorCode));
         return NULL;
@@ -1309,8 +1309,8 @@ ScanContext* CouchKVStore::initScanContext(
     if (errorCode != COUCHSTORE_SUCCESS) {
         EP_LOG_WARN(
                 "CouchKVStore::initScanContext:Failed to obtain changes "
-                "count for vb:{} rev:{} start_seqno:{} error: {}",
-                vbid,
+                "count for {} rev:{} start_seqno:{} error: {}",
+                Vbid(vbid),
                 db.getFileRev(),
                 startSeqno,
                 couchstore_strerror(errorCode));

@@ -29,6 +29,7 @@
 #include <vector>
 
 #include <phosphor/phosphor.h>
+#include <utilities/logtags.h>
 
 #include "access_scanner.h"
 #include "checkpoint_manager.h"
@@ -522,9 +523,9 @@ void KVBucket::getValue(Item& it) {
     if (gv.getStatus() != ENGINE_SUCCESS) {
         // Cannot continue to pre_expiry, log this failed get and return
         EP_LOG_WARN(
-                "KVBucket::getValue failed get for item vb:{}, it.seqno:{}, "
+                "KVBucket::getValue failed get for item {}, it.seqno:{}, "
                 "status:{}",
-                it.getVBucketId(),
+                Vbid(it.getVBucketId()),
                 it.getBySeqno(),
                 gv.getStatus());
         return;
@@ -637,9 +638,9 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
-                "(vb:{}) Returned TMPFAIL to a set op"
-                ", becuase takeover is lagging",
-                vb->getId());
+                "({}) Returned TMPFAIL to a set op, because "
+                "takeover is lagging",
+                Vbid(vb->getId()));
         return ENGINE_TMPFAIL;
     }
 
@@ -674,9 +675,9 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
-                "(vb:{}) Returned TMPFAIL to a add op"
+                "({}) Returned TMPFAIL to a add op"
                 ", becuase takeover is lagging",
-                vb->getId());
+                Vbid(vb->getId()));
         return ENGINE_TMPFAIL;
     }
 
@@ -761,9 +762,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(uint16_t vbid,
     // the vbucket state data.
     if (cookie && shouldSetVBStateBlock(cookie)) {
         EP_LOG_INFO(
-                "KVBucket::setVBucketState blocking vb:{}, to:{}, transfer:{}, "
+                "KVBucket::setVBucketState blocking {}, to:{}, transfer:{}, "
                 "cookie:{}",
-                vbid,
+                Vbid(vbid),
                 VBucket::toString(to),
                 transfer,
                 cookie);
@@ -827,10 +828,9 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
 
             auto entry = vb->failovers->getLatestEntry();
             EP_LOG_INFO(
-                    "KVBucket::setVBucketState: vb:{} created new failover "
-                    "entry with "
-                    "uuid:{} and seqno:{}",
-                    vbid,
+                    "KVBucket::setVBucketState: {} created new failover entry "
+                    "with uuid:{} and seqno:{}",
+                    Vbid(vbid),
                     entry.vb_uuid,
                     entry.by_seqno);
         }
@@ -901,9 +901,9 @@ void KVBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
 
     if (!vb) {
         EP_LOG_WARN(
-                "EPStore::scheduleVBStatePersist: vb:{} does not not exist. "
+                "EPStore::scheduleVBStatePersist: {} does not not exist. "
                 "Unable to schedule persistence.",
-                vbid);
+                Vbid(vbid));
         return;
     }
 
@@ -1294,11 +1294,10 @@ void KVBucket::completeBGFetch(const DocKey& key,
             engine.notifyIOComplete(item.cookie, status);
         } else {
             EP_LOG_DEBUG(
-                    "vb:{} file was deleted in the "
-                    "middle of a bg fetch for key{{{}}}",
-                    vbucket,
-                    int(key.size()),
-                    key.data());
+                    "{} file was deleted in the "
+                    "middle of a bg fetch for key '{}'",
+                    Vbid(vbucket),
+                    cb::UserDataView(cb::const_char_buffer(key)));
             engine.notifyIOComplete(cookie, ENGINE_NOT_MY_VBUCKET);
         }
     }
@@ -1320,9 +1319,9 @@ void KVBucket::completeBGFetchMulti(uint16_t vbId,
         }
         EP_LOG_DEBUG(
                 "EP Store completes {} of batched background fetch "
-                "for vBucket = {} endTime = {}",
+                "for {} endTime = {}",
                 uint64_t(fetchedItems.size()),
-                vbId,
+                Vbid(vbId),
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                         ProcessClock::now().time_since_epoch())
                         .count());
@@ -1333,9 +1332,9 @@ void KVBucket::completeBGFetchMulti(uint16_t vbId,
         }
         EP_LOG_WARN(
                 "EP Store completes {} of batched background fetch for "
-                "for vBucket = {} that is already deleted",
+                "for {} that is already deleted",
                 (int)fetchedItems.size(),
-                vbId);
+                Vbid(vbId));
     }
 }
 
@@ -1489,9 +1488,9 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
-                "(vb:{}) Returned TMPFAIL to a setWithMeta op"
+                "({}) Returned TMPFAIL to a setWithMeta op"
                 ", becuase takeover is lagging",
-                vb->getId());
+                Vbid(vb->getId()));
         return ENGINE_TMPFAIL;
     }
 
@@ -1704,9 +1703,9 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
-                "(vb:{}) Returned TMPFAIL to a delete op"
+                "({}) Returned TMPFAIL to a delete op"
                 ", becuase takeover is lagging",
-                vb->getId());
+                Vbid(vb->getId()));
         return ENGINE_TMPFAIL;
     }
     { // collections read scope
@@ -1753,9 +1752,9 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         }
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
-                "(vb:{}) Returned TMPFAIL to a deleteWithMeta op"
+                "({}) Returned TMPFAIL to a deleteWithMeta op"
                 ", becuase takeover is lagging",
-                vb->getId());
+                Vbid(vb->getId()));
         return ENGINE_TMPFAIL;
     }
 
@@ -1795,7 +1794,8 @@ void KVBucket::reset() {
             vb->checkpointManager->clear(vb->getState());
             vb->resetStats();
             vb->setPersistedSnapshot(0, 0);
-            EP_LOG_INFO("KVBucket::reset(): Successfully flushed vb:{}", vbid);
+            EP_LOG_INFO("KVBucket::reset(): Successfully flushed {}",
+                        Vbid(vbid));
         }
     }
     EP_LOG_INFO("KVBucket::reset(): Successfully flushed bucket");
@@ -2315,8 +2315,8 @@ TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     }
 
     if (!vb.getVB()) {
-        EP_LOG_WARN("vb:{} Aborting rollback as the vbucket was not found",
-                    vbid);
+        EP_LOG_WARN("{} Aborting rollback as the vbucket was not found",
+                    Vbid(vbid));
         return TaskStatus::Abort;
     }
 
@@ -2347,12 +2347,12 @@ TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
             engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
             return TaskStatus::Complete;
         }
-        EP_LOG_WARN("vb:{} Aborting rollback as reset of the vbucket failed",
-                    vbid);
+        EP_LOG_WARN("{} Aborting rollback as reset of the vbucket failed",
+                    Vbid(vbid));
         return TaskStatus::Abort;
     } else {
-        EP_LOG_WARN("vb:{} Rollback not supported on the vbucket state {}",
-                    vbid,
+        EP_LOG_WARN("{} Rollback not supported on the vbucket state {}",
+                    Vbid(vbid),
                     VBucket::toString(vb->getState()));
         return TaskStatus::Abort;
     }

@@ -52,8 +52,8 @@ ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
     if (vb->getId() < size) {
         getShardByVbId(vb->getId())->setBucket(vb);
         ++vbStateCount[vb->getState()];
-        EP_LOG_DEBUG("Mapped new vb:{} in state {}",
-                     vb->getId(),
+        EP_LOG_DEBUG("Mapped new {} in state {}",
+                     Vbid(vb->getId()),
                      VBucket::toString(vb->getState()));
         return ENGINE_SUCCESS;
     }

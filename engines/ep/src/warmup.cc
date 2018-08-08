@@ -390,9 +390,9 @@ static bool batchWarmupCallback(uint16_t vbId,
                     c->cb.callback(val);
                 } else {
                     EP_LOG_WARN(
-                            "Warmup failed to load data for vBucket = {}"
+                            "Warmup failed to load data for {}"
                             " key{{{}}} error = {}",
-                            vbId,
+                            Vbid(vbId),
                             items.first.c_str(),
                             val.getStatus());
                     c->error++;
@@ -428,9 +428,8 @@ static bool warmupCallback(void *arg, uint16_t vb, const DocKey& key)
             cookie->loaded++;
         } else {
             EP_LOG_WARN(
-                    "Warmup failed to load data "
-                    "for vb:{}, key{{{}}}, error:{}",
-                    vb,
+                    "Warmup failed to load data for {}, key{{{}}}, error:{}",
+                    Vbid(vb),
                     key.size(),
                     key.data(),
                     cb.getStatus());

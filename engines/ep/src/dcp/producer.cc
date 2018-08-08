@@ -260,9 +260,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
         logger->warn(
-                "(vb:{}) Stream request failed because "
+                "({}) Stream request failed because "
                 "this vbucket doesn't exist",
-                vbucket);
+                Vbid(vbucket));
         return ENGINE_NOT_MY_VBUCKET;
     }
 
@@ -272,9 +272,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         if (!noopCtx.enabled &&
             engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
             logger->warn(
-                    "(vb:{}) noop is mandatory for v5 features like "
+                    "({}) noop is mandatory for v5 features like "
                     "xattrs and collections",
-                    vbucket);
+                    Vbid(vbucket));
             return ENGINE_ENOTSUP;
         }
     }
@@ -282,22 +282,21 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
         (vb->getState() != vbucket_state_active)) {
         logger->info(
-                "(vb:{}) Stream request failed because "
+                "({}) Stream request failed because "
                 "the vbucket is in state, only active vbuckets were "
                 "requested",
-                vbucket,
+                Vbid(vbucket),
                 vb->toString(vb->getState()));
         return ENGINE_NOT_MY_VBUCKET;
     }
 
     if (!notifyOnly && start_seqno > end_seqno) {
         EP_LOG_WARN(
-                "{} (vb:{}) Stream request failed because "
-                "the start seqno ({}) is larger than the end seqno "
-                "({}); "
+                "{} ({}) Stream request failed because the start "
+                "seqno ({}) is larger than the end seqno ({}); "
                 "Incorrect params passed by the DCP client",
                 logHeader(),
-                vbucket,
+                Vbid(vbucket),
                 start_seqno,
                 end_seqno);
         return ENGINE_ERANGE;
@@ -306,10 +305,10 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     if (!notifyOnly && !(snap_start_seqno <= start_seqno &&
         start_seqno <= snap_end_seqno)) {
         logger->warn(
-                "(vb:{}) Stream request failed because "
+                "({}) Stream request failed because "
                 "the snap start seqno ({}) <= start seqno ({})"
                 " <= snap end seqno ({}) is required",
-                vbucket,
+                Vbid(vbucket),
                 snap_start_seqno,
                 start_seqno,
                 snap_end_seqno);
@@ -326,9 +325,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
             auto& stream = it.first;
             if (stream->isActive()) {
                 logger->warn(
-                        "(vb:{}) Stream request failed"
+                        "({}) Stream request failed"
                         " because a stream already exists for this vbucket",
-                        vbucket);
+                        Vbid(vbucket));
                 return ENGINE_KEY_EEXISTS;
             } else {
                 streams.erase(vbucket, guard);
@@ -360,12 +359,10 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     if (need_rollback.first) {
         logger->warn(
-                "(vb:{}) Stream request requires rollback to seqno:"
-                "because {}. Client requested"
-                " seqnos:{{{},{}}}"
-                " snapshot:{{{},{}}}"
-                " uuid:{}",
-                vbucket,
+                "({}) Stream request requires rollback to seqno:"
+                "because {}. Client requested seqnos:{{{},{}}} "
+                "snapshot:{{{},{}}} uuid:{}",
+                Vbid(vbucket),
                 *rollback_seqno,
                 need_rollback.second,
                 start_seqno,
@@ -389,12 +386,12 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     if (!notifyOnly && start_seqno > end_seqno) {
         EP_LOG_WARN(
-                "{} (vb:{}) Stream request failed because "
+                "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the end seqno ({}"
                 "), stream request flags {}, vb_uuid {}, snapStartSeqno {}, "
                 "snapEndSeqno {}; should have rolled back instead",
                 logHeader(),
-                vbucket,
+                Vbid(vbucket),
                 start_seqno,
                 end_seqno,
                 flags,
@@ -407,13 +404,12 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     if (!notifyOnly && start_seqno > static_cast<uint64_t>(vb->getHighSeqno()))
     {
         EP_LOG_WARN(
-                "{} (vb:{}) Stream request failed because "
+                "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the vb highSeqno "
-                "({}" PRId64
-                "), stream request flags is {}, vb_uuid {}, snapStartSeqno {}, "
-                "snapEndSeqno {}; should have rolled back instead",
+                "({}), stream request flags is {}, vb_uuid {}, snapStartSeqno "
+                "{}, snapEndSeqno {}; should have rolled back instead",
                 logHeader(),
-                vbucket,
+                Vbid(vbucket),
                 start_seqno,
                 vb->getHighSeqno(),
                 flags,
@@ -467,9 +463,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_dead) {
             logger->warn(
-                    "(vb:{}) Stream request failed because "
+                    "({}) Stream request failed because "
                     "this vbucket is in dead state",
-                    vbucket);
+                    Vbid(vbucket));
             return ENGINE_NOT_MY_VBUCKET;
         }
 
@@ -477,9 +473,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         // we do all hard errors first.
         if (vb->checkpointManager->getOpenCheckpointId() == 0) {
             logger->warn(
-                    "(vb:{}) Stream request failed"
+                    "({}) Stream request failed"
                     "because this vbucket is in backfill state",
-                    vbucket);
+                    Vbid(vbucket));
             return ENGINE_TMPFAIL;
         }
 
@@ -502,9 +498,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     ObjectRegistry::onSwitchThread(epe);
     if (rv != ENGINE_SUCCESS) {
         logger->warn(
-                "(vb:{}) Couldn't add failover log to "
+                "({}) Couldn't add failover log to "
                 "stream request due to error {}",
-                vbucket,
+                Vbid(vbucket),
                 rv);
     }
 
@@ -909,16 +905,16 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
     ENGINE_ERROR_CODE ret;
     if (!stream) {
         logger->warn(
-                "(vb:{}) Cannot close stream because no "
+                "({}) Cannot close stream because no "
                 "stream exists for this vbucket",
-                vbucket);
+                Vbid(vbucket));
         return ENGINE_KEY_ENOENT;
     } else {
         if (!stream->isActive()) {
             logger->warn(
-                    "(vb:{}) Cannot close stream because "
+                    "({}) Cannot close stream because "
                     "stream is already marked as dead",
-                    vbucket);
+                    Vbid(vbucket));
             ret = ENGINE_KEY_ENOENT;
         } else {
             stream->setDead(END_STREAM_CLOSED);
@@ -1032,16 +1028,16 @@ void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
             return;
         }
         logger->warn(
-                "(vb:{}) "
+                "({}) "
                 "DcpProducer::addTakeoverStats Stream type is and not the "
                 "expected Active",
-                vb.getId(),
+                Vbid(vb.getId()),
                 to_string(stream->getType()));
     } else {
         logger->info(
-                "(vb:{}) "
+                "({}) "
                 "DcpProducer::addTakeoverStats Unable to find stream",
-                vb.getId());
+                Vbid(vb.getId()));
     }
     // Error path - return status of does_not_exist to ensure rebalance does not
     // hang.
@@ -1068,11 +1064,9 @@ void DcpProducer::closeStreamDueToVbStateChange(uint16_t vbucket,
                                                 vbucket_state_t state) {
     auto stream = findStream(vbucket);
     if (stream) {
-        logger->debug(
-                "(vb:{}) State changed to "
-                "{}, closing active stream!",
-                vbucket,
-                VBucket::toString(state));
+        logger->debug("({}) State changed to {}, closing active stream!",
+                      Vbid(vbucket),
+                      VBucket::toString(state));
         stream->setDead(END_STREAM_STATE);
     }
 }
@@ -1081,9 +1075,9 @@ void DcpProducer::closeStreamDueToRollback(uint16_t vbucket) {
     auto stream = findStream(vbucket);
     if (stream) {
         logger->debug(
-                "(vb:{}) Rollback occurred,"
+                "({}) Rollback occurred,"
                 "closing stream (downstream must rollback too)",
-                vbucket,
+                Vbid(vbucket),
                 to_string(stream->getType()));
         stream->setDead(END_STREAM_ROLLBACK);
     }

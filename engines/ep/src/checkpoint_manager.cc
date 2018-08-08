@@ -102,10 +102,10 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(const LockHolder& lh,
 
     openCkpt.setId(id);
     EP_LOG_DEBUG(
-            "Set the current open checkpoint id to {} for vb:{} bySeqno is "
+            "Set the current open checkpoint id to {} for {} bySeqno is "
             "{}, max is {}",
             id,
-            vbucketId,
+            Vbid(vbucketId),
             (*ckpt_start)->getBySeqno(),
             lastBySeqno);
 }
@@ -137,9 +137,9 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
     auto& oldOpenCkpt = *checkpointList.back();
     EP_LOG_DEBUG(
             "CheckpointManager::addNewCheckpoint_UNLOCKED: Close "
-            "the current open checkpoint: [vb:{}, id:{}, snapStart:{}, "
+            "the current open checkpoint: [{}, id:{}, snapStart:{}, "
             "snapEnd:{}]",
-            vbucketId,
+            Vbid(vbucketId),
             oldOpenCkpt.getId(),
             oldOpenCkpt.getLowSeqno(),
             oldOpenCkpt.getHighSeqno());
@@ -249,11 +249,9 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                 std::to_string(openCkpt.getHighSeqno()) + ")");
     }
 
-    EP_LOG_INFO(
-            "CheckpointManager::registerCursorBySeqno name \"{}\" from vbucket "
-            "{}",
-            name,
-            vbucketId);
+    EP_LOG_INFO("CheckpointManager::registerCursorBySeqno name \"{}\" from {}",
+                name,
+                Vbid(vbucketId));
 
     size_t skipped = 0;
     CursorRegResult result;
@@ -349,9 +347,9 @@ bool CheckpointManager::removeCursor_UNLOCKED(const CheckpointCursor* cursor) {
         return false;
     }
 
-    EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from vb:{}",
+    EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
                  cursor->name,
-                 vbucketId);
+                 Vbid(vbucketId));
 
     // We can simply remove the cursorfrom the checkpoint to which it
     // currently belongs,
@@ -753,9 +751,9 @@ queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
     }
     if (getOpenCheckpointId_UNLOCKED(lh) == 0) {
         EP_LOG_DEBUG(
-                "vb:{} is still in backfill phase that doesn't allow "
+                "{} is still in backfill phase that doesn't allow "
                 " the cursor to fetch an item from it's current checkpoint",
-                vbucketId);
+                Vbid(vbucketId));
         queued_item qi(new Item(
                 DocKey("", DocKeyEncodesCollectionId::No, DocNamespace::System),
                 0xffff,

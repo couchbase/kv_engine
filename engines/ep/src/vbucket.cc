@@ -211,10 +211,10 @@ VBucket::VBucket(id_type i,
     stats.coreLocal.get()->memOverhead.fetch_add(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
     EP_LOG_INFO(
-            "VBucket: created vb:{} with state:{} "
+            "VBucket: created {} with state:{} "
             "initialState:{} lastSeqno:{} lastSnapshot:{{{},{}}} "
             "persisted_snapshot:{{{},{}}} max_cas:{} uuid:{}",
-            id,
+            Vbid(id),
             VBucket::toString(state),
             VBucket::toString(initialState),
             lastSeqno,
@@ -228,8 +228,9 @@ VBucket::VBucket(id_type i,
 
 VBucket::~VBucket() {
     if (!pendingOps.empty()) {
-        EP_LOG_WARN(
-                "~Vbucket(): vb:{} has {} pending ops", id, pendingOps.size());
+        EP_LOG_WARN("~Vbucket(): {} has {} pending ops",
+                    Vbid(id),
+                    pendingOps.size());
     }
 
     stats.diskQueueSize.fetch_sub(dirtyQueueSize.load());
@@ -241,7 +242,7 @@ VBucket::~VBucket() {
     stats.coreLocal.get()->memOverhead.fetch_sub(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
 
-    EP_LOG_INFO("Destroying vb:{}", id);
+    EP_LOG_INFO("Destroying {}", Vbid(id));
 }
 
 int64_t VBucket::getHighSeqno() const {
@@ -291,8 +292,8 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
         lh.lock();
     }
 
-    EP_LOG_DEBUG("Fired pendings ops for vb:{} in state {}",
-                 id,
+    EP_LOG_DEBUG("Fired pendings ops for {} in state {}",
+                 Vbid(id),
                  VBucket::toString(state));
 }
 
@@ -377,8 +378,8 @@ void VBucket::setState_UNLOCKED(vbucket_state_t to,
         checkpointManager->setOpenCheckpointId(2);
     }
 
-    EP_LOG_INFO("VBucket::setState: transitioning vb:{} from:{} to:{}",
-                id,
+    EP_LOG_INFO("VBucket::setState: transitioning {} from:{} to:{}",
+                Vbid(id),
                 VBucket::toString(oldstate),
                 VBucket::toString(to));
 
@@ -536,10 +537,8 @@ void VBucket::markDirty(const DocKey& key) {
     if (v) {
         v->markDirty();
     } else {
-        EP_LOG_WARN(
-                "markDirty: Error marking dirty, a key "
-                "is missing from vb:{}",
-                id);
+        EP_LOG_WARN("markDirty: Error marking dirty, a key is missing from {}",
+                    Vbid(id));
     }
 }
 
@@ -572,10 +571,7 @@ void VBucket::createFilter(size_t key_count, double probability) {
         bFilter = std::make_unique<BloomFilter>(key_count, probability,
                                         BFILTER_ENABLED);
     } else {
-        EP_LOG_WARN(
-                "(vb:{}) Bloom filter / Temp filter"
-                " already exist!",
-                id);
+        EP_LOG_WARN("({}) Bloom filter / Temp filter already exist!", Vbid(id));
     }
 }
 
@@ -2558,11 +2554,10 @@ void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
     numHpVBReqs.store(hpVBReqs.size());
 
     EP_LOG_INFO(
-            "Added high priority async request {} "
-            "for vb:{}, Check for:{}, "
+            "Added high priority async request {} for {}, Check for:{}, "
             "Persisted upto:{}, cookie:{}",
             to_string(reqType),
-            getId(),
+            Vbid(getId()),
             seqnoOrChkId,
             getPersistenceSeqno(),
             cookie);
@@ -2595,11 +2590,10 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
                             wall_time));
             adjustCheckpointFlushTimeout(spent);
             EP_LOG_INFO(
-                    "Notified the completion of {} "
-                    "for vb:{} Check for: {}, "
+                    "Notified the completion of {} for {} Check for: {}, "
                     "Persisted upto: {}, cookie {}",
                     logStr,
-                    getId(),
+                    Vbid(getId()),
                     entry->id,
                     idNum,
                     entry->cookie);
@@ -2609,11 +2603,10 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
             engine.storeEngineSpecific(entry->cookie, NULL);
             toNotify[entry->cookie] = ENGINE_TMPFAIL;
             EP_LOG_WARN(
-                    "Notified the timeout on {} "
-                    "for vb:{} Check for: {}, "
+                    "Notified the timeout on {} for {} Check for: {}, "
                     "Persisted upto: {}, cookie {}",
                     logStr,
-                    getId(),
+                    Vbid(getId()),
                     entry->id,
                     idNum,
                     entry->cookie);
