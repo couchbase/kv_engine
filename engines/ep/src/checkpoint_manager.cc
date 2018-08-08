@@ -473,19 +473,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
     unrefCheckpointList.splice(unrefCheckpointList.begin(), checkpointList,
                                checkpointList.begin(), it);
 
-    // If any cursor on a replica vbucket or downstream active vbucket
-    // receiving checkpoints from
-    // the upstream master is very slow and causes more closed checkpoints in
-    // memory, collapse those closed checkpoints into a single one to reduce
-    // the memory overhead.
-    if (checkpointConfig.isCheckpointMergeSupported() &&
-        !checkpointConfig.canKeepClosedCheckpoints() &&
-        vbucket.getState() == vbucket_state_replica) {
-        size_t curr_remains = getNumItemsForCursor_UNLOCKED(persistenceCursor);
-        collapseClosedCheckpoints(unrefCheckpointList);
-        size_t new_remains = getNumItemsForCursor_UNLOCKED(persistenceCursor);
-        updateDiskQueueStats(vbucket, curr_remains, new_remains);
-    }
     lh.unlock();
 
     return numUnrefItems;
@@ -507,84 +494,6 @@ void CheckpointManager::removeInvalidCursorsOnCheckpoint(
     std::list<std::string>::iterator it = invalidCursorNames.begin();
     for (; it != invalidCursorNames.end(); ++it) {
         pCheckpoint->removeCursorName(*it);
-    }
-}
-
-void CheckpointManager::collapseClosedCheckpoints(
-        CheckpointList& collapsedChks) {
-    // If there are one open checkpoint and more than one closed checkpoint,
-    // collapse those
-    // closed checkpoints into one checkpoint to reduce the memory overhead.
-    if (checkpointList.size() > 2) {
-        CursorIdToPositionMap slowCursors;
-        std::set<std::string> fastCursors;
-        auto lastClosedChk = checkpointList.end();
-        --lastClosedChk; --lastClosedChk; // Move to the last closed chkpt.
-        std::set<std::string>::iterator nitr =
-                (*lastClosedChk)->getCursorNameList().begin();
-        // Check if there are any cursors in the last closed checkpoint, which
-        // haven't yet visited any regular items belonging to the last closed
-        // checkpoint. If so, then we should skip collapsing checkpoints until
-        // those cursors move to the first regular item. Otherwise, those cursors will
-        // visit old items from collapsed checkpoints again.
-        for (; nitr != (*lastClosedChk)->getCursorNameList().end(); ++nitr) {
-            cursor_index::iterator cc = connCursors.find(*nitr);
-            if (cc == connCursors.end()) {
-                continue;
-            }
-            queue_op qop = (*(cc->second->currentPos))->getOperation();
-            if (qop ==  queue_op::empty || qop == queue_op::checkpoint_start) {
-                return;
-            }
-        }
-
-        fastCursors.insert((*lastClosedChk)->getCursorNameList().begin(),
-                           (*lastClosedChk)->getCursorNameList().end());
-        auto rit = checkpointList.rbegin();
-        ++rit; ++rit; //Move to the second last closed checkpoint.
-        size_t numDuplicatedItems = 0, numMetaItems = 0;
-        for (; rit != checkpointList.rend(); ++rit) {
-            size_t numAddedItems =
-                    (*lastClosedChk)->mergePrevCheckpoint((*rit).get());
-            numDuplicatedItems += ((*rit)->getNumItems() - numAddedItems);
-            numMetaItems += (*rit)->getNumMetaItems();
-
-            std::set<std::string>::iterator nameItr =
-                (*rit)->getCursorNameList().begin();
-            for (; nameItr != (*rit)->getCursorNameList().end(); ++nameItr) {
-                cursor_index::iterator cc = connCursors.find(*nameItr);
-                const auto key = (*(cc->second->currentPos))->getKey();
-                bool isMetaItem =
-                        (*(cc->second->currentPos))->isCheckPointMetaItem();
-                bool cursor_on_chk_start = false;
-                if ((*(cc->second->currentPos))->getOperation() ==
-                    queue_op::checkpoint_start) {
-                    cursor_on_chk_start = true;
-                }
-                slowCursors[*nameItr] =
-                    CursorPosition{(*rit)->getMutationIdForKey(key, isMetaItem),
-                                   cursor_on_chk_start};
-            }
-        }
-        putCursorsInCollapsedChk(slowCursors, lastClosedChk);
-
-        size_t total_items = numDuplicatedItems + numMetaItems;
-        numItems.fetch_sub(total_items);
-        auto& openCheckpoint = checkpointList.back();
-        const std::set<std::string>& openCheckpointCursors =
-                openCheckpoint->getCursorNameList();
-        fastCursors.insert(openCheckpointCursors.begin(),
-                           openCheckpointCursors.end());
-        std::set<std::string>::const_iterator cit = fastCursors.begin();
-        // Update the offset of each fast cursor.
-        for (; cit != fastCursors.end(); ++cit) {
-            cursor_index::iterator mit = connCursors.find(*cit);
-            if (mit != connCursors.end()) {
-                mit->second->decrOffset(total_items);
-            }
-        }
-        collapsedChks.splice(collapsedChks.end(), checkpointList,
-                             checkpointList.begin(),  lastClosedChk);
     }
 }
 
@@ -1140,25 +1049,6 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
     return info;
 }
 
-void CheckpointManager::updateDiskQueueStats(VBucket& vbucket,
-                                             size_t curr_remains,
-                                             size_t new_remains) {
-    if (!checkpointConfig.isPersistenceEnabled()) {
-        /* we do not have a disk and hence no disk stats to update */
-        return;
-    }
-
-    if (curr_remains > new_remains) {
-        size_t diff = curr_remains - new_remains;
-        stats.diskQueueSize.fetch_sub(diff);
-        vbucket.dirtyQueueSize.fetch_sub(diff);
-    } else if (curr_remains < new_remains) {
-        size_t diff = new_remains - curr_remains;
-        stats.diskQueueSize.fetch_add(diff);
-        vbucket.dirtyQueueSize.fetch_add(diff);
-    }
-}
-
 void CheckpointManager::checkAndAddNewCheckpoint() {
     LockHolder lh(queueLock);
 
@@ -1209,79 +1099,6 @@ void CheckpointManager::checkAndAddNewCheckpoint() {
         }
     } else {
         addNewCheckpoint_UNLOCKED(id);
-    }
-}
-
-void CheckpointManager::putCursorsInCollapsedChk(
-        CursorIdToPositionMap& cursors, const CheckpointList::iterator chkItr) {
-    size_t i;
-    auto& chk = *chkItr;
-    auto cit = chk->begin();
-    auto last = chk->begin();
-
-    // The count of meta_items at the /last/ cursor position.
-    size_t last_meta_item_count = 0;
-    // Stage 1 - iterate over the checkpoint items, checking if any of the
-    // cursors were positioned at that item.
-    for (i = 0; cit != chk->end(); ++i, ++cit) {
-        uint64_t id = chk->getMutationIdForKey((*cit)->getKey(),
-                                               (*cit)->isCheckPointMetaItem());
-
-        auto mit = cursors.begin();
-        while (mit != cursors.end()) {
-            auto cursor_pos = mit->second;
-            if (cursor_pos.seqno < id ||
-                 (cursor_pos.seqno == id &&
-                  cursor_pos.onCpktStart &&
-                  (*last)->getOperation() == queue_op::checkpoint_start)) {
-
-                cursor_index::iterator cc = connCursors.find(mit->first);
-                if (cc == connCursors.end() ||
-                    cc->second->fromBeginningOnChkCollapse) {
-                    ++mit;
-                    continue;
-                }
-                cc->second->currentCheckpoint = chkItr;
-                cc->second->currentPos = last;
-                cc->second->offset = (i > 0) ? i - 1 : 0;
-                cc->second->setMetaItemOffset(last_meta_item_count);
-
-                chk->registerCursorName(cc->second->name);
-                cursors.erase(mit++);
-            } else {
-                ++mit;
-            }
-        }
-
-        last = cit;
-        if ((*cit)->isNonEmptyCheckpointMetaItem()) {
-            last_meta_item_count++;
-        }
-
-        if (cursors.empty()) {
-            break;
-        }
-    }
-
-    // For any remaining cursors which were not repositioned in stage 1,
-    // position either at the checkpoint start (if
-    // fromBeginningOnChkCollapse==true) or otherwise at the checkpoint end.
-    for (auto& cur : cursors) {
-        cursor_index::iterator cc = connCursors.find(cur.first);
-        if (cc == connCursors.end()) {
-            continue;
-        }
-        cc->second->currentCheckpoint = chkItr;
-        if (cc->second->fromBeginningOnChkCollapse) {
-            cc->second->currentPos = chk->begin();
-            cc->second->offset = 0;
-            cc->second->setMetaItemOffset(0);
-        } else {
-            cc->second->currentPos = last;
-            cc->second->offset = (i > 0) ? i - 1 : 0;
-            cc->second->setMetaItemOffset(chk->getNumMetaItems());
-        }
-        chk->registerCursorName(cc->second->name);
     }
 }
 

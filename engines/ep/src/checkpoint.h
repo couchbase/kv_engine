@@ -496,14 +496,6 @@ public:
     }
 
     /**
-     * Merge the previous checkpoint into the this checkpoint by adding the items from
-     * the previous checkpoint, which don't exist in this checkpoint.
-     * @param pPrevCheckpoint pointer to the previous checkpoint.
-     * @return the number of items added from the previous checkpoint.
-     */
-    size_t mergePrevCheckpoint(Checkpoint *pPrevCheckpoint);
-
-    /**
      * Get the mutation id for a given key in this checkpoint
      * @param key a key to retrieve its mutation id
      * @param isMetaKey indicates if the key is a checkpoint meta item

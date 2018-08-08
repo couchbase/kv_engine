@@ -397,8 +397,6 @@ protocol_binary_response_status EventuallyPersistentEngine::setCheckpointParam(
             getConfiguration().setItemNumBasedNewChk(cb_stob(valz));
         } else if (strcmp(keyz, "keep_closed_chks") == 0) {
             getConfiguration().setKeepClosedChks(cb_stob(valz));
-        } else if (strcmp(keyz, "enable_chk_merge") == 0) {
-            getConfiguration().setEnableChkMerge(cb_stob(valz));
         } else if (strcmp(keyz, "cursor_dropping_checkpoint_mem_upper_mark") ==
                    0) {
             size_t v = std::stoull(valz);

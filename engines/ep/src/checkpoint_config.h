@@ -36,7 +36,6 @@ public:
                      size_t max_ckpts,
                      bool item_based_new_ckpt,
                      bool keep_closed_ckpts,
-                     bool enable_ckpt_merge,
                      bool persistence_enabled);
 
     CheckpointConfig(EventuallyPersistentEngine& e);
@@ -59,10 +58,6 @@ public:
 
     bool canKeepClosedCheckpoints() const {
         return keepClosedCheckpoints;
-    }
-
-    bool isCheckpointMergeSupported() const {
-        return enableChkMerge;
     }
 
     bool isPersistenceEnabled() const {
@@ -89,10 +84,6 @@ protected:
         keepClosedCheckpoints = value;
     }
 
-    void allowCheckpointMerge(bool value) {
-        enableChkMerge = value;
-    }
-
     static void addConfigChangeListener(EventuallyPersistentEngine& engine);
 
 private:
@@ -112,8 +103,6 @@ private:
     // current memory usage
     // below the high water mark.
     bool keepClosedCheckpoints;
-    // Flag indicating if merging closed checkpoints is enabled or not.
-    bool enableChkMerge;
 
     // Flag indicating if persistence is enabled.
     bool persistenceEnabled;

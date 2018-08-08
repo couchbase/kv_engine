@@ -130,34 +130,6 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_collapse_checkpoints(EngineIface* h) {
-    stop_persistence(h);
-    for (size_t i = 0; i < 5; ++i) {
-        for (size_t j = 0; j < 497; ++j) {
-            const auto key = "key" + std::to_string(j);
-            checkeq(ENGINE_SUCCESS,
-                    store(h, NULL, OPERATION_SET, key.c_str(), "value"),
-                    "Failed to store an item.");
-        }
-        /* Test with app keys with special strings */
-        checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, "dummy_key", "value"),
-                "Failed to store an item.");
-        checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, "checkpoint_start", "value"),
-                "Failed to store an item.");
-        checkeq(ENGINE_SUCCESS,
-                store(h, NULL, OPERATION_SET, "checkpoint_end", "value"),
-                "Failed to store an item.");
-    }
-    check(set_vbucket_state(h, 0, vbucket_state_replica),
-          "Failed to set vbucket state.");
-    wait_for_stat_to_be_lte(h, "vb_0:num_checkpoints", 2, "checkpoint");
-    start_persistence(h);
-    wait_for_flusher_to_settle(h);
-    return SUCCESS;
-}
-
 extern "C" {
     static void checkpoint_persistence_thread(void *arg) {
         auto* h = static_cast<EngineIface*>(arg);
@@ -291,14 +263,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "chk_max_items=5000;chk_period=600",
-                 prepare,
-                 cleanup),
-        TestCase("checkpoint: collapse checkpoints",
-                 test_collapse_checkpoints,
-                 test_setup,
-                 teardown,
-                 "chk_max_items=500;max_checkpoints=5;chk_remover_stime=1;"
-                 "enable_chk_merge=true",
                  prepare,
                  cleanup),
         TestCase("checkpoint: wait for persistence",

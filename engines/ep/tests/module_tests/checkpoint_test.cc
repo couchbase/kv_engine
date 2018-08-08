@@ -464,7 +464,6 @@ TYPED_TEST(CheckpointTest, ItemBasedCheckpointCreation) {
                                                /*numCheckpoints*/ 2,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false,
                                                /*persistenceEnabled*/ true);
     // TODO: ^^ Consider a variant for Ephemeral testing -
     // persistenceEnabled:false
@@ -637,7 +636,6 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
                                                /*numCheckpoints*/ 2,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false,
                                                /*persistenceEnabled*/ true);
     // TODO: ^^ Consider a variant for Ephemeral testing -
     // persistenceEnabled:false
@@ -689,7 +687,6 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursorLimited) {
                                                /*numCheckpoints*/ 2,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false,
                                                /*persistenceEnabled*/ true);
 
     this->createManager();
@@ -727,7 +724,6 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
                                                /*numCheckpoints*/ 2,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false,
                                                /*persistenceEnabled*/true);
     // TODO: ^^ Consider a variant for Ephemeral testing -
     // persistenceEnabled:false
@@ -800,125 +796,6 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
 }
 
-// Test the checkpoint cursor movement for replica vBuckets (where we can
-// perform more checkpoint collapsing)
-TYPED_TEST(CheckpointTest, CursorMovementReplicaMerge) {
-    this->vbucket->setState(vbucket_state_replica);
-
-    /* We want to have items across 2 checkpoints. Size down the default number
-     of items to create a new checkpoint and recreate the manager */
-    this->checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
-                                               MIN_CHECKPOINT_ITEMS,
-                                               /*numCheckpoints*/ 2,
-                                               /*itemBased*/ true,
-                                               /*keepClosed*/ false,
-                                               /*enableMerge*/ true,
-                                               /*persistenceEnabled*/true);
-    // TODO: ^^ Consider a variant for Ephemeral testing -
-    // persistenceEnabled:false
-
-    // Add items such that we have a checkpoint at half-capacity.
-    for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS / 2; ii++) {
-        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
-    }
-
-    /* Check if we have desired number of checkpoints and desired number of
-        items */
-    EXPECT_EQ(1, this->manager->getNumCheckpoints());
-    EXPECT_EQ((MIN_CHECKPOINT_ITEMS / 2), this->manager->getNumOpenChkItems());
-
-    // Register DCP replication cursor, which will be moved into the middle of
-    // first checkpoint and then left there.
-    std::string dcp_cursor{DCP_CURSOR_PREFIX + std::to_string(1)};
-    auto dcpCursor = this->manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 0, MustSendCheckpointEnd::NO);
-
-    std::vector<queued_item> items;
-    this->manager->getAllItemsForCursor(dcpCursor.cursor.lock().get(), items);
-    EXPECT_EQ((MIN_CHECKPOINT_ITEMS / 2) + 1, items.size());
-
-    // Add more items so this checkpoint is now full.
-    for (unsigned int ii = MIN_CHECKPOINT_ITEMS / 2; ii < MIN_CHECKPOINT_ITEMS;
-            ii++) {
-        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
-    }
-    EXPECT_EQ(1, this->manager->getNumCheckpoints())
-            << "Should still only have 1 checkpoint after adding "
-               "MIN_CHECKPOINT_ITEMS total";
-    EXPECT_EQ(MIN_CHECKPOINT_ITEMS, this->manager->getNumOpenChkItems());
-
-    /* Get items for persistence cursor - this will move the persistence cursor
-     * out of the initial checkpoint.
-     */
-    items.clear();
-    this->manager->getAllItemsForPersistence(items);
-
-    /* We should have got (MIN_CHECKPOINT_ITEMS + op_ckpt_start) items. */
-    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
-
-    EXPECT_EQ(1, this->manager->getOpenCheckpointId_UNLOCKED());
-
-    // Create a new checkpoint.
-    EXPECT_EQ(2, this->manager->createNewCheckpoint());
-
-    // Add another MIN_CHECKPOINT_ITEMS. This should fill up the second
-    // checkpoint.
-    for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS; ii++) {
-        EXPECT_TRUE(this->queueNewItem("keyB_" + std::to_string(ii)));
-    }
-
-    // Move the persistence cursor through these new items.
-    EXPECT_EQ(MIN_CHECKPOINT_ITEMS, this->manager->getNumItemsForPersistence());
-    items.clear();
-    this->manager->getAllItemsForPersistence(items);
-    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
-
-    // Create a third checkpoint.
-    EXPECT_EQ(3, this->manager->createNewCheckpoint());
-
-    // Move persistence cursor into third checkpoint.
-    items.clear();
-    this->manager->getAllItemsForPersistence(items);
-    EXPECT_EQ(1, items.size())
-        << "Expected to get a single meta item";
-    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
-
-    // We now have an unoccupied second checkpoint. We should be able to
-    // collapse this, and move the dcp_cursor into the merged checkpoint.
-    bool newCheckpointCreated;
-    this->manager->removeClosedUnrefCheckpoints(*this->vbucket,
-                                                newCheckpointCreated);
-
-    /* Get items for DCP cursor */
-    EXPECT_EQ(
-            MIN_CHECKPOINT_ITEMS / 2 + MIN_CHECKPOINT_ITEMS,
-            this->manager->getNumItemsForCursor(dcpCursor.cursor.lock().get()))
-            << "DCP cursor remaining items should have been recalculated after "
-               "close of unref checkpoints.";
-
-    items.clear();
-    auto range = this->manager->getAllItemsForCursor(
-            dcpCursor.cursor.lock().get(), items);
-    EXPECT_EQ(1001, range.start);
-    EXPECT_EQ(1020, range.end);
-
-    // Check we have received correct items (done in chunks because
-    // EXPECT_THAT maxes out at 10 elements).
-    std::vector<queued_item> items_a(items.begin(), items.begin() + 5);
-    // Remainder of first checkpoint.
-    EXPECT_THAT(items_a, testing::Each(HasOperation(queue_op::mutation)));
-
-    // Second checkpoint's data- 10x set.
-    std::vector<queued_item> items_b(items.begin() + 5, items.begin() + 15);
-    EXPECT_THAT(items_b, testing::Each(HasOperation(queue_op::mutation)));
-
-    // end of second checkpoint and start of third.
-    std::vector<queued_item> items_c(items.begin() + 15, items.end());
-    EXPECT_THAT(items_c,
-                testing::ElementsAre(HasOperation(queue_op::checkpoint_end),
-                                     HasOperation(queue_op::checkpoint_start)));
-}
-
 // MB-25056 - Regression test replicating situation where the seqno returned by
 // registerCursorBySeqno minus one is greater than the input parameter
 // startBySeqno but a backfill is not required.
@@ -963,7 +840,6 @@ TYPED_TEST(CheckpointTest, SeqnoAndHLCOrdering) {
                                                /*numCheckpoints*/ 1,
                                                /*itemBased*/ true,
                                                /*keepClosed*/ false,
-                                               /*enableMerge*/ false,
                                                /*persistenceEnabled*/true);
     // TODO: ^^ Consider a variant for Ephemeral testing -
     // persistenceEnabled:false

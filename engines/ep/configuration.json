@@ -347,12 +347,6 @@
                 }
             }
         },
-        "enable_chk_merge": {
-            "default": "false",
-            "descr": "True if merging closed checkpoints is enabled",
-            "dynamic": true,
-            "type": "bool"
-        },
         "ephemeral_full_policy": {
             "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",

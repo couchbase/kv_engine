@@ -247,8 +247,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_db_file_size                       | Total size of the db files              |
 | ep_degraded_mode                      | True if the engine is either warming    |
 |                                       | up or data traffic is disabled          |
-| ep_enable_chk_merge                   | True if merging closed checkpoints is   |
-|                                       | enabled.                                |
 | ep_exp_pager_enabled                  | True if the expiry pager is enabled     |
 | ep_exp_pager_stime                    | The time interval for purging expired   |
 |                                       | items from memory                       |
