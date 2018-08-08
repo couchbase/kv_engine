@@ -18,6 +18,7 @@
 
 #include <memcached/engine.h>
 #include <platform/platform.h>
+#include <memory>
 
 /**
  * Forward declaration of the AuditHandle which holds the instance data
@@ -29,6 +30,8 @@ public:
     void operator()(Audit* audit);
 };
 
+using UniqueAuditPtr = std::unique_ptr<Audit, AuditDeleter>;
+
 /**
  * Start the audit daemon
  *
@@ -36,8 +39,8 @@ public:
  * @param server_cookie_api the server cookie api to operate on the cookies
  * @return The newly created audit daemon handle upon success
  */
-std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
-        const std::string& config_file, SERVER_COOKIE_API* server_cookie_api);
+UniqueAuditPtr start_auditdaemon(const std::string& config_file,
+                                 SERVER_COOKIE_API* server_cookie_api);
 
 /**
  * Update the audit daemon with the specified configuration file

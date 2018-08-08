@@ -177,7 +177,7 @@ protected:
 
     static SERVER_COOKIE_API sapi;
     MockAuditConfig config;
-    static std::unique_ptr<Audit, AuditDeleter> auditHandle;
+    static UniqueAuditPtr auditHandle;
     static std::string testdir;
     static std::string cfgfile;
 };
@@ -186,7 +186,7 @@ SERVER_COOKIE_API AuditDaemonTest::sapi = {};
 
 std::string AuditDaemonTest::testdir;
 std::string AuditDaemonTest::cfgfile;
-std::unique_ptr<Audit, AuditDeleter> AuditDaemonTest::auditHandle;
+UniqueAuditPtr AuditDaemonTest::auditHandle;
 
 TEST_P(AuditDaemonTest, StartupDisabledDontCreateFiles) {
     configure();

@@ -93,14 +93,14 @@ static std::string gethostname() {
     return std::string(host);
 }
 
-std::unique_ptr<Audit, AuditDeleter> start_auditdaemon(
-        const std::string& config_file, SERVER_COOKIE_API* server_cookie_api) {
+UniqueAuditPtr start_auditdaemon(const std::string& config_file,
+                                 SERVER_COOKIE_API* server_cookie_api) {
     if (!cb::logger::isInitialized()) {
         throw std::invalid_argument(
                 "start_auditdaemon: logger must have been created");
     }
 
-    std::unique_ptr<Audit, AuditDeleter> holder;
+    UniqueAuditPtr holder;
 
     try {
         holder.reset(new Audit(config_file, server_cookie_api, gethostname()));

@@ -28,7 +28,7 @@
 #include <cJSON.h>
 #include <memcached/isotime.h>
 
-static std::unique_ptr<Audit, AuditDeleter> auditHandle;
+static UniqueAuditPtr auditHandle;
 
 static std::atomic_bool audit_enabled{false};
 
