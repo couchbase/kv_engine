@@ -162,20 +162,7 @@ void AuditDeleter::operator()(Audit* handle) {
 void process_auditd_stats(Audit& handle,
                           ADD_STAT add_stats,
                           gsl::not_null<const void*> cookie) {
-    const char* enabled;
-    enabled = handle.config.is_auditd_enabled() ? "true" : "false";
-    add_stats("enabled",
-              (uint16_t)strlen("enabled"),
-              enabled,
-              (uint32_t)strlen(enabled),
-              cookie.get());
-    std::stringstream num_of_dropped_events;
-    num_of_dropped_events << handle.dropped_events;
-    add_stats("dropped_events",
-              (uint16_t)strlen("dropped_events"),
-              num_of_dropped_events.str().c_str(),
-              (uint32_t)num_of_dropped_events.str().length(),
-              cookie.get());
+    handle.stats(add_stats, cookie);
 }
 
 namespace cb {

@@ -550,3 +550,18 @@ void Audit::notify_io_complete(gsl::not_null<const void*> cookie,
                                ENGINE_ERROR_CODE status) {
     cookie_api->notify_io_complete(cookie, status);
 }
+
+void Audit::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
+    const auto* enabled = config.is_auditd_enabled() ? "true" : "false";
+    add_stats("enabled",
+              (uint16_t)strlen("enabled"),
+              enabled,
+              (uint32_t)strlen(enabled),
+              cookie.get());
+    const auto num_of_dropped_events = std::to_string(dropped_events);
+    add_stats("dropped_events",
+              (uint16_t)strlen("dropped_events"),
+              num_of_dropped_events.data(),
+              (uint32_t)num_of_dropped_events.length(),
+              cookie.get());
+}

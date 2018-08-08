@@ -88,6 +88,15 @@ public:
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status);
 
+    /**
+     * Add all statistics from the audit daemon
+     *
+     * @param add_stats The callback function to add the variable to the
+     *                  stream to the clients
+     * @param cookie The cookie used to identify the client
+     */
+    void stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie);
+
 protected:
     void notify_event_state_changed(uint32_t id, bool enabled) const;
     struct {
