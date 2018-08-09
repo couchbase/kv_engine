@@ -216,7 +216,7 @@ void User::generateSecrets(const Mechanism& mech, const std::string& passwd) {
             auto fallback = scramsha_fallback_salt.get();
             auto hs_salt =
                     cb::crypto::HMAC(cb::crypto::Algorithm::SHA512,
-                                     username,
+                                     getUsername().getRawValue(),
                                      {reinterpret_cast<char*>(fallback.data()),
                                       fallback.size()});
             std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
@@ -230,7 +230,7 @@ void User::generateSecrets(const Mechanism& mech, const std::string& passwd) {
             auto fallback = scramsha_fallback_salt.get();
             auto hs_salt =
                     cb::crypto::HMAC(cb::crypto::Algorithm::SHA256,
-                                     username,
+                                     getUsername().getRawValue(),
                                      {reinterpret_cast<char*>(fallback.data()),
                                       fallback.size()});
             std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
@@ -244,7 +244,7 @@ void User::generateSecrets(const Mechanism& mech, const std::string& passwd) {
             auto fallback = scramsha_fallback_salt.get();
             auto hs_salt =
                     cb::crypto::HMAC(cb::crypto::Algorithm::SHA1,
-                                     username,
+                                     getUsername().getRawValue(),
                                      {reinterpret_cast<char*>(fallback.data()),
                                       fallback.size()});
             std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
@@ -353,7 +353,7 @@ nlohmann::json User::PasswordMetaData::to_json() const {
 nlohmann::json User::to_json() const {
     nlohmann::json ret;
 
-    ret["n"] = username;
+    ret["n"] = username.getRawValue();
     for (auto& e : password) {
         auto obj = e.second.to_json();
         switch (e.first) {

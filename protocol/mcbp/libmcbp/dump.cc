@@ -119,7 +119,7 @@ protected:
                     return;
                 }
             }
-            out << "The textual string \"" << cb::tagUserData(str) << "\""
+            out << "The textual string \"" << cb::UserDataView(str) << "\""
                 << std::endl;
         }
     }

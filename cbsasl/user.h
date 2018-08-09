@@ -20,6 +20,7 @@
 #include <cbsasl/mechanism.h>
 #include <cbsasl/pwdb.h>
 #include <nlohmann/json_fwd.hpp>
+#include <utilities/logtags.h>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -123,7 +124,7 @@ public:
     /**
      * Get the username for this entry
      */
-    const std::string& getUsername() const {
+    const UserData getUsername() const {
         return username;
     }
 
@@ -161,7 +162,7 @@ protected:
 
     std::map<Mechanism, PasswordMetaData> password;
 
-    std::string username;
+    UserData username;
 
     bool dummy;
 };

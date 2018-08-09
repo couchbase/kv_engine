@@ -43,7 +43,7 @@ Error check_password(Context* context,
     if (size != PASSWORD_SIZE) {
         std::string message{
                 "cb::cbsasl::check_password: Invalid password entry for [" +
-                cb::tagUserData(user.getUsername()) + "]"};
+                user.getUsername().getSanitizedValue() + "]"};
         logging::log(context, logging::Level::Error, message);
         return Error::FAIL;
     }

@@ -48,19 +48,60 @@ static inline std::string tagUserData(const std::string& data) {
 
 /**
  * Tag user data when objects of this type are printed, with surrounding
- * userdata tags
+ * userdata tags. UserDataView is a non-owning type, so if ownership is required
+ * use UserData
  */
-class UserDataView {
+class MCD_UTIL_PUBLIC_API UserDataView {
 public:
+    explicit UserDataView(const char* dataParam, size_t dataLen)
+        : data(dataParam, dataLen){};
+
     explicit UserDataView(const uint8_t* dataParam, size_t dataLen)
-        : data(cb::const_char_buffer{(const char*)dataParam, dataLen}){};
+        : data((const char*)dataParam, dataLen){};
 
     explicit UserDataView(cb::const_char_buffer dataParam) : data(dataParam){};
 
-    MCD_UTIL_PUBLIC_API
-    friend std::ostream& operator<<(std::ostream& os, const UserDataView& d);
+    // Retrieve tagged user data as a string
+    std::string getSanitizedValue() const {
+        return userdataStartTag + to_string(data) + userdataEndTag;
+    }
+
+    // Retrieve untagged user data as a const_char_buffer
+    const_char_buffer getRawValue() const {
+        return data;
+    }
 
 private:
     cb::const_char_buffer data;
+};
+
+MCD_UTIL_PUBLIC_API
+std::ostream& operator<<(std::ostream& os, const UserDataView& d);
+
+/**
+ * UserData class should be used whenever sensitive user data is created
+ * that could be printed in any format. UserData is an owning type, so in
+ * cases where this is not needed, use UserDataView for efficiency
+ */
+class MCD_UTIL_PUBLIC_API UserData {
+public:
+    explicit UserData(std::string dataParam) : data(std::move(dataParam)){};
+
+    operator UserDataView() const {
+        return UserDataView(data);
+    }
+
+    // Retrieve tagged user data as a string
+    std::string getSanitizedValue() const {
+        return userdataStartTag + data + userdataEndTag;
+    }
+
+    // Retrieve untagged data as a string
+    std::string getRawValue() const {
+        return data;
+    }
+
+private:
+    std::string data;
 };
 } // namespace cb

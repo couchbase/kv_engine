@@ -144,7 +144,7 @@ TEST_F(UserTest, TestNormalInit) {
     using namespace cb::sasl;
     pwdb::User u;
     EXPECT_NO_THROW(u = pwdb::UserFactory::create(root));
-    EXPECT_EQ("username", u.getUsername());
+    EXPECT_EQ("username", u.getUsername().getRawValue());
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA512));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA256));
     EXPECT_NO_THROW(u.getPassword(Mechanism::SCRAM_SHA1));
