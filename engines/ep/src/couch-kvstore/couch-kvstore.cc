@@ -2083,7 +2083,7 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
 
     for (size_t index = 0; index < commitSize; index++) {
         size_t dataSize = committedReqs[index]->getNBytes();
-        size_t keySize = committedReqs[index]->getKey().size();
+        size_t keySize = committedReqs[index]->getKeySize();
         /* update ep stats */
         ++st.io_num_write;
         st.io_write_bytes += (keySize + dataSize);

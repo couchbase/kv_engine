@@ -128,6 +128,10 @@ public:
         return deleteItem;
     };
 
+    size_t getKeySize() const {
+        return dbDocInfo.id.size;
+    }
+
     /**
      * Get the key of a document to be persisted
      *
