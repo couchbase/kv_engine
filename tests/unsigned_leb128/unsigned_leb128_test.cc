@@ -34,6 +34,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecode0) {
     auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(zero.get());
     EXPECT_EQ(0, rv.first);
     EXPECT_EQ(0, rv.second.size()); // All input consumed
+    EXPECT_EQ(0, *cb::mcbp::unsigned_leb128_get_stop_byte_index(zero.get()));
 }
 
 TYPED_TEST(UnsignedLeb128, EncodeDecodeMax) {
@@ -54,6 +55,8 @@ TYPED_TEST(UnsignedLeb128, EncodeDecode0x80) {
     auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(leb.get());
     EXPECT_EQ(value, rv.first);
     EXPECT_EQ(0, rv.second.size());
+    EXPECT_EQ(leb.get().size() - 1,
+              *cb::mcbp::unsigned_leb128_get_stop_byte_index(leb.get()));
 }
 
 TYPED_TEST(UnsignedLeb128, EncodeDecodeRandomValue) {
@@ -63,6 +66,8 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeRandomValue) {
     auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(leb.get());
     EXPECT_EQ(value, rv.first);
     EXPECT_EQ(0, rv.second.size());
+    EXPECT_EQ(leb.get().size() - 1,
+              *cb::mcbp::unsigned_leb128_get_stop_byte_index(leb.get()));
 }
 
 TYPED_TEST(UnsignedLeb128, EncodeDecodeValues) {
@@ -89,6 +94,9 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeValues) {
             auto rv = cb::mcbp::decode_unsigned_leb128<TypeParam>(leb.get());
             EXPECT_EQ(v, rv.first);
             EXPECT_EQ(0, rv.second.size());
+            EXPECT_EQ(
+                    leb.get().size() - 1,
+                    *cb::mcbp::unsigned_leb128_get_stop_byte_index(leb.get()));
         }
     }
 }
@@ -135,6 +143,7 @@ TYPED_TEST(UnsignedLeb128, DecodeInvalidInput) {
     // Set the MSbit of the MSB so it's no longer a stop-byte
     data.back() |= 0x80ull;
 
+    EXPECT_FALSE(cb::mcbp::unsigned_leb128_get_stop_byte_index({data}));
     try {
         cb::mcbp::decode_unsigned_leb128<TypeParam>({data});
         FAIL() << "Decode didn't throw";

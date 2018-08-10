@@ -1597,7 +1597,7 @@ union protocol_binary_request_dcp_mutation {
             uint8_t nru;
         } body;
     } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 32];
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 31];
 
     static uint8_t getExtrasLength() {
         return (2 * sizeof(uint64_t)) + (3 * sizeof(uint32_t)) +

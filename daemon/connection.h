@@ -32,6 +32,7 @@
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <event.h>
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dcp.h>
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
@@ -335,11 +336,10 @@ public:
 
     DocKey makeDocKey(cb::const_byte_buffer key) {
         if (isCollectionsSupported()) {
-            auto cid = *reinterpret_cast<const CollectionIDNetworkOrder*>(
-                    key.data());
-            return DocKey{key.data() + sizeof(CollectionID),
-                          key.size() - sizeof(CollectionID),
-                          cid.to_host()};
+            auto lebCid =
+                    cb::mcbp::decode_unsigned_leb128<CollectionIDType>(key);
+            return DocKey{
+                    lebCid.second.data(), lebCid.second.size(), lebCid.first};
         } else {
             return DocKey{
                     key.data(), key.size(), DocNamespace::DefaultCollection};
@@ -1052,7 +1052,7 @@ protected:
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
                                     cb::const_byte_buffer packet,
                                     cb::const_byte_buffer extendedMeta,
-                                    CollectionIDNetworkOrder cid);
+                                    CollectionID cid);
 
     /**
      * Add the provided packet to the send pipe for the connection

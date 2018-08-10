@@ -1657,8 +1657,11 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     item.release();
 
     auto nkey = info.nkey;
+    cb::mcbp::unsigned_leb128<CollectionIDType> cid(info.collectionID);
+
     if (isCollectionsSupported()) {
-        nkey += sizeof(CollectionID);
+        // Encode a leb128 variable int for the CID
+        nkey += gsl::narrow<uint16_t>(cid.get().size());
     }
 
     protocol_binary_request_dcp_mutation packet(
@@ -1677,7 +1680,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
             nru);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &packet, &info, &buffer, &meta, &nmeta, &ret](
+    write->produce([this, &packet, &info, &buffer, &meta, &nmeta, &ret, &cid](
                            cb::byte_buffer wbuf) -> size_t {
         size_t hlen = protocol_binary_request_dcp_mutation::getHeaderLength();
         size_t clen = isCollectionsSupported() ? sizeof(CollectionID) : 0;
@@ -1689,9 +1692,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
 
         auto next = std::copy(packet.bytes, packet.bytes + hlen, wbuf.begin());
         if (isCollectionsSupported()) {
-            auto cid = info.collectionID.to_network();
-            std::copy_n(
-                    &cid, 1, reinterpret_cast<CollectionIDNetworkOrder*>(next));
+            std::copy(cid.get().begin(), cid.get().end(), next);
         }
 
         if (nmeta > 0) {
@@ -1723,21 +1724,26 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
 ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
                                             cb::const_byte_buffer packet,
                                             cb::const_byte_buffer extendedMeta,
-                                            CollectionIDNetworkOrder cid) {
+                                            CollectionID cid) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     write->produce([this, &packet, &extendedMeta, &info, &cid, &ret](
                            cb::byte_buffer buffer) -> size_t {
-        size_t clen = isCollectionsSupported() ? sizeof(CollectionID) : 0;
-        if (buffer.size() < (packet.size() + clen + extendedMeta.size())) {
+        if (buffer.size() <
+            (packet.size() +
+             cb::mcbp::unsigned_leb128<CollectionIDType>::maxSize +
+             extendedMeta.size())) {
             ret = ENGINE_E2BIG;
             return 0;
         }
 
         auto next = std::copy(packet.begin(), packet.end(), buffer.begin());
 
+        size_t clen = 0;
         if (isCollectionsSupported()) {
-            std::copy_n(
-                    &cid, 1, reinterpret_cast<CollectionIDNetworkOrder*>(next));
+            // Encode a leb128 CID
+            cb::mcbp::unsigned_leb128<CollectionIDType> leb128Cid(cid);
+            std::copy(leb128Cid.get().begin(), leb128Cid.get().end(), next);
+            clen = leb128Cid.get().size();
         }
 
         if (extendedMeta.size() > 0) {
@@ -1746,7 +1752,7 @@ ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
                       buffer.data() + packet.size() + clen);
         }
 
-        // Add the header
+        // Add the header + collection-ID (stored in buffer)
         addIov(buffer.data(), packet.size() + clen);
 
         // Add the key
@@ -1779,13 +1785,20 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     item_info info;
     if (!bucket_get_item_info(getCookieObject(), it, &info)) {
-        LOG_WARNING("{}: dcp_message_deletion_v1: Failed to get item info",
+        LOG_WARNING("{}: Connection::deletion: Failed to get item info",
                     getId());
         return ENGINE_FAILED;
     }
 
     if (!reserveItem(it)) {
-        LOG_WARNING("{}: dcp_message_deletion_v1: Failed to grow item array",
+        LOG_WARNING("{}: Connection::deletion: Failed to grow item array",
+                    getId());
+        return ENGINE_FAILED;
+    }
+
+    // Should be using the V2 callback
+    if (isCollectionsSupported()) {
+        LOG_WARNING("{}: Connection::deletion: called when collections-enabled",
                     getId());
         return ENGINE_FAILED;
     }
@@ -1809,10 +1822,8 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     cb::const_byte_buffer extendedMeta{reinterpret_cast<const uint8_t*>(meta),
                                        nmeta};
 
-    return deletionInner(info,
-                         packetBuffer,
-                         extendedMeta,
-                         {CollectionID::DefaultCollection});
+    return deletionInner(
+            info, packetBuffer, extendedMeta, CollectionID::DefaultCollection);
 }
 
 ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
@@ -1825,13 +1836,13 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     item_info info;
     if (!bucket_get_item_info(getCookieObject(), it, &info)) {
-        LOG_WARNING("{}: dcp_message_deletion_v2: Failed to get item info",
+        LOG_WARNING("{}: Connection::deletion_v2: Failed to get item info",
                     getId());
         return ENGINE_FAILED;
     }
 
     if (!reserveItem(it)) {
-        LOG_WARNING("{}: dcp_message_deletion_v2: Failed to grow item array",
+        LOG_WARNING("{}: Connection::deletion_v2: Failed to grow item array",
                     getId());
         return ENGINE_FAILED;
     }
@@ -1860,7 +1871,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
             info,
             {reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)},
             {/*no extended meta in v2*/},
-            info.collectionID.to_network());
+            info.collectionID);
 }
 
 ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,

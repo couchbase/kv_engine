@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <boost/optional/optional.hpp>
 #include <platform/sized_buffer.h>
 #include <array>
 #include <gsl/gsl>
@@ -65,6 +66,20 @@ decode_unsigned_leb128(cb::const_byte_buffer buf) {
                                   buf.size() - (end + 1)}};
 }
 
+/// @return the index of the stop byte within buf
+static inline boost::optional<size_t> unsigned_leb128_get_stop_byte_index(
+        cb::const_byte_buffer buf) {
+    // If buf does not contain a stop-byte, invalid
+    size_t stopByte = 0;
+    for (auto c : buf) {
+        if ((c & 0x80ull) == 0) {
+            return stopByte;
+        }
+        stopByte++;
+    }
+    return {};
+}
+
 // Empty, non specialised version of the decoder class
 template <class T, class Enable = void>
 class unsigned_leb128 {};
@@ -101,12 +116,14 @@ public:
         return {data.data(), size};
     }
 
+    // value is large enough to store uint64_t::max as leb128
+    static const size_t maxSize = 10;
+
 private:
     // Larger T may need a larger array
     static_assert(sizeof(T) <= 8, "Class is only valid for uint 8/16/64");
 
-    // array large enough to store uint64_t::max
-    std::array<uint8_t, 10> data{};
+    std::array<uint8_t, maxSize> data{};
     uint8_t size{0};
 };
 

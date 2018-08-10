@@ -42,7 +42,13 @@ static inline bool may_accept_xattr(const Cookie& cookie) {
 bool is_document_key_valid(const Cookie& cookie) {
     const auto& req = cookie.getRequest(Cookie::PacketContent::Header);
     if (cookie.getConnection().isCollectionsSupported()) {
-        return req.getKeylen() > sizeof(CollectionID);
+        const auto& key = req.getKey();
+        auto stopByte = cb::mcbp::unsigned_leb128_get_stop_byte_index(key);
+        // 1. CID is leb128 encode, key must then be 1 byte of key and 1 byte of
+        //    leb128 minimum
+        // 2. Secondly - require that the leb128 and key are encoded, i.e. we
+        //    expect that the leb128 stop byte is not the last byte of the key.
+        return req.getKeylen() > 1 && stopByte && (key.size() - 1) > *stopByte;
     }
     return req.getKeylen() > 0;
 }

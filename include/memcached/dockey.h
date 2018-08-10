@@ -49,18 +49,19 @@ class CollectionIDNetworkOrder;
  * DocNamespace values are persisted ot the database and thus are fully
  * described now ready for future use.
  */
+using CollectionIDType = uint32_t;
 class CollectionID {
 public:
     /// To allow KV to move legacy data into a collection, reserve 0
-    static constexpr uint32_t DefaultCollection = 0;
+    static constexpr CollectionIDType DefaultCollection = 0;
 
     /// To allow KV to weave system things into the users namespace, reserve 1
-    static constexpr uint32_t System = 1;
+    static constexpr CollectionIDType System = 1;
 
     CollectionID() : value(DefaultCollection) {
     }
 
-    CollectionID(uint32_t value) : value(value) {
+    CollectionID(CollectionIDType value) : value(value) {
     }
 
     operator uint32_t() const {
@@ -81,7 +82,7 @@ public:
     }
 
 private:
-    uint32_t value;
+    CollectionIDType value;
 };
 
 /**
@@ -98,8 +99,11 @@ public:
     }
 
 private:
-    uint32_t value;
+    CollectionIDType value;
 };
+
+static_assert(sizeof(CollectionIDType) == 4,
+              "CollectionIDNetworkOrder assumes 4-byte id");
 
 inline CollectionIDNetworkOrder CollectionID::to_network() const {
     return {*this};

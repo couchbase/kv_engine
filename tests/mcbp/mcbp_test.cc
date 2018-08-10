@@ -1757,7 +1757,7 @@ public:
         : request(0 /*opaque*/,
                   0 /*vbucket*/,
                   0 /*cas*/,
-                  GetParam() ? 5 : 1 /*keylen*/,
+                  GetParam() ? 2 : 1 /*keylen*/,
                   0 /*valueLen*/,
                   PROTOCOL_BINARY_RAW_BYTES,
                   0 /*bySeqno*/,
@@ -1811,9 +1811,35 @@ TEST_P(DcpMutationValidatorTest, InvalidExtlenCollections) {
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = GetParam() ? htons(4) : 0;
+    request.message.header.request.keylen = GetParam() ? htons(1) : 0;
     request.message.header.request.bodylen = htonl(31);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+// A key which has no leb128 stop-byte
+TEST_P(DcpMutationValidatorTest, InvalidKey1) {
+    if (GetParam()) {
+        std::fill(blob + sizeof(request.bytes),
+                  blob + sizeof(request.bytes) + 10,
+                  0x81ull);
+        request.message.header.request.keylen = htons(10);
+        request.message.header.request.bodylen =
+                htonl(request.message.header.request.extlen + 10);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+}
+
+// A key which has a stop-byte, but no data after that
+TEST_P(DcpMutationValidatorTest, InvalidKey2) {
+    if (GetParam()) {
+        std::fill(blob + sizeof(request.bytes),
+                  blob + sizeof(request.bytes) + 9,
+                  0x81ull);
+        request.message.header.request.keylen = htons(10);
+        request.message.header.request.bodylen =
+                htonl(request.message.header.request.extlen + 10);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
 }
 
 /**
