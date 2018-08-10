@@ -60,6 +60,10 @@ int main(int argc, char **argv) {
     cb::logger::createBlackholeLogger();
     mock_init_alloc_hooks();
     init_mock_server();
+
+    // Create the console logger for test case output
+    cb::logger::createConsoleLogger();
+
     const auto log_level =
             verbose_logging ? EXTENSION_LOG_DEBUG : EXTENSION_LOG_FATAL;
     get_mock_server_api()->log->set_level(log_level);

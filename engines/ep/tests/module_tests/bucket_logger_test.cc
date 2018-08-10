@@ -37,19 +37,24 @@ void BucketLoggerTest::SetUp() {
 void BucketLoggerTest::TearDown() {
     SpdloggerTest::TearDown();
 
-    // Create a new blackhole logger
-    // This is important as later tests will call code that logs information
-    // and we do not want to create hundreds of files
-    cb::logger::createBlackholeLogger();
+    // Create a new console logger
+    // Set the log level back to the previous level, to respect verbosity
+    // setting
+    cb::logger::createConsoleLogger();
     get_mock_server_api()->log->set_level(oldLogLevel);
     Logger::setLoggerAPI(get_mock_server_api()->log);
+    auto spdlogLevel = cb::logger::convertToSpdSeverity(oldLogLevel);
+    get_mock_server_api()->log->get_spdlogger()->spdlogGetter()->set_level(
+            spdlogLevel);
     globalBucketLogger = std::make_unique<BucketLogger>();
+    globalBucketLogger->set_level(spdlogLevel);
 }
 
 void BucketLoggerTest::setUpLogger(const spdlog::level::level_enum level,
                                    const size_t cyclesize) {
     SpdloggerTest::setUpLogger(level, cyclesize);
     globalBucketLogger = std::make_unique<BucketLogger>();
+    globalBucketLogger->set_level(level);
 }
 
 /**

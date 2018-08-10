@@ -108,6 +108,7 @@ void Logger::vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) con
 
 void Logger::setLoggerAPI(ServerLogIface* api) {
     BucketLogger::setLoggerAPI(api);
+    Logger::setGlobalLogLevel(api->get_level());
     Logger::logger_api.store(api, std::memory_order_relaxed);
 }
 
