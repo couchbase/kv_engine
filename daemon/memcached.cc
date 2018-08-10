@@ -1115,8 +1115,8 @@ static void add_listening_port(const NetworkInterface *interf, in_port_t port, s
 /**
  * Create a socket and bind it to a specific port number
  * @param interface the interface to bind to
- * @param true if we was able to set up this interface
- *        false if we failed to set up this interface
+ * @param true if we was able to set up at least one address on the interface
+ *        false if we failed to set any addresses on the interface
  */
 static bool server_socket(const NetworkInterface& interf) {
     SOCKET sfd;
@@ -1217,14 +1217,11 @@ static bool server_socket(const NetworkInterface& interf) {
 
     freeaddrinfo(ai);
 
-    bool ret = true;
-
     if (interf.ipv4 && !ipv4) {
         // Failed to create an IPv4 port
         LOG_CRITICAL(R"(Failed to create IPv4 port for "{}:{}")",
                      interf.host.empty() ? "*" : interf.host,
                      interf.port);
-        ret = false;
     }
 
     if (interf.ipv6 && !ipv6) {
@@ -1232,10 +1229,11 @@ static bool server_socket(const NetworkInterface& interf) {
         LOG_CRITICAL(R"(Failed to create IPv6 port for "{}:{}")",
                      interf.host.empty() ? "*" : interf.host,
                      interf.port);
-        ret = false;
     }
 
-    return ret;
+    // Return success as long as we managed to create a listening port
+    // for at least one protocol.
+    return ipv4 || ipv6;
 }
 
 static bool server_sockets(bool management) {
