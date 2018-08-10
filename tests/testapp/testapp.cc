@@ -475,6 +475,8 @@ unique_cJSON_ptr TestappTest::generate_config(uint16_t ssl_port) {
     cJSON_AddTrueToObject(root, "xattr_enabled");
     cJSON_AddStringToObject(root, "rbac_file",
                             mcd_env->getRbacFilename().c_str());
+    cJSON_AddStringToObject(root, "ssl_cipher_list", "HIGH");
+    cJSON_AddStringToObject(root, "ssl_minimum_protocol", "tlsv1");
 
     // Add an opcode_attributes_override element so that we know we can
     // parse it if ns_server starts applying one ;-)
