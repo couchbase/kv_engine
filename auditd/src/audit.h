@@ -38,8 +38,6 @@ public:
     AuditConfig config;
     std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
 
-    cb_thread_t consumer_tid = {};
-    std::atomic_bool consumer_thread_running = {false};
     AuditFile auditfile;
 
     explicit Audit(std::string config_file,
@@ -135,8 +133,15 @@ protected:
     /// The name of the configuration file currently in use
     std::string configfile;
 
+    /// The thread id of the consumer thread
+    cb_thread_t consumer_tid = {};
+
     /// The consumer should run until this flag is set to true
     bool stop_audit_consumer = {false};
+
+    /// Boolean flag if the consumer thread is running or not
+    /// @todo do I really need this?
+    std::atomic_bool consumer_thread_running = {false};
 
     // We maintain two Event queues. At any one time one will be used to accept
     // new events, and the other will be processed. The two queues are swapped

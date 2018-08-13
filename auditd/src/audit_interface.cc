@@ -47,31 +47,17 @@ UniqueAuditPtr start_auditdaemon(const std::string& config_file,
                 "start_auditdaemon: logger must have been created");
     }
 
-    UniqueAuditPtr holder;
-
     try {
+        UniqueAuditPtr holder;
         holder.reset(new Audit(config_file, server_cookie_api, gethostname()));
-        if (cb_create_named_thread(
-                    &holder->consumer_tid,
-                    [](void* audit) {
-                        static_cast<Audit*>(audit)->consume_events();
-                    },
-                    holder.get(),
-                    0,
-                    "mc:auditd") != 0) {
-            LOG_WARNING("Failed to create audit thread");
-            return {};
-        }
-        holder->consumer_thread_running.store(true);
+        return holder;
     } catch (std::runtime_error& err) {
         LOG_WARNING("{}", err.what());
-        return {};
     } catch (std::bad_alloc&) {
         LOG_WARNING("Failed to start audit: Out of memory");
-        return {};
     }
 
-    return holder;
+    return {};
 }
 
 bool configure_auditdaemon(Audit& handle,

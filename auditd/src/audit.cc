@@ -50,6 +50,18 @@ Audit::Audit(std::string config_file,
         throw std::runtime_error(
                 "Audit::Audit(): Failed to configure audit daemon");
     }
+
+    std::unique_lock<std::mutex> lock(producer_consumer_lock);
+    if (cb_create_named_thread(&consumer_tid,
+                               [](void* audit) {
+                                   static_cast<Audit*>(audit)->consume_events();
+                               },
+                               this,
+                               0,
+                               "mc:auditd") != 0) {
+        throw std::runtime_error("Failed to create audit thread");
+    }
+    events_arrived.wait(lock);
 }
 
 Audit::~Audit() {
@@ -437,6 +449,10 @@ void Audit::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
 
 void Audit::consume_events() {
     std::unique_lock<std::mutex> lock(producer_consumer_lock);
+    consumer_thread_running.store(true);
+    // Tell the main thread that we're up and running
+    events_arrived.notify_one();
+
     while (!stop_audit_consumer) {
         if (filleventqueue.empty()) {
             events_arrived.wait_for(
