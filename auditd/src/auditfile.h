@@ -27,6 +27,9 @@
 
 class AuditFile {
 public:
+    explicit AuditFile(std::string hostname) : hostname(std::move(hostname)) {
+    }
+
     /**
      * Check if we need to rotate the logfile, and if so go ahead and
      * do so.
@@ -105,6 +108,7 @@ private:
         }
     };
 
+    const std::string hostname;
     std::unique_ptr<FILE, FileDeleter> file;
     std::string open_file_name;
     std::string log_directory;

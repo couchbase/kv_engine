@@ -40,13 +40,13 @@
 #include <sstream>
 #include <string>
 
-std::string Audit::hostname;
-
 Audit::Audit(std::string config_file,
              SERVER_COOKIE_API* sapi,
              const std::string& host)
-    : configfile(std::move(config_file)), cookie_api(sapi) {
-    hostname.assign(host);
+    : configfile(std::move(config_file)),
+      auditfile(host),
+      cookie_api(sapi),
+      hostname(host) {
 }
 
 Audit::~Audit() {

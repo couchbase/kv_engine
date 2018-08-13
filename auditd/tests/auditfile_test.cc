@@ -65,7 +65,7 @@ protected:
  * in it.
  */
 TEST_F(AuditFileTest, TestFileCreation) {
-    AuditFile auditfile;
+    AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     event["log_path"] = "fooo";
@@ -90,7 +90,7 @@ TEST_F(AuditFileTest, TestTimeRotate) {
     config.set_rotate_interval(defaultvalue.get_min_file_rotation_time());
     config.set_rotate_size(1024*1024);
 
-    AuditFile auditfile;
+    AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     event["log_path"] = "fooo";
@@ -116,7 +116,7 @@ TEST_F(AuditFileTest, TestSizeRotate) {
     config.set_rotate_interval(defaultvalue.get_max_file_rotation_time());
     config.set_rotate_size(100);
 
-    AuditFile auditfile;
+    AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     event["log_path"] = "fooo";
@@ -140,7 +140,7 @@ TEST_F(AuditFileTest, TestRollover) {
     AuditConfig defaultvalue;
     config.set_rotate_interval(defaultvalue.get_min_file_rotation_time());
     config.set_rotate_size(100);
-    AuditFile auditfile;
+    AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     uint32_t secs = auditfile.get_seconds_to_rotation();
@@ -172,7 +172,7 @@ TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
 
-    AuditFile auditfile;
+    AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     EXPECT_NO_THROW(auditfile.cleanup_old_logfile(testdir));
@@ -185,7 +185,7 @@ TEST_F(AuditFileTest, TestCrashRecoveryEmptyFile) {
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
 
-    AuditFile auditfile;
+    AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
@@ -209,7 +209,7 @@ TEST_F(AuditFileTest, TestCrashRecoveryNoTimestamp) {
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
 
-    AuditFile auditfile;
+    AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
 
@@ -225,7 +225,7 @@ TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
 
-    AuditFile auditfile;
+    AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");

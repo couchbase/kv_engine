@@ -43,7 +43,6 @@ public:
     std::string configfile;
     cb_thread_t consumer_tid = {};
     std::atomic_bool consumer_thread_running = {false};
-    static std::string hostname;
     AuditFile auditfile;
 
     explicit Audit(std::string config_file,
@@ -129,6 +128,9 @@ protected:
     std::atomic<uint32_t> dropped_events = {0};
 
     SERVER_COOKIE_API* cookie_api;
+
+    /// The hostname we want to inject to the audit events
+    const std::string hostname;
 
 private:
     const size_t max_audit_queue = 50000;

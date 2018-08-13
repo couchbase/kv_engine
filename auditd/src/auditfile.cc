@@ -31,13 +31,6 @@
 #include <iostream>
 #include <sstream>
 
-#ifdef UNITTEST_AUDITFILE
-#define my_hostname "testing"
-
-#else
-#define my_hostname Audit::hostname
-#endif
-
 bool AuditFile::maybe_rotate_files() {
     if (is_open() && time_to_rotate_log()) {
         if (is_empty()) {
@@ -139,11 +132,8 @@ void AuditFile::close_and_rotate_log() {
     std::string fname;
     do {
         std::stringstream archive_file;
-        archive_file << log_directory
-                     << DIRECTORY_SEPARATOR_CHARACTER
-                     << my_hostname
-                     << "-"
-                     << ts;
+        archive_file << log_directory << DIRECTORY_SEPARATOR_CHARACTER
+                     << hostname << "-" << ts;
         if (count != 0) {
             archive_file << "-" << count;
         }
@@ -228,8 +218,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         ts = ts.substr(0, 19);
         std::replace(ts.begin(), ts.end(), ':', '-');
         // form the archive filename
-        auto archive_file =
-                log_path + "/" + my_hostname + "-" + ts + "-audit.log";
+        auto archive_file = log_path + "/" + hostname + "-" + ts + "-audit.log";
         cb::io::sanitizePath(archive_file);
         if (rename(filename.c_str(), archive_file.c_str()) != 0) {
             throw std::system_error(
