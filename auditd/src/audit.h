@@ -20,24 +20,24 @@
 #include "auditd.h"
 #include "auditfile.h"
 #include "event.h"
+#include "eventdescriptor.h"
 
 #include <memcached/audit_interface.h>
 
 #include <atomic>
 #include <cinttypes>
 #include <condition_variable>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <queue>
+#include <unordered_map>
 
-class EventDescriptor;
 struct cJSON;
 
 class Audit {
 public:
     AuditConfig config;
-    std::map<uint32_t,EventDescriptor*> events;
+    std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
 
     bool terminate_audit_daemon = {false};
     std::string configfile;
@@ -77,7 +77,6 @@ public:
                                const void* cookie);
     bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
     bool terminate_consumer_thread();
-    void clear_events_map();
     bool clean_up();
 
     static void log_error(const AuditErrorCode return_code,

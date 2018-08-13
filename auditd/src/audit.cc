@@ -208,8 +208,9 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
     }
 
     try {
-        auto *entry = new EventDescriptor(event_ptr);
-        events.insert(std::pair<uint32_t, EventDescriptor*>(entry->getId(), entry));
+        auto entry = std::make_unique<EventDescriptor>(event_ptr);
+        events.insert(std::pair<uint32_t, std::unique_ptr<EventDescriptor>>(
+                entry->getId(), std::move(entry)));
     } catch (std::bad_alloc& ba) {
         log_error(AuditErrorCode::MEMORY_ALLOCATION_ERROR, ba.what());
         return false;
@@ -260,7 +261,7 @@ bool Audit::process_module_data_structures(cJSON *module) {
 
 
 bool Audit::process_module_descriptor(cJSON *module_descriptor) {
-    clear_events_map();
+    events.clear();
     while(module_descriptor != NULL) {
         switch (module_descriptor->type) {
             case cJSON_Number:
@@ -449,14 +450,6 @@ bool Audit::add_reconfigure_event(const std::string& configfile,
     return true;
 }
 
-void Audit::clear_events_map() {
-    typedef std::map<uint32_t, EventDescriptor*>::iterator it_type;
-    for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
-        delete iterator->second;
-    }
-    events.clear();
-}
-
 bool Audit::terminate_consumer_thread() {
     {
         std::lock_guard<std::mutex> guard(producer_consumer_lock);
@@ -502,7 +495,6 @@ bool Audit::clean_up() {
         } else {
             return false;
         }
-        clear_events_map();
     }
     return true;
 }
