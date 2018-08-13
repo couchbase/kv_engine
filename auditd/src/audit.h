@@ -38,7 +38,6 @@ public:
     AuditConfig config;
     std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
 
-    bool terminate_audit_daemon = {false};
     cb_thread_t consumer_tid = {};
     std::atomic_bool consumer_thread_running = {false};
     AuditFile auditfile;
@@ -135,6 +134,9 @@ protected:
 
     /// The name of the configuration file currently in use
     std::string configfile;
+
+    /// The consumer should run until this flag is set to true
+    bool stop_audit_consumer = {false};
 
     // We maintain two Event queues. At any one time one will be used to accept
     // new events, and the other will be processed. The two queues are swapped

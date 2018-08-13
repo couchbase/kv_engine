@@ -350,7 +350,7 @@ bool Audit::add_reconfigure_event(const std::string& configfile,
 bool Audit::terminate_consumer_thread() {
     {
         std::lock_guard<std::mutex> guard(producer_consumer_lock);
-        terminate_audit_daemon = true;
+        stop_audit_consumer = true;
     }
 
     /* The consumer thread maybe waiting for an event
@@ -383,10 +383,10 @@ bool Audit::clean_up() {
      * the memcached graceful shutdown.
      *
      * We therefore first check to see if the
-     * terminate_audit_daemon flag has not been set
+     * stop_audit_consumer flag has not been set
      * before trying to terminate the consumer thread.
      */
-    if (!terminate_audit_daemon) {
+    if (!stop_audit_consumer) {
         if (terminate_consumer_thread()) {
             consumer_tid = cb_thread_self();
         } else {
@@ -437,7 +437,7 @@ void Audit::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
 
 void Audit::consume_events() {
     std::unique_lock<std::mutex> lock(producer_consumer_lock);
-    while (!terminate_audit_daemon) {
+    while (!stop_audit_consumer) {
         if (filleventqueue.empty()) {
             events_arrived.wait_for(
                     lock,
