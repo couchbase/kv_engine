@@ -417,22 +417,23 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     //       in the correct fields.. if not we should add an
     //       event to the audit trail saying it is one in an illegal
     //       format (or missing fields)
-    bool res;
-    Event* new_event = new Event(event_id, payload);
-    std::lock_guard<std::mutex> guard(producer_consumer_lock);
-    if (filleventqueue->size() < max_audit_queue) {
-        filleventqueue->push(new_event);
-        events_arrived.notify_all();
-        res = true;
-    } else {
-        LOG_WARNING("Audit: Dropping audit event {}: {}",
-                    new_event->id,
-                    new_event->payload);
-        dropped_events++;
+    try {
+        auto* new_event = new Event(event_id, payload);
+        std::lock_guard<std::mutex> guard(producer_consumer_lock);
+        if (filleventqueue->size() < max_audit_queue) {
+            filleventqueue->push(new_event);
+            events_arrived.notify_all();
+            return true;
+        }
         delete new_event;
-        res = false;
+    } catch (const std::bad_alloc&) {
     }
-    return res;
+
+    dropped_events++;
+    LOG_WARNING("Audit: Dropping audit event {}: {}",
+                event_id,
+                cb::UserDataView(payload));
+    return false;
 }
 
 bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {
