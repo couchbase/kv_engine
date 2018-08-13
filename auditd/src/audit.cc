@@ -412,6 +412,11 @@ bool Audit::configure() {
 
 bool Audit::add_to_filleventqueue(uint32_t event_id,
                                   cb::const_char_buffer payload) {
+    if (!config.is_auditd_enabled()) {
+        // Audit is disabled
+        return true;
+    }
+
     // @todo I think we should do full validation of the content
     //       in debug mode to ensure that developers actually fill
     //       in the correct fields.. if not we should add an

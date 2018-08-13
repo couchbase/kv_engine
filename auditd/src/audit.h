@@ -55,6 +55,14 @@ public:
     bool process_module_data_structures(cJSON *module);
     bool process_module_descriptor(cJSON *module_descriptor);
     bool configure();
+
+    /**
+     * Add the specified event to the queue to be written.
+     *
+     * @param event_id The identifier of the event to add
+     * @param payload The actual payload to add
+     * @return True if success, false otherwise
+     */
     bool add_to_filleventqueue(uint32_t event_id,
                                cb::const_char_buffer payload);
 

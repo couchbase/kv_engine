@@ -88,24 +88,15 @@ bool configure_auditdaemon(Audit& handle,
 bool put_audit_event(Audit& handle,
                      uint32_t audit_eventid,
                      cb::const_char_buffer payload) {
-    if (handle.config.is_auditd_enabled()) {
-        if (!handle.add_to_filleventqueue(audit_eventid, payload)) {
-            return false;
-        }
-    }
-    return true;
+    return handle.add_to_filleventqueue(audit_eventid, payload);
 }
 
 void AuditDeleter::operator()(Audit* handle) {
-    if (handle->config.is_auditd_enabled()) {
-        // send event to say we are shutting down the audit daemon
-        nlohmann::json payload;
-        handle->create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
-                                   payload);
-        handle->add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
-                                      payload.dump());
-    }
-
+    nlohmann::json payload;
+    handle->create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                               payload);
+    handle->add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                                  payload.dump());
     handle->clean_up();
     delete handle;
 }
