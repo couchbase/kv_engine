@@ -39,23 +39,12 @@ public:
     AuditConfig config;
     std::map<uint32_t,EventDescriptor*> events;
 
-    // We maintain two Event queues. At any one time one will be used to accept
-    // new events, and the other will be processed. The two queues are swapped
-    // periodically.
-    std::unique_ptr<std::queue<Event*>> processeventqueue =
-            std::make_unique<std::queue<Event*>>();
-    std::unique_ptr<std::queue<Event*>> filleventqueue =
-            std::make_unique<std::queue<Event*>>();
-
     bool terminate_audit_daemon = {false};
     std::string configfile;
     cb_thread_t consumer_tid = {};
     std::atomic_bool consumer_thread_running = {false};
-    std::condition_variable events_arrived;
-    std::mutex producer_consumer_lock;
     static std::string hostname;
     AuditFile auditfile;
-    std::atomic<uint32_t> dropped_events = {0};
 
     explicit Audit(std::string config_file,
                    SERVER_COOKIE_API* sapi,
@@ -100,12 +89,30 @@ public:
      */
     void stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie);
 
+    /**
+     * The entry point for the thread used to drain the generated audit events
+     */
+    void consume_events();
+
 protected:
     void notify_event_state_changed(uint32_t id, bool enabled) const;
     struct {
         mutable std::mutex mutex;
         std::vector<cb::audit::EventStateListener> clients;
     } event_state_listener;
+
+    // We maintain two Event queues. At any one time one will be used to accept
+    // new events, and the other will be processed. The two queues are swapped
+    // periodically.
+    std::unique_ptr<std::queue<Event*>> processeventqueue =
+            std::make_unique<std::queue<Event*>>();
+    std::unique_ptr<std::queue<Event*>> filleventqueue =
+            std::make_unique<std::queue<Event*>>();
+    std::condition_variable events_arrived;
+    std::mutex producer_consumer_lock;
+
+    /// The number of events currently dropped.
+    std::atomic<uint32_t> dropped_events = {0};
 
     SERVER_COOKIE_API* cookie_api;
 

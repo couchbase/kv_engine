@@ -32,58 +32,6 @@
 #include "auditd_audit_events.h"
 #include "event.h"
 
-/**
- * The entry point for the thread used to drain the generated audit events
- *
- * @param arg not used
- * @todo refactor the method to get the audit daemon handle from arg
- */
-static void consume_events(void* arg) {
-    if (arg == nullptr) {
-        throw std::invalid_argument(
-            "consume_events: arg should be the audit instance");
-    }
-    Audit& audit = *reinterpret_cast<Audit*>(arg);
-
-    std::unique_lock<std::mutex> lock(audit.producer_consumer_lock);
-    while (!audit.terminate_audit_daemon) {
-        if (audit.filleventqueue->empty()) {
-            audit.events_arrived.wait_for(
-                    lock,
-                    std::chrono::seconds(
-                            audit.auditfile.get_seconds_to_rotation()));
-            if (audit.filleventqueue->empty()) {
-                // We timed out, so just rotate the files
-                if (audit.auditfile.maybe_rotate_files()) {
-                    // If the file was rotated then we need to open a new
-                    // audit.log file.
-                    audit.auditfile.ensure_open();
-                }
-            }
-        }
-        /* now have producer_consumer lock!
-         * event(s) have arrived or shutdown requested
-         */
-        swap(audit.processeventqueue, audit.filleventqueue);
-        lock.unlock();
-        // Now outside of the producer_consumer_lock
-
-        while (!audit.processeventqueue->empty()) {
-            Event* event = audit.processeventqueue->front();
-            if (!event->process(audit)) {
-                audit.dropped_events++;
-            }
-            audit.processeventqueue->pop();
-            delete event;
-        }
-        audit.auditfile.flush();
-        lock.lock();
-    }
-
-    // close the auditfile
-    audit.auditfile.close();
-}
-
 static std::string gethostname() {
     char host[128];
     if (gethostname(host, sizeof(host)) != 0) {
@@ -108,11 +56,14 @@ UniqueAuditPtr start_auditdaemon(const std::string& config_file,
             return {};
         }
 
-        if (cb_create_named_thread(&holder->consumer_tid,
-                                   consume_events,
-                                   holder.get(),
-                                   0,
-                                   "mc:auditd") != 0) {
+        if (cb_create_named_thread(
+                    &holder->consumer_tid,
+                    [](void* audit) {
+                        static_cast<Audit*>(audit)->consume_events();
+                    },
+                    holder.get(),
+                    0,
+                    "mc:auditd") != 0) {
             LOG_WARNING("Failed to create audit thread");
             return {};
         }

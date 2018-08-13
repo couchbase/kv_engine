@@ -553,3 +553,42 @@ void Audit::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
               (uint32_t)num_of_dropped_events.length(),
               cookie.get());
 }
+
+void Audit::consume_events() {
+    std::unique_lock<std::mutex> lock(producer_consumer_lock);
+    while (!terminate_audit_daemon) {
+        if (filleventqueue->empty()) {
+            events_arrived.wait_for(
+                    lock,
+                    std::chrono::seconds(auditfile.get_seconds_to_rotation()));
+            if (filleventqueue->empty()) {
+                // We timed out, so just rotate the files
+                if (auditfile.maybe_rotate_files()) {
+                    // If the file was rotated then we need to open a new
+                    // audit.log file.
+                    auditfile.ensure_open();
+                }
+            }
+        }
+        /* now have producer_consumer lock!
+         * event(s) have arrived or shutdown requested
+         */
+        swap(processeventqueue, filleventqueue);
+        lock.unlock();
+        // Now outside of the producer_consumer_lock
+
+        while (!processeventqueue->empty()) {
+            Event* event = processeventqueue->front();
+            if (!event->process(*this)) {
+                dropped_events++;
+            }
+            processeventqueue->pop();
+            delete event;
+        }
+        auditfile.flush();
+        lock.lock();
+    }
+
+    // close the auditfile
+    auditfile.close();
+}
