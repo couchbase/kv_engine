@@ -16,7 +16,6 @@
  */
 #include "auditfile.h"
 #include "audit.h"
-#include "auditd.h"
 #include <JSON_checker.h>
 #include <cJSON.h>
 #include <logger/logger.h>

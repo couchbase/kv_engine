@@ -17,7 +17,6 @@
 #pragma once
 
 #include "auditconfig.h"
-#include "auditd.h"
 #include "auditfile.h"
 #include "event.h"
 #include "eventdescriptor.h"
@@ -90,9 +89,6 @@ public:
     bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
     bool terminate_consumer_thread();
     bool clean_up();
-
-    static void log_error(const AuditErrorCode return_code,
-                          const std::string& string = "");
 
     /**
      * Add a listener to notify state changes for individual events.

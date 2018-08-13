@@ -18,13 +18,15 @@
 #include "configureevent.h"
 #include "audit.h"
 
+#include <logger/logger.h>
+
 bool ConfigureEvent::process(Audit& audit) {
     if (audit.reconfigure(file)) {
         audit.notify_io_complete(cookie, ENGINE_SUCCESS);
         return true;
     }
 
-    Audit::log_error(AuditErrorCode::CONFIGURATION_ERROR);
+    LOG_WARNING("Audit: error performing configuration");
     audit.notify_io_complete(cookie, ENGINE_FAILED);
     return false;
 }

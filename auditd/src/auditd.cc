@@ -28,7 +28,6 @@
 #include <sstream>
 
 #include "audit.h"
-#include "auditd.h"
 #include "auditd_audit_events.h"
 #include "event.h"
 

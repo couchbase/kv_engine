@@ -24,7 +24,6 @@
 
 #include <cerrno>
 #include <cstring>
-#include "auditd.h"
 #include "auditconfig.h"
 #include "mock_auditconfig.h"
 

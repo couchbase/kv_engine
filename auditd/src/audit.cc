@@ -17,7 +17,6 @@
 #include "config.h"
 
 #include "audit.h"
-#include "auditd.h"
 #include "auditd_audit_events.h"
 #include "configureevent.h"
 #include "event.h"
@@ -57,110 +56,6 @@ Audit::~Audit() {
     clean_up();
 }
 
-void Audit::log_error(const AuditErrorCode return_code,
-                      const std::string& string) {
-    switch (return_code) {
-    case AuditErrorCode::AUDIT_EXTENSION_DATA_ERROR:
-        LOG_WARNING("Audit: audit extension data error");
-        break;
-    case AuditErrorCode::FILE_OPEN_ERROR:
-        LOG_WARNING(
-                "Audit: open error on file {}: {}", string, strerror(errno));
-        break;
-    case AuditErrorCode::MEMORY_ALLOCATION_ERROR:
-        LOG_WARNING("Audit: memory allocation error: {}", string);
-        break;
-    case AuditErrorCode::JSON_PARSING_ERROR:
-        LOG_WARNING(R"(Audit: JSON parsing error on string "{}")", string);
-        break;
-    case AuditErrorCode::JSON_MISSING_DATA_ERROR:
-        LOG_WARNING("Audit: JSON missing data error");
-        break;
-    case AuditErrorCode::JSON_MISSING_OBJECT_ERROR:
-        LOG_WARNING("Audit: JSON missing object error");
-        break;
-    case AuditErrorCode::JSON_KEY_ERROR:
-        LOG_WARNING(R"(Audit: JSON key "{}" error)", string);
-        break;
-    case AuditErrorCode::JSON_ID_ERROR:
-        LOG_WARNING("Audit: JSON eventid error");
-        break;
-    case AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR:
-        LOG_WARNING("Audit: JSON unknown field error");
-        break;
-    case AuditErrorCode::CB_CREATE_THREAD_ERROR:
-        LOG_WARNING("Audit: cb create thread error");
-        break;
-    case AuditErrorCode::EVENT_PROCESSING_ERROR:
-        LOG_WARNING("Audit: event processing error");
-        break;
-    case AuditErrorCode::PROCESSING_EVENT_FIELDS_ERROR:
-        LOG_WARNING("Audit: processing events field error");
-        break;
-    case AuditErrorCode::TIMESTAMP_MISSING_ERROR:
-        LOG_WARNING("Audit: timestamp missing error");
-        break;
-    case AuditErrorCode::TIMESTAMP_FORMAT_ERROR:
-        LOG_WARNING(
-                R"(Audit: timestamp format error on string "{}")", string);
-        break;
-    case AuditErrorCode::EVENT_ID_ERROR:
-        LOG_WARNING("Audit: eventid error");
-        break;
-    case AuditErrorCode::VERSION_ERROR:
-        LOG_WARNING("Audit: audit version error");
-        break;
-    case AuditErrorCode::VALIDATE_PATH_ERROR:
-        LOG_WARNING(R"(Audit: validate path "{}" error)", string);
-        break;
-    case AuditErrorCode::ROTATE_INTERVAL_BELOW_MIN_ERROR:
-        LOG_WARNING("Audit: rotate_interval below minimum error");
-        break;
-    case AuditErrorCode::ROTATE_INTERVAL_EXCEEDS_MAX_ERROR:
-        LOG_WARNING("Audit: rotate_interval exceeds maximum error");
-        break;
-    case AuditErrorCode::OPEN_AUDITFILE_ERROR:
-        LOG_WARNING("Audit: error opening audit file. Dropping event: {}",
-                    cb::UserDataView(string));
-        break;
-    case AuditErrorCode::SETTING_AUDITFILE_OPEN_TIME_ERROR:
-        LOG_WARNING("Audit: error: setting auditfile open time = {}", string);
-        break;
-    case AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR:
-        LOG_WARNING("Audit: error writing event to disk. Dropping event: {}",
-                    cb::UserDataView(string));
-        break;
-    case AuditErrorCode::UNKNOWN_EVENT_ERROR:
-        LOG_WARNING("Audit: error: unknown event {}", string);
-        break;
-    case AuditErrorCode::CONFIG_INPUT_ERROR:
-        if (!string.empty()) {
-            LOG_WARNING("Audit: error reading config: {}", string);
-        } else {
-            LOG_WARNING("Audit: error reading config");
-        }
-        break;
-    case AuditErrorCode::CONFIGURATION_ERROR:
-        LOG_WARNING("Audit: error performing configuration");
-        break;
-    case AuditErrorCode::MISSING_AUDIT_EVENTS_FILE_ERROR:
-        LOG_WARNING(
-                R"(Audit: error: missing audit_event.json from "{}")", string);
-        break;
-    case AuditErrorCode::ROTATE_INTERVAL_SIZE_TOO_BIG:
-        LOG_WARNING("Audit: error: rotation_size too big: {}", string);
-        break;
-    case AuditErrorCode::INITIALIZATION_ERROR:
-        LOG_WARNING("Audit: error during initialization: {}", string);
-        break;
-    default:
-        LOG_WARNING("Audit: unknown error code:{} with string:{}",
-                    int(return_code),
-                    string);
-        break;
-    }
-}
-
 bool Audit::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     // Add common fields to the audit event
     payload["timestamp"] = ISOTime::generatetimestamp();
@@ -184,7 +79,7 @@ bool Audit::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
             break;
 
         default:
-            log_error(AuditErrorCode::EVENT_ID_ERROR);
+            LOG_WARNING("create_audit_event(): Invalid event id {}", event_id);
             return false;
     }
     return true;
@@ -193,7 +88,9 @@ bool Audit::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
 
 bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
     if (event_ptr == nullptr) {
-        log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR);
+        LOG_WARNING(
+                "Audit::initialize_event_data_structures: No JSON data "
+                "provided");
         return false;
     }
 
@@ -201,11 +98,15 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
         auto entry = std::make_unique<EventDescriptor>(event_ptr);
         events.insert(std::pair<uint32_t, std::unique_ptr<EventDescriptor>>(
                 entry->getId(), std::move(entry)));
-    } catch (std::bad_alloc& ba) {
-        log_error(AuditErrorCode::MEMORY_ALLOCATION_ERROR, ba.what());
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING(
+                "Audit::initialize_event_data_structures: Failed to allocate "
+                "memory");
         return false;
-    } catch (std::logic_error& le) {
-        log_error(AuditErrorCode::JSON_KEY_ERROR, le.what());
+    } catch (const std::logic_error& le) {
+        LOG_WARNING(
+                R"(Audit::initialize_event_data_structures: JSON key "{}" error)",
+                le.what());
     }
 
     return true;
@@ -214,13 +115,17 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
 
 bool Audit::process_module_data_structures(cJSON *module) {
     if (module == NULL) {
-        log_error(AuditErrorCode::JSON_MISSING_OBJECT_ERROR);
+        LOG_WARNING(
+                "Audit::process_module_data_structures: No JSON data provided "
+                "for module");
         return false;
     }
     while (module != NULL) {
         cJSON *mod_ptr = module->child;
         if (mod_ptr == NULL) {
-            log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR);
+            LOG_WARNING(
+                    "Audit::process_module_data_structures: No JSON data "
+                    "provided for child node");
             return false;
         }
         while (mod_ptr != NULL) {
@@ -239,7 +144,7 @@ bool Audit::process_module_data_structures(cJSON *module) {
                     }
                     break;
                 default:
-                    log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR);
+                    LOG_WARNING("Audit: JSON unknown field error");
                     return false;
             }
             mod_ptr = mod_ptr->next;
@@ -262,7 +167,7 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
                 }
                 break;
             default:
-                log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR);
+                LOG_WARNING("Audit: JSON unknown field error");
                 return false;
         }
         module_descriptor = module_descriptor->next;
@@ -286,24 +191,21 @@ bool Audit::configure() {
     try {
         config_json = nlohmann::json::parse(configuration);
     } catch (const nlohmann::json::exception&) {
-        log_error(AuditErrorCode::JSON_PARSING_ERROR, configuration);
+        LOG_WARNING(
+                R"(Audit::configure: JSON parsing error of "{}" with content: "{}")",
+                configfile,
+                cb::UserDataView(configuration));
         return false;
     }
 
     bool failure = false;
     try {
         config.initialize_config(config_json);
-    } catch (std::pair<AuditErrorCode, char*>& exc) {
-        log_error(exc.first, exc.second);
-        failure = true;
-    } catch (std::pair<AuditErrorCode, const char *>& exc) {
-        log_error(exc.first, exc.second);
-        failure = true;
     } catch (std::string &msg) {
-        log_error(AuditErrorCode::CONFIG_INPUT_ERROR, msg);
+        LOG_WARNING("Audit::configure: Invalid input: {}", msg);
         failure = true;
     } catch (...) {
-        log_error(AuditErrorCode::CONFIG_INPUT_ERROR);
+        LOG_WARNING("Audit::configure: Invalid input");
         failure = true;
     }
     if (failure) {
@@ -329,7 +231,10 @@ bool Audit::configure() {
     }
     cJSON *json_ptr = cJSON_Parse(str.c_str());
     if (json_ptr == NULL) {
-        Audit::log_error(AuditErrorCode::JSON_PARSING_ERROR, str);
+        LOG_WARNING(
+                R"(Audit::configure: JSON parsing error of "{}" with the content: "{}")",
+                audit_events_file,
+                cb::UserDataView(str));
         return false;
     }
     if (!process_module_descriptor(json_ptr->child)) {
@@ -370,10 +275,10 @@ bool Audit::configure() {
     if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
         auto evt = events.find(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
         if (evt == events.end()) {
-            std::ostringstream convert;
-            convert << AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
-            Audit::log_error(AuditErrorCode::UNKNOWN_EVENT_ERROR,
-                             convert.str().c_str());
+            LOG_WARNING(
+                    "Audit: error: Failed to locate descriptor for event id: "
+                    "{}",
+                    AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
         } else {
             if (evt->second->isEnabled()) {
                 nlohmann::json payload;

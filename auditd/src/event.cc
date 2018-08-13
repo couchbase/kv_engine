@@ -19,8 +19,10 @@
 #include "audit.h"
 #include "eventdescriptor.h"
 #include <cJSON.h>
+#include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
+#include <utilities/logtags.h>
 #include <sstream>
 #include <string>
 
@@ -96,7 +98,7 @@ bool Event::process(Audit& audit) {
     try {
         json_payload = nlohmann::json::parse(payload);
     } catch (const nlohmann::json::exception&) {
-        Audit::log_error(AuditErrorCode::JSON_PARSING_ERROR, payload);
+        LOG_WARNING(R"(Audit: JSON parsing error on string "{}")", payload);
         return false;
     }
 
@@ -110,8 +112,7 @@ bool Event::process(Audit& audit) {
     auto evt = audit.events.find(id);
     if (evt == audit.events.end()) {
         // it is an unknown event
-        Audit::log_error(AuditErrorCode::UNKNOWN_EVENT_ERROR,
-                         std::to_string(id));
+        LOG_WARNING("Audit: error: unknown event {}", id);
         return false;
     }
     if (!evt->second->isEnabled()) {
@@ -126,8 +127,8 @@ bool Event::process(Audit& audit) {
     }
 
     if (!audit.auditfile.ensure_open()) {
-        Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR,
-                         json_payload.dump());
+        LOG_WARNING("Audit: error opening audit file. Dropping event: {}",
+                    cb::UserDataView(json_payload.dump()));
         return false;
     }
     json_payload["id"] = id;
@@ -138,8 +139,8 @@ bool Event::process(Audit& audit) {
         return true;
     }
 
-    Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR,
-                     json_payload.dump());
+    LOG_WARNING("Audit: error writing event to disk. Dropping event: {}",
+                cb::UserDataView(json_payload.dump()));
 
     // If the write_event_to_disk function returns false then it is
     // possible the audit file has been closed.  Therefore ensure

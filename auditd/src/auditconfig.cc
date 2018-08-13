@@ -26,7 +26,6 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 
-#include "auditd.h"
 #include "audit.h"
 #include "auditconfig.h"
 
