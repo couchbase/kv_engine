@@ -53,16 +53,10 @@ Audit::Audit(std::string config_file,
       cookie_api(sapi) {
     hostname.assign(host);
     consumer_thread_running.store(false);
-    cb_cond_initialize(&processeventqueue_empty);
-    cb_cond_initialize(&events_arrived);
-    cb_mutex_initialize(&producer_consumer_lock);
 }
 
 Audit::~Audit() {
     clean_up();
-    cb_cond_destroy(&processeventqueue_empty);
-    cb_cond_destroy(&events_arrived);
-    cb_mutex_destroy(&producer_consumer_lock);
 }
 
 void Audit::log_error(const AuditErrorCode return_code,
@@ -431,10 +425,10 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     //       format (or missing fields)
     bool res;
     Event* new_event = new Event(event_id, payload);
-    cb_mutex_enter(&producer_consumer_lock);
+    std::lock_guard<std::mutex> guard(producer_consumer_lock);
     if (filleventqueue->size() < max_audit_queue) {
         filleventqueue->push(new_event);
-        cb_cond_broadcast(&events_arrived);
+        events_arrived.notify_all();
         res = true;
     } else {
         LOG_WARNING("Audit: Dropping audit event {}: {}",
@@ -444,16 +438,14 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
         delete new_event;
         res = false;
     }
-    cb_mutex_exit(&producer_consumer_lock);
     return res;
 }
 
 bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {
     ConfigureEvent* new_event = new ConfigureEvent(configfile, cookie);
-    cb_mutex_enter(&producer_consumer_lock);
+    std::lock_guard<std::mutex> guard(producer_consumer_lock);
     filleventqueue->push(new_event);
-    cb_cond_broadcast(&events_arrived);
-    cb_mutex_exit(&producer_consumer_lock);
+    events_arrived.notify_all();
     return true;
 }
 
@@ -479,17 +471,19 @@ void Audit::clear_events_queues() {
 }
 
 bool Audit::terminate_consumer_thread() {
-    cb_mutex_enter(&producer_consumer_lock);
-    terminate_audit_daemon = true;
-    cb_mutex_exit(&producer_consumer_lock);
+    {
+        std::lock_guard<std::mutex> guard(producer_consumer_lock);
+        terminate_audit_daemon = true;
+    }
 
     /* The consumer thread maybe waiting for an event
      * to arrive so we need to send it a broadcast so
      * it can exit cleanly.
      */
-    cb_mutex_enter(&producer_consumer_lock);
-    cb_cond_broadcast(&events_arrived);
-    cb_mutex_exit(&producer_consumer_lock);
+    {
+        std::lock_guard<std::mutex> guard(producer_consumer_lock);
+        events_arrived.notify_all();
+    }
     if (consumer_thread_running.load()) {
         if (cb_join_thread(consumer_tid) == 0) {
             consumer_thread_running.store(false);

@@ -24,8 +24,10 @@
 
 #include <atomic>
 #include <cinttypes>
+#include <condition_variable>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <queue>
 
 class Event;
@@ -47,9 +49,8 @@ public:
     std::string configfile;
     cb_thread_t consumer_tid;
     std::atomic_bool consumer_thread_running;
-    cb_cond_t processeventqueue_empty;
-    cb_cond_t events_arrived;
-    cb_mutex_t producer_consumer_lock;
+    std::condition_variable events_arrived;
+    std::mutex producer_consumer_lock;
     static std::string hostname;
     AuditFile auditfile;
     std::atomic<uint32_t> dropped_events;

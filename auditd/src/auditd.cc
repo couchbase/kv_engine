@@ -45,12 +45,13 @@ static void consume_events(void* arg) {
     }
     Audit& audit = *reinterpret_cast<Audit*>(arg);
 
-    cb_mutex_enter(&audit.producer_consumer_lock);
+    std::unique_lock<std::mutex> lock(audit.producer_consumer_lock);
     while (!audit.terminate_audit_daemon) {
         if (audit.filleventqueue->empty()) {
-            cb_cond_timedwait(&audit.events_arrived,
-                              &audit.producer_consumer_lock,
-                              audit.auditfile.get_seconds_to_rotation() * 1000);
+            audit.events_arrived.wait_for(
+                    lock,
+                    std::chrono::seconds(
+                            audit.auditfile.get_seconds_to_rotation()));
             if (audit.filleventqueue->empty()) {
                 // We timed out, so just rotate the files
                 if (audit.auditfile.maybe_rotate_files()) {
@@ -64,7 +65,7 @@ static void consume_events(void* arg) {
          * event(s) have arrived or shutdown requested
          */
         swap(audit.processeventqueue, audit.filleventqueue);
-        cb_mutex_exit(&audit.producer_consumer_lock);
+        lock.unlock();
         // Now outside of the producer_consumer_lock
 
         while (!audit.processeventqueue->empty()) {
@@ -76,9 +77,8 @@ static void consume_events(void* arg) {
             delete event;
         }
         audit.auditfile.flush();
-        cb_mutex_enter(&audit.producer_consumer_lock);
+        lock.lock();
     }
-    cb_mutex_exit(&audit.producer_consumer_lock);
 
     // close the auditfile
     audit.auditfile.close();
