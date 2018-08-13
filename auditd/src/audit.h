@@ -49,8 +49,6 @@ public:
     ~Audit();
 
     bool initialize_event_data_structures(cJSON *event_ptr);
-    bool process_module_data_structures(cJSON *module);
-    bool process_module_descriptor(cJSON *module_descriptor);
     /**
      * Set the configuration file to the named file and reconfigure the system
      *
@@ -87,7 +85,6 @@ public:
     bool add_reconfigure_event(const std::string& configfile,
                                const void* cookie);
     bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
-    bool terminate_consumer_thread();
     bool clean_up();
 
     /**
@@ -117,6 +114,10 @@ public:
     void consume_events();
 
 protected:
+    bool process_module_data_structures(cJSON* module);
+    bool process_module_descriptor(cJSON* module_descriptor);
+    bool terminate_consumer_thread();
+
     void notify_event_state_changed(uint32_t id, bool enabled) const;
     struct {
         mutable std::mutex mutex;
