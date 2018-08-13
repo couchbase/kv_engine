@@ -66,7 +66,15 @@ public:
     bool add_to_filleventqueue(uint32_t event_id,
                                cb::const_char_buffer payload);
 
-    bool add_reconfigure_event(const char *configfile, const void *cookie);
+    /**
+     * Add a reconfigure event into the list of events to be processed
+     *
+     * @param configfile The file of the configuration file to use
+     * @param cookie The cookie to notify when we're done with the reconfig
+     * @return True if success, false otherwise
+     */
+    bool add_reconfigure_event(const std::string& configfile,
+                               const void* cookie);
     bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
     bool terminate_consumer_thread();
     void clear_events_map();

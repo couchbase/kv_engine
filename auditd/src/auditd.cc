@@ -82,7 +82,7 @@ UniqueAuditPtr start_auditdaemon(const std::string& config_file,
 bool configure_auditdaemon(Audit& handle,
                            const std::string& config,
                            gsl::not_null<const void*> cookie) {
-    return handle.add_reconfigure_event(config.c_str(), cookie.get());
+    return handle.add_reconfigure_event(config, cookie.get());
 }
 
 bool put_audit_event(Audit& handle,

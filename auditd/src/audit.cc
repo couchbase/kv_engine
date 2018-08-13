@@ -440,7 +440,8 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     return false;
 }
 
-bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {
+bool Audit::add_reconfigure_event(const std::string& configfile,
+                                  const void* cookie) {
     auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie);
     std::lock_guard<std::mutex> guard(producer_consumer_lock);
     filleventqueue->push(std::move(new_event));

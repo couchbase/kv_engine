@@ -14,8 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef CONFIGUREEVENT_H
-#define CONFIGUREEVENT_H
+#pragma once
 
 #include "event.h"
 
@@ -26,13 +25,9 @@ public:
     const void *cookie;
     const std::string file;
 
-    ConfigureEvent(const char* configfile, const void* c)
-        : cookie(c), file(configfile) {}
+    ConfigureEvent(std::string configfile, const void* c)
+        : cookie(c), file(std::move(configfile)) {
+    }
 
     bool process(Audit& audit) override;
-
-    virtual ~ConfigureEvent() {}
-
 };
-
-#endif
