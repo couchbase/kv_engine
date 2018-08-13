@@ -18,7 +18,7 @@
 
 #include "event.h"
 
-class Audit;
+class AuditImpl;
 
 class ConfigureEvent : public Event {
 public:
@@ -29,5 +29,5 @@ public:
         : cookie(c), file(std::move(configfile)) {
     }
 
-    bool process(Audit& audit) override;
+    bool process(AuditImpl& audit) override;
 };

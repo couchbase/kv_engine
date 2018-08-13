@@ -49,7 +49,8 @@ UniqueAuditPtr start_auditdaemon(const std::string& config_file,
 
     try {
         UniqueAuditPtr holder;
-        holder.reset(new Audit(config_file, server_cookie_api, gethostname()));
+        holder.reset(
+                new AuditImpl(config_file, server_cookie_api, gethostname()));
         return holder;
     } catch (std::runtime_error& err) {
         LOG_WARNING("{}", err.what());
@@ -63,40 +64,32 @@ UniqueAuditPtr start_auditdaemon(const std::string& config_file,
 bool configure_auditdaemon(Audit& handle,
                            const std::string& config,
                            gsl::not_null<const void*> cookie) {
-    return handle.add_reconfigure_event(config, cookie.get());
+    return dynamic_cast<AuditImpl*>(&handle)->add_reconfigure_event(
+            config, cookie.get());
 }
 
 bool put_audit_event(Audit& handle,
                      uint32_t audit_eventid,
                      cb::const_char_buffer payload) {
-    return handle.add_to_filleventqueue(audit_eventid, payload);
-}
-
-void AuditDeleter::operator()(Audit* handle) {
-    nlohmann::json payload;
-    handle->create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
-                               payload);
-    handle->add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
-                                  payload.dump());
-    handle->clean_up();
-    delete handle;
+    return dynamic_cast<AuditImpl*>(&handle)->add_to_filleventqueue(
+            audit_eventid, payload);
 }
 
 void process_auditd_stats(Audit& handle,
                           ADD_STAT add_stats,
                           gsl::not_null<const void*> cookie) {
-    handle.stats(add_stats, cookie);
+    dynamic_cast<AuditImpl*>(&handle)->stats(add_stats, cookie);
 }
 
 namespace cb {
 namespace audit {
 
 void add_event_state_listener(Audit& handle, EventStateListener listener) {
-    handle.add_event_state_listener(listener);
+    dynamic_cast<AuditImpl*>(&handle)->add_event_state_listener(listener);
 }
 
 void notify_all_event_states(Audit& handle) {
-    handle.notify_all_event_states();
+    dynamic_cast<AuditImpl*>(&handle)->notify_all_event_states();
 }
 
 } // namespace audit

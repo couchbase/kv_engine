@@ -87,7 +87,7 @@ bool Event::filterEvent(const nlohmann::json& eventPayload,
     }
 }
 
-bool Event::process(Audit& audit) {
+bool Event::process(AuditImpl& audit) {
     // Audit is disabled
     if (!audit.config.is_auditd_enabled()) {
         return true;

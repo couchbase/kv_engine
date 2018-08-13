@@ -229,7 +229,8 @@ protected:
         } else {
             cJSON_AddFalseToObject(root.get(), "filtering_permitted");
         }
-        auditHandle->add_event_descriptor(root.get());
+        dynamic_cast<AuditImpl*>(auditHandle.get())
+                ->add_event_descriptor(root.get());
     }
 };
 

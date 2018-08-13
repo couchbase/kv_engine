@@ -20,17 +20,14 @@
 #include <platform/platform.h>
 #include <memory>
 
-/**
- * Forward declaration of the AuditHandle which holds the instance data
- */
-class Audit;
-
-class AuditDeleter {
+class Audit {
 public:
-    void operator()(Audit* audit);
-};
+    virtual ~Audit() = default;
 
-using UniqueAuditPtr = std::unique_ptr<Audit, AuditDeleter>;
+protected:
+    Audit() = default;
+};
+using UniqueAuditPtr = std::unique_ptr<Audit>;
 
 /**
  * Start the audit daemon

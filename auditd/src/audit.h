@@ -33,17 +33,17 @@
 
 struct cJSON;
 
-class Audit {
+class AuditImpl : public Audit {
 public:
     AuditConfig config;
     std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
 
     AuditFile auditfile;
 
-    explicit Audit(std::string config_file,
-                   SERVER_COOKIE_API* sapi,
-                   const std::string& host);
-    ~Audit();
+    explicit AuditImpl(std::string config_file,
+                       SERVER_COOKIE_API* sapi,
+                       const std::string& host);
+    ~AuditImpl() override;
 
     /**
      * Set the configuration file to the named file and reconfigure the system
@@ -81,7 +81,6 @@ public:
     bool add_reconfigure_event(const std::string& configfile,
                                const void* cookie);
     bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
-    bool clean_up();
 
     /**
      * Add a listener to notify state changes for individual events.
@@ -122,7 +121,6 @@ protected:
 
     bool process_module_data_structures(cJSON* module);
     bool process_module_descriptor(cJSON* module_descriptor);
-    bool terminate_consumer_thread();
 
     void notify_event_state_changed(uint32_t id, bool enabled) const;
     struct {
@@ -138,10 +136,6 @@ protected:
 
     /// The consumer should run until this flag is set to true
     bool stop_audit_consumer = {false};
-
-    /// Boolean flag if the consumer thread is running or not
-    /// @todo do I really need this?
-    std::atomic_bool consumer_thread_running = {false};
 
     // We maintain two Event queues. At any one time one will be used to accept
     // new events, and the other will be processed. The two queues are swapped
@@ -162,4 +156,3 @@ protected:
 private:
     const size_t max_audit_queue = 50000;
 };
-

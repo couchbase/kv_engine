@@ -22,7 +22,7 @@
 #include <platform/sized_buffer.h>
 #include <string>
 
-class Audit;
+class AuditImpl;
 class AuditConfig;
 struct cJSON;
 
@@ -39,7 +39,7 @@ public:
         : id(event_id), payload(payload.data(), payload.size()) {
     }
 
-    virtual bool process(Audit& audit);
+    virtual bool process(AuditImpl& audit);
 
     /**
      * State whether a given event should be filtered out given the userid.

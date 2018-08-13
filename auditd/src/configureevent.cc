@@ -20,7 +20,7 @@
 
 #include <logger/logger.h>
 
-bool ConfigureEvent::process(Audit& audit) {
+bool ConfigureEvent::process(AuditImpl& audit) {
     if (audit.reconfigure(file)) {
         audit.notify_io_complete(cookie, ENGINE_SUCCESS);
         return true;

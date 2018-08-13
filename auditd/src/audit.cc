@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,10 +39,11 @@
 #include <sstream>
 #include <string>
 
-Audit::Audit(std::string config_file,
-             SERVER_COOKIE_API* sapi,
-             const std::string& host)
-    : auditfile(host),
+AuditImpl::AuditImpl(std::string config_file,
+                     SERVER_COOKIE_API* sapi,
+                     const std::string& host)
+    : Audit(),
+      auditfile(host),
       configfile(std::move(config_file)),
       cookie_api(sapi),
       hostname(host) {
@@ -52,23 +53,40 @@ Audit::Audit(std::string config_file,
     }
 
     std::unique_lock<std::mutex> lock(producer_consumer_lock);
-    if (cb_create_named_thread(&consumer_tid,
-                               [](void* audit) {
-                                   static_cast<Audit*>(audit)->consume_events();
-                               },
-                               this,
-                               0,
-                               "mc:auditd") != 0) {
+    if (cb_create_named_thread(
+                &consumer_tid,
+                [](void* audit) {
+                    static_cast<AuditImpl*>(audit)->consume_events();
+                },
+                this,
+                0,
+                "mc:auditd") != 0) {
         throw std::runtime_error("Failed to create audit thread");
     }
     events_arrived.wait(lock);
 }
 
-Audit::~Audit() {
-    clean_up();
+AuditImpl::~AuditImpl() {
+    nlohmann::json payload;
+    create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
+    add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+                          payload.dump());
+
+    {
+        // Set the flag to request the audit consumer to stop
+        std::lock_guard<std::mutex> guard(producer_consumer_lock);
+        stop_audit_consumer = true;
+        // The consume thread may be waiting on the condition variable
+        // so we should kick it in the but as well to make sure that
+        // it is let loose
+        events_arrived.notify_all();
+    }
+
+    // Wait for the consumer thread to stop
+    cb_join_thread(consumer_tid);
 }
 
-bool Audit::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
+bool AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     // Add common fields to the audit event
     payload["timestamp"] = ISOTime::generatetimestamp();
     nlohmann::json real_userid;
@@ -97,7 +115,7 @@ bool Audit::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     return true;
 }
 
-bool Audit::add_event_descriptor(cJSON* event_ptr) {
+bool AuditImpl::add_event_descriptor(cJSON* event_ptr) {
     if (event_ptr == nullptr) {
         LOG_WARNING(
                 "Audit::add_event_descriptor: No JSON data "
@@ -122,7 +140,7 @@ bool Audit::add_event_descriptor(cJSON* event_ptr) {
     return false;
 }
 
-bool Audit::process_module_data_structures(cJSON *module) {
+bool AuditImpl::process_module_data_structures(cJSON* module) {
     if (module == NULL) {
         LOG_WARNING(
                 "Audit::process_module_data_structures: No JSON data provided "
@@ -163,8 +181,7 @@ bool Audit::process_module_data_structures(cJSON *module) {
     return true;
 }
 
-
-bool Audit::process_module_descriptor(cJSON *module_descriptor) {
+bool AuditImpl::process_module_descriptor(cJSON* module_descriptor) {
     events.clear();
     while(module_descriptor != NULL) {
         switch (module_descriptor->type) {
@@ -184,12 +201,12 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
     return true;
 }
 
-bool Audit::reconfigure(std::string file) {
+bool AuditImpl::reconfigure(std::string file) {
     configfile = std::move(file);
     return configure();
 }
 
-bool Audit::configure() {
+bool AuditImpl::configure() {
     bool is_enabled_before_reconfig = config.is_auditd_enabled();
     const auto configuration = cb::io::loadFile(configfile);
     if (configuration.empty()) {
@@ -320,8 +337,8 @@ bool Audit::configure() {
     return true;
 }
 
-bool Audit::add_to_filleventqueue(uint32_t event_id,
-                                  cb::const_char_buffer payload) {
+bool AuditImpl::add_to_filleventqueue(uint32_t event_id,
+                                      cb::const_char_buffer payload) {
     if (!config.is_auditd_enabled()) {
         // Audit is disabled
         return true;
@@ -350,8 +367,8 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     return false;
 }
 
-bool Audit::add_reconfigure_event(const std::string& configfile,
-                                  const void* cookie) {
+bool AuditImpl::add_reconfigure_event(const std::string& configfile,
+                                      const void* cookie) {
     auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie);
     std::lock_guard<std::mutex> guard(producer_consumer_lock);
     filleventqueue.push(std::move(new_event));
@@ -359,80 +376,32 @@ bool Audit::add_reconfigure_event(const std::string& configfile,
     return true;
 }
 
-bool Audit::terminate_consumer_thread() {
-    {
-        std::lock_guard<std::mutex> guard(producer_consumer_lock);
-        stop_audit_consumer = true;
-    }
-
-    /* The consumer thread maybe waiting for an event
-     * to arrive so we need to send it a broadcast so
-     * it can exit cleanly.
-     */
-    {
-        std::lock_guard<std::mutex> guard(producer_consumer_lock);
-        events_arrived.notify_all();
-    }
-    if (consumer_thread_running.load()) {
-        if (cb_join_thread(consumer_tid) == 0) {
-            consumer_thread_running.store(false);
-            return true;
-        }
-        return false;
-    } else {
-        return false;
-    }
-}
-
-bool Audit::clean_up() {
-    /* clean_up is called from shutdown_auditdaemon
-     * which in turn is called from memcached when
-     * performing a graceful shutdown.
-     *
-     * However clean_up is also called from ~Audit().
-     * This is required because it possible for the
-     * destructor to be invoked without going through
-     * the memcached graceful shutdown.
-     *
-     * We therefore first check to see if the
-     * stop_audit_consumer flag has not been set
-     * before trying to terminate the consumer thread.
-     */
-    if (!stop_audit_consumer) {
-        if (terminate_consumer_thread()) {
-            consumer_tid = cb_thread_self();
-        } else {
-            return false;
-        }
-    }
-    return true;
-}
-
-void Audit::notify_all_event_states() {
+void AuditImpl::notify_all_event_states() {
     notify_event_state_changed(0, config.is_auditd_enabled());
     for (const auto& event : events) {
         notify_event_state_changed(event.first, event.second->isEnabled());
     }
 }
 
-void Audit::add_event_state_listener(cb::audit::EventStateListener listener) {
+void AuditImpl::add_event_state_listener(
+        cb::audit::EventStateListener listener) {
     std::lock_guard<std::mutex> guard(event_state_listener.mutex);
     event_state_listener.clients.push_back(listener);
 }
 
-void Audit::notify_event_state_changed(uint32_t id, bool enabled) const {
+void AuditImpl::notify_event_state_changed(uint32_t id, bool enabled) const {
     std::lock_guard<std::mutex> guard(event_state_listener.mutex);
     for (const auto& func : event_state_listener.clients) {
         func(id, enabled);
     }
 }
 
-void Audit::notify_io_complete(gsl::not_null<const void*> cookie,
-                               ENGINE_ERROR_CODE status) {
+void AuditImpl::notify_io_complete(gsl::not_null<const void*> cookie,
+                                   ENGINE_ERROR_CODE status) {
     cookie_api->notify_io_complete(cookie, status);
 }
 
-void Audit::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
+void AuditImpl::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
     const auto* enabled = config.is_auditd_enabled() ? "true" : "false";
     add_stats("enabled",
               (uint16_t)strlen("enabled"),
@@ -447,9 +416,8 @@ void Audit::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
               cookie.get());
 }
 
-void Audit::consume_events() {
+void AuditImpl::consume_events() {
     std::unique_lock<std::mutex> lock(producer_consumer_lock);
-    consumer_thread_running.store(true);
     // Tell the main thread that we're up and running
     events_arrived.notify_one();
 
