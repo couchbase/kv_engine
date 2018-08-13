@@ -43,10 +43,14 @@
 Audit::Audit(std::string config_file,
              SERVER_COOKIE_API* sapi,
              const std::string& host)
-    : configfile(std::move(config_file)),
-      auditfile(host),
+    : auditfile(host),
+      configfile(std::move(config_file)),
       cookie_api(sapi),
       hostname(host) {
+    if (!configfile.empty() && !configure()) {
+        throw std::runtime_error(
+                "Audit::Audit(): Failed to configure audit daemon");
+    }
 }
 
 Audit::~Audit() {
@@ -264,6 +268,11 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
         module_descriptor = module_descriptor->next;
     }
     return true;
+}
+
+bool Audit::reconfigure(std::string file) {
+    configfile = std::move(file);
+    return configure();
 }
 
 bool Audit::configure() {

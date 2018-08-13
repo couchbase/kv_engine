@@ -52,10 +52,6 @@ UniqueAuditPtr start_auditdaemon(const std::string& config_file,
 
     try {
         holder.reset(new Audit(config_file, server_cookie_api, gethostname()));
-        if (!holder->configfile.empty() && !holder->configure()) {
-            return {};
-        }
-
         if (cb_create_named_thread(
                     &holder->consumer_tid,
                     [](void* audit) {

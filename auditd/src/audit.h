@@ -40,7 +40,6 @@ public:
     std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
 
     bool terminate_audit_daemon = {false};
-    std::string configfile;
     cb_thread_t consumer_tid = {};
     std::atomic_bool consumer_thread_running = {false};
     AuditFile auditfile;
@@ -53,6 +52,20 @@ public:
     bool initialize_event_data_structures(cJSON *event_ptr);
     bool process_module_data_structures(cJSON *module);
     bool process_module_descriptor(cJSON *module_descriptor);
+    /**
+     * Set the configuration file to the named file and reconfigure the system
+     *
+     * @param the file to read the configuration from
+     * @return true if success, false otherwise
+     */
+    bool reconfigure(std::string file);
+
+    /**
+     * Read the current configuration and update the internal settings
+     * to reflect the configuration
+     *
+     * @return true if success, false otherwise
+     */
     bool configure();
 
     /**
@@ -113,6 +126,9 @@ protected:
         mutable std::mutex mutex;
         std::vector<cb::audit::EventStateListener> clients;
     } event_state_listener;
+
+    /// The name of the configuration file currently in use
+    std::string configfile;
 
     // We maintain two Event queues. At any one time one will be used to accept
     // new events, and the other will be processed. The two queues are swapped
