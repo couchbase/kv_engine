@@ -130,10 +130,8 @@ protected:
     // We maintain two Event queues. At any one time one will be used to accept
     // new events, and the other will be processed. The two queues are swapped
     // periodically.
-    std::unique_ptr<std::queue<std::unique_ptr<Event>>> processeventqueue =
-            std::make_unique<std::queue<std::unique_ptr<Event>>>();
-    std::unique_ptr<std::queue<std::unique_ptr<Event>>> filleventqueue =
-            std::make_unique<std::queue<std::unique_ptr<Event>>>();
+    std::queue<std::unique_ptr<Event>> processeventqueue;
+    std::queue<std::unique_ptr<Event>> filleventqueue;
     std::condition_variable events_arrived;
     std::mutex producer_consumer_lock;
 

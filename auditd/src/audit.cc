@@ -326,8 +326,8 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     try {
         auto new_event = std::make_unique<Event>(event_id, payload);
         std::lock_guard<std::mutex> guard(producer_consumer_lock);
-        if (filleventqueue->size() < max_audit_queue) {
-            filleventqueue->push(std::move(new_event));
+        if (filleventqueue.size() < max_audit_queue) {
+            filleventqueue.push(std::move(new_event));
             events_arrived.notify_all();
             return true;
         }
@@ -345,7 +345,7 @@ bool Audit::add_reconfigure_event(const std::string& configfile,
                                   const void* cookie) {
     auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie);
     std::lock_guard<std::mutex> guard(producer_consumer_lock);
-    filleventqueue->push(std::move(new_event));
+    filleventqueue.push(std::move(new_event));
     events_arrived.notify_all();
     return true;
 }
@@ -441,11 +441,11 @@ void Audit::stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) {
 void Audit::consume_events() {
     std::unique_lock<std::mutex> lock(producer_consumer_lock);
     while (!terminate_audit_daemon) {
-        if (filleventqueue->empty()) {
+        if (filleventqueue.empty()) {
             events_arrived.wait_for(
                     lock,
                     std::chrono::seconds(auditfile.get_seconds_to_rotation()));
-            if (filleventqueue->empty()) {
+            if (filleventqueue.empty()) {
                 // We timed out, so just rotate the files
                 if (auditfile.maybe_rotate_files()) {
                     // If the file was rotated then we need to open a new
@@ -457,16 +457,16 @@ void Audit::consume_events() {
         /* now have producer_consumer lock!
          * event(s) have arrived or shutdown requested
          */
-        swap(processeventqueue, filleventqueue);
+        processeventqueue.swap(filleventqueue);
         lock.unlock();
         // Now outside of the producer_consumer_lock
 
-        while (!processeventqueue->empty()) {
-            auto& event = processeventqueue->front();
+        while (!processeventqueue.empty()) {
+            auto& event = processeventqueue.front();
             if (!event->process(*this)) {
                 dropped_events++;
             }
-            processeventqueue->pop();
+            processeventqueue.pop();
         }
         auditfile.flush();
         lock.lock();
