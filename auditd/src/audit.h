@@ -80,7 +80,6 @@ public:
      */
     bool add_reconfigure_event(const std::string& configfile,
                                const void* cookie);
-    bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
 
     /**
      * Add a listener to notify state changes for individual events.
@@ -121,6 +120,14 @@ protected:
 
     bool process_module_data_structures(cJSON* module);
     bool process_module_descriptor(cJSON* module_descriptor);
+
+    /**
+     * Create an internal audit event structure
+     *
+     * @param event_id the event identifier to use
+     * @param payload the json payload to populate with the mandatory fields
+     */
+    void create_audit_event(uint32_t event_id, nlohmann::json& payload);
 
     void notify_event_state_changed(uint32_t id, bool enabled) const;
     struct {

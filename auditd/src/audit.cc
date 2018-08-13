@@ -86,7 +86,7 @@ AuditImpl::~AuditImpl() {
     cb_join_thread(consumer_tid);
 }
 
-bool AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
+void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     // Add common fields to the audit event
     payload["timestamp"] = ISOTime::generatetimestamp();
     nlohmann::json real_userid;
@@ -103,16 +103,14 @@ bool AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
             payload["rotate_interval"] = config.get_rotate_interval();
             payload["version"] = config.get_version();
             payload["uuid"] = config.get_uuid();
-            break;
+            return;
 
         case AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON:
-            break;
-
-        default:
-            LOG_WARNING("create_audit_event(): Invalid event id {}", event_id);
-            return false;
+            return;
     }
-    return true;
+
+    throw std::logic_error(
+            "Audit::create_audit_event: Invalid event identifier specified");
 }
 
 bool AuditImpl::add_event_descriptor(cJSON* event_ptr) {
@@ -308,8 +306,9 @@ bool AuditImpl::configure() {
         } else {
             if (evt->second->isEnabled()) {
                 nlohmann::json payload;
-                if (create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
-                                       payload)) {
+                try {
+                    create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                       payload);
                     payload["id"] = AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
                     payload["name"] = evt->second->getName();
                     payload["description"] = evt->second->getDescription();
@@ -317,8 +316,12 @@ bool AuditImpl::configure() {
                     if (!(auditfile.ensure_open() && auditfile.write_event_to_disk(payload))) {
                         dropped_events++;
                     }
-                } else {
+                } catch (const std::exception& exception) {
                     dropped_events++;
+                    LOG_WARNING(
+                            "Audit::configure(): Failed to add audit event for "
+                            "audit configure: {}",
+                            exception.what());
                 }
             }
         }
