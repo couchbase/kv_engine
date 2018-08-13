@@ -63,14 +63,6 @@ void Audit::log_error(const AuditErrorCode return_code,
         LOG_WARNING(
                 "Audit: open error on file {}: {}", string, strerror(errno));
         break;
-    case AuditErrorCode::FILE_RENAME_ERROR:
-        LOG_WARNING(
-                "Audit: rename error on file {}: {}", string, strerror(errno));
-        break;
-    case AuditErrorCode::FILE_REMOVE_ERROR:
-        LOG_WARNING(
-                "Audit: remove error on file {}: {}", string, strerror(errno));
-        break;
     case AuditErrorCode::MEMORY_ALLOCATION_ERROR:
         LOG_WARNING("Audit: memory allocation error: {}", string);
         break;
@@ -130,9 +122,6 @@ void Audit::log_error(const AuditErrorCode return_code,
     case AuditErrorCode::SETTING_AUDITFILE_OPEN_TIME_ERROR:
         LOG_WARNING("Audit: error: setting auditfile open time = {}", string);
         break;
-    case AuditErrorCode::WRITING_TO_DISK_ERROR:
-        LOG_WARNING("Audit: writing to disk error: {}", string);
-        break;
     case AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR:
         LOG_WARNING("Audit: error writing event to disk. Dropping event: {}",
                     cb::UserDataView(string));
@@ -156,9 +145,6 @@ void Audit::log_error(const AuditErrorCode return_code,
         break;
     case AuditErrorCode::ROTATE_INTERVAL_SIZE_TOO_BIG:
         LOG_WARNING("Audit: error: rotation_size too big: {}", string);
-        break;
-    case AuditErrorCode::AUDIT_DIRECTORY_DONT_EXIST:
-        LOG_WARNING("Audit: error: %s does not exists", string);
         break;
     case AuditErrorCode::INITIALIZATION_ERROR:
         LOG_WARNING("Audit: error during initialization: {}", string);

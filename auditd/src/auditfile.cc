@@ -19,9 +19,11 @@
 #include "auditd.h"
 #include <JSON_checker.h>
 #include <cJSON.h>
+#include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <platform/strerror.h>
 #include <sys/stat.h>
 #include <algorithm>
 #include <cstring>
@@ -30,11 +32,9 @@
 #include <sstream>
 
 #ifdef UNITTEST_AUDITFILE
-#define log_error(a,b)
 #define my_hostname "testing"
 
 #else
-#define log_error(a,b) Audit::log_error(a,b)
 #define my_hostname Audit::hostname
 #endif
 
@@ -106,12 +106,13 @@ bool AuditFile::open() {
     cb_assert(!file);
     cb_assert(open_time == 0);
 
-    std::stringstream ss;
-    ss << log_directory << DIRECTORY_SEPARATOR_CHARACTER << "audit.log";
-    open_file_name = ss.str();
+    open_file_name = log_directory + "/audit.log";
+    cb::io::sanitizePath(open_file_name);
     file.reset(fopen(open_file_name.c_str(), "wb"));
     if (!file) {
-        log_error(AuditErrorCode::FILE_OPEN_ERROR, open_file_name.c_str());
+        LOG_WARNING("Audit: open error on file {}: {}",
+                    open_file_name,
+                    cb_strerror());
         return false;
     }
 
@@ -153,7 +154,9 @@ void AuditFile::close_and_rotate_log() {
     } while (cb::io::isFile(fname));
 
     if (rename(open_file_name.c_str(), fname.c_str()) != 0) {
-        log_error(AuditErrorCode::FILE_RENAME_ERROR, open_file_name.c_str());
+        LOG_WARNING("Audit: rename error on file {}: {}",
+                    open_file_name,
+                    cb_strerror());
     }
     open_time = 0;
 }
@@ -244,15 +247,16 @@ bool AuditFile::write_event_to_disk(nlohmann::json& output) {
         const auto content = output.dump();
         current_size += fprintf(file.get(), "%s\n", content.c_str());
         if (ferror(file.get())) {
-            log_error(AuditErrorCode::WRITING_TO_DISK_ERROR, strerror(errno));
+            LOG_WARNING("Audit: writing to disk error: {}", cb_strerror());
             ret = false;
             close_and_rotate_log();
         } else if (!buffered) {
             ret = flush();
         }
     } catch (const std::bad_alloc&) {
-        log_error(AuditErrorCode::MEMORY_ALLOCATION_ERROR,
-                  "failed to convert audit event");
+        LOG_WARNING(
+                "Audit: memory allocation error for writing audit event to "
+                "disk");
         // Failed to write event to disk.
         return false;
     }
@@ -274,12 +278,12 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
     log_directory.assign(new_directory);
     try {
         cb::io::mkdirp(log_directory);
-    } catch (const std::runtime_error&) {
+    } catch (const std::runtime_error& error) {
         // The directory does not exist and we failed to create
         // it. This is not a fatal error, but it does mean that the
         // node won't be able to do any auditing
-        log_error(AuditErrorCode::AUDIT_DIRECTORY_DONT_EXIST,
-                  log_directory.c_str());
+        LOG_WARNING(R"(Audit: failed to create audit directory "{}": {})",
+                    error.what());
     }
 }
 
@@ -293,8 +297,7 @@ void AuditFile::reconfigure(const AuditConfig &config) {
 bool AuditFile::flush() {
     if (is_open()) {
         if (fflush(file.get()) != 0) {
-            log_error(AuditErrorCode::WRITING_TO_DISK_ERROR,
-                      strerror(errno));
+            LOG_WARNING("Audit: writing to disk error: {}", cb_strerror());
             close_and_rotate_log();
             return false;
         }
