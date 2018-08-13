@@ -85,11 +85,10 @@ bool Audit::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     return true;
 }
 
-
-bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
+bool Audit::add_event_descriptor(cJSON* event_ptr) {
     if (event_ptr == nullptr) {
         LOG_WARNING(
-                "Audit::initialize_event_data_structures: No JSON data "
+                "Audit::add_event_descriptor: No JSON data "
                 "provided");
         return false;
     }
@@ -98,20 +97,18 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
         auto entry = std::make_unique<EventDescriptor>(event_ptr);
         events.insert(std::pair<uint32_t, std::unique_ptr<EventDescriptor>>(
                 entry->getId(), std::move(entry)));
+        return true;
     } catch (const std::bad_alloc&) {
         LOG_WARNING(
-                "Audit::initialize_event_data_structures: Failed to allocate "
+                "Audit::add_event_descriptor: Failed to allocate "
                 "memory");
-        return false;
     } catch (const std::logic_error& le) {
-        LOG_WARNING(
-                R"(Audit::initialize_event_data_structures: JSON key "{}" error)",
-                le.what());
+        LOG_WARNING(R"(Audit::add_event_descriptor: JSON key "{}" error)",
+                    le.what());
     }
 
-    return true;
+    return false;
 }
-
 
 bool Audit::process_module_data_structures(cJSON *module) {
     if (module == NULL) {
@@ -137,7 +134,7 @@ bool Audit::process_module_data_structures(cJSON *module) {
                 case cJSON_Array:
                     event_ptr = mod_ptr->child;
                     while (event_ptr != NULL) {
-                        if (!initialize_event_data_structures(event_ptr)) {
+                        if (!add_event_descriptor(event_ptr)) {
                             return false;
                         }
                         event_ptr = event_ptr->next;

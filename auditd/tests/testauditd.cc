@@ -229,7 +229,7 @@ protected:
         } else {
             cJSON_AddFalseToObject(root.get(), "filtering_permitted");
         }
-        auditHandle->initialize_event_data_structures(root.get());
+        auditHandle->add_event_descriptor(root.get());
     }
 };
 

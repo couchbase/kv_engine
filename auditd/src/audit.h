@@ -48,7 +48,6 @@ public:
                    const std::string& host);
     ~Audit();
 
-    bool initialize_event_data_structures(cJSON *event_ptr);
     /**
      * Set the configuration file to the named file and reconfigure the system
      *
@@ -114,6 +113,16 @@ public:
     void consume_events();
 
 protected:
+    friend class AuditDaemonFilteringTest;
+
+    /**
+     * Add a new event descriptor to the list of defined audit descriptors
+     *
+     * @param event_ptr the definition of the descriptor in JSON
+     * @return true if the descriptor was successfully added
+     */
+    bool add_event_descriptor(cJSON* event_ptr);
+
     bool process_module_data_structures(cJSON* module);
     bool process_module_descriptor(cJSON* module_descriptor);
     bool terminate_consumer_thread();
