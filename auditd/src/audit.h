@@ -42,18 +42,20 @@ public:
     // We maintain two Event queues. At any one time one will be used to accept
     // new events, and the other will be processed. The two queues are swapped
     // periodically.
-    std::unique_ptr<std::queue<Event*>> processeventqueue;
-    std::unique_ptr<std::queue<Event*>> filleventqueue;
+    std::unique_ptr<std::queue<Event*>> processeventqueue =
+            std::make_unique<std::queue<Event*>>();
+    std::unique_ptr<std::queue<Event*>> filleventqueue =
+            std::make_unique<std::queue<Event*>>();
 
-    bool terminate_audit_daemon;
+    bool terminate_audit_daemon = {false};
     std::string configfile;
-    cb_thread_t consumer_tid;
-    std::atomic_bool consumer_thread_running;
+    cb_thread_t consumer_tid = {};
+    std::atomic_bool consumer_thread_running = {false};
     std::condition_variable events_arrived;
     std::mutex producer_consumer_lock;
     static std::string hostname;
     AuditFile auditfile;
-    std::atomic<uint32_t> dropped_events;
+    std::atomic<uint32_t> dropped_events = {0};
 
     explicit Audit(std::string config_file,
                    SERVER_COOKIE_API* sapi,

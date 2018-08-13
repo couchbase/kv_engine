@@ -45,14 +45,8 @@ std::string Audit::hostname;
 Audit::Audit(std::string config_file,
              SERVER_COOKIE_API* sapi,
              const std::string& host)
-    : processeventqueue(new std::queue<Event*>()),
-      filleventqueue(new std::queue<Event*>()),
-      terminate_audit_daemon(false),
-      configfile(std::move(config_file)),
-      dropped_events(0),
-      cookie_api(sapi) {
+    : configfile(std::move(config_file)), cookie_api(sapi) {
     hostname.assign(host);
-    consumer_thread_running.store(false);
 }
 
 Audit::~Audit() {
