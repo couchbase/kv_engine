@@ -418,14 +418,13 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
     //       event to the audit trail saying it is one in an illegal
     //       format (or missing fields)
     try {
-        auto* new_event = new Event(event_id, payload);
+        auto new_event = std::make_unique<Event>(event_id, payload);
         std::lock_guard<std::mutex> guard(producer_consumer_lock);
         if (filleventqueue->size() < max_audit_queue) {
-            filleventqueue->push(new_event);
+            filleventqueue->push(std::move(new_event));
             events_arrived.notify_all();
             return true;
         }
-        delete new_event;
     } catch (const std::bad_alloc&) {
     }
 
@@ -437,9 +436,9 @@ bool Audit::add_to_filleventqueue(uint32_t event_id,
 }
 
 bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {
-    ConfigureEvent* new_event = new ConfigureEvent(configfile, cookie);
+    auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie);
     std::lock_guard<std::mutex> guard(producer_consumer_lock);
-    filleventqueue->push(new_event);
+    filleventqueue->push(std::move(new_event));
     events_arrived.notify_all();
     return true;
 }
@@ -450,19 +449,6 @@ void Audit::clear_events_map() {
         delete iterator->second;
     }
     events.clear();
-}
-
-void Audit::clear_events_queues() {
-    while(!processeventqueue->empty()) {
-        Event *event = processeventqueue->front();
-        processeventqueue->pop();
-        delete event;
-    }
-    while(!filleventqueue->empty()) {
-        Event *event = filleventqueue->front();
-        filleventqueue->pop();
-        delete event;
-    }
 }
 
 bool Audit::terminate_consumer_thread() {
@@ -511,7 +497,6 @@ bool Audit::clean_up() {
             return false;
         }
         clear_events_map();
-        clear_events_queues();
     }
     return true;
 }
@@ -579,12 +564,11 @@ void Audit::consume_events() {
         // Now outside of the producer_consumer_lock
 
         while (!processeventqueue->empty()) {
-            Event* event = processeventqueue->front();
+            auto& event = processeventqueue->front();
             if (!event->process(*this)) {
                 dropped_events++;
             }
             processeventqueue->pop();
-            delete event;
         }
         auditfile.flush();
         lock.lock();

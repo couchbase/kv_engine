@@ -19,6 +19,7 @@
 #include "auditconfig.h"
 #include "auditd.h"
 #include "auditfile.h"
+#include "event.h"
 
 #include <memcached/audit_interface.h>
 
@@ -30,7 +31,6 @@
 #include <mutex>
 #include <queue>
 
-class Event;
 class EventDescriptor;
 struct cJSON;
 
@@ -62,7 +62,6 @@ public:
     bool create_audit_event(uint32_t event_id, nlohmann::json& payload);
     bool terminate_consumer_thread();
     void clear_events_map();
-    void clear_events_queues();
     bool clean_up();
 
     static void log_error(const AuditErrorCode return_code,
@@ -104,10 +103,10 @@ protected:
     // We maintain two Event queues. At any one time one will be used to accept
     // new events, and the other will be processed. The two queues are swapped
     // periodically.
-    std::unique_ptr<std::queue<Event*>> processeventqueue =
-            std::make_unique<std::queue<Event*>>();
-    std::unique_ptr<std::queue<Event*>> filleventqueue =
-            std::make_unique<std::queue<Event*>>();
+    std::unique_ptr<std::queue<std::unique_ptr<Event>>> processeventqueue =
+            std::make_unique<std::queue<std::unique_ptr<Event>>>();
+    std::unique_ptr<std::queue<std::unique_ptr<Event>>> filleventqueue =
+            std::make_unique<std::queue<std::unique_ptr<Event>>>();
     std::condition_variable events_arrived;
     std::mutex producer_consumer_lock;
 
