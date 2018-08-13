@@ -29,6 +29,7 @@
 #include "dcp/response.h"
 #include "ep_engine.h"
 #include "monotonic.h"
+#include "platform/cacheline_padded.h"
 
 class BackfillManager;
 class CheckpointCursor;
@@ -400,8 +401,14 @@ protected:
 
     /// Guards access to checkpointCreatorTask, so multiple threads can
     /// safely access  checkpointCreatorTask shared ptr.
-    mutable std::mutex checkpointCreatorMutex;
-    ExTask checkpointCreatorTask;
+    struct CheckpointCreator {
+        mutable std::mutex mutex;
+        ExTask task;
+    };
+
+    // MB-30488: padding to keep mutex from sharing cachelines with
+    // unrelated data
+    cb::CachelinePadded<CheckpointCreator> checkpointCreator;
 
     static const std::chrono::seconds defaultDcpNoopTxInterval;
 

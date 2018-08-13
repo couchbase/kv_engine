@@ -231,12 +231,12 @@ DcpProducer::~DcpProducer() {
 }
 
 void DcpProducer::cancelCheckpointCreatorTask() {
-    LockHolder guard(checkpointCreatorMutex);
-    if (checkpointCreatorTask) {
+    LockHolder guard(checkpointCreator->mutex);
+    if (checkpointCreator->task) {
         static_cast<ActiveStreamCheckpointProcessorTask*>(
-                checkpointCreatorTask.get())
+                checkpointCreator->task.get())
                 ->cancelTask();
-        ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
+        ExecutorPool::get()->cancel(checkpointCreator->task->getId());
     }
 }
 
@@ -462,7 +462,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
            the stream creation fails later on in the func. The goal is to
            create the 'checkpointProcessorTask' before any valid active stream
            is created */
-        if (createChkPtProcessorTsk && !checkpointCreatorTask) {
+        if (createChkPtProcessorTsk && !checkpointCreator->task) {
             createCheckpointProcessorTask();
             scheduleCheckpointProcessorTask();
         }
@@ -1011,8 +1011,8 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     ExTask pointerCopy;
     { // Locking scope
-        LockHolder guard(checkpointCreatorMutex);
-        pointerCopy = checkpointCreatorTask;
+        LockHolder guard(checkpointCreator->mutex);
+        pointerCopy = checkpointCreator->task;
     }
 
     if (pointerCopy) {
@@ -1346,26 +1346,26 @@ bool DcpProducer::bufferLogInsert(size_t bytes) {
 }
 
 void DcpProducer::createCheckpointProcessorTask() {
-    LockHolder guard(checkpointCreatorMutex);
-    checkpointCreatorTask =
+    LockHolder guard(checkpointCreator->mutex);
+    checkpointCreator->task =
             std::make_shared<ActiveStreamCheckpointProcessorTask>(
                     engine_, shared_from_this());
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask() {
-    LockHolder guard(checkpointCreatorMutex);
-    ExecutorPool::get()->schedule(checkpointCreatorTask);
+    LockHolder guard(checkpointCreator->mutex);
+    ExecutorPool::get()->schedule(checkpointCreator->task);
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask(
         std::shared_ptr<ActiveStream> s) {
-    LockHolder guard(checkpointCreatorMutex);
-    if (!checkpointCreatorTask) {
+    LockHolder guard(checkpointCreator->mutex);
+    if (!checkpointCreator->task) {
         throw std::logic_error(
                 "DcpProducer::scheduleCheckpointProcessorTask task is null");
     }
     static_cast<ActiveStreamCheckpointProcessorTask*>(
-            checkpointCreatorTask.get())
+            checkpointCreator->task.get())
             ->schedule(s);
 }
 

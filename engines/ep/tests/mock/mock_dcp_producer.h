@@ -84,23 +84,23 @@ public:
 
     /**
      * Create the ActiveStreamCheckpointProcessorTask and assign to
-     * checkpointCreatorTask
+     * checkpointCreator->task
      */
     void createCheckpointProcessorTask() {
         DcpProducer::createCheckpointProcessorTask();
     }
 
     /**
-     * Schedule the checkpointCreatorTask on the ExecutorPool
+     * Schedule the checkpointCreator->task on the ExecutorPool
      */
     void scheduleCheckpointProcessorTask() {
         DcpProducer::scheduleCheckpointProcessorTask();
     }
 
     ActiveStreamCheckpointProcessorTask& getCheckpointSnapshotTask() const {
-        LockHolder guard(checkpointCreatorMutex);
+        LockHolder guard(checkpointCreator->mutex);
         return *static_cast<ActiveStreamCheckpointProcessorTask*>(
-                checkpointCreatorTask.get());
+                checkpointCreator->task.get());
     }
 
     /**
