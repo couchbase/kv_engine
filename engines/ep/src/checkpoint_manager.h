@@ -423,6 +423,18 @@ protected:
                                    uint64_t snapStartSeqno,
                                    uint64_t snapEndSeqno);
 
+    /*
+     * Creates a new checkpoint.
+     *
+     * @param id for the new checkpoint
+     * @param snapStartSeqno for the new checkpoint
+     * @param snapEndSeqno for the new checkpoint
+     * @return a std::unique_ptr to the new checkpoint
+     */
+    std::unique_ptr<Checkpoint> makeNewCheckpoint(uint64_t id,
+                                                  uint64_t snapStart,
+                                                  uint64_t snapEnd);
+
     void removeInvalidCursorsOnCheckpoint(Checkpoint *pCheckpoint);
 
     bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);

@@ -24,6 +24,8 @@
 #include "statwriter.h"
 #include "vbucket.h"
 
+#include <gsl.h>
+
 CheckpointManager::CheckpointManager(EPStats& st,
                                      uint16_t vbucket,
                                      CheckpointConfig& config,
@@ -130,24 +132,12 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
                  snapStartSeqno);
 
     bool was_empty = checkpointList.empty() ? true : false;
-    auto checkpoint = std::make_unique<Checkpoint>(stats, id, snapStartSeqno,
-                                            snapEndSeqno, vbucketId);
-    // Add a dummy item into the new checkpoint, so that any cursor referring
-    // to the actual first
-    // item in this new checkpoint can be safely shifted left by 1 if the
-    // first item is removed
-    // and pushed into the tail.
-    queued_item qi = createCheckpointItem(0, 0xffff, queue_op::empty);
-    checkpoint->queueDirty(qi, this);
-    checkpoint->incrementMemConsumption(qi->size());
-    // Note: We explicitly do /not/ include {empty} ops in numItems.
 
-    // This item represents the start of the new checkpoint and is also sent to the slave node.
-    qi = createCheckpointItem(id, vbucketId, queue_op::checkpoint_start);
-    checkpoint->queueDirty(qi, this);
-    checkpoint->incrementMemConsumption(qi->size());
-    ++numItems;
-    checkpointList.push_back(std::move(checkpoint));
+    checkpointList.push_back(
+            makeNewCheckpoint(id, snapStartSeqno, snapEndSeqno));
+    Ensures(!checkpointList.empty());
+    Ensures(checkpointList.back()->getState() ==
+            checkpoint_state::CHECKPOINT_OPEN);
 
     if (was_empty) {
         return true;
@@ -214,6 +204,28 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
     ++numItems;
     checkpointList.back()->setState(CHECKPOINT_CLOSED);
     return true;
+}
+
+std::unique_ptr<Checkpoint> CheckpointManager::makeNewCheckpoint(
+        uint64_t id, uint64_t snapStart, uint64_t snapEnd) {
+    auto ckpt = std::make_unique<Checkpoint>(
+            stats, id, snapStart, snapEnd, vbucketId);
+    // Add an empty-item into the new checkpoint.
+    // We need this because every CheckpointCursor will point to this empty-item
+    // at creation. So, the cursor will point at the first actual non-meta item
+    // after the first cursor-increment.
+    queued_item qi = createCheckpointItem(0, 0xffff, queue_op::empty);
+    ckpt->queueDirty(qi, this);
+    ckpt->incrementMemConsumption(qi->size());
+    // Note: We don't include the empty-item in 'numItems'
+
+    // This item represents the start of the new checkpoint
+    qi = createCheckpointItem(id, vbucketId, queue_op::checkpoint_start);
+    ckpt->queueDirty(qi, this);
+    ckpt->incrementMemConsumption(qi->size());
+    ++numItems;
+
+    return ckpt;
 }
 
 CursorRegResult CheckpointManager::registerCursorBySeqno(
