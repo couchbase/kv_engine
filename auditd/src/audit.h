@@ -74,12 +74,14 @@ public:
      */
     void consume_events();
 
-    AuditConfig config;
-    std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
-
-    AuditFile auditfile;
-
 protected:
+    /// The event class needs access to the configuration object
+    /// and the event descriptors as part of filtering events (it'll be
+    /// fixed in a later commit)
+    friend class Event;
+
+    /// The AuditDaemonFilteringTest tries to add it's own event descriptor
+    /// to use in the unit tests
     friend class AuditDaemonFilteringTest;
 
     /**
@@ -106,6 +108,15 @@ protected:
         mutable std::mutex mutex;
         std::vector<cb::audit::EventStateListener> clients;
     } event_state_listener;
+
+    /// The current configuration used by the daemon
+    AuditConfig config;
+
+    /// The map of known audit events to process
+    std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
+
+    /// The current audit log file we're using
+    AuditFile auditfile;
 
     /// The name of the configuration file currently in use
     std::string configfile;
