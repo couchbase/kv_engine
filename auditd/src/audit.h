@@ -33,12 +33,17 @@
 
 struct cJSON;
 
-class AuditImpl : public Audit {
+class AuditImpl : public cb::audit::Audit {
 public:
-    AuditConfig config;
-    std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
-
-    AuditFile auditfile;
+    // Implementation of the public API
+    bool put_event(uint32_t event_id, cb::const_char_buffer payload) override;
+    void add_event_state_listener(
+            cb::audit::EventStateListener listener) override;
+    void notify_all_event_states() override;
+    void stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie) override;
+    bool configure_auditdaemon(const std::string& config,
+                               gsl::not_null<const void*> cookie) override;
+    // End public API
 
     explicit AuditImpl(std::string config_file,
                        SERVER_COOKIE_API* sapi,
@@ -61,51 +66,18 @@ public:
      */
     bool configure();
 
-    /**
-     * Add the specified event to the queue to be written.
-     *
-     * @param event_id The identifier of the event to add
-     * @param payload The actual payload to add
-     * @return True if success, false otherwise
-     */
-    bool add_to_filleventqueue(uint32_t event_id,
-                               cb::const_char_buffer payload);
-
-    /**
-     * Add a reconfigure event into the list of events to be processed
-     *
-     * @param configfile The file of the configuration file to use
-     * @param cookie The cookie to notify when we're done with the reconfig
-     * @return True if success, false otherwise
-     */
-    bool add_reconfigure_event(const std::string& configfile,
-                               const void* cookie);
-
-    /**
-     * Add a listener to notify state changes for individual events.
-     *
-     * @param listener the callback function
-     */
-    void add_event_state_listener(cb::audit::EventStateListener listener);
-
-    void notify_all_event_states();
-
     void notify_io_complete(gsl::not_null<const void*> cookie,
                             ENGINE_ERROR_CODE status);
-
-    /**
-     * Add all statistics from the audit daemon
-     *
-     * @param add_stats The callback function to add the variable to the
-     *                  stream to the clients
-     * @param cookie The cookie used to identify the client
-     */
-    void stats(ADD_STAT add_stats, gsl::not_null<const void*> cookie);
 
     /**
      * The entry point for the thread used to drain the generated audit events
      */
     void consume_events();
+
+    AuditConfig config;
+    std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
+
+    AuditFile auditfile;
 
 protected:
     friend class AuditDaemonFilteringTest;

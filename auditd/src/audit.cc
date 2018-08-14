@@ -69,8 +69,7 @@ AuditImpl::AuditImpl(std::string config_file,
 AuditImpl::~AuditImpl() {
     nlohmann::json payload;
     create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
-    add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
-                          payload.dump());
+    put_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload.dump());
 
     {
         // Set the flag to request the audit consumer to stop
@@ -340,8 +339,7 @@ bool AuditImpl::configure() {
     return true;
 }
 
-bool AuditImpl::add_to_filleventqueue(uint32_t event_id,
-                                      cb::const_char_buffer payload) {
+bool AuditImpl::put_event(uint32_t event_id, cb::const_char_buffer payload) {
     if (!config.is_auditd_enabled()) {
         // Audit is disabled
         return true;
@@ -370,9 +368,9 @@ bool AuditImpl::add_to_filleventqueue(uint32_t event_id,
     return false;
 }
 
-bool AuditImpl::add_reconfigure_event(const std::string& configfile,
-                                      const void* cookie) {
-    auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie);
+bool AuditImpl::configure_auditdaemon(const std::string& configfile,
+                                      gsl::not_null<const void*> cookie) {
+    auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie.get());
     std::lock_guard<std::mutex> guard(producer_consumer_lock);
     filleventqueue.push(std::move(new_event));
     events_arrived.notify_all();

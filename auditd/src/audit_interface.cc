@@ -31,17 +31,20 @@
 #include "auditd_audit_events.h"
 #include "event.h"
 
+namespace cb {
+namespace audit {
+
 static std::string gethostname() {
     char host[128];
-    if (gethostname(host, sizeof(host)) != 0) {
+    if (::gethostname(host, sizeof(host)) != 0) {
         throw std::runtime_error("gethostname() failed: " + cb_strerror());
     }
 
     return std::string(host);
 }
 
-UniqueAuditPtr start_auditdaemon(const std::string& config_file,
-                                 SERVER_COOKIE_API* server_cookie_api) {
+UniqueAuditPtr create_audit_daemon(const std::string& config_file,
+                                   SERVER_COOKIE_API* server_cookie_api) {
     if (!cb::logger::isInitialized()) {
         throw std::invalid_argument(
                 "start_auditdaemon: logger must have been created");
@@ -59,37 +62,6 @@ UniqueAuditPtr start_auditdaemon(const std::string& config_file,
     }
 
     return {};
-}
-
-bool configure_auditdaemon(Audit& handle,
-                           const std::string& config,
-                           gsl::not_null<const void*> cookie) {
-    return dynamic_cast<AuditImpl*>(&handle)->add_reconfigure_event(
-            config, cookie.get());
-}
-
-bool put_audit_event(Audit& handle,
-                     uint32_t audit_eventid,
-                     cb::const_char_buffer payload) {
-    return dynamic_cast<AuditImpl*>(&handle)->add_to_filleventqueue(
-            audit_eventid, payload);
-}
-
-void process_auditd_stats(Audit& handle,
-                          ADD_STAT add_stats,
-                          gsl::not_null<const void*> cookie) {
-    dynamic_cast<AuditImpl*>(&handle)->stats(add_stats, cookie);
-}
-
-namespace cb {
-namespace audit {
-
-void add_event_state_listener(Audit& handle, EventStateListener listener) {
-    dynamic_cast<AuditImpl*>(&handle)->add_event_state_listener(listener);
-}
-
-void notify_all_event_states(Audit& handle) {
-    dynamic_cast<AuditImpl*>(&handle)->notify_all_event_states();
 }
 
 } // namespace audit

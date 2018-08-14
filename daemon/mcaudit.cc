@@ -28,7 +28,7 @@
 #include <cJSON.h>
 #include <memcached/isotime.h>
 
-static UniqueAuditPtr auditHandle;
+static cb::audit::UniqueAuditPtr auditHandle;
 
 static std::atomic_bool audit_enabled{false};
 
@@ -111,7 +111,7 @@ static void do_audit(const Connection* c,
                      unique_cJSON_ptr& event,
                      const char* warn) {
     auto text = to_string(event, false);
-    if (!put_audit_event(*auditHandle, id, text)) {
+    if (!auditHandle->put_event(id, text)) {
         LOG_WARNING("{}: {}", warn, text);
     }
 }
@@ -243,7 +243,7 @@ bool mc_audit_event(uint32_t audit_eventid, cb::const_byte_buffer payload) {
 
     cb::const_char_buffer buffer{reinterpret_cast<const char*>(payload.data()),
                                  payload.size()};
-    return put_audit_event(*auditHandle, audit_eventid, buffer);
+    return auditHandle->put_event(audit_eventid, buffer);
 }
 
 namespace cb {
@@ -320,13 +320,13 @@ static void event_state_listener(uint32_t id, bool enabled) {
 
 void initialize_audit() {
     /* Start the audit daemon */
-    auditHandle = start_auditdaemon(settings.getAuditFile(),
-                                    get_server_api()->cookie);
+    auditHandle = cb::audit::create_audit_daemon(settings.getAuditFile(),
+                                                 get_server_api()->cookie);
     if (!auditHandle) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }
-    cb::audit::add_event_state_listener(*auditHandle, event_state_listener);
-    cb::audit::notify_all_event_states(*auditHandle);
+    auditHandle->add_event_state_listener(event_state_listener);
+    auditHandle->notify_all_event_states();
 }
 
 void shutdown_audit() {
@@ -334,9 +334,8 @@ void shutdown_audit() {
 }
 
 ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
-    if (configure_auditdaemon(*auditHandle,
-                              settings.getAuditFile(),
-                              static_cast<void*>(&cookie))) {
+    if (auditHandle->configure_auditdaemon(settings.getAuditFile(),
+                                           static_cast<void*>(&cookie))) {
         return ENGINE_EWOULDBLOCK;
     }
 
@@ -344,5 +343,5 @@ ENGINE_ERROR_CODE reconfigure_audit(Cookie& cookie) {
 }
 
 void stats_audit(ADD_STAT add_stats, Cookie& cookie) {
-    process_auditd_stats(*auditHandle, add_stats, &cookie);
+    auditHandle->stats(add_stats, &cookie);
 }

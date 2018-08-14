@@ -83,7 +83,7 @@ public:
 
         // Start the audit daemon
         sapi.notify_io_complete = notify_io_complete;
-        auditHandle = start_auditdaemon({}, &sapi);
+        auditHandle = cb::audit::create_audit_daemon({}, &sapi);
 
         if (!auditHandle) {
             throw std::runtime_error(
@@ -104,7 +104,7 @@ protected:
         // notify_io_complete unless it's set to a non-null value..
         // just pass on the ready variable
         const void* cookie = (const void*)&ready;
-        if (configure_auditdaemon(*auditHandle, fname, cookie)) {
+        if (auditHandle->configure_auditdaemon(fname, cookie)) {
             {
                 // we have to wait
                 std::unique_lock<std::mutex> lk(mutex);
@@ -177,7 +177,7 @@ protected:
 
     static SERVER_COOKIE_API sapi;
     MockAuditConfig config;
-    static UniqueAuditPtr auditHandle;
+    static cb::audit::UniqueAuditPtr auditHandle;
     static std::string testdir;
     static std::string cfgfile;
 };
@@ -186,7 +186,7 @@ SERVER_COOKIE_API AuditDaemonTest::sapi = {};
 
 std::string AuditDaemonTest::testdir;
 std::string AuditDaemonTest::cfgfile;
-UniqueAuditPtr AuditDaemonTest::auditHandle;
+cb::audit::UniqueAuditPtr AuditDaemonTest::auditHandle;
 
 TEST_P(AuditDaemonTest, StartupDisabledDontCreateFiles) {
     configure();
@@ -259,9 +259,9 @@ TEST_P(AuditDaemonFilteringTest, AuditFilteringTest) {
     addEvent(eventFilteringPermitted);
 
     // generate the 1234 event with real_userid:user = johndoe
-    put_audit_event(*auditHandle, 1234, payloadjohndoe);
+    auditHandle->put_event(1234, payloadjohndoe);
     // generate the 1234 event with real_userid:user = another
-    put_audit_event(*auditHandle, 1234, payloadanother);
+    auditHandle->put_event(1234, payloadanother);
 
     // Check the audit log exists
     assertNumberOfFiles(1);
