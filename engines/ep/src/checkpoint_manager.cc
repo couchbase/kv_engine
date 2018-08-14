@@ -1019,10 +1019,12 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
 
 void CheckpointManager::checkAndAddNewCheckpoint() {
     LockHolder lh(queueLock);
-
-    auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
+    const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     const auto openCkptId = openCkpt.getId();
-    const auto newId = openCkptId + 1;
+
+    // This function is executed only on a DCP Consumer at snapshot-end
+    // mutation. So, by logic a non-backfill open checkpoint cannot be empty.
+    Expects(openCkpt.getNumItems() > 0 || openCkptId == 0);
 
     // If the open checkpoint is the backfill-snapshot (checkpoint-id=0),
     // then we just update the id of the existing checkpoint and we update
@@ -1035,32 +1037,14 @@ void CheckpointManager::checkAndAddNewCheckpoint() {
     //         tests relying on that.
     //     - an alternative to this is closing the checkpoint and adding a
     //         new one.
+    //     - the backfill checkpoint is empty by definition
     if (openCkptId == 0) {
-        setOpenCheckpointId_UNLOCKED(lh, newId);
+        setOpenCheckpointId_UNLOCKED(lh, openCkptId + 1);
         resetCursors(false);
         return;
     }
 
-    if (openCkpt.getNumItems() == 0) {
-        // If the current open checkpoint doesn't have any items, simply
-        // set its id to
-        // the one from the master node.
-        setOpenCheckpointId_UNLOCKED(lh, newId);
-        // Reposition all the cursors in the open checkpoint to the
-        // begining position so that a checkpoint_start message can be
-        // sent again with the correct id.
-        for (const auto& cit : openCkpt.getCursorNameList()) {
-            if (cit == pCursorName) {
-                // Persistence cursor
-                continue;
-            } else { // Dcp/Tap cursors
-                cursor_index::iterator mit = connCursors.find(cit);
-                mit->second->currentPos = openCkpt.begin();
-            }
-        }
-    } else {
-        addNewCheckpoint_UNLOCKED(newId);
-    }
+    addNewCheckpoint_UNLOCKED(openCkptId + 1);
 }
 
 queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,

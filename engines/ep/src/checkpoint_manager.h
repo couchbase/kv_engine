@@ -319,11 +319,9 @@ public:
     bool hasClosedCheckpointWhichCanBeRemoved() const;
 
     /*
-     * Creates a new checkpoint if the following conditions apply:
-     *     - the id of the open checkpoint is > 0 (i.e., the vbucket isn't in
-     *         backfill state)
-     *     - the open checkpoint is not empty
-     * Just updates the open checkpoint id otherwise.
+     * Closes the current open checkpoint and creates a new open one if the id
+     * of the open checkpoint is > 0 (i.e., if the vbucket isn't in backfill
+     * state). Just updates the open checkpoint id otherwise.
      */
     void checkAndAddNewCheckpoint();
 
