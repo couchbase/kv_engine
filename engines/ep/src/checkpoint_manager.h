@@ -412,16 +412,27 @@ protected:
 
     void clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno);
 
-    /**
-     * Create a new open checkpoint and add it to the checkpoint list.
-     * The lock should be acquired before calling this function.
-     * @param id the id of a checkpoint to be created.
+    /*
+     * Closes the current open checkpoint and adds a new open checkpoint to
+     * the checkpointList.
+     *
+     * @param id for the new checkpoint
+     * @param snapStartSeqno for the new checkpoint
+     * @param snapEndSeqno for the new checkpoint
      */
-    bool addNewCheckpoint_UNLOCKED(uint64_t id);
-
-    bool addNewCheckpoint_UNLOCKED(uint64_t id,
+    void addNewCheckpoint_UNLOCKED(uint64_t id,
                                    uint64_t snapStartSeqno,
                                    uint64_t snapEndSeqno);
+
+    /*
+     * Closes the current open checkpoint and adds a new open checkpoint to
+     * the checkpointList.
+     * Note: the function sets snapStart and snapEnd to 'lastBySeqno' for the
+     *     new checkpoint.
+     *
+     * @param id for the new checkpoint
+     */
+    void addNewCheckpoint_UNLOCKED(uint64_t id);
 
     /*
      * Add an open checkpoint to the checkpointList.
@@ -446,8 +457,6 @@ protected:
      * return 0.
      */
     uint64_t checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound);
-
-    bool closeOpenCheckpoint_UNLOCKED();
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 

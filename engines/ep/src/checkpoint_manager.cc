@@ -118,32 +118,38 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
     }
 }
 
-bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
-    return addNewCheckpoint_UNLOCKED(id, lastBySeqno, lastBySeqno);
+void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id) {
+    addNewCheckpoint_UNLOCKED(id, lastBySeqno, lastBySeqno);
 }
 
-bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
+void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
                                                   uint64_t snapStartSeqno,
                                                   uint64_t snapEndSeqno) {
-    // This is just for making sure that the current checkpoint should be
-    // closed.
-    if (!checkpointList.empty() &&
-        checkpointList.back()->getState() == CHECKPOINT_OPEN) {
-        closeOpenCheckpoint_UNLOCKED();
-    }
+    // First, we must close the open checkpoint.
+    auto& oldOpenCkpt = *checkpointList.back();
+    EP_LOG_DEBUG(
+            "CheckpointManager::addNewCheckpoint_UNLOCKED: Close "
+            "the current open checkpoint: [vb:{}, id:{}, snapStart:{}, "
+            "snapEnd:{}]",
+            vbucketId,
+            oldOpenCkpt.getId(),
+            oldOpenCkpt.getLowSeqno(),
+            oldOpenCkpt.getHighSeqno());
+    queued_item qi = createCheckpointItem(
+            oldOpenCkpt.getId(), vbucketId, queue_op::checkpoint_end);
+    oldOpenCkpt.queueDirty(qi, this);
+    ++numItems;
+    oldOpenCkpt.setState(CHECKPOINT_CLOSED);
 
-    EP_LOG_DEBUG("Create a new open checkpoint {} for vb:{} at seqno:{}",
-                 id,
-                 vbucketId,
-                 snapStartSeqno);
-
-    bool was_empty = checkpointList.empty() ? true : false;
-
+    // Now, we can create the new open checkpoint
+    EP_LOG_DEBUG(
+            "CheckpointManager::addNewCheckpoint_UNLOCKED: Create "
+            "a new open checkpoint: [vb:{}, id:{}, snapStart:{}, snapEnd:{}]",
+            vbucketId,
+            id,
+            snapStartSeqno,
+            snapEndSeqno);
     addOpenCheckpoint(id, snapStartSeqno, snapEndSeqno);
-
-    if (was_empty) {
-        return true;
-    }
 
     /* If cursors reached to the end of its current checkpoint, move it to the
        next checkpoint. DCP and Persistence cursors can skip a "checkpoint end"
@@ -178,34 +184,6 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
             --(cursor.currentPos);
         }
     }
-
-    return true;
-}
-
-bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
-    if (checkpointList.empty()) {
-        return false;
-    }
-    if (checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
-        return true;
-    }
-
-    auto& cur_ckpt = checkpointList.back();
-    EP_LOG_DEBUG("Close the open checkpoint {} for vb:{} seqnos:{{{},{}}}",
-                 cur_ckpt->getId(),
-                 vbucketId,
-                 cur_ckpt->getLowSeqno(),
-                 cur_ckpt->getHighSeqno());
-
-    // This item represents the end of the current open checkpoint and is sent
-    // to the slave node.
-    queued_item qi = createCheckpointItem(cur_ckpt->getId(), vbucketId,
-                                          queue_op::checkpoint_end);
-
-    checkpointList.back()->queueDirty(qi, this);
-    ++numItems;
-    checkpointList.back()->setState(CHECKPOINT_CLOSED);
-    return true;
 }
 
 void CheckpointManager::addOpenCheckpoint(uint64_t id,
