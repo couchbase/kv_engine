@@ -22,3 +22,15 @@
             *SubdocPerfTest.Array_ReplaceFirst_Multipath/*:*SubdocPerfTest.Array_RemoveFirst_Multipath/*' -e --gtest_output=xml"
   output:
     - "test_detail.xml"
+
+- test: phosphor
+  command: "build/phosphor/tests/benchmark/category_onoff_bench
+                --benchmark_filter=/threads:
+                --benchmark_out_format=json
+                --benchmark_out=benchmark_output.json &&
+           python kv_engine/scripts/benchmark2xml.py
+                --benchmark_file=benchmark_output.json
+                --output_file=benchmark_results.xml --time_format=ns
+                --in_place --cpu_time"
+  output:
+    - "benchmark_results.xml"
