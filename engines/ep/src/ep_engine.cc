@@ -1900,14 +1900,10 @@ void EventuallyPersistentEngine::setErrorContext(
 template <typename T>
 void EventuallyPersistentEngine::notifyIOComplete(T cookies,
                                                   ENGINE_ERROR_CODE status) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
-    std::for_each(
-            cookies.begin(),
-            cookies.end(),
-            std::bind2nd(std::ptr_fun((NOTIFY_IO_COMPLETE_T)serverApi->cookie
-                                              ->notify_io_complete),
-                         status));
+    auto* epe = ObjectRegistry::onSwitchThread(nullptr, true);
+    for (auto& cookie : cookies) {
+        serverApi->cookie->notify_io_complete(cookie, status);
+    }
     ObjectRegistry::onSwitchThread(epe);
 }
 
