@@ -105,15 +105,23 @@ public:
             }
 
             // Assign byte
-            data[size] = byte;
+            encodedData[encodedSize] = byte;
 
             // Increase the size
-            size++;
+            encodedSize++;
         } while (in != 0);
     }
 
     cb::const_byte_buffer get() const {
-        return {data.data(), size};
+        return {encodedData.data(), encodedSize};
+    }
+
+    const uint8_t* data() const {
+        return encodedData.data();
+    }
+
+    size_t size() const {
+        return encodedData.size();
     }
 
     // value is large enough to store uint64_t::max as leb128
@@ -123,8 +131,8 @@ private:
     // Larger T may need a larger array
     static_assert(sizeof(T) <= 8, "Class is only valid for uint 8/16/64");
 
-    std::array<uint8_t, maxSize> data{};
-    uint8_t size{0};
+    std::array<uint8_t, maxSize> encodedData{};
+    uint8_t encodedSize{0};
 };
 
 } // namespace mcbp

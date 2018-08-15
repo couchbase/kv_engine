@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
@@ -2459,12 +2460,13 @@ std::string CouchKVStore::readCollectionsManifest(Db& db) {
 void CouchKVStore::saveItemCount(Db& db, CollectionID cid, uint64_t count) {
     // Write out the count in BE to a local doc named after the collection
     std::string docName = "_collection/" + cid.to_string();
-    auto value = htonll(count);
+    cb::mcbp::unsigned_leb128<uint64_t> leb128(count);
     LocalDoc lDoc;
     lDoc.id.buf = const_cast<char*>(docName.c_str());
     lDoc.id.size = docName.size();
-    lDoc.json.buf = reinterpret_cast<char*>(&value);
-    lDoc.json.size = sizeof(value);
+    lDoc.json.buf =
+            const_cast<char*>(reinterpret_cast<const char*>(leb128.data()));
+    lDoc.json.size = leb128.size();
     lDoc.deleted = 0;
 
     auto errCode = couchstore_save_local_document(&db, &lDoc);
