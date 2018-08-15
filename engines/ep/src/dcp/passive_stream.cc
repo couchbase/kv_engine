@@ -445,7 +445,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         log(spdlog::level::level_enum::warn,
             "(vb:{}) Erroneous mutation [sequence "
             "number does not fall in the expected snapshot range : "
-            "{snapshot_start ({}) <= seq_no ({}) <= "
+            "{{snapshot_start ({}) <= seq_no ({}) <= "
             "snapshot_end ({})]; Dropping the mutation!",
             vb_,
             cur_snapshot_start.load(),
@@ -460,7 +460,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     // is better than rejecting the data entirely).
     if (!Item::isValidCas(mutation->getItem()->getCas())) {
         log(spdlog::level::level_enum::warn,
-            "Invalid CAS (0x{}) received for mutation {vb:{}, seqno:{}}. "
+            "Invalid CAS ({:#x}) received for mutation {{vb:{}, seqno:{}}}. "
             "Regenerating new CAS",
             mutation->getItem()->getCas(),
             vb_,
@@ -520,7 +520,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         log(spdlog::level::level_enum::warn,
             "(vb:{}) Erroneous deletion [sequence "
             "number does not fall in the expected snapshot range : "
-            "{snapshot_start ({}) <= seq_no ({}) <= "
+            "{{snapshot_start ({}) <= seq_no ({}) <= "
             "snapshot_end ({})]; Dropping the deletion!",
             vb_,
             cur_snapshot_start.load(),
@@ -542,7 +542,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     // MB-17517: Check for the incoming item's CAS validity.
     if (!Item::isValidCas(meta.cas)) {
         log(spdlog::level::level_enum::warn,
-            "Invalid CAS (0x{}) received for deletion {vb:{}, seqno:{}}. "
+            "Invalid CAS ({:#x}) received for deletion {{vb:{}, seqno:{}}}. "
             "Regenerating new CAS",
             meta.cas,
             vb_,

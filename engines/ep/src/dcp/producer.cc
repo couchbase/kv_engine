@@ -1231,7 +1231,8 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
                 "DCP "
                 "idle timeout (which is"
                 "{}s). Sent last message {}s ago, received last message {}s "
-                "ago. noopCtx {now - sendTime:{}, opaque: {}, pendingRecv:{}}",
+                "ago. noopCtx {{now - sendTime:{}, opaque: {}, "
+                "pendingRecv:{}}}",
                 noopCtx.dcpIdleTimeout.count(),
                 (now - lastSendTime),
                 elapsedTime.count(),

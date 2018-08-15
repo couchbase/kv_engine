@@ -134,8 +134,8 @@ void Manifest::addCollection(::VBucket& vb,
                                   optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: vb:{} adding collection:{}, replica:{}, "
-            "backfill:{}, seqno:{}, manifest:{}",
+            "collections: vb:{} adding collection:{:x}, replica:{}, "
+            "backfill:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
             identifier,
             optionalSeqno.is_initialized(),
@@ -205,8 +205,8 @@ void Manifest::beginCollectionDelete(::VBucket& vb,
                                   optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: vb:{} begin delete of collection:{}"
-            ", replica:{}, backfill:{}, seqno:{}, manifest:{}",
+            "collections: vb:{} begin delete of collection:{:x}"
+            ", replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
             identifier,
             optionalSeqno.is_initialized(),
@@ -237,7 +237,7 @@ ManifestEntry& Manifest::beginDeleteCollectionEntry(CollectionID identifier) {
 void Manifest::completeDeletion(::VBucket& vb, CollectionID identifier) {
     auto itr = map.find(identifier);
 
-    EP_LOG_INFO("collections: vb:{} complete delete of collection:{}",
+    EP_LOG_INFO("collections: vb:{} complete delete of collection:{:x}",
                 vb.getId(),
                 identifier);
 
@@ -284,7 +284,7 @@ Manifest::processResult Manifest::processManifest(
             additions.push_back(m.first);
         } else if (itr->second.isDeleting()) {
             // trying to add a collection which is deleting, not allowed.
-            EP_LOG_WARN("Attempt to add a deleting collection:{}:{}",
+            EP_LOG_WARN("Attempt to add a deleting collection:{}:{:x}",
                         m.second,
                         m.first);
             return {};

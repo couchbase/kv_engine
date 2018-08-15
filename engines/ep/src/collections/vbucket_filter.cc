@@ -58,7 +58,7 @@ Collections::VB::Filter::Filter(const Collections::Filter& filter,
             // The VB::Manifest doesn't have the collection, or the collection
             // is deleted
             EP_LOG_INFO(
-                    "VB::Filter::Filter: dropping collection:{}"
+                    "VB::Filter::Filter: dropping collection:{:x}"
                     "as it's not open",
                     collection);
         }

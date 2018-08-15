@@ -2313,7 +2313,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db* db, uint16_t vbId) {
                 if (maxCas == static_cast<uint64_t>(-1)) {
                     logger.warn(
                             "CouchKVStore::readVBState: Invalid max_cas "
-                            "(0x{}) read from '{}' for vb:{}. Resetting "
+                            "({:#x}) read from '{}' for vb:{}. Resetting "
                             "max_cas to zero.",
                             maxCas,
                             id.buf,
