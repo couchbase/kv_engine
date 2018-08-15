@@ -188,11 +188,11 @@ public:
                                           cb::const_byte_buffer eventData);
 
     const char* logHeader() {
-        return logger.prefix.c_str();
+        return logger->prefix.c_str();
     }
 
     void setLogHeader(const std::string &header) {
-        logger.prefix = header;
+        logger->prefix = header;
     }
 
     BucketLogger& getLogger();
@@ -276,7 +276,7 @@ protected:
     EPStats &stats;
 
     //! The bucketLogger for this connection
-    BucketLogger logger;
+    std::shared_ptr<BucketLogger> logger;
 
 private:
 

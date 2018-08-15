@@ -36,7 +36,7 @@
  * active_stream_impl.h file instead of the active_stream.h file.
  */
 
-extern std::unique_ptr<BucketLogger> globalActiveStreamBucketLogger;
+extern std::shared_ptr<BucketLogger> globalActiveStreamBucketLogger;
 
 template <typename... Args>
 void ActiveStream::log(spdlog::level::level_enum severity,
@@ -46,6 +46,6 @@ void ActiveStream::log(spdlog::level::level_enum severity,
     if (producer) {
         producer->getLogger().log(severity, fmt, args...);
     } else {
-        globalActiveStreamBucketLogger->log(severity, fmt, args...);
+        getBucketLogger()->log(severity, fmt, args...);
     }
 }

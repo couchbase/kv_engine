@@ -75,10 +75,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                                     ? ForceValueCompression::Yes
                                     : ForceValueCompression::No),
       filter(filter, manifest) {
-    if (!globalActiveStreamBucketLogger) {
-        globalActiveStreamBucketLogger = std::make_unique<BucketLogger>();
-        globalActiveStreamBucketLogger->prefix = activeStreamLoggingPrefix;
-    }
 
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -129,6 +125,13 @@ ActiveStream::~ActiveStream() {
     if (state_ != StreamState::Dead) {
         removeCheckpointCursor();
     }
+}
+
+BucketLogger* ActiveStream::getBucketLogger() {
+    static std::shared_ptr<BucketLogger> instance =
+            BucketLogger::createBucketLogger("globalActiveStreamBucketLogger",
+                                             activeStreamLoggingPrefix);
+    return instance.get();
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::next() {
@@ -1545,4 +1548,4 @@ void ActiveStream::removeCheckpointCursor() {
     }
 }
 
-std::unique_ptr<BucketLogger> globalActiveStreamBucketLogger;
+std::shared_ptr<BucketLogger> globalActiveStreamBucketLogger;

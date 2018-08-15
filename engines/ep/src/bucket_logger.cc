@@ -19,12 +19,24 @@
 #include "ep_engine.h"
 #include "objectregistry.h"
 
+#include <memcached/extension.h>
+
 // Construct the base logger with a nullptr for the sinks as they will never be
-// used
-BucketLogger::BucketLogger() : spdlog::logger("", nullptr) {
+// used. Requires a unique name for registry
+BucketLogger::BucketLogger(const std::string& name, const std::string& p)
+    : spdlog::logger(name, nullptr), prefix(p) {
     spdLogger = BucketLogger::loggerAPI.load(std::memory_order_relaxed)
                         ->get_spdlogger()
                         ->spdlogGetter();
+
+    // Take the logging level of the memcached logger so we don't format
+    // anything unnecessarily
+    set_level(spdLogger->level());
+}
+
+BucketLogger::BucketLogger(const BucketLogger& other)
+    : spdlog::logger(other.name(), nullptr) {
+    spdLogger = other.spdLogger;
     set_level(spdLogger->level());
 }
 
@@ -73,10 +85,20 @@ void BucketLogger::setLoggerAPI(ServerLogIface* api) {
     BucketLogger::loggerAPI.store(api, std::memory_order_relaxed);
 
     if (globalBucketLogger == nullptr) {
-        globalBucketLogger = std::make_unique<BucketLogger>();
+        // Create the global BucketLogger
+        globalBucketLogger = createBucketLogger(globalBucketLoggerName);
     }
+}
+
+std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
+        const std::string& name, const std::string& p) {
+    auto bucketLogger =
+            std::shared_ptr<BucketLogger>(new BucketLogger(name, p));
+
+    // TODO register the bucket logger - split patch set to reduce size
+    return bucketLogger;
 }
 
 std::atomic<ServerLogIface*> BucketLogger::loggerAPI;
 
-std::unique_ptr<BucketLogger> globalBucketLogger;
+std::shared_ptr<BucketLogger> globalBucketLogger;

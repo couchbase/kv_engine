@@ -417,7 +417,7 @@ using namespace testing;
  */
 class MockBucketLogger : public BucketLogger {
 public:
-    MockBucketLogger() {
+    MockBucketLogger(std::string name) : BucketLogger(name) {
         // Set the log level of the BucketLogger to trace to ensure messages
         // make it through to the sink it method. Does not alter the logging
         // level of the underlying spdlogger so we will not see console
@@ -467,6 +467,7 @@ public:
     CouchKVStoreErrorInjectionTest()
         : data_dir("CouchKVStoreErrorInjectionTest.db"),
           ops(create_default_file_ops()),
+          logger("couchKVStoreTest"),
           config(KVStoreConfig(1024,
                                4,
                                data_dir,

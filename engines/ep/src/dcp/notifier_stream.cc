@@ -26,7 +26,7 @@
 const std::string notifierStreamLoggingPrefix =
         "DCP (Notifier): **Deleted "
         "conn**";
-std::unique_ptr<BucketLogger> globalNotifierStreamBucketLogger;
+std::shared_ptr<BucketLogger> globalNotifierStreamBucketLogger;
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
                                std::shared_ptr<DcpProducer> p,
@@ -51,7 +51,8 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
              Type::Notifier),
       producerPtr(p) {
     if (!globalNotifierStreamBucketLogger) {
-        globalNotifierStreamBucketLogger = std::make_unique<BucketLogger>();
+        globalNotifierStreamBucketLogger = BucketLogger::createBucketLogger(
+                "globalNotifierStreamBucketLogger");
         globalNotifierStreamBucketLogger->prefix = notifierStreamLoggingPrefix;
     }
 

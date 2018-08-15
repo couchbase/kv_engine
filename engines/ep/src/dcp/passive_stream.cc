@@ -30,7 +30,7 @@
 const std::string passiveStreamLoggingPrefix =
         "DCP (Consumer): **Deleted "
         "conn**";
-std::unique_ptr<BucketLogger> globalPassiveStreamBucketLogger;
+std::shared_ptr<BucketLogger> globalPassiveStreamBucketLogger;
 
 PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              std::shared_ptr<DcpConsumer> c,
@@ -62,7 +62,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_type(Snapshot::None),
       cur_snapshot_ack(false) {
     if (!globalPassiveStreamBucketLogger) {
-        globalPassiveStreamBucketLogger = std::make_unique<BucketLogger>();
+        globalPassiveStreamBucketLogger = BucketLogger::createBucketLogger(
+                "globalPassiveStreamBucketLogger");
         globalPassiveStreamBucketLogger->prefix = passiveStreamLoggingPrefix;
     }
 

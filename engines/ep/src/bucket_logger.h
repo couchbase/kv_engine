@@ -20,6 +20,8 @@
 #include "spdlog/logger.h"
 #include <memcached/extension.h>
 
+const std::string globalBucketLoggerName = "globalBucketLogger";
+
 /**
  * EP Engine specific logger
  *
@@ -51,19 +53,17 @@
  * with the BucketLogger we override the _sink_it method to prepend the
  * engine name and log the message as a pre-formatted string using the
  * original spdlog::logger passed via the SERVER_API.
+ *
+ * BucketLoggers should be created using the create method to ensure each logger
+ * is registered correctly. BucketLoggers must be registered to ensure that
+ * their verbosity can be changed at runtime. Spdlog provides a registry which
+ * we can use to do so, however one exists per dynamically linked library. To
+ * keep code simple we use only the registry within the logging library.
  */
 class BucketLogger : public spdlog::logger {
 public:
-    // Constructor that assumes that we have already called the setLoggerAPI
-    // method to store the spdlog::logger which is loaded once on creation to
-    // set the member variable
-    BucketLogger();
-
-    // Constructor taking a spdlog::logger that is used to perform the actual
-    // logging after this BucketLogger formats the log messages
-    BucketLogger(spdlog::logger* logger);
-
     // Informs the BucketLogger class of the current logging API
+    // Creates the globalBucketLogger
     static void setLoggerAPI(ServerLogIface* api);
 
     // Set the conection id (printed before any other prefix or message)
@@ -72,7 +72,12 @@ public:
     }
 
     // The prefix printed before the log message contents
-    std::string prefix{""};
+    std::string prefix;
+
+    // Creates a BucketLogger with the given name and then registers it in
+    // the spdlog registry before returning
+    static std::shared_ptr<BucketLogger> createBucketLogger(
+            const std::string& name, const std::string& prefix = "");
 
 protected:
     void _sink_it(spdlog::details::log_msg& msg) override;
@@ -81,20 +86,37 @@ protected:
     // prefix or message)
     uint32_t connectionId{0};
 
+    // Constructors have restricted access as users must use the create
+    // function to ensure that loggers are registered correctly.
+
+    // Constructor that assumes that we have already called the setLoggerAPI
+    // method to store the spdlog::logger which is loaded once on creation to
+    // set the member variable.
+    // Protected to allow mocking
+    BucketLogger(const std::string& name, const std::string& prefix = "");
+
 private:
+    // Copy constructor
+    BucketLogger(const BucketLogger& other);
+
     // memcached logger API used to construct the non-global instances
     static std::atomic<ServerLogIface*> loggerAPI;
 
     spdlog::logger* spdLogger;
 };
 
-extern std::unique_ptr<BucketLogger> globalBucketLogger;
+// Global BucketLogger declaration for use in macros
+// This is a shared_ptr (not a unique_ptr as one might expect) as
+// the spdlog registry only deals with shared_ptrs, and we must register each
+// spdlogger we create to respect runtime verbosity changes
+extern std::shared_ptr<BucketLogger> globalBucketLogger;
 
-#define EP_LOG_FMT(severity, ...)                           \
-    do {                                                    \
-        if (globalBucketLogger->should_log(severity)) {     \
-            globalBucketLogger->log(severity, __VA_ARGS__); \
-        }                                                   \
+#define EP_LOG_FMT(severity, ...)                     \
+    do {                                              \
+        auto bucketLogger = globalBucketLogger.get(); \
+        if (bucketLogger->should_log(severity)) {     \
+            bucketLogger->log(severity, __VA_ARGS__); \
+        }                                             \
     } while (false)
 
 #define EP_LOG_TRACE(...)                                          \

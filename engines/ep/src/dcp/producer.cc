@@ -167,7 +167,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     setReserved(true);
     pause("initializing");
 
-    logger.setConnectionId(
+    logger->setConnectionId(
             e.getServerApi()->cookie->get_log_info(cookie).first);
     if (notifyOnly) {
         setLogHeader("DCP (Notifier) " + getName() + " -");
@@ -179,7 +179,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     // every ~10s.
     if (name.find("eq_dcpq:mapreduce_view") != std::string::npos ||
         name.find("eq_dcpq:spatial_view") != std::string::npos) {
-        logger.set_level(spdlog::level::level_enum::warn);
+        logger->set_level(spdlog::level::level_enum::warn);
     }
 
     // MB-28468: Reduce the minimum log level of FTS DCP streams as they are
@@ -187,7 +187,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     // development of FTS should remedy this, however for now, we need to
     // reduce their verbosity as they cause the memcached log to rotate early.
     if (name.find("eq_dcpq:fts") != std::string::npos) {
-        logger.set_level(spdlog::level::level_enum::critical);
+        logger->set_level(spdlog::level::level_enum::critical);
     }
 
     engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
@@ -259,7 +259,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
-        logger.warn(
+        logger->warn(
                 "(vb:{}) Stream request failed because "
                 "this vbucket doesn't exist",
                 vbucket);
@@ -271,7 +271,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     if ((includeXattrs == IncludeXattrs::Yes) || collectionsEnabled) {
         if (!noopCtx.enabled &&
             engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
-            logger.warn(
+            logger->warn(
                     "(vb:{}) noop is mandatory for v5 features like "
                     "xattrs and collections",
                     vbucket);
@@ -281,7 +281,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
         (vb->getState() != vbucket_state_active)) {
-        logger.info(
+        logger->info(
                 "(vb:{}) Stream request failed because "
                 "the vbucket is in state, only active vbuckets were "
                 "requested",
@@ -305,7 +305,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     if (!notifyOnly && !(snap_start_seqno <= start_seqno &&
         start_seqno <= snap_end_seqno)) {
-        logger.warn(
+        logger->warn(
                 "(vb:{}) Stream request failed because "
                 "the snap start seqno ({}) <= start seqno ({})"
                 " <= snap end seqno ({}) is required",
@@ -325,7 +325,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         if (it.second) {
             auto& stream = it.first;
             if (stream->isActive()) {
-                logger.warn(
+                logger->warn(
                         "(vb:{}) Stream request failed"
                         " because a stream already exists for this vbucket",
                         vbucket);
@@ -359,7 +359,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                          rollback_seqno);
 
     if (need_rollback.first) {
-        logger.warn(
+        logger->warn(
                 "(vb:{}) Stream request requires rollback to seqno:"
                 "because {}. Client requested"
                 " seqnos:{{{},{}}}"
@@ -466,7 +466,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     {
         ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_dead) {
-            logger.warn(
+            logger->warn(
                     "(vb:{}) Stream request failed because "
                     "this vbucket is in dead state",
                     vbucket);
@@ -476,7 +476,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         // Given being in a backfill state is only a temporary failure
         // we do all hard errors first.
         if (vb->checkpointManager->getOpenCheckpointId() == 0) {
-            logger.warn(
+            logger->warn(
                     "(vb:{}) Stream request failed"
                     "because this vbucket is in backfill state",
                     vbucket);
@@ -501,7 +501,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                     getCookie());
     ObjectRegistry::onSwitchThread(epe);
     if (rv != ENGINE_SUCCESS) {
-        logger.warn(
+        logger->warn(
                 "(vb:{}) Couldn't add failover log to "
                 "stream request due to error {}",
                 vbucket,
@@ -685,7 +685,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
         default:
         {
-            logger.warn(
+            logger->warn(
                     "Unexpected dcp event ({}), "
                     "disconnecting",
                     resp->to_string());
@@ -740,7 +740,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             return ENGINE_SUCCESS;
         }
     } else if (strncmp(param, "stream_buffer_size", nkey) == 0) {
-        logger.warn(
+        logger->warn(
                 "The ctrl parameter stream_buffer_size is"
                 "not supported by this engine");
         return ENGINE_ENOTSUP;
@@ -798,7 +798,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
                 noopCtx.dcpNoopTxInterval = std::chrono::seconds(noopInterval);
                 return ENGINE_SUCCESS;
             } else {
-                logger.warn(
+                logger->warn(
                         "The ctrl parameter "
                         "set_noop_interval is being set to seconds."
                         "This is not a multiple of the "
@@ -832,7 +832,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         return ENGINE_SUCCESS;
     }
 
-    logger.warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
+    logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
 
     return ENGINE_EINVAL;
 }
@@ -887,7 +887,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         }
     }
 
-    logger.warn(
+    logger->warn(
             "Trying to handle an unknown response {}, "
             "disconnecting",
             opcode);
@@ -909,14 +909,14 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
     ENGINE_ERROR_CODE ret;
     if (!stream) {
-        logger.warn(
+        logger->warn(
                 "(vb:{}) Cannot close stream because no "
                 "stream exists for this vbucket",
                 vbucket);
         return ENGINE_KEY_ENOENT;
     } else {
         if (!stream->isActive()) {
-            logger.warn(
+            logger->warn(
                     "(vb:{}) Cannot close stream because "
                     "stream is already marked as dead",
                     vbucket);
@@ -1032,14 +1032,14 @@ void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
             as->addTakeoverStats(add_stat, c, vb);
             return;
         }
-        logger.warn(
+        logger->warn(
                 "(vb:{}) "
                 "DcpProducer::addTakeoverStats Stream type is and not the "
                 "expected Active",
                 vb.getId(),
                 to_string(stream->getType()));
     } else {
-        logger.info(
+        logger->info(
                 "(vb:{}) "
                 "DcpProducer::addTakeoverStats Unable to find stream",
                 vb.getId());
@@ -1069,7 +1069,7 @@ void DcpProducer::closeStreamDueToVbStateChange(uint16_t vbucket,
                                                 vbucket_state_t state) {
     auto stream = findStream(vbucket);
     if (stream) {
-        logger.debug(
+        logger->debug(
                 "(vb:{}) State changed to "
                 "{}, closing active stream!",
                 vbucket,
@@ -1081,7 +1081,7 @@ void DcpProducer::closeStreamDueToVbStateChange(uint16_t vbucket,
 void DcpProducer::closeStreamDueToRollback(uint16_t vbucket) {
     auto stream = findStream(vbucket);
     if (stream) {
-        logger.debug(
+        logger->debug(
                 "(vb:{}) Rollback occurred,"
                 "closing stream (downstream must rollback too)",
                 vbucket,
@@ -1226,7 +1226,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
     const auto now = ep_current_time();
     std::chrono::seconds elapsedTime(now - lastReceiveTime);
     if (noopCtx.enabled && elapsedTime > noopCtx.dcpIdleTimeout) {
-        logger.info(
+        logger->info(
                 "Disconnecting because a message has not been received for "
                 "DCP "
                 "idle timeout (which is"

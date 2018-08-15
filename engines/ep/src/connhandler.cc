@@ -23,27 +23,30 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 
-ConnHandler::ConnHandler(EventuallyPersistentEngine& e, const void* c,
-                         const std::string& n) :
-    engine_(e),
-    stats(engine_.getEpStats()),
-    name(n),
-    cookie(const_cast<void*>(c)),
-    reserved(false),
-    created(ep_current_time()),
-    disconnect(false),
-    paused(false) {}
+ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
+                         const void* c,
+                         const std::string& n)
+    : engine_(e),
+      stats(engine_.getEpStats()),
+      name(n),
+      cookie(const_cast<void*>(c)),
+      reserved(false),
+      created(ep_current_time()),
+      disconnect(false),
+      paused(false) {
+    logger = BucketLogger::createBucketLogger(n);
+}
 
 ENGINE_ERROR_CODE ConnHandler::addStream(uint32_t opaque, uint16_t,
                                          uint32_t flags) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp add stream API");
     return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE ConnHandler::closeStream(uint32_t opaque, uint16_t vbucket) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp close stream API");
     return ENGINE_DISCONNECT;
@@ -51,7 +54,7 @@ ENGINE_ERROR_CODE ConnHandler::closeStream(uint32_t opaque, uint16_t vbucket) {
 
 ENGINE_ERROR_CODE ConnHandler::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp stream end API");
     return ENGINE_DISCONNECT;
@@ -71,7 +74,7 @@ ENGINE_ERROR_CODE ConnHandler::mutation(uint32_t opaque,
                                         uint32_t lock_time,
                                         cb::const_byte_buffer meta,
                                         uint8_t nru) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the mutation API");
     return ENGINE_DISCONNECT;
@@ -87,7 +90,7 @@ ENGINE_ERROR_CODE ConnHandler::deletion(uint32_t opaque,
                                         uint64_t by_seqno,
                                         uint64_t rev_seqno,
                                         cb::const_byte_buffer meta) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the deletion API");
     return ENGINE_DISCONNECT;
@@ -103,7 +106,7 @@ ENGINE_ERROR_CODE ConnHandler::deletionV2(uint32_t opaque,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the deletionV2 API");
     return ENGINE_DISCONNECT;
@@ -119,7 +122,7 @@ ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           cb::const_byte_buffer meta) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the expiration API");
     return ENGINE_DISCONNECT;
@@ -131,7 +134,7 @@ ENGINE_ERROR_CODE ConnHandler::snapshotMarker(uint32_t opaque,
                                               uint64_t end_seqno,
                                               uint32_t flags)
 {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp snapshot marker API");
     return ENGINE_DISCONNECT;
@@ -140,7 +143,7 @@ ENGINE_ERROR_CODE ConnHandler::snapshotMarker(uint32_t opaque,
 ENGINE_ERROR_CODE ConnHandler::setVBucketState(uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the set vbucket state API");
     return ENGINE_DISCONNECT;
@@ -156,14 +159,14 @@ ENGINE_ERROR_CODE ConnHandler::streamRequest(uint32_t flags,
                                              uint64_t snapEndSeqno,
                                              uint64_t *rollback_seqno,
                                              dcp_add_failover_log callback) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp stream request API");
     return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE ConnHandler::noop(uint32_t opaque) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the noop API");
     return ENGINE_DISCONNECT;
@@ -172,7 +175,7 @@ ENGINE_ERROR_CODE ConnHandler::noop(uint32_t opaque) {
 ENGINE_ERROR_CODE ConnHandler::bufferAcknowledgement(uint32_t opaque,
                                                      uint16_t vbucket,
                                                      uint32_t buffer_bytes) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the buffer acknowledgement API");
     return ENGINE_DISCONNECT;
@@ -181,21 +184,21 @@ ENGINE_ERROR_CODE ConnHandler::bufferAcknowledgement(uint32_t opaque,
 ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque, const void* key,
                                        uint16_t nkey, const void* value,
                                        uint32_t nvalue) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the control API");
     return ENGINE_DISCONNECT;
 }
 
 ENGINE_ERROR_CODE ConnHandler::step(struct dcp_message_producers* producers) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp step API");
     return ENGINE_DISCONNECT;
 }
 
 bool ConnHandler::handleResponse(const protocol_binary_response_header* resp) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp response handler API");
     return false;
@@ -207,14 +210,14 @@ ENGINE_ERROR_CODE ConnHandler::systemEvent(uint32_t opaque,
                                            uint64_t bySeqno,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) {
-    logger.warn(
+    logger->warn(
             "Disconnecting - This connections doesn't "
             "support the dcp system_event API");
     return ENGINE_DISCONNECT;
 }
 
 BucketLogger& ConnHandler::getLogger() {
-    return logger;
+    return *logger;
 }
 
 void ConnHandler::releaseReference()
