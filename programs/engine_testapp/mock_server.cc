@@ -43,7 +43,7 @@ std::atomic<rel_time_t> time_travel_offset;
 /* ref_mutex to guard references, and object deletion in case references becomes zero */
 static cb_mutex_t ref_mutex;
 struct mock_extensions extensions;
-EXTENSION_LOG_LEVEL log_level = EXTENSION_LOG_INFO;
+spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 
 /**
  * Session cas elements
@@ -200,11 +200,11 @@ struct MockServerLogApi : public ServerLogIface {
         return extensions.spdlogGetter;
     }
 
-    EXTENSION_LOG_LEVEL get_level() override {
+    spdlog::level::level_enum get_level() override {
         return log_level;
     }
 
-    void set_level(EXTENSION_LOG_LEVEL severity) override {
+    void set_level(spdlog::level::level_enum severity) override {
         log_level = severity;
     }
 };
@@ -425,7 +425,7 @@ void init_mock_server() {
     time_travel_offset = 0;
     extensions.logger = &cb::logger::getLoggerDescriptor();
     extensions.spdlogGetter = &cb::logger::getSpdloggerRef();
-    log_level = EXTENSION_LOG_FATAL;
+    log_level = spdlog::level::level_enum::critical;
 
     session_cas = 0x0102030405060708;
     session_ctr = 0;

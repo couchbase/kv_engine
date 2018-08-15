@@ -22,13 +22,12 @@
 #include "bucket_logger_test.h"
 
 #include "bucket_logger.h"
-#include "logger.h"
 
 #include <programs/engine_testapp/mock_server.h>
 
 void BucketLoggerTest::SetUp() {
     // Store the oldLogLevel for tearDown
-    oldLogLevel = Logger::getGlobalLogLevel();
+    oldLogLevel = globalBucketLogger->level();
 
     SpdloggerTest::SetUp();
     globalBucketLogger =
@@ -43,13 +42,11 @@ void BucketLoggerTest::TearDown() {
     // setting
     cb::logger::createConsoleLogger();
     get_mock_server_api()->log->set_level(oldLogLevel);
-    Logger::setLoggerAPI(get_mock_server_api()->log);
-    auto spdlogLevel = cb::logger::convertToSpdSeverity(oldLogLevel);
     get_mock_server_api()->log->get_spdlogger()->spdlogGetter()->set_level(
-            spdlogLevel);
+            oldLogLevel);
     globalBucketLogger =
             BucketLogger::createBucketLogger(globalBucketLoggerName);
-    globalBucketLogger->set_level(spdlogLevel);
+    globalBucketLogger->set_level(oldLogLevel);
 }
 
 void BucketLoggerTest::setUpLogger(const spdlog::level::level_enum level,

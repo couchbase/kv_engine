@@ -253,7 +253,8 @@ static void populate_log_level(void*) {
     for (auto& bucket : all_buckets) {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         if (bucket.state == BucketState::Ready) {
-            bucket.getEngine()->set_log_level(val);
+            bucket.getEngine()->set_log_level(
+                    static_cast<EXTENSION_LOG_LEVEL>(val));
         }
     }
 }
@@ -447,8 +448,7 @@ static void ssl_cipher_list_changed_listener(const std::string&, Settings &s) {
 static void verbosity_changed_listener(const std::string&, Settings &s) {
     auto logger = cb::logger::get();
     if (logger) {
-        logger->set_level(
-                cb::logger::convertToSpdSeverity(settings.getLogLevel()));
+        logger->set_level(settings.getLogLevel());
     }
 
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
@@ -1395,22 +1395,21 @@ struct ServerLogApi : public ServerLogIface {
         return settings.extensions.spdlogger;
     }
 
-    EXTENSION_LOG_LEVEL get_level() override {
+    spdlog::level::level_enum get_level() override {
         return settings.getLogLevel();
     }
 
-    void set_level(EXTENSION_LOG_LEVEL severity) override {
+    void set_level(spdlog::level::level_enum severity) override {
         switch (severity) {
-        case EXTENSION_LOG_FATAL:
-        case EXTENSION_LOG_WARNING:
-        case EXTENSION_LOG_NOTICE:
-            settings.setVerbose(0);
+        case spdlog::level::level_enum::trace:
+            settings.setVerbose(2);
             break;
-        case EXTENSION_LOG_INFO:
+        case spdlog::level::level_enum::debug:
             settings.setVerbose(1);
             break;
         default:
-            settings.setVerbose(2);
+            settings.setVerbose(0);
+            break;
         }
     }
 };

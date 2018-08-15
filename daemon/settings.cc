@@ -1281,16 +1281,14 @@ const std::string& Settings::getErrorMap(size_t version) const {
     return error_maps[version];
 }
 
-EXTENSION_LOG_LEVEL Settings::getLogLevel() const {
+spdlog::level::level_enum Settings::getLogLevel() const {
     switch (getVerbose()) {
     case 0:
-        return EXTENSION_LOG_NOTICE;
+        return spdlog::level::level_enum::info;
     case 1:
-        return EXTENSION_LOG_INFO;
-    case 2:
-        return EXTENSION_LOG_DEBUG;
+        return spdlog::level::level_enum::debug;
     default:
-        return EXTENSION_LOG_TRACE;
+        return spdlog::level::level_enum::trace;
     }
 }
 

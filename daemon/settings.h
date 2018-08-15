@@ -177,7 +177,7 @@ public:
     cb::logger::Config getLoggerConfig() const {
         auto config = logger_settings;
         // log_level is synthesised from settings.verbose.
-        config.log_level = cb::logger::convertToSpdSeverity(getLogLevel());
+        config.log_level = getLogLevel();
         return config;
     };
 
@@ -253,8 +253,8 @@ public:
         notify_changed("verbosity");
     }
 
-    /// Return the log level as defined by the current verbosity.
-    EXTENSION_LOG_LEVEL getLogLevel() const;
+    // Return the log level as defined by the current verbosity.
+    spdlog::level::level_enum getLogLevel() const;
 
     /**
      * Get the idle time for a connection. Connections that stays idle

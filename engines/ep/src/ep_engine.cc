@@ -36,7 +36,6 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "htresizer.h"
-#include "logger.h"
 #include "memory_tracker.h"
 #include "replicationthrottle.h"
 #include "stats-info.h"
@@ -47,6 +46,7 @@
 
 #include <JSON_checker.h>
 #include <cJSON_utils.h>
+#include <logger/logger.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
 #include <memcached/protocol_binary.h>
@@ -1675,7 +1675,12 @@ static void EvpHandleDeleteBucket(const void* cookie,
 }
 
 void EventuallyPersistentEngine::set_log_level(EXTENSION_LOG_LEVEL level) {
-    Logger::setGlobalLogLevel(level);
+    // Update bucket logger level.
+    // TODO This does not update other bucket loggers created within ep engine
+    // but this is stopgap code to make sure we compile and keep /some/
+    // functionality. This functionality is reintroduced correctly in the
+    // next patch set
+    globalBucketLogger->set_level(cb::logger::convertToSpdSeverity(level));
 }
 
 /**
@@ -1693,7 +1698,7 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API get_server_api,
         return ENGINE_ENOTSUP;
     }
 
-    Logger::setLoggerAPI(api->log);
+    BucketLogger::setLoggerAPI(api->log);
 
     MemoryTracker::getInstance(*api->alloc_hooks);
     ObjectRegistry::initialize(api->alloc_hooks->get_allocation_size);

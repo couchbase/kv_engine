@@ -28,7 +28,6 @@
 #include "configuration.h"
 #include "ep_time.h"
 #include "hash_table.h"
-#include "logger.h"
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
@@ -57,24 +56,22 @@ int main(int argc, char **argv) {
 
     putenv(allow_no_stats_env);
 
+    // Create a blackhole logger to prevent Address sanitizer error when
+    // calling mock_init_alloc_hooks
     cb::logger::createBlackholeLogger();
     mock_init_alloc_hooks();
     init_mock_server();
 
     // Create the console logger for test case output
     cb::logger::createConsoleLogger();
-
-    const auto log_level =
-            verbose_logging ? EXTENSION_LOG_DEBUG : EXTENSION_LOG_FATAL;
-    get_mock_server_api()->log->set_level(log_level);
-
     const auto spd_log_level = verbose_logging
                                        ? spdlog::level::level_enum::debug
                                        : spdlog::level::level_enum::critical;
+
+    // Set the logging level in the api then setup the BucketLogger
     get_mock_server_api()->log->get_spdlogger()->spdlogGetter()->set_level(
             spd_log_level);
-
-    Logger::setLoggerAPI(get_mock_server_api()->log);
+    BucketLogger::setLoggerAPI(get_mock_server_api()->log);
 
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);

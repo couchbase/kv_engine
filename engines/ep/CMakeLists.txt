@@ -228,7 +228,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/item_pager.cc
             src/kvstore.cc
             src/kvstore_config.cc
-            src/logger.cc
             src/kv_bucket.cc
             src/kvshard.cc
             src/memory_tracker.cc

@@ -1638,9 +1638,8 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
         return ENGINE_SUCCESS;
 
     } catch (std::exception& e) {
-        auto logger = gsa()->log->get_logger();
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "EWB_Engine: failed to create engine: %s", e.what());
+        auto logger = gsa()->log->get_spdlogger()->spdlogGetter();
+        logger->warn("EWB_Engine: failed to create engine: {}", e.what());
         return ENGINE_FAILED;
     }
 }

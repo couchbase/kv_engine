@@ -1,6 +1,8 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #pragma once
 
+#include "spdlog/common.h"
+
 namespace spdlog {
 class logger;
 }
@@ -50,6 +52,6 @@ struct ServerLogIface {
     ~ServerLogIface() = default;
     virtual EXTENSION_LOGGER_DESCRIPTOR* get_logger() = 0;
     virtual EXTENSION_SPDLOG_GETTER* get_spdlogger() = 0;
-    virtual EXTENSION_LOG_LEVEL get_level() = 0;
-    virtual void set_level(EXTENSION_LOG_LEVEL severity) = 0;
+    virtual spdlog::level::level_enum get_level() = 0;
+    virtual void set_level(spdlog::level::level_enum severity) = 0;
 };

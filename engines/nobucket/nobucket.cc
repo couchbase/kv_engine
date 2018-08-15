@@ -24,6 +24,8 @@
 #include <stdexcept>
 #include <string>
 
+#include <spdlog/logger.h>
+
 /**
  * The NoBucket is a bucket that just returns "ENGINE_NO_BUCKET" for "all"
  * operations. The main purpose for having this bucket is to reduce the
@@ -377,9 +379,8 @@ ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
         NoBucket* engine = new NoBucket();
         *handle = reinterpret_cast<EngineIface*>(engine);
     } catch (std::bad_alloc& e) {
-        auto logger = get_server_api()->log->get_logger();
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "NoBucket: failed to create engine: %s", e.what());
+        auto logger = get_server_api()->log->get_spdlogger()->spdlogGetter();
+        logger->warn("NoBucket: failed to create engine: {}", e.what());
         return ENGINE_FAILED;
     }
 
