@@ -64,17 +64,13 @@ public:
                       uint64_t lastSnapEnd,
                       FlusherCallback cb);
 
-    uint64_t getOpenCheckpointId_UNLOCKED();
     uint64_t getOpenCheckpointId();
 
-    uint64_t getLastClosedCheckpointId_UNLOCKED();
     uint64_t getLastClosedCheckpointId();
-
-    void setOpenCheckpointId_UNLOCKED(uint64_t id);
 
     void setOpenCheckpointId(uint64_t id) {
         LockHolder lh(queueLock);
-        setOpenCheckpointId_UNLOCKED(id);
+        setOpenCheckpointId_UNLOCKED(lh, id);
     }
 
     /**
@@ -380,13 +376,19 @@ public:
     void takeAndResetCursors(CheckpointManager& other);
 
 protected:
+    uint64_t getOpenCheckpointId_UNLOCKED(const LockHolder& lh);
+
+    uint64_t getLastClosedCheckpointId_UNLOCKED(const LockHolder& lh);
+
+    void setOpenCheckpointId_UNLOCKED(const LockHolder& lh, uint64_t id);
 
     // Helper method for queueing methods - update the global and per-VBucket
     // stats after queueing a new item to a checkpoint.
     // Must be called with queueLock held (LockHolder passed in as argument to
     // 'prove' this).
-    void updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
-                                     VBucket& vb, const queued_item& qi);
+    void updateStatsForNewQueuedItem_UNLOCKED(const LockHolder& lh,
+                                              VBucket& vb,
+                                              const queued_item& qi);
 
     CheckpointList checkpointList;
 
@@ -404,6 +406,7 @@ protected:
     bool removeCursor_UNLOCKED(const CheckpointCursor* cursor);
 
     CursorRegResult registerCursorBySeqno_UNLOCKED(
+            const LockHolder& lh,
             const std::string& name,
             uint64_t startBySeqno,
             MustSendCheckpointEnd needsCheckpointEndMetaItem);
@@ -411,6 +414,11 @@ protected:
     size_t getNumItemsForCursor_UNLOCKED(const CheckpointCursor* cursor) const;
 
     void clear_UNLOCKED(vbucket_state_t vbState, uint64_t seqno);
+
+    /*
+     * @return a reference to the open checkpoint
+     */
+    Checkpoint& getOpenCheckpoint_UNLOCKED(const LockHolder& lh) const;
 
     /*
      * Closes the current open checkpoint and adds a new open checkpoint to
@@ -456,11 +464,14 @@ protected:
      * @return the previous open checkpoint Id if we create the new open checkpoint. Otherwise
      * return 0.
      */
-    uint64_t checkOpenCheckpoint_UNLOCKED(bool forceCreation, bool timeBound);
+    uint64_t checkOpenCheckpoint_UNLOCKED(const LockHolder& lh,
+                                          bool forceCreation,
+                                          bool timeBound);
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
-    bool isCheckpointCreationForHighMemUsage(const VBucket& vbucket);
+    bool isCheckpointCreationForHighMemUsage_UNLOCKED(const LockHolder& lh,
+                                                      const VBucket& vbucket);
 
     void resetCursors(bool resetPersistenceCursor = true);
 

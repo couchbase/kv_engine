@@ -764,14 +764,13 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
     EXPECT_EQ(0, range.start);
     EXPECT_EQ(1000 + MIN_CHECKPOINT_ITEMS, range.end);
 
-    uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId_UNLOCKED();
+    uint64_t curr_open_chkpt_id = this->manager->getOpenCheckpointId();
 
     /* Run the checkpoint remover so that new open checkpoint is created */
     bool newCheckpointCreated;
     this->manager->removeClosedUnrefCheckpoints(*this->vbucket,
                                                 newCheckpointCreated);
-    EXPECT_EQ(curr_open_chkpt_id + 1,
-              this->manager->getOpenCheckpointId_UNLOCKED());
+    EXPECT_EQ(curr_open_chkpt_id + 1, this->manager->getOpenCheckpointId());
 
     /* Get items for persistence cursor */
     EXPECT_EQ(0, this->manager->getNumItemsForPersistence())

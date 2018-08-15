@@ -342,7 +342,7 @@ public:
     /**
      * Return the creation timestamp of this checkpoint in sec.
      */
-    rel_time_t getCreationTime() {
+    rel_time_t getCreationTime() const {
         return creationTime;
     }
 
@@ -443,7 +443,7 @@ public:
         return (*pos)->getBySeqno();
     }
 
-    uint64_t getSnapshotStartSeqno() {
+    uint64_t getSnapshotStartSeqno() const {
         return snapStartSeqno;
     }
 
@@ -451,7 +451,7 @@ public:
         snapStartSeqno = seqno;
     }
 
-    uint64_t getSnapshotEndSeqno() {
+    uint64_t getSnapshotEndSeqno() const {
         return snapEndSeqno;
     }
 
