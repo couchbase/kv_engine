@@ -52,7 +52,9 @@ struct Response {
     // the correct byteorder)
 
     void setMagic(Magic magic) {
-        if (magic == Magic::ClientResponse || magic == Magic::ServerResponse) {
+        if (magic == Magic::ClientResponse ||
+            magic == Magic::AltClientResponse ||
+            magic == Magic::ServerResponse) {
             Response::magic = uint8_t(magic);
         } else {
             throw std::invalid_argument(
