@@ -256,23 +256,6 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
     return rv;
 }
 
-uint64_t Checkpoint::getMutationIdForKey(const DocKey& key, bool isMeta) {
-    uint64_t mid = 0;
-    checkpoint_index& chkIdx = isMeta ? metaKeyIndex : keyIndex;
-
-    checkpoint_index::iterator it = chkIdx.find(key);
-    if (it != chkIdx.end()) {
-        mid = it->second.mutation_id;
-    } else {
-        throw std::invalid_argument("key{" +
-                                    std::string(reinterpret_cast<const char*>(key.data())) +
-                                    "} not found in " +
-                                    std::string(isMeta ? "meta" : "key") +
-                                    " index");
-    }
-    return mid;
-}
-
 bool Checkpoint::isEligibleToBeUnreferenced() {
     const std::set<std::string> &cursors = getCursorNameList();
     std::set<std::string>::const_iterator cit = cursors.begin();

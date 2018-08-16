@@ -496,14 +496,6 @@ public:
     }
 
     /**
-     * Get the mutation id for a given key in this checkpoint
-     * @param key a key to retrieve its mutation id
-     * @param isMetaKey indicates if the key is a checkpoint meta item
-     * @return the mutation id for a given key
-     */
-    uint64_t getMutationIdForKey(const DocKey& key, bool isMetaKey);
-
-    /**
      * Function invoked by the cursor-dropper which checks if the
      * peristence cursor is currently in the given checkpoint, in
      * which case returns false, otherwise true.
