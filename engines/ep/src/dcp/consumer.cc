@@ -407,10 +407,8 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
     }
 
     if (bySeqno == 0) {
-        logger->warn(
-                "(vb:{}) Invalid sequence number(0) "
-                "for mutation!",
-                vbucket);
+        logger->warn("(vb:{}) Invalid sequence number(0) for mutation!",
+                     vbucket);
         return ENGINE_EINVAL;
     }
 
@@ -550,10 +548,8 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     }
 
     if (bySeqno == 0) {
-        logger->warn(
-                "(vb:{}) Invalid sequence number(0)"
-                "for deletion!",
-                vbucket);
+        logger->warn("(vb:{}) Invalid sequence number(0) for deletion!",
+                     vbucket);
         return ENGINE_EINVAL;
     }
 
@@ -791,10 +787,8 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
             break;
         }
         default:
-            logger->warn(
-                    "Unknown consumer event ({}), "
-                    "disconnecting",
-                    int(resp->getEvent()));
+            logger->warn("Unknown consumer event ({}), disconnecting",
+                         int(resp->getEvent()));
             ret = ENGINE_DISCONNECT;
     }
     ObjectRegistry::onSwitchThread(epe);
@@ -886,10 +880,8 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         return true;
     }
 
-    logger->warn(
-            "Trying to handle an unknown response {}, "
-            "disconnecting",
-            opcode);
+    logger->warn("Trying to handle an unknown response {}, disconnecting",
+                 opcode);
 
     return false;
 }
@@ -911,8 +903,7 @@ bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
     auto entries = vb->failovers->getNumEntries();
     if (rollbackSeqno == 0 && entries > 1) {
         logger->info(
-                "(vb:{}) Received rollback request. Rollback to 0 yet have "
-                ""
+                "(vb:{}) Received rollback request. Rollback to 0 yet have {}"
                 "entries remaining. Retrying with previous failover entry",
                 vbid,
                 entries);
@@ -921,8 +912,7 @@ bool DcpConsumer::handleRollbackResponse(uint16_t vbid,
         stream->streamRequest(vb->failovers->getLatestEntry().vb_uuid);
     } else {
         logger->info(
-                "(vb:{}) Received rollback request. Rolling back to "
-                "seqno:{}",
+                "(vb:{}) Received rollback request. Rolling back to seqno:{}",
                 vbid,
                 rollbackSeqno);
         ExTask task = std::make_shared<RollbackTask>(
@@ -1228,11 +1218,9 @@ void DcpConsumer::closeStreamDueToVbStateChange(uint16_t vbucket,
                                                 vbucket_state_t state) {
     auto it = streams.erase(vbucket);
     if (it.second) {
-        logger->debug(
-                "(vb:{}) State changed to "
-                "{}, closing passive stream!",
-                vbucket,
-                VBucket::toString(state));
+        logger->debug("(vb:{}) State changed to {}, closing passive stream!",
+                      vbucket,
+                      VBucket::toString(state));
         auto& stream = it.first;
         uint32_t bytesCleared = stream->setDead(END_STREAM_STATE);
         flowControl.incrFreedBytes(bytesCleared);

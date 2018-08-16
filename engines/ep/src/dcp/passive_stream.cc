@@ -28,8 +28,7 @@
 #include <memory>
 
 const std::string passiveStreamLoggingPrefix =
-        "DCP (Consumer): **Deleted "
-        "conn**";
+        "DCP (Consumer): **Deleted conn**";
 std::shared_ptr<BucketLogger> globalPassiveStreamBucketLogger;
 
 PassiveStream::PassiveStream(EventuallyPersistentEngine* e,

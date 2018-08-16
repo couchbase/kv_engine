@@ -31,8 +31,6 @@
 #include <queue>
 #include <string>
 
-#include <spdlog/common.h>
-
 class CheckpointCursor;
 class DcpResponse;
 class EventuallyPersistentEngine;

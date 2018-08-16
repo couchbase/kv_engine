@@ -24,8 +24,7 @@
 #include "vbucket.h"
 
 const std::string notifierStreamLoggingPrefix =
-        "DCP (Notifier): **Deleted "
-        "conn**";
+        "DCP (Notifier): **Deleted conn**";
 std::shared_ptr<BucketLogger> globalNotifierStreamBucketLogger;
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
@@ -115,8 +114,7 @@ std::unique_ptr<DcpResponse> NotifierStream::next() {
 
 void NotifierStream::transitionState(StreamState newState) {
     log(spdlog::level::level_enum::debug,
-        "NotifierStream::transitionState: (vb:{}) "
-        "Transitioning from {} to {}",
+        "NotifierStream::transitionState: (vb:{}) Transitioning from {} to {}",
         vb_,
         to_string(state_.load()),
         to_string(newState));
@@ -145,8 +143,7 @@ void NotifierStream::transitionState(StreamState newState) {
 
     if (!validTransition) {
         throw std::invalid_argument(
-                "NotifierStream::transitionState:"
-                " newState (which is " +
+                "NotifierStream::transitionState: newState (which is " +
                 to_string(newState) +
                 ") is not valid for current state (which is " +
                 to_string(state_.load()) + ")");
