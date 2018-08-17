@@ -412,6 +412,13 @@ public:
         return {*this, rwlock, key, allowSystem};
     }
 
+    // Explictly delete rvalue StoredDocKey usage. A CachingReadHandle wants to
+    // create a view of the original key, so that key must have a life-span
+    // which is longer than the handle. Only test-code trips over this as they
+    // may create keys at the point of calling a method.
+    CachingReadHandle lock(StoredDocKey&&,
+                           bool allowSystem = false) const = delete;
+
     WriteHandle wlock() {
         return {*this, rwlock};
     }

@@ -86,9 +86,9 @@ TEST_F(CollectionsTest, namespace_separation) {
 
 TEST_F(CollectionsTest, collections_basic) {
     // Default collection is open for business
-    store_item(vbid, {"key", DocNamespace::DefaultCollection}, "value");
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
     store_item(vbid,
-               {"meat:beef", CollectionEntry::meat},
+               StoredDocKey{"meat:beef", CollectionEntry::meat},
                "value",
                0,
                {cb::engine_errc::unknown_collection});
@@ -103,7 +103,7 @@ TEST_F(CollectionsTest, collections_basic) {
     flush_vbucket_to_disk(vbid, 2);
 
     // Now we can write to beef
-    store_item(vbid, {"meat:beef", CollectionEntry::meat}, "value");
+    store_item(vbid, StoredDocKey{"meat:beef", CollectionEntry::meat}, "value");
 
     flush_vbucket_to_disk(vbid, 1);
 
@@ -112,13 +112,17 @@ TEST_F(CollectionsTest, collections_basic) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
-    GetValue gv = store->get(
-            {"meat:beef", CollectionEntry::meat}, vbid, cookie, options);
+    GetValue gv = store->get(StoredDocKey{"meat:beef", CollectionEntry::meat},
+                             vbid,
+                             cookie,
+                             options);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
     // A key in meat that doesn't exist
-    gv = store->get(
-            {"meat:sausage", CollectionEntry::meat}, vbid, cookie, options);
+    gv = store->get(StoredDocKey{"meat:sausage", CollectionEntry::meat},
+                    vbid,
+                    cookie,
+                    options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     // Begin the deletion
@@ -128,8 +132,10 @@ TEST_F(CollectionsTest, collections_basic) {
     flush_vbucket_to_disk(vbid, 1);
 
     // Access denied (although the item still exists)
-    gv = store->get(
-            {"meat:beef", CollectionEntry::meat}, vbid, cookie, options);
+    gv = store->get(StoredDocKey{"meat:beef", CollectionEntry::meat},
+                    vbid,
+                    cookie,
+                    options);
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 }
 
@@ -144,13 +150,19 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
-    auto item1 = make_item(
-            vbid, {"dairy:milk", CollectionEntry::dairy}, "creamy", 0, 0);
+    auto item1 = make_item(vbid,
+                           StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
-    auto item2 = make_item(
-            vbid, {"dairy:cream", CollectionEntry::dairy}, "creamy", 0, 0);
+    auto item2 = make_item(vbid,
+                           StoredDocKey{"dairy:cream", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
@@ -187,13 +199,17 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
 
     EXPECT_EQ("collection_unknown",
               store->validateKey(
-                      {"meat:sausage", CollectionEntry::meat}, vbid, item2));
+                      StoredDocKey{"meat:sausage", CollectionEntry::meat},
+                      vbid,
+                      item2));
     EXPECT_EQ("collection_unknown",
               store->validateKey(item2.getKey(), vbid, item2));
 
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->statsVKey(
-                      {"meat:sausage", CollectionEntry::meat}, vbid, cookie));
+                      StoredDocKey{"meat:sausage", CollectionEntry::meat},
+                      vbid,
+                      cookie));
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->statsVKey(item2.getKey(), vbid, cookie));
 
@@ -254,8 +270,11 @@ TEST_F(CollectionsTest, GET_unknown_collection_errors) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flush_vbucket_to_disk(vbid, 1);
 
-    auto item1 = make_item(
-            vbid, {"dairy:milk", CollectionEntry::dairy}, "creamy", 0, 0);
+    auto item1 = make_item(vbid,
+                           StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
     EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
     flush_vbucket_to_disk(vbid, 1);
 
@@ -274,8 +293,10 @@ TEST_F(CollectionsTest, GET_unknown_collection_errors) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
 
     // Get deleted can't get it
-    auto gv = store->get(
-            {"dairy:milk", CollectionEntry::dairy}, vbid, cookie, options);
+    auto gv = store->get(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                         vbid,
+                         cookie,
+                         options);
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 
     options = static_cast<get_options_t>(QUEUE_BG_FETCH | HONOR_STATES |
@@ -283,12 +304,14 @@ TEST_F(CollectionsTest, GET_unknown_collection_errors) {
                                          HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
     // Normal Get can't get it
-    gv = store->get(
-            {"dairy:milk", CollectionEntry::dairy}, vbid, cookie, options);
+    gv = store->get(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                    vbid,
+                    cookie,
+                    options);
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 
     // Same for getLocked
-    gv = store->getLocked({"dairy:milk", CollectionEntry::dairy},
+    gv = store->getLocked(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
                           vbid,
                           ep_current_time(),
                           10,
@@ -296,10 +319,11 @@ TEST_F(CollectionsTest, GET_unknown_collection_errors) {
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 
     // Same for getAndUpdateTtl
-    gv = store->getAndUpdateTtl({"dairy:milk", CollectionEntry::dairy},
-                                vbid,
-                                cookie,
-                                ep_current_time() + 20);
+    gv = store->getAndUpdateTtl(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+            vbid,
+            cookie,
+            ep_current_time() + 20);
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 }
 
@@ -352,7 +376,7 @@ void CollectionsFlushTest::storeItems(CollectionID collection,
                                       cb::engine_errc expected) {
     for (int ii = 0; ii < items; ii++) {
         std::string key = "key" + std::to_string(ii);
-        store_item(vbid, {key, collection}, "value", 0, {expected});
+        store_item(vbid, StoredDocKey{key, collection}, "value", 0, {expected});
     }
 }
 
@@ -399,7 +423,8 @@ bool CollectionsFlushTest::canWrite(const std::string& jsonManifest,
                                     CollectionID collection) {
     Collections::VB::Manifest manifest(jsonManifest);
     std::string key = std::to_string(collection);
-    return manifest.lock().doesKeyContainValidCollection({key, collection});
+    return manifest.lock().doesKeyContainValidCollection(
+            StoredDocKey{key, collection});
 }
 
 bool CollectionsFlushTest::cannotWrite(const std::string& jsonManifest,
@@ -538,10 +563,12 @@ TEST_F(CollectionsWarmupTest, warmup) {
         flush_vbucket_to_disk(vbid, 1);
 
         // Now we can write to beef
-        store_item(vbid, {"meat:beef", CollectionEntry::meat}, "value");
+        store_item(vbid,
+                   StoredDocKey{"meat:beef", CollectionEntry::meat},
+                   "value");
         // But not dairy
         store_item(vbid,
-                   {"dairy:milk", CollectionEntry::dairy},
+                   StoredDocKey{"dairy:milk", CollectionEntry::dairy},
                    "value",
                    0,
                    {cb::engine_errc::unknown_collection});
@@ -558,7 +585,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 
     {
-        Item item({"meat:beef", CollectionEntry::meat},
+        Item item(StoredDocKey{"meat:beef", CollectionEntry::meat},
                   /*flags*/ 0,
                   /*exp*/ 0,
                   "rare",
@@ -569,7 +596,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
                   engine->storeInner(cookie, &item, cas, OPERATION_SET));
     }
     {
-        Item item({"dairy:milk", CollectionEntry::dairy},
+        Item item(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
                   /*flags*/ 0,
                   /*exp*/ 0,
                   "skimmed",
@@ -597,7 +624,9 @@ TEST_F(CollectionsWarmupTest, MB_25381) {
         flush_vbucket_to_disk(vbid, 1);
 
         // Now we can write to dairy
-        store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "creamy");
+        store_item(vbid,
+                   StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                   "creamy");
 
         // Now delete the dairy collection
         vb->updateFromManifest({cm.remove(CollectionEntry::dairy)
@@ -639,7 +668,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         for (int ii = 0; ii < nitems; ii++) {
             // Now we can write to beef
             std::string key = "meat:" + std::to_string(ii);
-            store_item(vbid, {key, CollectionEntry::meat}, "value");
+            store_item(vbid, StoredDocKey{key, CollectionEntry::meat}, "value");
         }
 
         flush_vbucket_to_disk(vbid, nitems);
@@ -676,7 +705,9 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         const int nitems = 10;
         for (int ii = 0; ii < nitems; ii++) {
             std::string key = "key" + std::to_string(ii);
-            store_item(vbid, {key, DocNamespace::DefaultCollection}, "value");
+            store_item(vbid,
+                       StoredDocKey{key, CollectionEntry::defaultC},
+                       "value");
         }
 
         flush_vbucket_to_disk(vbid, nitems);
@@ -755,9 +786,9 @@ TEST_F(CollectionsManagerTest, basic) {
     for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
         auto vbp = store->getVBucket(vb);
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                {"meat:bacon", CollectionEntry::meat}));
+                StoredDocKey{"meat:bacon", CollectionEntry::meat}));
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                {"anykey", DocNamespace::DefaultCollection}));
+                StoredDocKey{"anykey", CollectionEntry::defaultC}));
     }
 }
 
@@ -785,15 +816,15 @@ TEST_F(CollectionsManagerTest, basic2) {
         auto vbp = store->getVBucket(vb);
         if (vbp->getState() == vbucket_state_active) {
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                    {"meat:bacon", CollectionEntry::meat}));
+                    StoredDocKey{"meat:bacon", CollectionEntry::meat}));
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                    {"anykey", DocNamespace::DefaultCollection}));
+                    StoredDocKey{"anykey", CollectionEntry::defaultC}));
         } else {
             // Replica will be in default constructed settings
             EXPECT_FALSE(vbp->lockCollections().doesKeyContainValidCollection(
-                    {"meat:bacon", CollectionEntry::meat}));
+                    StoredDocKey{"meat:bacon", CollectionEntry::meat}));
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
-                    {"anykey", DocNamespace::DefaultCollection}));
+                    StoredDocKey{"anykey", CollectionEntry::defaultC}));
         }
     }
 }

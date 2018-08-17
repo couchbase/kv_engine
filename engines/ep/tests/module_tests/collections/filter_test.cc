@@ -350,17 +350,33 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
 
     // Yes to these guys
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"anykey", CollectionEntry::defaultC},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:bacon", CollectionEntry::meat}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"meat:bacon", CollectionEntry::meat},
+             0,
+             0,
+             nullptr,
+             0}));
 
     // No to these keys
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"dairy:milk", CollectionEntry::dairy}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"vegetable:cabbage", CollectionEntry::vegetable},
+            {StoredDocKey{"vegetable:cabbage", CollectionEntry::vegetable},
              0,
              0,
              nullptr,
@@ -384,9 +400,17 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
     Collections::VB::Filter vbf(f, vbm);
     // Legacy would only allow default
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"anykey", CollectionEntry::defaultC},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
+             0,
+             0,
+             nullptr,
+             0}));
 }
 
 /**
@@ -406,15 +430,35 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
     // Everything is allowed (even junk, which isn't the filter's job to police)
     Collections::VB::Filter vbf(f, vbm);
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"anykey", CollectionEntry::defaultC},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"meat:steak", CollectionEntry::meat},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"dairy:milk", CollectionEntry::dairy}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"JUNK!!", CollectionEntry::vegetable}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"JUNK!!", CollectionEntry::vegetable},
+             0,
+             0,
+             nullptr,
+             0}));
 }
 
 /**
@@ -436,15 +480,35 @@ TEST_F(CollectionsVBFilterTest, no_default) {
     // Now filter!
     Collections::VB::Filter vbf(f, vbm);
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"anykey", CollectionEntry::defaultC},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"meat:steak", CollectionEntry::meat},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"dairy:milk", CollectionEntry::dairy}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"JUNK!!", CollectionEntry::vegetable}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"JUNK!!", CollectionEntry::vegetable},
+             0,
+             0,
+             nullptr,
+             0}));
 }
 
 /**
@@ -467,7 +531,11 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
+             0,
+             0,
+             nullptr,
+             0}));
 
     // Process a deletion of fruit
     EXPECT_TRUE(
@@ -477,10 +545,18 @@ TEST_F(CollectionsVBFilterTest, remove1) {
                                                       {})));
 
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"fruit:apple", CollectionEntry::fruit}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
+             0,
+             0,
+             nullptr,
+             0}));
 
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"meat:steak", CollectionEntry::meat},
+             0,
+             0,
+             nullptr,
+             0}));
 
     // Process a deletion of meat
     auto deleteMeat = vbm.createSystemEvent(SystemEvent::Collection,
@@ -511,7 +587,11 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     Collections::Filter f(json, &m);
     Collections::VB::Filter vbf(f, vbm);
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"anykey", CollectionEntry::defaultC},
+             0,
+             0,
+             nullptr,
+             0}));
     // Process a deletion of $default
     EXPECT_TRUE(
             vbf.checkAndUpdate(*vbm.createSystemEvent(SystemEvent::Collection,
@@ -519,10 +599,18 @@ TEST_F(CollectionsVBFilterTest, remove2) {
                                                       true /*delete*/,
                                                       {})));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"anykey", DocNamespace::DefaultCollection}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"anykey", CollectionEntry::defaultC},
+             0,
+             0,
+             nullptr,
+             0}));
 
     EXPECT_TRUE(vbf.checkAndUpdate(
-            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"meat:steak", CollectionEntry::meat},
+             0,
+             0,
+             nullptr,
+             0}));
     // Process a deletion of meat
     auto deleteMeat = vbm.createSystemEvent(SystemEvent::Collection,
                                             CollectionEntry::meat,
@@ -530,11 +618,19 @@ TEST_F(CollectionsVBFilterTest, remove2) {
                                             {});
     EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"meat:apple", CollectionEntry::meat}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"meat:apple", CollectionEntry::meat},
+             0,
+             0,
+             nullptr,
+             0}));
     EXPECT_TRUE(vbf.empty()); // now empty
     EXPECT_FALSE(vbf.checkAndUpdate(*deleteMeat)); // no more meat for you
     EXPECT_FALSE(vbf.checkAndUpdate(
-            {{"meat:steak", CollectionEntry::meat}, 0, 0, nullptr, 0}));
+            {StoredDocKey{"meat:steak", CollectionEntry::meat},
+             0,
+             0,
+             nullptr,
+             0}));
 }
 
 /**

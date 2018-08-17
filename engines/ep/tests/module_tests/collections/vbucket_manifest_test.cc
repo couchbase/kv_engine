@@ -463,27 +463,27 @@ public:
 TEST_F(VBucketManifestTest, collectionExists) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
 }
 
 TEST_F(VBucketManifestTest, defaultCollectionExists) {
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"anykey", DocNamespace::DefaultCollection}));
+            StoredDocKey{"anykey", CollectionEntry::defaultC}));
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"anykey", DocNamespace::DefaultCollection}));
+            StoredDocKey{"anykey", CollectionEntry::defaultC}));
 }
 
 TEST_F(VBucketManifestTest, add_delete_in_one_update) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:cucumber", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:cucumber", CollectionEntry::vegetable}));
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)
                                         .add(CollectionEntry::vegetable2)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:cucumber", CollectionEntry::vegetable2}));
+            StoredDocKey{"vegetable:cucumber", CollectionEntry::vegetable2}));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
     EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
 }
@@ -523,13 +523,13 @@ TEST_F(VBucketManifestTest, updates2) {
 
     // But vegetable is accessible, the others are locked out
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"anykey", DocNamespace::DefaultCollection}));
+            StoredDocKey{"anykey", CollectionEntry::defaultC}));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"dairy:milk", CollectionEntry::dairy}));
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"meat:chicken", CollectionEntry::meat}));
+            StoredDocKey{"meat:chicken", CollectionEntry::meat}));
 }
 
 TEST_F(VBucketManifestTest, updates3) {
@@ -550,15 +550,15 @@ TEST_F(VBucketManifestTest, updates3) {
 
     // But vegetable is accessible, the others are 'locked' out
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"dairy:milk", CollectionEntry::dairy}));
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"meat:chicken", CollectionEntry::meat}));
+            StoredDocKey{"meat:chicken", CollectionEntry::meat}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"fruit:apple", CollectionEntry::fruit}));
+            StoredDocKey{"fruit:apple", CollectionEntry::fruit}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"anykey", DocNamespace::DefaultCollection}));
+            StoredDocKey{"anykey", CollectionEntry::defaultC}));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add) {
@@ -568,15 +568,16 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
     // The first manifest.update has dropped default collection and added
     // vegetable - test $default key with a seqno it could of existed with
     EXPECT_TRUE(manifest.isLogicallyDeleted(
-            {"anykey", DocNamespace::DefaultCollection}, seqno - 1));
+            StoredDocKey{"anykey", CollectionEntry::defaultC}, seqno - 1));
     // But vegetable is still good
     EXPECT_FALSE(manifest.isLogicallyDeleted(
-            {"vegetable:carrot", CollectionEntry::vegetable}, seqno));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable},
+            seqno));
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
@@ -584,11 +585,12 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
     // vegetable is now a deleting collection
     EXPECT_TRUE(manifest.isLogicallyDeleted(
-            {"vegetable:carrot", CollectionEntry::vegetable}, seqno));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable},
+            seqno));
 
     // add vegetable a second time
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
@@ -599,13 +601,15 @@ TEST_F(VBucketManifestTest, add_beginDelete_add) {
     EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable2}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable2}));
 
     // Now we expect older vegetables to be deleting and newer not to be.
     EXPECT_FALSE(manifest.isLogicallyDeleted(
-            {"vegetable:carrot", CollectionEntry::vegetable2}, newSeqno));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable2},
+            newSeqno));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
-            {"vegetable:carrot", CollectionEntry::vegetable}, oldSeqno));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable},
+            oldSeqno));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_delete) {
@@ -613,7 +617,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
@@ -621,15 +625,16 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
-            {"vegetable:carrot", CollectionEntry::vegetable}, seqno));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable},
+            seqno));
 
     // finally remove vegetable
     EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.checkSize(1));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 }
 
 TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
@@ -637,14 +642,14 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
     // remove vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
 
     // add vegetable:2
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
@@ -653,7 +658,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(manifest.isDeleting(CollectionEntry::vegetable));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable2}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable2}));
 
     // finally remove vegetable:1
     EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
@@ -663,7 +668,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable2));
 
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable2}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable2}));
 }
 
 TEST_F(VBucketManifestTest, invalidDeletes) {
@@ -723,13 +728,13 @@ TEST_F(VBucketManifestTest, replica_add_remove) {
 
     // Check we can access the remaining collections
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"vegetable:carrot", CollectionEntry::vegetable}));
+            StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
-            {"anykey", DocNamespace::DefaultCollection}));
+            StoredDocKey{"anykey", CollectionEntry::defaultC}));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"meat:sausage", CollectionEntry::meat}));
+            StoredDocKey{"meat:sausage", CollectionEntry::meat}));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            {"dairy:butter", CollectionEntry::dairy}));
+            StoredDocKey{"dairy:butter", CollectionEntry::dairy}));
 }
 
 TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
@@ -754,7 +759,7 @@ TEST_F(VBucketManifestTestEndSeqno, singleAdd) {
             manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(0));
     EXPECT_FALSE(manifest.isLogicallyDeleted(
-            {"vegetable:sprout", CollectionEntry::vegetable}, 1));
+            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 1));
 }
 
 TEST_F(VBucketManifestTestEndSeqno, singleDelete) {
@@ -768,9 +773,9 @@ TEST_F(VBucketManifestTestEndSeqno, singleDelete) {
     EXPECT_TRUE(manifest.checkGreatestEndSeqno(1));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
-            {"vegetable:sprout", DocNamespace::DefaultCollection}, 1));
+            StoredDocKey{"vegetable:sprout", CollectionEntry::defaultC}, 1));
     EXPECT_FALSE(manifest.isLogicallyDeleted(
-            {"vegetable:sprout", DocNamespace::DefaultCollection}, 2));
+            StoredDocKey{"vegetable:sprout", CollectionEntry::defaultC}, 2));
     EXPECT_TRUE(manifest.completeDeletion(CollectionID::DefaultCollection));
     EXPECT_TRUE(
             manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
@@ -791,20 +796,20 @@ TEST_F(VBucketManifestTestEndSeqno, addDeleteAdd) {
     EXPECT_TRUE(manifest.checkGreatestEndSeqno(2));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
-            {"vegetable:sprout", CollectionEntry::vegetable}, 1));
+            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 1));
 
     EXPECT_FALSE(manifest.isLogicallyDeleted(
-            {"vegetable:sprout", CollectionEntry::vegetable}, 3));
+            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 3));
 
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::vegetable2)));
 
     EXPECT_TRUE(manifest.checkGreatestEndSeqno(2));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(1));
     EXPECT_TRUE(manifest.isLogicallyDeleted(
-            {"vegetable:sprout", CollectionEntry::vegetable}, 1));
+            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 1));
 
     EXPECT_FALSE(manifest.isLogicallyDeleted(
-            {"vegetable:sprout", CollectionEntry::vegetable}, 3));
+            StoredDocKey{"vegetable:sprout", CollectionEntry::vegetable}, 3));
 
     EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
     EXPECT_TRUE(
@@ -818,9 +823,11 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
     // Add
     EXPECT_TRUE(manifest.update(cm));
 
+    StoredDocKey key1{"vegetable:v1", CollectionEntry::vegetable};
+    StoredDocKey key2{"fruit:v1", CollectionEntry::fruit};
+
     {
-        auto rh = manifest.active.lock(
-                {"vegetable:v1", CollectionEntry::vegetable});
+        auto rh = manifest.active.lock(key1);
         EXPECT_TRUE(rh.valid());
         EXPECT_EQ(CollectionEntry::vegetable.getId(),
                   rh.getKey().getDocNamespace());
@@ -829,7 +836,7 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
     }
 
     {
-        auto rh = manifest.active.lock({"fruit:v1", CollectionEntry::fruit});
+        auto rh = manifest.active.lock(key2);
         EXPECT_FALSE(rh.valid());
 
         // cached the key
@@ -841,8 +848,7 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
 
     {
-        auto rh = manifest.active.lock(
-                {"vegetable:v1", CollectionEntry::vegetable});
+        auto rh = manifest.active.lock(key1);
         EXPECT_FALSE(rh.valid());
 
         EXPECT_EQ(CollectionEntry::vegetable.getId(),
@@ -851,7 +857,7 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
                      reinterpret_cast<const char*>(rh.getKey().data()));
     }
     {
-        auto rh = manifest.active.lock({"fruit:v1", CollectionEntry::fruit});
+        auto rh = manifest.active.lock(key2);
         EXPECT_FALSE(rh.valid());
         EXPECT_EQ(CollectionEntry::fruit.getId(),
                   rh.getKey().getDocNamespace());
@@ -864,7 +870,7 @@ TEST_F(VBucketManifestCachingReadHandle, deleted_default) {
     // Check we can still get an iterator into the map when the default
     // collection is logically deleted only (i.e marked deleted, but in the map)
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
-
-    auto rh = manifest.active.lock({"fruit:v1", CollectionEntry::defaultC});
+    StoredDocKey key{"fruit:v1", CollectionEntry::defaultC};
+    auto rh = manifest.active.lock(key);
     EXPECT_TRUE(rh.isLogicallyDeleted(0));
 }

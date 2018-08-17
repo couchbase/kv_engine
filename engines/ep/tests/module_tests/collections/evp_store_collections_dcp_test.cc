@@ -224,7 +224,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
-            {"meat:bacon", CollectionEntry::meat}));
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // Call the consumer function for handling DCP events
     // create the meat collection
@@ -241,7 +241,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
 
     // We can now access the collection
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
-            {"meat:bacon", CollectionEntry::meat}));
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
     EXPECT_TRUE(vb->lockCollections().isCollectionOpen(CollectionEntry::meat));
     EXPECT_EQ(0xcafef00d, vb->lockCollections().getManifestUid());
 
@@ -260,7 +260,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
 
     // It's gone!
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
-            {"meat:bacon", CollectionEntry::meat}));
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     consumer->closeAllStreams();
     destroy_mock_cookie(cookie);
@@ -287,14 +287,14 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
     // 1. Replica does not know about meat
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
-            {"meat:bacon", CollectionEntry::meat}));
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // Now step the producer to transfer the collection creation
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
     // 1. Replica now knows the collection
     EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
-            {"meat:bacon", CollectionEntry::meat}));
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // remove meat
     vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
@@ -306,7 +306,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
     // 3. Replica now blocking access to meat
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
-            {"meat:bacon", CollectionEntry::meat}));
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
     // Now step the producer, no more collection events
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
@@ -363,13 +363,15 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
         // Mutate dairy
         for (int ii = 0; ii < items; ii++) {
             std::string key = "dairy:" + std::to_string(ii);
-            store_item(vbid, {key, CollectionEntry::dairy}, "value");
+            store_item(
+                    vbid, StoredDocKey{key, CollectionEntry::dairy}, "value");
         }
 
         // Mutate fruit
         for (int ii = 0; ii < items; ii++) {
             std::string key = "fruit:" + std::to_string(ii);
-            store_item(vbid, {key, CollectionEntry::fruit}, "value");
+            store_item(
+                    vbid, StoredDocKey{key, CollectionEntry::fruit}, "value");
         }
 
         // Delete dairy
@@ -420,13 +422,15 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
         // Mutate dairy
         for (int ii = 0; ii < items; ii++) {
             std::string key = "dairy:" + std::to_string(ii);
-            store_item(vbid, {key, CollectionEntry::dairy}, "value");
+            store_item(
+                    vbid, StoredDocKey{key, CollectionEntry::dairy}, "value");
         }
 
         // Mutate fruit
         for (int ii = 0; ii < items; ii++) {
             std::string key = "fruit:" + std::to_string(ii);
-            store_item(vbid, {key, CollectionEntry::fruit}, "value");
+            store_item(
+                    vbid, StoredDocKey{key, CollectionEntry::fruit}, "value");
         }
 
         // Flush the creates and the items, but do not flush the next delete
@@ -484,7 +488,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
         const int items = 3;
         for (int ii = 0; ii < items; ii++) {
             std::string key = "dairy:" + std::to_string(ii);
-            store_item(vbid, {key, CollectionEntry::dairy}, "value");
+            store_item(
+                    vbid, StoredDocKey{key, CollectionEntry::dairy}, "value");
         }
 
         // Delete dairy
@@ -525,7 +530,8 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
         const int items = 3;
         for (int ii = 0; ii < items; ii++) {
             std::string key = "dairy:" + std::to_string(ii);
-            store_item(vbid, {key, CollectionEntry::dairy}, "value");
+            store_item(
+                    vbid, StoredDocKey{key, CollectionEntry::dairy}, "value");
         }
 
         // Delete dairy/create dairy in *one* update
@@ -569,7 +575,7 @@ TEST_F(CollectionsDcpTest, MB_26455) {
             // Mutate fruit
             for (int ii = 0; ii < items; ii++) {
                 std::string key = "fruit:" + std::to_string(ii);
-                store_item(vbid, {key, n}, "value");
+                store_item(vbid, StoredDocKey{key, n}, "value");
             }
 
             // expect create_collection + items
@@ -672,11 +678,16 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
 
     // Store collection documents
     std::array<std::string, 2> expectedKeys = {{"dairy:one", "dairy:two"}};
-    store_item(vbid, {"meat:one", CollectionEntry::meat}, "value");
-    store_item(vbid, {expectedKeys[0], CollectionEntry::dairy}, "value");
-    store_item(vbid, {"meat:two", CollectionEntry::meat}, "value");
-    store_item(vbid, {expectedKeys[1], CollectionEntry::dairy}, "value");
-    store_item(vbid, {"meat:three", CollectionEntry::meat}, "value");
+    store_item(vbid, StoredDocKey{"meat:one", CollectionEntry::meat}, "value");
+    store_item(vbid,
+               StoredDocKey{expectedKeys[0], CollectionEntry::dairy},
+               "value");
+    store_item(vbid, StoredDocKey{"meat:two", CollectionEntry::meat}, "value");
+    store_item(vbid,
+               StoredDocKey{expectedKeys[1], CollectionEntry::dairy},
+               "value");
+    store_item(
+            vbid, StoredDocKey{"meat:three", CollectionEntry::meat}, "value");
 
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -726,9 +737,10 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     createDcpObjects({{R"({"collections":["6"]})"}});
 
     // Store collection documents
-    store_item(vbid, {"meat::one", CollectionEntry::meat}, "value");
-    store_item(vbid, {"meat::two", CollectionEntry::meat}, "value");
-    store_item(vbid, {"meat::three", CollectionEntry::meat}, "value");
+    store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "value");
+    store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "value");
+    store_item(
+            vbid, StoredDocKey{"meat::three", CollectionEntry::meat}, "value");
 
     notifyAndStepToCheckpoint();
 
@@ -741,9 +753,12 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 
     // and new mutations?
-    store_item(vbid, {"meat::one1", CollectionEntry::meat}, "value");
-    store_item(vbid, {"meat::two2", CollectionEntry::meat}, "value");
-    store_item(vbid, {"meat::three3", CollectionEntry::meat}, "value");
+    store_item(
+            vbid, StoredDocKey{"meat::one1", CollectionEntry::meat}, "value");
+    store_item(
+            vbid, StoredDocKey{"meat::two2", CollectionEntry::meat}, "value");
+    store_item(
+            vbid, StoredDocKey{"meat::three3", CollectionEntry::meat}, "value");
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::Invalid);
 }
 
@@ -760,11 +775,15 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
     createDcpObjects({/*no collections*/});
 
     // Store collection documents and one default collection document
-    store_item(vbid, {"meat:one", CollectionEntry::meat}, "value");
-    store_item(vbid, {"dairy:one", CollectionEntry::dairy}, "value");
-    store_item(vbid, {"anykey", DocNamespace::DefaultCollection}, "value");
-    store_item(vbid, {"dairy:two", CollectionEntry::dairy}, "value");
-    store_item(vbid, {"meat:three", CollectionEntry::meat}, "value");
+    store_item(vbid, StoredDocKey{"meat:one", CollectionEntry::meat}, "value");
+    store_item(
+            vbid, StoredDocKey{"dairy:one", CollectionEntry::dairy}, "value");
+    store_item(
+            vbid, StoredDocKey{"anykey", CollectionEntry::defaultC}, "value");
+    store_item(
+            vbid, StoredDocKey{"dairy:two", CollectionEntry::dairy}, "value");
+    store_item(
+            vbid, StoredDocKey{"meat:three", CollectionEntry::meat}, "value");
 
     auto vb0Stream = producer->findStream(0);
     ASSERT_NE(nullptr, vb0Stream.get());

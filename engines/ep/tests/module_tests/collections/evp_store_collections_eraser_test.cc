@@ -58,15 +58,18 @@ TEST_P(CollectionsEraserTest, basic) {
     flush_vbucket_to_disk(vbid, 1 /* 1 x system */);
 
     // add some items
-    store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "nice");
-    store_item(vbid, {"dairy:butter", CollectionEntry::dairy}, "lovely");
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
 
     flush_vbucket_to_disk(vbid, 2 /* 2 x items */);
 
     EXPECT_EQ(2, vb->getNumItems());
 
     // Evict one of the keys, we should still erase it
-    evict_key(vbid, {"dairy:butter", CollectionEntry::dairy});
+    evict_key(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
 
     // delete the collection
     vb->updateFromManifest({cm.remove(CollectionEntry::dairy)});
@@ -91,10 +94,16 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
     flush_vbucket_to_disk(vbid, 2 /* 2 x system */);
 
     // add some items
-    store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "nice");
-    store_item(vbid, {"dairy:butter", CollectionEntry::dairy}, "lovely");
-    store_item(vbid, {"fruit:apple", CollectionEntry::fruit}, "nice");
-    store_item(vbid, {"fruit:apricot", CollectionEntry::fruit}, "lovely");
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+    store_item(
+            vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid,
+               StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
+               "lovely");
 
     flush_vbucket_to_disk(vbid, 4);
 
@@ -126,10 +135,16 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
     flush_vbucket_to_disk(vbid, 2 /* 1x system */);
 
     // add some items
-    store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "nice");
-    store_item(vbid, {"dairy:butter", CollectionEntry::dairy}, "lovely");
-    store_item(vbid, {"fruit:apple", CollectionEntry::fruit}, "nice");
-    store_item(vbid, {"fruit:apricot", CollectionEntry::fruit}, "lovely");
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+    store_item(
+            vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid,
+               StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
+               "lovely");
 
     flush_vbucket_to_disk(vbid, 4 /* 2x items */);
 
@@ -160,10 +175,16 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
     flush_vbucket_to_disk(vbid, 2 /* 1x system */);
 
     // add some items
-    store_item(vbid, {"dairy:milk", CollectionEntry::dairy}, "nice");
-    store_item(vbid, {"dairy:butter", CollectionEntry::dairy}, "lovely");
-    store_item(vbid, {"fruit:apple", CollectionEntry::fruit}, "nice");
-    store_item(vbid, {"fruit:apricot", CollectionEntry::fruit}, "lovely");
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+    store_item(
+            vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid,
+               StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
+               "lovely");
 
     flush_vbucket_to_disk(vbid, 4 /* 2x items */);
 
@@ -189,12 +210,18 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
 
 TEST_P(CollectionsEraserTest, default_Destroy) {
     // add some items
-    store_item(vbid, {"dairy:milk", DocNamespace::DefaultCollection}, "nice");
-    store_item(
-            vbid, {"dairy:butter", DocNamespace::DefaultCollection}, "lovely");
-    store_item(vbid, {"fruit:apple", DocNamespace::DefaultCollection}, "nice");
-    store_item(
-            vbid, {"fruit:apricot", DocNamespace::DefaultCollection}, "lovely");
+    store_item(vbid,
+               StoredDocKey{"dairy:milk", CollectionEntry::defaultC},
+               "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::defaultC},
+               "lovely");
+    store_item(vbid,
+               StoredDocKey{"fruit:apple", CollectionEntry::defaultC},
+               "nice");
+    store_item(vbid,
+               StoredDocKey{"fruit:apricot", CollectionEntry::defaultC},
+               "lovely");
 
     flush_vbucket_to_disk(vbid, 4);
 
@@ -217,10 +244,11 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
-    GetValue gv = store->get({"dairy:milk", DocNamespace::DefaultCollection},
-                             vbid,
-                             cookie,
-                             options);
+    GetValue gv =
+            store->get(StoredDocKey{"dairy:milk", CollectionEntry::defaultC},
+                       vbid,
+                       cookie,
+                       options);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 }
 
