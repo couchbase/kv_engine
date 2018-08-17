@@ -302,7 +302,7 @@ public:
         }
 
         if (!create_engine_instance(
-                    real_engine_ref, get_wrapped_gsa, &real_handle)) {
+                    real_engine_ref, get_wrapped_gsa, &real_engine)) {
             LOG_CRITICAL(
                     "ERROR: EWB_Engine::initialize(): Failed create "
                     "engine instance '{}'",
@@ -310,10 +310,9 @@ public:
             abort();
         }
 
-        real_engine = real_handle;
         real_engine_dcp = dynamic_cast<DcpIface*>(real_engine);
 
-        engine_map[real_handle] = this;
+        engine_map[real_engine] = this;
         ENGINE_ERROR_CODE res =
                 real_engine->initialize(real_engine_config.c_str());
 
@@ -848,8 +847,6 @@ public:
     GET_SERVER_API gsa;
 
     // Actual engine we are proxying requests to.
-    EngineIface*
-            real_handle; // TODO: Remove real_handle as same as real_engine now.
     EngineIface* real_engine;
     engine_reference* real_engine_ref;
 
@@ -1246,7 +1243,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 }
 
 EWB_Engine::~EWB_Engine() {
-    engine_map.erase(real_handle);
+    engine_map.erase(real_engine);
     cb_free(real_engine_ref);
     stop_notification_thread = true;
     condvar.notify_all();
@@ -1615,7 +1612,7 @@ cb::engine_error EWB_Engine::collections_set_manifest(
         return {cb::engine_errc::not_supported,
                 "EWB_Engine::collections_set_manifest"};
     } else {
-        return ewb->real_engine->collections.set_manifest(ewb->real_handle,
+        return ewb->real_engine->collections.set_manifest(ewb->real_engine,
                                                           json);
     }
 }
@@ -1627,7 +1624,7 @@ cb::EngineErrorStringPair EWB_Engine::collections_get_manifest(
         return {cb::engine_errc::not_supported,
                 "EWB_Engine::collections_get_manifest"};
     } else {
-        return ewb->real_engine->collections.get_manifest(ewb->real_handle);
+        return ewb->real_engine->collections.get_manifest(ewb->real_engine);
     }
 }
 
