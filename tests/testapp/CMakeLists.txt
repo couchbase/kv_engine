@@ -46,6 +46,7 @@ set(memcached_testapp_SOURCES
     testapp_ipv6.cc
     testapp_legacy_users.cc
     testapp_lock.cc
+    testapp_logging.cc
     testapp_misc.cc
     testapp_no_autoselect_default_bucket.cc
     testapp_persistence.cc
@@ -73,7 +74,7 @@ set(memcached_testapp_SOURCES
     utilities.h
     ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
     ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
-    )
+    ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 
 add_executable(memcached_testapp ${memcached_testapp_SOURCES})
 target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})

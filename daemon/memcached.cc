@@ -250,17 +250,12 @@ void associate_initial_bucket(Connection& connection) {
 }
 
 static void populate_log_level(void*) {
-    // Lock the entire buckets array so that buckets can't be modified while
-    // we notify them (blocking bucket creation/deletion)
     const auto val = settings.getLogLevel();
 
-    std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
-    for (auto& bucket : all_buckets) {
-        std::lock_guard<std::mutex> guard(bucket.mutex);
-        if (bucket.state == BucketState::Ready) {
-            bucket.getEngine()->set_log_level(val);
-        }
-    }
+    // Log the verbosity value set by the user and not the log level as they
+    // are inverted
+    LOG_INFO("Changing logging level to {}", settings.getVerbose());
+    cb::logger::setLogLevels(val);
 }
 
 /* Perform all callbacks of a given type for the given connection. */
