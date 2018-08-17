@@ -538,11 +538,6 @@ public:
         return memOverhead;
     }
 
-    static const StoredDocKey DummyKey;
-    static const StoredDocKey CheckpointStartKey;
-    static const StoredDocKey CheckpointEndKey;
-    static const StoredDocKey SetVBucketStateKey;
-
 private:
     EPStats                       &stats;
     uint64_t                       checkpointId;

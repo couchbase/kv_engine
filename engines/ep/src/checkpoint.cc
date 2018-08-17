@@ -256,11 +256,6 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
     return rv;
 }
 
-const StoredDocKey Checkpoint::DummyKey("dummy_key", DocNamespace::System);
-const StoredDocKey Checkpoint::CheckpointStartKey("checkpoint_start", DocNamespace::System);
-const StoredDocKey Checkpoint::CheckpointEndKey("checkpoint_end", DocNamespace::System);
-const StoredDocKey Checkpoint::SetVBucketStateKey("set_vbucket_state", DocNamespace::System);
-
 uint64_t Checkpoint::getMutationIdForKey(const DocKey& key, bool isMeta) {
     uint64_t mid = 0;
     checkpoint_index& chkIdx = isMeta ? metaKeyIndex : keyIndex;
