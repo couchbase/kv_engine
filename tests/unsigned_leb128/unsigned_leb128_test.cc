@@ -27,6 +27,13 @@ class UnsignedLeb128 : public ::testing::Test {};
 using MyTypes = ::testing::Types<uint8_t, uint16_t, uint32_t, uint64_t>;
 TYPED_TEST_CASE(UnsignedLeb128, MyTypes);
 
+TEST(UnsignedLeb128, MaxSize) {
+    EXPECT_EQ(2, cb::mcbp::unsigned_leb128<uint8_t>::getMaxSize());
+    EXPECT_EQ(3, cb::mcbp::unsigned_leb128<uint16_t>::getMaxSize());
+    EXPECT_EQ(5, cb::mcbp::unsigned_leb128<uint32_t>::getMaxSize());
+    EXPECT_EQ(10, cb::mcbp::unsigned_leb128<uint64_t>::getMaxSize());
+}
+
 TYPED_TEST(UnsignedLeb128, EncodeDecode0) {
     cb::mcbp::unsigned_leb128<TypeParam> zero(0);
     EXPECT_EQ(1, zero.get().size());
@@ -149,4 +156,30 @@ TYPED_TEST(UnsignedLeb128, DecodeInvalidInput) {
         FAIL() << "Decode didn't throw";
     } catch (const std::invalid_argument&) {
     }
+}
+
+// Encode a value and expect the iterators to iterate the encoded bytes
+TYPED_TEST(UnsignedLeb128, iterators) {
+    TypeParam value = 1; // Upto 127 and it's 1 byte
+    cb::mcbp::unsigned_leb128<TypeParam> leb(value);
+    int loopCounter = 0;
+    for (const auto c : leb) {
+        (void)c;
+        loopCounter++;
+    }
+    EXPECT_EQ(1, loopCounter);
+    loopCounter = 0;
+
+    for (auto itr = leb.begin(); itr != leb.end(); itr++) {
+        loopCounter++;
+    }
+    EXPECT_EQ(1, loopCounter);
+}
+
+// Set some expectations around the get/data/size API
+TYPED_TEST(UnsignedLeb128, basic_api_checks) {
+    TypeParam value = gsl::narrow_cast<TypeParam>(5555);
+    cb::mcbp::unsigned_leb128<TypeParam> leb(value);
+    EXPECT_EQ(leb.get().size(), leb.size());
+    EXPECT_EQ(leb.get().data(), leb.data());
 }

@@ -1661,7 +1661,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
 
     if (isCollectionsSupported()) {
         // Encode a leb128 variable int for the CID
-        nkey += gsl::narrow<uint16_t>(cid.get().size());
+        nkey += gsl::narrow<uint16_t>(cid.size());
     }
 
     protocol_binary_request_dcp_mutation packet(
@@ -1692,7 +1692,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
 
         auto next = std::copy(packet.bytes, packet.bytes + hlen, wbuf.begin());
         if (isCollectionsSupported()) {
-            std::copy(cid.get().begin(), cid.get().end(), next);
+            std::copy(cid.begin(), cid.end(), next);
         }
 
         if (nmeta > 0) {
@@ -1730,7 +1730,7 @@ ENGINE_ERROR_CODE Connection::deletionInner(
                            cb::byte_buffer buffer) -> size_t {
         if (buffer.size() <
             (packet.size() +
-             cb::mcbp::unsigned_leb128<CollectionIDType>::maxSize +
+             cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize() +
              extendedMeta.size())) {
             ret = ENGINE_E2BIG;
             return 0;
@@ -1743,8 +1743,8 @@ ENGINE_ERROR_CODE Connection::deletionInner(
             // Encode a leb128 CID
             cb::mcbp::unsigned_leb128<CollectionIDType> leb128Cid(
                     info.key.getCollectionID());
-            std::copy(leb128Cid.get().begin(), leb128Cid.get().end(), next);
-            clen = leb128Cid.get().size();
+            std::copy(leb128Cid.begin(), leb128Cid.end(), next);
+            clen = leb128Cid.size();
         }
 
         if (extendedMeta.size() > 0) {
