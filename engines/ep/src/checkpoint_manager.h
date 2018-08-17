@@ -397,10 +397,6 @@ protected:
         bool onCpktStart;
     };
 
-    // Map of cursor name to position. Used when updating cursor positions
-    // when collapsing checkpoints.
-    using CursorIdToPositionMap = std::map<std::string, CursorPosition>;
-
     bool removeCursor_UNLOCKED(const CheckpointCursor* cursor);
 
     CursorRegResult registerCursorBySeqno_UNLOCKED(
