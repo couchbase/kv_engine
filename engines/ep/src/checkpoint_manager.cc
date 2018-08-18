@@ -407,81 +407,91 @@ bool CheckpointManager::isCheckpointCreationForHighMemUsage_UNLOCKED(
 size_t CheckpointManager::removeClosedUnrefCheckpoints(
         VBucket& vbucket, bool& newOpenCheckpointCreated) {
     // This function is executed periodically by the non-IO dispatcher.
-    LockHolder lh(queueLock);
-    uint64_t oldCheckpointId = 0;
-    bool canCreateNewCheckpoint = false;
-    if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
-        (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
-         checkpointList.front()->getNumberOfCursors() == 0)) {
-        canCreateNewCheckpoint = true;
-    }
-    if (vbucket.getState() == vbucket_state_active && canCreateNewCheckpoint) {
-        bool forceCreation =
-                isCheckpointCreationForHighMemUsage_UNLOCKED(lh, vbucket);
-        // Check if this master active vbucket needs to create a new open
-        // checkpoint.
-        oldCheckpointId = checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
-    }
-    newOpenCheckpointCreated = oldCheckpointId > 0;
-
-    if (checkpointConfig.canKeepClosedCheckpoints()) {
-        double memoryUsed =
-                static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-        if (memoryUsed < stats.mem_high_wat &&
-            checkpointList.size() <= checkpointConfig.getMaxCheckpoints()) {
-            return 0;
-        }
-    }
-
     size_t numUnrefItems = 0;
-    size_t numMetaItems = 0;
-    size_t numCheckpointsRemoved = 0;
-    // Checkpoints in the `unrefCheckpointList` have to be deleted before we
-    // return from this function. With smart pointers, deletion happens when
-    // `unrefCheckpointList` goes out of scope (i.e., when this function
-    // returns).
-    CheckpointList unrefCheckpointList;
-    // Iterate through the current checkpoints (from oldest to newest), checking
-    // if the checkpoint can be removed.
-    auto it = checkpointList.begin();
-    // Note terminating condition - we stop at one before the last checkpoint -
-    // we must leave at least one checkpoint in existence.
-    for (;
-         it != checkpointList.end() && std::next(it) != checkpointList.end();
-         ++it) {
+    {
+        LockHolder lh(queueLock);
+        uint64_t oldCheckpointId = 0;
+        bool canCreateNewCheckpoint = false;
+        if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
+            (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
+             checkpointList.front()->getNumberOfCursors() == 0)) {
+            canCreateNewCheckpoint = true;
+        }
+        if (vbucket.getState() == vbucket_state_active &&
+            canCreateNewCheckpoint) {
+            bool forceCreation =
+                    isCheckpointCreationForHighMemUsage_UNLOCKED(lh, vbucket);
+            // Check if this master active vbucket needs to create a new open
+            // checkpoint.
+            oldCheckpointId =
+                    checkOpenCheckpoint_UNLOCKED(lh, forceCreation, true);
+        }
+        newOpenCheckpointCreated = oldCheckpointId > 0;
 
-        removeInvalidCursorsOnCheckpoint((*it).get());
-
-        // When we encounter the first checkpoint which has cursor(s) in it,
-        // or if the persistence cursor is still operating, stop.
-        if ((*it)->getNumberOfCursors() > 0 ||
-                (checkpointConfig.isPersistenceEnabled() &&
-                 (*it)->getId() > pCursorPreCheckpointId)) {
-            break;
-        } else {
-            numUnrefItems += (*it)->getNumItems();
-            numMetaItems += (*it)->getNumMetaItems();
-            ++numCheckpointsRemoved;
-            if (checkpointConfig.canKeepClosedCheckpoints() &&
-                (checkpointList.size() - numCheckpointsRemoved) <=
-                 checkpointConfig.getMaxCheckpoints()) {
-                // Collect unreferenced closed checkpoints until the number
-                // of checkpoints is
-                // equal to the number of max checkpoints allowed.
-                ++it;
-                break;
+        if (checkpointConfig.canKeepClosedCheckpoints()) {
+            double memoryUsed =
+                    static_cast<double>(stats.getEstimatedTotalMemoryUsed());
+            if (memoryUsed < stats.mem_high_wat &&
+                checkpointList.size() <= checkpointConfig.getMaxCheckpoints()) {
+                return 0;
             }
         }
-    }
-    size_t total_items = numUnrefItems + numMetaItems;
-    numItems.fetch_sub(total_items);
-    if (total_items > 0) {
-        for (auto& cursor : connCursors) {
-            cursor.second->decrOffset(total_items);
+
+        size_t numMetaItems = 0;
+        size_t numCheckpointsRemoved = 0;
+        // Checkpoints in the `unrefCheckpointList` have to be deleted before we
+        // return from this function. With smart pointers, deletion happens when
+        // `unrefCheckpointList` goes out of scope (i.e., when this function
+        // returns).
+        CheckpointList unrefCheckpointList;
+        // Iterate through the current checkpoints (from oldest to newest),
+        // checking if the checkpoint can be removed.
+        auto it = checkpointList.begin();
+        // Note terminating condition - we stop at one before the last
+        // checkpoint - we must leave at least one checkpoint in existence.
+        for (; it != checkpointList.end() &&
+               std::next(it) != checkpointList.end();
+             ++it) {
+            removeInvalidCursorsOnCheckpoint((*it).get());
+
+            // When we encounter the first checkpoint which has cursor(s) in it,
+            // or if the persistence cursor is still operating, stop.
+            if ((*it)->getNumberOfCursors() > 0 ||
+                (checkpointConfig.isPersistenceEnabled() &&
+                 (*it)->getId() > pCursorPreCheckpointId)) {
+                break;
+            } else {
+                numUnrefItems += (*it)->getNumItems();
+                numMetaItems += (*it)->getNumMetaItems();
+                ++numCheckpointsRemoved;
+                if (checkpointConfig.canKeepClosedCheckpoints() &&
+                    (checkpointList.size() - numCheckpointsRemoved) <=
+                            checkpointConfig.getMaxCheckpoints()) {
+                    // Collect unreferenced closed checkpoints until the number
+                    // of checkpoints is
+                    // equal to the number of max checkpoints allowed.
+                    ++it;
+                    break;
+                }
+            }
         }
+        size_t total_items = numUnrefItems + numMetaItems;
+        numItems.fetch_sub(total_items);
+        if (total_items > 0) {
+            for (auto& cursor : connCursors) {
+                cursor.second->decrOffset(total_items);
+            }
+        }
+        unrefCheckpointList.splice(unrefCheckpointList.begin(),
+                                   checkpointList,
+                                   checkpointList.begin(),
+                                   it);
     }
-    unrefCheckpointList.splice(unrefCheckpointList.begin(), checkpointList,
-                               checkpointList.begin(), it);
+    // Here we have released the lock and unrefCheckpointList goes out-of-scope.
+    // Thus, checkpoint memory freeing doen't happen under lock.
+    // That is very important as releasing objects is an expensive operation, so
+    // it would have a relevant impact on front-end operations.
+    // Also note that this function is O(N), with N being checkpointList.size().
 
     return numUnrefItems;
 }
