@@ -88,7 +88,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
     uint32_t bodylen = gsl::narrow<uint32_t>(sizeof(info.flags) + payload.len);
 
     if (shouldSendKey()) {
-        keylen = uint16_t(info.nkey);
+        keylen = gsl::narrow<uint16_t>(info.key.size());
         bodylen += keylen;
     }
 
@@ -106,7 +106,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     // Add the value
     if (shouldSendKey()) {
-        connection.addIov(info.key, info.nkey);
+        connection.addIov(info.key.data(), info.key.size());
     }
 
     connection.addIov(payload.buf, payload.len);

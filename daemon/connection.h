@@ -1051,8 +1051,7 @@ protected:
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
                                     cb::const_byte_buffer packet,
-                                    cb::const_byte_buffer extendedMeta,
-                                    CollectionID cid);
+                                    cb::const_byte_buffer extendedMeta);
 
     /**
      * Add the provided packet to the send pipe for the connection

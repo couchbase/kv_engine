@@ -381,12 +381,11 @@ boost::optional<item_info> StoredValue::getItemInfo(uint64_t vbuuid) const {
     info.datatype = datatype;
     info.document_state =
             isDeleted() ? DocumentState::Deleted : DocumentState::Alive;
-    info.nkey = getKey().size();
-    info.key = getKey().data();
     if (getValue()) {
         info.value[0].iov_base = const_cast<char*>(getValue()->getData());
         info.value[0].iov_len = getValue()->valueSize();
     }
+    info.key = getKey();
     return info;
 }
 

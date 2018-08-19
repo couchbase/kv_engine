@@ -928,8 +928,9 @@ bool default_engine::get_item_info(gsl::not_null<const item*> item,
     }
     item_info->nbytes = it->nbytes;
     item_info->flags = it->flags;
-    item_info->nkey = hash_key_get_client_key_len(key);
-    item_info->key = hash_key_get_client_key(key);
+    item_info->key = {hash_key_get_client_key(key),
+                      hash_key_get_client_key_len(key),
+                      CollectionID::DefaultCollection};
     item_info->value[0].iov_base = item_get_data(it);
     item_info->value[0].iov_len = it->nbytes;
     item_info->datatype = it->datatype;

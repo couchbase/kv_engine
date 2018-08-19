@@ -88,8 +88,6 @@ struct item_info {
           flags(0),
           datatype(0),
           document_state(DocumentState::Deleted),
-          nkey(0),
-          key(nullptr),
           value{},
           cas_is_hlc(false) {
     }
@@ -105,8 +103,7 @@ struct item_info {
      * The current state of the document (Deleted or Alive).
      */
     DocumentState document_state;
-    uint16_t nkey; /**< The total length of the key (in bytes) */
-    const void *key;
+
     /**
      * If the xattr bit is set in datatype the first uint32_t contains
      * the size of the extended attributes which follows next, and
@@ -119,7 +116,10 @@ struct item_info {
      */
     bool cas_is_hlc;
 
-    CollectionID collectionID;
+    /**
+     * Item's DocKey
+     */
+    DocKey key{nullptr, 0, CollectionID::DefaultCollection};
 };
 
 /* Forward declaration of the server handle -- to be filled in later */

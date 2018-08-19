@@ -360,8 +360,9 @@ static enum test_result get_item_info_test(EngineIface* h) {
     cb_assert(h->get_item_info(ret.second.get(), &ii));
     assert_equal(cas, ii.cas);
     assert_equal(0u, ii.flags);
-    cb_assert(strcmp(reinterpret_cast<const char*>(key.data()), static_cast<const char*>(ii.key)) == 0);
-    assert_equal(uint16_t(key.size()), ii.nkey);
+    cb_assert(strcmp(reinterpret_cast<const char*>(key.data()),
+                     reinterpret_cast<const char*>(ii.key.data())) == 0);
+    assert_equal(key.size(), ii.key.size());
     assert_equal(1u, ii.nbytes);
     // exptime is a rel_time_t; i.e. seconds since server started. Therefore can only
     // check that the returned value is at least as large as the value

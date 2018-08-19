@@ -1656,8 +1656,8 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     // the item.
     item.release();
 
-    auto nkey = info.nkey;
-    cb::mcbp::unsigned_leb128<CollectionIDType> cid(info.collectionID);
+    auto nkey = gsl::narrow<uint16_t>(info.key.size());
+    cb::mcbp::unsigned_leb128<CollectionIDType> cid(info.key.getCollectionID());
 
     if (isCollectionsSupported()) {
         // Encode a leb128 variable int for the CID
@@ -1705,7 +1705,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
         addIov(wbuf.data(), hlen + clen);
 
         // Add the key
-        addIov(info.key, info.nkey);
+        addIov(info.key.data(), info.key.size());
 
         // Add the value
         addIov(buffer.buf, buffer.len);
@@ -1721,12 +1721,12 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     return ret;
 }
 
-ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
-                                            cb::const_byte_buffer packet,
-                                            cb::const_byte_buffer extendedMeta,
-                                            CollectionID cid) {
+ENGINE_ERROR_CODE Connection::deletionInner(
+        const item_info& info,
+        cb::const_byte_buffer packet,
+        cb::const_byte_buffer extendedMeta) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &packet, &extendedMeta, &info, &cid, &ret](
+    write->produce([this, &packet, &extendedMeta, &info, &ret](
                            cb::byte_buffer buffer) -> size_t {
         if (buffer.size() <
             (packet.size() +
@@ -1741,7 +1741,8 @@ ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
         size_t clen = 0;
         if (isCollectionsSupported()) {
             // Encode a leb128 CID
-            cb::mcbp::unsigned_leb128<CollectionIDType> leb128Cid(cid);
+            cb::mcbp::unsigned_leb128<CollectionIDType> leb128Cid(
+                    info.key.getCollectionID());
             std::copy(leb128Cid.get().begin(), leb128Cid.get().end(), next);
             clen = leb128Cid.get().size();
         }
@@ -1756,7 +1757,7 @@ ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
         addIov(buffer.data(), packet.size() + clen);
 
         // Add the key
-        addIov(info.key, info.nkey);
+        addIov(info.key.data(), info.key.size());
 
         // Add the optional payload (xattr)
         if (info.nbytes > 0) {
@@ -1807,23 +1808,23 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     // the item.
     item.release();
 
-    protocol_binary_request_dcp_deletion packet(opaque,
-                                                vbucket,
-                                                info.cas,
-                                                info.nkey,
-                                                info.nbytes,
-                                                info.datatype,
-                                                by_seqno,
-                                                rev_seqno,
-                                                nmeta);
+    protocol_binary_request_dcp_deletion packet(
+            opaque,
+            vbucket,
+            info.cas,
+            gsl::narrow<uint16_t>(info.key.size()),
+            info.nbytes,
+            info.datatype,
+            by_seqno,
+            rev_seqno,
+            nmeta);
 
     cb::const_byte_buffer packetBuffer{
             reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)};
     cb::const_byte_buffer extendedMeta{reinterpret_cast<const uint8_t*>(meta),
                                        nmeta};
 
-    return deletionInner(
-            info, packetBuffer, extendedMeta, CollectionID::DefaultCollection);
+    return deletionInner(info, packetBuffer, extendedMeta);
 }
 
 ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
@@ -1851,7 +1852,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     // the item.
     item.release();
 
-    auto nkey = info.nkey;
+    auto nkey = gsl::narrow<uint16_t>(info.key.size());
     if (isCollectionsSupported()) {
         nkey += sizeof(CollectionID);
     }
@@ -1870,8 +1871,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     return deletionInner(
             info,
             {reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)},
-            {/*no extended meta in v2*/},
-            info.collectionID);
+            {/*no extended meta in v2*/});
 }
 
 ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,

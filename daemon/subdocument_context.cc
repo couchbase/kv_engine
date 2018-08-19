@@ -371,10 +371,11 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
                          in_doc,
                          inflated_doc_buffer)) {
                 char clean_key[KEY_MAX_LENGTH + 32];
-                if (buf_to_printable_buffer(clean_key,
-                                            sizeof(clean_key),
-                                            static_cast<const char*>(info.key),
-                                            info.nkey) != -1) {
+                if (buf_to_printable_buffer(
+                            clean_key,
+                            sizeof(clean_key),
+                            reinterpret_cast<const char*>(info.key.data()),
+                            info.key.size()) != -1) {
                     LOG_WARNING(
                             "<{} ERROR: Failed to determine inflated body"
                             " size. Key: '{}' may have an "

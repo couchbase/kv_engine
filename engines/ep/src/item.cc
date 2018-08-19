@@ -278,15 +278,13 @@ item_info Item::toItemInfo(uint64_t vb_uuid, int64_t hlcEpoch) const {
     } else {
         info.document_state = DocumentState::Alive;
     }
-    info.nkey = static_cast<uint16_t>(getKey().size());
-    info.key = getKey().data();
     info.value[0].iov_base = const_cast<char*>(getData());
     info.value[0].iov_len = getNBytes();
 
     info.cas_is_hlc = hlcEpoch > HlcCasSeqnoUninitialised &&
                       int64_t(info.seqno) >= hlcEpoch;
 
-    info.collectionID = getKey().getCollectionID();
+    info.key = getKey();
     return info;
 }
 
