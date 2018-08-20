@@ -54,7 +54,11 @@ void processMutations(MockPassiveStream& stream,
                                 i /*bySeqno*/,
                                 stream.getVBucket()));
 
-        MutationResponse mutation(std::move(qi), 0 /* opaque */);
+        MutationResponse mutation(std::move(qi),
+                                  0 /* opaque */,
+                                  IncludeValue::Yes,
+                                  IncludeXattrs::Yes,
+                                  IncludeDeleteTime::No);
 
         // PassiveStream::processMutation does 2 things:
         //     1) setWithMeta; that enqueues the item into the

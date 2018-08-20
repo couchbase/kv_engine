@@ -339,13 +339,12 @@ private:
 
 class MutationResponse : public DcpResponse {
 public:
-    MutationResponse(
-            queued_item item,
-            uint32_t opaque,
-            IncludeValue includeVal = IncludeValue::Yes,
-            IncludeXattrs includeXattrs = IncludeXattrs::Yes,
-            IncludeDeleteTime includeDeleteTime = IncludeDeleteTime::No,
-            ExtendedMetaData* e = NULL)
+    MutationResponse(queued_item item,
+                     uint32_t opaque,
+                     IncludeValue includeVal,
+                     IncludeXattrs includeXattrs,
+                     IncludeDeleteTime includeDeleteTime,
+                     ExtendedMetaData* e = NULL)
         : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation,
                       opaque),
           item_(std::move(item)),
