@@ -545,8 +545,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     std::unique_ptr<Item> itmCpy;
     totalUncompressedDataSize.fetch_add(resp->getMessageSize());
 
-    auto* mutationResponse =
-            dynamic_cast<MutationProducerResponse*>(resp.get());
+    auto* mutationResponse = dynamic_cast<MutationResponse*>(resp.get());
     if (mutationResponse) {
         itmCpy = std::make_unique<Item>(*mutationResponse->getItem());
         if (isCompressionEnabled()) {

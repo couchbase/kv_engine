@@ -900,20 +900,19 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
             /**
              * Create a mutation response to be placed in the ready queue.
              */
-            return std::make_unique<MutationProducerResponse>(
-                    std::move(finalItem),
-                    opaque_,
-                    includeValue,
-                    includeXattributes,
-                    includeDeleteTime);
+            return std::make_unique<MutationResponse>(std::move(finalItem),
+                                                      opaque_,
+                                                      includeValue,
+                                                      includeXattributes,
+                                                      includeDeleteTime);
         }
 
         // Item unmodified - construct response from original.
-        return std::make_unique<MutationProducerResponse>(item,
-                                                          opaque_,
-                                                          includeValue,
-                                                          includeXattributes,
-                                                          includeDeleteTime);
+        return std::make_unique<MutationResponse>(item,
+                                                  opaque_,
+                                                  includeValue,
+                                                  includeXattributes,
+                                                  includeDeleteTime);
     }
     return SystemEventProducerMessage::make(opaque_, item);
 }

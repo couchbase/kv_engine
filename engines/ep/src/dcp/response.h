@@ -414,27 +414,6 @@ protected:
 };
 
 /**
- * Extend MutationResponse for the DcpProducer only so that it can store
- * the collection length which we replicate to all collection-aware consumers.
- */
-class MutationProducerResponse : public MutationResponse {
-public:
-    MutationProducerResponse(queued_item item,
-                             uint32_t opaque,
-                             IncludeValue includeVal,
-                             IncludeXattrs includeXattrs,
-                             IncludeDeleteTime includeDeleteTime,
-                             ExtendedMetaData* e = NULL)
-        : MutationResponse(std::move(item),
-                           opaque,
-                           includeVal,
-                           includeXattrs,
-                           includeDeleteTime,
-                           e) {
-    }
-};
-
-/**
  * SystemEventMessage defines the interface required by consumer and producer
  * message classes.
  */
