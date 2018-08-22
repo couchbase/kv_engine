@@ -6,7 +6,7 @@ if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
                                 ${CB_GNU_CXX11_OPTION})
 endif ()
 
-add_library(mcd_util SHARED
+add_library(mcd_util STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/config_parser.h
             ${PROJECT_SOURCE_DIR}/include/memcached/util.h
             breakpad.h
@@ -25,19 +25,14 @@ add_library(mcd_util SHARED
             terminate_handler.cc
             terminate_handler.h
             util.cc )
+set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(mcd_util memcached_logger engine_utilities platform
                       ${BREAKPAD_LIBRARIES})
-set_target_properties(mcd_util PROPERTIES SOVERSION 1.0.0)
 add_sanitizers(mcd_util)
 
 generate_export_header(mcd_util
                        EXPORT_MACRO_NAME MCD_UTIL_PUBLIC_API
                        EXPORT_FILE_NAME ${Memcached_BINARY_DIR}/include/memcached/mcd_util-visibility.h)
-
-install(TARGETS mcd_util
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     add_executable(utilities_testapp util_test.cc)

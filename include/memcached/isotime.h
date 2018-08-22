@@ -15,31 +15,6 @@
  *   limitations under the License.
  */
 
-#ifdef mcd_time_EXPORTS
-
-#if defined (__SUNPRO_C) && (__SUNPRO_C >= 0x550)
-#define ISOTIME_VISIBILITY __global
-#elif defined __GNUC__
-#define ISOTIME_VISIBILITY __attribute__ ((visibility("default")))
-#elif defined(_MSC_VER)
-#define ISOTIME_VISIBILITY __declspec(dllexport)
-#else
-/* unknown compiler */
-#define ISOTIME_VISIBILITY
-#endif
-
-#else
-
-#if defined(_MSC_VER)
-#define ISOTIME_VISIBILITY __declspec(dllimport)
-#else
-#define ISOTIME_VISIBILITY
-#endif
-
-#endif
-
-#include <memcached/visibility.h>
-
 #include <array>
 #include <cstdint>
 #include <mutex>
@@ -48,7 +23,7 @@
 
 #pragma once
 
-class ISOTIME_VISIBILITY ISOTime {
+class ISOTime {
 public:
     static std::string generatetimestamp(void);
     static std::string generatetimestamp(time_t now_t, uint32_t frac_of_second);

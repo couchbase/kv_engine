@@ -1,8 +1,5 @@
 ADD_LIBRARY(mcd_tracing
-  SHARED tracer.h tracer.cc trace_helpers.h)
+  STATIC tracer.h tracer.cc trace_helpers.h)
+set_property(TARGET mcd_tracing PROPERTY POSITION_INDEPENDENT_CODE 1)
 TARGET_LINK_LIBRARIES(mcd_tracing engine_utilities platform)
-SET_TARGET_PROPERTIES(mcd_tracing PROPERTIES SOVERSION 1.0.0)
 add_sanitizers(mcd_tracing)
-
-INSTALL(TARGETS mcd_tracing RUNTIME DESTINATION bin LIBRARY DESTINATION lib
-                ARCHIVE DESTINATION lib)

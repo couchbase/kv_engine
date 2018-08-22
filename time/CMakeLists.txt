@@ -1,7 +1,7 @@
-ADD_LIBRARY(mcd_time SHARED
+ADD_LIBRARY(mcd_time STATIC
             isotime.cc
             ${PROJECT_SOURCE_DIR}/include/memcached/isotime.h)
-SET_TARGET_PROPERTIES(mcd_time PROPERTIES SOVERSION 1.0.0)
+set_property(TARGET mcd_time PROPERTY POSITION_INDEPENDENT_CODE 1)
 TARGET_LINK_LIBRARIES(mcd_time platform)
 
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
@@ -12,8 +12,3 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND memcached_timestamp_test)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
-
-INSTALL(TARGETS mcd_time
-        RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
