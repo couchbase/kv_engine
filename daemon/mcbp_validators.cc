@@ -584,8 +584,7 @@ static protocol_binary_response_status configuration_refresh_validator(Cookie& c
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status rbac_provider_validator(
-        Cookie& cookie) {
+static protocol_binary_response_status auth_provider_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        0,
                        ExpectedKeyLen::Zero,
@@ -1568,8 +1567,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::UpdateUserPermissions),
                        update_user_permissions_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
-    chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::RbacProvider),
-                       rbac_provider_validator);
+    chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::AuthProvider),
+                       auth_provider_validator);
     chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers),
                        get_active_external_users_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG,

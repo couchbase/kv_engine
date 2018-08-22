@@ -517,7 +517,7 @@ static void rbac_refresh_executor(Cookie& cookie) {
     cookie.obtainContext<RbacReloadCommandContext>(cookie).drive();
 }
 
-static void rbac_provider_executor(Cookie& cookie) {
+static void auth_provider_executor(Cookie& cookie) {
     if (!settings.isExternalAuthServiceEnabled()) {
         cookie.setErrorContext(
                 "Support for external authentication service is disabled");
@@ -708,8 +708,8 @@ void initialize_mbcp_lookup_map() {
     handlers[uint8_t(cb::mcbp::ClientOpcode::UpdateUserPermissions)] =
             update_user_permissions_executor;
     handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
-    handlers[uint8_t(cb::mcbp::ClientOpcode::RbacProvider)] =
-            rbac_provider_executor;
+    handlers[uint8_t(cb::mcbp::ClientOpcode::AuthProvider)] =
+            auth_provider_executor;
     handlers[uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers)] =
             get_active_external_users_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
@@ -860,6 +860,7 @@ static void execute_server_response_packet(Cookie& cookie,
 
     switch (response.getServerOpcode()) {
     case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
+    case cb::mcbp::ServerOpcode::AuthRequest:
         // ignore
         return;
     }

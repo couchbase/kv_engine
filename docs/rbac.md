@@ -60,15 +60,15 @@ The RBAC database is specified in JSON with the following syntax.
               "bucket2": ["Read", "SimpleStats"]
            ],
            "privileges": ["BucketManagement"],
-           "type": "builtin"
+           "domain": "local"
         }
     }
 
 In the example above a user named `user1` is defined with access the buckets
 named `bucket1` and `bucket2`. For each of those two buckets there is an
 array of privileges allowed in that bucket. In addition to that the user
-have access to the `BucketManagement` privilege. The user is a `builtin`
-user.
+have access to the `BucketManagement` privilege. The user is a locally
+defined user.
 
 It is possible to specify "*" for the bucket name indicating all buckets.
 The system will first search for an exact match for a bucket and only

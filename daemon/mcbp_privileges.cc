@@ -313,7 +313,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_RBAC_REFRESH,
           require<Privilege::SecurityManagement>);
 
-    setup(uint8_t(cb::mcbp::ClientOpcode::RbacProvider),
+    setup(uint8_t(cb::mcbp::ClientOpcode::AuthProvider),
           require<Privilege::SecurityManagement>);
 
     setup(uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers),

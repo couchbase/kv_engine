@@ -309,8 +309,9 @@ enum class ClientOpcode : uint8_t {
     UpdateUserPermissions = 0xf6,
     /* Refresh the RBAC database */
     RbacRefresh = 0xf7,
-    /// Offer to be an RBAC provider
-    RbacProvider = 0xf8,
+
+    /// Offer to be an Auth[nz] provider
+    AuthProvider = 0xf8,
 
     /**
      * Get a list of all active external users currently logged in.
@@ -375,7 +376,28 @@ enum class ServerOpcode {
      *   key is the bucket name
      *   value is the actual cluster map
      */
-    ClustermapChangeNotification = 0x01
+    ClustermapChangeNotification = 0x01,
+    /**
+     * Authentication request
+     *
+     * The payload contains the following JSON:
+     *
+     *     {
+     *       "step" : false,
+     *       "context" : "",
+     *       "challenge" : "base64encoded challenge sent from client"
+     *     }
+     *
+     * `step` should be set to true if this is a continuation of an ongoing
+     * authentication. If not present this is assumed to be set to false.
+     *
+     * `context` is an opaque context string returned from the external
+     * provider _iff_ the authentication process needs multiple iterations.
+     *
+     * `challenge` is base64 encoding of the callenge sent from the client
+     * to memcached.
+     */
+    AuthRequest = 0x02
 };
 
 } // namespace mcbp
