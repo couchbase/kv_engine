@@ -23,6 +23,8 @@
 #include "custom_rotating_file_sink.h"
 
 #include <platform/dirutils.h>
+#include <spdlog/details/file_helper.h>
+#include <spdlog/details/fmt_helper.h>
 #include <memory>
 
 static unsigned long find_first_logfile_id(const std::string& basename) {
@@ -64,7 +66,7 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
       _current_size(0),
       _file_helper(std::make_unique<spdlog::details::file_helper>()),
       _next_file_id(find_first_logfile_id(base_filename)) {
-    formatter = std::make_shared<spdlog::pattern_formatter>(
+    formatter = std::make_unique<spdlog::pattern_formatter>(
             log_pattern, spdlog::pattern_time_type::local);
     _file_helper->open(calc_filename());
     _current_size = _file_helper->size(); // expensive. called only once
@@ -75,9 +77,9 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
  * this class adds hooks marking the start and end of a logfile.
  */
 template <class Mutex>
-void custom_rotating_file_sink<Mutex>::_sink_it(
+void custom_rotating_file_sink<Mutex>::sink_it_(
         const spdlog::details::log_msg& msg) {
-    _current_size += msg.formatted.size();
+    _current_size += msg.raw.size();
     if (_current_size > _max_size) {
         std::unique_ptr<spdlog::details::file_helper> next =
                 std::make_unique<spdlog::details::file_helper>();
@@ -85,7 +87,7 @@ void custom_rotating_file_sink<Mutex>::_sink_it(
             next->open(calc_filename(), true);
             addHook(closingLogfile);
             std::swap(_file_helper, next);
-            _current_size = msg.formatted.size();
+            _current_size = msg.raw.size();
             addHook(openingLogfile);
         } catch (...) {
             // Keep on logging to the this file, but try swap at the next
@@ -94,11 +96,14 @@ void custom_rotating_file_sink<Mutex>::_sink_it(
             _next_file_id--;
         }
     }
-    _file_helper->write(msg);
+    fmt::memory_buffer formatted;
+    formatter->format(msg, formatted);
+
+    _file_helper->write(formatted);
 }
 
 template <class Mutex>
-void custom_rotating_file_sink<Mutex>::_flush() {
+void custom_rotating_file_sink<Mutex>::flush_() {
     _file_helper->flush();
 }
 
@@ -108,24 +113,31 @@ void custom_rotating_file_sink<Mutex>::addHook(const std::string& hook) {
     spdlog::details::log_msg msg;
     msg.time = spdlog::details::os::now();
     msg.level = spdlog::level::info;
-    msg.raw << hook;
+
+    // Append the hook to the msg
+    spdlog::details::fmt_helper::append_str(hook, msg.raw);
 
     if (hook == openingLogfile) {
-        msg.raw << fmt::StringRef(_file_helper->filename().data(),
-                                  _file_helper->filename().size());
+        spdlog::details::fmt_helper::append_str(
+                std::string(_file_helper->filename().data(),
+                            _file_helper->filename().size()),
+                msg.raw);
     }
-    formatter->format(msg);
-    _current_size += msg.formatted.size();
+    fmt::memory_buffer formatted;
+    formatter->format(msg, formatted);
+    _current_size += formatted.size();
 
-    _file_helper->write(msg);
+    _file_helper->write(formatted);
 }
 
+/**
+ * Create a new filename. If this breaks when updating spdlog then compare
+ * functionality to the calc_filename() method in the spdlog rotating_file_sink
+ * @tparam Mutex
+ * @return An spdlog filename
+ */
 template <class Mutex>
 spdlog::filename_t custom_rotating_file_sink<Mutex>::calc_filename() {
-    std::conditional<std::is_same<spdlog::filename_t::value_type, char>::value,
-                     fmt::MemoryWriter,
-                     fmt::WMemoryWriter>::type w;
-
     char fname[1024];
     unsigned long try_id = _next_file_id;
     do {
@@ -133,9 +145,11 @@ spdlog::filename_t custom_rotating_file_sink<Mutex>::calc_filename() {
     } while (access(fname, F_OK) == 0);
 
     _next_file_id = try_id;
-
-    w.write(SPDLOG_FILENAME_T("{}"), fname);
-    return w.str();
+#if defined(_WIN32) && defined(SPDLOG_WCHAR_FILENAMES)
+    return fmt::to_wstring(fname);
+#else
+    return fmt::to_string(fname);
+#endif
 }
 
 template <class Mutex>

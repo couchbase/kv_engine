@@ -37,7 +37,7 @@ BucketLogger::BucketLogger(const BucketLogger& other)
     set_level(spdLogger->level());
 }
 
-void BucketLogger::_sink_it(spdlog::details::log_msg& msg) {
+void BucketLogger::sink_it_(spdlog::details::log_msg& msg) {
     // Get the engine pointer for logging the bucket name.
     // Normally we would wish to stop tracking memory at this point to avoid
     // tracking any allocations or de-allocations done by the logging library
@@ -74,7 +74,7 @@ void BucketLogger::_sink_it(spdlog::details::log_msg& msg) {
     }
 
     // Append the rest of the message and log
-    fmtString.append(msg.raw.c_str());
+    fmtString.append(msg.raw.data(), msg.raw.size());
     spdLogger->log(msg.level, fmtString);
 }
 

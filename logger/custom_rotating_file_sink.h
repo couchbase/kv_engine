@@ -25,7 +25,12 @@
 #include "config.h"
 
 #include <spdlog/sinks/base_sink.h>
-#include <spdlog/spdlog.h>
+
+namespace spdlog {
+namespace details {
+class file_helper;
+} // namespace details
+} // namespace spdlog
 
 /**
  * Customised version of spdlog's rotating_file_sink with the following
@@ -37,7 +42,7 @@
  * 2 Instead of renaming all of the files every time we're rotating to
  *   the next file we start a new log file with a higher number
  *
- * TODO: If updating spdlog from v0.14.0, check if this class also needs
+ * TODO: If updating spdlog from v1.1.0, check if this class also needs
  *       updating.
  */
 template <class Mutex>
@@ -50,8 +55,8 @@ public:
     ~custom_rotating_file_sink() override;
 
 protected:
-    void _sink_it(const spdlog::details::log_msg& msg) override;
-    void _flush() override;
+    void sink_it_(const spdlog::details::log_msg& msg) override;
+    void flush_() override;
 
 private:
     void addHook(const std::string& hook);
@@ -62,7 +67,7 @@ private:
     const std::size_t _max_size;
     std::size_t _current_size;
     std::unique_ptr<spdlog::details::file_helper> _file_helper;
-    spdlog::formatter_ptr formatter;
+    std::unique_ptr<spdlog::pattern_formatter> formatter;
     unsigned long _next_file_id;
 
     const std::string openingLogfile{"---------- Opening logfile: "};

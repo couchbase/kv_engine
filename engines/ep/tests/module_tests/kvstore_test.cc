@@ -551,11 +551,13 @@ public:
                             const std::string& message));
 
 protected:
-    // Override the _sink_it method to redirect to the mocked method
+    // Override the sink_it_ method to redirect to the mocked method
     // Must call the mlog method to check the message details as they are
-    // bundled in the log_msg object
-    void _sink_it(spdlog::details::log_msg& msg) override {
-        mlog(msg.level, msg.raw.c_str());
+    // bundled in the log_msg object. Beware, msg.raw is not null terminated.
+    // In these test cases however we just search for a substring within the log
+    // message so this is okay.
+    void sink_it_(spdlog::details::log_msg& msg) override {
+        mlog(msg.level, msg.raw.data());
     }
 };
 

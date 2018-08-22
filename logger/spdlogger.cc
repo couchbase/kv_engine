@@ -23,18 +23,15 @@
 #include "logger_config.h"
 
 #include <memcached/engine.h>
+#include <spdlog/async.h>
+#include <spdlog/async_logger.h>
+#include <spdlog/sinks/ansicolor_sink.h>
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/null_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/stdout_sinks.h>
-#include <spdlog/spdlog.h>
 #include <chrono>
 #include <cstdio>
-
-#ifndef WIN32
-#include <spdlog/sinks/ansicolor_sink.h>
-
-#endif
-
 static const std::string logger_name{"spdlog_file_logger"};
 
 /**
@@ -44,7 +41,7 @@ static const std::string logger_name{"spdlog_file_logger"};
  * TODO: Remove the duplication in the future, by (maybe) moving
  *       the const to a header file.
  */
-static const std::string log_pattern{"%Y-%m-%dT%T.%fZ %l %v"};
+static const std::string log_pattern{"%^%Y-%m-%dT%T.%fZ %l %v%$"};
 
 /**
  * Instances of spdlog (async) file logger.
@@ -132,12 +129,11 @@ boost::optional<std::string> cb::logger::initialize(
         }
 
         if (logger_settings.console) {
-#ifdef WIN32
-            auto stderrsink = std::make_shared<spdlog::sinks::stderr_sink_mt>();
-#else
             auto stderrsink =
-                    std::make_shared<spdlog::sinks::ansicolor_stderr_sink_mt>();
-#endif
+                    std::make_shared<spdlog::sinks::stderr_color_sink_mt>();
+
+            // Set the formatting pattern of this sink
+            stderrsink->set_pattern(log_pattern);
             if (logger_settings.unit_test) {
                 stderrsink->set_level(spdlog::level::trace);
             } else {
@@ -147,25 +143,35 @@ boost::optional<std::string> cb::logger::initialize(
         }
 
         spdlog::drop(logger_name);
+
         if (logger_settings.unit_test) {
-            file_logger = spdlog::create(logger_name, sink);
+            file_logger = std::make_shared<spdlog::logger>(logger_name, sink);
         } else {
-            file_logger = spdlog::create_async(
+            // Create the default thread pool for async logging
+            spdlog::init_thread_pool(buffersz, 1);
+
+            // Get the thread pool so that we can actually construct the
+            // object with already created sinks...
+            auto tp = spdlog::thread_pool();
+            file_logger = std::make_shared<spdlog::async_logger>(
                     logger_name,
                     sink,
-                    buffersz,
-                    spdlog::async_overflow_policy::block_retry,
-                    nullptr,
-                    std::chrono::milliseconds(200));
+                    tp,
+                    spdlog::async_overflow_policy::block);
         }
+
+        file_logger->set_pattern(log_pattern);
+        file_logger->set_level(logger_settings.log_level);
+
+        // Set the flushing interval policy
+        spdlog::flush_every(std::chrono::seconds(1));
+
+        spdlog::register_logger(file_logger);
     } catch (const spdlog::spdlog_ex& ex) {
         std::string msg =
                 std::string{"Log initialization failed: "} + ex.what();
         return boost::optional<std::string>{msg};
     }
-
-    file_logger->set_pattern(log_pattern);
-    file_logger->set_level(logger_settings.log_level);
     return {};
 }
 
@@ -174,6 +180,7 @@ spdlog::logger* cb::logger::get() {
 }
 
 void cb::logger::reset() {
+    spdlog::drop(logger_name);
     file_logger.reset();
 }
 
@@ -181,17 +188,25 @@ void cb::logger::createBlackholeLogger() {
     // delete if already exists
     spdlog::drop(logger_name);
 
-    file_logger = spdlog::create(
+    file_logger = std::make_shared<spdlog::logger>(
             logger_name, std::make_shared<spdlog::sinks::null_sink_mt>());
 
     file_logger->set_level(spdlog::level::off);
     file_logger->set_pattern(log_pattern);
+
+    spdlog::register_logger(file_logger);
 }
 
 void cb::logger::createConsoleLogger() {
     // delete if already exists
     spdlog::drop(logger_name);
-    file_logger = spdlog::stderr_color_mt(logger_name);
+
+    auto stderrsink =
+            std::make_shared<spdlog::sinks::ansicolor_stderr_sink_mt>();
+
+    file_logger = std::make_shared<spdlog::logger>(logger_name, stderrsink);
     file_logger->set_level(spdlog::level::info);
     file_logger->set_pattern(log_pattern);
+
+    spdlog::register_logger(file_logger);
 }

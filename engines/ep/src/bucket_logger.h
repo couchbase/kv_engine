@@ -51,7 +51,7 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
  * type safety and we don't want to inline a lot of message formatting as
  * macros. One global BucketLogger object is created without sinks to perform
  * the spd style formatting without logging. Instead of "sinking" this message
- * with the BucketLogger we override the _sink_it method to prepend the
+ * with the BucketLogger we override the sink_it_ method to prepend the
  * engine name and log the message as a pre-formatted string using the
  * original spdlog::logger passed via the SERVER_API.
  *
@@ -81,7 +81,7 @@ public:
             const std::string& name, const std::string& prefix = "");
 
 protected:
-    void _sink_it(spdlog::details::log_msg& msg) override;
+    void sink_it_(spdlog::details::log_msg& msg) override;
 
     // Connection ID prefix that is printed if set (printed before any other
     // prefix or message)
