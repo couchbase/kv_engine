@@ -265,7 +265,7 @@ ADD_LIBRARY(ep_objs OBJECT
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_objs)
 
-ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
+ADD_LIBRARY(ep MODULE $<TARGET_OBJECTS:ep_objs>)
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
@@ -449,7 +449,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 
-    ADD_LIBRARY(ep_testsuite SHARED
+    ADD_LIBRARY(ep_testsuite MODULE
                 tests/ep_testsuite.cc
                 src/ext_meta_parser.cc
                 tests/ep_testsuite_common.cc
@@ -462,7 +462,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           ${LIBEVENT_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
-    ADD_LIBRARY(ep_testsuite_basic SHARED
+    ADD_LIBRARY(ep_testsuite_basic MODULE
                 tests/ep_testsuite_basic.cc
                 src/ext_meta_parser.cc
                 tests/ep_testsuite_common.cc
@@ -475,7 +475,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
-    ADD_LIBRARY(ep_testsuite_dcp SHARED
+    ADD_LIBRARY(ep_testsuite_dcp MODULE
                 tests/ep_testsuite_dcp.cc
                 src/ext_meta_parser.cc
                 tests/ep_testsuite_common.cc
@@ -486,7 +486,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     TARGET_LINK_LIBRARIES(ep_testsuite_dcp engine_utilities cbcompress JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
-    ADD_LIBRARY(ep_testsuite_checkpoint SHARED
+    ADD_LIBRARY(ep_testsuite_checkpoint MODULE
                 tests/ep_testsuite_common.cc
                 tests/ep_testsuite_checkpoint.cc
                 tests/ep_test_apis.cc
@@ -497,7 +497,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
-    ADD_LIBRARY(ep_testsuite_xdcr SHARED
+    ADD_LIBRARY(ep_testsuite_xdcr MODULE
                 tests/ep_testsuite_common.cc
                 tests/ep_testsuite_xdcr.cc
                 tests/ep_test_apis.cc
@@ -507,7 +507,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 
-    ADD_LIBRARY(ep_perfsuite SHARED
+    ADD_LIBRARY(ep_perfsuite MODULE
                 tests/ep_perfsuite.cc
                 src/ext_meta_parser.cc
                 tests/ep_testsuite_common.cc
