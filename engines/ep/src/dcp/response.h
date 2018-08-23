@@ -570,7 +570,7 @@ public:
 
     cb::const_byte_buffer getEventData() const override {
         return {reinterpret_cast<const uint8_t*>(&eventData),
-                sizeof(eventData)};
+                Collections::SystemEventDcpData::size};
     }
 
 private:
@@ -610,7 +610,7 @@ protected:
 class CreateOrDeleteCollectionEvent : public CollectionsEvent {
 public:
     CreateOrDeleteCollectionEvent(const SystemEventMessage& e)
-        : CollectionsEvent(e, sizeof(Collections::SystemEventDcpData)) {
+        : CollectionsEvent(e, Collections::SystemEventDcpData::size) {
     }
 
     /**

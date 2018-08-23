@@ -96,10 +96,14 @@ static inline CollectionID makeCollectionID(const std::string& uid) {
  * event packet.
  */
 struct SystemEventDcpData {
+
+
     /// The manifest uid stored in network byte order ready for sending
-    Collections::uid_t manifestUid;
+    uid_t manifestUid;
     /// The collection id stored in network byte order ready for sending
     CollectionIDNetworkOrder cid;
+    // The size is sizeof(manifestUid) + sizeof(cid) (msvc won't allow that expression)
+    constexpr static size_t size{12};
 };
 
 

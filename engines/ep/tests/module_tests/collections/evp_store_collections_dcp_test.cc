@@ -177,6 +177,10 @@ public:
                             ->cid.to_host();
         }
 
+        // Using the ::size directly in the EXPECT is failing to link on
+        // OSX build, but copying the value works.
+        const auto expectedSize = Collections::SystemEventDcpData::size;
+        EXPECT_EQ(expectedSize, eventData.size());
         return consumer->systemEvent(
                 opaque, replicaVB, event, bySeqno, key, eventData);
     }
@@ -237,7 +241,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
                       {reinterpret_cast<const uint8_t*>(&eventData),
-                       sizeof(eventData)}));
+                       Collections::SystemEventDcpData::size}));
 
     // We can now access the collection
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
@@ -256,7 +260,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
                       {reinterpret_cast<const uint8_t*>(&eventData),
-                       sizeof(eventData)}));
+                       Collections::SystemEventDcpData::size}));
 
     // It's gone!
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
