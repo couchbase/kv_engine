@@ -886,8 +886,11 @@ rocksdb::StatsLevel RocksDBKVStore::getStatsLevel(
 }
 
 rocksdb::Slice RocksDBKVStore::getKeySlice(const DocKey& key) {
-    return rocksdb::Slice(reinterpret_cast<const char*>(key.data()),
-                          key.size());
+    // TODO: Allow RocksDB to support collections (which means storing and
+    // dealing with the collection-ID prefix)
+    auto storageKey = key.makeDocKeyWithoutCollectionID();
+    return rocksdb::Slice(reinterpret_cast<const char*>(storageKey.data()),
+                          storageKey.size());
 }
 
 rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t* seqno) {

@@ -183,3 +183,19 @@ TYPED_TEST(UnsignedLeb128, basic_api_checks) {
     EXPECT_EQ(leb.get().size(), leb.size());
     EXPECT_EQ(leb.get().data(), leb.data());
 }
+
+// Test a few non-canonical encodings decode as expected
+TYPED_TEST(UnsignedLeb128, non_canonical) {
+    std::vector<std::pair<TypeParam, std::vector<std::vector<uint8_t>>>>
+            testData = {
+                    {0, {{0}, {0x80, 0}, {0x80, 0x80, 0}}},
+                    {1, {{1}, {0x81, 0}}},
+            };
+
+    for (const auto& test : testData) {
+        for (const auto& data : test.second) {
+            auto value = cb::mcbp::decode_unsigned_leb128<TypeParam>({data});
+            EXPECT_EQ(test.first, value.first);
+        }
+    }
+}

@@ -49,56 +49,41 @@ public:
     }
 
     /**
-     * Create a StoredDocKey from key to key+nkey in docNamespace.
-     * @param key pointer to key data
-     * @param nkey byte length of key (which will be copied in)
-     * @docNamespace the namespace the key applies to
-     */
-    StoredDocKey(const uint8_t* key, size_t nkey, DocNamespace docNamespace) {
-        keydata.resize(nkey + namespaceBytes);
-        keydata.replace(
-                namespaceBytes, nkey, reinterpret_cast<const char*>(key), nkey);
-        std::memcpy(&keydata[0], &docNamespace, sizeof(docNamespace));
-    }
-
-    /**
      * Create a StoredDocKey from a DocKey
      * @param key DocKey that is to be copied-in
      */
-    StoredDocKey(const DocKey& key)
-        : StoredDocKey(key.data(), key.size(), key.getDocNamespace()) {
+    StoredDocKey(const DocKey& key) {
+        if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
+            keydata.resize(key.size());
+            std::copy(key.data(), key.data() + key.size(), keydata.begin());
+        } else {
+            // This key is for the default collection (which has a fixed value)
+            keydata.resize(key.size() + 1);
+            keydata[0] = DefaultCollectionLeb128Encoded;
+            std::copy(key.data(), key.data() + key.size(), keydata.begin() + 1);
+        }
     }
 
     /**
-     * Create a StoredDocKey from a std::string. Post
-     * construction size will return std::string::size();
+     * Create a StoredDocKey from a std::string (test code uses this)
      * @param key std::string to be copied-in
-     * @param docNamespace the namespace that the key applies to
+     * @param cid the CollectionID that the key applies to (and will be encoded
+     *        into the stored data)
      */
-    StoredDocKey(const std::string& key, DocNamespace docNamespace)
-        : StoredDocKey(reinterpret_cast<const uint8_t*>(key.c_str()),
-                       key.size(),
-                       docNamespace) {
-    }
-
-    /**
-     * Create a StoredDocKey from a buffer that was previously
-     * obtained from getNamespacedData()
-     * Post construction size() will return nkey - 1
-     * @param key pointer to data to be copied in
-     * @param nkey the number of bytes to be copied
-     */
-    StoredDocKey(const uint8_t* key, size_t nkey)
-        : keydata(reinterpret_cast<const char*>(key), nkey) {
+    StoredDocKey(const std::string& key, CollectionID cid) {
+        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
+        keydata.resize(key.size() + leb128.size());
+        std::copy(key.begin(),
+                  key.end(),
+                  std::copy(leb128.begin(), leb128.end(), keydata.begin()));
     }
 
     const uint8_t* data() const {
-        return reinterpret_cast<const uint8_t*>(
-                &keydata.data()[namespaceBytes]);
+        return reinterpret_cast<const uint8_t*>(keydata.data());
     }
 
     size_t size() const {
-        return keydata.size() - namespaceBytes;
+        return keydata.size();
     }
 
     DocNamespace getDocNamespace() const {
@@ -106,37 +91,51 @@ public:
     }
 
     CollectionID getCollectionID() const {
-        return *reinterpret_cast<const CollectionID*>(&keydata[0]);
+        return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+                       {data(), size()})
+                .first;
     }
 
+    DocKeyEncodesCollectionId getEncoding() const {
+        return DocKeyEncodesCollectionId::Yes;
+    }
+
+    /**
+     * @return a DocKey that views this StoredDocKey but without any
+     * collection-ID prefix.
+     */
+    DocKey makeDocKeyWithoutCollectionID() const {
+        auto decoded = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+                {data(), size()});
+        return {decoded.second.data(),
+                decoded.second.size(),
+                DocKeyEncodesCollectionId::No};
+    }
+
+    /**
+     * Intended for debug use only
+     * @returns cid:key
+     */
+    std::string to_string() const;
+
+    /**
+     * For tests only
+     * @returns the 'key' part of the StoredDocKey
+     */
     const char* c_str() const {
-        return &keydata.c_str()[namespaceBytes];
+        // Locate the leb128 stop byte, and return pointer after that
+        auto key = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
+                {reinterpret_cast<const uint8_t*>(keydata.data()),
+                 keydata.size()});
+
+        if (key.size()) {
+            return &keydata.c_str()[keydata.size() - key.size()];
+        }
+        return nullptr;
     }
 
     int compare(const StoredDocKey& rhs) const {
         return keydata.compare(rhs.keydata);
-    }
-
-    /**
-     * Return the key with the DocNamespace as a prefix.
-     * Thus the "beer::bud" in the Collections namespace becomes "\1beer::bud"
-     */
-    const uint8_t* getDocNameSpacedData() const {
-        return reinterpret_cast<const uint8_t*>(keydata.data());
-    }
-
-    /**
-     * @return true if StoredDocKey was constructed empty from StoredDocKey()
-     */
-    bool empty() const {
-        return keydata.empty();
-    }
-
-    /**
-     * Return the size of the buffer returned by getDocNameSpacedData()
-     */
-    size_t getDocNameSpacedSize() const {
-        return keydata.size();
     }
 
     bool operator==(const StoredDocKey& rhs) const {
@@ -151,8 +150,11 @@ public:
         return keydata < rhs.keydata;
     }
 
+    operator DocKey() const {
+        return {keydata, DocKeyEncodesCollectionId::Yes};
+    }
+
 protected:
-    static const size_t namespaceBytes = sizeof(CollectionID);
     std::string keydata;
 };
 
@@ -208,13 +210,24 @@ public:
     }
 
     CollectionID getCollectionID() const {
-        return collectionID;
+        return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+                       {bytes, length})
+                .first;
     }
 
-    bool operator==(const DocKey rhs) const {
-        return size() == rhs.size() &&
-               getCollectionID() == rhs.getCollectionID() &&
-               std::memcmp(data(), rhs.data(), size()) == 0;
+    DocKeyEncodesCollectionId getEncoding() const {
+        return DocKeyEncodesCollectionId::Yes;
+    }
+
+    bool operator==(const DocKey& rhs) const {
+        auto rhsIdAndData = rhs.getIdAndKey();
+        auto lhsIdAndData = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+                {data(), size()});
+        return lhsIdAndData.first == rhsIdAndData.first &&
+               lhsIdAndData.second.size() == rhsIdAndData.second.size() &&
+               std::equal(lhsIdAndData.second.begin(),
+                          lhsIdAndData.second.end(),
+                          rhsIdAndData.second.begin());
     }
 
     /**
@@ -244,8 +257,16 @@ public:
         }
     };
 
+    operator DocKey() const {
+        return {bytes, length, DocKeyEncodesCollectionId::Yes};
+    }
+
+    /**
+     * make a SerialisedDocKey and return a unique_ptr to it - this is used
+     * in test code only.
+     */
     static std::unique_ptr<SerialisedDocKey, SerialisedDocKeyDelete> make(
-            const DocKey key) {
+            const StoredDocKey& key) {
         std::unique_ptr<SerialisedDocKey, SerialisedDocKeyDelete> rval(
                 reinterpret_cast<SerialisedDocKey*>(
                         new uint8_t[getObjectSize(key)]));
@@ -259,29 +280,49 @@ protected:
      * and construct this object so are allowed access to the constructor.
      */
     friend class MutationLogEntryV2;
+    friend class MutationLogEntryV3;
     friend class StoredValue;
 
-    SerialisedDocKey() : collectionID(), length(0), bytes() {
+    SerialisedDocKey() : length(0), bytes() {
     }
 
     /**
-     * Create a SerialisedDocKey from a DocKey. Protected constructor as this
-     * must be used by friends who know how to pre-allocate the object storage.
-     * throws length_error if DocKey::len exceeds 255
-     * @param key a DocKey to be stored
+     * Create a SerialisedDocKey from a DocKey. Protected constructor as
+     * this must be used by friends who know how to pre-allocate the object
+     * storage
+     * @param key a DocKey to be copied in
      */
-    SerialisedDocKey(const DocKey key)
-        : collectionID(key.getCollectionID()), length(0) {
-        if (key.size() > std::numeric_limits<uint8_t>::max()) {
-            throw std::length_error(
-                    "SerialisedDocKey(const DocKey key) " +
-                    std::to_string(length) +
-                    "exceeds std::numeric_limits<uint8_t>::max()");
+    SerialisedDocKey(const DocKey& key)
+        : length(gsl::narrow_cast<uint8_t>(key.size())) {
+        if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
+            std::copy(key.data(), key.data() + key.size(), bytes);
+        } else {
+            // This key is for the default collection
+            bytes[0] = DefaultCollectionLeb128Encoded;
+            std::copy(key.data(), key.data() + key.size(), bytes + 1);
+            length++;
         }
-        length = gsl::narrow_cast<uint8_t>(key.size());
-        // Copy the data into bytes, which should be allocated into a larger
-        // buffer.
-        std::copy(key.data(), key.data() + key.size(), bytes);
+    }
+
+    /**
+     * Create a SerialisedDocKey from a byte_buffer that has no collection data
+     * and requires the caller to state the collection-ID
+     * This is used by MutationLogEntryV1/V2 to V3 upgrades
+     */
+    SerialisedDocKey(cb::const_byte_buffer key, CollectionID cid) {
+        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
+        length = gsl::narrow_cast<uint8_t>(key.size() + leb128.size());
+        std::copy(key.begin(),
+                  key.end(),
+                  std::copy(leb128.begin(), leb128.end(), bytes));
+    }
+
+    /**
+     * Create a SerialisedDocKey from a byte_buffer that has collection data
+     */
+    SerialisedDocKey(cb::const_byte_buffer key)
+        : length(gsl::narrow_cast<uint8_t>(key.size())) {
+        std::copy(key.begin(), key.end(), bytes);
     }
 
     /**
@@ -289,12 +330,12 @@ protected:
      * length for the bytes making up the key.
      */
     static size_t getObjectSize(size_t len) {
-        return sizeof(SerialisedDocKey) + len - sizeof(SerialisedDocKey().bytes);
+        return sizeof(SerialisedDocKey) +
+               (len - sizeof(SerialisedDocKey().bytes));
     }
 
-    CollectionID collectionID;
-    uint8_t length;
-    uint8_t bytes[3]; // Explicitly include the padding
+    uint8_t length{0};
+    uint8_t bytes[1];
 };
 
 std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key);

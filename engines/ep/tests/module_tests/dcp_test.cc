@@ -467,15 +467,14 @@ public:
         return ::testing::get<1>(GetParam());
     }
 
-    size_t getItemSize(Item& item) {
+    size_t getItemSize(const Item& item) {
+        size_t base = MutationResponse::mutationBaseMsgBytes +
+                      item.getKey().makeDocKeyWithoutCollectionID().size();
         if (isXattr()) {
-            return MutationResponse::mutationBaseMsgBytes +
-                   item.getKey().size() +
-                   // DCP won't recompress the pruned document
-                   getXattrSize(false);
+            // DCP won't recompress the pruned document
+            return base + getXattrSize(false);
         }
-        return MutationResponse::mutationBaseMsgBytes + item.getKey().size() +
-               item.getNBytes();
+        return base + item.getNBytes();
     }
 
     size_t getXattrSize(bool compressed) const {
@@ -1069,8 +1068,9 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
  */
 TEST_P(StreamTest, test_keyOnlyMessageSize) {
     auto item = makeItemWithXattrs();
-    auto keyOnlyMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item->getKey().size();
+    auto keyOnlyMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size();
     queued_item qi(std::move(item));
 
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
@@ -1094,8 +1094,10 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
  */
 TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
     auto item = makeItemWithXattrs();
-    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item->getKey().size() + item->getNBytes();
+    auto keyAndValueMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size() +
+            item->getNBytes();
     queued_item qi(std::move(item));
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
@@ -1118,8 +1120,10 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
  */
 TEST_P(StreamTest, test_keyAndValueMessageSize) {
     auto item = makeItemWithoutXattrs();
-    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item->getKey().size() + item->getNBytes();
+    auto keyAndValueMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size() +
+            item->getNBytes();
     queued_item qi(std::move(item));
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
@@ -1146,8 +1150,10 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
     cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
     auto sz = cb::xattr::get_body_offset({
            reinterpret_cast<char*>(buffer.buf), buffer.len});
-    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item->getKey().size() + item->getNBytes() - sz;
+    auto keyAndValueMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size() +
+            item->getNBytes() - sz;
     queued_item qi(std::move(item));
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
@@ -1171,8 +1177,10 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
 TEST_P(StreamTest,
        test_keyAndValueExcludingXattrsAndNotContainXattrMessageSize) {
     auto item = makeItemWithoutXattrs();
-    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item->getKey().size() + item->getNBytes();
+    auto keyAndValueMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size() +
+            item->getNBytes();
     queued_item qi(std::move(item));
 
     setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
@@ -1198,8 +1206,9 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
     cb::byte_buffer buffer{(uint8_t*)root, item->getValue()->valueSize()};
     auto sz = cb::xattr::get_body_offset({
            reinterpret_cast<char*>(buffer.buf), buffer.len});
-    auto keyAndValueMessageSize = MutationResponse::mutationBaseMsgBytes +
-            item->getKey().size() + sz;
+    auto keyAndValueMessageSize =
+            MutationResponse::mutationBaseMsgBytes +
+            item->getKey().makeDocKeyWithoutCollectionID().size() + sz;
     queued_item qi(std::move(item));
 
     setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);

@@ -292,7 +292,7 @@ void MutationLog::disable() {
     }
 }
 
-void MutationLog::newItem(uint16_t vbucket, const DocKey& key) {
+void MutationLog::newItem(uint16_t vbucket, const StoredDocKey& key) {
     if (isEnabled()) {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
                 entryBuffer.get(), MutationLogType::New, vbucket, key);
@@ -403,6 +403,7 @@ void MutationLog::readInitialBlock() {
     switch (headerBlock.version()) {
     case MutationLogVersion::V1:
     case MutationLogVersion::V2:
+    case MutationLogVersion::V3:
         break;
     default: {
         std::stringstream ss;
@@ -776,6 +777,11 @@ void MutationLog::iterator::prepItem() {
                 MutationLogEntryV2::newEntry(p, bufferBytesRemaining())->len();
         break;
     }
+    case MutationLogVersion::V3: {
+        copyLen =
+                MutationLogEntryV3::newEntry(p, bufferBytesRemaining())->len();
+        break;
+    }
     }
 
     std::copy_n(p, copyLen, entryBuf.begin());
@@ -789,6 +795,10 @@ size_t MutationLog::iterator::getCurrentEntryLen() const {
     }
     case MutationLogVersion::V2: {
         return MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size())
+                ->len();
+    }
+    case MutationLogVersion::V3: {
+        return MutationLogEntryV3::newEntry(entryBuf.begin(), entryBuf.size())
                 ->len();
     }
     }
@@ -823,26 +833,35 @@ bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) const {
 /**
  * Return a MutationLogEntryHolder which is built from a down-level entry
  * The upgrade technique is to upgrade from n to n+1 without any skips, this
- * simplifes each upgrade step, but may have a cost if many steps exist.
+ * simplifies each upgrade step, but may have a cost if many steps exist.
+ *
+ * git blame on the addition of MutationLogEntryV3 to see how V4 can be reached
+ *
  */
 MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
         const {
     // The addition of more source versions would mean adding more const
-    // pointers here.
+    // pointers and unique_ptr for temp storage.
     const MutationLogEntryV1* mleV1 = nullptr;
+    const MutationLogEntryV2* mleV2 = nullptr;
+    std::unique_ptr<uint8_t[]> allocatedV2;
     std::unique_ptr<uint8_t[]> allocated;
 
     // With only two versions this code is a little unnecessary but will
-    // cause the addition of V3 to fail compile. The aim is that the addition of
-    // V3 should now be obvious. I.e. we can step V1->V2->V3 or V2->V3
+    // cause the addition of V4 to fail compile. The aim is that the addition of
+    // V4 should now be obvious. I.e. we can step V1->V2->V3->V4 or V2->V3->V4
     switch (log->headerBlock.version()) {
     case MutationLogVersion::V1: {
         mleV1 = MutationLogEntryV1::newEntry(entryBuf.begin(), entryBuf.size());
         break;
     }
-    /* If V3 exists then add a case for V2, for example:
     case MutationLogVersion::V2: {
         mleV2 = MutationLogEntryV2::newEntry(entryBuf.begin(), entryBuf.size());
+        break;
+    }
+    /* If V4 exists then add a case for V3, for example:
+    case MutationLogVersion::V3: {
+        mleV3 = MutationLogEntryV3::newEntry(entryBuf.begin(), entryBuf.size());
         break;
     }
     */
@@ -863,30 +882,49 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::upgradeEntry()
         // fall through
     }
     case MutationLogVersion::V2: {
+        if (!mleV1) {
+            throw std::logic_error(
+                    "MutationLog::iterator::upgradeEntry mleV1 is null");
+        }
         // Upgrade V1 to V2.
         // Alloc a buffer using the length read from V1 as input to V2::len
-        allocated = std::make_unique<uint8_t[]>(
+        allocatedV2 = std::make_unique<uint8_t[]>(
                 MutationLogEntryV2::len(mleV1->getKeylen()));
 
         // Now in-place construct into the buffer
-        (void) new (allocated.get()) MutationLogEntryV2(*mleV1);
-        // If adding more cases, we should assign the above "new" pointer to a
-        // mleV2 and allow the next case to read it.
+        mleV2 = new (allocatedV2.get()) MutationLogEntryV2(*mleV1);
 
         // fall through
     }
-    /* If V3 exists then add a case (which is hit by V2 falling through)
     case MutationLogVersion::V3: {
+        if (!mleV2) {
+            throw std::logic_error(
+                    "MutationLog::iterator::upgradeEntry mleV2 is null");
+        }
         // Upgrade V2 to V3
         // Alloc a buffer using the length read from V2 as input to V3::len
         allocated = std::make_unique<uint8_t[]>(
-                MutationLogEntryV3::len(mleV2->getKeylen()));
+                MutationLogEntryV3::len(mleV2->key().size()));
 
         // Now in-place construct into the new buffer and assign to mleV3
-        mleV3 = new (allocated.get()) MutationLogEntryV3(*mleV3);
+        (void)new (allocated.get()) MutationLogEntryV3(*mleV2);
+        // If adding more cases, we should assign the above "new" pointer to a
+        // mleV3 and allow the next case to read it.
+
         // fall through
     }
-    */
+        /* If V4 exists then add a case (which is hit by V3 falling through)
+        case MutationLogVersion::V4: {
+            // Upgrade V3 to V4
+            // Alloc a buffer using the length read from V3 as input to V4::len
+            allocated = std::make_unique<uint8_t[]>(
+                    MutationLogEntryV4::len(mleV3->getKeylen()));
+
+            // Now in-place construct into the new buffer and assign to mleV4
+            mleV4 = new (allocated.get()) MutationLogEntryV3(*mleV3);
+            // fall through
+        }
+        */
     }
 
     // transfer ownership to the MutationLogEntryHolder and mark that it's

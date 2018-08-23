@@ -160,17 +160,10 @@ static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
 }
 
 static DocKey makeDocKey(const sized_buf buf, bool restoreNamespace) {
-    if (restoreNamespace) {
-        return DocKey(reinterpret_cast<const uint8_t*>(
-                              &buf.buf[sizeof(CollectionID)]),
-                      buf.size - sizeof(CollectionID),
-                      DocKeyEncodesCollectionId::No,
-                      *reinterpret_cast<CollectionID*>(buf.buf));
-    } else {
-        return DocKey(reinterpret_cast<const uint8_t*>(buf.buf),
-                      buf.size,
-                      DocKeyEncodesCollectionId::No);
-    }
+    return DocKey(reinterpret_cast<const uint8_t*>(buf.buf),
+                  buf.size,
+                  restoreNamespace ? DocKeyEncodesCollectionId::Yes
+                                   : DocKeyEncodesCollectionId::No);
 }
 
 struct GetMultiCbCtx {
@@ -183,11 +176,15 @@ struct GetMultiCbCtx {
 };
 
 struct AllKeysCtx {
-    AllKeysCtx(std::shared_ptr<Callback<const DocKey&>> callback, uint32_t cnt)
-        : cb(callback), count(cnt) { }
+    AllKeysCtx(std::shared_ptr<Callback<const DocKey&>> callback,
+               uint32_t cnt,
+               bool persistDocNamespace)
+        : cb(callback), count(cnt), persistDocNamespace(persistDocNamespace) {
+    }
 
     std::shared_ptr<Callback<const DocKey&>> cb;
     uint32_t count;
+    bool persistDocNamespace{false};
 };
 
 couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
@@ -216,12 +213,16 @@ CouchRequest::CouchRequest(const Item& it,
       value(it.getValue()),
       fileRevNum(rev) {
     // Collections: TODO: Temporary switch to ensure upgrades don't break.
-    if (persistDocNamespace) {
-        dbDoc.id = {const_cast<char*>(reinterpret_cast<const char*>(
-                            key.getDocNameSpacedData())),
-                    it.getKey().getDocNameSpacedSize()};
+    if (!persistDocNamespace) {
+        auto noprefix = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
+                {key.data(), key.size()});
+        dbDoc.id = {const_cast<char*>(
+                            reinterpret_cast<const char*>(noprefix.data())),
+                    noprefix.size()};
     } else {
-        dbDoc.id = {const_cast<char*>(key.c_str()), it.getKey().size()};
+        dbDoc.id = {
+                const_cast<char*>(reinterpret_cast<const char*>(key.data())),
+                key.size()};
     }
 
     if (it.getNBytes()) {
@@ -448,11 +449,11 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
     sized_buf id;
     GetValue rv;
 
-    if (configuration.shouldPersistDocNamespace()) {
-        id = {const_cast<char*>(reinterpret_cast<const char*>(
-                      key.getDocNameSpacedData())),
-              key.getDocNameSpacedSize()};
-
+    if (!configuration.shouldPersistDocNamespace()) {
+        auto noprefix = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
+                {key.data(), key.size()});
+        id = {const_cast<char*>(reinterpret_cast<const char*>(noprefix.data())),
+              noprefix.size()};
     } else {
         id = {const_cast<char*>(reinterpret_cast<const char*>(key.data())),
               key.size()};
@@ -530,10 +531,12 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     size_t idx = 0;
     std::vector<sized_buf> ids(itms.size());
     for (auto& item : itms) {
-        if (configuration.shouldPersistDocNamespace()) {
-            ids[idx] = {const_cast<char*>(reinterpret_cast<const char*>(
-                                item.first.getDocNameSpacedData())),
-                        item.first.getDocNameSpacedSize()};
+        if (!configuration.shouldPersistDocNamespace()) {
+            auto noprefix = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
+                    {item.first.data(), item.first.size()});
+            ids[idx] = {const_cast<char*>(
+                                reinterpret_cast<const char*>(noprefix.data())),
+                        noprefix.size()};
         } else {
             ids[idx] = {const_cast<char*>(reinterpret_cast<const char*>(
                                 item.first.data())),
@@ -2883,8 +2886,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
 
 int populateAllKeys(Db *db, DocInfo *docinfo, void *ctx) {
     AllKeysCtx *allKeysCtx = (AllKeysCtx *)ctx;
-    // Collections: TODO: Restore to stored namespace
-    DocKey key = makeDocKey(docinfo->id, false /*restore namespace*/);
+    DocKey key = makeDocKey(docinfo->id, allKeysCtx->persistDocNamespace);
     (allKeysCtx->cb)->callback(key);
     if (--(allKeysCtx->count) <= 0) {
         //Only when count met is less than the actual number of entries
@@ -2902,9 +2904,18 @@ CouchKVStore::getAllKeys(uint16_t vbid,
     couchstore_error_t errCode = openDB(vbid, db, COUCHSTORE_OPEN_FLAG_RDONLY);
     if(errCode == COUCHSTORE_SUCCESS) {
         sized_buf ref = {NULL, 0};
-        ref.buf = (char*) start_key.data();
-        ref.size = start_key.size();
-        AllKeysCtx ctx(cb, count);
+
+        if (!configuration.shouldPersistDocNamespace()) {
+            auto noprefix = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
+                    {start_key.data(), start_key.size()});
+            ref.buf = (char*)noprefix.data();
+            ref.size = noprefix.size();
+        } else {
+            ref.buf = (char*)start_key.data();
+            ref.size = start_key.size();
+        }
+
+        AllKeysCtx ctx(cb, count, configuration.shouldPersistDocNamespace());
         errCode = couchstore_all_docs(db,
                                       &ref,
                                       COUCHSTORE_NO_DELETES,

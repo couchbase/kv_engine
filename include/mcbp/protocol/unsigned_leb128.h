@@ -66,6 +66,15 @@ decode_unsigned_leb128(cb::const_byte_buffer buf) {
                                   buf.size() - (end + 1)}};
 }
 
+/**
+ * @return a buffer to the data after the leb128 prefix
+ */
+template <class T>
+typename std::enable_if<std::is_unsigned<T>::value, cb::const_byte_buffer>::type
+skip_unsigned_leb128(cb::const_byte_buffer buf) {
+    return decode_unsigned_leb128<T>(buf).second;
+}
+
 /// @return the index of the stop byte within buf
 static inline boost::optional<size_t> unsigned_leb128_get_stop_byte_index(
         cb::const_byte_buffer buf) {

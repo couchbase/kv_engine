@@ -73,7 +73,7 @@ const int MUTATION_LOG_COMPACTOR_FREQ(3600);
 const size_t MIN_LOG_HEADER_SIZE(4096);
 const size_t HEADER_RESERVED(4);
 
-enum class MutationLogVersion { V1 = 1, V2 = 2, Current = V2 };
+enum class MutationLogVersion { V1 = 1, V2 = 2, V3 = 3, Current = V3 };
 
 const size_t LOG_ENTRY_BUF_SIZE(512);
 
@@ -210,7 +210,7 @@ public:
 
     ~MutationLog();
 
-    void newItem(uint16_t vbucket, const DocKey& key);
+    void newItem(uint16_t vbucket, const StoredDocKey& key);
 
     void commit1();
 

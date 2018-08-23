@@ -276,7 +276,7 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
     for (const auto& e : c.toWrite) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";
-        os << e->getKey().c_str() << "," << e->size() << ",";
+        os << e->getKey() << "," << e->size() << ",";
         e->isCheckPointMetaItem() ? os << "[m]}" : os << "}";
         os << std::endl;
     }

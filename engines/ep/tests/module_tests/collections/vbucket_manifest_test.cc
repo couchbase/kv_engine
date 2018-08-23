@@ -831,8 +831,6 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
         EXPECT_TRUE(rh.valid());
         EXPECT_EQ(CollectionEntry::vegetable.getId(),
                   rh.getKey().getDocNamespace());
-        EXPECT_STREQ("vegetable:v1",
-                     reinterpret_cast<const char*>(rh.getKey().data()));
     }
 
     {
@@ -842,8 +840,6 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
         // cached the key
         EXPECT_EQ(CollectionEntry::fruit.getId(),
                   rh.getKey().getDocNamespace());
-        EXPECT_STREQ("fruit:v1",
-                     reinterpret_cast<const char*>(rh.getKey().data()));
     }
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
 
@@ -853,16 +849,12 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
 
         EXPECT_EQ(CollectionEntry::vegetable.getId(),
                   rh.getKey().getDocNamespace());
-        EXPECT_STREQ("vegetable:v1",
-                     reinterpret_cast<const char*>(rh.getKey().data()));
     }
     {
         auto rh = manifest.active.lock(key2);
         EXPECT_FALSE(rh.valid());
         EXPECT_EQ(CollectionEntry::fruit.getId(),
                   rh.getKey().getDocNamespace());
-        EXPECT_STREQ("fruit:v1",
-                     reinterpret_cast<const char*>(rh.getKey().data()));
     }
 }
 

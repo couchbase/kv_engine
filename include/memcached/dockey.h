@@ -21,6 +21,7 @@
 #include <iomanip>
 #include <sstream>
 
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
@@ -52,11 +53,13 @@ class CollectionIDNetworkOrder;
 using CollectionIDType = uint32_t;
 class CollectionID {
 public:
-    /// To allow KV to move legacy data into a collection, reserve 0
-    static constexpr CollectionIDType DefaultCollection = 0;
+    enum {
+        /// To allow KV to move legacy data into a collection, reserve 0
+        DefaultCollection = 0,
 
-    /// To allow KV to weave system things into the users namespace, reserve 1
-    static constexpr CollectionIDType System = 1;
+        /// To weave system things into the users namespace, reserve 1
+        System = 1
+    };
 
     CollectionID() : value(DefaultCollection) {
     }
@@ -122,6 +125,17 @@ struct hash<CollectionID> {
 /// To allow manageable patches during updates to Collections, allow both names
 using DocNamespace = CollectionID;
 
+/**
+ * A DocKey views a key (non-owning). It can view a key with or without
+ * defined collection-ID. Keys with a collection-ID, encode the collection-ID
+ * as a unsigned_leb128 prefix in the key bytes. This enum defines if the
+ * DocKey is viewing a unsigned_leb128 prefixed key (Yes) or not (No)
+ */
+enum class DocKeyEncodesCollectionId : uint8_t { Yes, No };
+
+// Constant value of the DefaultCollection(value of 0) leb128 encoded
+const uint8_t DefaultCollectionLeb128Encoded = 0;
+
 template <class T>
 struct DocKeyInterface {
     size_t size() const {
@@ -140,18 +154,20 @@ struct DocKeyInterface {
         return static_cast<const T*>(this)->getDocNamespace();
     }
 
-    uint32_t hash() const {
-        return hash(size());
+    DocKeyEncodesCollectionId getEncoding() const {
+        return static_cast<const T*>(this)->getEncoding();
     }
 
-protected:
-    uint32_t hash(size_t bytes) const {
+    uint32_t hash() const {
         uint32_t h = 5381;
 
-        h = ((h << 5) + h) ^ getCollectionID();
+        if (getEncoding() == DocKeyEncodesCollectionId::No) {
+            h = ((h << 5) + h) ^ uint32_t(DefaultCollectionLeb128Encoded);
+        }
+        // else hash the entire data which includes an encoded CollectionID
 
-        for (size_t i = 0; i < bytes; i++) {
-            h = ((h << 5) + h) ^ uint32_t(data()[i]);
+        for (auto c : cb::const_byte_buffer(data(), size())) {
+            h = ((h << 5) + h) ^ uint32_t(c);
         }
 
         return h;
@@ -159,35 +175,16 @@ protected:
 };
 
 /**
- * A DocKey is non-owning and may refer to a key which has no collection (and
- * is thus automatically a default-collection key) or a key which has a defined
- * collection, in which our encoding scheme is to keep the collection-ID in the
- * key-bytes (as a unsigned_leb128)
- */
-enum class DocKeyEncodesCollectionId { Yes, No };
-
-/**
  * DocKey is a non-owning structure used to describe a document keys over
  * the engine-API. All API commands working with "keys" must specify the
- * data, length and the namespace with which the document applies to.
+ * data, length and if the data contain an encoded CollectionID
  */
 struct DocKey : DocKeyInterface<DocKey> {
     /**
      * Standard constructor - creates a view onto key/nkey
      */
     DocKey(const uint8_t* key, size_t nkey, DocKeyEncodesCollectionId encoding)
-        : buffer(key, nkey), collectionID(CollectionID::DefaultCollection) {
-        (void)encoding; // Unused at this patch level.
-    }
-
-    // Temporary method only for this commit and to be removed in the next
-    // patch in this series
-    DocKey(const uint8_t* key,
-           size_t nkey,
-           DocKeyEncodesCollectionId encoding,
-           CollectionID id)
-        : buffer(key, nkey), collectionID(id) {
-        (void)encoding; // Unused at this patch level.
+        : buffer(key, nkey), encoding(encoding) {
     }
 
     /**
@@ -200,15 +197,6 @@ struct DocKey : DocKeyInterface<DocKey> {
                  encoding) {
     }
 
-    // Temporary method only for this commit and to be removed in the next
-    // patch in this series
-    DocKey(const char* key, DocKeyEncodesCollectionId encoding, CollectionID id)
-        : DocKey(reinterpret_cast<const uint8_t*>(key),
-                 std::strlen(key),
-                 encoding,
-                 id) {
-    }
-
     /**
      * const_char_buffer constructor, views the data()/size() of the key
      */
@@ -219,18 +207,6 @@ struct DocKey : DocKeyInterface<DocKey> {
     }
 
     /**
-     * const_char_buffer constructor, views the data()/size() of the key
-     */
-    DocKey(const cb::const_char_buffer& key,
-           DocKeyEncodesCollectionId encoding,
-           CollectionID id)
-        : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
-                 key.size(),
-                 encoding,
-                 id) {
-    }
-
-    /**
      * Disallow rvalue strings as we would view something which would soon be
      * out of scope.
      */
@@ -238,14 +214,8 @@ struct DocKey : DocKeyInterface<DocKey> {
            DocKeyEncodesCollectionId encoding) = delete;
 
     explicit operator cb::const_char_buffer() const {
-        return cb::const_char_buffer((const char*)buffer.buf, buffer.len);
-    }
-
-    template <class T>
-    DocKey(const DocKeyInterface<T>& key) {
-        buffer.len = key.size();
-        buffer.buf = key.data();
-        collectionID = key.getCollectionID();
+        return cb::const_char_buffer(reinterpret_cast<const char*>(data()),
+                                     size());
     }
 
     const uint8_t* data() const {
@@ -256,15 +226,53 @@ struct DocKey : DocKeyInterface<DocKey> {
         return buffer.size();
     }
 
+    // @todo remove DocNamespace methods
     DocNamespace getDocNamespace() const {
-        return collectionID;
+        return getCollectionID();
     }
 
     CollectionID getCollectionID() const {
-        return collectionID;
+        if (encoding == DocKeyEncodesCollectionId::Yes) {
+            return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer)
+                    .first;
+        }
+        return CollectionID::DefaultCollection;
+    }
+
+    DocKeyEncodesCollectionId getEncoding() const {
+        return encoding;
+    }
+
+    /**
+     * @return the ID and the key as separate entities (the key does not contain
+     * the ID). Thus a key which encodes the DefaultCollection can be
+     * hashed/compared to the same value as the same logical key which doesn't
+     * encode the collection-ID.
+     */
+    std::pair<CollectionID, cb::const_byte_buffer> getIdAndKey() const {
+        if (encoding == DocKeyEncodesCollectionId::Yes) {
+            return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer);
+        }
+        return {CollectionID::DefaultCollection, {data(), size()}};
+    }
+
+    /**
+     * @return a DocKey that views this DocKey but without any collection-ID
+     * prefix. If this was already viewing a key without any encoded
+     * collection-ID, then this is returned.
+     */
+    DocKey makeDocKeyWithoutCollectionID() const {
+        if (getEncoding() == DocKeyEncodesCollectionId::Yes) {
+            auto decoded =
+                    cb::mcbp::skip_unsigned_leb128<CollectionIDType>(buffer);
+            return {decoded.data(),
+                    decoded.size(),
+                    DocKeyEncodesCollectionId::No};
+        }
+        return *this;
     }
 
 private:
     cb::const_byte_buffer buffer;
-    CollectionID collectionID;
+    DocKeyEncodesCollectionId encoding{DocKeyEncodesCollectionId::No};
 };

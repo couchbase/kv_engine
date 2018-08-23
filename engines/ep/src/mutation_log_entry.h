@@ -36,6 +36,7 @@ enum class MutationLogType : uint8_t {
 std::string to_string(MutationLogType t);
 
 class MutationLogEntryV2;
+class MutationLogEntryV3;
 
 /**
  * An entry in the MutationLog.
@@ -172,12 +173,13 @@ protected:
     DISALLOW_COPY_AND_ASSIGN(MutationLogEntryV1);
 };
 
-std::ostream& operator<<(std::ostream& out, const MutationLogEntryV1& mle);
-
 /**
  * An entry in the MutationLog.
  * This is the V2 layout which stores document namespaces and removes the rowid
  * (sequence number) as it was unused.
+ *
+ *  V2 was persisted by spock/vulcan/alice
+ *
  */
 class MutationLogEntryV2 {
 public:
@@ -192,35 +194,9 @@ public:
         : _vbucket(mleV1._vbucket),
           magic(MagicMarker),
           _type(mleV1._type),
-          pad(0),
-          _key({(const uint8_t*)mleV1._key,
-                mleV1.keylen,
-                DocKeyEncodesCollectionId::No}) {
-    }
-
-    /**
-     * Initialize a new entry inside the given buffer.
-     *
-     * @param r the rowid
-     * @param t the type of log entry
-     * @param vb the vbucket
-     * @param k the key
-     */
-    static MutationLogEntryV2* newEntry(uint8_t* buf,
-                                        MutationLogType t,
-                                        uint16_t vb,
-                                        const DocKey& k) {
-        return new (buf) MutationLogEntryV2(t, vb, k);
-    }
-
-    static MutationLogEntryV2* newEntry(uint8_t* buf,
-                                        MutationLogType t,
-                                        uint16_t vb) {
-        if (MutationLogType::Commit1 != t && MutationLogType::Commit2 != t) {
-            throw std::invalid_argument(
-                    "MutationLogEntryV2::newEntry: invalid type");
-        }
-        return new (buf) MutationLogEntryV2(t, vb);
+          _key({reinterpret_cast<const uint8_t*>(mleV1._key), mleV1.keylen},
+               CollectionID::DefaultCollection) {
+        (void)pad;
     }
 
     /**
@@ -270,7 +246,7 @@ public:
      */
     static size_t len(size_t klen) {
         // the exact empty record size as will be packed into the layout
-        return sizeof(MutationLogEntryV2) + (klen - 1);
+        return sizeof(MutationLogEntryV2) + klen;
     }
 
     /**
@@ -303,28 +279,15 @@ public:
     }
 
 private:
+    friend MutationLogEntryV3;
+
     friend std::ostream& operator<<(std::ostream& out,
                                     const MutationLogEntryV2& e);
-
-    MutationLogEntryV2(MutationLogType t, uint16_t vb, const DocKey& k)
-        : _vbucket(htons(vb)), magic(MagicMarker), _type(t), pad(0), _key(k) {
-        (void)pad;
-        // Assert that _key is the final member
-        static_assert(
-                offsetof(MutationLogEntryV2, _key) ==
-                        (sizeof(MutationLogEntryV2) - sizeof(SerialisedDocKey)),
-                "_key must be the final member of MutationLogEntryV2");
-    }
-
-    MutationLogEntryV2(MutationLogType t, uint16_t vb)
-        : MutationLogEntryV2(
-                  t, vb, {nullptr, 0, DocKeyEncodesCollectionId::No}) {
-    }
 
     const uint16_t _vbucket;
     const uint8_t magic;
     const MutationLogType _type;
-    const uint8_t pad; // explicit padding to ensure _key is the final member
+    const uint8_t pad[2] = {}; // padding to ensure _key is the final member
     const SerialisedDocKey _key;
 
     DISALLOW_COPY_AND_ASSIGN(MutationLogEntryV2);
@@ -333,6 +296,168 @@ private:
                   "_type must be a uint8_t");
 };
 
-using MutationLogEntry = MutationLogEntryV2;
+/**
+ * An entry in the MutationLog.
+ * This is the V3 layout which stores leb encoded collectionID
+ *
+ * Stored by mad-hatter
+ *
+ */
+class MutationLogEntryV3 {
+public:
+    static const uint8_t MagicMarker = 0x47;
 
+    /**
+     * Construct a V3 from V2.
+     * V2 stored a 1 byte namespace which was the value of 0. we could just
+     * treat that as a leb128 encoded DefaultCollection, but for cleanliness
+     * skip that first byte and re-encode as the DefaultCollection
+     */
+    MutationLogEntryV3(const MutationLogEntryV2& mleV2)
+        : _vbucket(mleV2._vbucket),
+          magic(MagicMarker),
+          _type(mleV2._type),
+          _key({mleV2._key.data() + 1, mleV2._key.size() - 1},
+               CollectionID::DefaultCollection) {
+        (void)pad;
+    }
+
+    /**
+     * Initialize a new entry inside the given buffer.
+     *
+     * @param r the rowid
+     * @param t the type of log entry
+     * @param vb the vbucket
+     * @param k the key
+     */
+    static MutationLogEntryV3* newEntry(uint8_t* buf,
+                                        MutationLogType t,
+                                        uint16_t vb,
+                                        const DocKey& k) {
+        return new (buf) MutationLogEntryV3(t, vb, k);
+    }
+
+    static MutationLogEntryV3* newEntry(uint8_t* buf,
+                                        MutationLogType t,
+                                        uint16_t vb) {
+        if (MutationLogType::Commit1 != t && MutationLogType::Commit2 != t) {
+            throw std::invalid_argument(
+                    "MutationLogEntryV3::newEntry: invalid type");
+        }
+        return new (buf) MutationLogEntryV3(t, vb);
+    }
+
+    /**
+     * Initialize a new entry using the contents of the given buffer.
+     *
+     * @param buf a chunk of memory thought to contain a valid
+     *        MutationLogEntryV3
+     * @param buflen the length of said buf
+     */
+    static const MutationLogEntryV3* newEntry(
+            std::vector<uint8_t>::const_iterator itr, size_t buflen) {
+        if (buflen < len(0)) {
+            throw std::invalid_argument(
+                    "MutationLogEntryV3::newEntry: buflen "
+                    "(which is " +
+                    std::to_string(buflen) +
+                    ") is less than minimum required (which is " +
+                    std::to_string(len(0)) + ")");
+        }
+
+        const auto* me = reinterpret_cast<const MutationLogEntryV3*>(&(*itr));
+
+        if (me->magic != MagicMarker) {
+            throw std::invalid_argument(
+                    "MutationLogEntryV3::newEntry: "
+                    "magic (which is " +
+                    std::to_string(me->magic) + ") is not equal to " +
+                    std::to_string(MagicMarker));
+        }
+        if (me->len() > buflen) {
+            throw std::invalid_argument(
+                    "MutationLogEntryV3::newEntry: "
+                    "entry length (which is " +
+                    std::to_string(me->len()) +
+                    ") is greater than available buflen (which is " +
+                    std::to_string(buflen) + ")");
+        }
+        return me;
+    }
+
+    // Statically buffered.  There is no delete.
+    void operator delete(void*) = delete;
+
+    /**
+     * The size of a MutationLogEntryV3, in bytes, containing a key of
+     * the specified length.
+     */
+    static size_t len(size_t klen) {
+        // the exact empty record size as will be packed into the layout
+        return sizeof(MutationLogEntryV3) + (klen - 1);
+    }
+
+    /**
+     * The number of bytes of the serialized form of this
+     * MutationLogEntryV3.
+     */
+    size_t len() const {
+        return len(_key.size());
+    }
+
+    /**
+     * This entry's key.
+     */
+    const SerialisedDocKey& key() const {
+        return _key;
+    }
+
+    /**
+     * This entry's vbucket.
+     */
+    uint16_t vbucket() const {
+        return ntohs(_vbucket);
+    }
+
+    /**
+     * The type of this log entry.
+     */
+    MutationLogType type() const {
+        return _type;
+    }
+
+private:
+    friend std::ostream& operator<<(std::ostream& out,
+                                    const MutationLogEntryV3& e);
+
+    MutationLogEntryV3(MutationLogType t, uint16_t vb, const DocKey& k)
+        : _vbucket(htons(vb)), magic(MagicMarker), _type(t), _key(k) {
+        // Assert that _key is the final member
+        static_assert(
+                offsetof(MutationLogEntryV3, _key) ==
+                        (sizeof(MutationLogEntryV3) - sizeof(SerialisedDocKey)),
+                "_key must be the final member of MutationLogEntryV2");
+    }
+
+    MutationLogEntryV3(MutationLogType t, uint16_t vb)
+        : MutationLogEntryV3(
+                  t, vb, {nullptr, 0, DocKeyEncodesCollectionId::No}) {
+    }
+
+    const uint16_t _vbucket;
+    const uint8_t magic;
+    const MutationLogType _type;
+    const uint8_t pad[2] = {}; // padding to ensure _key is the final member
+    const SerialisedDocKey _key;
+
+    DISALLOW_COPY_AND_ASSIGN(MutationLogEntryV3);
+
+    static_assert(sizeof(MutationLogType) == sizeof(uint8_t),
+                  "_type must be a uint8_t");
+};
+
+using MutationLogEntry = MutationLogEntryV3;
+
+std::ostream& operator<<(std::ostream& out, const MutationLogEntryV1& mle);
 std::ostream& operator<<(std::ostream& out, const MutationLogEntryV2& mle);
+std::ostream& operator<<(std::ostream& out, const MutationLogEntryV3& mle);

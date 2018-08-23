@@ -28,10 +28,8 @@ std::unique_ptr<Item> SystemEventFactory::make(
         const std::string& keyExtra,
         size_t itemSize,
         OptionalSeqno seqno) {
-    std::string key = makeKey(se, keyExtra);
-
     auto item = std::make_unique<Item>(
-            DocKey(key, DocKeyEncodesCollectionId::No, DocNamespace::System),
+            StoredDocKey(makeKey(se, keyExtra), DocNamespace::System),
             uint32_t(se) /*flags*/,
             0 /*exptime*/,
             nullptr, /*no data to copy-in*/

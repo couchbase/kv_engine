@@ -4045,7 +4045,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doKeyStats(cookie,
                         add_stat,
                         vbucket_id,
-                        DocKey(key, DocKeyEncodesCollectionId::No),
+                        DocKey(reinterpret_cast<const uint8_t*>(key.data()),
+                               key.size(),
+                               DocKeyEncodesCollectionId::No),
                         false);
     } else if (nkey > 5 && cb_isPrefix(statKey, "vkey ")) {
         std::string key;
@@ -4061,7 +4063,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = doKeyStats(cookie,
                         add_stat,
                         vbucket_id,
-                        DocKey(key, DocKeyEncodesCollectionId::No),
+                        DocKey(reinterpret_cast<const uint8_t*>(key.data()),
+                               key.size(),
+                               DocKeyEncodesCollectionId::No),
                         true);
     } else if (statKey == "kvtimings") {
         getKVBucket()->addKVStoreTimingStats(add_stat, cookie);
@@ -4664,16 +4668,11 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
 
 DocKey EventuallyPersistentEngine::makeDocKey(const void* cookie,
                                               cb::const_byte_buffer key) {
-    if (isCollectionsSupported(cookie)) {
-        auto cid =
-                *reinterpret_cast<const CollectionIDNetworkOrder*>(key.data());
-        return DocKey{key.data() + sizeof(CollectionID),
-                      key.size() - sizeof(CollectionID),
-                      DocKeyEncodesCollectionId::No,
-                      cid.to_host()};
-    } else {
-        return DocKey{key.data(), key.size(), DocKeyEncodesCollectionId::No};
-    }
+    return DocKey{key.data(),
+                  key.size(),
+                  isCollectionsSupported(cookie)
+                          ? DocKeyEncodesCollectionId::Yes
+                          : DocKeyEncodesCollectionId::No};
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
@@ -5348,22 +5347,28 @@ EventuallyPersistentEngine::returnMeta(
  */
 class AllKeysCallback : public Callback<const DocKey&> {
 public:
-    AllKeysCallback() {
+    AllKeysCallback(bool encodeCollectionID)
+        : encodeCollectionID(encodeCollectionID) {
         buffer.reserve((avgKeySize + sizeof(uint16_t)) * expNumKeys);
     }
 
     void callback(const DocKey& key) {
-        if (buffer.size() + key.size() + sizeof(uint16_t) >
-            buffer.size()) {
+        DocKey outKey = key;
+        if (!encodeCollectionID) {
+            outKey = key.makeDocKeyWithoutCollectionID();
+        }
+
+        if (buffer.size() + outKey.size() + sizeof(uint16_t) > buffer.size()) {
             // Reserve the 2x space for the copy-to buffer.
             buffer.reserve(buffer.size()*2);
         }
-        uint16_t outlen = htons(key.size());
+        uint16_t outlen = htons(outKey.size());
         // insert 1 x u16
         const auto* outlenPtr = reinterpret_cast<const char*>(&outlen);
         buffer.insert(buffer.end(), outlenPtr, outlenPtr + sizeof(uint16_t));
         // insert the char buffer
-        buffer.insert(buffer.end(), key.data(), key.data()+key.size());
+        buffer.insert(
+                buffer.end(), outKey.data(), outKey.data() + outKey.size());
     }
 
     char* getAllKeysPtr() { return buffer.data(); }
@@ -5371,7 +5376,7 @@ public:
 
 private:
     std::vector<char> buffer;
-
+    bool encodeCollectionID{false};
     static const int avgKeySize = 32;
     static const int expNumKeys = 1000;
 
@@ -5388,7 +5393,8 @@ public:
                      ADD_RESPONSE resp,
                      const DocKey start_key_,
                      uint16_t vbucket,
-                     uint32_t count_)
+                     uint32_t count_,
+                     bool encodeCollectionID)
         : GlobalTask(e, TaskId::FetchAllKeysTask, 0, false),
           engine(e),
           cookie(c),
@@ -5397,7 +5403,8 @@ public:
           response(resp),
           start_key(start_key_),
           vbid(vbucket),
-          count(count_) {
+          count(count_),
+          encodeCollectionID(encodeCollectionID) {
     }
 
     std::string getDescription() {
@@ -5422,7 +5429,7 @@ public:
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                                cookie);
         } else {
-            auto cb = std::make_shared<AllKeysCallback>();
+            auto cb = std::make_shared<AllKeysCallback>(encodeCollectionID);
             err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                                                     vbid, start_key, count, cb);
             if (err == ENGINE_SUCCESS) {
@@ -5447,6 +5454,7 @@ private:
     StoredDocKey start_key;
     uint16_t vbid;
     uint32_t count;
+    bool encodeCollectionID{false};
 };
 
 ENGINE_ERROR_CODE
@@ -5501,8 +5509,14 @@ EventuallyPersistentEngine::getAllKeys(
     const uint8_t* keyPtr = (request->bytes + sizeof(request->bytes) + extlen);
     DocKey start_key = makeDocKey(cookie, {keyPtr, keylen});
 
-    ExTask task = std::make_shared<FetchAllKeysTask>(
-            this, cookie, response, start_key, vbucket, count);
+    ExTask task =
+            std::make_shared<FetchAllKeysTask>(this,
+                                               cookie,
+                                               response,
+                                               start_key,
+                                               vbucket,
+                                               count,
+                                               isCollectionsSupported(cookie));
     ExecutorPool::get()->schedule(task);
     return ENGINE_EWOULDBLOCK;
 }

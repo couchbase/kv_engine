@@ -69,13 +69,19 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
+      // @todo MB-26618 stream-request is to be changed and the
+      // Collections::Filter is going away, calculating includeCollectionID will
+      // be made more succinct during that update.
+      includeCollectionID(
+              (!filter.isPassthrough() && filter.allowDefaultCollection())
+                      ? DocKeyEncodesCollectionId::No
+                      : DocKeyEncodesCollectionId::Yes),
       snappyEnabled(p->isSnappyEnabled() ? SnappyEnabled::Yes
                                          : SnappyEnabled::No),
       forceValueCompression(p->isForceValueCompressionEnabled()
                                     ? ForceValueCompression::Yes
                                     : ForceValueCompression::No),
       filter(filter, manifest) {
-
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
@@ -904,7 +910,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                       opaque_,
                                                       includeValue,
                                                       includeXattributes,
-                                                      includeDeleteTime);
+                                                      includeDeleteTime,
+                                                      includeCollectionID);
         }
 
         // Item unmodified - construct response from original.
@@ -912,7 +919,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                   opaque_,
                                                   includeValue,
                                                   includeXattributes,
-                                                  includeDeleteTime);
+                                                  includeDeleteTime,
+                                                  includeCollectionID);
     }
     return SystemEventProducerMessage::make(opaque_, item);
 }

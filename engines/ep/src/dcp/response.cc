@@ -72,7 +72,13 @@ uint32_t MutationResponse::getMessageSize() const {
     const uint32_t header =
             item_->isDeleted() ? getDeleteLength() : mutationBaseMsgBytes;
 
-    uint32_t body = item_->getKey().size() + item_->getNBytes();
+    uint32_t keySize = 0;
+    if (includeCollectionID == DocKeyEncodesCollectionId::Yes) {
+        keySize = item_->getKey().size();
+    } else {
+        keySize = item_->getKey().makeDocKeyWithoutCollectionID().size();
+    }
+    uint32_t body = keySize + item_->getNBytes();
 
     // Check to see if we need to include the extended meta data size.
     if (emd) {

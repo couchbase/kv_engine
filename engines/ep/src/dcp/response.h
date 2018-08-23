@@ -339,11 +339,22 @@ private:
 
 class MutationResponse : public DcpResponse {
 public:
+    /**
+     * Construct a MutationResponse which is used to represent an outgoing or
+     * incoming DCP mutation/deletion (stored in an Item)
+     * @param item The Item (via shared pointer) the object represents
+     * @param opaque DCP opaque value
+     * @param includeVal Does the DCP message contain a value
+     * @param includeXattrs Does the DCP message contain xattrs
+     * @param includeCollectionID If the incoming/outgoing key should contain
+     *        the Collection-ID.
+     */
     MutationResponse(queued_item item,
                      uint32_t opaque,
                      IncludeValue includeVal,
                      IncludeXattrs includeXattrs,
                      IncludeDeleteTime includeDeleteTime,
+                     DocKeyEncodesCollectionId includeCollectionID,
                      ExtendedMetaData* e = NULL)
         : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation,
                       opaque),
@@ -351,6 +362,7 @@ public:
           includeValue(includeVal),
           includeXattributes(includeXattrs),
           includeDeleteTime(includeDeleteTime),
+          includeCollectionID(includeCollectionID),
           emd(e) {
     }
 
@@ -409,6 +421,8 @@ protected:
     IncludeXattrs includeXattributes;
     // Whether the response should include delete-time (when a delete)
     IncludeDeleteTime includeDeleteTime;
+    // Whether the response includes the collection-ID
+    DocKeyEncodesCollectionId includeCollectionID;
 
     std::unique_ptr<ExtendedMetaData> emd;
 };

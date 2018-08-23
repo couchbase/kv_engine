@@ -52,7 +52,7 @@ public:
             if (verify) {
                 StoredDocKey key(v.getKey());
                 value_t val = v.getValue();
-                EXPECT_STREQ(key.c_str(), val->to_s().c_str());
+                EXPECT_EQ(key.to_string(), val->to_s());
             }
         }
         return true;
@@ -69,7 +69,8 @@ static int count(HashTable &h, bool verify=true) {
 }
 
 static void store(HashTable &h, const StoredDocKey& k) {
-    Item i(k, 0, 0, k.data(), k.size());
+    auto value = k.to_string();
+    Item i(k, 0, 0, value.data(), value.size());
     EXPECT_EQ(MutationStatus::WasClean, h.set(i));
 }
 

@@ -14,18 +14,32 @@
  *   limitations under the License.
  */
 
+#include <iomanip>
 #include <iostream>
 
 #include "storeddockey.h"
 
+std::string StoredDocKey::to_string() const {
+    std::stringstream ss;
+    auto leb128 = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+            {reinterpret_cast<const uint8_t*>(keydata.data()), keydata.size()});
+    ss << "cid:0x" << std::hex << leb128.first << ":"
+       << std::string(reinterpret_cast<const char*>(leb128.second.data()),
+                      leb128.second.size());
+    ss << ", size:" << size();
+    return ss.str();
+}
+
 std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
-    return os << "ns:" << int(key.getDocNamespace()) << " " << key.c_str();
+    return os << key.to_string();
 }
 
 std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key) {
-    os << "ns:" << int(key.getDocNamespace()) << " ";
-    for (size_t ii = 0; ii < key.size(); ++ii) {
-        os << static_cast<char>(key.data()[ii]);
-    }
+    auto leb128 = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
+            {reinterpret_cast<const uint8_t*>(key.data()), key.size()});
+    os << "cid:0x" << std::hex << leb128.first << ":"
+       << std::string(reinterpret_cast<const char*>(leb128.second.data()),
+                      leb128.second.size());
+    os << ", size:" << key.size();
     return os;
 }

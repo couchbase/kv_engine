@@ -442,6 +442,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                                                        IncludeValue::Yes,
                                                        IncludeXattrs::Yes,
                                                        IncludeDeleteTime::No,
+                                                       key.getEncoding(),
                                                        emd.release()));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
@@ -593,6 +594,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                                        IncludeValue::Yes,
                                                        IncludeXattrs::Yes,
                                                        includeDeleteTime,
+                                                       key.getEncoding(),
                                                        emd.release()));
         } catch (const std::bad_alloc&) {
             err = ENGINE_ENOMEM;

@@ -335,17 +335,10 @@ public:
     }
 
     DocKey makeDocKey(cb::const_byte_buffer key) {
-        if (isCollectionsSupported()) {
-            auto lebCid =
-                    cb::mcbp::decode_unsigned_leb128<CollectionIDType>(key);
-            return DocKey{lebCid.second.data(),
-                          lebCid.second.size(),
-                          DocKeyEncodesCollectionId::No,
-                          lebCid.first};
-        } else {
-            return DocKey{
-                    key.data(), key.size(), DocKeyEncodesCollectionId::No};
-        }
+        return DocKey{key.data(),
+                      key.size(),
+                      isCollectionsSupported() ? DocKeyEncodesCollectionId::Yes
+                                               : DocKeyEncodesCollectionId::No};
     }
 
     bool isDuplexSupported() const {
@@ -1053,7 +1046,8 @@ protected:
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
                                     cb::const_byte_buffer packet,
-                                    cb::const_byte_buffer extendedMeta);
+                                    cb::const_byte_buffer extendedMeta,
+                                    const DocKey& key);
 
     /**
      * Add the provided packet to the send pipe for the connection

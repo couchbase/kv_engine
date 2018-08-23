@@ -58,7 +58,8 @@ void processMutations(MockPassiveStream& stream,
                                   0 /* opaque */,
                                   IncludeValue::Yes,
                                   IncludeXattrs::Yes,
-                                  IncludeDeleteTime::No);
+                                  IncludeDeleteTime::No,
+                                  DocKeyEncodesCollectionId::No);
 
         // PassiveStream::processMutation does 2 things:
         //     1) setWithMeta; that enqueues the item into the

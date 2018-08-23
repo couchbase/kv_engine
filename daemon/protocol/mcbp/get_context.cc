@@ -86,9 +86,14 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     uint16_t keylen = 0;
     uint32_t bodylen = gsl::narrow<uint32_t>(sizeof(info.flags) + payload.len);
+    auto key = info.key;
 
     if (shouldSendKey()) {
-        keylen = gsl::narrow<uint16_t>(info.key.size());
+        // Client doesn't support collection-ID in the key
+        if (!connection.isCollectionsSupported()) {
+            key = key.makeDocKeyWithoutCollectionID();
+        }
+        keylen = gsl::narrow<uint16_t>(key.size());
         bodylen += keylen;
     }
 
@@ -106,7 +111,7 @@ ENGINE_ERROR_CODE GetCommandContext::sendResponse() {
 
     // Add the value
     if (shouldSendKey()) {
-        connection.addIov(info.key.data(), info.key.size());
+        connection.addIov(key.data(), key.size());
     }
 
     connection.addIov(payload.buf, payload.len);

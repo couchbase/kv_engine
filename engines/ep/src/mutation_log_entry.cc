@@ -58,3 +58,12 @@ std::ostream& operator<<(std::ostream& out, const MutationLogEntryV2& mle) {
         << "''";
     return out;
 }
+
+std::ostream& operator<<(std::ostream& out, const MutationLogEntryV3& mle) {
+    out << "{MutationLogEntryV3"
+        << " vbucket=" << mle.vbucket() << ", magic=0x" << std::hex
+        << static_cast<uint16_t>(mle.magic) << std::dec
+        << ", type=" << to_string(mle.type()) << ", key=``" << mle.key().data()
+        << "''";
+    return out;
+}

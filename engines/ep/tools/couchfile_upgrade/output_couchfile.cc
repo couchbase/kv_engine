@@ -43,12 +43,16 @@ void OutputCouchFile::commit() const {
 }
 
 // Moving a document to a collection in the context of this upgrade is to
-// prefix the key with a collection-ID
+// prefix the key with a unsigned_leb128 collection-id (cid)
 std::string OutputCouchFile::moveDocToCollection(const sized_buf in,
                                                  CollectionID cid) const {
-    std::string rv(in.size + sizeof(CollectionID), ' ');
-    *reinterpret_cast<CollectionID*>(&rv[0]) = cid;
-    std::copy(in.buf, in.buf + in.size, rv.begin() + sizeof(CollectionID));
+    cb::mcbp::unsigned_leb128<CollectionIDType> encodedCollection(cid);
+    std::string rv(in.size + encodedCollection.size(), ' ');
+    auto next =
+            std::copy_n(reinterpret_cast<const char*>(encodedCollection.data()),
+                        encodedCollection.size(),
+                        rv.begin());
+    std::copy(in.buf, in.buf + in.size, next);
     return rv;
 }
 

@@ -56,8 +56,9 @@ size_t BloomFilter::estimateNoOfHashes(size_t key_count) {
 
 uint64_t BloomFilter::hashDocKey(const DocKey& key, uint32_t iteration) {
     uint64_t result = 0;
-    uint32_t seed = iteration + (uint32_t(key.getDocNamespace()) * noOfHashes);
-    MURMURHASH_3(key.data(), key.size(), seed, &result);
+    auto hashable = key.getIdAndKey();
+    uint32_t seed = iteration + (uint32_t(hashable.first) * noOfHashes);
+    MURMURHASH_3(hashable.second.data(), hashable.second.size(), seed, &result);
     return result;
 }
 

@@ -1656,19 +1656,19 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     // the item.
     item.release();
 
-    auto nkey = gsl::narrow<uint16_t>(info.key.size());
+    auto key = info.key;
     cb::mcbp::unsigned_leb128<CollectionIDType> cid(info.key.getCollectionID());
 
-    if (isCollectionsSupported()) {
-        // Encode a leb128 variable int for the CID
-        nkey += gsl::narrow<uint16_t>(cid.size());
+    // The client doesn't support collections, so must not send an encoded key
+    if (!isCollectionsSupported()) {
+        key = key.makeDocKeyWithoutCollectionID();
     }
 
     protocol_binary_request_dcp_mutation packet(
             opaque,
             vbucket,
             info.cas,
-            nkey,
+            gsl::narrow<uint16_t>(key.size()),
             gsl::narrow<uint32_t>(buffer.len),
             info.datatype,
             by_seqno,
@@ -1680,53 +1680,49 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
             nru);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &packet, &info, &buffer, &meta, &nmeta, &ret, &cid](
+    write->produce([this, &packet, &buffer, &meta, &nmeta, &ret, &key](
                            cb::byte_buffer wbuf) -> size_t {
         size_t hlen = protocol_binary_request_dcp_mutation::getHeaderLength();
-        size_t clen = isCollectionsSupported() ? sizeof(CollectionID) : 0;
 
-        if (wbuf.size() < (hlen + clen + nmeta)) {
+        if (wbuf.size() < (hlen + nmeta)) {
             ret = ENGINE_E2BIG;
             return 0;
         }
 
-        auto next = std::copy(packet.bytes, packet.bytes + hlen, wbuf.begin());
-        if (isCollectionsSupported()) {
-            std::copy(cid.begin(), cid.end(), next);
-        }
+        std::copy_n(packet.bytes, hlen, wbuf.begin());
 
         if (nmeta > 0) {
             std::copy(static_cast<const uint8_t*>(meta),
                       static_cast<const uint8_t*>(meta) + nmeta,
-                      wbuf.data() + hlen + clen);
+                      wbuf.data() + hlen);
         }
 
-        // Add the header (with collectionID if enabled)
-        addIov(wbuf.data(), hlen + clen);
+        // Add the header
+        addIov(wbuf.data(), hlen);
 
         // Add the key
-        addIov(info.key.data(), info.key.size());
+        addIov(key.data(), key.size());
 
         // Add the value
         addIov(buffer.buf, buffer.len);
 
         // Add the optional meta section
         if (nmeta > 0) {
-            addIov(wbuf.data() + hlen + clen, nmeta);
+            addIov(wbuf.data() + hlen, nmeta);
         }
 
-        return hlen + clen + nmeta;
+        return hlen + nmeta;
     });
 
     return ret;
 }
 
-ENGINE_ERROR_CODE Connection::deletionInner(
-        const item_info& info,
-        cb::const_byte_buffer packet,
-        cb::const_byte_buffer extendedMeta) {
+ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
+                                            cb::const_byte_buffer packet,
+                                            cb::const_byte_buffer extendedMeta,
+                                            const DocKey& key) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    write->produce([this, &packet, &extendedMeta, &info, &ret](
+    write->produce([this, &packet, &extendedMeta, &info, &ret, &key](
                            cb::byte_buffer buffer) -> size_t {
         if (buffer.size() <
             (packet.size() +
@@ -1736,28 +1732,19 @@ ENGINE_ERROR_CODE Connection::deletionInner(
             return 0;
         }
 
-        auto next = std::copy(packet.begin(), packet.end(), buffer.begin());
-
-        size_t clen = 0;
-        if (isCollectionsSupported()) {
-            // Encode a leb128 CID
-            cb::mcbp::unsigned_leb128<CollectionIDType> leb128Cid(
-                    info.key.getCollectionID());
-            std::copy(leb128Cid.begin(), leb128Cid.end(), next);
-            clen = leb128Cid.size();
-        }
+        std::copy(packet.begin(), packet.end(), buffer.begin());
 
         if (extendedMeta.size() > 0) {
             std::copy(extendedMeta.begin(),
                       extendedMeta.end(),
-                      buffer.data() + packet.size() + clen);
+                      buffer.data() + packet.size());
         }
 
         // Add the header + collection-ID (stored in buffer)
-        addIov(buffer.data(), packet.size() + clen);
+        addIov(buffer.data(), packet.size());
 
         // Add the key
-        addIov(info.key.data(), info.key.size());
+        addIov(key.data(), key.size());
 
         // Add the optional payload (xattr)
         if (info.nbytes > 0) {
@@ -1766,7 +1753,7 @@ ENGINE_ERROR_CODE Connection::deletionInner(
 
         // Add the optional meta section
         if (extendedMeta.size() > 0) {
-            addIov(buffer.data() + packet.size() + clen, extendedMeta.size());
+            addIov(buffer.data() + packet.size(), extendedMeta.size());
         }
 
         return packet.size() + extendedMeta.size();
@@ -1807,12 +1794,12 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     // we've reserved the item, and it'll be released when we're done sending
     // the item.
     item.release();
-
+    auto key = info.key.makeDocKeyWithoutCollectionID();
     protocol_binary_request_dcp_deletion packet(
             opaque,
             vbucket,
             info.cas,
-            gsl::narrow<uint16_t>(info.key.size()),
+            gsl::narrow<uint16_t>(key.size()),
             info.nbytes,
             info.datatype,
             by_seqno,
@@ -1824,7 +1811,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     cb::const_byte_buffer extendedMeta{reinterpret_cast<const uint8_t*>(meta),
                                        nmeta};
 
-    return deletionInner(info, packetBuffer, extendedMeta);
+    return deletionInner(info, packetBuffer, extendedMeta, key);
 }
 
 ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
@@ -1852,26 +1839,28 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     // the item.
     item.release();
 
-    auto nkey = gsl::narrow<uint16_t>(info.key.size());
-    if (isCollectionsSupported()) {
-        nkey += sizeof(CollectionID);
+    auto key = info.key;
+    if (!isCollectionsSupported()) {
+        key = info.key.makeDocKeyWithoutCollectionID();
     }
 
-    protocol_binary_request_dcp_deletion_v2 packet(opaque,
-                                                   vbucket,
-                                                   info.cas,
-                                                   nkey,
-                                                   info.nbytes,
-                                                   info.datatype,
-                                                   by_seqno,
-                                                   rev_seqno,
-                                                   delete_time,
-                                                   0 /*unused*/);
+    protocol_binary_request_dcp_deletion_v2 packet(
+            opaque,
+            vbucket,
+            info.cas,
+            gsl::narrow<uint16_t>(key.size()),
+            info.nbytes,
+            info.datatype,
+            by_seqno,
+            rev_seqno,
+            delete_time,
+            0 /*unused*/);
 
     return deletionInner(
             info,
             {reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)},
-            {/*no extended meta in v2*/});
+            {/*no extended meta in v2*/},
+            key);
 }
 
 ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,

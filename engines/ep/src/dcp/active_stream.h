@@ -324,6 +324,9 @@ private:
     // Will the stream send dcp deletions with delete-times?
     IncludeDeleteTime includeDeleteTime;
 
+    // Will the stream encode the CollectionID in the key?
+    DocKeyEncodesCollectionId includeCollectionID;
+
     /// Is Snappy compression supported on this connection?
     SnappyEnabled snappyEnabled;
 
