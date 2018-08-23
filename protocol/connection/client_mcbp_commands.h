@@ -1438,3 +1438,7 @@ public:
 protected:
     const std::string payload;
 };
+
+using BinprotAuthProviderCommand =
+        BinprotCommandT<BinprotGenericCommand,
+                        uint8_t(cb::mcbp::ClientOpcode::AuthProvider)>;

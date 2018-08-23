@@ -6,8 +6,16 @@ ADD_EXECUTABLE(generate_test_cbsaslpw generate_test_cbsaslpw.cc)
 TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl cJSON platform
                       ${OPENSSL_LIBRARIES})
 
+add_library(testapp_auth_provider OBJECT auth_provider.h auth_provider.cc)
+add_executable(testapp_auth_provider_test auth_provider_test.cc
+               $<TARGET_OBJECTS:testapp_auth_provider>)
+target_link_libraries(testapp_auth_provider_test cbsasl platform gtest gtest_main)
+add_test(NAME testapp_auth_provider_test
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND testapp_auth_provider_test)
 
 set(memcached_testapp_SOURCES
+    $<TARGET_OBJECTS:testapp_auth_provider>
     openssl_impl.cc
     ssl_impl.h
     subdoc_encoder.cc
@@ -31,6 +39,7 @@ set(memcached_testapp_SOURCES
     testapp_environment.cc
     testapp_environment.h
     testapp_errmap.cc
+    testapp_external_auth.cc
     testapp_flush.cc
     testapp_getset.cc
     testapp_hello.cc

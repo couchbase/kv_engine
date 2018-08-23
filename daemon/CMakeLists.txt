@@ -32,6 +32,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             config_parse.h
             connection.cc
             connection.h
+            external_auth_manager_thread.cc
+            external_auth_manager_thread.h
             server_socket.cc
             server_socket.h
             connections.cc

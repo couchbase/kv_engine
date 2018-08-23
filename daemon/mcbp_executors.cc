@@ -20,6 +20,7 @@
 #include "buckets.h"
 #include "config_parse.h"
 #include "debug_helpers.h"
+#include "external_auth_manager_thread.h"
 #include "ioctl.h"
 #include "mc_time.h"
 #include "mcaudit.h"
@@ -547,10 +548,11 @@ static void auth_provider_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (connection.isDuplexSupported()) {
-        // To ease the integration with ns_server we'll just tell it
-        // that we accepted this connection for auth requests, but
-        // we won't use it
+        externalAuthManager->add(connection);
         cookie.sendResponse(cb::mcbp::Status::Success);
+        LOG_INFO("{}: Registered as authentication provider: {}",
+                 connection.getId(),
+                 connection.getDescription());
     } else {
         cookie.setErrorContext("Connection is not in duplex mode");
         cookie.sendResponse(cb::mcbp::Status::Einval);
@@ -880,9 +882,11 @@ static void execute_server_response_packet(Cookie& cookie,
 
     switch (response.getServerOpcode()) {
     case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
-    case cb::mcbp::ServerOpcode::AuthRequest:
         // ignore
         return;
+    case cb::mcbp::ServerOpcode::AuthRequest:
+        externalAuthManager->responseReceived(response);
+        break;
     }
 
     LOG_INFO(

@@ -25,6 +25,7 @@
 #include "enginemap.h"
 #include "executor.h"
 #include "executorpool.h"
+#include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
 #include "ioctl.h"
 #include "libevent_locking.h"
@@ -2286,6 +2287,10 @@ extern "C" int memcached_main(int argc, char **argv) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: {}", e.what());
     }
 
+    LOG_INFO("Starting external authentication manager");
+    externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
+    externalAuthManager->start();
+
     initialize_audit();
 
     /* inform interested parties of initial verbosity level */
@@ -2411,6 +2416,11 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_INFO("Releasing signal handlers");
     release_signal_handlers();
+
+    LOG_INFO("Shutting down external authentication service");
+    externalAuthManager->shutdown();
+    externalAuthManager->waitForState(Couchbase::ThreadState::Zombie);
+    externalAuthManager.reset();
 
     LOG_INFO("Shutting down SASL server");
     cb::sasl::server::shutdown();

@@ -19,6 +19,8 @@
 
 #include "sasl_tasks.h"
 
+#include <mcbp/protocol/status.h>
+
 /**
  * The StartSaslAuthTask is used to handle the initial SASL
  * authentication message
@@ -35,4 +37,19 @@ public:
                       const std::string& challenge_);
 
     Status execute() override;
+
+    void externalAuthResponse(cb::mcbp::Status status,
+                              const std::string& payload);
+
+protected:
+    Status internal_auth();
+    Status external_auth();
+
+    void successfull_external_auth(cb::mcbp::Status status,
+                                   const std::string& payload);
+    void unsuccessfull_external_auth(cb::mcbp::Status status,
+                                     const std::string& payload);
+
+    // Is this phase for internal or external auth
+    bool internal = true;
 };
