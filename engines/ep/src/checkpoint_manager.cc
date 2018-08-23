@@ -385,6 +385,11 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
         VBucket& vbucket, bool& newOpenCheckpointCreated, size_t limit) {
     // This function is executed periodically by the non-IO dispatcher.
     size_t numUnrefItems = 0;
+    // Checkpoints in the `unrefCheckpointList` have to be deleted before we
+    // return from this function. With smart pointers, deletion happens when
+    // `unrefCheckpointList` goes out of scope (i.e., when this function
+    // returns).
+    CheckpointList unrefCheckpointList;
     {
         LockHolder lh(queueLock);
         uint64_t oldCheckpointId = 0;
@@ -416,11 +421,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
 
         size_t numMetaItems = 0;
         size_t numCheckpointsRemoved = 0;
-        // Checkpoints in the `unrefCheckpointList` have to be deleted before we
-        // return from this function. With smart pointers, deletion happens when
-        // `unrefCheckpointList` goes out of scope (i.e., when this function
-        // returns).
-        CheckpointList unrefCheckpointList;
         // Iterate through the current checkpoints (from oldest to newest),
         // checking if the checkpoint can be removed.
         auto it = checkpointList.begin();
@@ -469,7 +469,8 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
                                    checkpointList.begin(),
                                    it);
     }
-    // Here we have released the lock and unrefCheckpointList goes out-of-scope.
+    // Here we have released the lock and unrefCheckpointList is not yet
+    // out-of-scope (it will be when this function returns).
     // Thus, checkpoint memory freeing doen't happen under lock.
     // That is very important as releasing objects is an expensive operation, so
     // it would have a relevant impact on front-end operations.
