@@ -4077,8 +4077,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         parseUint16(vbid.c_str(), &vbucket_id);
         // Non-validating, non-blocking version
         // @todo MB-30524: Collection - getStats needs DocNamespace
-        rv = doKeyStats(cookie, add_stat, vbucket_id,
-                        DocKey(key, DocNamespace::DefaultCollection), false);
+        rv = doKeyStats(cookie,
+                        add_stat,
+                        vbucket_id,
+                        DocKey(key, DocKeyEncodesCollectionId::No),
+                        false);
     } else if (nkey > 5 && cb_isPrefix(statKey, "vkey ")) {
         std::string key;
         std::string vbid;
@@ -4090,8 +4093,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         parseUint16(vbid.c_str(), &vbucket_id);
         // Validating version; blocks
         // @todo MB-30524: Collection - getStats needs DocNamespace
-        rv = doKeyStats(cookie, add_stat, vbucket_id,
-                        DocKey(key, DocNamespace::DefaultCollection), true);
+        rv = doKeyStats(cookie,
+                        add_stat,
+                        vbucket_id,
+                        DocKey(key, DocKeyEncodesCollectionId::No),
+                        true);
     } else if (statKey == "kvtimings") {
         getKVBucket()->addKVStoreTimingStats(add_stat, cookie);
         rv = ENGINE_SUCCESS;
@@ -4697,9 +4703,10 @@ DocKey EventuallyPersistentEngine::makeDocKey(const void* cookie,
                 *reinterpret_cast<const CollectionIDNetworkOrder*>(key.data());
         return DocKey{key.data() + sizeof(CollectionID),
                       key.size() - sizeof(CollectionID),
+                      DocKeyEncodesCollectionId::No,
                       cid.to_host()};
     } else {
-        return DocKey{key.data(), key.size(), DocNamespace::DefaultCollection};
+        return DocKey{key.data(), key.size(), DocKeyEncodesCollectionId::No};
     }
 }
 

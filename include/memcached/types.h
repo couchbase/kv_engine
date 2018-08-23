@@ -119,7 +119,7 @@ struct item_info {
     /**
      * Item's DocKey
      */
-    DocKey key{nullptr, 0, CollectionID::DefaultCollection};
+    DocKey key{nullptr, 0, DocKeyEncodesCollectionId::No};
 };
 
 /* Forward declaration of the server handle -- to be filled in later */

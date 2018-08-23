@@ -195,7 +195,7 @@ public:
           pad(0),
           _key({(const uint8_t*)mleV1._key,
                 mleV1.keylen,
-                DocNamespace::DefaultCollection}) {
+                DocKeyEncodesCollectionId::No}) {
     }
 
     /**
@@ -318,7 +318,7 @@ private:
 
     MutationLogEntryV2(MutationLogType t, uint16_t vb)
         : MutationLogEntryV2(
-                  t, vb, {nullptr, 0, DocNamespace::DefaultCollection}) {
+                  t, vb, {nullptr, 0, DocKeyEncodesCollectionId::No}) {
     }
 
     const uint16_t _vbucket;

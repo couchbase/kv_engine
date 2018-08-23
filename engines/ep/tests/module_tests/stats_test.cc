@@ -172,7 +172,7 @@ void setDatatypeItem(KVBucket* store,
                      protocol_binary_datatype_t datatype,
                      std::string name, std::string val = "[0]") {
     Item item(make_item(
-            0, {name, DocNamespace::DefaultCollection}, val, 0, datatype));
+            0, {name, DocKeyEncodesCollectionId::No}, val, 0, datatype));
     store->set(item, cookie);
 }
 
@@ -256,7 +256,7 @@ TEST_P(DatatypeStatTest, datatypeDeletion) {
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
-    store->deleteItem({"jsonXattrDoc", DocNamespace::DefaultCollection},
+    store->deleteItem({"jsonXattrDoc", DocKeyEncodesCollectionId::No},
                       cas,
                       0,
                       cookie,
@@ -278,11 +278,13 @@ TEST_P(DatatypeStatTest, datatypeCompressedJsonXattr) {
 }
 
 TEST_P(DatatypeStatTest, datatypeExpireItem) {
-    Item item(make_item(
-            0, {"expiryDoc", DocNamespace::DefaultCollection}, "[0]", 1,
-            PROTOCOL_BINARY_DATATYPE_JSON));
+    Item item(make_item(0,
+                        {"expiryDoc", DocKeyEncodesCollectionId::No},
+                        "[0]",
+                        1,
+                        PROTOCOL_BINARY_DATATYPE_JSON));
     store->set(item, cookie);
-    store->get({"expiryDoc", DocNamespace::DefaultCollection}, 0, cookie, NONE);
+    store->get({"expiryDoc", DocKeyEncodesCollectionId::No}, 0, cookie, NONE);
     auto vals = get_stat(nullptr);
 
     //Should be 0, becuase the doc should have expired
@@ -291,7 +293,7 @@ TEST_P(DatatypeStatTest, datatypeExpireItem) {
 
 
 TEST_P(DatatypeStatTest, datatypeEviction) {
-    const DocKey key = {"jsonXattrDoc", DocNamespace::DefaultCollection};
+    const DocKey key = {"jsonXattrDoc", DocKeyEncodesCollectionId::No};
     setDatatypeItem(
             store,
             cookie,
@@ -327,7 +329,7 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
 TEST_P(DatatypeStatTest, MB23892) {
     // This test checks that updating a document with a different datatype is
     // safe to do after an eviction (where the blob is now null)
-    const DocKey key = {"jsonXattrDoc", DocNamespace::DefaultCollection};
+    const DocKey key = {"jsonXattrDoc", DocKeyEncodesCollectionId::No};
     setDatatypeItem(
             store,
             cookie,

@@ -30,11 +30,12 @@ std::unique_ptr<Item> SystemEventFactory::make(
         OptionalSeqno seqno) {
     std::string key = makeKey(se, keyExtra);
 
-    auto item = std::make_unique<Item>(DocKey(key, DocNamespace::System),
-                                       uint32_t(se) /*flags*/,
-                                       0 /*exptime*/,
-                                       nullptr, /*no data to copy-in*/
-                                       itemSize);
+    auto item = std::make_unique<Item>(
+            DocKey(key, DocKeyEncodesCollectionId::No, DocNamespace::System),
+            uint32_t(se) /*flags*/,
+            0 /*exptime*/,
+            nullptr, /*no data to copy-in*/
+            itemSize);
 
     if (seqno) {
         item->setBySeqno(seqno.value());

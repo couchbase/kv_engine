@@ -44,7 +44,7 @@ TEST_P(StoredDocKeyTest, constructors) {
     EXPECT_EQ(GetParam(), key2.getDocNamespace());
 
     // DocKey
-    DocKey docKey(keyRaw, 3, GetParam());
+    DocKey docKey(keyRaw, 3, DocKeyEncodesCollectionId::No, GetParam());
     StoredDocKey key3(docKey);
     EXPECT_EQ(3, key3.size());
     EXPECT_NE(docKey.data(), key3.data());
@@ -249,7 +249,8 @@ TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
 }
 
 TEST_P(StoredDocKeyTest, getObjectSize) {
-    auto key1 = SerialisedDocKey::make({"key_of_15_chars", GetParam()});
+    auto key1 = SerialisedDocKey::make(
+            {"key_of_15_chars", DocKeyEncodesCollectionId::No, GetParam()});
 
     // Should be 15 bytes plus 4 byte CID and 1 byte for length.
     EXPECT_EQ(15 + 4 + 1, key1->getObjectSize());

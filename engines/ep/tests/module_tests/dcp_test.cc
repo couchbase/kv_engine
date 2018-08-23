@@ -1731,7 +1731,7 @@ protected:
 
     const size_t numItems = 1;
     const std::string key = "key";
-    const DocKey docKey{key, DocNamespace::DefaultCollection};
+    const DocKey docKey{key, DocKeyEncodesCollectionId::No};
 };
 
 /*
@@ -2439,7 +2439,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     consumer->streamEnd(/*opaque*/0, /*vbucket*/0, /*flags*/0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for streamEnd";
-    const DocKey docKey{ nullptr, 0, DocNamespace::DefaultCollection};
+    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
     consumer->mutation(0, // opaque
                        docKey,
                        {}, // value
@@ -3079,9 +3079,9 @@ TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
 
     std::string key = "key";
     std::string data = R"({"json":"yes"})";
-    const DocKey docKey{ reinterpret_cast<const uint8_t*>(key.data()),
-        key.size(),
-        DocNamespace::DefaultCollection};
+    const DocKey docKey{reinterpret_cast<const uint8_t*>(key.data()),
+                        key.size(),
+                        DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
         data.size()};
     uint8_t extMeta[1] = {uint8_t(PROTOCOL_BINARY_DATATYPE_JSON)};
@@ -3129,9 +3129,9 @@ TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
 
     std::string key = "key";
     std::string data = R"({"json":"yes"})";
-    const DocKey docKey{ reinterpret_cast<const uint8_t*>(key.data()),
-        key.size(),
-        DocNamespace::DefaultCollection};
+    const DocKey docKey{reinterpret_cast<const uint8_t*>(key.data()),
+                        key.size(),
+                        DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
         data.size()};
     uint8_t extMeta[1] = {uint8_t(PROTOCOL_BINARY_DATATYPE_JSON)};
@@ -3195,7 +3195,7 @@ void ConnectionTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                        /* in-memory snapshot */ 0x1));
 
     /* Send an item for replication */
-    const DocKey docKey{nullptr, 0, DocNamespace::DefaultCollection};
+    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->mutation(opaque,
                                  docKey,
@@ -3336,7 +3336,7 @@ void ConnectionTest::processConsumerMutationsNearThreshold(
     engine->getKVBucket()->getVBucket(vbid)->setTakeoverBackedUpState(true);
 
     /* Send an item for replication and expect it to be buffered */
-    const DocKey docKey{"mykey", DocNamespace::DefaultCollection};
+    const DocKey docKey{"mykey", DocKeyEncodesCollectionId::No};
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->mutation(opaque,
                                  docKey,

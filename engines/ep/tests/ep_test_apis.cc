@@ -384,7 +384,7 @@ ENGINE_ERROR_CODE del(EngineIface* h,
     }
 
     auto ret = h->remove(cookie,
-                         DocKey(key, testHarness->doc_namespace),
+                         DocKey(key, DocKeyEncodesCollectionId::No),
                          *cas,
                          vbucket,
                          *mut_info);
@@ -573,7 +573,7 @@ cb::EngineErrorItemPair gat(EngineIface* h,
                             uint32_t exp) {
     const auto* cookie = testHarness->create_cookie();
     auto ret = h->get_and_touch(
-            cookie, DocKey(key, testHarness->doc_namespace), vb, exp);
+            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp);
     testHarness->destroy_cookie(cookie);
 
     if (ret.first == cb::engine_errc::success) {
@@ -613,8 +613,10 @@ cb::EngineErrorItemPair getl(EngineIface* h,
         cookie = testHarness->create_cookie();
         create_cookie = true;
     }
-    auto ret = h->get_locked(
-            cookie, DocKey(key, testHarness->doc_namespace), vb, lock_timeout);
+    auto ret = h->get_locked(cookie,
+                             DocKey(key, DocKeyEncodesCollectionId::No),
+                             vb,
+                             lock_timeout);
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
     }
@@ -634,7 +636,7 @@ bool get_meta(EngineIface* h,
               const char* key,
               cb::EngineErrorMetadataPair& out,
               const void* cookie) {
-    DocKey docKey(key, testHarness->doc_namespace);
+    DocKey docKey(key, DocKeyEncodesCollectionId::No);
     bool cookie_create = false;
     if (cookie == nullptr) {
         cookie = testHarness->create_cookie();
@@ -1158,7 +1160,7 @@ ENGINE_ERROR_CODE touch(EngineIface* h,
                         uint32_t exp) {
     const auto* cookie = testHarness->create_cookie();
     auto result = h->get_and_touch(
-            cookie, DocKey(key, testHarness->doc_namespace), vb, exp);
+            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp);
     testHarness->destroy_cookie(cookie);
 
     // Update the global cas value (used by some tests)
@@ -1182,8 +1184,8 @@ ENGINE_ERROR_CODE unl(EngineIface* h,
         cookie = testHarness->create_cookie();
         create_cookie = true;
     }
-    auto ret =
-            h->unlock(cookie, DocKey(key, testHarness->doc_namespace), vb, cas);
+    auto ret = h->unlock(
+            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, cas);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1803,7 +1805,7 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
         cookie_created = true;
     }
     auto ret = h->allocate(cookie,
-                           DocKey(key, testHarness->doc_namespace),
+                           DocKey(key, DocKeyEncodesCollectionId::No),
                            nbytes,
                            flags,
                            exptime,
@@ -1828,7 +1830,7 @@ cb::EngineErrorItemPair get(EngineIface* h,
     }
 
     auto ret = h->get(cookie,
-                      DocKey(key, testHarness->doc_namespace),
+                      DocKey(key, DocKeyEncodesCollectionId::No),
                       vb,
                       documentStateFilter);
 

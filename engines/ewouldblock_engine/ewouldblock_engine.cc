@@ -662,7 +662,7 @@ public:
             item_info->flags = 0;
             item_info->datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
             item_info->key = {dcp_mutation_item.key,
-                              CollectionID::DefaultCollection};
+                              DocKeyEncodesCollectionId::No};
             item_info->value[0].iov_base = &dcp_mutation_item.value[0];
             item_info->value[0].iov_len = item_info->nbytes;
             return true;
@@ -1795,7 +1795,7 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
     }
 
     auto rv = real_engine->get(cookie,
-                               DocKey{key, DocNamespace::DefaultCollection},
+                               DocKey{key, DocKeyEncodesCollectionId::No},
                                0,
                                DocStateFilter::Alive);
     if (rv.first != cb::engine_errc::success) {

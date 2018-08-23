@@ -164,11 +164,12 @@ static DocKey makeDocKey(const sized_buf buf, bool restoreNamespace) {
         return DocKey(reinterpret_cast<const uint8_t*>(
                               &buf.buf[sizeof(CollectionID)]),
                       buf.size - sizeof(CollectionID),
+                      DocKeyEncodesCollectionId::No,
                       *reinterpret_cast<CollectionID*>(buf.buf));
     } else {
         return DocKey(reinterpret_cast<const uint8_t*>(buf.buf),
                       buf.size,
-                      CollectionID::DefaultCollection);
+                      DocKeyEncodesCollectionId::No);
     }
 }
 

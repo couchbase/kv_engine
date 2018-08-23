@@ -743,8 +743,12 @@ queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
                 "CheckpointManager::nextItemForPersistence called with a null "
                 "cursor for vb:{}",
                 vbucketId);
-        queued_item qi(new Item(DocKey("", DocNamespace::System), 0xffff,
-                                queue_op::empty, 0, 0));
+        queued_item qi(new Item(
+                DocKey("", DocKeyEncodesCollectionId::No, DocNamespace::System),
+                0xffff,
+                queue_op::empty,
+                0,
+                0));
         return qi;
     }
     if (getOpenCheckpointId_UNLOCKED(lh) == 0) {
@@ -752,8 +756,12 @@ queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
                 "vb:{} is still in backfill phase that doesn't allow "
                 " the cursor to fetch an item from it's current checkpoint",
                 vbucketId);
-        queued_item qi(new Item(DocKey("", DocNamespace::System), 0xffff,
-                                queue_op::empty, 0, 0));
+        queued_item qi(new Item(
+                DocKey("", DocKeyEncodesCollectionId::No, DocNamespace::System),
+                0xffff,
+                queue_op::empty,
+                0,
+                0));
         return qi;
     }
 
@@ -764,8 +772,12 @@ queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
         return *(cursor.currentPos);
     } else {
         isLastMutationItem = false;
-        queued_item qi(new Item(DocKey("", DocNamespace::System), 0xffff,
-                                queue_op::empty, 0, 0));
+        queued_item qi(new Item(
+                DocKey("", DocKeyEncodesCollectionId::No, DocNamespace::System),
+                0xffff,
+                queue_op::empty,
+                0,
+                0));
         return qi;
     }
 }
@@ -1087,8 +1099,12 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
                         ") is not a valid item to create");
     }
 
-    queued_item qi(new Item(DocKey(key, DocNamespace::System), vbid,
-                   checkpoint_op, id, bySeqno));
+    queued_item qi(new Item(
+            DocKey(key, DocKeyEncodesCollectionId::No, DocNamespace::System),
+            vbid,
+            checkpoint_op,
+            id,
+            bySeqno));
     return qi;
 }
 

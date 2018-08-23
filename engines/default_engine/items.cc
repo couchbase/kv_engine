@@ -326,7 +326,7 @@ int do_item_link(struct default_engine *engine,
     info.flags = it->flags;
     info.key = {hash_key_get_client_key(key),
                 hash_key_get_client_key_len(key),
-                CollectionID::DefaultCollection};
+                DocKeyEncodesCollectionId::No};
     info.value[0].iov_base = item_get_data(it);
     info.value[0].iov_len = it->nbytes;
     info.datatype = it->datatype;

@@ -25,7 +25,7 @@ static ENGINE_ERROR_CODE dcp_deletion_v1_executor(
     // The V1 delete is not collection aware, so lock to the DefaultCollection
     const DocKey key{request.bytes + sizeof(request.bytes),
                      nkey,
-                     DocNamespace::DefaultCollection};
+                     DocKeyEncodesCollectionId::No};
 
     const auto opaque = request.message.header.request.opaque;
     const auto datatype = request.message.header.request.datatype;

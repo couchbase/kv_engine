@@ -430,7 +430,7 @@ TEST_P(EPStoreEvictionTest, MB_21976) {
 }
 
 TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
-    const DocKey dockey("key", DocNamespace::DefaultCollection);
+    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
     const int numTouchCmds = 2;
     auto expiryTime = time(NULL) + 1000;
 
@@ -465,7 +465,7 @@ TEST_P(EPStoreEvictionTest, TouchCmdDuringBgFetch) {
 }
 
 TEST_P(EPStoreEvictionTest, checkIfResidentAfterBgFetch) {
-    const DocKey dockey("key", DocNamespace::DefaultCollection);
+    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
 
     //Store an item
     store_item(vbid, dockey, "value");
@@ -710,7 +710,7 @@ TEST_P(EPStoreEvictionTest, getIfOnlyFetchesMetaForFilterPositive) {
  * returns an item
  */
 TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
-    const DocKey dockey("key", DocNamespace::DefaultCollection);
+    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
 
     // Store an item
     store_item(vbid, dockey, "value");
@@ -760,7 +760,7 @@ TEST_P(EPStoreEvictionTest, getDeletedItemWithNoValue) {
  * returns an item
  */
 TEST_P(EPStoreEvictionTest, getDeletedItemWithValue) {
-    const DocKey dockey("key", DocNamespace::DefaultCollection);
+    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
 
     // Store an item
     store_item(vbid, dockey, "value");

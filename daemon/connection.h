@@ -338,11 +338,13 @@ public:
         if (isCollectionsSupported()) {
             auto lebCid =
                     cb::mcbp::decode_unsigned_leb128<CollectionIDType>(key);
-            return DocKey{
-                    lebCid.second.data(), lebCid.second.size(), lebCid.first};
+            return DocKey{lebCid.second.data(),
+                          lebCid.second.size(),
+                          DocKeyEncodesCollectionId::No,
+                          lebCid.first};
         } else {
             return DocKey{
-                    key.data(), key.size(), DocNamespace::DefaultCollection};
+                    key.data(), key.size(), DocKeyEncodesCollectionId::No};
         }
     }
 

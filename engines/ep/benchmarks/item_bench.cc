@@ -30,12 +30,8 @@ static void BM_CompareQueuedItemsBySeqnoAndKey(benchmark::State& state) {
     // Populate with N items with distinct keys
     for (size_t i = 0; i < 10000; i++) {
         auto key = std::string("key_") + std::to_string(i);
-        items.emplace_back(
-                new Item(DocKey(key, DocNamespace::DefaultCollection),
-                         {},
-                         {},
-                         "data",
-                         4));
+        items.emplace_back(new Item(
+                DocKey(key, DocKeyEncodesCollectionId::No), {}, {}, "data", 4));
     }
     CompareQueuedItemsBySeqnoAndKey cq;
     while (state.KeepRunning()) {

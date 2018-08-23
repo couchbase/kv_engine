@@ -12,7 +12,7 @@ int expiry = 3600;
 bool hasError = false;
 struct test_harness* testHarness;
 
-static DocKey key("key", DocNamespace::DefaultCollection);
+static DocKey key("key", DocKeyEncodesCollectionId::No);
 
 bool test_setup(EngineIface*) {
     delay(2);

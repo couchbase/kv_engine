@@ -1279,7 +1279,8 @@ TEST_F(StoreIfTest, store_if_basic) {
                                    cb::vbucket_info vb) -> cb::StoreIfStatus {
         return cb::StoreIfStatus::Fail;
     };
-    auto item = make_item(vbid, {"key", DocNamespace::DefaultCollection}, "value", 0, 0);
+    auto item = make_item(
+            vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0, 0);
     auto rv = engine->storeIfInner(cookie, item, 0, OPERATION_ADD, pred);
     EXPECT_EQ(cb::engine_errc::success, rv.status);
     rv = engine->storeIfInner(cookie, item, 0, OPERATION_REPLACE, pred);
@@ -1303,7 +1304,7 @@ TEST_F(ExpiryLimitTest, itemAllocate) {
     item* itm;
     EXPECT_EQ(ENGINE_SUCCESS,
               engine->itemAllocate(&itm,
-                                   {"key", DocNamespace::DefaultCollection},
+                                   {"key", DocKeyEncodesCollectionId::No},
                                    5,
                                    0,
                                    0,
@@ -1323,11 +1324,11 @@ TEST_F(ExpiryLimitTest, gat) {
     // This will actually skip the initial expiry limiting code as this function
     // doesn't use itemAllocate
     Item item = store_item(
-            vbid, {"key", DocNamespace::DefaultCollection}, "value", 0);
+            vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0);
 
     // Now touch with 0
     auto rval = engine->getAndTouchInner(
-            cookie, {"key", DocNamespace::DefaultCollection}, vbid, 0);
+            cookie, {"key", DocKeyEncodesCollectionId::No}, vbid, 0);
 
     EXPECT_EQ(cb::engine_errc::success, rval.first);
 

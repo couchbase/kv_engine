@@ -458,8 +458,8 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     // Store a large document 4MiB
     std::string value(4 * 1024 * 1204, 'a');
     {
-        auto item = make_item(
-                vbid, {"key", DocNamespace::DefaultCollection}, value);
+        auto item =
+                make_item(vbid, {"key", DocKeyEncodesCollectionId::No}, value);
         // ensure this is eligible for eviction on the first pass of the pager
         item.setNRUValue(MAX_NRU_VALUE);
         ASSERT_EQ(ENGINE_SUCCESS, storeItem(item));
@@ -495,7 +495,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     // The next tests use itemAllocate (as per a real SET)
     EXPECT_EQ(ENGINE_TMPFAIL,
               engine->itemAllocate(nullptr,
-                                   {"key2", DocNamespace::DefaultCollection},
+                                   {"key2", DocKeyEncodesCollectionId::No},
                                    value.size(),
                                    0,
                                    0,
@@ -513,16 +513,15 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     if (std::get<1>(GetParam()) != "fail_new_data") {
         // Enough should of been freed so itemAllocate can succeed
         item* itm = nullptr;
-        EXPECT_EQ(
-                ENGINE_SUCCESS,
-                engine->itemAllocate(&itm,
-                                     {"key2", DocNamespace::DefaultCollection},
-                                     value.size(),
-                                     0,
-                                     0,
-                                     0,
-                                     0,
-                                     vbid));
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  engine->itemAllocate(&itm,
+                                       {"key2", DocKeyEncodesCollectionId::No},
+                                       value.size(),
+                                       0,
+                                       0,
+                                       0,
+                                       0,
+                                       vbid));
         engine->itemRelease(itm);
     }
 }

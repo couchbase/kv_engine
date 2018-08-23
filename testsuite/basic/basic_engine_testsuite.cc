@@ -66,7 +66,7 @@ static void assert_ge_impl(const T& a_value, const T& b_value,
  * and that item struct is populated
  */
 static enum test_result allocate_test(EngineIface* h) {
-    DocKey key("akey", test_harness->doc_namespace);
+    DocKey key("akey", DocKeyEncodesCollectionId::No);
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, 0);
     test_harness->destroy_cookie(cookie);
@@ -79,7 +79,7 @@ static enum test_result allocate_test(EngineIface* h) {
  * Verify set behavior
  */
 static enum test_result set_test(EngineIface* h) {
-    DocKey key("key", test_harness->doc_namespace);
+    DocKey key("key", DocKeyEncodesCollectionId::No);
     uint64_t prev_cas;
     uint64_t cas = 0;
     int ii;
@@ -105,7 +105,7 @@ static enum test_result set_test(EngineIface* h) {
  * Verify add behavior
  */
 static enum test_result add_test(EngineIface* h) {
-    DocKey key("key", test_harness->doc_namespace);
+    DocKey key("key", DocKeyEncodesCollectionId::No);
     uint64_t cas;
     int ii;
     const auto* cookie = test_harness->create_cookie();
@@ -139,7 +139,7 @@ static enum test_result replace_test(EngineIface* h) {
     item_info item_info;
 
     cb_assert(set_test(h) == SUCCESS);
-    DocKey key("key", test_harness->doc_namespace);
+    DocKey key("key", DocKeyEncodesCollectionId::No);
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(
             cookie, key, sizeof(int), 1, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
@@ -172,7 +172,7 @@ static enum test_result replace_test(EngineIface* h) {
  * and that the cas for the stored item has been generated.
  */
 static enum test_result store_test(EngineIface* h) {
-    DocKey key("bkey", test_harness->doc_namespace);
+    DocKey key("bkey", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, 0);
@@ -192,7 +192,7 @@ static enum test_result store_test(EngineIface* h) {
  * the engine
  */
 static enum test_result get_test(EngineIface* h) {
-    DocKey key("get_test_key", test_harness->doc_namespace);
+    DocKey key("get_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
@@ -213,7 +213,7 @@ static enum test_result get_test(EngineIface* h) {
  * the engine and then deleted.
  */
 static enum test_result get_deleted_test(EngineIface* h) {
-    DocKey key("get_removed_test_key", test_harness->doc_namespace);
+    DocKey key("get_removed_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
@@ -248,7 +248,7 @@ static enum test_result get_deleted_test(EngineIface* h) {
 }
 
 static enum test_result expiry_test(EngineIface* h) {
-    DocKey key("get_test_key", test_harness->doc_namespace);
+    DocKey key("get_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(cookie, key, 1, 0, 10, PROTOCOL_BINARY_RAW_BYTES, 0);
@@ -271,7 +271,7 @@ static enum test_result expiry_test(EngineIface* h) {
  * ensure that release did much of anything.
  */
 static enum test_result release_test(EngineIface* h) {
-    DocKey key("release_test_key", test_harness->doc_namespace);
+    DocKey key("release_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
@@ -290,7 +290,7 @@ static enum test_result release_test(EngineIface* h) {
  * removed it can not be retrieved.
  */
 static enum test_result remove_test(EngineIface* h) {
-    DocKey key("remove_test_key", test_harness->doc_namespace);
+    DocKey key("remove_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     mutation_descr_t mut_info;
     const auto* cookie = test_harness->create_cookie();
@@ -315,7 +315,7 @@ static enum test_result remove_test(EngineIface* h) {
  * stored before the flush can not be retrieved
  */
 static enum test_result flush_test(EngineIface* h) {
-    DocKey key("flush_test_key", test_harness->doc_namespace);
+    DocKey key("flush_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
 
     test_harness->time_travel(3);
@@ -342,7 +342,7 @@ static enum test_result flush_test(EngineIface* h) {
  * that the contents of the item_info are as expected.
  */
 static enum test_result get_item_info_test(EngineIface* h) {
-    DocKey key("get_item_info_test_key", test_harness->doc_namespace);
+    DocKey key("get_item_info_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const time_t exp = 1;
     item_info ii;
@@ -374,7 +374,7 @@ static enum test_result get_item_info_test(EngineIface* h) {
 }
 
 static enum test_result item_set_cas_test(EngineIface* h) {
-    DocKey key("item_set_cas_test_key", test_harness->doc_namespace);
+    DocKey key("item_set_cas_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const rel_time_t exp = 1;
     uint64_t newcas;
@@ -412,7 +412,7 @@ static void eviction_stats_handler(const char* key,
 }
 
 static enum test_result lru_test(EngineIface* h) {
-    DocKey hot_key("hot_key", test_harness->doc_namespace);
+    DocKey hot_key("hot_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     int ii;
     int jj;
@@ -437,7 +437,7 @@ static enum test_result lru_test(EngineIface* h) {
                                      sizeof(key),
                                      "lru_test_key_%08d",
                                      ii),
-                            test_harness->doc_namespace);
+                            DocKeyEncodesCollectionId::No);
         ret = h->allocate(
                 cookie, allocate_key, 4096, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
         cb_assert(ret.first == cb::engine_errc::success);
@@ -461,7 +461,7 @@ static enum test_result lru_test(EngineIface* h) {
                                 sizeof(key),
                                 "lru_test_key_%08d",
                                 jj),
-                       test_harness->doc_namespace);
+                       DocKeyEncodesCollectionId::No);
         if (jj == 0 || jj == 1) {
             ret = h->get(cookie, get_key, 0, DocStateFilter::Alive);
             cb_assert(ret.first == cb::engine_errc::no_such_key);
@@ -493,7 +493,7 @@ static enum test_result aggregate_stats_test(EngineIface* h) {
 }
 
 static enum test_result test_datatype(EngineIface* h) {
-    DocKey key("{foo:1}", test_harness->doc_namespace);
+    DocKey key("{foo:1}", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     item_info ii;
     memset(&ii, 0, sizeof(ii));
@@ -541,7 +541,7 @@ static enum test_result test_n_bucket_destroy(engine_test_t *test) {
         for (int ii = 0; ii < n_keys; ii++) {
             std::string ss = "KEY" + std::to_string(ii);
             uint64_t cas = 0;
-            DocKey allocate_key(ss, test_harness->doc_namespace);
+            DocKey allocate_key(ss, DocKeyEncodesCollectionId::No);
             auto ret = bucket.second->allocate(cookie,
                                                allocate_key,
                                                256,
@@ -584,7 +584,7 @@ static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
         for (int ii = 0; ii < n_keys; ii++) {
             std::string ss = "KEY" + std::to_string(ii);
             uint64_t cas = 0;
-            DocKey allocate_key(ss, test_harness->doc_namespace);
+            DocKey allocate_key(ss, DocKeyEncodesCollectionId::No);
             auto ret = h->allocate(cookie,
                                    allocate_key,
                                    111256,

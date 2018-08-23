@@ -64,8 +64,8 @@ int main(int, char **) {
     display("GIGANTOR", GIGANTOR);
     display("StoredValue", sizeof(StoredValue));
     display("StoredValue with 15 byte key",
-            StoredValue::getRequiredStorage(DocKey(
-                    "1234567890abcde", DocNamespace::DefaultCollection)));
+            StoredValue::getRequiredStorage(
+                    DocKey("1234567890abcde", DocKeyEncodesCollectionId::No)));
     display("Ordered Stored Value", sizeof(OrderedStoredValue));
     display("Blob", sizeof(Blob));
     display("value_t", sizeof(value_t));

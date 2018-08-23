@@ -66,7 +66,7 @@ void EngineFixture::TearDown(const benchmark::State& state) {
 Item EngineFixture::make_item(uint16_t vbid,
                               const std::string& key,
                               const std::string& value) {
-    Item item({key, DocNamespace::DefaultCollection},
+    Item item({key, DocKeyEncodesCollectionId::No},
               /*flags*/ 0,
               /*exp*/ 0,
               value.c_str(),

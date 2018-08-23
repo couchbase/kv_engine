@@ -159,6 +159,14 @@ protected:
 };
 
 /**
+ * A DocKey is non-owning and may refer to a key which has no collection (and
+ * is thus automatically a default-collection key) or a key which has a defined
+ * collection, in which our encoding scheme is to keep the collection-ID in the
+ * key-bytes (as a unsigned_leb128)
+ */
+enum class DocKeyEncodesCollectionId { Yes, No };
+
+/**
  * DocKey is a non-owning structure used to describe a document keys over
  * the engine-API. All API commands working with "keys" must specify the
  * data, length and the namespace with which the document applies to.
@@ -167,32 +175,67 @@ struct DocKey : DocKeyInterface<DocKey> {
     /**
      * Standard constructor - creates a view onto key/nkey
      */
-    DocKey(const uint8_t* key, size_t nkey, CollectionID ins)
-        : buffer(key, nkey), collectionID(ins) {
+    DocKey(const uint8_t* key, size_t nkey, DocKeyEncodesCollectionId encoding)
+        : buffer(key, nkey), collectionID(CollectionID::DefaultCollection) {
+        (void)encoding; // Unused at this patch level.
+    }
+
+    // Temporary method only for this commit and to be removed in the next
+    // patch in this series
+    DocKey(const uint8_t* key,
+           size_t nkey,
+           DocKeyEncodesCollectionId encoding,
+           CollectionID id)
+        : buffer(key, nkey), collectionID(id) {
+        (void)encoding; // Unused at this patch level.
     }
 
     /**
      * C-string constructor - only for use with null terminated strings and
      * creates a view onto key/strlen(key).
      */
-    DocKey(const char* key, CollectionID ins)
-        : DocKey(reinterpret_cast<const uint8_t*>(key), std::strlen(key), ins) {
+    DocKey(const char* key, DocKeyEncodesCollectionId encoding)
+        : DocKey(reinterpret_cast<const uint8_t*>(key),
+                 std::strlen(key),
+                 encoding) {
+    }
+
+    // Temporary method only for this commit and to be removed in the next
+    // patch in this series
+    DocKey(const char* key, DocKeyEncodesCollectionId encoding, CollectionID id)
+        : DocKey(reinterpret_cast<const uint8_t*>(key),
+                 std::strlen(key),
+                 encoding,
+                 id) {
     }
 
     /**
      * const_char_buffer constructor, views the data()/size() of the key
      */
-    DocKey(const cb::const_char_buffer& key, CollectionID ins)
+    DocKey(const cb::const_char_buffer& key, DocKeyEncodesCollectionId encoding)
         : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
                  key.size(),
-                 ins) {
+                 encoding) {
+    }
+
+    /**
+     * const_char_buffer constructor, views the data()/size() of the key
+     */
+    DocKey(const cb::const_char_buffer& key,
+           DocKeyEncodesCollectionId encoding,
+           CollectionID id)
+        : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
+                 key.size(),
+                 encoding,
+                 id) {
     }
 
     /**
      * Disallow rvalue strings as we would view something which would soon be
      * out of scope.
      */
-    DocKey(const std::string&& key, CollectionID ins) = delete;
+    DocKey(const std::string&& key,
+           DocKeyEncodesCollectionId encoding) = delete;
 
     template <class T>
     DocKey(const DocKeyInterface<T>& key) {

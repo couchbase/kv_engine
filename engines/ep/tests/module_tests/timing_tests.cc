@@ -87,12 +87,12 @@ static ENGINE_ERROR_CODE storeCasVb11(EngineIface* h,
     uint64_t cas = 0;
 
     auto ret = h->allocate(cookie,
-                            DocKey(key, DocNamespace::DefaultCollection),
-                            vlen,
-                            flags,
-                            3600,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            vb);
+                           DocKey(key, DocKeyEncodesCollectionId::No),
+                           vlen,
+                           flags,
+                           3600,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           vb);
     check(ret.first == cb::engine_errc::success, "Allocation failed.");
 
     item_info info;

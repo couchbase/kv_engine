@@ -469,7 +469,7 @@ public:
             std::string key = "anykey_" + std::to_string(ii) + "_";
             EXPECT_TRUE(store_items(items,
                                     vbid,
-                                    {key, DocNamespace::DefaultCollection},
+                                    {key, DocKeyEncodesCollectionId::No},
                                     "value"));
             flush_vbucket_to_disk(vbid, items);
             // Add an entry for this seqno
@@ -549,7 +549,7 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
     for (int ii = 0; ii < items; ii++) {
         std::string key = "anykey_0_" + std::to_string(ii);
         auto result = store->get(
-                {key, DocNamespace::DefaultCollection}, vbid, nullptr, {});
+                {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
         EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Problem with " << key;
     }
 
@@ -559,7 +559,7 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
     for (int ii = 0; ii < items; ii++) {
         std::string key = "anykey_0_" + std::to_string(ii);
         auto result = store->get(
-                {key, DocNamespace::DefaultCollection}, vbid, nullptr, {});
+                {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
         EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus()) << "Problem with "
                                                          << key;
     }
@@ -601,7 +601,7 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
             std::string key =
                     "anykey_" + std::to_string(ff) + "_" + std::to_string(ii);
             auto result = store->get(
-                    {key, DocNamespace::DefaultCollection}, vbid, nullptr, {});
+                    {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
             EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Expected to find "
                                                           << key;
         }
@@ -615,7 +615,7 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
             std::string key =
                     "anykey_" + std::to_string(ff) + "_" + std::to_string(ii);
             auto result = store->get(
-                    {key, DocNamespace::DefaultCollection}, vbid, nullptr, {});
+                    {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
             EXPECT_EQ(ENGINE_SUCCESS, result.getStatus()) << "Expected to find "
                                                           << key;
         }
@@ -625,7 +625,7 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
     for (int ii = 0; ii < items; ii++) {
         std::string key = "anykey_3_" + std::to_string(ii);
         auto result = store->get(
-                {key, DocNamespace::DefaultCollection}, vbid, nullptr, {});
+                {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
         EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus()) << "Problem with "
                                                          << key;
     }

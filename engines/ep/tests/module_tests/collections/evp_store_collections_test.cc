@@ -57,7 +57,7 @@ TEST_F(CollectionsTest, namespace_separation) {
     auto se = SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {});
     DocKey key(se->getKey().data(),
                se->getKey().size(),
-               DocNamespace::DefaultCollection);
+               DocKeyEncodesCollectionId::No);
 
     store_item(vbid, key, "value");
     VBucketPtr vb = store->getVBucket(vbid);

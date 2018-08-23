@@ -124,7 +124,7 @@ public:
             const std::string& expectedValue,
             ItemMetaData expectedMeta,
             ENGINE_ERROR_CODE expectedGetReturnValue = ENGINE_SUCCESS) {
-        auto result = store->get({key, DocNamespace::DefaultCollection},
+        auto result = store->get({key, DocKeyEncodesCollectionId::No},
                                  vbid,
                                  cookie,
                                  GET_DELETED_VALUE);
@@ -474,7 +474,7 @@ TEST_P(AllWithMetaTest, regenerateCAS) {
 
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
-    auto result = store->get({"mykey", DocNamespace::DefaultCollection},
+    auto result = store->get({"mykey", DocKeyEncodesCollectionId::No},
                              vbid,
                              cookie,
                              GET_DELETED_VALUE);
@@ -1180,7 +1180,7 @@ TEST_P(AllWithMetaTest, markJSON) {
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
 
-    auto result = store->get({"json", DocNamespace::DefaultCollection},
+    auto result = store->get({"json", DocKeyEncodesCollectionId::No},
                              vbid,
                              cookie,
                              GET_DELETED_VALUE);
@@ -1200,7 +1200,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     uint8_t snappy = GetParam() ? PROTOCOL_BINARY_DATATYPE_SNAPPY : 0;
     ItemMetaData itemMeta{1, 1, 0, expiry};
     std::string mykey = "mykey";
-    DocKey key{mykey, DocNamespace::DefaultCollection};
+    DocKey key{mykey, DocKeyEncodesCollectionId::No};
     auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
                                    PROTOCOL_BINARY_DATATYPE_XATTR | snappy,
                                    vbid /*vbucket*/,
@@ -1262,7 +1262,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
 
     ItemMetaData itemMeta{1, 1, 0, expiry};
     std::string mykey = "mykey";
-    DocKey key{mykey, DocNamespace::DefaultCollection};
+    DocKey key{mykey, DocKeyEncodesCollectionId::No};
     auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
                                    PROTOCOL_BINARY_DATATYPE_XATTR | snappy,
                                    vbid /*vbucket*/,
@@ -1341,7 +1341,7 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
     uint32_t deleted = 0;
     uint8_t datatype = 0;
     EXPECT_EQ(ENGINE_EWOULDBLOCK,
-              store->getMetaData({"mykey", DocNamespace::DefaultCollection},
+              store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
                                  vbid,
                                  cookie,
                                  metadata,
@@ -1350,7 +1350,7 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
     MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
     store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->getMetaData({"mykey", DocNamespace::DefaultCollection},
+              store->getMetaData({"mykey", DocKeyEncodesCollectionId::No},
                                  vbid,
                                  cookie,
                                  metadata,

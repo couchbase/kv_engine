@@ -44,7 +44,6 @@ struct test_harness {
 
     const char* engine_path = nullptr;
     const char* default_engine_cfg = nullptr;
-    DocNamespace doc_namespace = DocNamespace::DefaultCollection;
     OutputFormat output_format = OutputFormat::Text;
     const char* output_file_prefix = "output.";
     std::string bucket_type;

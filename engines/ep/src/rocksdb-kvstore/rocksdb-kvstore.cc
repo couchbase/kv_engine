@@ -1447,7 +1447,7 @@ scan_error_t RocksDBKVStore::scan(ScanContext* ctx) {
         // TODO RDB: Deal with collections
         DocKey key(reinterpret_cast<const uint8_t*>(keySlice.data()),
                    keySlice.size(),
-                   DocNamespace::DefaultCollection);
+                   DocKeyEncodesCollectionId::No);
 
         std::unique_ptr<Item> itm =
                 makeItem(ctx->vbid, key, valSlice, isMetaOnly);

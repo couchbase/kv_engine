@@ -1544,7 +1544,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     // 2. Now add the rest as mutations.
     for (int ii = 0; ii <= messages; ii++) {
         const std::string key = "key" + std::to_string(ii);
-        const DocKey docKey{key, DocNamespace::DefaultCollection};
+        const DocKey docKey{key, DocKeyEncodesCollectionId::No};
         std::string value = "value";
 
         consumer->mutation(1/*opaque*/,
@@ -1610,7 +1610,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
 
     // 2. Now add a deletion.
     consumer->deletion(/*opaque*/ 1,
-                       {"key1", DocNamespace::DefaultCollection},
+                       {"key1", DocKeyEncodesCollectionId::No},
                        /*values*/ value,
                        /*priv_bytes*/ 0,
                        /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
@@ -1680,7 +1680,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                                 data.size()};
     // 2. Now add two deletions, one without deleteTime, one with
     consumer->deletionV2(/*opaque*/ 1,
-                         {"key1", DocNamespace::DefaultCollection},
+                         {"key1", DocKeyEncodesCollectionId::No},
                          /*values*/ value,
                          /*priv_bytes*/ 0,
                          /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
@@ -1692,7 +1692,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
 
     const uint32_t deleteTime = 10;
     consumer->deletionV2(/*opaque*/ 1,
-                         {"key2", DocNamespace::DefaultCollection},
+                         {"key2", DocKeyEncodesCollectionId::No},
                          /*values*/ value,
                          /*priv_bytes*/ 0,
                          /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
@@ -2462,7 +2462,7 @@ TEST_F(SingleThreadedEPBucketTest, mb25273) {
     std::copy(
             body.c_str(), body.c_str() + body.size(), std::back_inserter(data));
 
-    const DocKey docKey{key, DocNamespace::DefaultCollection};
+    const DocKey docKey{key, DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
                                 data.size()};
 
@@ -2587,8 +2587,7 @@ extern std::string dcp_last_key;
 TEST_F(WarmupTest, produce_delete_times) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto t1 = ep_real_time();
-    storeAndDeleteItem(
-            vbid, {"KEY1", DocNamespace::DefaultCollection}, "value");
+    storeAndDeleteItem(vbid, {"KEY1", DocKeyEncodesCollectionId::No}, "value");
     auto t2 = ep_real_time();
     // Now warmup to ensure that DCP will have to go to disk.
     resetEngineAndWarmup();
@@ -2625,8 +2624,7 @@ TEST_F(WarmupTest, produce_delete_times) {
 
     // Now a new delete, in-memory will also have a delete time
     t1 = ep_real_time();
-    storeAndDeleteItem(
-            vbid, {"KEY2", DocNamespace::DefaultCollection}, "value");
+    storeAndDeleteItem(vbid, {"KEY2", DocKeyEncodesCollectionId::No}, "value");
     t2 = ep_real_time();
 
     step(true);
@@ -2644,10 +2642,8 @@ TEST_F(WarmupTest, produce_delete_times) {
     // Finally expire a key and check that the delete_time we receive is the
     // expiry time, not actually the time it was deleted.
     auto expiryTime = ep_real_time() + 32000;
-    store_item(vbid,
-               {"KEY3", DocNamespace::DefaultCollection},
-               "value",
-               expiryTime);
+    store_item(
+            vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
 
     step(true);
     expectedBytes += SnapshotMarker::baseMsgBytes +
@@ -2660,7 +2656,7 @@ TEST_F(WarmupTest, produce_delete_times) {
 
     // Trigger expiry on a GET
     auto gv = store->get(
-            {"KEY3", DocNamespace::DefaultCollection}, vbid, cookie, NONE);
+            {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 
     step(true);
@@ -2683,7 +2679,7 @@ TEST_P(XattrSystemUserTest, MB_29040) {
     auto& kvbucket = *engine->getKVBucket();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     store_item(vbid,
-               {"key", DocNamespace::DefaultCollection},
+               {"key", DocKeyEncodesCollectionId::No},
                createXattrValue("{}", GetParam()),
                ep_real_time() + 1 /*1 second TTL*/,
                {cb::engine_errc::success},
@@ -2701,14 +2697,14 @@ TEST_P(XattrSystemUserTest, MB_29040) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     GetValue gv = kvbucket.get(
-            {"key", DocNamespace::DefaultCollection}, vbid, cookie, options);
+            {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
     MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
     store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 
     gv = kvbucket.get(
-            {"key", DocNamespace::DefaultCollection}, vbid, cookie, options);
+            {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
 
     auto get_itm = gv.item.get();
@@ -2977,7 +2973,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
             ENGINE_SUCCESS,
             consumer->deletion(
                     opaque,
-                    {"key", DocNamespace::DefaultCollection},
+                    {"key", DocKeyEncodesCollectionId::No},
                     valueBuf,
                     /*priv_bytes*/ 0,
                     PROTOCOL_BINARY_DATATYPE_XATTR |
@@ -3000,13 +2996,13 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
     auto gv = store->get(
-            {"key", DocNamespace::DefaultCollection}, vbid, cookie, options);
+            {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
     EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
 
     // Manually run the bgfetch task.
     MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
     store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
-    gv = store->get({"key", DocNamespace::DefaultCollection},
+    gv = store->get({"key", DocKeyEncodesCollectionId::No},
                     vbid,
                     cookie,
                     GET_DELETED_VALUE);

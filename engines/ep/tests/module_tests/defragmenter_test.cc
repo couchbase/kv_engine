@@ -71,7 +71,7 @@ void DefragmenterTest::setDocs(size_t docSize, size_t num_docs) {
         char key[16];
         snprintf(key, sizeof(key), "%d", i);
         // Use DocKey to minimize heap pollution
-        Item item(DocKey(key, DocNamespace::DefaultCollection),
+        Item item(DocKey(key, DocKeyEncodesCollectionId::No),
                   0,
                   0,
                   data.data(),
@@ -93,10 +93,10 @@ void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
             /// Use stack and DocKey to minimuze heap pollution
             char key[16];
             snprintf(key, sizeof(key), "%d", i);
-            auto* item = vbucket->ht.find(
-                    DocKey(key, DocNamespace::DefaultCollection),
-                    TrackReference::Yes,
-                    WantsDeleted::No);
+            auto* item =
+                    vbucket->ht.find(DocKey(key, DocKeyEncodesCollectionId::No),
+                                     TrackReference::Yes,
+                                     WantsDeleted::No);
             ASSERT_NE(nullptr, item);
 
             const uintptr_t page =
@@ -115,7 +115,7 @@ void DefragmenterTest::fragment(size_t num_docs, size_t &num_remaining) {
                 char key[16];
                 snprintf(key, sizeof(key), "%d", doc_id);
                 ASSERT_TRUE(vbucket->deleteKey(
-                        DocKey(key, DocNamespace::DefaultCollection)));
+                        DocKey(key, DocKeyEncodesCollectionId::No)));
                 kv->second.pop_back();
                 num_remaining--;
             }
