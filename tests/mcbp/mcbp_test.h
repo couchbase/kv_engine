@@ -47,6 +47,8 @@ protected:
      */
     protocol_binary_response_status validate(protocol_binary_command opcode,
                                              void* request);
+    std::string validate_error_context(protocol_binary_command opcode,
+                                       void* request);
 
     McbpValidatorChains validatorChains;
 

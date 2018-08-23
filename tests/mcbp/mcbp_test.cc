@@ -68,6 +68,16 @@ ValidatorTest::validate(protocol_binary_command opcode, void* packet) {
     return validatorChains.invoke(opcode, cookie);
 }
 
+std::string ValidatorTest::validate_error_context(
+        protocol_binary_command opcode, void* packet) {
+    const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
+    const size_t size = sizeof(req) + req.getBodylen();
+    cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
+    MockCookie cookie(connection, buffer);
+    validatorChains.invoke(opcode, cookie);
+    return cookie.getErrorContext();
+}
+
 enum class GetOpcodes : uint8_t {
     Get = PROTOCOL_BINARY_CMD_GET,
     GetQ = PROTOCOL_BINARY_CMD_GETQ,
@@ -3021,6 +3031,112 @@ TEST_F(RevokeUserPermissionsValidatorTest, MissingKey) {
 TEST_F(RevokeUserPermissionsValidatorTest, InvalidBodylen) {
     request.message.header.request.bodylen = htonl(4);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+}
+
+class ErrorContextTest : public ValidatorTest {
+protected:
+    std::string validate_error_context(protocol_binary_command opcode) {
+        void* packet = static_cast<void*>(&request);
+        return ValidatorTest::validate_error_context(opcode, packet);
+    }
+};
+
+TEST_F(ErrorContextTest, ValidHeader) {
+    // Error context should not be set on valid request
+    EXPECT_EQ("", validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
+}
+
+TEST_F(ErrorContextTest, InvalidHeader) {
+    // Magic invalid
+    request.message.header.request.magic = 0;
+    EXPECT_EQ("Request header invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
+
+    // Extlen + Keylen > Bodylen
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.setExtlen(8);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(12);
+    EXPECT_EQ("Request header invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_ADD));
+}
+
+TEST_F(ErrorContextTest, InvalidDatatype) {
+    // Nonexistent datatype
+    request.message.header.request.datatype = mcbp::datatype::highest + 1;
+    EXPECT_EQ("Request datatype invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
+
+    // Noop command does not accept JSON
+    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    EXPECT_EQ("Request datatype invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
+}
+
+TEST_F(ErrorContextTest, InvalidExtras) {
+    // Noop command does not accept extras
+    request.message.header.request.setExtlen(4);
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(4);
+    EXPECT_EQ("Request must not include extras",
+              validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
+
+    // Add command requires extras
+    request.message.header.request.setExtlen(0);
+    request.message.header.request.setKeylen(10);
+    request.message.header.request.setBodylen(14);
+    EXPECT_EQ("Request must include extras of length 8",
+              validate_error_context(PROTOCOL_BINARY_CMD_ADD));
+}
+
+TEST_F(ErrorContextTest, InvalidKey) {
+    // Noop command does not accept key
+    request.message.header.request.setExtlen(0);
+    request.message.header.request.setKeylen(8);
+    request.message.header.request.setBodylen(8);
+    EXPECT_EQ("Request must not include key",
+              validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
+
+    // Add command requires key
+    request.message.header.request.setExtlen(8);
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(8);
+    EXPECT_EQ("Request must include key",
+              validate_error_context(PROTOCOL_BINARY_CMD_ADD));
+}
+
+TEST_F(ErrorContextTest, InvalidValue) {
+    // Noop command does not accept value
+    request.message.header.request.setExtlen(0);
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(8);
+    EXPECT_EQ("Request must not include value",
+              validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
+
+    // Create bucket command requires value
+    request.message.header.request.setExtlen(0);
+    request.message.header.request.setKeylen(8);
+    request.message.header.request.setBodylen(8);
+    EXPECT_EQ("Request must include value",
+              validate_error_context(PROTOCOL_BINARY_CMD_CREATE_BUCKET));
+}
+
+TEST_F(ErrorContextTest, InvalidCas) {
+    // Unlock command requires CAS
+    request.message.header.request.setExtlen(0);
+    request.message.header.request.setKeylen(8);
+    request.message.header.request.setBodylen(8);
+    request.message.header.request.setCas(0);
+    EXPECT_EQ("Request CAS must be set",
+              validate_error_context(PROTOCOL_BINARY_CMD_UNLOCK_KEY));
+
+    // Noop command does not accept CAS
+    request.message.header.request.setExtlen(0);
+    request.message.header.request.setKeylen(0);
+    request.message.header.request.setBodylen(0);
+    request.message.header.request.setCas(10);
+    EXPECT_EQ("Request CAS must not be set",
+              validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
 }
 
 } // namespace test
