@@ -178,7 +178,7 @@ static protocol_binary_response_status verify_common_dcp_restrictions(
         Cookie& cookie) {
     auto* dcp = cookie.getConnection().getBucket().getDcpIface();
     if (!dcp) {
-        // The attached bucket does not support DCP
+        cookie.setErrorContext("Attached bucket does not support DCP");
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
@@ -188,6 +188,8 @@ static protocol_binary_response_status verify_common_dcp_restrictions(
                 "DCP on a connection with unordered execution is currently "
                 "not supported: {}",
                 get_peer_description(cookie));
+        cookie.setErrorContext(
+                "DCP on connections with unordered execution is not supported");
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
@@ -214,6 +216,8 @@ static protocol_binary_response_status dcp_open_validator(Cookie& cookie)
                               ntohs(req->message.header.request.keylen);
 
     if (!cookie.getConnection().isCollectionsSupported() && valuelen) {
+        cookie.setErrorContext(
+                "Request must not include value when collections not enabled");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -228,6 +232,7 @@ static protocol_binary_response_status dcp_open_validator(Cookie& cookie)
                 "Client trying to open dcp stream with unknown flags ({:x}) {}",
                 flags,
                 get_peer_description(cookie));
+        cookie.setErrorContext("Request contains invalid flags");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -237,6 +242,7 @@ static protocol_binary_response_status dcp_open_validator(Cookie& cookie)
                 "consumer {}",
                 flags,
                 get_peer_description(cookie));
+        cookie.setErrorContext("Request contains invalid flags combination");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return verify_common_dcp_restrictions(cookie);
@@ -267,10 +273,13 @@ static protocol_binary_response_status dcp_add_stream_validator(Cookie& cookie)
             // MB-22525 The NO_VALUE flag should be passed to DCP_OPEN
             LOG_INFO("Client trying to add stream with NO VALUE {}",
                      get_peer_description(cookie));
+            cookie.setErrorContext(
+                    "DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used");
         } else {
             LOG_INFO("Client trying to add stream with unknown flags ({:x}) {}",
                      flags,
                      get_peer_description(cookie));
+            cookie.setErrorContext("Request contains invalid flags");
         }
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -360,6 +369,7 @@ static protocol_binary_response_status dcp_system_event_validator(
     }
 
     if (!mcbp::systemevent::validate(ntohl(req->message.body.event))) {
+        cookie.setErrorContext("Invalid system event id");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return verify_common_dcp_restrictions(cookie);
@@ -401,15 +411,18 @@ static protocol_binary_response_status dcp_mutation_validator(Cookie& cookie)
     }
 
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if (!may_accept_xattr(cookie)) {
+        cookie.setErrorContext("Connection not Xattr enabled");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if (mcbp::datatype::is_xattr(datatype) &&
         !is_valid_xattr_blob(req->message.header)) {
+        cookie.setErrorContext("Xattr blob not valid");
         return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
     return verify_common_dcp_restrictions(cookie);
@@ -453,9 +466,11 @@ static protocol_binary_response_status dcp_deletion_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!valid_dcp_delete_datatype(req->message.header.request.datatype)) {
+        cookie.setErrorContext("Request datatype invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -475,6 +490,7 @@ static protocol_binary_response_status dcp_expiration_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return verify_common_dcp_restrictions(cookie);
@@ -495,6 +511,7 @@ static protocol_binary_response_status dcp_set_vbucket_state_validator(Cookie& c
     }
 
     if (req->message.body.state < 1 || req->message.body.state > 4) {
+        cookie.setErrorContext("Request body state invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return verify_common_dcp_restrictions(cookie);
@@ -610,6 +627,7 @@ static protocol_binary_response_status hello_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if ((len % 2) != 0) {
+        cookie.setErrorContext("Request value must be of even length");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -693,6 +711,7 @@ static protocol_binary_response_status flush_validator(Cookie& cookie)
     uint8_t extlen = req->message.header.request.extlen;
 
     if (extlen != 0 && extlen != 4) {
+        cookie.setErrorContext("Request extras must be of length 0 or 4");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     // We've already checked extlen so pass actual extlen as expected extlen
@@ -706,10 +725,10 @@ static protocol_binary_response_status flush_validator(Cookie& cookie)
     }
 
     if (extlen == 4) {
-        // We don't support delayed flush anymore
         auto* req = reinterpret_cast<protocol_binary_request_flush*>(
                 cookie.getPacketAsVoidPtr());
         if (req->message.body.expiration != 0) {
+            cookie.setErrorContext("Delayed flush no longer supported");
             return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
         }
     }
@@ -732,6 +751,7 @@ static protocol_binary_response_status add_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -752,6 +772,7 @@ static protocol_binary_response_status set_replace_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -772,6 +793,7 @@ static protocol_binary_response_status append_prepend_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -788,6 +810,7 @@ static protocol_binary_response_status get_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -804,6 +827,7 @@ static protocol_binary_response_status gat_validator(Cookie& cookie) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -821,6 +845,7 @@ static protocol_binary_response_status delete_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -852,6 +877,7 @@ static protocol_binary_response_status arithmetic_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -889,6 +915,7 @@ static protocol_binary_response_status set_ctrl_token_validator(Cookie& cookie)
             cookie.getPacketAsVoidPtr());
 
     if (req->message.body.new_cas == 0) {
+        cookie.setErrorContext("New CAS must be set");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -920,6 +947,7 @@ static protocol_binary_response_status ioctl_get_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (cookie.getHeader().getKeylen() > IOCTL_KEY_LENGTH) {
+        cookie.setErrorContext("Request key length exceeds maximum");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -942,7 +970,12 @@ static protocol_binary_response_status ioctl_set_validator(Cookie& cookie)
     uint16_t klen = ntohs(req->message.header.request.keylen);
     size_t vallen = ntohl(req->message.header.request.bodylen) - klen;
 
-    if (klen > IOCTL_KEY_LENGTH || vallen > IOCTL_VAL_LENGTH) {
+    if (klen > IOCTL_KEY_LENGTH) {
+        cookie.setErrorContext("Request key length exceeds maximum");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    if (vallen > IOCTL_VAL_LENGTH) {
+        cookie.setErrorContext("Request value length exceeds maximum");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -1002,6 +1035,7 @@ static protocol_binary_response_status config_validate_validator(
     const auto bodylen = header.getBodylen();
 
     if (bodylen > CONFIG_VALIDATE_MAX_LENGTH) {
+        cookie.setErrorContext("Request value length exceeds maximum");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -1018,6 +1052,7 @@ static protocol_binary_response_status observe_seqno_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (cookie.getHeader().getBodylen() != 8) {
+        cookie.setErrorContext("Request value must be of length 8");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -1067,6 +1102,7 @@ static protocol_binary_response_status create_bucket_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (cookie.getHeader().getKeylen() > MAX_BUCKET_NAME_LENGTH) {
+        cookie.setErrorContext("Request key length exceeds maximum");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -1112,6 +1148,7 @@ static protocol_binary_response_status select_bucket_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (cookie.getHeader().getKeylen() > 1023) {
+        cookie.setErrorContext("Request key length exceeds maximum");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -1139,12 +1176,15 @@ static protocol_binary_response_status get_all_vb_seqnos_validator(Cookie& cooki
         // extlen is optional, and if non-zero it contains the vbucket
         // state to report
         if (extlen != sizeof(vbucket_state_t)) {
+            cookie.setErrorContext("Request extras must be of length 0 or " +
+                                   std::to_string(sizeof(vbucket_state_t)));
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
         vbucket_state_t state;
         memcpy(&state, &req->message.body.state, sizeof(vbucket_state_t));
         state = static_cast<vbucket_state_t>(ntohl(state));
         if (!is_valid_vbucket_state_t(state)) {
+            cookie.setErrorContext("Request vbucket state invalid");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
@@ -1185,9 +1225,11 @@ static protocol_binary_response_status get_meta_validator(Cookie& cookie)
     }
 
     if (extlen > 1) {
+        cookie.setErrorContext("Request extras must be of length 0 or 1");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (extlen == 1) {
@@ -1195,6 +1237,7 @@ static protocol_binary_response_status get_meta_validator(Cookie& cookie)
         if (*extdata > 2) {
             // 1 == return conflict resolution mode
             // 2 == return datatype
+            cookie.setErrorContext("Request extras invalid");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
@@ -1217,7 +1260,12 @@ static protocol_binary_response_status mutate_with_meta_validator(Cookie& cookie
                        ExpectedValueLen::Any)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    if (!is_document_key_valid(cookie) || !may_accept_xattr(cookie)) {
+    if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    if (!may_accept_xattr(cookie)) {
+        cookie.setErrorContext("Connection not Xattr enabled");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -1230,11 +1278,13 @@ static protocol_binary_response_status mutate_with_meta_validator(Cookie& cookie
     case 30: // options and nmeta (options followed by nmeta)
         break;
     default:
+        cookie.setErrorContext("Request extras invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if (mcbp::datatype::is_xattr(datatype) &&
         !is_valid_xattr_blob(req->message.header)) {
+        cookie.setErrorContext("Xattr blob invalid");
         return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
 
@@ -1255,9 +1305,11 @@ static protocol_binary_response_status get_errmap_validator(Cookie& cookie) {
             cookie.getPacketAsVoidPtr());
 
     if (hdr.request.vbucket != 0) {
+        cookie.setErrorContext("Request vbucket id must be 0");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (hdr.request.getBodylen() != 2) {
+        cookie.setErrorContext("Request value must be of length 2");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -1280,7 +1332,12 @@ static protocol_binary_response_status get_locked_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    if (!is_document_key_valid(cookie) || (extlen != 0 && extlen != 4)) {
+    if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    if (extlen != 0 && extlen != 4) {
+        cookie.setErrorContext("Request extras must be of length 0 or 4");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -1298,6 +1355,7 @@ static protocol_binary_response_status unlock_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -1315,6 +1373,7 @@ static protocol_binary_response_status evict_key_validator(Cookie& cookie)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -1331,6 +1390,7 @@ static protocol_binary_response_status collections_set_manifest_validator(
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
     if (cookie.getHeader().getRequest().getVBucket() != 0) {
+        cookie.setErrorContext("Request vbucket id must be 0");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -1338,7 +1398,7 @@ static protocol_binary_response_status collections_set_manifest_validator(
     // it feels cleaner to validate the packet first.
     auto* engine = cookie.getConnection().getBucket().getEngine();
     if (engine == nullptr || engine->collections.set_manifest == nullptr) {
-        // The attached bucket does not support collections
+        cookie.setErrorContext("Attached bucket does not support collections");
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
@@ -1360,7 +1420,7 @@ static protocol_binary_response_status collections_get_manifest_validator(
     // it feels cleaner to validate the packet first.
     auto* engine = cookie.getConnection().getBucket().getEngine();
     if (engine == nullptr || engine->collections.get_manifest == nullptr) {
-        // The attached bucket does not support collections
+        cookie.setErrorContext("Attached bucket does not support collections");
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
@@ -1382,6 +1442,7 @@ static protocol_binary_response_status adjust_timeofday_validator(Cookie& cookie
 
     // The method should only be available for unit tests
     if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+        cookie.setErrorContext("Only available for unit tests");
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
