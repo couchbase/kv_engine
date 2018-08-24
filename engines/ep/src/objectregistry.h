@@ -65,10 +65,11 @@ public:
 /**
  * To avoid mem accounting within a block
  */
-class SystemAllocationGuard {
+class NonBucketAllocationGuard {
 public:
-    SystemAllocationGuard();
-    ~SystemAllocationGuard();
+    NonBucketAllocationGuard();
+    ~NonBucketAllocationGuard();
+
 private:
     EventuallyPersistentEngine* engine = nullptr;
 };

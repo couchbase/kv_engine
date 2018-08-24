@@ -219,12 +219,12 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
     return true;
 }
 
-SystemAllocationGuard::SystemAllocationGuard() {
+NonBucketAllocationGuard::NonBucketAllocationGuard() {
     engine = th->get();
     th->set(nullptr);
 }
 
-SystemAllocationGuard::~SystemAllocationGuard() {
+NonBucketAllocationGuard::~NonBucketAllocationGuard() {
     th->set(engine);
 }
 

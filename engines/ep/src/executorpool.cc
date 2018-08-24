@@ -236,9 +236,8 @@ TaskQueue *ExecutorPool::_nextTask(ExecutorThread &t, uint8_t tick) {
 }
 
 TaskQueue *ExecutorPool::nextTask(ExecutorThread &t, uint8_t tick) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     TaskQueue *tq = _nextTask(t, tick);
-    ObjectRegistry::onSwitchThread(epe);
     return tq;
 }
 
@@ -325,9 +324,8 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
 }
 
 bool ExecutorPool::cancel(size_t taskId, bool eraseTask) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     bool rv = _cancel(taskId, eraseTask);
-    ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
@@ -342,9 +340,8 @@ bool ExecutorPool::_wake(size_t taskId) {
 }
 
 bool ExecutorPool::wake(size_t taskId) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     bool rv = _wake(taskId);
-    ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
@@ -359,9 +356,8 @@ bool ExecutorPool::_snooze(size_t taskId, double toSleep) {
 }
 
 bool ExecutorPool::snooze(size_t taskId, double toSleep) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     bool rv = _snooze(taskId, toSleep);
-    ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
@@ -444,9 +440,8 @@ size_t ExecutorPool::_schedule(ExTask task) {
 }
 
 size_t ExecutorPool::schedule(ExTask task) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     size_t rv = _schedule(task);
-    ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
@@ -493,9 +488,8 @@ void ExecutorPool::_registerTaskable(Taskable& taskable) {
 }
 
 void ExecutorPool::registerTaskable(Taskable& taskable) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     _registerTaskable(taskable);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
@@ -587,10 +581,8 @@ ssize_t ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
 }
 
 void ExecutorPool::adjustWorkers(task_type_t type, size_t newCount) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     _adjustWorkers(type, newCount);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 bool ExecutorPool::_startWorkers(void) {
@@ -724,7 +716,7 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
         return;
     }
 
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     try {
         char statname[80] = {0};
         if (isHiPrioQset) {
@@ -777,7 +769,6 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
         EP_LOG_WARN("ExecutorPool::doTaskQStat: Failed to build stats: {}",
                     error.what());
     }
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 static void addWorkerStats(const char *prefix, ExecutorThread *t,
@@ -820,14 +811,13 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
         return;
     }
 
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     LockHolder lh(tMutex);
     //TODO: implement tracking per engine stats ..
     for (size_t tidx = 0; tidx < threadQ.size(); ++tidx) {
         addWorkerStats(threadQ[tidx]->getName().c_str(), threadQ[tidx],
                      cookie, add_stat);
     }
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
@@ -837,8 +827,7 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
         return;
     }
 
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
 
     std::map<size_t, TaskQpair> taskLocatorCopy;
 
@@ -895,8 +884,6 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
 
     checked_snprintf(statname, sizeof(statname), "%s:uptime_s", prefix);
     add_casted_stat(statname, ep_current_time(), add_stat, cookie);
-
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 void ExecutorPool::_stopAndJoinThreads() {

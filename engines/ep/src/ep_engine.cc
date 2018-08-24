@@ -116,12 +116,11 @@ static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response, const void *key,
                                       uint64_t cas, const void *cookie)
 {
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
-    EventuallyPersistentEngine *e = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     if (response(key, keylen, ext, extlen, body, bodylen, datatype,
                  status, cas, cookie)) {
         rv = ENGINE_SUCCESS;
     }
-    ObjectRegistry::onSwitchThread(e);
     return rv;
 }
 
@@ -1421,9 +1420,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
         return ENGINE_NOT_MY_VBUCKET;
     }
     auto failoverEntries = vb->failovers->getFailoverLog();
-    auto* epEngine = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     auto ret = callback(failoverEntries.data(), failoverEntries.size(), cookie);
-    ObjectRegistry::onSwitchThread(epEngine);
     return ret;
 }
 
@@ -1790,53 +1788,41 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::reserveCookie(const void *cookie)
 {
-    EventuallyPersistentEngine *epe =
-                                    ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     ENGINE_ERROR_CODE rv = serverApi->cookie->reserve(cookie);
-    ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::releaseCookie(const void *cookie)
 {
-    EventuallyPersistentEngine *epe =
-                                    ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     ENGINE_ERROR_CODE rv = serverApi->cookie->release(cookie);
-    ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
 void EventuallyPersistentEngine::storeEngineSpecific(const void* cookie,
                                                      void* engine_data) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     serverApi->cookie->store_engine_specific(cookie, engine_data);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 void* EventuallyPersistentEngine::getEngineSpecific(const void* cookie) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     void* engine_data = serverApi->cookie->get_engine_specific(cookie);
-    ObjectRegistry::onSwitchThread(epe);
     return engine_data;
 }
 
 bool EventuallyPersistentEngine::isDatatypeSupported(
         const void* cookie, protocol_binary_datatype_t datatype) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     bool isSupported =
             serverApi->cookie->is_datatype_supported(cookie, datatype);
-    ObjectRegistry::onSwitchThread(epe);
     return isSupported;
 }
 
 bool EventuallyPersistentEngine::isMutationExtrasSupported(const void* cookie) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     bool isSupported = serverApi->cookie->is_mutation_extras_supported(cookie);
-    ObjectRegistry::onSwitchThread(epe);
     return isSupported;
 }
 
@@ -1845,64 +1831,51 @@ bool EventuallyPersistentEngine::isXattrEnabled(const void* cookie) {
 }
 
 bool EventuallyPersistentEngine::isCollectionsSupported(const void* cookie) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     bool isSupported = serverApi->cookie->is_collections_supported(cookie);
-    ObjectRegistry::onSwitchThread(epe);
     return isSupported;
 }
 
 uint8_t EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
         const void* cookie) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     uint8_t opcode = serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);
-    ObjectRegistry::onSwitchThread(epe);
     return opcode;
 }
 
 bool EventuallyPersistentEngine::validateSessionCas(const uint64_t cas) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     bool ret = serverApi->cookie->validate_session_cas(cas);
-    ObjectRegistry::onSwitchThread(epe);
     return ret;
 }
 
 void EventuallyPersistentEngine::decrementSessionCtr(void) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     serverApi->cookie->decrement_session_ctr();
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 void EventuallyPersistentEngine::registerEngineCallback(ENGINE_EVENT_TYPE type,
                                                         EVENT_CALLBACK cb,
                                                         const void *cb_data) {
-    EventuallyPersistentEngine *epe =
-                                    ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     auto* sapi = getServerApi()->callback;
     sapi->register_callback(
             reinterpret_cast<EngineIface*>(this), type, cb, cb_data);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 void EventuallyPersistentEngine::setErrorContext(
         const void* cookie, cb::const_char_buffer message) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     serverApi->cookie->set_error_context(const_cast<void*>(cookie), message);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 template <typename T>
 void EventuallyPersistentEngine::notifyIOComplete(T cookies,
                                                   ENGINE_ERROR_CODE status) {
-    auto* epe = ObjectRegistry::onSwitchThread(nullptr, true);
+    NonBucketAllocationGuard guard;
     for (auto& cookie : cookies) {
         serverApi->cookie->notify_io_complete(cookie, status);
     }
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 /**
@@ -5544,19 +5517,15 @@ EventuallyPersistentEngine::getAllKeys(
 }
 
 CONN_PRIORITY EventuallyPersistentEngine::getDCPPriority(const void* cookie) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     auto priority = serverApi->cookie->get_priority(cookie);
-    ObjectRegistry::onSwitchThread(epe);
     return priority;
 }
 
 void EventuallyPersistentEngine::setDCPPriority(const void* cookie,
                                                 CONN_PRIORITY priority) {
-    EventuallyPersistentEngine* epe =
-            ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     serverApi->cookie->set_priority(cookie, priority);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
@@ -5565,10 +5534,8 @@ void EventuallyPersistentEngine::notifyIOComplete(const void* cookie,
         EP_LOG_WARN("Tried to signal a NULL cookie!");
     } else {
         BlockTimer bt(&stats.notifyIOHisto);
-        EventuallyPersistentEngine* epe =
-                ObjectRegistry::onSwitchThread(NULL, true);
+        NonBucketAllocationGuard guard;
         serverApi->cookie->notify_io_complete(cookie, status);
-        ObjectRegistry::onSwitchThread(epe);
     }
 }
 

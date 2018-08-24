@@ -152,9 +152,8 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
 }
 
 bool TaskQueue::fetchNextTask(ExecutorThread &thread, bool toSleep) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     bool rv = _fetchNextTask(thread, toSleep);
-    ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
@@ -198,9 +197,8 @@ ProcessClock::time_point TaskQueue::_reschedule(ExTask &task) {
 }
 
 ProcessClock::time_point TaskQueue::reschedule(ExTask &task) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     auto rv = _reschedule(task);
-    ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
@@ -231,9 +229,8 @@ void TaskQueue::_schedule(ExTask &task) {
 }
 
 void TaskQueue::schedule(ExTask &task) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     _schedule(task);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 void TaskQueue::_wake(ExTask &task) {
@@ -284,9 +281,8 @@ void TaskQueue::_wake(ExTask &task) {
 }
 
 void TaskQueue::wake(ExTask &task) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     _wake(task);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 const std::string TaskQueue::taskType2Str(task_type_t type) {

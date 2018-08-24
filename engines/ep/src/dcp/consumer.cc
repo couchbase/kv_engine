@@ -749,7 +749,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ENGINE_EWOULDBLOCK;
     }
 
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    NonBucketAllocationGuard guard;
     switch (resp->getEvent()) {
         case DcpResponse::Event::AddStream:
         {
@@ -791,7 +791,6 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
                          int(resp->getEvent()));
             ret = ENGINE_DISCONNECT;
     }
-    ObjectRegistry::onSwitchThread(epe);
 
     return ret;
 }
@@ -1233,13 +1232,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        NonBucketAllocationGuard guard;
         ret = producers->control(opaque,
                                  noopCtrlMsg.c_str(),
                                  noopCtrlMsg.size(),
                                  val.c_str(),
                                  val.size());
-        ObjectRegistry::onSwitchThread(epe);
         pendingEnableNoop = false;
         return ret;
     }
@@ -1255,13 +1253,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         auto intervalCount =
                 producerIsVersion5orHigher ? dcpNoopTxInterval.count() : 180;
         std::string interval = std::to_string(intervalCount);
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        NonBucketAllocationGuard guard;
         ret = producers->control(opaque,
                                  noopIntervalCtrlMsg.c_str(),
                                  noopIntervalCtrlMsg.size(),
                                  interval.c_str(),
                                  interval.size());
-        ObjectRegistry::onSwitchThread(epe);
         pendingSendNoopInterval = false;
         return ret;
     }
@@ -1284,13 +1281,11 @@ ENGINE_ERROR_CODE DcpConsumer::handleGetErrorMap(
     if (getErrorMapState == GetErrorMapState::PendingRequest) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-        EventuallyPersistentEngine* epe =
-                ObjectRegistry::onSwitchThread(NULL, true);
+        NonBucketAllocationGuard guard;
         // Note: just send 0 as version to get the default error map loaded
         //     from file at startup. The error map returned is not used, we
         //     just want to issue a valid request.
         ret = producers->get_error_map(opaque, 0 /*version*/);
-        ObjectRegistry::onSwitchThread(epe);
         getErrorMapState = GetErrorMapState::PendingResponse;
         return ret;
     }
@@ -1308,13 +1303,12 @@ ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* prod
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("high");
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        NonBucketAllocationGuard guard;
         ret = producers->control(opaque,
                                  priorityCtrlMsg.c_str(),
                                  priorityCtrlMsg.size(),
                                  val.c_str(),
                                  val.size());
-        ObjectRegistry::onSwitchThread(epe);
         pendingSetPriority = false;
         return ret;
     }
@@ -1327,13 +1321,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        NonBucketAllocationGuard guard;
         ret = producers->control(opaque,
                                  extMetadataCtrlMsg.c_str(),
                                  extMetadataCtrlMsg.size(),
                                  val.c_str(),
                                  val.size());
-        ObjectRegistry::onSwitchThread(epe);
         pendingEnableExtMetaData = false;
         return ret;
     }
@@ -1346,13 +1339,12 @@ ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(struct dcp_message_producer
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        NonBucketAllocationGuard guard;
         ret = producers->control(opaque,
                                  cursorDroppingCtrlMsg.c_str(),
                                  cursorDroppingCtrlMsg.size(),
                                  val.c_str(),
                                  val.size());
-        ObjectRegistry::onSwitchThread(epe);
         pendingSupportCursorDropping = false;
         return ret;
     }
@@ -1366,14 +1358,12 @@ ENGINE_ERROR_CODE DcpConsumer::supportHifiMFU(
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        EventuallyPersistentEngine* epe =
-                ObjectRegistry::onSwitchThread(NULL, true);
+        NonBucketAllocationGuard guard;
         ret = producers->control(opaque,
                                  hifiMFUCtrlMsg.c_str(),
                                  hifiMFUCtrlMsg.size(),
                                  val.c_str(),
                                  val.size());
-        ObjectRegistry::onSwitchThread(epe);
         pendingSupportHifiMFU = false;
         return ret;
     }
@@ -1388,15 +1378,13 @@ ENGINE_ERROR_CODE DcpConsumer::sendStreamEndOnClientStreamClose(
     if (pendingSendStreamEndOnClientStreamClose) {
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
-        EventuallyPersistentEngine* epe =
-                ObjectRegistry::onSwitchThread(nullptr, true);
+        NonBucketAllocationGuard guard;
         ENGINE_ERROR_CODE ret = producers->control(
                 opaque,
                 sendStreamEndOnClientStreamCloseCtrlMsg.c_str(),
                 sendStreamEndOnClientStreamCloseCtrlMsg.size(),
                 val.c_str(),
                 val.size());
-        ObjectRegistry::onSwitchThread(epe);
         pendingSendStreamEndOnClientStreamClose = false;
         return ret;
     }

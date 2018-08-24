@@ -59,14 +59,12 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             lh.unlock();
             uint64_t opaque = consumerConn->incrOpaqueCounter();
             const std::string &controlMsgKey = consumerConn->getControlMsgKey();
-            EventuallyPersistentEngine *epe =
-                                    ObjectRegistry::onSwitchThread(NULL, true);
+            NonBucketAllocationGuard guard;
             ret = producers->control(opaque,
                                      controlMsgKey.c_str(),
                                      controlMsgKey.length(),
                                      buf_size.c_str(),
                                      buf_size.length());
-            ObjectRegistry::onSwitchThread(epe);
             return ret;
         } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
             lh.unlock();
