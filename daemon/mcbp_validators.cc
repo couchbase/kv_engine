@@ -204,20 +204,9 @@ static protocol_binary_response_status dcp_open_validator(Cookie& cookie)
     if (!verify_header(cookie,
                        8,
                        ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
+                       ExpectedValueLen::Zero,
                        ExpectedCas::Any,
                        PROTOCOL_BINARY_RAW_BYTES)) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    }
-
-    // If there's a value, then collections must be enabled
-    const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
-                              req->message.header.request.extlen -
-                              ntohs(req->message.header.request.keylen);
-
-    if (!cookie.getConnection().isCollectionsSupported() && valuelen) {
-        cookie.setErrorContext(
-                "Request must not include value when collections not enabled");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -317,10 +306,14 @@ static protocol_binary_response_status dcp_stream_req_validator(Cookie& cookie)
     constexpr uint8_t expected_extlen =
             5 * sizeof(uint64_t) + 2 * sizeof(uint32_t);
 
+    auto vlen = cookie.getConnection().isCollectionsSupported()
+                        ? ExpectedValueLen::Any
+                        : ExpectedValueLen::Zero;
+
     if (!verify_header(cookie,
                        expected_extlen,
                        ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Any,
+                       vlen,
                        ExpectedCas::Any,
                        PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;

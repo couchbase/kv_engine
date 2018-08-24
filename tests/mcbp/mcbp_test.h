@@ -35,7 +35,7 @@ namespace test {
 
 class ValidatorTest : public ::testing::Test {
 public:
-    ValidatorTest();
+    ValidatorTest(bool collectionsEnabled);
     void SetUp() override;
 
 protected:
@@ -56,7 +56,9 @@ protected:
 
     // backing store which may be used for the request
     protocol_binary_request_no_extras &request;
-    uint8_t blob[4096];
+    uint8_t blob[4096] = {0};
+
+    bool collectionsEnabled{false};
 };
 
 } // namespace test

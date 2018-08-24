@@ -26,6 +26,8 @@ namespace test {
 
 class SetCollectionsValidator : public ValidatorTest {
 public:
+    SetCollectionsValidator() : ValidatorTest(true) {
+    }
     void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.opcode =

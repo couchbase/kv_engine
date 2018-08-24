@@ -53,8 +53,12 @@ std::ostream& operator<<(std::ostream& os, const Opcodes& o) {
     return os;
 }
 
-class MutationWithMetaTest : public ValidatorTest,
-                             public ::testing::WithParamInterface<Opcodes> {
+class MutationWithMetaTest
+        : public ::testing::WithParamInterface<std::tuple<Opcodes, bool>>,
+          public ValidatorTest {
+public:
+    MutationWithMetaTest() : ValidatorTest(std::get<1>(GetParam())) {
+    }
     virtual void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.extlen = 24;
@@ -64,7 +68,7 @@ class MutationWithMetaTest : public ValidatorTest,
 
 protected:
     int validate() {
-        auto opcode = (protocol_binary_command)GetParam();
+        auto opcode = (protocol_binary_command)std::get<0>(GetParam());
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 };
@@ -117,14 +121,15 @@ TEST_P(MutationWithMetaTest, InvalidDatatype) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
 }
 
-INSTANTIATE_TEST_CASE_P(Opcodes,
-                        MutationWithMetaTest,
-                        ::testing::Values(Opcodes::SetWithMeta,
-                                          Opcodes::SetQWithMeta,
-                                          Opcodes::AddWithMeta,
-                                          Opcodes::AddQWithMeta,
-                                          Opcodes::DelWithMeta,
-                                          Opcodes::DelQWithMeta),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        Opcodes,
+        MutationWithMetaTest,
+        ::testing::Combine(::testing::Values(Opcodes::SetWithMeta,
+                                             Opcodes::SetQWithMeta,
+                                             Opcodes::AddWithMeta,
+                                             Opcodes::AddQWithMeta,
+                                             Opcodes::DelWithMeta,
+                                             Opcodes::DelQWithMeta),
+                           ::testing::Bool()), );
 } // namespace test
 } // namespace mcbp

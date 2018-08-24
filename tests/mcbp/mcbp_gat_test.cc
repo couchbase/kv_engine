@@ -60,8 +60,10 @@ std::ostream& operator<<(std::ostream& os, const GATOpcodes& o) {
 }
 
 // Test the validators for GAT, GATQ, GATK, GATKQ, GAT_META and GATQ_META
-class GATValidatorTest : public ValidatorTest,
-                         public ::testing::WithParamInterface<GATOpcodes> {
+class GATValidatorTest
+    : public ::testing::WithParamInterface<
+              std::tuple<GATOpcodes, bool /*collections on/off*/>>,
+      public ValidatorTest {
 public:
     void SetUp() override {
         ValidatorTest::SetUp();
@@ -71,7 +73,8 @@ public:
     }
 
     GATValidatorTest()
-        : ValidatorTest(), bodylen(request.message.header.request.bodylen) {
+        : ValidatorTest(std::get<1>(GetParam())),
+          bodylen(request.message.header.request.bodylen) {
         // empty
     }
 
@@ -84,7 +87,7 @@ protected:
     }
 
     protocol_binary_response_status validate() {
-        auto opcode = (protocol_binary_command)GetParam();
+        auto opcode = (protocol_binary_command)std::get<0>(GetParam());
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 
@@ -124,9 +127,9 @@ TEST_P(GATValidatorTest, InvalidCas) {
 
 INSTANTIATE_TEST_CASE_P(GATOpcodes,
                         GATValidatorTest,
-                        ::testing::Values(GATOpcodes::GAT,
-                                          GATOpcodes::GATQ,
-                                          GATOpcodes::TOUCH),
-                        ::testing::PrintToStringParamName());
+                        ::testing::Combine(::testing::Values(GATOpcodes::GAT,
+                                                             GATOpcodes::GATQ,
+                                                             GATOpcodes::TOUCH),
+                                           ::testing::Bool()), );
 } // namespace test
 } // namespace mcbp

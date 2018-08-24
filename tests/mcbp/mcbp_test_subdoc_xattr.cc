@@ -69,11 +69,12 @@ std::ostream& operator<<(std::ostream& os, const SubdocOpcodes& o) {
  * Test the extra checks needed for XATTR access in subdoc
  */
 class SubdocXattrSingleTest
-    : public ValidatorTest,
-      public ::testing::WithParamInterface<SubdocOpcodes> {
+    : public ::testing::WithParamInterface<std::tuple<SubdocOpcodes, bool>>,
+      public ValidatorTest {
 public:
     SubdocXattrSingleTest()
-        : doc("Document"),
+        : ValidatorTest(std::get<1>(GetParam())),
+          doc("Document"),
           path("_sync.cas"),
           value("\"${Mutation.CAS}\""),
           flags(SUBDOC_FLAG_XATTR_PATH),
@@ -90,7 +91,7 @@ public:
 
 protected:
     int validate() {
-        auto opcode = (protocol_binary_command)GetParam();
+        auto opcode = (protocol_binary_command)std::get<0>(GetParam());
         protocol_binary_request_subdocument* req;
         const size_t extlen = !isNone(docFlags) ? 1 : 0;
         std::vector<uint8_t> blob(sizeof(req->bytes) + doc.length() +
@@ -126,7 +127,7 @@ protected:
     }
 
     bool needPayload() {
-        switch (GetParam()) {
+        switch (std::get<0>(GetParam())) {
         case SubdocOpcodes::Get:
         case SubdocOpcodes::Exists:
         case SubdocOpcodes::GetCount:
@@ -151,7 +152,7 @@ protected:
     }
 
     bool allowMacroExpansion() {
-        switch (GetParam()) {
+        switch (std::get<0>(GetParam())) {
         case SubdocOpcodes::Get:
         case SubdocOpcodes::Exists:
         case SubdocOpcodes::GetCount:
@@ -182,39 +183,40 @@ protected:
     mcbp::subdoc::doc_flag docFlags;
 };
 
-INSTANTIATE_TEST_CASE_P(SubdocOpcodes,
-                        SubdocXattrSingleTest,
-                        ::testing::Values(SubdocOpcodes::Get,
-                                          SubdocOpcodes::Exists,
-                                          SubdocOpcodes::DictAdd,
-                                          SubdocOpcodes::Upsert,
-                                          SubdocOpcodes::Delete,
-                                          SubdocOpcodes::Replace,
-                                          SubdocOpcodes::PushLast,
-                                          SubdocOpcodes::PushFirst,
-                                          SubdocOpcodes::Insert,
-                                          SubdocOpcodes::AddUnique,
-                                          SubdocOpcodes::Counter,
-                                          SubdocOpcodes::GetCount),
-                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(
+        SubdocOpcodes,
+        SubdocXattrSingleTest,
+        ::testing::Combine(::testing::Values(SubdocOpcodes::Get,
+                                             SubdocOpcodes::Exists,
+                                             SubdocOpcodes::DictAdd,
+                                             SubdocOpcodes::Upsert,
+                                             SubdocOpcodes::Delete,
+                                             SubdocOpcodes::Replace,
+                                             SubdocOpcodes::PushLast,
+                                             SubdocOpcodes::PushFirst,
+                                             SubdocOpcodes::Insert,
+                                             SubdocOpcodes::AddUnique,
+                                             SubdocOpcodes::Counter,
+                                             SubdocOpcodes::GetCount),
+                           ::testing::Bool()), );
 
 TEST_P(SubdocXattrSingleTest, PathTest) {
     path = "superduperlongpath";
     flags = SUBDOC_FLAG_NONE;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate())
-                << memcached_opcode_2_text(uint8_t(GetParam()));
+            << memcached_opcode_2_text(uint8_t(std::get<0>(GetParam())));
 
     // XATTR keys must be < 16 characters (we've got standalone tests
     // to validate all of the checks for the xattr keys, this is just
     // to make sure that our validator calls it ;-)
     flags = SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL, validate())
-                << memcached_opcode_2_text(uint8_t(GetParam()));
+            << memcached_opcode_2_text(uint8_t(std::get<0>(GetParam())));
 
     // Truncate it to a shorter one, and this time it should pass
     path = "_sync.cas";
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate())
-                << memcached_opcode_2_text(uint8_t(GetParam()));
+            << memcached_opcode_2_text(uint8_t(std::get<0>(GetParam())));
 }
 
 TEST_P(SubdocXattrSingleTest, ValidateFlags) {
@@ -258,9 +260,10 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
  * The SubdocXattrMultiLookupTest tests the XATTR specific constraints
  * over the normal subdoc constraints tested elsewhere
  */
-class SubdocXattrMultiLookupTest : public ValidatorTest {
+class SubdocXattrMultiLookupTest : public ::testing::WithParamInterface<bool>,
+                                   public ValidatorTest {
 public:
-    SubdocXattrMultiLookupTest() {
+    SubdocXattrMultiLookupTest() : ValidatorTest(GetParam()) {
         request.setKey("Document");
     }
 
@@ -279,7 +282,7 @@ protected:
     BinprotSubdocMultiLookupCommand request;
 };
 
-TEST_F(SubdocXattrMultiLookupTest, XAttrMayBeFirst) {
+TEST_P(SubdocXattrMultiLookupTest, XAttrMayBeFirst) {
     request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync.cas"});
@@ -289,7 +292,7 @@ TEST_F(SubdocXattrMultiLookupTest, XAttrMayBeFirst) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
-TEST_F(SubdocXattrMultiLookupTest, XAttrCantBeLast) {
+TEST_P(SubdocXattrMultiLookupTest, XAttrCantBeLast) {
     request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                        SUBDOC_FLAG_NONE,
                        "meta.author"});
@@ -299,7 +302,7 @@ TEST_F(SubdocXattrMultiLookupTest, XAttrCantBeLast) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER, validate());
 }
 
-TEST_F(SubdocXattrMultiLookupTest, XAttrKeyIsChecked) {
+TEST_P(SubdocXattrMultiLookupTest, XAttrKeyIsChecked) {
     // We got other unit tests that tests all of the different restrictions
     // for the subdoc key.. just make sure that it is actually called..
     // Check that we can't insert a key > 16 chars
@@ -309,7 +312,7 @@ TEST_F(SubdocXattrMultiLookupTest, XAttrKeyIsChecked) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL, validate());
 }
 
-TEST_F(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
+TEST_P(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
     request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync.cas"});
@@ -335,7 +338,7 @@ TEST_F(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
-TEST_F(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
+TEST_P(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
     request.addLookup(
         {PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_XATTR_PATH, "_sync"});
     request.addLookup({PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE, ""});
@@ -343,7 +346,7 @@ TEST_F(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
-TEST_F(SubdocXattrMultiLookupTest, AllowMultipleLookups) {
+TEST_P(SubdocXattrMultiLookupTest, AllowMultipleLookups) {
     for (int ii = 0; ii < 10; ii++) {
         request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                            SUBDOC_FLAG_XATTR_PATH,
@@ -352,7 +355,7 @@ TEST_F(SubdocXattrMultiLookupTest, AllowMultipleLookups) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
-TEST_F(SubdocXattrMultiLookupTest, AllLookupsMustBeOnTheSamePath) {
+TEST_P(SubdocXattrMultiLookupTest, AllLookupsMustBeOnTheSamePath) {
     request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync.cas"});
@@ -367,9 +370,10 @@ TEST_F(SubdocXattrMultiLookupTest, AllLookupsMustBeOnTheSamePath) {
  * The SubdocXattrMultiLookupTest tests the XATTR specific constraints
  * over the normal subdoc constraints tested elsewhere
  */
-class SubdocXattrMultiMutationTest : public ValidatorTest {
+class SubdocXattrMultiMutationTest : public ::testing::WithParamInterface<bool>,
+                                     public ValidatorTest {
 public:
-    SubdocXattrMultiMutationTest() {
+    SubdocXattrMultiMutationTest() : ValidatorTest(GetParam()) {
         request.setKey("Document");
     }
 
@@ -389,7 +393,7 @@ protected:
     BinprotSubdocMultiMutationCommand request;
 };
 
-TEST_F(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
+TEST_P(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
     request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
@@ -401,7 +405,7 @@ TEST_F(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
-TEST_F(SubdocXattrMultiMutationTest, XAttrCantBeLast) {
+TEST_P(SubdocXattrMultiMutationTest, XAttrCantBeLast) {
     request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                          SUBDOC_FLAG_NONE,
                          "meta.author",
@@ -413,7 +417,7 @@ TEST_F(SubdocXattrMultiMutationTest, XAttrCantBeLast) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER, validate());
 }
 
-TEST_F(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
+TEST_P(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
     // We got other unit tests that tests all of the different restrictions
     // for the subdoc key.. just make sure that it is actually called..
     // Check that we can't insert a key > 16 chars
@@ -424,7 +428,7 @@ TEST_F(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL, validate());
 }
 
-TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
+TEST_P(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
@@ -457,7 +461,7 @@ TEST_F(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
-TEST_F(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
+TEST_P(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
     for (int ii = 0; ii < 10; ii++) {
         request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                              SUBDOC_FLAG_XATTR_PATH,
@@ -467,7 +471,7 @@ TEST_F(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
 
-TEST_F(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
+TEST_P(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
     request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
@@ -480,7 +484,7 @@ TEST_F(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
               validate());
 }
 
-TEST_F(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {
+TEST_P(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {
     request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
@@ -488,5 +492,15 @@ TEST_F(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {
     request.addMutation({PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", ""});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
 }
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        SubdocXattrMultiLookupTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        SubdocXattrMultiMutationTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
 } // namespace test
 } // namespace mcbp
