@@ -89,8 +89,18 @@ void BucketLogger::setLoggerAPI(ServerLogIface* api) {
 
 std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
         const std::string& name, const std::string& p) {
+    // Create a unique name using the engine name if available
+    auto engine = ObjectRegistry::getCurrentEngine();
+    std::string uname;
+
+    if (engine) {
+        uname.append(engine->getName());
+        uname.append(".");
+    }
+    uname.append(name);
+
     auto bucketLogger =
-            std::shared_ptr<BucketLogger>(new BucketLogger(name, p));
+            std::shared_ptr<BucketLogger>(new BucketLogger(uname, p));
 
     // TODO register the bucket logger - split patch set to reduce size
     return bucketLogger;
