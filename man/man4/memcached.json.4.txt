@@ -312,6 +312,11 @@ The *tracing_enabled* attribute is a boolean value to enable or disable
 retrieving tracedata from the server. If enabled, the time the request
 took on the server will be sent back as a part of the response.
 
+=== external_auth_service
+
+The *external_auth_service* attribute is a boolean value to enable
+or disable the use of an external authentication service.
+
 === opcode-attributes-override
 
 The *opcode-attributes-override* attribute is an object which follows
@@ -403,6 +408,7 @@ A Sample memcached.json:
         "dedupe_nmvb_maps" : true,
         "xattr_enabled" : true,
         "tracing_enabled" : true,
+        "external_auth_service" : false,
         "opcode-attributes-override": {
            "version": 1,
            "get": {
@@ -413,4 +419,4 @@ A Sample memcached.json:
 
 == COPYRIGHT
 
-Copyright 2016 Couchbase, Inc.
+Copyright 2018 Couchbase, Inc.

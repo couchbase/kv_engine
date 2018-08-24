@@ -873,6 +873,30 @@ TEST_F(SettingsTest, TracingEnabled) {
     }
 }
 
+TEST_F(SettingsTest, ExternalAuthService) {
+    nonBooleanValuesShouldFail("external_auth_service");
+
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddTrueToObject(obj.get(), "external_auth_service");
+    try {
+        Settings settings(obj);
+        EXPECT_TRUE(settings.isExternalAuthServiceEnabled());
+        EXPECT_TRUE(settings.has.external_auth_service);
+    } catch (const std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    obj.reset(cJSON_CreateObject());
+    cJSON_AddFalseToObject(obj.get(), "external_auth_service");
+    try {
+        Settings settings(obj);
+        EXPECT_FALSE(settings.isExternalAuthServiceEnabled());
+        EXPECT_TRUE(settings.has.external_auth_service);
+    } catch (const std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
 TEST_F(SettingsTest, ScramshaFallbackSalt) {
     nonStringValuesShouldFail("scramsha_fallback_salt");
     unique_cJSON_ptr obj(cJSON_CreateObject());

@@ -737,6 +737,16 @@ public:
         return std::string{scramsha_fallback_salt.value};
     }
 
+    void setExternalAuthServiceEnabled(bool enable) {
+        external_auth_service.store(enable, std::memory_order_release);
+        has.external_auth_service = true;
+        notify_changed("external_auth_service");
+    }
+
+    bool isExternalAuthServiceEnabled() const {
+        return external_auth_service.load(std::memory_order_acquire);
+    }
+
 protected:
 
     /**
@@ -909,6 +919,11 @@ protected:
      */
     std::atomic_bool stdin_listener{true};
 
+    /**
+     * Should we allow for using the external authentication service or not
+     */
+    std::atomic_bool external_auth_service;
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -951,6 +966,7 @@ public:
         bool tracing_enabled;
         bool stdin_listener;
         bool scramsha_fallback_salt;
+        bool external_auth_service;
     } has;
 
 protected:

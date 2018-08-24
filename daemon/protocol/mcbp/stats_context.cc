@@ -390,6 +390,10 @@ static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
              add_stat_callback,
              "collections_prototype",
              settings.isCollectionsPrototypeEnabled());
+    add_stat(cookie,
+             add_stat_callback,
+             "external_auth_service",
+             settings.isExternalAuthServiceEnabled());
 }
 
 static void append_bin_stats(const char* key,

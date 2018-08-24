@@ -234,6 +234,17 @@ static void handle_scramsha_fallback_salt(Settings&s, cJSON* obj) {
 
 }
 
+static void handle_external_auth_service(Settings& s, cJSON* obj) {
+    if (obj->type == cJSON_True) {
+        s.setExternalAuthServiceEnabled(true);
+    } else if (obj->type == cJSON_False) {
+        s.setExternalAuthServiceEnabled(false);
+    } else {
+        throw std::invalid_argument(
+                R"("external_auth_service" must be a boolean value)");
+    }
+}
+
 /**
  * Handle the "tracing_enabled" tag in the settings
  *
@@ -706,7 +717,8 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"opcode_attributes_override", handle_opcode_attributes_override},
             {"topkeys_enabled", handle_topkeys_enabled},
             {"tracing_enabled", handle_tracing_enabled},
-            {"scramsha_fallback_salt", handle_scramsha_fallback_salt}};
+            {"scramsha_fallback_salt", handle_scramsha_fallback_salt},
+            {"external_auth_service", handle_external_auth_service}};
 
     cJSON* obj = json->child;
     while (obj != nullptr) {
@@ -1166,6 +1178,18 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     mine,
                     others);
             setSslSaslMechanisms(others);
+        }
+    }
+
+    if (other.has.external_auth_service) {
+        if (isExternalAuthServiceEnabled() !=
+            other.isExternalAuthServiceEnabled()) {
+            LOG_INFO(
+                    R"(Change external authentication service from "{}" to "{}")",
+                    isExternalAuthServiceEnabled() ? "enabled" : "disabled",
+                    other.isExternalAuthServiceEnabled() ? "enabled"
+                                                         : "disabled");
+            setExternalAuthServiceEnabled(other.isExternalAuthServiceEnabled());
         }
     }
 }

@@ -513,6 +513,13 @@ static void rbac_refresh_executor(Cookie& cookie) {
 }
 
 static void rbac_provider_executor(Cookie& cookie) {
+    if (!settings.isExternalAuthServiceEnabled()) {
+        cookie.setErrorContext(
+                "Support for external authentication service is disabled");
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+
     auto& connection = cookie.getConnection();
     if (connection.isDuplexSupported()) {
         // To ease the integration with ns_server we'll just tell it
