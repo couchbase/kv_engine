@@ -228,10 +228,18 @@ protected:
         out.flags(std::ios::hex);
         out << std::setfill('0');
         out << "    Field        (offset) (value)" << std::endl;
-        out << "    Magic        (0)    : 0x" << (uint32_t(request.bytes[0]) & 0xff) << std::endl;
+        out << "    Magic        (0)    : 0x"
+            << (uint32_t(request.bytes[0]) & 0xff) << " ("
+            << to_string(request.request.getMagic()) << ")" << std::endl;
         out << "    Opcode       (1)    : 0x" << std::setw(2)
-            << (uint32_t(request.bytes[1]) & 0xff) << " ("
-            << to_string(request.request.getClientOpcode()) << ")" << std::endl;
+            << (uint32_t(request.bytes[1]) & 0xff) << " (";
+        if (request.request.getMagic() == cb::mcbp::Magic::ClientRequest) {
+            out << to_string(request.request.getClientOpcode()) << ")"
+                << std::endl;
+        } else {
+            out << to_string(request.request.getServerOpcode()) << ")"
+                << std::endl;
+        }
         out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(request.request.keylen) & 0xffff) << std::endl;
         out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(request.bytes[4]) & 0xff) << std::endl;
         out << "    Data type    (5)    : 0x" << std::setw(2) << (uint32_t(request.bytes[5]) & 0xff) << std::endl;
@@ -441,7 +449,18 @@ protected:
         auto status = (protocol_binary_response_status)ntohs(response.response.status);
 
         out << "    Field        (offset) (value)" << std::endl;
-        out << "    Magic        (0)    : 0x" << (uint32_t(response.bytes[0]) & 0xff) << std::endl;
+        out << "    Magic        (0)    : 0x"
+            << (uint32_t(response.bytes[0]) & 0xff) << " ("
+            << to_string(response.response.getMagic()) << ")" << std::endl;
+        out << "    Opcode       (1)    : 0x" << std::setw(2)
+            << (uint32_t(response.bytes[1]) & 0xff) << " (";
+        if (response.response.getMagic() == cb::mcbp::Magic::ServerResponse) {
+            out << to_string(response.response.getServerOpcode()) << ")"
+                << std::endl;
+        } else {
+            out << to_string(response.response.getClientOpcode()) << ")"
+                << std::endl;
+        }
         out << "    Opcode       (1)    : 0x" << std::setw(2)
             << (uint32_t(response.bytes[1]) & 0xff) << " ("
             << to_string(response.response.getClientOpcode()) << ")"
@@ -628,16 +647,20 @@ void cb::mcbp::dump(const uint8_t* packet, std::ostream& out) {
     auto* req = reinterpret_cast<const protocol_binary_request_header*>(packet);
     auto* res = reinterpret_cast<const protocol_binary_response_header*>(packet);
 
-    switch (*packet) {
-    case PROTOCOL_BINARY_REQ:
+    switch (req->request.getMagic()) {
+    case Magic::ClientRequest:
+    case Magic::ServerRequest:
         dump_request(req, out);
-        break;
-    case PROTOCOL_BINARY_RES:
+        return;
+
+    case Magic::ClientResponse:
+    case Magic::AltClientResponse:
+    case Magic::ServerResponse:
         dump_response(res, out);
-        break;
-    default:
-        throw std::invalid_argument("cb::mcbp::dump: Invalid magic");
+        return;
     }
+
+    throw std::invalid_argument("cb::mcbp::dump: Invalid magic");
 }
 
 void cb::mcbp::dumpStream(cb::byte_buffer buffer, std::ostream& out) {
