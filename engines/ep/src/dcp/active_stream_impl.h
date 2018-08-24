@@ -21,6 +21,9 @@
 #include "bucket_logger.h"
 #include "producer.h"
 
+const std::string activeStreamLoggingPrefix =
+        "DCP (Producer): **Deleted conn**";
+
 /**
  * Separate implementation class for the ActiveStream logging method.
  *
@@ -36,9 +39,6 @@
  * ActiveStream that wish to use the logging functionality can include the
  * active_stream_impl.h file instead of the active_stream.h file.
  */
-
-extern std::shared_ptr<BucketLogger> globalActiveStreamBucketLogger;
-
 template <typename... Args>
 void ActiveStream::log(spdlog::level::level_enum severity,
                        const char* fmt,
@@ -47,6 +47,11 @@ void ActiveStream::log(spdlog::level::level_enum severity,
     if (producer) {
         producer->getLogger().log(severity, fmt, args...);
     } else {
-        getBucketLogger()->log(severity, fmt, args...);
+        if (globalBucketLogger->should_log(severity)) {
+            globalBucketLogger->log(
+                    severity,
+                    std::string{activeStreamLoggingPrefix}.append(fmt).data(),
+                    args...);
+        }
     }
 }

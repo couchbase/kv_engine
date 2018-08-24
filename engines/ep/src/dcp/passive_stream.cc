@@ -30,7 +30,6 @@
 
 const std::string passiveStreamLoggingPrefix =
         "DCP (Consumer): **Deleted conn**";
-std::shared_ptr<BucketLogger> globalPassiveStreamBucketLogger;
 
 PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              std::shared_ptr<DcpConsumer> c,
@@ -61,12 +60,6 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_end(0),
       cur_snapshot_type(Snapshot::None),
       cur_snapshot_ack(false) {
-    if (!globalPassiveStreamBucketLogger) {
-        globalPassiveStreamBucketLogger = BucketLogger::createBucketLogger(
-                "globalPassiveStreamBucketLogger");
-        globalPassiveStreamBucketLogger->prefix = passiveStreamLoggingPrefix;
-    }
-
     LockHolder lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
@@ -932,6 +925,11 @@ void PassiveStream::log(spdlog::level::level_enum severity,
     if (consumer) {
         consumer->getLogger().log(severity, fmt, args...);
     } else {
-        globalPassiveStreamBucketLogger->log(severity, fmt, args...);
+        if (globalBucketLogger->should_log(severity)) {
+            globalBucketLogger->log(
+                    severity,
+                    std::string{passiveStreamLoggingPrefix}.append(fmt).data(),
+                    args...);
+        }
     }
 }

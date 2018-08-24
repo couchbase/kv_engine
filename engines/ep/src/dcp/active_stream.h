@@ -43,8 +43,6 @@ public:
 
     virtual ~ActiveStream();
 
-    static BucketLogger* getBucketLogger();
-
     std::unique_ptr<DcpResponse> next() override;
 
     void setActive() override {

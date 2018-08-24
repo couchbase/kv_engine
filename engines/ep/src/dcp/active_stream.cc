@@ -22,9 +22,6 @@
 #include "ep_time.h"
 #include "kv_bucket.h"
 
-const std::string activeStreamLoggingPrefix =
-        "DCP (Producer): **Deleted conn**";
-
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            std::shared_ptr<DcpProducer> p,
                            const std::string& n,
@@ -91,16 +88,15 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         }
     }
 
-    p->getLogger().log(
-            spdlog::level::info,
-            "({}) Creating {}stream with start seqno {} and end seqno {}; "
-            "requested end seqno was {}, collections-manifest uid:{}",
-            vbucket.getId(),
-            type,
-            st_seqno,
-            end_seqno_,
-            en_seqno,
-            filter.getUid());
+    log(spdlog::level::info,
+        "({}) Creating {}stream with start seqno {} and end seqno {}; "
+        "requested end seqno was {}, collections-manifest uid:{}",
+        vbucket.getId(),
+        type,
+        st_seqno,
+        end_seqno_,
+        en_seqno,
+        filter.getUid());
 
     backfillItems.memory = 0;
     backfillItems.disk = 0;
@@ -127,13 +123,6 @@ ActiveStream::~ActiveStream() {
     if (state_ != StreamState::Dead) {
         removeCheckpointCursor();
     }
-}
-
-BucketLogger* ActiveStream::getBucketLogger() {
-    static std::shared_ptr<BucketLogger> instance =
-            BucketLogger::createBucketLogger("globalActiveStreamBucketLogger",
-                                             activeStreamLoggingPrefix);
-    return instance.get();
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::next() {
@@ -1557,5 +1546,3 @@ void ActiveStream::removeCheckpointCursor() {
         vb->checkpointManager->removeCursor(cursor.lock().get());
     }
 }
-
-std::shared_ptr<BucketLogger> globalActiveStreamBucketLogger;

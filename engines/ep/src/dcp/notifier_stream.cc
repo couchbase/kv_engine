@@ -26,7 +26,6 @@
 
 const std::string notifierStreamLoggingPrefix =
         "DCP (Notifier): **Deleted conn**";
-std::shared_ptr<BucketLogger> globalNotifierStreamBucketLogger;
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
                                std::shared_ptr<DcpProducer> p,
@@ -50,12 +49,6 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
              snap_end_seqno,
              Type::Notifier),
       producerPtr(p) {
-    if (!globalNotifierStreamBucketLogger) {
-        globalNotifierStreamBucketLogger = BucketLogger::createBucketLogger(
-                "globalNotifierStreamBucketLogger");
-        globalNotifierStreamBucketLogger->prefix = notifierStreamLoggingPrefix;
-    }
-
     LockHolder lh(streamMutex);
     VBucketPtr vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
@@ -176,6 +169,11 @@ void NotifierStream::log(spdlog::level::level_enum severity,
     if (producer) {
         producer->getLogger().log(severity, fmt, args...);
     } else {
-        globalNotifierStreamBucketLogger->log(severity, fmt, args...);
+        if (globalBucketLogger->should_log(severity)) {
+            globalBucketLogger->log(
+                    severity,
+                    std::string{notifierStreamLoggingPrefix}.append(fmt).data(),
+                    args...);
+        }
     }
 }
