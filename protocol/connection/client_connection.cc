@@ -23,12 +23,12 @@
 #include <cbsasl/client.h>
 #include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
+#include <nlohmann/json.hpp>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 
-#include <include/cbsasl/client.h>
 #include <cerrno>
 #include <gsl/gsl>
 #include <iostream>
@@ -1439,5 +1439,20 @@ ConnectionError::ConnectionError(const std::string& prefix, uint16_t reason)
 ConnectionError::ConnectionError(const std::string& prefix,
                                  const BinprotResponse& response)
     : std::runtime_error(formatMcbpExceptionMsg(prefix, response).c_str()),
-      reason(response.getStatus()) {
+      reason(response.getStatus()),
+      payload(response.getDataString()) {
+}
+
+std::string ConnectionError::getErrorReference() const {
+    const auto decoded = nlohmann::json::parse(payload);
+    return decoded["error"]["ref"];
+}
+
+std::string ConnectionError::getErrorContext() const {
+    const auto decoded = nlohmann::json::parse(payload);
+    return decoded["error"]["context"];
+}
+
+std::string ConnectionError::getPayload() const {
+    return payload;
 }

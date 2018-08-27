@@ -206,8 +206,15 @@ public:
         return reason == PROTOCOL_BINARY_RESPONSE_E2BIG;
     }
 
+    std::string getErrorReference() const;
+
+    std::string getErrorContext() const;
+
+    std::string getPayload() const;
+
 private:
-    uint16_t reason;
+    const uint16_t reason;
+    const std::string payload;
 };
 
 /**
