@@ -821,14 +821,8 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
     c->setState(StateMachine::State::closing);
 }
 
-/**
- * We've received a response packet. Parse and execute it
- *
- * @param cookie the current command context
- * @param response the actual response packet
- */
-void execute_response_packet(Cookie& cookie,
-                             const cb::mcbp::Response& response) {
+static void execute_client_response_packet(Cookie& cookie,
+                                           const cb::mcbp::Response& response) {
     auto handler = response_handlers[response.opcode];
     if (handler) {
         handler(cookie);
@@ -839,6 +833,49 @@ void execute_response_packet(Cookie& cookie,
                  uint32_t(response.opcode));
         c.setState(StateMachine::State::closing);
     }
+}
+
+static void execute_server_response_packet(Cookie& cookie,
+                                           const cb::mcbp::Response& response) {
+    auto& c = cookie.getConnection();
+    c.setState(StateMachine::State::new_cmd);
+
+    switch (response.getServerOpcode()) {
+    case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
+    case cb::mcbp::ServerOpcode::GetUserPermissions:
+        // ignore
+        return;
+    }
+
+    LOG_INFO(
+            "{}: Ignoring unsupported server response packet received with "
+            "opcode: {:x}",
+            c.getId(),
+            uint32_t(response.opcode));
+}
+
+/**
+ * We've received a response packet. Parse and execute it
+ *
+ * @param cookie the current command context
+ * @param response the actual response packet
+ */
+void execute_response_packet(Cookie& cookie,
+                             const cb::mcbp::Response& response) {
+    switch (response.getMagic()) {
+    case cb::mcbp::Magic::ClientResponse:
+    case cb::mcbp::Magic::AltClientResponse:
+        execute_client_response_packet(cookie, response);
+        return;
+    case cb::mcbp::Magic::ServerResponse:
+        execute_server_response_packet(cookie, response);
+        return;
+    case cb::mcbp::Magic::ClientRequest:
+    case cb::mcbp::Magic::ServerRequest:;
+    }
+
+    throw std::logic_error(
+            "execute_response_packet: provided packet is not a response");
 }
 
 static cb::mcbp::Status validate_packet_execusion_constraints(Cookie& cookie) {
@@ -911,40 +948,34 @@ void try_read_mcbp_command(Connection& c) {
         }
     }
 
-    if (header.isResponse()) {
-        if (response_handlers[header.getOpcode()] == nullptr) {
-            LOG_WARNING(
-                    "{}: Unsupported response packet received: {:x}, "
-                    "closing connection",
-                    c.getId(),
-                    header.getOpcode());
-            c.setState(StateMachine::State::closing);
-            return;
-        }
-    } else if (!header.isRequest()) {
+    if (!header.isValid()) {
         LOG_WARNING(
                 "{}: Invalid packet format detected (magic: {:x}), closing "
                 "connection",
                 c.getId(),
                 header.getMagic());
+        audit_invalid_packet(cookie);
         c.setState(StateMachine::State::closing);
         return;
     }
 
     c.addMsgHdr(true);
 
-    auto reason = validate_packet_execusion_constraints(cookie);
-    if (reason != cb::mcbp::Status::Success) {
-        cookie.sendResponse(reason);
-        LOG_WARNING(
-                "{}: try_read_mcbp_command - "
-                "validate_packet_execusion_constraints returned {} - closing "
-                "connection {}",
-                c.getId(),
-                std::to_string(static_cast<uint16_t>(reason)),
-                c.getDescription());
-        c.setWriteAndGo(StateMachine::State::closing);
-        return;
+    if (header.isRequest()) {
+        auto reason = validate_packet_execusion_constraints(cookie);
+        if (reason != cb::mcbp::Status::Success) {
+            cookie.sendResponse(reason);
+            LOG_WARNING(
+                    "{}: try_read_mcbp_command - "
+                    "validate_packet_execusion_constraints returned {} - "
+                    "closing "
+                    "connection {}",
+                    c.getId(),
+                    std::to_string(static_cast<uint16_t>(reason)),
+                    c.getDescription());
+            c.setWriteAndGo(StateMachine::State::closing);
+            return;
+        }
     }
 
     if (c.isPacketAvailable()) {

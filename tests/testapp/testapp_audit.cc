@@ -155,7 +155,6 @@ TEST_P(AuditTest, AuditIllegalPacket) {
     request.setKeylen(uint16_t(key.size() + 8));
     request.setExtlen(uint8_t(0));
     safe_send(send.bytes, len, false);
-
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
