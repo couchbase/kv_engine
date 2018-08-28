@@ -316,6 +316,72 @@ TEST_F(CollectionsDcpTest, test_dcp) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
 }
 
+TEST_F(CollectionsDcpTest, mb30893_dcp_partial_updates) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Add 3 collections in one update
+    CollectionsManifest cm;
+    vb->updateFromManifest({cm.add(CollectionEntry::fruit)
+                                    .add(CollectionEntry::dairy)
+                                    .add(CollectionEntry::meat)});
+
+    notifyAndStepToCheckpoint();
+
+    VBucketPtr replica = store->getVBucket(replicaVB);
+
+    // Now step the producer to transfer the collection creation(s)
+    // each collection-creation, closed the checkpoint (hence the extra steps)
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ(0, replica->lockCollections().getManifestUid());
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ(0, replica->lockCollections().getManifestUid());
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+
+    // And now the new manifest-UID is exposed
+    EXPECT_EQ(3, replica->lockCollections().getManifestUid());
+
+    // Remove two
+    vb->updateFromManifest(
+            {cm.remove(CollectionEntry::fruit).remove(CollectionEntry::dairy)});
+
+    notifyAndStepToCheckpoint();
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ(3, replica->lockCollections().getManifestUid());
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ(5, replica->lockCollections().getManifestUid());
+
+    // Add and remove
+    vb->updateFromManifest(
+            {cm.add(CollectionEntry::dairy2).remove(CollectionEntry::meat)});
+
+    notifyAndStepToCheckpoint();
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ(5, replica->lockCollections().getManifestUid());
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
+    EXPECT_EQ(7, replica->lockCollections().getManifestUid());
+}
+
 void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
                                              int expectedDeletes,
                                              int expectedMutations,

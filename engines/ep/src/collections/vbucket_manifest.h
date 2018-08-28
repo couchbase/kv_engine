@@ -493,8 +493,7 @@ public:
                                             bool deleted,
                                             OptionalSeqno seqno) const;
 
-private:
-
+protected:
     /**
      * Return a std::string containing a JSON representation of a
      * VBucket::Manifest. The input data should be a previously serialised
@@ -520,6 +519,21 @@ private:
      * @return true if the update was applied
      */
     bool update(::VBucket& vb, const Collections::Manifest& manifest);
+
+    /**
+     * Sub-function used by update
+     * Removes the last ID of the changes vector and then calls 'update' on
+     * every remaining ID (using the current manifest uid_t).
+     * So if the vector has 1 element, it returns that element and does nothing.
+     *
+     * @param update a function to call (either addCollection or
+     *        beginCollectionDelete)
+     * @param changes a vector of CollectionIDs to add/delete (based on update)
+     * @return the last element of the changes vector
+     */
+    boost::optional<CollectionID> applyChanges(
+            std::function<void(uid_t, CollectionID, OptionalSeqno)> update,
+            std::vector<CollectionID>& changes);
 
     /**
      * Add a collection to the manifest.
@@ -687,7 +701,6 @@ private:
         return manifestUid;
     }
 
-protected:
     /**
      * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number for the point in 'time' it was created.
@@ -863,7 +876,7 @@ protected:
             nDeletingCollections;
 
     /// The manifest UID which updated this vb::manifest
-    uid_t manifestUid;
+    uid_t manifestUid{0};
 
     /**
      * shared lock to allow concurrent readers and safe updates

@@ -122,6 +122,20 @@ public:
         return nDeletingCollections == 0;
     }
 
+    // Wire through to private method
+    boost::optional<CollectionID> public_applyChanges(
+            std::function<void(Collections::uid_t, CollectionID, OptionalSeqno)> update,
+            std::vector<CollectionID>& changes) {
+        return applyChanges(update, changes);
+    }
+
+    void public_addCollection(::VBucket& vb,
+                              Collections::uid_t manifestUid,
+                              CollectionID identifier,
+                              OptionalSeqno optionalSeqno) {
+        addCollection(vb, manifestUid, identifier, optionalSeqno);
+    }
+
 protected:
     bool exists_UNLOCKED(CollectionID identifier) const {
         auto itr = map.find(identifier);
@@ -746,6 +760,46 @@ TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
 
     // Finish removal of vegetable
     EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::vegetable));
+}
+
+TEST_F(VBucketManifestTest, check_applyChanges) {
+    std::vector<CollectionID> changes; // start out empty
+    auto value = manifest.getActiveManifest().public_applyChanges(
+            std::bind(&MockVBManifest::public_addCollection,
+                      &manifest.getActiveManifest(),
+                      std::ref(manifest.getActiveVB()),
+                      std::placeholders::_1,
+                      std::placeholders::_2,
+                      std::placeholders::_3),
+            changes);
+    EXPECT_FALSE(value.is_initialized());
+    changes.push_back(5);
+    value = manifest.getActiveManifest().public_applyChanges(
+            std::bind(&MockVBManifest::public_addCollection,
+                      &manifest.getActiveManifest(),
+                      std::ref(manifest.getActiveVB()),
+                      std::placeholders::_1,
+                      std::placeholders::_2,
+                      std::placeholders::_3),
+            changes);
+    EXPECT_TRUE(value.is_initialized());
+    EXPECT_EQ(5, *value);
+    EXPECT_TRUE(changes.empty());
+
+    changes.push_back(4);
+    changes.push_back(5);
+    EXPECT_EQ(1, manifest.getActiveManifest().size());
+    value = manifest.getActiveManifest().public_applyChanges(
+            std::bind(&MockVBManifest::public_addCollection,
+                      &manifest.getActiveManifest(),
+                      std::ref(manifest.getActiveVB()),
+                      std::placeholders::_1,
+                      std::placeholders::_2,
+                      std::placeholders::_3),
+            changes);
+    EXPECT_TRUE(value.is_initialized());
+    EXPECT_EQ(5, *value);
+    EXPECT_EQ(2, manifest.getActiveManifest().size());
 }
 
 class VBucketManifestTestEndSeqno : public VBucketManifestTest {};

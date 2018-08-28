@@ -86,28 +86,63 @@ Manifest::Manifest(const std::string& manifest)
     }
 }
 
+boost::optional<CollectionID> Manifest::applyChanges(
+        std::function<void(uid_t, CollectionID, OptionalSeqno)> update,
+        std::vector<CollectionID>& changes) {
+    boost::optional<CollectionID> rv;
+    if (!changes.empty()) {
+        rv = changes.back();
+        changes.pop_back();
+    }
+    for (const auto& collection : changes) {
+        update(manifestUid, collection, OptionalSeqno{/*no-seqno*/});
+    }
+
+    return rv;
+}
 bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     auto rv = processManifest(manifest);
     if (!rv.is_initialized()) {
         EP_LOG_WARN("VB::Manifest::update cannot update {}", Vbid(vb.getId()));
         return false;
     } else {
-        const std::vector<CollectionID>& additions = rv->first;
-        const std::vector<CollectionID>& deletions = rv->second;
+        std::vector<CollectionID>& additions = rv->first;
+        std::vector<CollectionID>& deletions = rv->second;
 
-        // Process deletions to the manifest
-        for (const auto& collection : deletions) {
+        auto finalDeletion =
+                applyChanges(std::bind(&Manifest::beginCollectionDelete,
+                                       this,
+                                       std::ref(vb),
+                                       std::placeholders::_1,
+                                       std::placeholders::_2,
+                                       std::placeholders::_3),
+                             deletions);
+        if (additions.empty() && finalDeletion) {
+            beginCollectionDelete(
+                    vb,
+                    manifest.getUid(), // Final update with new UID
+                    *finalDeletion,
+                    OptionalSeqno{/*no-seqno*/});
+            return true;
+        } else if (finalDeletion) {
             beginCollectionDelete(vb,
-                                  manifest.getUid(),
-                                  collection,
+                                  manifestUid,
+                                  *finalDeletion,
                                   OptionalSeqno{/*no-seqno*/});
         }
 
-        // Process additions to the manifest
-        for (const auto& collection : additions) {
+        auto finalAddition = applyChanges(std::bind(&Manifest::addCollection,
+                                                    this,
+                                                    std::ref(vb),
+                                                    std::placeholders::_1,
+                                                    std::placeholders::_2,
+                                                    std::placeholders::_3),
+                                          additions);
+
+        if (finalAddition) {
             addCollection(vb,
-                          manifest.getUid(),
-                          collection,
+                          manifest.getUid(), // Final update with new UID
+                          *finalAddition,
                           OptionalSeqno{/*no-seqno*/});
         }
     }
