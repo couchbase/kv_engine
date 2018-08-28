@@ -141,17 +141,20 @@ TEST_P(AuditTest, AuditIllegalPacket) {
         char bytes[1024];
     } send, receive;
     uint64_t value = 0xdeadbeefdeadcafe;
-    std::string key("AuditTest::AuditIllegalPacket");
+    const std::string key("AuditTest::AuditIllegalPacket");
     size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
                                       PROTOCOL_BINARY_CMD_SET,
                                       key.c_str(), key.size(),
                                       &value, sizeof(value),
                                       0, 0);
 
-    // Now make packet illegal.
-    auto diff = ntohl(send.request.message.header.request.bodylen) - 1;
-    send.request.message.header.request.bodylen = htonl(1);
-    safe_send(send.bytes, len - diff, false);
+    // Now make packet illegal. The validator for SET requires an extlen of
+    // 8 bytes.. let's just include them in the key.
+    auto& request = send.request.message.header.request;
+    ASSERT_EQ(8, request.getExtlen());
+    request.setKeylen(uint16_t(key.size() + 8));
+    request.setExtlen(uint8_t(0));
+    safe_send(send.bytes, len, false);
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
