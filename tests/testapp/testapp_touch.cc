@@ -147,12 +147,12 @@ TEST_P(TouchTest, Touch_Hit) {
     const auto info = conn.mutate(document, 0, MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
-    // getting a new cas value generated
-    BinprotGetAndTouchCommand cmd;
+    // getting a new cas value generated (we're using 0 as the value)
+    BinprotTouchCommand cmd;
     cmd.setKey(name);
     conn.sendCommand(cmd);
 
-    BinprotGetAndTouchResponse rsp;
+    BinprotTouchResponse rsp;
     conn.recvResponse(rsp);
 
     EXPECT_TRUE(rsp.isSuccess());
@@ -164,6 +164,7 @@ TEST_P(TouchTest, Touch_Hit) {
     conn.recvResponse(rsp);
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_NE(info.cas, rsp.getCas());
+    EXPECT_TRUE(rsp.getDataString().empty());
 }
 
 TEST_P(TouchTest, Touch_Miss) {
