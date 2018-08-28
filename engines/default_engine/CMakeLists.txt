@@ -1,4 +1,4 @@
-ADD_LIBRARY(default_engine MODULE
+ADD_LIBRARY(default_engine SHARED
             assoc.cc
             assoc.h
             default_engine.cc
@@ -30,6 +30,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                        assoc.h
                        assoc.cc
                        assoc_bench_test.cc)
-        target_link_libraries(assoc_bench_test benchmark memcached_logger platform)
+        target_link_libraries(assoc_bench_test default_engine benchmark platform)
     endif (NOT WIN32)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)

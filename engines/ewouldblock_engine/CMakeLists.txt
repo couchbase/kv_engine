@@ -1,4 +1,4 @@
-ADD_LIBRARY(ewouldblock_engine MODULE ewouldblock_engine.cc)
+ADD_LIBRARY(ewouldblock_engine SHARED ewouldblock_engine.cc)
 TARGET_LINK_LIBRARIES(ewouldblock_engine
                       dirutils
                       engine_utilities
