@@ -254,8 +254,15 @@ uint64_t recv_subdoc_response(
         EXPECT_EQ(expected_results[0].index, actual_fail_index);
         EXPECT_EQ(expected_results[0].status, actual_fail_spec_status);
     } else {
-        // Top-level error - should have zero body.
-        EXPECT_EQ(0u, vallen);
+        // Body must either be empty or contain an error context
+        if (vallen > 20) {
+            EXPECT_EQ(std::string("{\"error\":{\"context\":"),
+                      std::string(val_ptr, 20))
+                    << "If non-empty, body must contain an error context";
+        } else {
+            EXPECT_EQ(0, vallen)
+                    << "Body must be empty or contain an error context";
+        }
     }
 
     return header.response.cas;

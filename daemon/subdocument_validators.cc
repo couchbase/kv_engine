@@ -91,6 +91,8 @@ static inline protocol_binary_response_status validate_xattr_section(
     if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
         // XATTR flag isn't set... just bail out
         if ((flags & SUBDOC_FLAG_EXPAND_MACROS)) {
+            cookie.setErrorContext(
+                    "EXPAND_MACROS flag requires XATTR flag to be set");
             return PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO;
         } else {
             return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -99,11 +101,13 @@ static inline protocol_binary_response_status validate_xattr_section(
 
     if (!cookie.getConnection().selectedBucketIsXattrEnabled() ||
         !cookie.getConnection().isXattrEnabled()) {
+        cookie.setErrorContext("Connection not XATTR enabled");
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
 
     size_t key_length;
     if (!is_valid_xattr_key(path, key_length)) {
+        cookie.setErrorContext("Request XATTR key invalid");
         return PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL;
     }
 
@@ -150,6 +154,7 @@ static protocol_binary_response_status subdoc_validator(Cookie& cookie,
     if (bodylen < (sizeof(req->message.extras.subdoc_flags) +
                    sizeof(req->message.extras.pathlen))) {
         // the mandatory extra fields isn't present
+        cookie.setErrorContext("Request must include extra fields");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -158,10 +163,29 @@ static protocol_binary_response_status subdoc_validator(Cookie& cookie,
     const uint16_t pathlen = ntohs(req->message.extras.pathlen);
     const uint32_t valuelen = bodylen - keylen - extlen - pathlen;
 
-    if ((header->request.magic != PROTOCOL_BINARY_REQ) ||
-        !is_document_key_valid(cookie) || (valuelen > bodylen) ||
-        (pathlen > SUBDOC_PATH_MAX_LENGTH) ||
-        (header->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
+    if (header->request.magic != PROTOCOL_BINARY_REQ) {
+        cookie.setErrorContext("Request magic value invalid");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (valuelen > bodylen) {
+        cookie.setErrorContext(
+                "Value length must not be greater than request body");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (pathlen > SUBDOC_PATH_MAX_LENGTH) {
+        cookie.setErrorContext("Request path length exceeds maximum");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (header->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        cookie.setErrorContext("Request datatype invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -174,29 +198,36 @@ static protocol_binary_response_status subdoc_validator(Cookie& cookie,
     // valuelen should be non-zero iff the request has a value.
     if (traits.request_has_value) {
         if (valuelen == 0) {
+            cookie.setErrorContext("Request must include value");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     } else {
         if (valuelen != 0) {
+            cookie.setErrorContext("Request must not include value");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
 
     // Check only valid flags are specified.
     if ((subdoc_flags & ~traits.valid_flags) != 0) {
+        cookie.setErrorContext("Request flags invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if ((doc_flags & ~traits.valid_doc_flags) != mcbp::subdoc::doc_flag::None) {
+        cookie.setErrorContext("Request document flags invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     // If the Add flag is set, check the cas is 0
     if (hasAdd(doc_flags) && req->message.header.request.cas != 0) {
+        cookie.setErrorContext("Request with add flag must have CAS 0");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if (!validMutationSemantics(doc_flags)) {
+        cookie.setErrorContext(
+                "Request must not contain both add and mkdoc flags");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -224,6 +255,7 @@ static protocol_binary_response_status subdoc_validator(Cookie& cookie,
     }
 
     if (!traits.allow_empty_path && (pathlen == 0)) {
+        cookie.setErrorContext("Request must include path");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -236,11 +268,13 @@ static protocol_binary_response_status subdoc_validator(Cookie& cookie,
             (extlen != SUBDOC_EXPIRY_EXTRAS_LEN) &&
             (extlen != SUBDOC_DOC_FLAG_EXTRAS_LEN) &&
             (extlen != SUBDOC_ALL_EXTRAS_LEN)) {
+            cookie.setErrorContext("Request extras invalid");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     } else {
         if (extlen != SUBDOC_BASIC_EXTRAS_LEN &&
             extlen != SUBDOC_DOC_FLAG_EXTRAS_LEN) {
+            cookie.setErrorContext("Request extras invalid");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
@@ -355,30 +389,39 @@ static protocol_binary_response_status is_valid_multipath_spec(
 
     if (op_traits.subdocCommand == Subdoc::Command::INVALID &&
         op_traits.mcbpCommand == PROTOCOL_BINARY_CMD_INVALID) {
+        cookie.setErrorContext(
+                "Subdoc and MCBP command must not both be invalid");
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
     }
     // Allow mutator opcodes iff the multipath command is MUTATION
     if (traits.is_mutator != op_traits.is_mutator) {
+        cookie.setErrorContext(
+                "Mutation opcodes only permitted for mutation commands");
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
     }
 
     // Check only valid flags are specified.
     if ((flags & ~op_traits.valid_flags) != 0) {
+        cookie.setErrorContext("Request flags invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if ((doc_flags & ~op_traits.valid_doc_flags) !=
         mcbp::subdoc::doc_flag::None) {
+        cookie.setErrorContext("Request document flags invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     // Check path length.
     if (pathlen > SUBDOC_PATH_MAX_LENGTH) {
+        cookie.setErrorContext("Request path length exceeds maximum");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     // Check that a path isn't set for wholedoc operations
     if (op_traits.scope == CommandScope::WholeDoc && pathlen > 0) {
+        cookie.setErrorContext(
+                "Request must not include path for wholedoc operations");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -399,6 +442,7 @@ static protocol_binary_response_status is_valid_multipath_spec(
 
     if (!xattr) {
         if (!op_traits.allow_empty_path && (pathlen == 0)) {
+            cookie.setErrorContext("Request must include path");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
@@ -406,10 +450,12 @@ static protocol_binary_response_status is_valid_multipath_spec(
     // Check value length
     if (op_traits.request_has_value) {
         if (valuelen == 0) {
+            cookie.setErrorContext("Request must include value");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     } else {
         if (valuelen != 0) {
+            cookie.setErrorContext("Request must not include value");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
@@ -432,12 +478,26 @@ static protocol_binary_response_status subdoc_multi_validator(Cookie& cookie,
     // 1. Check simple static values.
 
     // Must have at least one lookup spec
-    const size_t minimum_body_len = ntohs(req->request.keylen) + req->request.extlen + traits.min_value_len;
+    const size_t minimum_body_len = ntohs(req->request.keylen) +
+                                    req->request.extlen + traits.min_value_len;
 
-    if ((req->request.magic != PROTOCOL_BINARY_REQ) ||
-        !is_document_key_valid(cookie) ||
-        (req->request.bodylen < minimum_body_len) ||
-        (req->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
+    if (req->request.magic != PROTOCOL_BINARY_REQ) {
+        cookie.setErrorContext("Request magic value invalid");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (req->request.bodylen < minimum_body_len) {
+        cookie.setErrorContext("Request body too short");
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if (req->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        cookie.setErrorContext("Request datatype invalid");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -448,10 +508,12 @@ static protocol_binary_response_status subdoc_multi_validator(Cookie& cookie,
         if ((req->request.extlen != 0) &&
             (req->request.extlen != sizeof(uint32_t)) &&
             (req->request.extlen != 1) && (req->request.extlen != 5)) {
+            cookie.setErrorContext("Request extras invalid");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     } else {
         if ((req->request.extlen != 0) && (req->request.extlen != 1)) {
+            cookie.setErrorContext("Request extras invalid");
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
@@ -462,11 +524,14 @@ static protocol_binary_response_status subdoc_multi_validator(Cookie& cookie,
 
     // If an add command, check that the CAS is 0:
     if (hasAdd(doc_flags) && req->request.cas != 0) {
+        cookie.setErrorContext("Request with add flag must have CAS 0");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     // Check we aren't using Add and Mkdoc together
     if (!validMutationSemantics(doc_flags)) {
+        cookie.setErrorContext(
+                "Request must not contain both add and mkdoc flags");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
@@ -493,6 +558,8 @@ static protocol_binary_response_status subdoc_multi_validator(Cookie& cookie,
          (body_validated < bodylen);
          path_index++) {
         if (!body_commands_allowed) {
+            cookie.setErrorContext(
+                    "Request contains an invalid combination of commands");
             return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
         }
 
@@ -519,6 +586,8 @@ static protocol_binary_response_status subdoc_multi_validator(Cookie& cookie,
         } else if (is_xattr) {
             return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER;
         } else if (is_isolationist) {
+            cookie.setErrorContext(
+                    "Request contains an invalid combination of commands");
             return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
         }
 
@@ -532,7 +601,15 @@ static protocol_binary_response_status subdoc_multi_validator(Cookie& cookie,
 
     // Only valid if we found at least one path and the validated
     // length is exactly the same as the specified length.
-    if ((path_index == 0) || (body_validated != bodylen)) {
+    if (path_index == 0) {
+        cookie.setErrorContext("Request must contain at least one path");
+        return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
+    }
+    if (body_validated != bodylen) {
+        cookie.setErrorContext(
+                "Request must contain at most " +
+                std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) +
+                " paths");
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
     }
 
