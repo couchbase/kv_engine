@@ -3139,5 +3139,447 @@ TEST_F(ErrorContextTest, InvalidCas) {
               validate_error_context(PROTOCOL_BINARY_CMD_NOOP));
 }
 
+class CommandSpecificErrorContextTest : public ValidatorTest {
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        memset(blob, 0, sizeof(blob));
+        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        connection.enableDatatype(cb::mcbp::Feature::XATTR);
+        connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+        connection.enableDatatype(cb::mcbp::Feature::JSON);
+    }
+
+protected:
+    cb::mcbp::Request& header = request.message.header.request;
+
+    std::string validate_error_context(protocol_binary_command opcode) {
+        void* packet = static_cast<void*>(&request);
+        return ValidatorTest::validate_error_context(opcode, packet);
+    }
+};
+
+TEST_F(CommandSpecificErrorContextTest, DcpOpen) {
+    // May only include value when using collections
+    header.setExtlen(8);
+    header.setKeylen(10);
+    header.setBodylen(20);
+    EXPECT_EQ("Request must not include value when collections not enabled",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_OPEN));
+
+    // DCP_OPEN_UNUSED flag is invalid
+    header.setBodylen(18);
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_open*>(blob);
+    req->message.body.flags = htonl(DCP_OPEN_UNUSED);
+    EXPECT_EQ("Request contains invalid flags",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_OPEN));
+
+    // DCP_OPEN_NOTIFIER cannot be used in conjunction with other flags
+    req->message.body.flags = htonl(DCP_OPEN_NOTIFIER | DCP_OPEN_PRODUCER);
+    EXPECT_EQ("Request contains invalid flags combination",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_OPEN));
+}
+
+TEST_F(CommandSpecificErrorContextTest, DcpAddStream) {
+    // DCP_ADD_STREAM_FLAG_NO_VALUE is no longer used
+    header.setExtlen(4);
+    header.setKeylen(0);
+    header.setBodylen(4);
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_add_stream*>(blob);
+    req->message.body.flags = htonl(DCP_ADD_STREAM_FLAG_NO_VALUE);
+    EXPECT_EQ("DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM));
+
+    // 128 is not a defined flag
+    req->message.body.flags = 128;
+    EXPECT_EQ("Request contains invalid flags",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM));
+}
+
+TEST_F(CommandSpecificErrorContextTest, DcpSystemEvent) {
+    // System event ID must be 0 or 1
+    uint8_t extlen =
+            protocol_binary_request_dcp_system_event::getExtrasLength();
+    header.setExtlen(extlen);
+    header.setKeylen(0);
+    header.setBodylen(extlen);
+    auto* req =
+            reinterpret_cast<protocol_binary_request_dcp_system_event*>(blob);
+    req->message.body.event = htonl(2);
+    EXPECT_EQ("Invalid system event id",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT));
+}
+
+TEST_F(CommandSpecificErrorContextTest, DcpMutation) {
+    // Connection must be Xattr enabled if datatype is Xattr
+    uint8_t extlen = protocol_binary_request_dcp_mutation::getExtrasLength();
+    header.setExtlen(extlen);
+    header.setKeylen(10);
+    header.setBodylen(extlen + 10);
+    header.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
+    connection.disableAllDatatypes();
+    EXPECT_EQ("Connection not Xattr enabled",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_MUTATION));
+
+    // Request body must be valid Xattr blob if datatype is Xattr
+    connection.enableDatatype(cb::mcbp::Feature::XATTR);
+    EXPECT_EQ("Xattr blob not valid",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_MUTATION));
+}
+
+TEST_F(CommandSpecificErrorContextTest, DcpDeletion) {
+    // JSON is not a valid datatype for DcpDeletion
+    uint8_t extlen = protocol_binary_request_dcp_deletion::extlen;
+    header.setExtlen(extlen);
+    header.setKeylen(8);
+    header.setBodylen(extlen + 8);
+    header.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    EXPECT_EQ("Request datatype invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_DCP_DELETION));
+}
+
+TEST_F(CommandSpecificErrorContextTest, DcpSetVbucketState) {
+    // Body state must be between 1 and 4
+    header.setExtlen(1);
+    header.setKeylen(0);
+    header.setBodylen(1);
+    auto* req =
+            reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(
+                    blob);
+    req->message.body.state = 10;
+    EXPECT_EQ(
+            "Request body state invalid",
+            validate_error_context(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Hello) {
+    // Hello requires even body length
+    header.setExtlen(0);
+    header.setKeylen(0);
+    header.setBodylen(3);
+    EXPECT_EQ("Request value must be of even length",
+              validate_error_context(PROTOCOL_BINARY_CMD_HELLO));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Flush) {
+    // Flush command requires extlen of 0 or 4
+    header.setExtlen(3);
+    header.setKeylen(0);
+    header.setBodylen(3);
+    EXPECT_EQ("Request extras must be of length 0 or 4",
+              validate_error_context(PROTOCOL_BINARY_CMD_FLUSH));
+
+    // Delayed flush is unsupported
+    header.setExtlen(4);
+    header.setKeylen(0);
+    header.setBodylen(4);
+    auto* req = reinterpret_cast<protocol_binary_request_flush*>(blob);
+    req->message.body.expiration = 10;
+    EXPECT_EQ("Delayed flush no longer supported",
+              validate_error_context(PROTOCOL_BINARY_CMD_FLUSH));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Add) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(8);
+    header.setKeylen(1);
+    header.setBodylen(9);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_ADD));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Set) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(8);
+    header.setKeylen(1);
+    header.setBodylen(9);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_SET));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Append) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(1);
+    header.setBodylen(2);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_APPEND));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Get) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(1);
+    header.setBodylen(1);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Gat) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(4);
+    header.setKeylen(1);
+    header.setBodylen(5);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_GAT));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Delete) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(1);
+    header.setBodylen(1);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_DELETE));
+}
+
+TEST_F(CommandSpecificErrorContextTest, Increment) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(20);
+    header.setKeylen(1);
+    header.setBodylen(21);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_INCREMENT));
+}
+
+TEST_F(CommandSpecificErrorContextTest, SetCtrlToken) {
+    // Set Ctrl Token requires new cas
+    header.setExtlen(8);
+    header.setKeylen(0);
+    header.setBodylen(8);
+    auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(blob);
+    req->message.body.new_cas = 0;
+    EXPECT_EQ("New CAS must be set",
+              validate_error_context(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN));
+}
+
+TEST_F(CommandSpecificErrorContextTest, IoctlGet) {
+    // Maximum IOCTL_KEY_LENGTH is 128
+    header.setExtlen(0);
+    header.setKeylen(129);
+    header.setBodylen(129);
+    EXPECT_EQ("Request key length exceeds maximum",
+              validate_error_context(PROTOCOL_BINARY_CMD_IOCTL_GET));
+}
+
+TEST_F(CommandSpecificErrorContextTest, IoctlSet) {
+    // Maximum IOCTL_KEY_LENGTH is 128
+    header.setExtlen(0);
+    header.setKeylen(129);
+    header.setBodylen(129);
+    EXPECT_EQ("Request key length exceeds maximum",
+              validate_error_context(PROTOCOL_BINARY_CMD_IOCTL_SET));
+
+    // Maximum IOTCL_VAL_LENGTH is 128
+    header.setExtlen(0);
+    header.setKeylen(1);
+    header.setBodylen(130);
+    EXPECT_EQ("Request value length exceeds maximum",
+              validate_error_context(PROTOCOL_BINARY_CMD_IOCTL_SET));
+}
+
+TEST_F(CommandSpecificErrorContextTest, ConfigValidate) {
+    // Maximum value length is 65536
+    header.setExtlen(0);
+    header.setKeylen(0);
+    header.setBodylen(65537);
+    EXPECT_EQ("Request value length exceeds maximum",
+              validate_error_context(PROTOCOL_BINARY_CMD_CONFIG_VALIDATE));
+}
+
+TEST_F(CommandSpecificErrorContextTest, ObserveSeqno) {
+    header.setExtlen(0);
+    header.setKeylen(0);
+    header.setBodylen(4);
+    EXPECT_EQ("Request value must be of length 8",
+              validate_error_context(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO));
+}
+
+TEST_F(CommandSpecificErrorContextTest, CreateBucket) {
+    // Create Bucket has maximum key length of 100
+    header.setExtlen(0);
+    header.setKeylen(101);
+    header.setBodylen(102);
+    EXPECT_EQ("Request key length exceeds maximum",
+              validate_error_context(PROTOCOL_BINARY_CMD_CREATE_BUCKET));
+}
+
+TEST_F(CommandSpecificErrorContextTest, SelectBucket) {
+    // Select Bucket has maximum key length of 1023
+    header.setExtlen(0);
+    header.setKeylen(1024);
+    header.setBodylen(1024);
+    EXPECT_EQ("Request key length exceeds maximum",
+              validate_error_context(PROTOCOL_BINARY_CMD_SELECT_BUCKET));
+}
+
+TEST_F(CommandSpecificErrorContextTest, GetAllVbSeqnos) {
+    // Extlen must be zero or sizeof(vbucket_state_t)
+    header.setExtlen(sizeof(vbucket_state_t) + 1);
+    header.setKeylen(0);
+    header.setBodylen(sizeof(vbucket_state_t) + 1);
+    EXPECT_EQ("Request extras must be of length 0 or " +
+                      std::to_string(sizeof(vbucket_state_t)),
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS));
+
+    // VBucket state must be between 1 and 4
+    header.setExtlen(4);
+    header.setKeylen(0);
+    header.setBodylen(4);
+    auto* req =
+            reinterpret_cast<protocol_binary_request_get_all_vb_seqnos*>(blob);
+    req->message.body.state = static_cast<vbucket_state_t>(5);
+    EXPECT_EQ("Request vbucket state invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS));
+}
+
+TEST_F(CommandSpecificErrorContextTest, GetMeta) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(1);
+    header.setBodylen(1);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_META));
+
+    // Get Meta requires extlen of 0 or 1
+    connection.setCollectionsSupported(false);
+    header.setExtlen(2);
+    header.setKeylen(4);
+    header.setBodylen(6);
+    EXPECT_EQ("Request extras must be of length 0 or 1",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_META));
+
+    // If extlen is 1, then the extras byte must be 1 or 2
+    header.setExtlen(1);
+    header.setKeylen(4);
+    header.setBodylen(5);
+    auto* req = reinterpret_cast<protocol_binary_request_get_meta*>(blob);
+    uint8_t* extdata = req->bytes + sizeof(req->bytes);
+    *extdata = 5;
+    EXPECT_EQ("Request extras invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_META));
+}
+
+TEST_F(CommandSpecificErrorContextTest, MutateWithMeta) {
+    // Mutate with meta commands must have extlen of 24, 26, 28 or 30
+    header.setExtlen(20);
+    header.setKeylen(10);
+    header.setBodylen(30);
+    EXPECT_EQ("Request extras invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_ADD_WITH_META));
+
+    // If datatype is Xattr, xattr must be enabled on connection
+    header.setExtlen(24);
+    header.setKeylen(10);
+    header.setBodylen(34);
+    header.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
+    connection.disableAllDatatypes();
+    EXPECT_EQ("Connection not Xattr enabled",
+              validate_error_context(PROTOCOL_BINARY_CMD_ADD_WITH_META));
+
+    // If datatype is Xattr, command value must be valid xattr blob
+    connection.enableDatatype(cb::mcbp::Feature::XATTR);
+    EXPECT_EQ("Xattr blob invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_ADD_WITH_META));
+
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(24);
+    header.setKeylen(1);
+    header.setBodylen(25);
+    header.datatype = PROTOCOL_BINARY_RAW_BYTES;
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_ADD_WITH_META));
+}
+
+TEST_F(CommandSpecificErrorContextTest, GetErrmap) {
+    header.setExtlen(0);
+    header.setKeylen(0);
+    header.setBodylen(4);
+    EXPECT_EQ("Request value must be of length 2",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_ERROR_MAP));
+
+    // Get Errmap command requires vbucket id 0
+    header.setExtlen(0);
+    header.setKeylen(0);
+    header.setBodylen(2);
+    header.setVBucket(1);
+    EXPECT_EQ("Request vbucket id must be 0",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_ERROR_MAP));
+}
+
+TEST_F(CommandSpecificErrorContextTest, GetLocked) {
+    header.setExtlen(2);
+    header.setKeylen(8);
+    header.setBodylen(10);
+    EXPECT_EQ("Request extras must be of length 0 or 4",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_LOCKED));
+
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(1);
+    header.setBodylen(1);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_GET_LOCKED));
+}
+
+TEST_F(CommandSpecificErrorContextTest, UnlockKey) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(1);
+    header.setBodylen(1);
+    header.setCas(10);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_UNLOCK_KEY));
+}
+
+TEST_F(CommandSpecificErrorContextTest, EvictKey) {
+    // Collections requires longer key for collection ID
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(1);
+    header.setBodylen(1);
+    EXPECT_EQ("Request key invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_EVICT_KEY));
+}
+
+TEST_F(CommandSpecificErrorContextTest, CollectionsSetManifest) {
+    // VBucket ID must not be set
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(0);
+    header.setBodylen(4);
+    header.setVBucket(1);
+    EXPECT_EQ("Request vbucket id must be 0",
+              validate_error_context(
+                      PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST));
+
+    // Attached bucket must support collections
+    header.setVBucket(0);
+    EXPECT_EQ("Attached bucket does not support collections",
+              validate_error_context(
+                      PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST));
+}
+
+TEST_F(CommandSpecificErrorContextTest, CollectionsGetManifest) {
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(0);
+    header.setBodylen(0);
+    EXPECT_EQ("Attached bucket does not support collections",
+              validate_error_context(
+                      PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST));
+}
+
 } // namespace test
 } // namespace mcbp
