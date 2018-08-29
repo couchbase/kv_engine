@@ -37,6 +37,10 @@ BucketLogger::BucketLogger(const BucketLogger& other)
     set_level(spdLogger->level());
 }
 
+BucketLogger::~BucketLogger() {
+    unregister();
+}
+
 void BucketLogger::sink_it_(spdlog::details::log_msg& msg) {
     // Get the engine pointer for logging the bucket name.
     // Normally we would wish to stop tracking memory at this point to avoid
@@ -102,8 +106,14 @@ std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
     auto bucketLogger =
             std::shared_ptr<BucketLogger>(new BucketLogger(uname, p));
 
-    // TODO register the bucket logger - split patch set to reduce size
+    // Register the logger in the logger library registry
+    loggerAPI.load(std::memory_order_relaxed)->register_spdlogger(bucketLogger);
     return bucketLogger;
+}
+
+void BucketLogger::unregister() {
+    // Unregister the logger in the logger library registry
+    loggerAPI.load(std::memory_order_relaxed)->unregister_spdlogger(name());
 }
 
 std::atomic<ServerLogIface*> BucketLogger::loggerAPI;

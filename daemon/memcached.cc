@@ -1391,6 +1391,14 @@ struct ServerLogApi : public ServerLogIface {
         return cb::logger::get();
     }
 
+    void register_spdlogger(std::shared_ptr<spdlog::logger> logger) override {
+        cb::logger::registerSpdLogger(logger);
+    }
+
+    void unregister_spdlogger(const std::string& name) override {
+        cb::logger::unregisterSpdLogger(name);
+    }
+
     void set_level(spdlog::level::level_enum severity) override {
         switch (severity) {
         case spdlog::level::level_enum::trace:

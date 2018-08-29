@@ -112,6 +112,41 @@ LOGGER_PUBLIC_API
 void reset();
 
 /**
+ * Engines that create their own instances of an spdlogger should register
+ * the logger here to ensure that the verbosity of the logger is updated when
+ * memcached receives a request to update verbosity
+ *
+ * @param l spdlogger instance
+ */
+LOGGER_PUBLIC_API
+void registerSpdLogger(std::shared_ptr<spdlog::logger> l);
+
+/**
+ * Engines that create their own instances of an spdlogger should unregister
+ * the logger here to ensure that resources can be freed when their loggers
+ * go out of scope, or unsubscribe from runtime verbosity changes
+ *
+ * @param n The name of the spdlogger
+ */
+LOGGER_PUBLIC_API
+void unregisterSpdLogger(const std::string& n);
+
+/**
+ * Check the log level of all spdLoggers is equal to the given level
+ * @param log severity level
+ * @return true if all registered loggers have the specified severity level
+ */
+LOGGER_PUBLIC_API
+bool checkLogLevels(spdlog::level::level_enum level);
+
+/**
+ * Set the log level of all registered spdLoggers
+ * @param log severity level
+ */
+LOGGER_PUBLIC_API
+void setLogLevels(spdlog::level::level_enum level);
+
+/**
  * Tell the logger to flush its buffers
  */
 LOGGER_PUBLIC_API

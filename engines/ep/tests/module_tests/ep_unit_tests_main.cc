@@ -77,5 +77,9 @@ int main(int argc, char **argv) {
     initialize_time_functions(get_mock_server_api()->core);
 
     ::testing::InitGoogleMock(&argc, argv);
-    return RUN_ALL_TESTS();
+    auto ret = RUN_ALL_TESTS();
+
+    globalBucketLogger.reset();
+
+    return ret;
 }

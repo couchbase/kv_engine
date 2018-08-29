@@ -192,6 +192,14 @@ struct MockServerLogApi : public ServerLogIface {
         return cb::logger::get();
     }
 
+    void register_spdlogger(std::shared_ptr<spdlog::logger> l) override {
+        cb::logger::registerSpdLogger(l);
+    }
+
+    void unregister_spdlogger(const std::string& n) override {
+        cb::logger::unregisterSpdLogger(n);
+    }
+
     void set_level(spdlog::level::level_enum severity) override {
         log_level = severity;
     }

@@ -63,52 +63,89 @@ const std::string globalBucketLoggerName = "globalBucketLogger";
  */
 class BucketLogger : public spdlog::logger {
 public:
-    // Informs the BucketLogger class of the current logging API
-    // Creates the globalBucketLogger
+    /// Unregister this BucketLogger on destruction
+    ~BucketLogger();
+
+    /**
+     * Informs the BucketLogger class of the current logging API.
+     *
+     * Creates the globalBucketLogger.
+     */
     static void setLoggerAPI(ServerLogIface* api);
 
-    // Set the conection id (printed before any other prefix or message)
+    /**
+     * Creates a BucketLogger with the given name and then register it in the
+     * spdlog registry within the logging library.
+     *
+     * @param name Registry name for the logger
+     * @param prefix Optional prefix to be appended to every message
+     */
+    static std::shared_ptr<BucketLogger> createBucketLogger(
+            const std::string& name, const std::string& prefix = "");
+
+    /// Set the connection id (printed before any other prefix or message)
     void setConnectionId(uint32_t id) {
         this->connectionId = id;
     }
 
-    // The prefix printed before the log message contents
+    /// The prefix printed before the log message contents
     std::string prefix;
 
-    // Creates a BucketLogger with the given name and then registers it in
-    // the spdlog registry before returning
-    static std::shared_ptr<BucketLogger> createBucketLogger(
-            const std::string& name, const std::string& prefix = "");
+    /// Unregisters the BucketLogger in the logger library registry.
+    void unregister();
 
 protected:
+    /// Overriden sink_it_ method where we perform our custom bucket formatting
     void sink_it_(spdlog::details::log_msg& msg) override;
 
-    // Connection ID prefix that is printed if set (printed before any other
-    // prefix or message)
+    /**
+     * Overriden flush_ method. Does nothing as this logger has no sinks.
+     * The default behaviour would be to iterate through sinks, but as we
+     * pass a nullptr on creation we cannot do that.
+     */
+    void flush_() override{};
+
+    /**
+     * Connection ID prefix that is printed if set (printed before any other
+     * prefix or message)
+     */
     uint32_t connectionId{0};
 
-    // Constructors have restricted access as users must use the create
-    // function to ensure that loggers are registered correctly.
+    /**
+     * Constructors have restricted access as users should use the create
+     * function to ensure that loggers are registered correctly.
+     */
 
-    // Constructor that assumes that we have already called the setLoggerAPI
-    // method to store the spdlog::logger which is loaded once on creation to
-    // set the member variable.
-    // Protected to allow mocking
+    /**
+     * Constructor that assumes that we have already called the setLoggerAPI
+     * method to store the spdlog::logger which is loaded once on creation to
+     * set the member variable.
+     *
+     * This constructor should never be called, users should instead call the
+     * BucketLogger::create method which will return a shared pointer to a
+     * BucketLogger. This constructor is protected to allow for mocking.
+     *
+     * @param name Registry name for the logger
+     * @param prefix Optional prefix to be appended to every message
+     */
     BucketLogger(const std::string& name, const std::string& prefix = "");
 
 private:
-    // Copy constructor
     BucketLogger(const BucketLogger& other);
 
-    // memcached logger API used to construct the non-global instances
+    /// Memcached logger API used to construct each instance of the BucketLogger
     static std::atomic<ServerLogIface*> loggerAPI;
 
+    /**
+     * Pointer to the underlying spdlogger within the logging library. This
+     * logger will log messages to various sinks after we format it.
+     */
     spdlog::logger* spdLogger;
 };
 
 // Global BucketLogger declaration for use in macros
 // This is a shared_ptr (not a unique_ptr as one might expect) as
-// the spdlog registry only deals with shared_ptrs, and we must register each
+// the spdlog registry only deals with weak_ptrs, and we must register each
 // spdlogger we create to respect runtime verbosity changes
 extern std::shared_ptr<BucketLogger> globalBucketLogger;
 

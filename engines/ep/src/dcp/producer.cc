@@ -181,6 +181,12 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     if (name.find("eq_dcpq:mapreduce_view") != std::string::npos ||
         name.find("eq_dcpq:spatial_view") != std::string::npos) {
         logger->set_level(spdlog::level::level_enum::warn);
+        // Unregister this logger so that any changes in verbosity will not
+        // be reflected in this logger. This prevents us from getting in a
+        // state where we change the verbosity to a more verbose value, then
+        // cannot return to the original state where this logger only prints
+        // warning level messages and others print info level.
+        logger->unregister();
     }
 
     // MB-28468: Reduce the minimum log level of FTS DCP streams as they are
@@ -189,6 +195,12 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     // reduce their verbosity as they cause the memcached log to rotate early.
     if (name.find("eq_dcpq:fts") != std::string::npos) {
         logger->set_level(spdlog::level::level_enum::critical);
+        // Unregister this logger so that any changes in verbosity will not
+        // be reflected in this logger. This prevents us from getting in a
+        // state where we change the verbosity to a more verbose value, then
+        // cannot return to the original state where this logger only prints
+        // critical level messages and others print info level.
+        logger->unregister();
     }
 
     engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
