@@ -22,7 +22,6 @@
 #include "stats_context.h"
 #include "utilities.h"
 
-#include <cbsasl/saslauthd_config.h>
 #include <daemon/buckets.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
@@ -382,9 +381,6 @@ static void process_stat_settings(ADD_STAT add_stat_callback, Cookie& cookie) {
             settings.isXattrEnabled());
     add_stat(cookie, add_stat_callback, "privilege_debug",
              settings.isPrivilegeDebug());
-
-    add_stat(cookie, add_stat_callback, "saslauthd_socketpath",
-             cb::sasl::saslauthd::get_socketpath().c_str());
 
     add_stat(cookie,
              add_stat_callback,

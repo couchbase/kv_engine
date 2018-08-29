@@ -20,41 +20,8 @@
 #include "check_password.h"
 
 #include <cbsasl/logging.h>
-#include <cbsasl/saslauthd_config.h>
 #include <platform/dirutils.h>
 #include <cstring>
-
-#ifdef WIN32
-#include <stdexcept>
-static cb::sasl::Error check(cb::sasl::Context* context,
-                             const std::string& username,
-                             const std::string& passwd) {
-    return cb::sasl::Error::NO_USER;
-}
-#else
-#include <unistd.h>
-#include "saslauthd.h"
-static cb::sasl::Error check(cb::sasl::Context* context,
-                             const std::string& username,
-                             const std::string& passwd) {
-    const auto socketfile = cb::sasl::saslauthd::get_socketpath();
-    if (socketfile.empty() || access(socketfile.c_str(), F_OK) == -1) {
-        // No saslauthd path
-        return cb::sasl::Error::NO_USER;
-    } else {
-        try {
-            Saslauthd saslauthd(socketfile);
-            return saslauthd.check(username, passwd);
-        } catch (const std::exception& e) {
-            cb::sasl::logging::log(context,
-                                   cb::sasl::logging::Level::Error,
-                                   "Failed to validate [" + username +
-                                           "] through saslauthd: " + e.what());
-            return cb::sasl::Error::FAIL;
-        }
-    }
-}
-#endif
 
 namespace cb {
 namespace sasl {
@@ -132,11 +99,7 @@ std::pair<Error, cb::const_char_buffer> ServerBackend::start(
 
     cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {
-        const auto error = check(&context, username, userpw);
-        if (error == Error::OK) {
-            domain = Domain::External;
-        }
-        return std::pair<Error, cb::const_char_buffer>{error, {}};
+        return std::pair<Error, cb::const_char_buffer>{Error::NO_USER, {}};
     }
 
     return std::make_pair<Error, cb::const_char_buffer>(

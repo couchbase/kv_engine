@@ -66,14 +66,6 @@ set(memcached_testapp_SOURCES
     ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
     )
 
-# saslauthd is a Unix-only thingie
-if (NOT WIN32)
-  list(APPEND memcached_testapp_SOURCES
-      saslauthd_mock.cc
-      saslauthd_mock.h
-      testapp_saslauthd.cc)
-endif ()
-
 add_executable(memcached_testapp ${memcached_testapp_SOURCES})
 target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 #target_include_directories(memcached_testapp PUBLIC ${spdlog_SOURCE_DIR}/include)

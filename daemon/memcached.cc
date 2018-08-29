@@ -58,7 +58,6 @@
 #include <cJSON_utils.h>
 #include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
-#include <cbsasl/saslauthd_config.h>
 #include <engines/default_engine.h>
 #include <mcbp/mcbp.h>
 #include <memcached/audit_interface.h>
@@ -454,10 +453,6 @@ static void verbosity_changed_listener(const std::string&, Settings &s) {
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
 }
 
-static void saslauthd_socketpath_changed_listener(const std::string&, Settings &s) {
-    cb::sasl::saslauthd::set_socketpath(s.getSaslauthdSocketpath());
-}
-
 static void scramsha_fallback_salt_changed_listener(const std::string&,
                                                     Settings& s) {
     cb::sasl::server::set_scramsha_fallback_salt(s.getScramshaFallbackSalt());
@@ -536,8 +531,6 @@ static void settings_init(void) {
                                ssl_cipher_list_changed_listener);
     settings.addChangeListener("verbosity", verbosity_changed_listener);
     settings.addChangeListener("interfaces", interfaces_changed_listener);
-    settings.addChangeListener("saslauthd_socketpath",
-                               saslauthd_socketpath_changed_listener);
     settings.addChangeListener("scramsha_fallback_salt",
                                scramsha_fallback_salt_changed_listener);
     NetworkInterface default_interface;
@@ -622,16 +615,6 @@ static void update_settings_from_config(void)
         if (cb::io::isDirectory(error_maps_dir)) {
             settings.setErrorMapsDir(error_maps_dir);
         }
-    }
-
-    // If the user didn't set a socket path, use the default
-    if (settings.getSaslauthdSocketpath().empty()) {
-        const char* path = getenv("CBAUTH_SOCKPATH");
-        if (path == nullptr) {
-            path = "/var/run/saslauthd/mux";
-        }
-
-        settings.setSaslauthdSocketpath(path);
     }
 
     try {

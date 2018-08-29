@@ -21,7 +21,6 @@
 #include "cbsasl/util.h"
 
 #include <cbsasl/logging.h>
-#include <cbsasl/saslauthd_config.h>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <cstring>
@@ -455,13 +454,8 @@ std::pair<Error, const_char_buffer> ServerBackend::step(
 
     std::stringstream out;
 
-    if (user.isDummy() && cb::sasl::saslauthd::is_configured()) {
-        addAttribute(out, 'e', "scram-not-supported-for-ldap-users", false);
-    } else {
-        auto serverSignature = getServerSignature();
-        addAttribute(out, 'v', serverSignature, false);
-    }
-
+    auto serverSignature = getServerSignature();
+    addAttribute(out, 'v', serverSignature, false);
     server_final_message = out.str();
 
     std::string clientproof = iter->second;

@@ -5,7 +5,6 @@ list(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/include/cbsasl/error.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/logging.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/mechanism.h
-     ${Memcached_SOURCE_DIR}/include/cbsasl/saslauthd_config.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/server.h
 
      client.cc
@@ -23,7 +22,6 @@ list(APPEND CBSASL_SOURCES
      pwconv.cc
      pwfile.cc
      pwfile.h
-     saslauthd_config.cc
      scram-sha/scram-sha.cc
      scram-sha/scram-sha.h
      scram-sha/stringutils.cc
@@ -34,12 +32,6 @@ list(APPEND CBSASL_SOURCES
      user.cc
      user.h
      util.h)
-
-if (NOT WIN32)
-    list(APPEND CBSASL_SOURCES
-         plain/saslauthd.cc
-         plain/saslauthd.h)
-endif (NOT WIN32)
 
 add_library(cbsasl SHARED ${CBSASL_SOURCES})
 generate_export_header(cbsasl

@@ -478,26 +478,6 @@ static void handle_max_packet_size(Settings& s, cJSON* obj) {
 }
 
 /**
- * Handle the "saslauthd_socketpath" tag in the settings
- *
- * The value must be a string
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_saslauthd_socketpath(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"saslauthd_socketpath\" must be a string");
-    }
-
-    // We allow non-existing files, because we want to be
-    // able to have it start to work if the user end up installing the
-    // package after the configuration is set (and it'll just start to
-    // work).
-    s.setSaslauthdSocketpath(obj->valuestring);
-}
-
-/**
  * Handle the "sasl_mechanisms" tag in the settings
  *
  * The value must be a string
@@ -706,7 +686,6 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"ssl_minimum_protocol", handle_ssl_minimum_protocol},
             {"breakpad", handle_breakpad},
             {"max_packet_size", handle_max_packet_size},
-            {"saslauthd_socketpath", handle_saslauthd_socketpath},
             {"sasl_mechanisms", handle_sasl_mechanisms},
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
             {"stdin_listener", handle_stdin_listener},
@@ -1099,20 +1078,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             bool value = other.isPrivilegeDebug();
             LOG_INFO("{} privilege debug", value ? "Enable" : "Disable");
             setPrivilegeDebug(value);
-        }
-    }
-
-    if (other.has.saslauthd_socketpath) {
-        // @todo Once ns_server allows for changing the path we need to
-        //       make sure we properly populate this value all the way
-        //       down to cbsasl
-        auto path = other.getSaslauthdSocketpath();
-        if (path != saslauthd_socketpath.path) {
-            LOG_INFO(
-                    R"(Change saslauthd socket path from "{}" to "{}")",
-                    saslauthd_socketpath.path,
-                    path);
-            setSaslauthdSocketpath(path);
         }
     }
 
