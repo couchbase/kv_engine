@@ -216,7 +216,6 @@ static void verbosity_executor(Cookie& cookie) {
         level = MAX_VERBOSITY_LEVEL;
     }
     settings.setVerbose(level);
-    perform_callbacks(ON_LOG_LEVEL, nullptr, nullptr);
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
