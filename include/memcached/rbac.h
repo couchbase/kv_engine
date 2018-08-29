@@ -16,6 +16,5 @@
  */
 #pragma once
 
-#include <memcached/rbac/visibility.h>
 #include <memcached/rbac/privileges.h>
 #include <memcached/rbac/privilege_database.h>

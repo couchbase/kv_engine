@@ -305,7 +305,6 @@ bool mayAccessBucket(const std::string& user, const std::string& bucket) {
     return false;
 }
 
-RBAC_PUBLIC_API
 void removeUser(const std::string& user) {
     std::unique_ptr<PrivilegeDatabase> next;
     std::lock_guard<cb::ReaderLock> guard(rwlock.writer());

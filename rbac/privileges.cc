@@ -67,7 +67,6 @@ Privilege to_privilege(const std::string& str) {
     return it->second;
 }
 
-RBAC_PUBLIC_API
 std::string to_string(const PrivilegeAccess privilegeAccess) {
     switch (privilegeAccess) {
     case PrivilegeAccess::Ok:
