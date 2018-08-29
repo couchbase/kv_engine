@@ -148,6 +148,7 @@ bool cb::mcbp::Request::isQuiet() const {
         case ClientOpcode::RevokeUserPermissions:
         case ClientOpcode::RbacRefresh:
         case ClientOpcode::RbacProvider:
+        case ClientOpcode::GetActiveExternalUsers:
         case ClientOpcode::DropPrivilege:
         case ClientOpcode::AdjustTimeofday:
         case ClientOpcode::EwouldblockCtl:

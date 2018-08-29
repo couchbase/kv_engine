@@ -597,6 +597,19 @@ static protocol_binary_response_status rbac_provider_validator(
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status get_active_external_users_validator(
+        Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static protocol_binary_response_status verbosity_validator(Cookie& cookie)
 {
     if (!verify_header(cookie,
@@ -1557,6 +1570,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
     chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::RbacProvider),
                        rbac_provider_validator);
+    chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers),
+                       get_active_external_users_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG,
                        dcp_get_failover_log_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,

@@ -177,6 +177,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::RevokeUserPermissions, "REVOKE_USER_PERMISSIONS"},
          {ClientOpcode::RbacRefresh, "RBAC_REFRESH"},
          {ClientOpcode::RbacProvider, "RBAC_PROVIDER"},
+         {ClientOpcode::GetActiveExternalUsers, "GET_ACTIVE_USERS"},
          {ClientOpcode::DropPrivilege, "DROP_PRIVILEGES"},
          {ClientOpcode::AdjustTimeofday, "ADJUST_TIMEOFDAY"},
          {ClientOpcode::EwouldblockCtl, "EWB_CTL"},
@@ -208,7 +209,8 @@ TEST(ClientOpcode_to_string, CompatWithOldCode) {
             entry.first == ClientOpcode::DeregisterTapClient ||
             entry.first == ClientOpcode::ResetReplicationChain ||
             entry.first == ClientOpcode::RevokeUserPermissions ||
-            entry.first == ClientOpcode::RbacProvider) {
+            entry.first == ClientOpcode::RbacProvider ||
+            entry.first == ClientOpcode::GetActiveExternalUsers) {
             // Entries we didn't have in the old code..
             continue;
         }

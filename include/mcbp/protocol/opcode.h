@@ -308,6 +308,14 @@ enum class ClientOpcode : uint8_t {
     RbacProvider = 0xf8,
 
     /**
+     * Get a list of all active external users currently logged in.
+     *
+     * The returned packet contains all of the users encoded in a json
+     * array:  ["user1","user2"]
+     */
+    GetActiveExternalUsers = 0xf9,
+
+    /**
      * Drop a privilege from the current privilege set.
      *
      * The intention of the DropPrivilege command is to ease unit tests

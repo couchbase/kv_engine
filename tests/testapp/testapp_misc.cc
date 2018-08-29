@@ -18,6 +18,8 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <nlohmann/json.hpp>
+
 // Test fixture for new MCBP miscellaneous commands
 class MiscTest : public TestappClientTest {};
 
@@ -58,4 +60,29 @@ TEST_P(MiscTest, GetFailoverLog) {
     EXPECT_EQ(header.status, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
     EXPECT_EQ(ntohl(header.bodylen), 0);
     EXPECT_EQ(header.cas, 0);
+}
+
+TEST_P(MiscTest, GetActiveUsers) {
+    auto& conn = getConnection();
+    auto clone1 = conn.clone();
+    auto clone2 = conn.clone();
+    auto clone3 = conn.clone();
+    auto clone4 = conn.clone();
+
+    clone1->authenticate("smith", "smithpassword", "PLAIN");
+    clone2->authenticate("smith", "smithpassword", "PLAIN");
+    clone3->authenticate("jones", "jonespassword", "PLAIN");
+    clone4->authenticate("@admin", "password", "PLAIN");
+
+    conn = getAdminConnection();
+    BinprotCommand cmd;
+    cmd.setOp(uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers));
+    BinprotResponse resp;
+
+    conn.executeCommand(cmd, resp);
+    EXPECT_TRUE(resp.isSuccess());
+    // We don't have any external users to test with for now.. will add
+    // them after we've added support for external auth through our mock
+    // server
+    EXPECT_EQ("[]", resp.getDataString());
 }

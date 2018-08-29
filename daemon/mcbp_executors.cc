@@ -38,6 +38,7 @@
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/flush_command_context.h"
 #include "protocol/mcbp/gat_context.h"
+#include "protocol/mcbp/get_active_external_users_command_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/get_meta_context.h"
@@ -532,6 +533,10 @@ static void rbac_provider_executor(Cookie& cookie) {
     }
 }
 
+static void get_active_external_users_executor(Cookie& cookie) {
+    cookie.obtainContext<GetActiveExternalUsersCommandContext>(cookie).drive();
+}
+
 static void no_support_executor(Cookie& cookie) {
     cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
@@ -701,6 +706,8 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
     handlers[uint8_t(cb::mcbp::ClientOpcode::RbacProvider)] =
             rbac_provider_executor;
+    handlers[uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers)] =
+            get_active_external_users_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
             get_cluster_config_executor;
     handlers[PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG] =

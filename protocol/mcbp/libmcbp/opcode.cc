@@ -323,6 +323,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "RBAC_REFRESH";
     case ClientOpcode::RbacProvider:
         return "RBAC_PROVIDER";
+    case ClientOpcode::GetActiveExternalUsers:
+        return "GET_ACTIVE_USERS";
     case ClientOpcode::DropPrivilege:
         return "DROP_PRIVILEGES";
     case ClientOpcode::AdjustTimeofday:
