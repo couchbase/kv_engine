@@ -556,7 +556,7 @@ static protocol_binary_response_status dcp_control_validator(Cookie& cookie)
     return verify_common_dcp_restrictions(cookie);
 }
 
-static protocol_binary_response_status revoke_user_permissions_validator(
+static protocol_binary_response_status update_user_permissions_validator(
         Cookie& cookie) {
     if (!verify_header(cookie,
                        0,
@@ -1565,8 +1565,8 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_ERROR_MAP, get_errmap_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_GET_LOCKED, get_locked_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_UNLOCK_KEY, unlock_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_REVOKE_USER_PERMISSIONS,
-                       revoke_user_permissions_validator);
+    chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::UpdateUserPermissions),
+                       update_user_permissions_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
     chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::RbacProvider),
                        rbac_provider_validator);

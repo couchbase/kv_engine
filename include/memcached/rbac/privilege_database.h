@@ -50,6 +50,10 @@ using PrivilegeMask = std::bitset<size_t(Privilege::Impersonate) + 1>;
  */
 class UserEntry {
 public:
+    UserEntry(const UserEntry&) = default;
+
+    bool operator==(const UserEntry& other) const;
+
     /**
      * Create a new UserEntry from the provided JSON
      *
@@ -315,6 +319,9 @@ public:
     std::unique_ptr<PrivilegeDatabase> removeUser(
             const std::string& user) const;
 
+    std::unique_ptr<PrivilegeDatabase> updateUser(const std::string& user,
+                                                  UserEntry& entry);
+
     /**
      * The generation for this PrivilegeDatabase (a privilege context must
      * match this generation in order to be valid)
@@ -369,11 +376,12 @@ void loadPrivilegeDatabase(const std::string& filename);
 bool mayAccessBucket(const std::string& user, const std::string& bucket);
 
 /**
- * Remove a user from the database
+ * Update the user entry with the supplied new configuration
  *
- * @param user the name of the user to remove
+ * @param user The user to update
+ * @param json the new definition for the user (empty == remove)
  */
-void removeUser(const std::string& user);
+void updateUser(const std::string& user, const std::string& json);
 
 /**
  * Initialize the RBAC module

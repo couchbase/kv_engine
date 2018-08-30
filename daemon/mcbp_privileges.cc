@@ -306,7 +306,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     // Drop a privilege from the effective set
     setup(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE, empty);
 
-    setup(PROTOCOL_BINARY_CMD_REVOKE_USER_PERMISSIONS,
+    setup(uint8_t(cb::mcbp::ClientOpcode::UpdateUserPermissions),
           require<Privilege::SecurityManagement>);
 
     /* Refresh the RBAC data */

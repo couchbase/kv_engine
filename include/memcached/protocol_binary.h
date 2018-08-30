@@ -446,8 +446,6 @@ const uint8_t PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN =
         uint8_t(cb::mcbp::ClientOpcode::SetCtrlToken);
 const uint8_t PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN =
         uint8_t(cb::mcbp::ClientOpcode::GetCtrlToken);
-const uint8_t PROTOCOL_BINARY_CMD_REVOKE_USER_PERMISSIONS =
-        uint8_t(cb::mcbp::ClientOpcode::RevokeUserPermissions);
 const uint8_t PROTOCOL_BINARY_CMD_RBAC_REFRESH =
         uint8_t(cb::mcbp::ClientOpcode::RbacRefresh);
 const uint8_t PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY =

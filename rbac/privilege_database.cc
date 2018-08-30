@@ -40,6 +40,11 @@ static std::atomic<uint32_t> generation{0};
 cb::RWLock rwlock;
 std::unique_ptr<PrivilegeDatabase> db;
 
+bool UserEntry::operator==(const UserEntry& other) const {
+    return (internal == other.internal && domain == other.domain &&
+            privileges == other.privileges && buckets == other.buckets);
+}
+
 UserEntry::UserEntry(const cJSON& root) {
     if (root.string == nullptr) {
         throw std::invalid_argument(
@@ -145,6 +150,26 @@ std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::removeUser(
     if (iter != ret->userdb.end()) {
         ret->userdb.erase(iter);
     }
+    return ret;
+}
+
+std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::updateUser(
+        const std::string& user, UserEntry& entry) {
+    // Check if they differ
+    auto iter = userdb.find(user);
+    if (iter != userdb.end() && entry == iter->second) {
+        // This is the same entry I've got.. no need to do anything
+        return std::unique_ptr<PrivilegeDatabase>{};
+    }
+
+    // They differ, I need to change the entry!
+    auto ret = std::make_unique<PrivilegeDatabase>(nullptr);
+    ret->userdb = userdb;
+    iter = ret->userdb.find(user);
+    if (iter != ret->userdb.end()) {
+        ret->userdb.erase(iter);
+    }
+    ret->userdb.emplace(user, std::move(entry));
     return ret;
 }
 
@@ -306,10 +331,33 @@ bool mayAccessBucket(const std::string& user, const std::string& bucket) {
 }
 
 void removeUser(const std::string& user) {
-    std::unique_ptr<PrivilegeDatabase> next;
-    std::lock_guard<cb::ReaderLock> guard(rwlock.writer());
-    next = db->removeUser(user);
+    std::lock_guard<cb::WriterLock> guard(rwlock.writer());
+    auto next = db->removeUser(user);
     db.swap(next);
+}
+
+void updateUser(const std::string& user, const std::string& descr) {
+    if (descr.empty()) {
+        removeUser(user);
+        return;
+    }
+
+    // Parse the JSON and create the UserEntry object before grabbing
+    // the write lock!
+    unique_cJSON_ptr json(cJSON_Parse(descr.c_str()));
+    if (!json || json->child == nullptr || json->child->type != cJSON_Object ||
+        json->child->string == nullptr || user != json->child->string) {
+        throw std::runtime_error(
+                "cb::rbac::updateUser(): Invalid json provided");
+    }
+
+    UserEntry entry(*json->child);
+    std::lock_guard<cb::WriterLock> guard(rwlock.writer());
+    auto next = db->updateUser(user, entry);
+    if (next) {
+        // I changed the database.. swap
+        db.swap(next);
+    }
 }
 
 } // namespace rbac

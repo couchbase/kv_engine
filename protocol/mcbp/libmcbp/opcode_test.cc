@@ -174,7 +174,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::GetCmdTimer, "GET_CMD_TIMER"},
          {ClientOpcode::SetCtrlToken, "SET_CTRL_TOKEN"},
          {ClientOpcode::GetCtrlToken, "GET_CTRL_TOKEN"},
-         {ClientOpcode::RevokeUserPermissions, "REVOKE_USER_PERMISSIONS"},
+         {ClientOpcode::UpdateUserPermissions, "UPDATE_USER_PERMISSIONS"},
          {ClientOpcode::RbacRefresh, "RBAC_REFRESH"},
          {ClientOpcode::RbacProvider, "RBAC_PROVIDER"},
          {ClientOpcode::GetActiveExternalUsers, "GET_ACTIVE_USERS"},
@@ -208,7 +208,7 @@ TEST(ClientOpcode_to_string, CompatWithOldCode) {
             entry.first == ClientOpcode::ChangeVbFilter ||
             entry.first == ClientOpcode::DeregisterTapClient ||
             entry.first == ClientOpcode::ResetReplicationChain ||
-            entry.first == ClientOpcode::RevokeUserPermissions ||
+            entry.first == ClientOpcode::UpdateUserPermissions ||
             entry.first == ClientOpcode::RbacProvider ||
             entry.first == ClientOpcode::GetActiveExternalUsers) {
             // Entries we didn't have in the old code..

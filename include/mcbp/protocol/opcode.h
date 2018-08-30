@@ -296,12 +296,17 @@ enum class ClientOpcode : uint8_t {
     SetCtrlToken = 0xf4,
     GetCtrlToken = 0xf5,
     /**
-     * Revoke a users permissions
+     * Update a users permissions
      *
-     * This message causes memcached to drop the entry in the privilege
-     * database for the specified user
+     * This message causes memcached to update the entry in the privilege
+     * database for the specified user.
+     *
+     * The key contains the user to update (given that we can't have
+     * the same user defined as an external and local user we don't need
+     * the domain), and the value contains the updated rbac entry (empty
+     * means drop user)
      */
-    RevokeUserPermissions = 0xf6,
+    UpdateUserPermissions = 0xf6,
     /* Refresh the RBAC database */
     RbacRefresh = 0xf7,
     /// Offer to be an RBAC provider
