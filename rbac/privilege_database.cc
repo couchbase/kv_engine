@@ -154,7 +154,7 @@ std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::removeUser(
 }
 
 std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::updateUser(
-        const std::string& user, UserEntry& entry) {
+        const std::string& user, UserEntry& entry) const {
     // Check if they differ
     auto iter = userdb.find(user);
     if (iter != userdb.end() && entry == iter->second) {

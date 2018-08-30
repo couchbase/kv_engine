@@ -320,7 +320,7 @@ public:
             const std::string& user) const;
 
     std::unique_ptr<PrivilegeDatabase> updateUser(const std::string& user,
-                                                  UserEntry& entry);
+                                                  UserEntry& entry) const;
 
     /**
      * The generation for this PrivilegeDatabase (a privilege context must
