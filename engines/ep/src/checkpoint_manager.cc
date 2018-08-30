@@ -27,7 +27,7 @@
 #include <gsl.h>
 
 CheckpointManager::CheckpointManager(EPStats& st,
-                                     uint16_t vbucket,
+                                     Vbid vbucket,
                                      CheckpointConfig& config,
                                      int64_t lastSeqno,
                                      uint64_t lastSnapStart,
@@ -251,7 +251,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
 
     EP_LOG_INFO("CheckpointManager::registerCursorBySeqno name \"{}\" from {}",
                 name,
-                Vbid(vbucketId));
+                vbucketId);
 
     size_t skipped = 0;
     CursorRegResult result;
@@ -349,7 +349,7 @@ bool CheckpointManager::removeCursor_UNLOCKED(const CheckpointCursor* cursor) {
 
     EP_LOG_DEBUG("Remove the checkpoint cursor with the name \"{}\" from {}",
                  cursor->name,
-                 Vbid(vbucketId));
+                 vbucketId);
 
     // We can simply remove the cursorfrom the checkpoint to which it
     // currently belongs,
@@ -614,8 +614,8 @@ bool CheckpointManager::queueDirty(
           static_cast<uint64_t>(lastBySeqno) <= snapEnd)) {
         throw std::logic_error(
                 "CheckpointManager::queueDirty: lastBySeqno "
-                "not in snapshot range. vb:" +
-                std::to_string(vb.getId()) +
+                "not in snapshot range. " +
+                vb.getId().to_string() +
                 " state:" + std::string(VBucket::toString(vb.getState())) +
                 " snapshotStart:" + std::to_string(snapStart) +
                 " lastBySeqno:" + std::to_string(lastBySeqno) +
@@ -661,8 +661,8 @@ void CheckpointManager::queueSetVBState(VBucket& vb) {
         throw std::logic_error(
                 "CheckpointManager::queueSetVBState: "
                 "expected: NEW_ITEM, got:" +
-                to_string(result) +
-                "after queueDirty. vbid:" + std::to_string(vbucketId));
+                to_string(result) + "after queueDirty. " +
+                vbucketId.to_string());
     }
 }
 
@@ -679,7 +679,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         size_t approxLimit) {
     LockHolder lh(queueLock);
     if (!cursorPtr) {
-        EP_LOG_WARN("getAllItemsForCursor(): Caller had a null cursor vb:{}",
+        EP_LOG_WARN("getAllItemsForCursor(): Caller had a null cursor {}",
                     vbucketId);
         return {};
     }
@@ -739,7 +739,7 @@ queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
     if (!constCursor) {
         EP_LOG_WARN(
                 "CheckpointManager::nextItemForPersistence called with a null "
-                "cursor for vb:{}",
+                "cursor for {}",
                 vbucketId);
         queued_item qi(new Item(emptyKey, 0xffff, queue_op::empty, 0, 0));
         return qi;
@@ -894,7 +894,7 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
         } else {
             EP_LOG_WARN(
                     "For cursor \"{}\" the offset {} is greater than  "
-                    "numItems {} on vb:{}",
+                    "numItems {} on {}",
                     cursor->name,
                     offset,
                     numItems.load(),
@@ -904,7 +904,7 @@ size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
         EP_LOG_WARN(
                 "getNumItemsForCursor_UNLOCKED(): Cursor not found in "
                 "the "
-                "checkpoint manager on vb:{}",
+                "checkpoint manager on {}",
                 vbucketId);
     }
     return remains;
@@ -1052,7 +1052,8 @@ void CheckpointManager::checkAndAddNewCheckpoint() {
     addNewCheckpoint_UNLOCKED(openCkptId + 1);
 }
 
-queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
+queued_item CheckpointManager::createCheckpointItem(uint64_t id,
+                                                    Vbid vbid,
                                                     queue_op checkpoint_op) {
     uint64_t bySeqno;
     StoredDocKey key(to_string(checkpoint_op), DocNamespace::System);

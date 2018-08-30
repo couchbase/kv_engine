@@ -32,12 +32,12 @@ class CheckpointManager;
 /**
  * Dummy callback to replace the flusher callback.
  */
-class DummyCB : public Callback<uint16_t> {
+class DummyCB : public Callback<Vbid> {
 public:
     DummyCB() {
     }
 
-    void callback(uint16_t& dummy) {
+    void callback(Vbid& dummy) {
         (void)dummy;
     }
 };
@@ -62,7 +62,7 @@ protected:
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
-    std::shared_ptr<Callback<uint16_t> > callback;
+    std::shared_ptr<Callback<Vbid>> callback;
     std::unique_ptr<V> vbucket;
     std::unique_ptr<CheckpointManager> manager;
 };

@@ -136,7 +136,7 @@ private:
     std::unique_ptr<VBucketAwareHTVisitor> htVisitor;
 
     // When resuming, which vbucket should we start from?
-    uint16_t resume_vbucket_id = 0;
+    Vbid resume_vbucket_id = 0;
 
     // When pausing / resuming, hashtable position to use.
     HashTable::Position hashtable_position;

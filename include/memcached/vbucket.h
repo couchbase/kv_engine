@@ -53,6 +53,8 @@ using PermittedVBStates = cb::bitset<4, vbucket_state_t, PermittedVBStatesMap>;
  */
 class MCD_UTIL_PUBLIC_API Vbid {
 public:
+    Vbid() = default;
+
     // TODO: Not explicit to support conversion with previous usage
     Vbid(uint16_t vbidParam) : vbid(vbidParam){};
 
@@ -64,6 +66,10 @@ public:
     // Retrieve the vBucket ID in a printable/loggable form
     std::string to_string() const {
         return "vb:" + std::to_string(vbid);
+    }
+
+    size_t hash() const {
+        return std::hash<uint16_t>()(vbid);
     }
 
     bool operator<(const Vbid& other) {
@@ -86,6 +92,14 @@ public:
         return (vbid == other.get());
     }
 
+    Vbid operator++() {
+        return Vbid(++vbid);
+    }
+
+    const Vbid operator++(int) {
+        return Vbid(vbid++);
+    }
+
     // TODO: Support previous usage of vBucket ID as a uint16_t, which is
     // planned to be phased out in stages due to size of change
     operator uint16_t() const {
@@ -98,3 +112,13 @@ protected:
 
 MCD_UTIL_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, const Vbid& d);
+
+namespace std {
+template <>
+class hash<Vbid> {
+public:
+    size_t operator()(const Vbid& d) const {
+        return d.hash();
+    }
+};
+} // namespace std

@@ -214,12 +214,12 @@ public:
 /**
  * Callback for notifying flusher about pending mutations.
  */
-class NotifyFlusherCB: public Callback<uint16_t> {
+class NotifyFlusherCB : public Callback<Vbid> {
 public:
     NotifyFlusherCB(KVShard *sh)
         : shard(sh) {}
 
-    void callback(uint16_t &vb);
+    void callback(Vbid& vb);
 
 private:
     KVShard *shard;

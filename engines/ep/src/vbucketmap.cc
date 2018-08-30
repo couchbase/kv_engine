@@ -57,7 +57,7 @@ ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
                      VBucket::toString(vb->getState()));
         return ENGINE_SUCCESS;
     }
-    EP_LOG_WARN("Cannot create vb:{}, max vbuckets is {}", vb->getId(), size);
+    EP_LOG_WARN("Cannot create {}, max vbuckets is {}", vb->getId(), size);
     return ENGINE_ERANGE;
 }
 
@@ -76,7 +76,7 @@ void VBucketMap::dropVBucketAndSetupDeferredDeletion(id_type id,
 
 std::vector<VBucketMap::id_type> VBucketMap::getBuckets(void) const {
     std::vector<id_type> rv;
-    for (id_type i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
         VBucketPtr b(getBucket(i));
         if (b) {
             rv.push_back(b->getId());
@@ -114,7 +114,7 @@ std::vector<VBucketMap::id_type> VBucketMap::getBucketsInState(
 std::vector<std::pair<VBucketMap::id_type, size_t> >
 VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     std::vector<std::pair<id_type, size_t> > rv;
-    for (id_type i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
         VBucketPtr b = getBucket(i);
         if (b && b->getState() == vbucket_state_active) {
             rv.push_back(std::make_pair(b->getId(), b->getChkMgrMemUsage()));
@@ -135,7 +135,7 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
 
 size_t VBucketMap::getActiveVBucketsTotalCheckpointMemoryUsage() const {
     size_t checkpointMemoryUsage = 0;
-    for (id_type i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
         VBucketPtr b = getBucket(i);
         if (b && b->getState() == vbucket_state_active) {
             checkpointMemoryUsage += b->getChkMgrMemUsage();
@@ -145,7 +145,7 @@ size_t VBucketMap::getActiveVBucketsTotalCheckpointMemoryUsage() const {
 }
 
 KVShard* VBucketMap::getShardByVbId(id_type id) const {
-    return shards[id % shards.size()].get();
+    return shards[id.get() % shards.size()].get();
 }
 
 KVShard* VBucketMap::getShard(KVShard::id_type shardId) const {
@@ -157,7 +157,7 @@ size_t VBucketMap::getNumShards() const {
 }
 
 void VBucketMap::setHLCDriftAheadThreshold(std::chrono::microseconds threshold) {
-    for (id_type id = 0; id < size; id++) {
+    for (size_t id = 0; id < size; id++) {
         auto vb = getBucket(id);
         if (vb) {
             vb->setHLCDriftAheadThreshold(threshold);
@@ -166,7 +166,7 @@ void VBucketMap::setHLCDriftAheadThreshold(std::chrono::microseconds threshold) 
 }
 
 void VBucketMap::setHLCDriftBehindThreshold(std::chrono::microseconds threshold) {
-    for (id_type id = 0; id < size; id++) {
+    for (size_t id = 0; id < size; id++) {
         auto vb = getBucket(id);
         if (vb) {
             vb->setHLCDriftBehindThreshold(threshold);
