@@ -292,7 +292,7 @@ void MutationLog::disable() {
     }
 }
 
-void MutationLog::newItem(uint16_t vbucket, const StoredDocKey& key) {
+void MutationLog::newItem(Vbid vbucket, const StoredDocKey& key) {
     if (isEnabled()) {
         MutationLogEntry* mle = MutationLogEntry::newEntry(
                 entryBuffer.get(), MutationLogType::New, vbucket, key);
@@ -1015,7 +1015,7 @@ bool MutationLogHarvester::load() {
         case MutationLogType::Commit2:
             clean = true;
 
-            for (const uint16_t vb : vbid_set) {
+            for (auto vb : vbid_set) {
                 for (auto& item : loading[vb]) {
                     committed[vb].emplace(item);
                 }
@@ -1070,7 +1070,7 @@ MutationLog::iterator MutationLogHarvester::loadBatch(
 }
 
 void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
-    for (const uint16_t vb : vbid_set) {
+    for (const auto vb : vbid_set) {
         for (const auto& key : committed[vb]) {
             if (!mlc(arg, vb, key)) { // Stop loading from an access log
                 return;
@@ -1084,7 +1084,7 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
         throw std::logic_error("MutationLogHarvester::apply: Cannot apply "
                 "when engine is NULL");
     }
-    for (const uint16_t vb : vbid_set) {
+    for (const auto vb : vbid_set) {
         VBucketPtr vbucket = engine->getKVBucket()->getVBucket(vb);
         if (!vbucket) {
             continue;

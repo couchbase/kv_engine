@@ -313,7 +313,7 @@ public:
                uint64_t id,
                uint64_t snapStart,
                uint64_t snapEnd,
-               uint16_t vbid);
+               Vbid vbid);
 
     ~Checkpoint();
 
@@ -528,7 +528,7 @@ private:
     uint64_t                       checkpointId;
     uint64_t                       snapStartSeqno;
     uint64_t                       snapEndSeqno;
-    uint16_t                       vbucketId;
+    Vbid vbucketId;
     rel_time_t                     creationTime;
     checkpoint_state               checkpointState;
     /// Number of non-meta items (see Item::isCheckPointMetaItem).

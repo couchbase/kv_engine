@@ -388,11 +388,9 @@ private:
     Warmup* _warmup;
 };
 
-
-static bool batchWarmupCallback(uint16_t vbId,
+static bool batchWarmupCallback(Vbid vbId,
                                 const std::set<StoredDocKey>& fetches,
-                                void *arg)
-{
+                                void* arg) {
     WarmupCookie *c = static_cast<WarmupCookie *>(arg);
 
     if (!c->epstore->maybeEnableTraffic()) {
@@ -451,8 +449,7 @@ static bool batchWarmupCallback(uint16_t vbId,
     }
 }
 
-static bool warmupCallback(void *arg, uint16_t vb, const DocKey& key)
-{
+static bool warmupCallback(void* arg, Vbid vb, const DocKey& key) {
     WarmupCookie *cookie = static_cast<WarmupCookie*>(arg);
 
     if (!cookie->epstore->maybeEnableTraffic()) {
@@ -860,7 +857,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
     // Iterate over all VBucket states defined for this shard, creating VBucket
     // objects if they do not already exist.
     for (const auto itr : shardVbStates[shardId]) {
-        uint16_t vbid = itr.first;
+        Vbid vbid = itr.first;
         vbucket_state vbs = itr.second;
 
         // Collections requires that the VBucket datafiles have the collection

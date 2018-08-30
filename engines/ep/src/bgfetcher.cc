@@ -61,25 +61,24 @@ void BgFetcher::wakeUpTaskIfSnoozed() {
     }
 }
 
-size_t BgFetcher::doFetch(VBucket::id_type vbId,
-                          vb_bgfetch_queue_t& itemsToFetch) {
+size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
     TRACE_EVENT2("BgFetcher",
                  "doFetch",
                  "vbid",
-                 vbId,
+                 vbId.get(),
                  "#itemsToFetch",
                  itemsToFetch.size());
     ProcessClock::time_point startTime(ProcessClock::now());
     EP_LOG_DEBUG(
             "BgFetcher is fetching data, {} numDocs:{} "
             "startTime:{}",
-            Vbid(vbId),
+            vbId,
             itemsToFetch.size(),
             std::chrono::duration_cast<std::chrono::milliseconds>(
                     startTime.time_since_epoch())
                     .count());
 
-    shard->getROUnderlying()->getMulti(vbId, itemsToFetch);
+    shard->getROUnderlying()->getMulti(vbId.get(), itemsToFetch);
 
     std::vector<bgfetched_item_t> fetchedItems;
     for (const auto& fetch : itemsToFetch) {
@@ -94,7 +93,7 @@ size_t BgFetcher::doFetch(VBucket::id_type vbId,
     }
 
     if (fetchedItems.size() > 0) {
-        store->completeBGFetchMulti(vbId, fetchedItems, startTime);
+        store->completeBGFetchMulti(vbId.get(), fetchedItems, startTime);
         stats.getMultiHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         ProcessClock::now() - startTime),
@@ -124,7 +123,7 @@ bool BgFetcher::run(GlobalTask *task) {
     task->snooze(INT_MAX);
     pendingFetch.store(false);
 
-    std::vector<uint16_t> bg_vbs(pendingVbs.size());
+    std::vector<Vbid> bg_vbs(pendingVbs.size());
     {
         LockHolder lh(queueMutex);
         bg_vbs.assign(pendingVbs.begin(), pendingVbs.end());
@@ -132,7 +131,7 @@ bool BgFetcher::run(GlobalTask *task) {
     }
 
     size_t num_fetched_items = 0;
-    for (const uint16_t vbId : bg_vbs) {
+    for (const auto vbId : bg_vbs) {
         VBucketPtr vb = shard->getBucket(vbId);
         if (vb) {
             // Requeue the bg fetch task if vbucket DB file is not created yet.

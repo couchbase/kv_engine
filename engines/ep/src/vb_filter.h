@@ -37,18 +37,17 @@ public:
      * Instantiate a VBucketFilter that returns true for any of the
      * given vbucket IDs.
      */
-    VBucketFilter(const std::vector<uint16_t>& a)
-        : acceptable(a.begin(), a.end()) {
+    VBucketFilter(const std::vector<Vbid>& a) : acceptable(a.begin(), a.end()) {
     }
 
-    VBucketFilter(std::set<uint16_t> s) : acceptable(std::move(s)) {
+    VBucketFilter(std::set<Vbid> s) : acceptable(std::move(s)) {
     }
 
-    void assign(const std::set<uint16_t>& a) {
+    void assign(const std::set<Vbid>& a) {
         acceptable = a;
     }
 
-    bool operator()(uint16_t v) const {
+    bool operator()(Vbid v) const {
         return acceptable.empty() || acceptable.find(v) != acceptable.end();
     }
 
@@ -84,16 +83,16 @@ public:
      */
     VBucketFilter filter_intersection(const VBucketFilter& other) const;
 
-    const std::set<uint16_t>& getVBSet() const {
+    const std::set<Vbid>& getVBSet() const {
         return acceptable;
     }
 
-    bool addVBucket(uint16_t vbucket) {
+    bool addVBucket(Vbid vbucket) {
         auto rv = acceptable.insert(vbucket);
         return rv.second;
     }
 
-    void removeVBucket(uint16_t vbucket) {
+    void removeVBucket(Vbid vbucket) {
         acceptable.erase(vbucket);
     }
 
@@ -105,5 +104,5 @@ public:
                                     const VBucketFilter& filter);
 
 private:
-    std::set<uint16_t> acceptable;
+    std::set<Vbid> acceptable;
 };

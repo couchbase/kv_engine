@@ -71,21 +71,21 @@ BgFetcher *KVShard::getBgFetcher() {
     return bgFetcher.get();
 }
 
-VBucketPtr KVShard::getBucket(uint16_t id) const {
-    if (id < vbuckets.size()) {
-        return vbuckets[id].lock().get();
+VBucketPtr KVShard::getBucket(Vbid id) const {
+    if (id.get() < vbuckets.size()) {
+        return vbuckets[id.get()].lock().get();
     } else {
         return NULL;
     }
 }
 
 void KVShard::setBucket(VBucketPtr vb) {
-    vbuckets[vb->getId()].lock().set(vb);
+    vbuckets[vb->getId().get()].lock().set(vb);
 }
 
 void KVShard::dropVBucketAndSetupDeferredDeletion(VBucket::id_type id,
                                                   const void* cookie) {
-    auto vb = vbuckets[id].lock();
+    auto vb = vbuckets[id.get()].lock();
     auto vbPtr = vb.get();
     vbPtr->setupDeferredDeletion(cookie);
     vb.reset();
@@ -119,7 +119,7 @@ std::vector<VBucket::id_type> KVShard::getVBuckets() {
     return rv;
 }
 
-void NotifyFlusherCB::callback(uint16_t &vb) {
+void NotifyFlusherCB::callback(Vbid& vb) {
     if (shard->getBucket(vb)) {
         shard->getFlusher()->notifyFlushEvent();
     }

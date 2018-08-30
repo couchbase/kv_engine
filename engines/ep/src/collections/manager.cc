@@ -73,7 +73,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                             "Collections::Manager::update");
 }
 
-boost::optional<uint16_t> Collections::Manager::updateAllVBuckets(
+boost::optional<Vbid> Collections::Manager::updateAllVBuckets(
         KVBucket& bucket, const Manifest& newManifest) {
     for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {
         auto vb = bucket.getVBuckets().getBucket(i);

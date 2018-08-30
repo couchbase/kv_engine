@@ -443,7 +443,7 @@ void check_key_value(EngineIface* h,
                      const char* key,
                      const char* val,
                      size_t vlen,
-                     uint16_t vbucket) {
+                     Vbid vbucket) {
     // Fetch item itself, to ensure we maintain a ref-count on the underlying
     // Blob while comparing the key.
     auto getResult = get(h, NULL, key, vbucket);

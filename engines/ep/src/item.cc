@@ -38,7 +38,7 @@ Item::Item(const DocKey& k,
            protocol_binary_datatype_t dtype,
            uint64_t theCas,
            int64_t i,
-           uint16_t vbid,
+           Vbid vbid,
            uint64_t sno)
     : metaData(theCas, sno, fl, exp),
       value(TaggedPtr<Blob>(val.get().get(), ItemEviction::initialFreqCount)),
@@ -66,7 +66,7 @@ Item::Item(const DocKey& k,
            protocol_binary_datatype_t dtype,
            uint64_t theCas,
            int64_t i,
-           uint16_t vbid,
+           Vbid vbid,
            uint64_t sno)
     : metaData(theCas, sno, fl, exp),
       value(TaggedPtr<Blob>(nullptr, ItemEviction::initialFreqCount)),
@@ -87,7 +87,7 @@ Item::Item(const DocKey& k,
 }
 
 Item::Item(const DocKey& k,
-           const uint16_t vb,
+           const Vbid vb,
            queue_op o,
            const uint64_t revSeq,
            const int64_t bySeq)
@@ -171,10 +171,9 @@ std::ostream& operator<<(std::ostream& os, const Item& i) {
         os << "\tvalue:nullptr\n";
     }
     os << "\tmetadata:" << i.metaData << "\n"
-       << "\tbySeqno:" << i.bySeqno << " queuedTime:" << i.queuedTime
-       << " vbucketId:" << i.vbucketId << " op:" << to_string(i.op)
-       << " nru:" << int(i.nru) << " datatype:" << int(i.getDataType())
-       << " deleted:" << i.isDeleted();
+       << "\tbySeqno:" << i.bySeqno << " queuedTime:" << i.queuedTime << " "
+       << i.vbucketId << " op:" << to_string(i.op) << " nru:" << int(i.nru)
+       << " datatype:" << int(i.getDataType()) << " deleted:" << i.isDeleted();
     return os;
 }
 
