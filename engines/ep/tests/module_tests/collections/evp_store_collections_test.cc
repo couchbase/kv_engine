@@ -257,6 +257,10 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                  false,
                                  GenerateBySeqno::Yes,
                                  GenerateCas::No));
+
+    const char* msg = nullptr;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION,
+              store->evictKey(item2.getKey(), vbid, &msg));
 }
 
 // BY-ID update: This test was created for MB-25344 and is no longer relevant as

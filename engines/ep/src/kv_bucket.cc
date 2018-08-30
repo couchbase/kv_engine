@@ -512,7 +512,14 @@ protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
     }
 
-    return vb->evictKey(key, msg);
+    { // collections read-lock scope
+        auto collectionsRHandle = vb->lockCollections(key);
+        if (!collectionsRHandle.valid()) {
+            return PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION;
+        } // now hold collections read access for the duration of the evict
+
+        return vb->evictKey(key, msg);
+    }
 }
 
 void KVBucket::getValue(Item& it) {
