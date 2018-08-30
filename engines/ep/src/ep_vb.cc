@@ -309,7 +309,7 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                      QueueExpired::Yes);
 
     if (v) {
-        if (VBucket::isLogicallyNonExistent(*v)) {
+        if (VBucket::isLogicallyNonExistent(*v, readHandle)) {
             ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }

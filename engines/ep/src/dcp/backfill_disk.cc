@@ -62,14 +62,14 @@ boost::optional<GetValue> CacheCallback::get(VBucket& vb,
         return {};
     }
 
-    return vb.getInternal(lookup.getKey(),
-                          nullptr,
+    return vb.getInternal(nullptr,
                           engine_,
                           0,
                           /*options*/ NONE,
                           /*diskFlushAll*/ false,
                           stream.isKeyOnly() ? VBucket::GetKeyOnly::Yes
-                                             : VBucket::GetKeyOnly::No);
+                                             : VBucket::GetKeyOnly::No,
+                          lookup.getCollectionsHandle());
 }
 
 void CacheCallback::callback(CacheLookup& lookup) {

@@ -817,14 +817,17 @@ public:
      * @param bgFetchDelay
      * @param predicate a function to call which if returns true, the replace
      *        will succeed. The function is called against any existing item.
+     * @param readHandle Reader access to the Item's collection data.
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
-    ENGINE_ERROR_CODE replace(Item& itm,
-                              const void* cookie,
-                              EventuallyPersistentEngine& engine,
-                              int bgFetchDelay,
-                              cb::StoreIfPredicate predicate);
+    ENGINE_ERROR_CODE replace(
+            Item& itm,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            cb::StoreIfPredicate predicate,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Add an item directly into its vbucket rather than putting it on a
@@ -855,11 +858,11 @@ public:
      * @param genCas
      * @param isReplication set to true if we are to use replication
      *                      throttle threshold
+     * @param readHandle Reader access to the Item's collection data.
      *
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE setWithMeta(
-
             Item& itm,
             uint64_t cas,
             uint64_t* seqno,
@@ -870,12 +873,12 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno,
             GenerateCas genCas,
-            bool isReplication);
+            bool isReplication,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Delete an item in the vbucket
      *
-     * @param key the key to lookup
      * @param[in,out] cas value to match; new cas after logical delete
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
@@ -886,22 +889,22 @@ public:
      * @param[out] mutInfo Info to uniquely identify (and order) the delete
      *                     seq. A NULL pointer indicates no info needs to be
      *                     returned.
+     * @param readHandle Reader access to the affected key's collection data.
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE deleteItem(const DocKey& key,
-
-                                 uint64_t& cas,
-                                 const void* cookie,
-                                 EventuallyPersistentEngine& engine,
-                                 int bgFetchDelay,
-                                 ItemMetaData* itemMeta,
-                                 mutation_descr_t& mutInfo);
+    ENGINE_ERROR_CODE deleteItem(
+            uint64_t& cas,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            ItemMetaData* itemMeta,
+            mutation_descr_t& mutInfo,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Delete an item in the vbucket from a non-front end operation (DCP, XDCR)
      *
-     * @param key the key to lookup
      * @param[in, out] cas value to match; new cas after logical delete
      * @param[out] seqno Pointer to get the seqno generated for the item. A
      *                   NULL value is passed if not needed
@@ -921,20 +924,20 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
-
-                                     uint64_t& cas,
-                                     uint64_t* seqno,
-                                     const void* cookie,
-                                     EventuallyPersistentEngine& engine,
-                                     int bgFetchDelay,
-                                     CheckConflicts checkConflicts,
-                                     const ItemMetaData& itemMeta,
-                                     bool backfill,
-                                     GenerateBySeqno genBySeqno,
-                                     GenerateCas generateCas,
-                                     uint64_t bySeqno,
-                                     bool isReplication);
+    ENGINE_ERROR_CODE deleteWithMeta(
+            uint64_t& cas,
+            uint64_t* seqno,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            CheckConflicts checkConflicts,
+            const ItemMetaData& itemMeta,
+            bool backfill,
+            GenerateBySeqno genBySeqno,
+            GenerateCas generateCas,
+            uint64_t bySeqno,
+            bool isReplication,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Delete an expired item
@@ -1013,19 +1016,20 @@ public:
     /**
      * Retrieve a value, but update its TTL first
      *
-     * @param key the key to lookup
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay
      * @param exptime the new expiry time for the object
+     * @param readHandle Reader access to the key's collection data.
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue getAndUpdateTtl(const DocKey& key,
-                             const void* cookie,
-                             EventuallyPersistentEngine& engine,
-                             int bgFetchDelay,
-                             time_t exptime);
+    GetValue getAndUpdateTtl(
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            time_t exptime,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
     /**
      * Queue an Item to the checkpoint and return its seqno
      *
@@ -1045,24 +1049,26 @@ public:
      * @param options flags indicating some retrieval related info
      * @param diskFlushAll
      * @param getKeyOnly if GetKeyOnly::Yes we want only the key
+     * @param readHandle Reader access to the requested key's collection data.
      *
      * @return the result of the operation
      */
-    GetValue getInternal(const DocKey& key,
-                         const void* cookie,
-                         EventuallyPersistentEngine& engine,
-                         int bgFetchDelay,
-                         get_options_t options,
-                         bool diskFlushAll,
-                         GetKeyOnly getKeyOnly);
+    GetValue getInternal(
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            get_options_t options,
+            bool diskFlushAll,
+            GetKeyOnly getKeyOnly,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Retrieve the meta data for given key
      *
-     * @param key The key to lookup
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay Delay in secs before we run the bgFetch task
+     * @param readHandle Reader access to the key's collection data.
      * @param[out] metadata meta information returned to the caller
      * @param[out] deleted specifies the caller whether or not the key is
      *                     deleted
@@ -1070,18 +1076,18 @@ public:
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE getMetaData(const DocKey& key,
-                                  const void* cookie,
-                                  EventuallyPersistentEngine& engine,
-                                  int bgFetchDelay,
-                                  ItemMetaData& metadata,
-                                  uint32_t& deleted,
-                                  uint8_t& datatype);
+    ENGINE_ERROR_CODE getMetaData(
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle,
+            ItemMetaData& metadata,
+            uint32_t& deleted,
+            uint8_t& datatype);
 
     /**
      * Looks up the key stats for the given {vbucket, key}.
      *
-     * @param key The key to lookup
      * @param cookie The client's cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay
@@ -1089,35 +1095,38 @@ public:
      * @param wantsDeleted If yes then return keystats even if the item is
      *                     marked as deleted. If no then will return
      *                     ENGINE_KEY_ENOENT for deleted items.
+     * @param readHandle Reader access to the key's collection data.
      *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
-                                  const void* cookie,
-                                  EventuallyPersistentEngine& engine,
-                                  int bgFetchDelay,
-                                  struct key_stats& kstats,
-                                  WantsDeleted wantsDeleted);
+    ENGINE_ERROR_CODE getKeyStats(
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            struct key_stats& kstats,
+            WantsDeleted wantsDeleted,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
      * Gets a locked item for a given key.
      *
-     * @param key The key to lookup
      * @param currentTime Current time to use for locking the item for a
      *                    duration of lockTimeout
      * @param lockTimeout Timeout for the lock on the item
      * @param cookie The client's cookie
      * @param engine Reference to ep engine
      * @param bgFetchDelay Delay in secs before we run the bgFetch task
+     * @param readHandle Reader access to the key's collection data.
      *
      * @return the result of the operation (contains locked item on success)
      */
-    GetValue getLocked(const DocKey& key,
-                       rel_time_t currentTime,
-                       uint32_t lockTimeout,
-                       const void* cookie,
-                       EventuallyPersistentEngine& engine,
-                       int bgFetchDelay);
+    GetValue getLocked(
+            rel_time_t currentTime,
+            uint32_t lockTimeout,
+            const void* cookie,
+            EventuallyPersistentEngine& engine,
+            int bgFetchDelay,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
     /**
      * Update in memory data structures after an item is deleted on disk
      *
@@ -1236,9 +1245,13 @@ public:
      * or doesn't exist
      *
      * @param v StoredValue to check
-     * @return true if the item is logically non-existent, false otherwise
+     * @param readHandle a ReadHandle for safe reading of collection data
+     * @return true if the item is logically non-existent,
+     *         false otherwise
      */
-    static bool isLogicallyNonExistent(const StoredValue& v);
+    static bool isLogicallyNonExistent(
+            const StoredValue& v,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
@@ -1286,10 +1299,10 @@ protected:
      * which the calling function can issue a bgfetch as needed.
      */
     std::pair<MutationStatus, GetValue> processGetAndUpdateTtl(
-            const DocKey& key,
             HashTable::HashBucketLock& hbl,
             StoredValue* v,
-            time_t exptime);
+            time_t exptime,
+            const Collections::VB::Manifest::CachingReadHandle& readHandle);
     /**
      * This function checks cas, expiry and other partition (vbucket) related
      * rules before setting an item into other in-memory structure like HT,
