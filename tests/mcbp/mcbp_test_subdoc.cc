@@ -51,6 +51,11 @@ protected:
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 
+    std::string validate_error_context(protocol_binary_command opcode) {
+        return ValidatorTest::validate_error_context(
+                opcode, static_cast<void*>(&request));
+    }
+
     protocol_binary_request_subdocument &request =
         *reinterpret_cast<protocol_binary_request_subdocument*>(blob);
 };
@@ -59,6 +64,8 @@ TEST_F(SubdocSingleTest, Get_Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+    // Successful request should have empty error context message
+    EXPECT_EQ("", validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_GET));
 }
 
 TEST_F(SubdocSingleTest, Get_InvalidBody) {
@@ -66,6 +73,8 @@ TEST_F(SubdocSingleTest, Get_InvalidBody) {
     request.message.header.request.bodylen = htonl(0);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+    EXPECT_EQ("Request must include extra fields",
+              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_GET));
 
     // Make sure we detect if it won't fit in the packet (extlen + key + path
     // is bigger than in the full packet
@@ -73,6 +82,8 @@ TEST_F(SubdocSingleTest, Get_InvalidBody) {
     request.message.header.request.bodylen = htonl(10 + 5);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+    EXPECT_EQ("Value length must not be greater than request body",
+              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_GET));
 }
 
 TEST_F(SubdocSingleTest, Get_InvalidPath) {
@@ -83,12 +94,16 @@ TEST_F(SubdocSingleTest, Get_InvalidPath) {
 
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+    EXPECT_EQ("Request must include path",
+              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_GET));
 }
 
 TEST_F(SubdocSingleTest, DictAdd_InvalidValue) {
     // Need a non-zero value.
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+    EXPECT_EQ("Request must include value",
+              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
 }
 
 TEST_F(SubdocSingleTest, DictAdd_InvalidExtras) {
@@ -97,14 +112,19 @@ TEST_F(SubdocSingleTest, DictAdd_InvalidExtras) {
     request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+    EXPECT_EQ("Request extras invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
 
     request.message.header.request.extlen = 7;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+    EXPECT_EQ("", validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
 
     request.message.header.request.bodylen = htonl(10 + 7 + 1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
               validate(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
+    EXPECT_EQ("Request extras invalid",
+              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 }
 
 class SubdocMultiLookupTest : public ValidatorTest {
@@ -131,12 +151,27 @@ protected:
         return validate(packet);
     }
 
+    std::string validate_error_context(const std::vector<uint8_t> request) {
+        void* packet =
+                const_cast<void*>(static_cast<const void*>(request.data()));
+        return ValidatorTest::validate_error_context(
+                PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP, packet);
+    }
+
+    std::string validate_error_context(
+            const BinprotSubdocMultiLookupCommand& cmd) {
+        std::vector<uint8_t> packet;
+        cmd.encode(packet);
+        return validate_error_context(packet);
+    }
+
     BinprotSubdocMultiLookupCommand request;
 };
 
 TEST_F(SubdocMultiLookupTest, Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidMagic) {
@@ -146,6 +181,7 @@ TEST_F(SubdocMultiLookupTest, InvalidMagic) {
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.magic = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request magic value invalid", validate_error_context(payload));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidDatatype) {
@@ -155,16 +191,20 @@ TEST_F(SubdocMultiLookupTest, InvalidDatatype) {
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
     header->request.datatype = (PROTOCOL_BINARY_DATATYPE_SNAPPY |
                                 PROTOCOL_BINARY_DATATYPE_JSON);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_SNAPPY;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidKey) {
     request.setKey("");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request key invalid", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidExtras) {
@@ -174,21 +214,26 @@ TEST_F(SubdocMultiLookupTest, InvalidExtras) {
     // add backing space for the extras
     payload.resize(payload.size() + 4);
 
+    // Lookups accept extlen of 0 or 1
     auto* header =
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
-    header->request.extlen = 1;
+    header->request.extlen = 2;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request extras invalid", validate_error_context(payload));
 
     // extlen of 4 permitted for mutations only.
     header->request.extlen = 4;
     header->request.bodylen = htonl(ntohl(header->request.bodylen) + 4);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request extras invalid", validate_error_context(payload));
 }
 
 TEST_F(SubdocMultiLookupTest, NumPaths) {
     // Need at least one path.
     request.clearLookups();
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
+    EXPECT_EQ("Request must contain at least one path",
+              validate_error_context(request));
 
     // Should handle total of 16 paths.
     request.clearLookups();
@@ -199,10 +244,13 @@ TEST_F(SubdocMultiLookupTest, NumPaths) {
         request.addLookup(spec);
     }
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 
     // Add one more - should now fail.
     request.addLookup(spec);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
+    EXPECT_EQ("Request must contain at most 16 paths",
+              validate_error_context(request));
 }
 
 TEST_F(SubdocMultiLookupTest, ValidLocationOpcodes) {
@@ -211,6 +259,7 @@ TEST_F(SubdocMultiLookupTest, ValidLocationOpcodes) {
     request.addLookup(
         {PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_NONE, "[0]"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidLocationOpcodes) {
@@ -236,14 +285,18 @@ TEST_F(SubdocMultiLookupTest, InvalidLocationPaths) {
     // Path must not be zero length.
     request.at(0).path.clear();
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Maximum length should be accepted...
     request.at(0).path.assign(1024, 'x');
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 
     // But any longer should be rejected.
     request.at(0).path.push_back('x');
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request path length exceeds maximum",
+              validate_error_context(request));
 }
 
 TEST_F(SubdocMultiLookupTest, InvalidLocationFlags) {
@@ -253,17 +306,24 @@ TEST_F(SubdocMultiLookupTest, InvalidLocationFlags) {
         request.at(0).opcode = opcode;
         request.at(0).flags = SUBDOC_FLAG_MKDIR_P;
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+        EXPECT_EQ("Request flags invalid", validate_error_context(request));
         request.at(0).flags = SUBDOC_FLAG_NONE;
 
         request.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+        EXPECT_EQ("Request document flags invalid",
+                  validate_error_context(request));
         request.clearDocFlags();
 
         request.addDocFlag(mcbp::subdoc::doc_flag::Add);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+        EXPECT_EQ("Request document flags invalid",
+                  validate_error_context(request));
 
         request.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+        EXPECT_EQ("Request must not contain both add and mkdoc flags",
+                  validate_error_context(request));
         request.clearDocFlags();
     }
 }
@@ -294,6 +354,18 @@ protected:
             PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, packet.data());
     }
 
+    std::string validate_error_context(
+            const BinprotSubdocMultiMutationCommand& cmd) {
+        std::vector<uint8_t> packet;
+        cmd.encode(packet);
+        return validate_error_context(packet);
+    }
+
+    std::string validate_error_context(std::vector<uint8_t>& packet) {
+        return ValidatorTest::validate_error_context(
+                PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, packet.data());
+    }
+
     /*
      * Tests the request with both the pathFlag and docFlag specified. It does
      * not test when both are used together
@@ -304,10 +376,21 @@ protected:
                    uint8_t spec) {
         request.at(spec).flags = pathFlag;
         EXPECT_EQ(expected, validate(request));
+        if (expected == PROTOCOL_BINARY_RESPONSE_EINVAL) {
+            EXPECT_EQ("Request flags invalid", validate_error_context(request));
+        } else if (expected == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            EXPECT_EQ("", validate_error_context(request));
+        }
         request.at(spec).flags = SUBDOC_FLAG_NONE;
 
         request.addDocFlag(docFlag);
         EXPECT_EQ(expected, validate(request));
+        if (expected == PROTOCOL_BINARY_RESPONSE_EINVAL) {
+            EXPECT_EQ("Request document flags invalid",
+                      validate_error_context(request));
+        } else if (expected == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            EXPECT_EQ("", validate_error_context(request));
+        }
         request.clearDocFlags();
     }
 
@@ -333,6 +416,7 @@ protected:
 TEST_F(SubdocMultiMutationTest, Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidMagic) {
@@ -342,6 +426,7 @@ TEST_F(SubdocMultiMutationTest, InvalidMagic) {
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.magic = 0;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request magic value invalid", validate_error_context(payload));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidDatatype) {
@@ -351,16 +436,20 @@ TEST_F(SubdocMultiMutationTest, InvalidDatatype) {
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
     header->request.datatype = (PROTOCOL_BINARY_DATATYPE_SNAPPY |
                                 PROTOCOL_BINARY_DATATYPE_JSON);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_SNAPPY;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidKey) {
     request.setKey("");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request key invalid", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidExtras) {
@@ -370,6 +459,7 @@ TEST_F(SubdocMultiMutationTest, InvalidExtras) {
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.extlen = 2;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+    EXPECT_EQ("Request extras invalid", validate_error_context(payload));
 }
 
 TEST_F(SubdocMultiMutationTest, Expiry) {
@@ -384,6 +474,7 @@ TEST_F(SubdocMultiMutationTest, Expiry) {
     ASSERT_EQ(4, header->request.extlen);
 
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(payload));
+    EXPECT_EQ("", validate_error_context(payload));
 }
 
 TEST_F(SubdocMultiMutationTest, ExplicitZeroExpiry) {
@@ -397,12 +488,15 @@ TEST_F(SubdocMultiMutationTest, ExplicitZeroExpiry) {
     ASSERT_EQ(4, header->request.extlen);
 
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(payload));
+    EXPECT_EQ("", validate_error_context(payload));
 }
 
 TEST_F(SubdocMultiMutationTest, NumPaths) {
     // Need at least one path.
     request.clearMutations();
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
+    EXPECT_EQ("Request must contain at least one path",
+              validate_error_context(request));
 
     // Should handle total of 16 paths.
     request.clearMutations();
@@ -416,11 +510,14 @@ TEST_F(SubdocMultiMutationTest, NumPaths) {
         request.addMutation(spec);
     }
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 
     // Add one more - should now fail.
     request.addMutation(spec);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
               validate(request));
+    EXPECT_EQ("Request must contain at most 16 paths",
+              validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidDictAdd) {
@@ -431,6 +528,7 @@ TEST_F(SubdocMultiMutationTest, ValidDictAdd) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
                   mcbp::subdoc::doc_flag::Mkdoc,
                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -443,6 +541,7 @@ TEST_F(SubdocMultiMutationTest, InvalidDictAdd) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have path.
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
@@ -450,6 +549,7 @@ TEST_F(SubdocMultiMutationTest, InvalidDictAdd) {
                      "",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Must have value.
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
@@ -457,6 +557,7 @@ TEST_F(SubdocMultiMutationTest, InvalidDictAdd) {
                      "path",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidDictUpsert) {
@@ -466,6 +567,7 @@ TEST_F(SubdocMultiMutationTest, ValidDictUpsert) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
                   mcbp::subdoc::doc_flag::Mkdoc,
                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -479,6 +581,7 @@ TEST_F(SubdocMultiMutationTest, InvalidDictUpsert) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have path.
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
@@ -486,12 +589,16 @@ TEST_F(SubdocMultiMutationTest, InvalidDictUpsert) {
                      "",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Must have value.
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                      protocol_binary_subdoc_flag(0),
                      "path",
                      ""};
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidDelete) {
@@ -500,6 +607,7 @@ TEST_F(SubdocMultiMutationTest, ValidDelete) {
                          "path",
                          ""});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidDelete) {
@@ -509,6 +617,8 @@ TEST_F(SubdocMultiMutationTest, InvalidDelete) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must not include value",
+              validate_error_context(request));
 
     // Shouldn't have flags.
     testFlags(SUBDOC_FLAG_MKDIR_P,
@@ -522,6 +632,7 @@ TEST_F(SubdocMultiMutationTest, InvalidDelete) {
                      "",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include path", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidReplace) {
@@ -530,6 +641,7 @@ TEST_F(SubdocMultiMutationTest, ValidReplace) {
                          "path",
                          "new_value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidReplace) {
@@ -539,6 +651,7 @@ TEST_F(SubdocMultiMutationTest, InvalidReplace) {
                          "",
                          "new_value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Must have value
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
@@ -546,6 +659,7 @@ TEST_F(SubdocMultiMutationTest, InvalidReplace) {
                      "path",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
 
     // Shouldn't have flags.
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
@@ -565,6 +679,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayPushLast) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
                   mcbp::subdoc::doc_flag::Mkdoc,
@@ -585,6 +700,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayPushLast) {
                          "",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have value
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
@@ -592,6 +708,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayPushLast) {
                      "",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayPushFirst) {
@@ -601,6 +718,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayPushFirst) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 
     testFlagCombo(SUBDOC_FLAG_MKDIR_P,
                   mcbp::subdoc::doc_flag::Mkdoc,
@@ -621,6 +739,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayPushFirst) {
                          "",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have value
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
@@ -628,6 +747,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayPushFirst) {
                      "",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayInsert) {
@@ -637,6 +757,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayInsert) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayInsert) {
@@ -660,6 +781,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayInsert) {
                      "",
                      "value"};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Must have value
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
@@ -667,6 +789,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayInsert) {
                      "path",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayAddUnique) {
@@ -676,6 +799,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayAddUnique) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 
     testFlags(SUBDOC_FLAG_MKDIR_P,
               mcbp::subdoc::doc_flag::Mkdoc,
@@ -688,6 +812,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayAddUnique) {
                      "",
                      "value"};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayAddUnique) {
@@ -697,6 +822,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayAddUnique) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have value
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
@@ -704,6 +830,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayAddUnique) {
                      "path",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidArrayCounter) {
@@ -713,6 +840,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayCounter) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 
     testFlags(SUBDOC_FLAG_MKDIR_P,
               mcbp::subdoc::doc_flag::Mkdoc,
@@ -725,6 +853,7 @@ TEST_F(SubdocMultiMutationTest, ValidArrayCounter) {
                      "",
                      "value"};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include path", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayCounter) {
@@ -734,6 +863,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayCounter) {
                          "path",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have value
     request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
@@ -741,6 +871,7 @@ TEST_F(SubdocMultiMutationTest, InvalidArrayCounter) {
                      "path",
                      ""};
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must include value", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidLocationOpcodes) {
@@ -781,6 +912,8 @@ TEST_F(SubdocMultiMutationTest, InvalidCas) {
     request.setCas(12234);
     request.addDocFlag(mcbp::subdoc::doc_flag::Add);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request with add flag must have CAS 0",
+              validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidValue) {
@@ -791,6 +924,8 @@ TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidValue) {
                          "",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must not include value",
+              validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidPath) {
@@ -801,6 +936,8 @@ TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidPath) {
                          "_sync",
                          ""});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request must not include path for wholedoc operations",
+              validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidXattrFlag) {
@@ -809,6 +946,7 @@ TEST_F(SubdocMultiMutationTest, WholeDocDeleteInvalidXattrFlag) {
     request.addMutation(
         {PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_XATTR_PATH, "", ""});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request));
+    EXPECT_EQ("Request flags invalid", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, ValidWholeDocDeleteFlags) {
@@ -819,6 +957,7 @@ TEST_F(SubdocMultiMutationTest, ValidWholeDocDeleteFlags) {
                          ""});
     request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request));
+    EXPECT_EQ("", validate_error_context(request));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
@@ -830,6 +969,8 @@ TEST_F(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
                          "",
                          ""});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
+    EXPECT_EQ("Request contains an invalid combination of commands",
+              validate_error_context(request));
 
     // Now try the delete first
     request.clearMutations();
@@ -842,6 +983,8 @@ TEST_F(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
                          "key",
                          "value"});
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO, validate(request));
+    EXPECT_EQ("Request contains an invalid combination of commands",
+              validate_error_context(request));
 }
 
 } // namespace test
