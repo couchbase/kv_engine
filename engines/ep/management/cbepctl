@@ -131,6 +131,36 @@ def drain(mc):
     except Exception, e:
         print 'Generic error (%s)' % e
 
+@cmd
+def set_collections(mc, filename):
+
+    try:
+        jsonManifestFile = open(filename, "r")
+        json = jsonManifestFile.read()
+        jsonManifestFile.close()
+        print "Setting collections - {}".format(json)
+        mc.set_collections(json)
+        
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
+
+@cmd
+def get_collections(mc):
+
+    try:
+        print mc.get_collections()[2]
+
+    except mc_bin_client.MemcachedError, error:
+        print 'Error: %s' % error.msg
+    except mc_bin_client.TimeoutError, error:
+        print error
+    except Exception, e:
+        print 'Generic error (%s)' % e
+
 if __name__ == '__main__':
 
     c = cli_auth_utils.get_authed_clitool("""
@@ -269,5 +299,9 @@ Available params for "set_vbucket_param":
     c.addCommand('set_vbucket_param', set_vbucket_param, 'type vbucket value')
     c.addCommand('start', start, 'start')
     c.addCommand('stop', stop, 'stop')
+
+    # Add collection get/set manifest methods
+    c.addCommand('set_collections', set_collections, 'set_collections filename')
+    c.addCommand('get_collections', get_collections, 'get_collections')
 
     c.execute()

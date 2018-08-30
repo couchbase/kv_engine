@@ -70,6 +70,10 @@ CMD_GET_LOCKED = 0x94
 CMD_COMPACT_DB = 0xb3
 CMD_GET_RANDOM_KEY = 0xb6
 
+# Collections
+CMD_COLLECTIONS_SET_MANIFEST = 0xb9
+CMD_COLLECTIONS_GET_MANIFEST = 0xba
+
 CMD_GET_ERROR_MAP = 0xfe
 
 # event IDs for the SYNC command responses

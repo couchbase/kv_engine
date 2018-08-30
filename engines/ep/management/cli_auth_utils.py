@@ -59,6 +59,7 @@ def cmd_decorator(f):
                 sys.exit(1)
 
         mc.enable_xerror()
+        mc.enable_collections()
         mc.hello("{0} {1}".format(os.path.split(sys.argv[0])[1],
                                 os.getenv("EP_ENGINE_VERSION",
                                           "unknown version")))
