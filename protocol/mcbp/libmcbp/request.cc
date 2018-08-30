@@ -185,8 +185,6 @@ bool cb::mcbp::Request::isQuiet() const {
         switch (getServerOpcode()) {
         case ServerOpcode::ClustermapChangeNotification:
             return false;
-        case ServerOpcode::GetUserPermissions:
-            return false;
         }
     }
 

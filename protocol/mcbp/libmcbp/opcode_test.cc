@@ -251,8 +251,7 @@ TEST(ClientOpcode_to_opcode, SpaceMayBeUsed) {
 
 const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
         {{ServerOpcode::ClustermapChangeNotification,
-          "ClustermapChangeNotification"},
-         {ServerOpcode::GetUserPermissions, "GetUserPermissions"}}};
+          "ClustermapChangeNotification"}}};
 
 TEST(ServerOpcode, to_string) {
     for (int ii = 0; ii < 0x100; ++ii) {

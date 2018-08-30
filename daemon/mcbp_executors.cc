@@ -860,7 +860,6 @@ static void execute_server_response_packet(Cookie& cookie,
 
     switch (response.getServerOpcode()) {
     case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
-    case cb::mcbp::ServerOpcode::GetUserPermissions:
         // ignore
         return;
     }
