@@ -22,8 +22,9 @@
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/runtime.h>
-#include <daemon/sasl_tasks.h>
+#include <daemon/start_sasl_auth_task.h>
 #include <daemon/stats.h>
+#include <daemon/step_sasl_auth_task.h>
 
 ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
     if (!connection.isSaslAuthEnabled()) {

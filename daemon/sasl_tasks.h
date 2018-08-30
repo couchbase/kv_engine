@@ -57,39 +57,3 @@ protected:
     std::pair<cb::sasl::Error, cb::const_char_buffer> response{
             cb::sasl::Error::FAIL, {}};
 };
-
-/**
- * The StartSaslAuthTask is used to handle the initial SASL
- * authentication message
- */
-class StartSaslAuthTask : public SaslAuthTask {
-public:
-    StartSaslAuthTask() = delete;
-
-    StartSaslAuthTask(const StartSaslAuthTask&) = delete;
-
-    StartSaslAuthTask(Cookie& cookie_,
-                      Connection& connection_,
-                      const std::string& mechanism_,
-                      const std::string& challenge_);
-
-    Status execute() override;
-};
-
-/**
- * The StepSaslAuthTask is used to handle the next SASL
- * authentication messages
- */
-class StepSaslAuthTask : public SaslAuthTask {
-public:
-    StepSaslAuthTask() = delete;
-
-    StepSaslAuthTask(const StepSaslAuthTask&) = delete;
-
-    StepSaslAuthTask(Cookie& cookie_,
-                     Connection& connection_,
-                     const std::string& mechanism_,
-                     const std::string& challenge_);
-
-    Status execute() override;
-};
