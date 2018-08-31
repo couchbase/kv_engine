@@ -82,12 +82,14 @@ public:
 
     virtual ~ConnHandler() {}
 
-    virtual ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
+    virtual ENGINE_ERROR_CODE addStream(uint32_t opaque,
+                                        Vbid vbucket,
                                         uint32_t flags);
 
-    virtual ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket);
+    virtual ENGINE_ERROR_CODE closeStream(uint32_t opaque, Vbid vbucket);
 
-    virtual ENGINE_ERROR_CODE streamEnd(uint32_t opaque, uint16_t vbucket,
+    virtual ENGINE_ERROR_CODE streamEnd(uint32_t opaque,
+                                        Vbid vbucket,
                                         uint32_t flags);
 
     virtual ENGINE_ERROR_CODE mutation(uint32_t opaque,
@@ -96,7 +98,7 @@ public:
                                        size_t priv_bytes,
                                        uint8_t datatype,
                                        uint64_t cas,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint32_t flags,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
@@ -111,7 +113,7 @@ public:
                                        size_t priv_bytes,
                                        uint8_t datatype,
                                        uint64_t cas,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        cb::const_byte_buffer meta);
@@ -122,7 +124,7 @@ public:
                                          size_t priv_bytes,
                                          uint8_t datatype,
                                          uint64_t cas,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          uint32_t delete_time);
@@ -133,35 +135,36 @@ public:
                                          size_t priv_bytes,
                                          uint8_t datatype,
                                          uint64_t cas,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          cb::const_byte_buffer meta);
 
     virtual ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
-                                             uint16_t vbucket,
+                                             Vbid vbucket,
                                              uint64_t start_seqno,
                                              uint64_t end_seqno,
                                              uint32_t flags);
 
-    virtual ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
+    virtual ENGINE_ERROR_CODE setVBucketState(uint32_t opaque,
+                                              Vbid vbucket,
                                               vbucket_state_t state);
 
     virtual ENGINE_ERROR_CODE streamRequest(uint32_t flags,
                                             uint32_t opaque,
-                                            uint16_t vbucket,
+                                            Vbid vbucket,
                                             uint64_t start_seqno,
                                             uint64_t end_seqno,
                                             uint64_t vbucket_uuid,
                                             uint64_t snapStartSeqno,
                                             uint64_t snapEndSeqno,
-                                            uint64_t *rollback_seqno,
+                                            uint64_t* rollback_seqno,
                                             dcp_add_failover_log callback);
 
     virtual ENGINE_ERROR_CODE noop(uint32_t opaque);
 
     virtual ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque,
-                                                    uint16_t vbucket,
+                                                    Vbid vbucket,
                                                     uint32_t buffer_bytes);
 
     virtual ENGINE_ERROR_CODE control(uint32_t opaque, const void* key,
@@ -181,7 +184,7 @@ public:
     virtual bool handleResponse(const protocol_binary_response_header* resp);
 
     virtual ENGINE_ERROR_CODE systemEvent(uint32_t opaque,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           mcbp::systemevent::id event,
                                           uint64_t bySeqno,
                                           cb::const_byte_buffer key,

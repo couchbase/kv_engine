@@ -66,16 +66,21 @@ public:
      */
     void cancelCheckpointCreatorTask();
 
-    ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
-                                    uint16_t vbucket, uint64_t start_seqno,
-                                    uint64_t end_seqno, uint64_t vbucket_uuid,
-                                    uint64_t last_seqno, uint64_t next_seqno,
-                                    uint64_t *rollback_seqno,
+    ENGINE_ERROR_CODE streamRequest(uint32_t flags,
+                                    uint32_t opaque,
+                                    Vbid vbucket,
+                                    uint64_t start_seqno,
+                                    uint64_t end_seqno,
+                                    uint64_t vbucket_uuid,
+                                    uint64_t last_seqno,
+                                    uint64_t next_seqno,
+                                    uint64_t* rollback_seqno,
                                     dcp_add_failover_log callback) override;
 
     ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
 
-    ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque, uint16_t vbucket,
+    ENGINE_ERROR_CODE bufferAcknowledgement(uint32_t opaque,
+                                            Vbid vbucket,
                                             uint32_t buffer_bytes) override;
 
     ENGINE_ERROR_CODE control(uint32_t opaque, const void* key, uint16_t nkey,
@@ -99,11 +104,11 @@ public:
 
     void setDisconnect() override;
 
-    void notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno);
+    void notifySeqnoAvailable(Vbid vbucket, uint64_t seqno);
 
-    void closeStreamDueToVbStateChange(uint16_t vbucket, vbucket_state_t state);
+    void closeStreamDueToVbStateChange(Vbid vbucket, vbucket_state_t state);
 
-    void closeStreamDueToRollback(uint16_t vbucket);
+    void closeStreamDueToRollback(Vbid vbucket);
 
     /**
      * This function handles a stream that is detected as slow by the checkpoint
@@ -115,7 +120,7 @@ public:
      *        slow.
      * @return true if the cursor was removed from the checkpoint manager
      */
-    bool handleSlowStream(uint16_t vbid, const CheckpointCursor* cursor);
+    bool handleSlowStream(Vbid vbid, const CheckpointCursor* cursor);
 
     void closeAllStreams();
 
@@ -131,7 +136,7 @@ public:
 
     size_t getTotalUncompressedDataSize();
 
-    std::vector<uint16_t> getVBVector(void);
+    std::vector<Vbid> getVBVector();
 
     /**
      * Close the stream for given vbucket stream
@@ -140,9 +145,9 @@ public:
      * @return ENGINE_SUCCESS upon a successful close
      *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
      */
-    ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket) override;
+    ENGINE_ERROR_CODE closeStream(uint32_t opaque, Vbid vbucket) override;
 
-    void notifyStreamReady(uint16_t vbucket);
+    void notifyStreamReady(Vbid vbucket);
 
     void notifyBackfillManager();
     bool recordBackfillManagerBytesRead(size_t bytes, bool force);
@@ -297,7 +302,7 @@ public:
     /** Searches the streams map for a stream for vbucket ID. Returns the
      *  found stream, or an empty pointer if none found.
      */
-    std::shared_ptr<Stream> findStream(uint16_t vbid);
+    std::shared_ptr<Stream> findStream(Vbid vbid);
 
 protected:
     /** We may disconnect if noop messages are enabled and the last time we
@@ -387,7 +392,7 @@ protected:
     DcpReadyQueue ready;
 
     // Map of vbid -> stream. Map itself is atomic (thread-safe).
-    typedef AtomicUnorderedMap<uint16_t, std::shared_ptr<Stream>> StreamsMap;
+    typedef AtomicUnorderedMap<Vbid, std::shared_ptr<Stream>> StreamsMap;
     StreamsMap streams;
 
     std::atomic<size_t> itemsSent;

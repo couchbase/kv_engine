@@ -42,7 +42,7 @@ backfill_status_t DCPBackfillMemory::run() {
                 "DCPBackfillMemory::run(): "
                 "({}) running backfill ended prematurely as the associated {} "
                 "is deleted; start seqno:{}, end seqno:{}",
-                Vbid(getVBucketId()),
+                getVBucketId(),
                 evb ? "vbucket" : "stream",
                 startSeqno,
                 endSeqno);
@@ -58,7 +58,7 @@ backfill_status_t DCPBackfillMemory::run() {
                 "DCPBackfillMemory::run(): "
                 "({}) running backfill ended prematurely with vb in dead "
                 "state; start seqno:{}, end seqno:{}",
-                Vbid(getVBucketId()),
+                getVBucketId(),
                 startSeqno,
                 endSeqno);
         return backfill_finished;
@@ -77,7 +77,7 @@ backfill_status_t DCPBackfillMemory::run() {
                 "DCPBackfillMemory::run(): ({}) running backfill failed with "
                 "error {} ; start seqno:{}, end seqno:{}. "
                 "Hence closing the stream",
-                Vbid(getVBucketId()),
+                getVBucketId(),
                 status,
                 startSeqno,
                 endSeqno);
@@ -138,7 +138,7 @@ backfill_status_t DCPBackfillMemoryBuffered::run() {
                 "DCPBackfillMemoryBuffered::run(): ({}) running backfill ended "
                 "prematurely with vb in dead state; start seqno:{}, "
                 "end seqno:{}",
-                Vbid(getVBucketId()),
+                getVBucketId(),
                 startSeqno,
                 endSeqno);
         return backfill_finished;
@@ -182,7 +182,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                 "DCPBackfillMemoryBuffered::create(): "
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
-                Vbid(getVBucketId()));
+                getVBucketId());
         transitionState(BackfillState::Done);
         return backfill_finished;
     }
@@ -194,7 +194,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
             rangeItr = std::move(*rangeItrOptional);
         } else {
             stream->log(spdlog::level::level_enum::debug,
-                        "vb:{}"
+                        "{}"
                         " Deferring backfill creation as another "
                         "range iterator is already on the sequence list",
                         getVBucketId());
@@ -203,7 +203,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
     } catch (const std::bad_alloc&) {
         stream->log(spdlog::level::level_enum::warn,
                     "Alloc error when trying to create a range iterator"
-                    "on the sequence list for (vb:{})",
+                    "on the sequence list for ({})",
                     getVBucketId());
         /* Try backfilling again later; here we snooze because system has
            hit ENOMEM */
@@ -264,7 +264,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                 "DCPBackfillMemoryBuffered::scan(): "
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
-                Vbid(getVBucketId()));
+                getVBucketId());
         transitionState(BackfillState::Done);
         return backfill_finished;
     }
@@ -288,7 +288,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             stream->log(spdlog::level::level_enum::warn,
                         "Alloc error when trying to create an "
                         "item copy from hash table. Item seqno:{}"
-                        ", vb:{}",
+                        ", {}",
                         (*rangeItr).getBySeqno(),
                         getVBucketId());
             /* Try backfilling again later; here we snooze because system has
@@ -304,7 +304,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                backfillMgr */
             TRACE_INSTANT1("dcp/backfill", "ScanDefer", "seqno", seqnoDbg);
             stream->log(spdlog::level::level_enum::debug,
-                        "vb:{} Deferring backfill at seqno:{}"
+                        "{} Deferring backfill at seqno:{}"
                         "as scan buffer or backfill buffer is full",
                         getVBucketId(),
                         seqnoDbg);
@@ -329,7 +329,7 @@ void DCPBackfillMemoryBuffered::complete(bool cancelled) {
                 "DCPBackfillMemoryBuffered::complete(): "
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn; {}",
-                Vbid(getVBucketId()),
+                getVBucketId(),
                 cancelled ? "cancelled" : "finished");
         transitionState(BackfillState::Done);
         return;
@@ -342,7 +342,7 @@ void DCPBackfillMemoryBuffered::complete(bool cancelled) {
     auto severity = cancelled ? spdlog::level::level_enum::info
                               : spdlog::level::level_enum::debug;
     stream->log(severity,
-                "(vb:{}) Backfill task ({} to {}) {}",
+                "({}) Backfill task ({} to {}) {}",
                 getVBucketId(),
                 startSeqno,
                 endSeqno,

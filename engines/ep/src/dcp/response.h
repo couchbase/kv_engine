@@ -121,17 +121,27 @@ std::ostream& operator<<(std::ostream& os, const DcpResponse& r);
 
 class StreamRequest : public DcpResponse {
 public:
-    StreamRequest(uint16_t vbucket, uint32_t opaque, uint32_t flags,
-                  uint64_t startSeqno, uint64_t endSeqno, uint64_t vbucketUUID,
-                  uint64_t snapStartSeqno, uint64_t snapEndSeqno)
-        : DcpResponse(Event::StreamReq, opaque), startSeqno_(startSeqno),
-          endSeqno_(endSeqno), vbucketUUID_(vbucketUUID),
-          snapStartSeqno_(snapStartSeqno), snapEndSeqno_(snapEndSeqno),
-          flags_(flags), vbucket_(vbucket) {}
+    StreamRequest(Vbid vbucket,
+                  uint32_t opaque,
+                  uint32_t flags,
+                  uint64_t startSeqno,
+                  uint64_t endSeqno,
+                  uint64_t vbucketUUID,
+                  uint64_t snapStartSeqno,
+                  uint64_t snapEndSeqno)
+        : DcpResponse(Event::StreamReq, opaque),
+          startSeqno_(startSeqno),
+          endSeqno_(endSeqno),
+          vbucketUUID_(vbucketUUID),
+          snapStartSeqno_(snapStartSeqno),
+          snapEndSeqno_(snapEndSeqno),
+          flags_(flags),
+          vbucket_(vbucket) {
+    }
 
     ~StreamRequest() {}
 
-    uint16_t getVBucket() {
+    Vbid getVBucket() {
         return vbucket_;
     }
 
@@ -172,7 +182,7 @@ private:
     uint64_t snapStartSeqno_;
     uint64_t snapEndSeqno_;
     uint32_t flags_;
-    uint16_t vbucket_;
+    Vbid vbucket_;
 };
 
 class AddStreamResponse : public DcpResponse {
@@ -242,9 +252,7 @@ private:
 
 class StreamEndResponse : public DcpResponse {
 public:
-    StreamEndResponse(uint32_t opaque,
-                      end_stream_status_t flags,
-                      uint16_t vbucket)
+    StreamEndResponse(uint32_t opaque, end_stream_status_t flags, Vbid vbucket)
         : DcpResponse(Event::StreamEnd, opaque),
           flags_(statusToFlags(flags)),
           vbucket_(vbucket) {
@@ -261,7 +269,7 @@ public:
         return flags_;
     }
 
-    uint16_t getVbucket() const {
+    Vbid getVbucket() const {
         return vbucket_;
     }
 
@@ -273,16 +281,18 @@ public:
 
 private:
     end_stream_status_t flags_;
-    uint16_t vbucket_;
+    Vbid vbucket_;
 };
 
 class SetVBucketState : public DcpResponse {
 public:
-    SetVBucketState(uint32_t opaque, uint16_t vbucket, vbucket_state_t state)
-        : DcpResponse(Event::SetVbucket, opaque), vbucket_(vbucket),
-          state_(state) {}
+    SetVBucketState(uint32_t opaque, Vbid vbucket, vbucket_state_t state)
+        : DcpResponse(Event::SetVbucket, opaque),
+          vbucket_(vbucket),
+          state_(state) {
+    }
 
-    uint16_t getVBucket() {
+    Vbid getVBucket() {
         return vbucket_;
     }
 
@@ -297,18 +307,25 @@ public:
     static const uint32_t baseMsgBytes;
 
 private:
-    uint16_t vbucket_;
+    Vbid vbucket_;
     vbucket_state_t state_;
 };
 
 class SnapshotMarker : public DcpResponse {
 public:
-    SnapshotMarker(uint32_t opaque, uint16_t vbucket, uint64_t start_seqno,
-                   uint64_t end_seqno, uint32_t flags)
-        : DcpResponse(Event::SnapshotMarker, opaque), vbucket_(vbucket),
-          start_seqno_(start_seqno), end_seqno_(end_seqno), flags_(flags) {}
+    SnapshotMarker(uint32_t opaque,
+                   Vbid vbucket,
+                   uint64_t start_seqno,
+                   uint64_t end_seqno,
+                   uint32_t flags)
+        : DcpResponse(Event::SnapshotMarker, opaque),
+          vbucket_(vbucket),
+          start_seqno_(start_seqno),
+          end_seqno_(end_seqno),
+          flags_(flags) {
+    }
 
-    uint32_t getVBucket() {
+    Vbid getVBucket() {
         return vbucket_;
     }
 
@@ -331,7 +348,7 @@ public:
     static const uint32_t baseMsgBytes;
 
 private:
-    uint16_t vbucket_;
+    Vbid vbucket_;
     uint64_t start_seqno_;
     uint64_t end_seqno_;
     uint32_t flags_;
@@ -374,7 +391,7 @@ public:
         return std::make_unique<Item>(*item_);
     }
 
-    uint16_t getVBucket() {
+    Vbid getVBucket() {
         return item_->getVBucketId();
     }
 
@@ -441,7 +458,7 @@ public:
             sizeof(protocol_binary_request_header) + sizeof(SystemEvent) +
             sizeof(uint16_t) + sizeof(int64_t);
     virtual mcbp::systemevent::id getSystemEvent() const = 0;
-    virtual uint16_t getVBucket() const = 0;
+    virtual Vbid getVBucket() const = 0;
     virtual cb::const_char_buffer getKey() const = 0;
     virtual cb::const_byte_buffer getEventData() const = 0;
 };
@@ -457,7 +474,7 @@ public:
     SystemEventConsumerMessage(uint32_t opaque,
                                mcbp::systemevent::id ev,
                                int64_t seqno,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                cb::const_byte_buffer _key,
                                cb::const_byte_buffer _eventData)
         : SystemEventMessage(opaque),
@@ -485,7 +502,7 @@ public:
         return OptionalSeqno{bySeqno};
     }
 
-    uint16_t getVBucket() const override {
+    Vbid getVBucket() const override {
         return vbid;
     }
 
@@ -500,7 +517,7 @@ public:
 private:
     mcbp::systemevent::id event;
     int64_t bySeqno;
-    uint16_t vbid;
+    Vbid vbid;
     std::string key;
     std::vector<uint8_t> eventData;
 };
@@ -548,7 +565,7 @@ public:
         return OptionalSeqno{item->getBySeqno()};
     }
 
-    uint16_t getVBucket() const override {
+    Vbid getVBucket() const override {
         return item->getVBucketId();
     }
 

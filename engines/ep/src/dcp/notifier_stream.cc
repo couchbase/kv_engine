@@ -32,7 +32,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
                                const std::string& name,
                                uint32_t flags,
                                uint32_t opaque,
-                               uint16_t vb,
+                               Vbid vb,
                                uint64_t st_seqno,
                                uint64_t en_seqno,
                                uint64_t vb_uuid,
@@ -64,7 +64,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e,
         itemsReady.store(true);
     }
     p->getLogger().log(spdlog::level::level_enum::info,
-                       "(vb:{}) stream created with start seqno {} and "
+                       "({}) stream created with start seqno {} and "
                        "end seqno {}",
                        vb,
                        st_seqno,
@@ -114,7 +114,7 @@ std::unique_ptr<DcpResponse> NotifierStream::next() {
 
 void NotifierStream::transitionState(StreamState newState) {
     log(spdlog::level::level_enum::debug,
-        "NotifierStream::transitionState: (vb:{}) Transitioning from {} to {}",
+        "NotifierStream::transitionState: ({}) Transitioning from {} to {}",
         vb_,
         to_string(state_.load()),
         to_string(newState));

@@ -76,8 +76,7 @@ private:
 const uint16_t EP_PRIMARY_SHARD = 0;
 class KVShard;
 
-typedef std::pair<uint16_t, ExTask> CompTaskEntry;
-
+typedef std::pair<Vbid, ExTask> CompTaskEntry;
 
 /**
  * KVBucket is the base class for concrete Key/Value bucket implementations

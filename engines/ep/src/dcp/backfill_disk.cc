@@ -186,18 +186,18 @@ backfill_status_t DCPBackfillDisk::create() {
                 "DCPBackfillDisk::create(): "
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn ",
-                Vbid(getVBucketId()));
+                getVBucketId());
         transitionState(backfill_state_done);
         return backfill_finished;
     }
-    uint16_t vbid = stream->getVBucket();
+    Vbid vbid = stream->getVBucket();
 
     uint64_t lastPersistedSeqno =
             engine.getKVBucket()->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
         stream->log(spdlog::level::level_enum::info,
-                    "(vb:{}) Rescheduling backfill"
+                    "({}) Rescheduling backfill"
                     "because backfill up to seqno {}"
                     " is needed but only up to "
                     "{} is persisted",
@@ -232,7 +232,7 @@ backfill_status_t DCPBackfillDisk::create() {
     if (!scanCtx || (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno))) {
         auto vb = engine.getVBucket(vbid);
         std::stringstream log;
-        log << "DCPBackfillDisk::create(): (vb:" << getVBucketId()
+        log << "DCPBackfillDisk::create(): (" << getVBucketId()
             << ") cannot be scanned. Associated stream is set to dead state.";
         end_stream_status_t status = END_STREAM_BACKFILL_FAIL;
         if (scanCtx) {
@@ -268,7 +268,7 @@ backfill_status_t DCPBackfillDisk::scan() {
         return complete(true);
     }
 
-    uint16_t vbid = stream->getVBucket();
+    Vbid vbid = stream->getVBucket();
 
     if (!(stream->isActive())) {
         return complete(true);
@@ -298,7 +298,7 @@ backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
                 "DCPBackfillDisk::complete(): "
                 "({}) backfill create ended prematurely as the associated "
                 "stream is deleted by the producer conn; {}",
-                Vbid(getVBucketId()),
+                getVBucketId(),
                 cancelled ? "cancelled" : "finished");
         transitionState(backfill_state_done);
         return backfill_finished;
@@ -309,7 +309,7 @@ backfill_status_t DCPBackfillDisk::complete(bool cancelled) {
     auto severity = cancelled ? spdlog::level::level_enum::info
                               : spdlog::level::level_enum::debug;
     stream->log(severity,
-                "(vb:{}) Backfill task ({} to {}) {}",
+                "({}) Backfill task ({} to {}) {}",
                 vbid,
                 startSeqno,
                 endSeqno,

@@ -94,8 +94,8 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
                                                    ADD_STAT add_stat,
                                                    const void* c) const {
     // Take a copy of the queue data under lock; then format it to stats.
-    std::queue<VBucket::id_type> qCopy;
-    std::unordered_set<VBucket::id_type> qMapCopy;
+    std::queue<Vbid> qCopy;
+    std::unordered_set<Vbid> qMapCopy;
     {
         LockHolder lh(workQueueLock);
         qCopy = queue;
@@ -110,7 +110,7 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
     // Form a comma-separated string of the queue's contents.
     std::string contents;
     while (!qCopy.empty()) {
-        contents += std::to_string(qCopy.front()) + ",";
+        contents += std::to_string(qCopy.front().get()) + ",";
         qCopy.pop();
     }
     if (!contents.empty()) {
@@ -122,7 +122,7 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
     // Form a comma-separated string of the queue map's contents.
     std::string qMapContents;
     for (auto& vbid : qMapCopy) {
-        qMapContents += std::to_string(vbid) + ",";
+        qMapContents += std::to_string(vbid.get()) + ",";
     }
     if (!qMapContents.empty()) {
         qMapContents.pop_back();

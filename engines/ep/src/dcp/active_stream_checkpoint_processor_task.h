@@ -64,7 +64,7 @@ public:
 
 private:
     std::shared_ptr<ActiveStream> queuePop() {
-        uint16_t vbid = 0;
+        Vbid vbid = Vbid(0);
         {
             LockHolder lh(workQueueLock);
             if (queue.empty()) {
@@ -90,7 +90,7 @@ private:
         return queue.empty();
     }
 
-    void pushUnique(uint16_t vbid) {
+    void pushUnique(Vbid vbid) {
         LockHolder lh(workQueueLock);
         if (queuedVbuckets.count(vbid) == 0) {
             queue.push(vbid);
@@ -116,8 +116,8 @@ private:
      * new one, then we would end up not updating it here as we append to the
      * queue only if there is no entry for the vbucket in the queue.
      */
-    std::queue<VBucket::id_type> queue;
-    std::unordered_set<VBucket::id_type> queuedVbuckets;
+    std::queue<Vbid> queue;
+    std::unordered_set<Vbid> queuedVbuckets;
 
     std::atomic<bool> notified;
     const size_t iterationsBeforeYield;

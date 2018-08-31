@@ -39,7 +39,7 @@ class StreamEndResponse;
 
 class DcpConsumer : public ConnHandler,
                     public std::enable_shared_from_this<DcpConsumer> {
-    typedef std::map<uint32_t, std::pair<uint32_t, uint16_t>> opaque_map;
+    typedef std::map<uint32_t, std::pair<uint32_t, Vbid>> opaque_map;
 
 public:
 
@@ -74,7 +74,7 @@ public:
             const std::string& name,
             uint32_t flags,
             uint32_t opaque,
-            uint16_t vb,
+            Vbid vb,
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint64_t vb_uuid,
@@ -82,12 +82,14 @@ public:
             uint64_t snap_end_seqno,
             uint64_t vb_high_seqno);
 
-    ENGINE_ERROR_CODE addStream(uint32_t opaque, uint16_t vbucket,
+    ENGINE_ERROR_CODE addStream(uint32_t opaque,
+                                Vbid vbucket,
                                 uint32_t flags) override;
 
-    ENGINE_ERROR_CODE closeStream(uint32_t opaque, uint16_t vbucket) override;
+    ENGINE_ERROR_CODE closeStream(uint32_t opaque, Vbid vbucket) override;
 
-    ENGINE_ERROR_CODE streamEnd(uint32_t opaque, uint16_t vbucket,
+    ENGINE_ERROR_CODE streamEnd(uint32_t opaque,
+                                Vbid vbucket,
                                 uint32_t flags) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
@@ -96,7 +98,7 @@ public:
                                size_t priv_bytes,
                                uint8_t datatype,
                                uint64_t cas,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint32_t flags,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -111,7 +113,7 @@ public:
                                size_t priv_bytes,
                                uint8_t datatype,
                                uint64_t cas,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                cb::const_byte_buffer meta) override;
@@ -122,7 +124,7 @@ public:
                                  size_t priv_bytes,
                                  uint8_t datatype,
                                  uint64_t cas,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  uint32_t delete_time) override;
@@ -133,20 +135,21 @@ public:
                                  size_t priv_bytes,
                                  uint8_t datatype,
                                  uint64_t cas,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  cb::const_byte_buffer meta) override;
 
     ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
-                                     uint16_t vbucket,
+                                     Vbid vbucket,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,
                                      uint32_t flags) override;
 
     ENGINE_ERROR_CODE noop(uint32_t opaque) override;
 
-    ENGINE_ERROR_CODE setVBucketState(uint32_t opaque, uint16_t vbucket,
+    ENGINE_ERROR_CODE setVBucketState(uint32_t opaque,
+                                      Vbid vbucket,
                                       vbucket_state_t state) override;
 
     ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
@@ -172,23 +175,23 @@ public:
      * @param eventData The event's specific data.
      */
     ENGINE_ERROR_CODE systemEvent(uint32_t opaque,
-                                  uint16_t vbucket,
+                                  Vbid vbucket,
                                   mcbp::systemevent::id event,
                                   uint64_t bySeqno,
                                   cb::const_byte_buffer key,
                                   cb::const_byte_buffer eventData) override;
 
-    bool doRollback(uint32_t opaque, uint16_t vbid, uint64_t rollbackSeqno);
+    bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
     void addStats(ADD_STAT add_stat, const void *c) override;
 
     void aggregateQueueStats(ConnCounter& aggregator) override;
 
-    void notifyStreamReady(uint16_t vbucket);
+    void notifyStreamReady(Vbid vbucket);
 
     void closeAllStreams();
 
-    void closeStreamDueToVbStateChange(uint16_t vbucket, vbucket_state_t state);
+    void closeStreamDueToVbStateChange(Vbid vbucket, vbucket_state_t state);
 
     process_items_error_t processBufferedItems();
 
@@ -200,7 +203,7 @@ public:
 
     static const std::string& getControlMsgKey(void);
 
-    bool isStreamPresent(uint16_t vbucket);
+    bool isStreamPresent(Vbid vbucket);
 
     void cancelTask();
 
@@ -253,7 +256,7 @@ protected:
 
     // Searches the streams map for a stream for vbucket ID. Returns the found
     // stream, or an empty pointer if none found.
-    std::shared_ptr<PassiveStream> findStream(uint16_t vbid);
+    std::shared_ptr<PassiveStream> findStream(Vbid vbid);
 
     std::unique_ptr<DcpResponse> getNextItem();
 
@@ -265,7 +268,7 @@ protected:
      * @param vbucket the provided vbucket
      * @return true if the session is open, false otherwise
      */
-    bool isValidOpaque(uint32_t opaque, uint16_t vbucket);
+    bool isValidOpaque(uint32_t opaque, Vbid vbucket);
 
     void streamAccepted(uint32_t opaque,
                         uint16_t status,
@@ -295,7 +298,7 @@ protected:
     ENGINE_ERROR_CODE sendStreamEndOnClientStreamClose(
             struct dcp_message_producers* producers);
 
-    void notifyVbucketReady(uint16_t vbucket);
+    void notifyVbucketReady(Vbid vbucket);
 
     /**
      * Drain the stream of bufferedItems
@@ -323,7 +326,7 @@ protected:
      * @returns true/false which will be converted to SUCCESS/DISCONNECT by the
      *          engine.
      */
-    bool handleRollbackResponse(uint16_t vbid,
+    bool handleRollbackResponse(Vbid vbid,
                                 uint32_t opaque,
                                 uint64_t rollbackSeqno);
 
@@ -336,7 +339,7 @@ protected:
                                cb::const_byte_buffer value,
                                uint8_t datatype,
                                uint64_t cas,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint64_t bySeqno,
                                uint64_t revSeqno,
                                cb::const_byte_buffer meta,
@@ -386,10 +389,10 @@ protected:
     std::atomic<bool> processorNotification;
 
     std::mutex readyMutex;
-    std::list<uint16_t> ready;
+    std::list<Vbid> ready;
 
     // Map of vbid -> passive stream. Map itself is atomic (thread-safe).
-    typedef AtomicUnorderedMap<uint16_t, std::shared_ptr<PassiveStream>>
+    typedef AtomicUnorderedMap<Vbid, std::shared_ptr<PassiveStream>>
             PassiveStreamMap;
     PassiveStreamMap streams;
 
@@ -466,12 +469,11 @@ class RollbackTask : public GlobalTask {
 public:
     RollbackTask(EventuallyPersistentEngine* e,
                  uint32_t opaque_,
-                 uint16_t vbid_,
+                 Vbid vbid_,
                  uint64_t rollbackSeqno_,
                  std::shared_ptr<DcpConsumer> conn)
         : GlobalTask(e, TaskId::RollbackTask, 0, false),
-          description("Running rollback task for vbucket " +
-                      std::to_string(vbid_)),
+          description("Running rollback task for " + vbid_.to_string()),
           engine(e),
           opaque(opaque_),
           vbid(vbid_),
@@ -495,7 +497,7 @@ private:
     const std::string description;
     EventuallyPersistentEngine *engine;
     uint32_t opaque;
-    uint16_t vbid;
+    Vbid vbid;
     uint64_t rollbackSeqno;
     std::shared_ptr<DcpConsumer> cons;
 };

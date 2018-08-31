@@ -117,5 +117,5 @@ private:
     SequenceList::RangeIterator rangeItr;
 
     // VBucket ID, only used for debug / tracing.
-    const VBucket::id_type vbid;
+    const Vbid vbid;
 };

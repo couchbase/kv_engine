@@ -18,6 +18,7 @@
 #pragma once
 
 #include <memcached/engine_common.h>
+#include <memcached/vbucket.h>
 
 #include <mutex>
 #include <queue>
@@ -37,13 +38,13 @@
  */
 class DcpReadyQueue {
 public:
-    bool exists(uint16_t vbucket);
+    bool exists(Vbid vbucket);
 
     /**
      * Return true and set the ref-param 'frontValue' if the queue is not
      * empty. frontValue is set to the front of the queue.
      */
-    bool popFront(uint16_t& frontValue);
+    bool popFront(Vbid& frontValue);
 
     /**
      * Pop the front item.
@@ -56,7 +57,7 @@ public:
      * @return true if the queue was previously empty (i.e. we have
      * transitioned from zero -> one elements in the queue).
      */
-    bool pushUnique(uint16_t vbucket);
+    bool pushUnique(Vbid vbucket);
 
     /**
      * Size of the queue.
@@ -71,12 +72,12 @@ private:
     std::mutex lock;
 
     /* a queue of vbuckets that are ready for producing */
-    std::queue<uint16_t> readyQueue;
+    std::queue<Vbid> readyQueue;
 
     /**
      * maintain a std::unordered_set of values that are in the readyQueue.
      * find() is performed by front-end threads so we want it to be
      * efficient so just a set lookup is required.
      */
-    std::unordered_set<uint16_t> queuedValues;
+    std::unordered_set<Vbid> queuedValues;
 };

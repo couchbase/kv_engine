@@ -60,7 +60,7 @@ public:
     Stream(const std::string& name,
            uint32_t flags,
            uint32_t opaque,
-           uint16_t vb,
+           Vbid vb,
            uint64_t start_seqno,
            uint64_t end_seqno,
            uint64_t vb_uuid,
@@ -72,7 +72,9 @@ public:
 
     uint32_t getFlags() { return flags_; }
 
-    uint16_t getVBucket() { return vb_; }
+    Vbid getVBucket() {
+        return vb_;
+    }
 
     uint32_t getOpaque() { return opaque_; }
 
@@ -160,7 +162,7 @@ protected:
     std::string name_;
     uint32_t flags_;
     uint32_t opaque_;
-    uint16_t vb_;
+    Vbid vb_;
     uint64_t start_seqno_;
     uint64_t end_seqno_;
     uint64_t vb_uuid_;

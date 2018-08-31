@@ -807,7 +807,7 @@ void EPBucket::updateCompactionTasks(DBFileId db_file_id) {
     bool erased = false, woke = false;
     std::list<CompTaskEntry>::iterator it = compactionTasks.begin();
     while (it != compactionTasks.end()) {
-        if ((*it).first == db_file_id) {
+        if ((*it).first.get() == db_file_id) {
             it = compactionTasks.erase(it);
             erased = true;
         } else {

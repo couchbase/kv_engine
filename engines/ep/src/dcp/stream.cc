@@ -58,7 +58,7 @@ const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
 Stream::Stream(const std::string& name,
                uint32_t flags,
                uint32_t opaque,
-               uint16_t vb,
+               Vbid vb,
                uint64_t start_seqno,
                uint64_t end_seqno,
                uint64_t vb_uuid,
@@ -173,7 +173,7 @@ std::unique_ptr<DcpResponse> Stream::popFromReadyQ(void) {
                     "readyQ size for stream {} ({}) underflow, likely wrong "
                     "stat calculation! curr size: {}; new size: {}",
                     name_.c_str(),
-                    Vbid(getVBucket()),
+                    getVBucket(),
                     readyQueueMemory.load(std::memory_order_relaxed),
                     respSize);
             readyQueueMemory.store(0, std::memory_order_relaxed);
@@ -193,29 +193,44 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
     try {
         const int bsize = 1024;
         char buffer[bsize];
-        checked_snprintf(buffer, bsize, "%s:stream_%d_flags", name_.c_str(),
-                         vb_);
+        checked_snprintf(
+                buffer, bsize, "%s:stream_%d_flags", name_.c_str(), vb_.get());
         add_casted_stat(buffer, flags_, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_opaque", name_.c_str(),
-                         vb_);
+        checked_snprintf(
+                buffer, bsize, "%s:stream_%d_opaque", name_.c_str(), vb_.get());
         add_casted_stat(buffer, opaque_, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_start_seqno",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_start_seqno",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buffer, start_seqno_, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_end_seqno", name_.c_str(),
-                         vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_end_seqno",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buffer, end_seqno_, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_vb_uuid", name_.c_str(),
-                         vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_vb_uuid",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buffer, vb_uuid_, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_snap_start_seqno",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_snap_start_seqno",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buffer, snap_start_seqno_, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_snap_end_seqno",
-                         name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_snap_end_seqno",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buffer, snap_end_seqno_, add_stat, c);
-        checked_snprintf(buffer, bsize, "%s:stream_%d_state", name_.c_str(),
-                         vb_);
+        checked_snprintf(
+                buffer, bsize, "%s:stream_%d_state", name_.c_str(), vb_.get());
         add_casted_stat(buffer, to_string(state_.load()), add_stat, c);
     } catch (std::exception& error) {
         EP_LOG_WARN("Stream::addStats: Failed to build stats: {}",

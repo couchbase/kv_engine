@@ -98,7 +98,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 
     p->getLogger().log(
             spdlog::level::info,
-            "(vb:{}) Creating {}stream with start seqno {} and end seqno {}; "
+            "({}) Creating {}stream with start seqno {} and end seqno {}; "
             "requested end seqno was {}",
             vbucket.getId(),
             type,
@@ -174,7 +174,7 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
             throw std::logic_error(
                     "ActiveStream::next: Invalid state "
                     "StreamReading for stream " +
-                    connHeader + " vb " + std::to_string(vb_));
+                    connHeader + " " + vb_.to_string());
         }
         break;
     case StreamState::Dead:
@@ -217,7 +217,7 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         cursor = result.cursor;
     } catch (std::exception& error) {
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) Failed to register cursor: {}",
+            "({}) Failed to register cursor: {}",
             vb_,
             error.what());
         endStream(END_STREAM_STATE);
@@ -231,7 +231,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
 
         if (!isBackfilling()) {
             log(spdlog::level::level_enum::warn,
-                "(vb:{}) ActiveStream::"
+                "({}) ActiveStream::"
                 "markDiskSnapshot: Unexpected state_:{}",
                 vb_,
                 to_string(state_.load()));
@@ -249,7 +249,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
             log(spdlog::level::level_enum::warn,
-                "(vb:{}) "
+                "({}) "
                 "ActiveStream::markDiskSnapshot, vbucket "
                 "does not exist",
                 vb_);
@@ -263,7 +263,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
                    (incomplete snapshot) */
                 snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
                 log(spdlog::level::level_enum::info,
-                    "(vb:{}) Merging backfill and memory snapshot for a "
+                    "({}) Merging backfill and memory snapshot for a "
                     "replica vbucket, backfill start seqno {}, "
                     "backfill end seqno {}, "
                     "snapshot end seqno after merge {}",
@@ -276,7 +276,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         }
 
         log(spdlog::level::level_enum::info,
-            "(vb:{}) Sending disk snapshot with start seqno {} and end "
+            "({}) Sending disk snapshot with start seqno {} and end "
             "seqno {}",
             vb_,
             startSeqno,
@@ -340,7 +340,7 @@ void ActiveStream::completeBackfill() {
         LockHolder lh(streamMutex);
         if (isBackfilling()) {
             log(spdlog::level::level_enum::info,
-                "(vb:{}) Backfill complete, {}"
+                "({}) Backfill complete, {}"
                 " items "
                 "read from disk, {}"
                 " from memory, last seqno read: "
@@ -352,7 +352,7 @@ void ActiveStream::completeBackfill() {
                 pendingBackfill ? "True" : "False");
         } else {
             log(spdlog::level::level_enum::warn,
-                "(vb:{}) ActiveStream::completeBackfill: "
+                "({}) ActiveStream::completeBackfill: "
                 "Unexpected state_:{}",
                 vb_,
                 to_string(state_.load()));
@@ -374,7 +374,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) not present during ack for set "
+            "({}) not present during ack for set "
             "vbucket during takeover",
             vb_);
         return;
@@ -390,7 +390,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
         if (isTakeoverWait()) {
             if (takeoverState == vbucket_state_pending) {
                 log(spdlog::level::level_enum::debug,
-                    "(vb:{}) Receive ack for set vbucket state to "
+                    "({}) Receive ack for set vbucket state to "
                     "pending message",
                     vb_);
 
@@ -406,21 +406,21 @@ void ActiveStream::setVBucketStateAckRecieved() {
                         &vbStateLh);
 
                 log(spdlog::level::level_enum::info,
-                    "(vb:{}) Vbucket marked as dead, last sent "
+                    "({}) Vbucket marked as dead, last sent "
                     "seqno: {}, high seqno: {}",
                     vb_,
                     lastSentSeqno.load(),
                     vbucket->getHighSeqno());
             } else {
                 log(spdlog::level::level_enum::info,
-                    "(vb:{}) Receive ack for set vbucket state to "
+                    "({}) Receive ack for set vbucket state to "
                     "active message",
                     vb_);
                 endStream(END_STREAM_OK);
             }
         } else {
             log(spdlog::level::level_enum::warn,
-                "(vb:{}) Unexpected ack for set vbucket op on "
+                "({}) Unexpected ack for set vbucket op on "
                 "stream '{}' state '{}'",
                 vb_,
                 name_,
@@ -443,7 +443,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
            (MB-24905 is open to make the accounting cleaner) */
         auto producer = producerPtr.lock();
         if (!producer) {
-            throw std::logic_error("(vb:" + std::to_string(vb_) +
+            throw std::logic_error("(" + vb_.to_string() +
                                    " )Producer reference null in the stream in "
                                    "backfillPhase(). This should not happen as "
                                    "the function is called from the producer "
@@ -553,7 +553,7 @@ std::unique_ptr<DcpResponse> ActiveStream::deadPhase() {
     auto resp = nextQueuedItem();
     if (!resp) {
         log(spdlog::level::level_enum::info,
-            "(vb:{}) Stream closed, "
+            "({}) Stream closed, "
             "{} items sent from backfill phase, "
             "{} items sent from memory phase, "
             "{} was last seqno sent",
@@ -584,19 +584,19 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
                          bsize,
                          "%s:stream_%d_backfill_disk_items",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, backfillItems.disk, add_stat, c);
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_backfill_mem_items",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, backfillItems.memory, add_stat, c);
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_backfill_sent",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, backfillItems.sent, add_stat, c);
         checked_snprintf(
                 buffer, bsize, "%s:stream_%d_memory_phase", name_.c_str(), vb_);
@@ -605,13 +605,13 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
                          bsize,
                          "%s:stream_%d_last_sent_seqno",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_last_sent_snap_end_seqno",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer,
                         lastSentSnapEndSeqno.load(std::memory_order_relaxed),
                         add_stat,
@@ -620,42 +620,45 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
                          bsize,
                          "%s:stream_%d_last_read_seqno",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_last_read_seqno_unsnapshotted",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, lastReadSeqnoUnSnapshotted.load(), add_stat, c);
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_ready_queue_memory",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
-        checked_snprintf(
-                buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_items_ready",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(
                 buffer, itemsReady.load() ? "true" : "false", add_stat, c);
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_backfill_buffer_bytes",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_backfill_buffer_items",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
 
         checked_snprintf(buffer,
                          bsize,
                          "%s:stream_%d_cursor_registered",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buffer, cursor.lock() != nullptr, add_stat, c);
 
         if (isTakeoverSend() && takeoverStart != 0) {
@@ -663,7 +666,7 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
                              bsize,
                              "%s:stream_%d_takeover_since",
                              name_.c_str(),
-                             vb_);
+                             vb_.get());
             add_casted_stat(
                     buffer, ep_current_time() - takeoverStart, add_stat, c);
         }
@@ -683,7 +686,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat,
     add_casted_stat("name", name_, add_stat, cookie);
     if (!isActive()) {
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) "
+            "({}) "
             "ActiveStream::addTakeoverStats: Stream has "
             "status StreamDead",
             vb_);
@@ -719,7 +722,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat,
         log(spdlog::level::level_enum::warn,
             "ActiveStream:addTakeoverStats: exception while getting num "
             "persisted "
-            "deletes for vbucket:{}"
+            "deletes for {}"
             " - treating as 0 deletes. "
             "Details: {}",
             vb_,
@@ -1072,7 +1075,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
         }
         VBucketPtr vb = engine->getVBucket(vb_);
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) Stream closing, "
+            "({}) Stream closing, "
             "sent until seqno {} "
             "remaining items {}, "
             "reason: {}",
@@ -1081,7 +1084,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             readyQ_non_meta_items.load(),
             getEndStreamStatusStr(reason));
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) Stream closing, sent until seqno {} remaining items "
+            "({}) Stream closing, sent until seqno {} remaining items "
             "{}, reason: {}",
             vb_,
             lastSentSeqno.load(),
@@ -1093,7 +1096,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
 void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     if (isBackfillTaskRunning) {
         log(spdlog::level::level_enum::info,
-            "(vb:{}) Skipping "
+            "({}) Skipping "
             "scheduleBackfill_UNLOCKED; "
             "lastReadSeqno {}"
             ", reschedule flag "
@@ -1107,7 +1110,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) Failed to schedule "
+            "({}) Failed to schedule "
             "backfill as unable to get vbucket; "
             "lastReadSeqno : {}"
             ", "
@@ -1121,7 +1124,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     auto producer = producerPtr.lock();
     if (!producer) {
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) Aborting scheduleBackfill_UNLOCKED() "
+            "({}) Aborting scheduleBackfill_UNLOCKED() "
             "as the producer conn is deleted; "
             "lastReadSeqno : {}"
             ", "
@@ -1145,7 +1148,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                     std::to_string(lastReadSeqno.load()) +
                     " ) is greater than vbHighSeqno (which is " +
                     std::to_string(vbHighSeqno) + " ). " + "for stream " +
-                    producer->logHeader() + "; vb " + std::to_string(vb_));
+                    producer->logHeader() + "; " + vb_.to_string());
         }
         if (reschedule) {
             /* We need to do this for reschedule because in case of
@@ -1167,7 +1170,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             cursor = registerResult.cursor;
         } catch (std::exception& error) {
             log(spdlog::level::level_enum::warn,
-                "(vb:{}) Failed to register "
+                "({}) Failed to register "
                 "cursor: {}",
                 vb_,
                 error.what());
@@ -1181,7 +1184,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                     std::to_string(lastReadSeqno.load()) +
                     " ) is greater than curChkSeqno (which is " +
                     std::to_string(curChkSeqno) + " ). " + "for stream " +
-                    producer->logHeader() + "; vb " + std::to_string(vb_));
+                    producer->logHeader() + "; " + vb_.to_string());
         }
 
         /* We need to find the minimum seqno that needs to be backfilled in
@@ -1202,7 +1205,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
 
     if (backfillStart <= backfillEnd && tryBackfill) {
         log(spdlog::level::level_enum::info,
-            "(vb:{}) Scheduling backfill "
+            "({}) Scheduling backfill "
             "from {} to {}, reschedule "
             "flag : {}",
             vb_,
@@ -1216,7 +1219,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         if (reschedule) {
             // Infrequent code path, see comment below.
             log(spdlog::level::level_enum::info,
-                "(vb:{}) Did not schedule "
+                "({}) Did not schedule "
                 "backfill with reschedule : True, "
                 "tryBackfill : True; "
                 "backfillStart : {}"
@@ -1264,7 +1267,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                 curChkSeqno = result.seqno;
             } catch (std::exception& error) {
                 log(spdlog::level::level_enum::warn,
-                    "(vb:{}) Failed to register "
+                    "({}) Failed to register "
                     "cursor: {}",
                     vb_,
                     error.what());
@@ -1296,7 +1299,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
 bool ActiveStream::handleSlowStream() {
     LockHolder lh(streamMutex);
     log(spdlog::level::level_enum::info,
-        "(vb:{}) Handling slow stream; "
+        "({}) Handling slow stream; "
         "state_ : {}, "
         "lastReadSeqno : {}"
         ", "
@@ -1338,7 +1341,7 @@ bool ActiveStream::handleSlowStream() {
                 to_string(state_.load()) +
                 " "
                 "for stream " +
-                connHeader + "; vb " + std::to_string(vb_));
+                connHeader + "; " + vb_.to_string());
     }
     }
     return false;
@@ -1375,7 +1378,7 @@ void ActiveStream::transitionState(StreamState newState) {
 
     auto logLevel = getTransitionStateLogLevel(state_, newState);
     log(logLevel,
-        "ActiveStream::transitionState: (vb:{}) "
+        "ActiveStream::transitionState: ({}) "
         "Transitioning from {} to {}",
         vb_,
         to_string(state_.load()),

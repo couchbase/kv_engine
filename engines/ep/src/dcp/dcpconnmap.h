@@ -63,7 +63,7 @@ public:
      */
     DcpConsumer *newConsumer(const void* cookie, const std::string &name);
 
-    void notifyVBConnections(uint16_t vbid, uint64_t bySeqno);
+    void notifyVBConnections(Vbid vbid, uint64_t bySeqno);
 
     void notifyBackfillManagerTasks();
 
@@ -78,7 +78,8 @@ public:
      * @param state the new state of the vbucket
      * @closeInboundStreams bool flag indicating failover
      */
-    void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
+    void vbucketStateChanged(Vbid vbucket,
+                             vbucket_state_t state,
                              bool closeInboundStreams = true);
 
     /**
@@ -86,7 +87,7 @@ public:
      *
      * @param vbucket the vbucket id
      */
-    void closeStreamsDueToRollback(uint16_t vbucket);
+    void closeStreamsDueToRollback(Vbid vbucket);
 
     void shutdownAllConnections();
 
@@ -100,7 +101,7 @@ public:
      * Returns true if the stream dropped its cursors on the
      * checkpoint.
      */
-    bool handleSlowStream(uint16_t vbid, const CheckpointCursor* cursor);
+    bool handleSlowStream(Vbid vbid, const CheckpointCursor* cursor);
 
     void disconnect(const void *cookie);
 
@@ -122,8 +123,10 @@ public:
         return backfills.maxActiveSnoozing;
     }
 
-    ENGINE_ERROR_CODE addPassiveStream(ConnHandler& conn, uint32_t opaque,
-                                       uint16_t vbucket, uint32_t flags);
+    ENGINE_ERROR_CODE addPassiveStream(ConnHandler& conn,
+                                       uint32_t opaque,
+                                       Vbid vbucket,
+                                       uint32_t flags);
 
     /* Use this only for any quick direct stats from DcpConnMap. To collect
        individual conn stats from conn lists please use ConnStatBuilder */
@@ -171,7 +174,7 @@ protected:
      */
     void consumerBatchSizeConfigChanged(size_t newValue);
 
-    bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
+    bool isPassiveStreamConnected_UNLOCKED(Vbid vbucket);
 
     /*
      * Closes all streams associated with each connection in `map`.

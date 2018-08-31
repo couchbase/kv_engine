@@ -20,12 +20,12 @@
 #include "locks.h"
 #include "statwriter.h"
 
-bool DcpReadyQueue::exists(uint16_t vbucket) {
+bool DcpReadyQueue::exists(Vbid vbucket) {
     LockHolder lh(lock);
     return (queuedValues.count(vbucket) != 0);
 }
 
-bool DcpReadyQueue::popFront(uint16_t& frontValue) {
+bool DcpReadyQueue::popFront(Vbid& frontValue) {
     LockHolder lh(lock);
     if (!readyQueue.empty()) {
         frontValue = readyQueue.front();
@@ -44,7 +44,7 @@ void DcpReadyQueue::pop() {
     }
 }
 
-bool DcpReadyQueue::pushUnique(uint16_t vbucket) {
+bool DcpReadyQueue::pushUnique(Vbid vbucket) {
     bool wasEmpty;
     {
         LockHolder lh(lock);
@@ -71,8 +71,8 @@ void DcpReadyQueue::addStats(const std::string& prefix,
                              ADD_STAT add_stat,
                              const void* c) {
     // Take a copy of the queue data under lock; then format it to stats.
-    std::queue<uint16_t> qCopy;
-    std::unordered_set<uint16_t> qMapCopy;
+    std::queue<Vbid> qCopy;
+    std::unordered_set<Vbid> qMapCopy;
     {
         LockHolder lh(lock);
         qCopy = readyQueue;
@@ -86,7 +86,7 @@ void DcpReadyQueue::addStats(const std::string& prefix,
     // Form a comma-separated string of the queue's contents.
     std::string contents;
     while (!qCopy.empty()) {
-        contents += std::to_string(qCopy.front()) + ",";
+        contents += std::to_string(qCopy.front().get()) + ",";
         qCopy.pop();
     }
     if (!contents.empty()) {
@@ -98,7 +98,7 @@ void DcpReadyQueue::addStats(const std::string& prefix,
     // Form a comma-separated string of the queue map's contents.
     std::string qMapContents;
     for (auto& vbid : qMapCopy) {
-        qMapContents += std::to_string(vbid) + ",";
+        qMapContents += std::to_string(vbid.get()) + ",";
     }
     if (!qMapContents.empty()) {
         qMapContents.pop_back();

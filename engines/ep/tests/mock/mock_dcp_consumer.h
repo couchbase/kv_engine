@@ -69,7 +69,7 @@ public:
             const std::string& name,
             uint32_t flags,
             uint32_t opaque,
-            uint16_t vb,
+            Vbid vb,
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint64_t vb_uuid,
@@ -89,5 +89,4 @@ public:
                                                    snap_end_seqno,
                                                    vb_high_seqno);
     }
-
 };

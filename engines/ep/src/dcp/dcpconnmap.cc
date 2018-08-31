@@ -106,7 +106,7 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
     return result;
 }
 
-bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(uint16_t vbucket) {
+bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(Vbid vbucket) {
     for (const auto& cookieToConn : map_) {
         auto* dcpConsumer =
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
@@ -114,7 +114,7 @@ bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(uint16_t vbucket) {
             EP_LOG_DEBUG(
                     "({}) A DCP passive stream "
                     "is already exists for the vbucket in connection: {}",
-                    Vbid(vbucket),
+                    vbucket,
                     dcpConsumer->logHeader());
             return true;
         }
@@ -124,9 +124,8 @@ bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(uint16_t vbucket) {
 
 ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
                                                uint32_t opaque,
-                                               uint16_t vbucket,
-                                               uint32_t flags)
-{
+                                               Vbid vbucket,
+                                               uint32_t flags) {
     LockHolder lh(connsLock);
     /* Check if a stream (passive) for the vbucket is already present */
     if (isPassiveStreamConnected_UNLOCKED(vbucket)) {
@@ -134,7 +133,7 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
                 "{} ({}) Failing to add passive stream, "
                 "as one already exists for the vbucket!",
                 conn.logHeader(),
-                Vbid(vbucket));
+                vbucket);
         return ENGINE_KEY_EEXISTS;
     }
 
@@ -214,7 +213,8 @@ void DcpConnMap::shutdownAllConnections() {
     cancelTasks(mapCopy);
 }
 
-void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
+void DcpConnMap::vbucketStateChanged(Vbid vbucket,
+                                     vbucket_state_t state,
                                      bool closeInboundStreams) {
     LockHolder lh(connsLock);
     for (const auto& cookieToConn : map_) {
@@ -228,7 +228,7 @@ void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
     }
 }
 
-void DcpConnMap::closeStreamsDueToRollback(uint16_t vbucket) {
+void DcpConnMap::closeStreamsDueToRollback(Vbid vbucket) {
     LockHolder lh(connsLock);
     for (const auto& cookieToConn : map_) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
@@ -238,12 +238,11 @@ void DcpConnMap::closeStreamsDueToRollback(uint16_t vbucket) {
     }
 }
 
-bool DcpConnMap::handleSlowStream(uint16_t vbid,
-                                  const CheckpointCursor* cursor) {
-    size_t lock_num = vbid % vbConnLockNum;
+bool DcpConnMap::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
+    size_t lock_num = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
 
-    for (const auto& connection : vbConns[vbid]) {
+    for (const auto& connection : vbConns[vbid.get()]) {
         auto* producer = dynamic_cast<DcpProducer*>(connection.get());
         if (producer && producer->handleSlowStream(vbid, cursor)) {
             return true;
@@ -385,9 +384,9 @@ void DcpConnMap::manageConnections() {
 
 void DcpConnMap::removeVBConnections(DcpProducer& prod) {
     for (const auto vbid : prod.getVBVector()) {
-        size_t lock_num = vbid % vbConnLockNum;
+        size_t lock_num = vbid.get() % vbConnLockNum;
         std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-        std::list<std::shared_ptr<ConnHandler>>& vb_conns = vbConns[vbid];
+        std::list<std::shared_ptr<ConnHandler>>& vb_conns = vbConns[vbid.get()];
         for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
             if (prod.getCookie() == (*itr)->getCookie()) {
                 vb_conns.erase(itr);
@@ -397,11 +396,11 @@ void DcpConnMap::removeVBConnections(DcpProducer& prod) {
     }
 }
 
-void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno) {
-    size_t lock_num = vbid % vbConnLockNum;
+void DcpConnMap::notifyVBConnections(Vbid vbid, uint64_t bySeqno) {
+    size_t lock_num = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
 
-    for (auto& connection : vbConns[vbid]) {
+    for (auto& connection : vbConns[vbid.get()]) {
         auto* producer = dynamic_cast<DcpProducer*>(connection.get());
         if (producer) {
             producer->notifySeqnoAvailable(vbid, bySeqno);

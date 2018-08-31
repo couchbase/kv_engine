@@ -54,7 +54,7 @@ public:
      *
      * @return vbid
      */
-    uint16_t getVBucketId() const {
+    Vbid getVBucketId() const {
         return vbid;
     }
 
@@ -94,7 +94,7 @@ protected:
     /**
      * Id of the vbucket on which the backfill is running
      */
-    const VBucket::id_type vbid;
+    const Vbid vbid;
 };
 
 using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfill>;

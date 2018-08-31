@@ -36,7 +36,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              const std::string& name,
                              uint32_t flags,
                              uint32_t opaque,
-                             uint16_t vb,
+                             Vbid vb,
                              uint64_t st_seqno,
                              uint64_t en_seqno,
                              uint64_t vb_uuid,
@@ -76,7 +76,7 @@ PassiveStream::~PassiveStream() {
     if (state_ != StreamState::Dead) {
         // Destructed a "live" stream, log it.
         log(spdlog::level::level_enum::info,
-            "(vb:{}) Destructing stream."
+            "({}) Destructing stream."
             " last_seqno is {}, unAckedBytes is {}.",
             vb_,
             last_seqno.load(),
@@ -107,7 +107,7 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
                                ? "takeover stream"
                                : "stream";
     log(spdlog::level::level_enum::info,
-        "(vb:{}) Attempting to add {}: opaque_:{}, "
+        "({}) Attempting to add {}: opaque_:{}, "
         "start_seqno_:{}, end_seqno_:{}, "
         "vb_uuid:{}, snap_start_seqno_:{}, "
         "snap_end_seqno_:{}, last_seqno:{}",
@@ -141,7 +141,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
             severity = spdlog::level::level_enum::warn;
         }
         log(severity,
-            "(vb:{}) Setting stream to dead state, last_seqno is {}, "
+            "({}) Setting stream to dead state, last_seqno is {}, "
             "unAckedBytes is {}, status is {}",
             vb_,
             last_seqno.load(),
@@ -182,7 +182,7 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
     snap_end_seqno_ = info.range.end;
 
     log(spdlog::level::level_enum::info,
-        "(vb:{}) Attempting to reconnect stream with opaque {}, start seq "
+        "({}) Attempting to reconnect stream with opaque {}, start seq "
         "no {}, end seq no {}, snap start seqno {}, and snap end seqno {}",
         vb_,
         new_opaque,
@@ -219,7 +219,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
     if (seqno) {
         if (uint64_t(*seqno) <= last_seqno.load()) {
             log(spdlog::level::level_enum::warn,
-                "(vb:{}) Erroneous (out of sequence) message ({}) received, "
+                "({}) Erroneous (out of sequence) message ({}) received, "
                 "with opaque: {}, its seqno ({}) is not "
                 "greater than last received seqno ({}); "
                 "Dropping mutation!",
@@ -237,7 +237,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
         uint64_t snapEnd = s->getEndSeqno();
         if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
             log(spdlog::level::level_enum::warn,
-                "(vb:{}) Erroneous snapshot marker received, with "
+                "({}) Erroneous snapshot marker received, with "
                 "opaque: {}, its start "
                 "({}), and end ({}) are less than last "
                 "received seqno ({}); Dropping marker!",
@@ -253,7 +253,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
     switch (engine->getReplicationThrottle().getStatus()) {
     case ReplicationThrottle::Status::Disconnect:
         log(spdlog::level::level_enum::warn,
-            "vb:{} Disconnecting the connection as there is "
+            "{} Disconnecting the connection as there is "
             "no memory to complete replication",
             vb_);
         return ENGINE_DISCONNECT;
@@ -289,7 +289,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
             }
             default:
                 log(spdlog::level::level_enum::warn,
-                    "(vb:{}) Unknown event:{}, opaque:{}",
+                    "({}) Unknown event:{}, opaque:{}",
                     vb_,
                     int(dcpResponse->getEvent()),
                     opaque_);
@@ -299,7 +299,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
             if (ret == ENGINE_ENOMEM) {
                 if (engine->getReplicationThrottle().doDisconnectOnNoMem()) {
                     log(spdlog::level::level_enum::warn,
-                        "vb:{} Disconnecting the connection as there is no "
+                        "{} Disconnecting the connection as there is no "
                         "memory to complete replication; process dcp "
                         "event returned no memory",
                         vb_);
@@ -380,7 +380,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
         default:
             log(spdlog::level::level_enum::warn,
                 "PassiveStream::processBufferedMessages:"
-                "(vb:{}) PassiveStream ignoring "
+                "({}) PassiveStream ignoring "
                 "unknown message type {}",
                 vb_,
                 response->to_string());
@@ -417,7 +417,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
     if (failed) {
         if (noMem && engine->getReplicationThrottle().doDisconnectOnNoMem()) {
             log(spdlog::level::level_enum::warn,
-                "vb:{} Processor task indicating disconnection as "
+                "{} Processor task indicating disconnection as "
                 "there is no memory to complete replication; process dcp "
                 "event returned no memory ",
                 vb_);
@@ -443,7 +443,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     if (uint64_t(*mutation->getBySeqno()) < cur_snapshot_start.load() ||
         uint64_t(*mutation->getBySeqno()) > cur_snapshot_end.load()) {
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) Erroneous mutation [sequence "
+            "({}) Erroneous mutation [sequence "
             "number does not fall in the expected snapshot range : "
             "{{snapshot_start ({}) <= seq_no ({}) <= "
             "snapshot_end ({})]; Dropping the mutation!",
@@ -460,7 +460,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     // is better than rejecting the data entirely).
     if (!Item::isValidCas(mutation->getItem()->getCas())) {
         log(spdlog::level::level_enum::warn,
-            "Invalid CAS ({:#x}) received for mutation {{vb:{}, seqno:{}}}. "
+            "Invalid CAS ({:#x}) received for mutation {{{}, seqno:{}}}. "
             "Regenerating new CAS",
             mutation->getItem()->getCas(),
             vb_,
@@ -492,7 +492,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
 
     if (ret != ENGINE_SUCCESS) {
         log(spdlog::level::level_enum::warn,
-            "vb:{} Got error '{}' while trying to process "
+            "{} Got error '{}' while trying to process "
             "mutation with seqno:{}",
             vb_,
             cb::to_string(cb::to_engine_errc(ret)),
@@ -518,7 +518,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     if (uint64_t(*deletion->getBySeqno()) < cur_snapshot_start.load() ||
         uint64_t(*deletion->getBySeqno()) > cur_snapshot_end.load()) {
         log(spdlog::level::level_enum::warn,
-            "(vb:{}) Erroneous deletion [sequence "
+            "({}) Erroneous deletion [sequence "
             "number does not fall in the expected snapshot range : "
             "{{snapshot_start ({}) <= seq_no ({}) <= "
             "snapshot_end ({})]; Dropping the deletion!",
@@ -542,7 +542,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     // MB-17517: Check for the incoming item's CAS validity.
     if (!Item::isValidCas(meta.cas)) {
         log(spdlog::level::level_enum::warn,
-            "Invalid CAS ({:#x}) received for deletion {{vb:{}, seqno:{}}}. "
+            "Invalid CAS ({:#x}) received for deletion {{{}, seqno:{}}}. "
             "Regenerating new CAS",
             meta.cas,
             vb_,
@@ -572,7 +572,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 
     if (ret != ENGINE_SUCCESS) {
         log(spdlog::level::level_enum::warn,
-            "vb:{} Got error '{}' while trying to process "
+            "{} Got error '{}' while trying to process "
             "deletion with seqno:{}",
             vb_,
             cb::to_string(cb::to_engine_errc(ret)),
@@ -612,7 +612,7 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
 
     if (rv != ENGINE_SUCCESS) {
         log(spdlog::level::level_enum::warn,
-            "vb:{} Got error '{}' while trying to process "
+            "{} Got error '{}' while trying to process "
             "system event",
             vb_,
             cb::to_string(cb::to_engine_errc(rv)));
@@ -749,33 +749,42 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void* c) {
             bufferItems = buffer.messages.size();
             bufferBytes = buffer.bytes;
         }
-        checked_snprintf(
-                buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(), vb_);
+        checked_snprintf(buf,
+                         bsize,
+                         "%s:stream_%d_buffer_items",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buf, bufferItems, add_stat, c);
-        checked_snprintf(
-                buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(), vb_);
+        checked_snprintf(buf,
+                         bsize,
+                         "%s:stream_%d_buffer_bytes",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buf, bufferBytes, add_stat, c);
-        checked_snprintf(
-                buf, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
+        checked_snprintf(buf,
+                         bsize,
+                         "%s:stream_%d_items_ready",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buf, itemsReady.load() ? "true" : "false", add_stat, c);
         checked_snprintf(buf,
                          bsize,
                          "%s:stream_%d_last_received_seqno",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buf, last_seqno.load(), add_stat, c);
         checked_snprintf(buf,
                          bsize,
                          "%s:stream_%d_ready_queue_memory",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(buf, getReadyQueueMemory(), add_stat, c);
 
         checked_snprintf(buf,
                          bsize,
                          "%s:stream_%d_cur_snapshot_type",
                          name_.c_str(),
-                         vb_);
+                         vb_.get());
         add_casted_stat(
                 buf, ::to_string(cur_snapshot_type.load()), add_stat, c);
 
@@ -784,13 +793,13 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void* c) {
                              bsize,
                              "%s:stream_%d_cur_snapshot_start",
                              name_.c_str(),
-                             vb_);
+                             vb_.get());
             add_casted_stat(buf, cur_snapshot_start.load(), add_stat, c);
             checked_snprintf(buf,
                              bsize,
                              "%s:stream_%d_cur_snapshot_end",
                              name_.c_str(),
-                             vb_);
+                             vb_.get());
             add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
         }
     } catch (std::exception& error) {
@@ -819,7 +828,7 @@ uint32_t PassiveStream::clearBuffer_UNLOCKED() {
 
 bool PassiveStream::transitionState(StreamState newState) {
     log(spdlog::level::level_enum::debug,
-        "PassiveStream::transitionState: (vb:{}) "
+        "PassiveStream::transitionState: ({}) "
         "Transitioning from {} to {}",
         vb_,
         to_string(state_.load()),
