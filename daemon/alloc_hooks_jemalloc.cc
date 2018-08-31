@@ -44,12 +44,19 @@
 /* jemalloc checks for this symbol, and it's contents for the config to use. */
 JEMALLOC_EXPORT
 const char* je_malloc_conf =
+/* Enable background worker thread for asynchronous purging.
+ * Background threads are non-functional in jemalloc 5.1.0 on macOS due to
+ * implementation discrepancies between the background threads and mutexes.
+ */
+#ifndef __APPLE__
+        "background_thread:true,"
+#endif
         /* Use just one arena, instead of the default based on number of CPUs.
            Helps to minimize heap fragmentation. */
-        "narenas:1"
+        "narenas:1,"
         /* Start with profiling enabled but inactive; this allows us to
            turn it on/off at runtime. */
-        ",prof:true,prof_active:false";
+        "prof:true,prof_active:false";
 
 static int jemalloc_get_stats_prop(const char* property, size_t* value) {
     size_t size = sizeof(*value);
