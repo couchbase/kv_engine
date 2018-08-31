@@ -461,10 +461,6 @@ protected:
             out << to_string(response.response.getClientOpcode()) << ")"
                 << std::endl;
         }
-        out << "    Opcode       (1)    : 0x" << std::setw(2)
-            << (uint32_t(response.bytes[1]) & 0xff) << " ("
-            << to_string(response.response.getClientOpcode()) << ")"
-            << std::endl;
         out << "    Key length   (2,3)  : 0x" << std::setw(4)
             << (response.response.getKeylen() & 0xffff) << std::endl;
         out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(response.bytes[4]) & 0xff) << std::endl;
