@@ -24,7 +24,7 @@
 
 TEST(ParserTest, GdbOutput) {
     std::string file{SOURCE_ROOT};
-    file.append("/protocol/mcbp/libmcbp/gdb_output.txt");
+    file.append("/protocol/mcbp/gdb_output.txt");
     cb::io::sanitizePath(file);
     const auto content = cb::io::loadFile(file);
     cb::byte_buffer buf = {
@@ -49,7 +49,7 @@ TEST(ParserTest, GdbOutput) {
 
 TEST(ParserTest, LldbOutput) {
     std::string file{SOURCE_ROOT};
-    file.append("/protocol/mcbp/libmcbp/lldb_output.txt");
+    file.append("/protocol/mcbp/lldb_output.txt");
     cb::io::sanitizePath(file);
     const auto content = cb::io::loadFile(file);
     cb::byte_buffer buf = {

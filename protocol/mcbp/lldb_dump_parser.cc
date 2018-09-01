@@ -46,7 +46,7 @@ std::vector<uint8_t> parseDump(cb::byte_buffer blob) {
             if (isspace(*curr) && isspace(curr[3])) {
                 try {
                     ret.push_back(uint8_t(cb::from_hex(
-                        {reinterpret_cast<const char*>(curr) + 1, 2})));
+                            {reinterpret_cast<const char*>(curr) + 1, 2})));
                 } catch (const std::logic_error&) {
                     // At the end we might find: '     ....'
                 }

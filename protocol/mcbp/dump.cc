@@ -61,9 +61,8 @@ void dumpBytes(cb::byte_buffer buffer, std::ostream& out, size_t offset) {
     out << std::dec << std::setfill(' ');
 }
 
-}
-}
-
+} // namespace mcbp
+} // namespace cb
 
 /**
  * The Frame class represents a complete frame as it is being sent on the
@@ -71,9 +70,7 @@ void dumpBytes(cb::byte_buffer buffer, std::ostream& out, size_t offset) {
  */
 class McbpFrame {
 public:
-    McbpFrame(const uint8_t* bytes, size_t len)
-        : root(bytes),
-          length(len) {
+    McbpFrame(const uint8_t* bytes, size_t len) : root(bytes), length(len) {
         // empty
     }
 
@@ -90,9 +87,9 @@ public:
 
 protected:
     virtual void dumpPacketInfo(std::ostream& out) const = 0;
-    virtual void dumpExtras(std::ostream &out) const = 0;
-    virtual void dumpKey(std::ostream &out) const = 0;
-    virtual void dumpValue(std::ostream&out) const = 0;
+    virtual void dumpExtras(std::ostream& out) const = 0;
+    virtual void dumpKey(std::ostream& out) const = 0;
+    virtual void dumpValue(std::ostream& out) const = 0;
 
     void dumpExtras(const uint8_t* location,
                     uint8_t nbytes,
@@ -103,7 +100,8 @@ protected:
         }
     }
 
-    void dumpKey(const uint8_t* location, uint16_t nbytes,
+    void dumpKey(const uint8_t* location,
+                 uint16_t nbytes,
                  std::ostream& out) const {
         if (nbytes != 0) {
             const ptrdiff_t first = location - root;
@@ -112,10 +110,9 @@ protected:
 
             std::string str((const char*)location, nbytes);
 
-            for (const auto&c : str) {
+            for (const auto& c : str) {
                 if (!isprint(c)) {
-                    out << nbytes
-                        << " bytes of binary data" << std::endl;
+                    out << nbytes << " bytes of binary data" << std::endl;
                     return;
                 }
             }
@@ -123,7 +120,6 @@ protected:
                 << std::endl;
         }
     }
-
 
 private:
     void printByte(uint8_t b, bool inBody, std::ostream& out) const {
@@ -148,22 +144,23 @@ private:
 
     void dumpFrame(std::ostream& out) const {
         out << std::endl;
-        out <<
-        "      Byte/     0       |       1       |       2       |       3       |" <<
-        std::endl;
-        out <<
-        "         /              |               |               |               |" <<
-        std::endl;
-        out <<
-        "        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|";
+        out << "      Byte/     0       |       1       |       2       |      "
+               " 3       |"
+            << std::endl;
+        out << "         /              |               |               |      "
+               "         |"
+            << std::endl;
+        out << "        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 "
+               "3 4 5 6 7|";
 
         size_t ii = 0;
         for (; ii < length; ++ii) {
             if (ii % 4 == 0) {
                 out << std::endl;
-                out <<
-                "        +---------------+---------------+---------------+---------------+" <<
-                std::endl;
+                out << "        "
+                       "+---------------+---------------+---------------+------"
+                       "---------+"
+                    << std::endl;
                 out.setf(std::ios::right);
                 out << std::setw(8) << ii << "|";
                 out.setf(std::ios::fixed);
@@ -179,12 +176,14 @@ private:
             }
             out << "+" << std::endl;
         } else {
-            out << "        +---------------+---------------+---------------+---------------+"
-            << std::endl;
+            out << "        "
+                   "+---------------+---------------+---------------+----------"
+                   "-----+"
+                << std::endl;
         }
     }
 
-    const uint8_t *root;
+    const uint8_t* root;
     size_t length;
 };
 
@@ -202,7 +201,6 @@ public:
     }
 
 protected:
-
     void dumpPacketInfo(std::ostream& out) const override {
         uint32_t bodylen = ntohl(request.request.bodylen);
 
@@ -210,7 +208,8 @@ protected:
         if (bodylen > 0) {
             out << " (" << sizeof(request) << " bytes header";
             if (request.request.extlen != 0) {
-                out << ", " << (unsigned int)request.request.extlen << " byte extras ";
+                out << ", " << (unsigned int)request.request.extlen
+                    << " byte extras ";
             }
             uint16_t keylen = ntohs(request.request.keylen);
             if (keylen > 0) {
@@ -240,32 +239,38 @@ protected:
             out << to_string(request.request.getServerOpcode()) << ")"
                 << std::endl;
         }
-        out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(request.request.keylen) & 0xffff) << std::endl;
-        out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(request.bytes[4]) & 0xff) << std::endl;
-        out << "    Data type    (5)    : 0x" << std::setw(2) << (uint32_t(request.bytes[5]) & 0xff) << std::endl;
-        out << "    Vbucket      (6,7)  : 0x" << std::setw(4) << (ntohs(request.request.vbucket) & 0xffff) << std::endl;
-        out << "    Total body   (8-11) : 0x" << std::setw(8) << (uint64_t(ntohl(request.request.bodylen)) & 0xffff) << std::endl;
-        out << "    Opaque       (12-15): 0x" << std::setw(8) << request.request.opaque << std::endl;
-        out << "    CAS          (16-23): 0x" << std::setw(16) << ntohll(request.request.cas) << std::endl;
+        out << "    Key length   (2,3)  : 0x" << std::setw(4)
+            << (ntohs(request.request.keylen) & 0xffff) << std::endl;
+        out << "    Extra length (4)    : 0x" << std::setw(2)
+            << (uint32_t(request.bytes[4]) & 0xff) << std::endl;
+        out << "    Data type    (5)    : 0x" << std::setw(2)
+            << (uint32_t(request.bytes[5]) & 0xff) << std::endl;
+        out << "    Vbucket      (6,7)  : 0x" << std::setw(4)
+            << (ntohs(request.request.vbucket) & 0xffff) << std::endl;
+        out << "    Total body   (8-11) : 0x" << std::setw(8)
+            << (uint64_t(ntohl(request.request.bodylen)) & 0xffff) << std::endl;
+        out << "    Opaque       (12-15): 0x" << std::setw(8)
+            << request.request.opaque << std::endl;
+        out << "    CAS          (16-23): 0x" << std::setw(16)
+            << ntohll(request.request.cas) << std::endl;
         out << std::setfill(' ');
         out.flags(std::ios::dec);
     }
 
-    void dumpExtras(std::ostream &out) const override {
+    void dumpExtras(std::ostream& out) const override {
         McbpFrame::dumpExtras(request.bytes + sizeof(request.bytes),
-                          request.request.extlen,
-                          out);
+                              request.request.extlen,
+                              out);
     }
 
-    void dumpKey(std::ostream &out) const override {
+    void dumpKey(std::ostream& out) const override {
         McbpFrame::dumpKey(
-            request.bytes + sizeof(request.bytes) + request.request.extlen,
-            ntohs(request.request.keylen),
-            out);
+                request.bytes + sizeof(request.bytes) + request.request.extlen,
+                ntohs(request.request.keylen),
+                out);
     }
 
-    void dumpValue(std::ostream &out) const override {
-
+    void dumpValue(std::ostream& out) const override {
     }
 
     const protocol_binary_request_header& request;
@@ -273,16 +278,14 @@ protected:
 
 class HelloRequest : public Request {
 public:
-    HelloRequest(const protocol_binary_request_header& req)
-        : Request(req) {
-
+    HelloRequest(const protocol_binary_request_header& req) : Request(req) {
     }
 
 protected:
     void dumpExtras(std::ostream& out) const override {
         if (request.request.extlen != 0) {
             throw std::logic_error(
-                "HelloRequest::dumpExtras(): extlen must be 0");
+                    "HelloRequest::dumpExtras(): extlen must be 0");
         }
     }
 
@@ -293,7 +296,7 @@ protected:
 
         if ((bodylen % 2) != 0) {
             throw std::logic_error(
-                "HelloRequest::dumpValue(): bodylen must be in words");
+                    "HelloRequest::dumpValue(): bodylen must be in words");
         }
 
         if (bodylen == 0) {
@@ -317,8 +320,8 @@ protected:
                 text = std::to_string(feature);
             }
 
-            out << "                 (" << first << "-"
-                << first + 1 <<"): " << text << std::endl;
+            out << "                 (" << first << "-" << first + 1
+                << "): " << text << std::endl;
             first += 2;
         }
     }
@@ -423,14 +426,14 @@ public:
     }
 
 protected:
-
     void dumpPacketInfo(std::ostream& out) const override {
         uint32_t bodylen = response.response.getBodylen();
         out << "        Total " << sizeof(response) + bodylen << " bytes";
         if (bodylen > 0) {
             out << " (" << sizeof(response) << " bytes header";
             if (response.response.extlen != 0) {
-                out << ", " << (unsigned int)response.response.extlen << " byte extras ";
+                out << ", " << (unsigned int)response.response.extlen
+                    << " byte extras ";
             }
             uint16_t keylen = response.response.getKeylen();
             if (keylen > 0) {
@@ -446,7 +449,8 @@ protected:
         out << std::endl << std::endl;
         out.flags(std::ios::hex);
         out << std::setfill('0');
-        auto status = (protocol_binary_response_status)ntohs(response.response.status);
+        auto status = (protocol_binary_response_status)ntohs(
+                response.response.status);
 
         out << "    Field        (offset) (value)" << std::endl;
         out << "    Magic        (0)    : 0x"
@@ -463,32 +467,37 @@ protected:
         }
         out << "    Key length   (2,3)  : 0x" << std::setw(4)
             << (response.response.getKeylen() & 0xffff) << std::endl;
-        out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(response.bytes[4]) & 0xff) << std::endl;
-        out << "    Data type    (5)    : 0x" << std::setw(2) << (uint32_t(response.bytes[5]) & 0xff) << std::endl;
-        out << "    Status       (6,7)  : 0x" << std::setw(4) << (ntohs(response.response.status) & 0xffff) << " (" << memcached_status_2_text(status) << ")" << std::endl;
+        out << "    Extra length (4)    : 0x" << std::setw(2)
+            << (uint32_t(response.bytes[4]) & 0xff) << std::endl;
+        out << "    Data type    (5)    : 0x" << std::setw(2)
+            << (uint32_t(response.bytes[5]) & 0xff) << std::endl;
+        out << "    Status       (6,7)  : 0x" << std::setw(4)
+            << (ntohs(response.response.status) & 0xffff) << " ("
+            << memcached_status_2_text(status) << ")" << std::endl;
         out << "    Total body   (8-11) : 0x" << std::setw(8)
             << (uint64_t(response.response.getBodylen()) & 0xffff) << std::endl;
-        out << "    Opaque       (12-15): 0x" << std::setw(8) << response.response.opaque << std::endl;
-        out << "    CAS          (16-23): 0x" << std::setw(16) << response.response.cas << std::endl;
+        out << "    Opaque       (12-15): 0x" << std::setw(8)
+            << response.response.opaque << std::endl;
+        out << "    CAS          (16-23): 0x" << std::setw(16)
+            << response.response.cas << std::endl;
         out << std::setfill(' ');
         out.flags(std::ios::dec);
     }
 
-    void dumpExtras(std::ostream &out) const override {
+    void dumpExtras(std::ostream& out) const override {
         McbpFrame::dumpExtras(response.bytes + sizeof(response.bytes),
-                          response.response.extlen,
-                          out);
+                              response.response.extlen,
+                              out);
     }
 
-    void dumpKey(std::ostream &out) const override {
+    void dumpKey(std::ostream& out) const override {
         McbpFrame::dumpKey(response.bytes + sizeof(response.bytes) +
                                    response.response.extlen,
                            response.response.getKeylen(),
                            out);
     }
 
-    void dumpValue(std::ostream &out) const override {
-
+    void dumpValue(std::ostream& out) const override {
     }
 
     const protocol_binary_response_header& response;
@@ -496,23 +505,21 @@ protected:
 
 class HelloResponse : public Response {
 public:
-    HelloResponse(const protocol_binary_response_header& res)
-        : Response(res) {
-
+    HelloResponse(const protocol_binary_response_header& res) : Response(res) {
     }
 
 protected:
     void dumpExtras(std::ostream& out) const override {
         if (response.response.extlen != 0) {
             throw std::logic_error(
-                "HelloResponse::dumpExtras(): extlen must be 0");
+                    "HelloResponse::dumpExtras(): extlen must be 0");
         }
     }
 
     void dumpKey(std::ostream& out) const override {
         if (response.response.getKeylen() != 0) {
             throw std::logic_error(
-                "HelloResponse::dumpKey(): keylen must be 0");
+                    "HelloResponse::dumpKey(): keylen must be 0");
         }
     }
 
@@ -529,7 +536,7 @@ protected:
 
         if ((bodylen % 2) != 0) {
             throw std::logic_error(
-                "HelloRequest::dumpValue(): bodylen must be in words");
+                    "HelloRequest::dumpValue(): bodylen must be in words");
         }
 
         if (bodylen == 0) {
@@ -570,27 +577,26 @@ class ListBucketsResponse : public Response {
 public:
     ListBucketsResponse(const protocol_binary_response_header& res)
         : Response(res) {
-
     }
 
 protected:
     void dumpExtras(std::ostream& out) const override {
         if (response.response.extlen != 0) {
             throw std::logic_error(
-                "ListBucketsResponse::dumpExtras(): extlen must be 0");
+                    "ListBucketsResponse::dumpExtras(): extlen must be 0");
         }
     }
 
     void dumpKey(std::ostream& out) const override {
         if (response.response.getKeylen() != 0) {
             throw std::logic_error(
-                "ListBucketsResponse::dumpKey(): keylen must be 0");
+                    "ListBucketsResponse::dumpKey(): keylen must be 0");
         }
     }
 
     void dumpValue(std::ostream& out) const override {
         const char* payload = reinterpret_cast<const char*>(response.bytes) +
-                                                sizeof(response.bytes);
+                              sizeof(response.bytes);
         std::string buckets(payload, response.response.getBodylen());
         out << "    Body                :" << std::endl;
 
@@ -608,7 +614,6 @@ protected:
         }
     }
 };
-
 
 static void dump_request(const protocol_binary_request_header* req,
                          std::ostream& out) {
@@ -641,7 +646,8 @@ static void dump_response(const protocol_binary_response_header* res,
 
 void cb::mcbp::dump(const uint8_t* packet, std::ostream& out) {
     auto* req = reinterpret_cast<const protocol_binary_request_header*>(packet);
-    auto* res = reinterpret_cast<const protocol_binary_response_header*>(packet);
+    auto* res =
+            reinterpret_cast<const protocol_binary_response_header*>(packet);
 
     switch (req->request.getMagic()) {
     case Magic::ClientRequest:
@@ -670,7 +676,7 @@ void cb::mcbp::dumpStream(cb::byte_buffer buffer, std::ostream& out) {
         if (req->magic != 0x80 && req->magic != 0x81) {
             std::stringstream ss;
             ss << "Invalid magic at offset: " << offset
-                << ". Dumping next header" << std::endl;
+               << ". Dumping next header" << std::endl;
             for (int ii = 0; ii < 68; ++ii) {
                 ss << "-";
             }

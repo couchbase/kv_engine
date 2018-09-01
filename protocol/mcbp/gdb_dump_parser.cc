@@ -49,7 +49,7 @@ std::vector<uint8_t> parseDump(cb::byte_buffer blob) {
                         "gdb::parseDump: invalid format on line");
             }
             ret.push_back(uint8_t(
-                cb::from_hex({reinterpret_cast<const char*>(pos) + 2, 2})));
+                    cb::from_hex({reinterpret_cast<const char*>(pos) + 2, 2})));
             curr = pos + 1;
         }
 
