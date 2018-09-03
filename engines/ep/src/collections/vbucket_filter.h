@@ -106,7 +106,7 @@ public:
     void addStats(ADD_STAT add_stat,
                   const void* c,
                   const std::string& prefix,
-                  uint16_t vb) const;
+                  Vbid vb) const;
 
     /**
      * Dump this to std::cerr

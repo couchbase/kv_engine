@@ -130,34 +130,37 @@ bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
 void Collections::VB::Filter::addStats(ADD_STAT add_stat,
                                        const void* c,
                                        const std::string& prefix,
-                                       uint16_t vb) const {
+                                       Vbid vb) const {
     try {
         const int bsize = 1024;
         char buffer[bsize];
-        checked_snprintf(
-                buffer, bsize, "%s:filter_%d_passthrough", prefix.c_str(), vb);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:filter_%d_passthrough",
+                         prefix.c_str(),
+                         vb.get());
         add_casted_stat(buffer, passthrough, add_stat, c);
 
         checked_snprintf(buffer,
                          bsize,
                          "%s:filter_%d_default_allowed",
                          prefix.c_str(),
-                         vb);
+                         vb.get());
         add_casted_stat(buffer, defaultAllowed, add_stat, c);
 
         checked_snprintf(buffer,
                          bsize,
                          "%s:filter_%d_system_allowed",
                          prefix.c_str(),
-                         vb);
+                         vb.get());
         add_casted_stat(buffer, systemEventsAllowed, add_stat, c);
 
         checked_snprintf(
-                buffer, bsize, "%s:filter_%d_size", prefix.c_str(), vb);
+                buffer, bsize, "%s:filter_%d_size", prefix.c_str(), vb.get());
         add_casted_stat(buffer, filter.size(), add_stat, c);
     } catch (std::exception& error) {
         EP_LOG_WARN(
-                "Collections::VB::Filter::addStats: {}:vb:{}"
+                "Collections::VB::Filter::addStats: {}:{}"
                 " exception.what:{}",
                 prefix,
                 vb,

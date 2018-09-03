@@ -61,8 +61,8 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
         auto rolledback = updateAllVBuckets(bucket, *current);
         return cb::engine_error(
                 cb::engine_errc::cannot_apply_collections_manifest,
-                "Collections::Manager::update aborted on vb:" +
-                        std::to_string(*updated) + " and rolled-back success:" +
+                "Collections::Manager::update aborted on " +
+                        updated->to_string() + " and rolled-back success:" +
                         std::to_string(!rolledback.is_initialized()) +
                         ", cannot apply:" + cb::to_string(manifest));
     }
@@ -76,7 +76,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
 boost::optional<Vbid> Collections::Manager::updateAllVBuckets(
         KVBucket& bucket, const Manifest& newManifest) {
     for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {
-        auto vb = bucket.getVBuckets().getBucket(i);
+        auto vb = bucket.getVBuckets().getBucket(Vbid(i));
 
         if (vb && vb->getState() == vbucket_state_active) {
             if (!vb->updateFromManifest(newManifest)) {
@@ -116,10 +116,11 @@ Collections::Filter Collections::Manager::makeFilter(
 void Collections::Manager::logAll(KVBucket& bucket) const {
     EP_LOG_INFO("{}", *this);
     for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {
-        auto vb = bucket.getVBuckets().getBucket(i);
+        Vbid vbid = Vbid(i);
+        auto vb = bucket.getVBuckets().getBucket(vbid);
         if (vb) {
-            EP_LOG_INFO("vb:{}: {} {}",
-                        i,
+            EP_LOG_INFO("{}: {} {}",
+                        vbid,
                         VBucket::toString(vb->getState()),
                         vb->lockCollections());
         }
