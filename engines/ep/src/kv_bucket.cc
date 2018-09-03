@@ -952,7 +952,7 @@ ENGINE_ERROR_CODE KVBucket::deleteVBucket(Vbid vbid, const void* c) {
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE KVBucket::checkForDBExistence(DBFileId db_file_id) {
+ENGINE_ERROR_CODE KVBucket::checkForDBExistence(Vbid db_file_id) {
     std::string backend = engine.getConfiguration().getBackend();
     if (backend.compare("couchdb") == 0) {
         VBucketPtr vb = vbMap.getBucket(db_file_id);
@@ -967,7 +967,7 @@ ENGINE_ERROR_CODE KVBucket::checkForDBExistence(DBFileId db_file_id) {
     return ENGINE_SUCCESS;
 }
 
-uint16_t KVBucket::getDBFileId(const protocol_binary_request_compact_db& req) {
+Vbid KVBucket::getDBFileId(const protocol_binary_request_compact_db& req) {
     KVStore *store = vbMap.shards[0]->getROUnderlying();
     return store->getDBFileId(req);
 }
@@ -1410,7 +1410,7 @@ GetValue KVBucket::getRandomKey() {
     std::unique_ptr<Item> itm;
 
     while (itm == NULL) {
-        VBucketPtr vb = getVBucket(curr++);
+        VBucketPtr vb = getVBucket(Vbid(curr++));
         while (!vb || vb->getState() != vbucket_state_active) {
             if (curr == start) {
                 return GetValue(NULL, ENGINE_KEY_ENOENT);
@@ -1419,7 +1419,7 @@ GetValue KVBucket::getRandomKey() {
                 curr = 0;
             }
 
-            vb = getVBucket(curr++);
+            vb = getVBucket(Vbid(curr++));
         }
 
         if ((itm = vb->ht.getRandomKey(random()))) {
@@ -2212,12 +2212,12 @@ KVBucket::Position KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
 
 KVBucket::Position KVBucket::startPosition() const
 {
-    return KVBucket::Position(0);
+    return KVBucket::Position(Vbid(0));
 }
 
 KVBucket::Position KVBucket::endPosition() const
 {
-    return KVBucket::Position(vbMap.getSize());
+    return KVBucket::Position(Vbid(vbMap.getSize()));
 }
 
 VBCBAdaptor::VBCBAdaptor(KVBucket* s,
@@ -2232,7 +2232,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
       label(l),
       sleepTime(sleep),
       maxDuration(std::chrono::microseconds::max()),
-      currentvb(0) {
+      currentvb(Vbid(0)) {
     const VBucketFilter& vbFilter = visitor->getVBucketFilter();
     for (auto vbid : store->getVBuckets().getBuckets()) {
         if (vbFilter(vbid)) {
@@ -2407,7 +2407,7 @@ bool KVBucket::runAccessScannerTask() {
     return ExecutorPool::get()->wake(accessScanner.task);
 }
 
-void KVBucket::runVbStatePersistTask(int vbid) {
+void KVBucket::runVbStatePersistTask(Vbid vbid) {
     scheduleVBStatePersist(vbid);
 }
 

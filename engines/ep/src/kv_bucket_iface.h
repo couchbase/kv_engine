@@ -441,7 +441,7 @@ public:
      *
      * @param db_file_id vbucketid for couchstore
      */
-    virtual ENGINE_ERROR_CODE checkForDBExistence(uint16_t db_file_id) = 0;
+    virtual ENGINE_ERROR_CODE checkForDBExistence(Vbid db_file_id) = 0;
 
     /**
      * Triggers compaction of a database file
@@ -461,8 +461,7 @@ public:
      *
      * returns the database file id from the underlying KV store
      */
-    virtual uint16_t getDBFileId(
-                            const protocol_binary_request_compact_db& req) = 0;
+    virtual Vbid getDBFileId(const protocol_binary_request_compact_db& req) = 0;
 
     /**
      * Reset a given vbucket from memory and disk. This differs from vbucket
@@ -693,7 +692,7 @@ public:
 
     virtual bool runAccessScannerTask() = 0;
 
-    virtual void runVbStatePersistTask(int vbid) = 0;
+    virtual void runVbStatePersistTask(Vbid vbid) = 0;
 
     virtual void setCompactionWriteQueueCap(size_t to) = 0;
 

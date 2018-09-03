@@ -452,7 +452,7 @@ public:
      *
      * @param db_file_id vbucketid for couchstore.
      */
-    ENGINE_ERROR_CODE checkForDBExistence(uint16_t db_file_id);
+    ENGINE_ERROR_CODE checkForDBExistence(Vbid db_file_id);
 
     /**
      * Get the database file id for the compaction request
@@ -461,14 +461,14 @@ public:
      *
      * returns the database file id from the underlying KV store
      */
-    uint16_t getDBFileId(const protocol_binary_request_compact_db& req);
+    Vbid getDBFileId(const protocol_binary_request_compact_db& req);
 
     /**
      * Remove completed compaction tasks or wake snoozed tasks
      *
      * @param db_file_id vbucket id for couchstore.
      */
-    void updateCompactionTasks(uint16_t db_file_id);
+    void updateCompactionTasks(Vbid db_file_id);
 
     /**
      * Reset a given vbucket from memory and disk. This differs from vbucket deletion in that
@@ -762,7 +762,7 @@ public:
 
     bool runAccessScannerTask();
 
-    void runVbStatePersistTask(int vbid);
+    void runVbStatePersistTask(Vbid vbid);
 
     void setCompactionWriteQueueCap(size_t to) {
         compactionWriteQueueCap = to;

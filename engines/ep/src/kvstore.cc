@@ -40,7 +40,7 @@
 
 ScanContext::ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
                          std::shared_ptr<StatusCallback<CacheLookup>> cl,
-                         uint16_t vb,
+                         Vbid vb,
                          size_t id,
                          int64_t start,
                          int64_t end,
@@ -116,7 +116,7 @@ void KVStore::createDataDir(const std::string& dbname) {
     }
 }
 
-bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) {
+bool KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
     vbucket_state* vbState = getVBucketState(vbid);
 
     bool state_change_detected = true;
@@ -143,8 +143,8 @@ bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) 
         vbState->hlcCasEpochSeqno = newState.hlcCasEpochSeqno;
         vbState->mightContainXattrs = newState.mightContainXattrs;
     } else {
-        cachedVBStates[vbid] = std::make_unique<vbucket_state>(newState);
-        if (cachedVBStates[vbid]->state != vbucket_state_dead) {
+        cachedVBStates[vbid.get()] = std::make_unique<vbucket_state>(newState);
+        if (cachedVBStates[vbid.get()]->state != vbucket_state_dead) {
             cachedValidVBCount++;
         }
     }
@@ -458,7 +458,7 @@ void KVStore::optimizeWrites(std::vector<queued_item>& items) {
     std::sort(items.begin(), items.end(), cq);
 }
 
-uint64_t KVStore::getLastPersistedSeqno(uint16_t vbid) {
+uint64_t KVStore::getLastPersistedSeqno(Vbid vbid) {
     vbucket_state* state = getVBucketState(vbid);
     if (state) {
         return state->highSeqno;
@@ -534,10 +534,11 @@ void vbucket_state::reset() {
     failovers.clear();
 }
 
-IORequest::IORequest(uint16_t vbId, MutationRequestCallback &cb , bool del,
+IORequest::IORequest(Vbid vbId,
+                     MutationRequestCallback& cb,
+                     bool del,
                      const DocKey itmKey)
     : vbucketId(vbId), deleteItem(del), key(itmKey) {
-
     if (del) {
         callback.delCb = cb.delCb;
     } else {

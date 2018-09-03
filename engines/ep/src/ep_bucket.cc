@@ -637,7 +637,7 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(Vbid vbid,
             "Scheduled compaction task {} on db {},"
             "purge_before_ts = {}, purge_before_seq = {}, dropdeletes = {}",
             uint64_t(task->getId()),
-            c.db_file_id,
+            c.db_file_id.get(),
             c.purge_before_ts,
             c.purge_before_seq,
             c.drop_deletes);
@@ -712,7 +712,7 @@ void EPBucket::compactInternal(const CompactionConfig& config,
 
     ctx.collectionsEraser = std::bind(&KVBucket::collectionsEraseKey,
                                       this,
-                                      uint16_t(config.db_file_id),
+                                      config.db_file_id,
                                       std::placeholders::_1,
                                       std::placeholders::_2,
                                       std::placeholders::_3,
@@ -743,7 +743,7 @@ void EPBucket::compactInternal(const CompactionConfig& config,
             "tombstones_purged:{}, collection_items_erased:{}, "
             "pre{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}, "
             "post{{size:{}, items:{}, deleted_items:{}, purge_seqno:{}}}",
-            config.db_file_id,
+            config.db_file_id.get(),
             result ? "ok" : "failed",
             ctx.stats.tombstonesPurged,
             ctx.stats.collectionsItemsPurged,
@@ -802,12 +802,12 @@ bool EPBucket::doCompact(const CompactionConfig& config,
     return false;
 }
 
-void EPBucket::updateCompactionTasks(DBFileId db_file_id) {
+void EPBucket::updateCompactionTasks(Vbid db_file_id) {
     LockHolder lh(compactionLock);
     bool erased = false, woke = false;
     std::list<CompTaskEntry>::iterator it = compactionTasks.begin();
     while (it != compactionTasks.end()) {
-        if ((*it).first.get() == db_file_id) {
+        if ((*it).first == db_file_id) {
             it = compactionTasks.erase(it);
             erased = true;
         } else {

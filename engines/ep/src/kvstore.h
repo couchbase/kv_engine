@@ -61,8 +61,6 @@ using vb_bgfetch_queue_t =
 
 enum class GetMetaOnly { Yes, No };
 
-typedef uint16_t DBFileId;
-
 typedef std::shared_ptr<Callback<Vbid&, const DocKey&, bool&>> BloomFilterCBPtr;
 typedef std::shared_ptr<Callback<Item&, time_t&> > ExpiredItemsCBPtr;
 
@@ -105,7 +103,7 @@ struct CompactionConfig {
     uint64_t purge_before_ts = 0;
     uint64_t purge_before_seq = 0;
     uint8_t drop_deletes = 0;
-    DBFileId db_file_id = 0;
+    Vbid db_file_id = Vbid(0);
     uint64_t purgeSeq = 0;
     bool retain_erroneous_tombstones = false;
 };
@@ -235,7 +233,7 @@ class ScanContext {
 public:
     ScanContext(std::shared_ptr<StatusCallback<GetValue>> cb,
                 std::shared_ptr<StatusCallback<CacheLookup>> cl,
-                uint16_t vb,
+                Vbid vb,
                 size_t id,
                 int64_t start,
                 int64_t end,
@@ -254,7 +252,7 @@ public:
     const int64_t maxSeqno;
     const uint64_t purgeSeqno;
     const size_t scanId;
-    const uint16_t vbid;
+    const Vbid vbid;
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
     const uint64_t documentCount;
@@ -430,7 +428,7 @@ public:
  * its latest checkpoint Id persisted.
  */
 struct vbucket_state;
-typedef std::map<uint16_t, vbucket_state> vbucket_map_t;
+typedef std::map<Vbid, vbucket_state> vbucket_map_t;
 
 /**
  * Properties of the storage layer.
@@ -577,7 +575,7 @@ public:
     /**
      * Reset the vbucket to a clean state.
      */
-    virtual void reset(uint16_t vbid) = 0;
+    virtual void reset(Vbid vbid) = 0;
 
     /**
      * Begin a transaction (if not already in one).
@@ -624,18 +622,18 @@ public:
      * Get an item from the kv store.
      */
     virtual GetValue get(const StoredDocKey& key,
-                         uint16_t vb,
+                         Vbid vb,
                          bool fetchDelete = false) = 0;
 
     virtual GetValue getWithHeader(void* dbHandle,
                                    const StoredDocKey& key,
-                                   uint16_t vb,
+                                   Vbid vb,
                                    GetMetaOnly getMetaOnly,
                                    bool fetchDelete = false) = 0;
     /**
      * Get multiple items if supported by the kv store
      */
-    virtual void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
+    virtual void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) {
         throw std::runtime_error("Backend does not support getMulti()");
     }
 
@@ -662,7 +660,7 @@ public:
      * @param vbucket vbucket id
      * @param fileRev the revision of the file to delete
      */
-    virtual void delVBucket(uint16_t vbucket, uint64_t fileRev) = 0;
+    virtual void delVBucket(Vbid vbucket, uint64_t fileRev) = 0;
 
     /**
      * Get a list of all persisted vbuckets (with their states).
@@ -693,8 +691,8 @@ public:
      * @param cb        stats callback
      * @param options   options for persisting the state
      */
-    virtual bool snapshotVBucket(uint16_t vbucketId,
-                                 const vbucket_state &vbstate,
+    virtual bool snapshotVBucket(Vbid vbucketId,
+                                 const vbucket_state& vbstate,
                                  VBStatePersist options) = 0;
 
     /**
@@ -708,9 +706,9 @@ public:
      *
      * return database file id
      */
-    virtual uint16_t getDBFileId(const protocol_binary_request_compact_db& req) = 0;
+    virtual Vbid getDBFileId(const protocol_binary_request_compact_db& req) = 0;
 
-    virtual vbucket_state *getVBucketState(uint16_t vbid) = 0;
+    virtual vbucket_state* getVBucketState(Vbid vbid) = 0;
 
     /**
      * Get the number of deleted items that are persisted to a vbucket file
@@ -720,7 +718,7 @@ public:
      * @throws std::runtime_error (and subclasses) if it was not possible to
      *         obtain a count of persisted deletes.
      */
-    virtual size_t getNumPersistedDeletes(uint16_t vbid) = 0;
+    virtual size_t getNumPersistedDeletes(Vbid vbid) = 0;
 
     /**
      * This method will return information about the file whose id
@@ -730,7 +728,7 @@ public:
      * @throws std::runtime_error (and subclasses) if it was not possible to
      *         obtain the DB file info.
      */
-    virtual DBFileInfo getDbFileInfo(uint16_t dbFileId) = 0;
+    virtual DBFileInfo getDbFileInfo(Vbid dbFileId) = 0;
 
     /**
      * This method will return file size and space used for the
@@ -743,7 +741,7 @@ public:
      *
      * vbid - vbucket id
      */
-    virtual size_t getItemCount(uint16_t vbid) = 0;
+    virtual size_t getItemCount(Vbid vbid) = 0;
 
     /**
      * Rollback the specified vBucket to the state it had at rollbackseqno.
@@ -761,7 +759,8 @@ public:
      * @return success==true and details of the sequence numbers after rollback
      * if rollback succeeded; else false.
      */
-    virtual RollbackResult rollback(uint16_t vbid, uint64_t rollbackseqno,
+    virtual RollbackResult rollback(Vbid vbid,
+                                    uint64_t rollbackseqno,
                                     std::shared_ptr<RollbackCB> cb) = 0;
 
     /**
@@ -780,7 +779,7 @@ public:
      */
     virtual void pendingTasks() = 0;
 
-    uint64_t getLastPersistedSeqno(uint16_t vbid);
+    uint64_t getLastPersistedSeqno(Vbid vbid);
 
     bool isReadOnly(void) {
         return readOnly;
@@ -794,9 +793,11 @@ public:
         return st;
     }
 
-    virtual ENGINE_ERROR_CODE getAllKeys(uint16_t vbid,
-                            const DocKey start_key, uint32_t count,
-                            std::shared_ptr<Callback<const DocKey&>> cb) = 0;
+    virtual ENGINE_ERROR_CODE getAllKeys(
+            Vbid vbid,
+            const DocKey start_key,
+            uint32_t count,
+            std::shared_ptr<Callback<const DocKey&>> cb) = 0;
 
     /**
      * Create a KVStore Scan Context with the given options. On success,
@@ -809,7 +810,7 @@ public:
     virtual ScanContext* initScanContext(
             std::shared_ptr<StatusCallback<GetValue>> cb,
             std::shared_ptr<StatusCallback<CacheLookup>> cl,
-            uint16_t vbid,
+            Vbid vbid,
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions) = 0;
@@ -823,7 +824,7 @@ public:
      * collection manifest data as a std::string (data written by
      * persistCollectionsManifestItem)
      */
-    virtual std::string getCollectionsManifest(uint16_t vbid) = 0;
+    virtual std::string getCollectionsManifest(Vbid vbid) = 0;
 
     /**
      * Obtain a KVFileHandle which holds the KVStore implementation's handle
@@ -833,7 +834,7 @@ public:
      * @return a unique_ptr to a new KVFileHandle object
      */
     virtual std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
-            uint16_t vbid) = 0;
+            Vbid vbid) = 0;
 
     /**
      * Free KVFileHandle - KVStore to override and release resources allocated
@@ -855,7 +856,7 @@ public:
      * Increment the revision number of the vbucket.
      * @param vbid ID of the vbucket to change.
      */
-    virtual void incrementRevision(uint16_t vbid) = 0;
+    virtual void incrementRevision(Vbid vbid) = 0;
 
     /**
      * Prepare for delete of the vbucket file
@@ -863,7 +864,7 @@ public:
      * @param vbid ID of the vbucket being deleted
      * @return the revision ID to delete (via ::delVBucket)
      */
-    virtual uint64_t prepareToDelete(uint16_t vbid) = 0;
+    virtual uint64_t prepareToDelete(Vbid vbid) = 0;
 
 protected:
 
@@ -892,7 +893,7 @@ protected:
      *
      * @return true if the cached vbucket state is updated
      */
-    bool updateCachedVBState(uint16_t vbid, const vbucket_state& vbState);
+    bool updateCachedVBState(Vbid vbid, const vbucket_state& vbState);
 };
 
 /**

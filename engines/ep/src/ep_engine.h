@@ -685,7 +685,7 @@ public:
      * Explicitly trigger the VbStatePersist task. Provided to facilitate
      * testing.
      */
-    void runVbStatePersistTask(int vbid);
+    void runVbStatePersistTask(Vbid vbid);
 
     /**
      * Get a (sloppy) list of the sequence numbers for all of the vbuckets

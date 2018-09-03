@@ -72,7 +72,7 @@ public:
      *
      * @return vbucket id of a document
      */
-    uint16_t getVBucketId(void) {
+    Vbid getVBucketId() {
         return vbucketId;
     }
 
@@ -192,7 +192,7 @@ public:
     /**
      * Reset vbucket to a clean state.
      */
-    void reset(uint16_t vbucketId) override;
+    void reset(Vbid vbucketId) override;
 
     /**
      * Begin a transaction (if not already in one).
@@ -257,7 +257,7 @@ public:
      * @return the result of the get
      */
     GetValue get(const StoredDocKey& key,
-                 uint16_t vb,
+                 Vbid vb,
                  bool fetchDelete = false) override;
 
     /**
@@ -273,7 +273,7 @@ public:
      */
     GetValue getWithHeader(void* dbHandle,
                            const StoredDocKey& key,
-                           uint16_t vb,
+                           Vbid vb,
                            GetMetaOnly getMetaOnly,
                            bool fetchDelete = false) override;
 
@@ -283,7 +283,7 @@ public:
      * @param vb vbucket id of a document
      * @param itms list of items whose documents are going to be retrieved
      */
-    void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) override;
+    void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
     /**
      * Get the number of vbuckets in a single database file
@@ -302,7 +302,7 @@ public:
      * @param vbucket vbucket id
      * @param fileRev the revision of the file to delete
      */
-    void delVBucket(uint16_t vbucket, uint64_t fileRev) override;
+    void delVBucket(Vbid vbucket, uint64_t fileRev) override;
 
     /**
      * Retrieve the list of persisted vbucket states
@@ -327,18 +327,18 @@ public:
      * @param options   - options used for persisting the state to disk
      * @return true if the snapshot is done successfully
      */
-    bool snapshotVBucket(uint16_t vbucketId,
-                         const vbucket_state &vbstate,
+    bool snapshotVBucket(Vbid vbucketId,
+                         const vbucket_state& vbstate,
                          VBStatePersist options) override;
 
-     /**
-     * Compact a database file in the underlying storage system.
-     *
-     * @param ctx - compaction context that holds the identifier of the
-                    underlying database file, options and callbacks
-                    that need to invoked.
-     * @return true if successful
-     */
+    /**
+    * Compact a database file in the underlying storage system.
+    *
+    * @param ctx - compaction context that holds the identifier of the
+                   underlying database file, options and callbacks
+                   that need to invoked.
+    * @return true if successful
+    */
     bool compactDB(compaction_ctx *ctx) override;
 
     /**
@@ -347,25 +347,25 @@ public:
      *
      * return database file id
      */
-    uint16_t getDBFileId(const protocol_binary_request_compact_db& req) override {
+    Vbid getDBFileId(const protocol_binary_request_compact_db& req) override {
         return ntohs(req.message.header.request.vbucket);
     }
 
-    vbucket_state *getVBucketState(uint16_t vbid) override;
+    vbucket_state* getVBucketState(Vbid vbid) override;
 
     /**
      * Get the number of deleted items that are persisted to a vbucket file
      *
      * @param vbid The vbucket if of the file to get the number of deletes for
      */
-    size_t getNumPersistedDeletes(uint16_t vbid) override;
+    size_t getNumPersistedDeletes(Vbid vbid) override;
 
     /**
      * Get the vbucket pertaining stats from a vbucket database file
      *
      * @param vbid The vbucket of the file to get the number of docs for
      */
-    DBFileInfo getDbFileInfo(uint16_t vbid) override;
+    DBFileInfo getDbFileInfo(Vbid vbid) override;
 
     /**
      * Get the file statistics for the underlying KV store
@@ -381,7 +381,7 @@ public:
      *
      * vbid - vbucket id
      */
-    size_t getItemCount(uint16_t vbid) override;
+    size_t getItemCount(Vbid vbid) override;
 
     /**
      * Do a rollback to the specified seqNo on the particular vbucket
@@ -391,7 +391,8 @@ public:
      * to be rolled back
      * @param cb getvalue callback
      */
-    RollbackResult rollback(uint16_t vbid, uint64_t rollbackSeqno,
+    RollbackResult rollback(Vbid vbid,
+                            uint64_t rollbackSeqno,
                             std::shared_ptr<RollbackCB> cb) override;
 
     /**
@@ -404,28 +405,30 @@ public:
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
     static int getMultiCb(Db *db, DocInfo *docinfo, void *ctx);
-    ENGINE_ERROR_CODE readVBState(Db* db, uint16_t vbId);
+    ENGINE_ERROR_CODE readVBState(Db* db, Vbid vbId);
 
     couchstore_error_t fetchDoc(Db* db,
                                 DocInfo* docinfo,
                                 GetValue& docValue,
-                                uint16_t vbId,
+                                Vbid vbId,
                                 GetMetaOnly metaOnly);
     ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
 
-    uint64_t getLastPersistedSeqno(uint16_t vbid);
+    uint64_t getLastPersistedSeqno(Vbid vbid);
 
     /**
      * Get all_docs API, to return the list of all keys in the store
      */
-    ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, const DocKey start_key,
-                                 uint32_t count,
-                                 std::shared_ptr<Callback<const DocKey&>> cb) override;
+    ENGINE_ERROR_CODE getAllKeys(
+            Vbid vbid,
+            const DocKey start_key,
+            uint32_t count,
+            std::shared_ptr<Callback<const DocKey&>> cb) override;
 
     ScanContext* initScanContext(
             std::shared_ptr<StatusCallback<GetValue>> cb,
             std::shared_ptr<StatusCallback<CacheLookup>> cl,
-            uint16_t vbid,
+            Vbid vbid,
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions) override;
@@ -434,13 +437,13 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
-    std::string getCollectionsManifest(uint16_t vbid) override;
+    std::string getCollectionsManifest(Vbid vbid) override;
 
     uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
                                     CollectionID collection) override;
 
     std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
-            uint16_t vbid) override;
+            Vbid vbid) override;
 
     void freeFileHandle(KVFileHandle* kvFileHandle) const override;
 
@@ -448,7 +451,7 @@ public:
      * Increment the revision number of the vbucket.
      * @param vbid ID of the vbucket to change.
      */
-    void incrementRevision(uint16_t vbid) override;
+    void incrementRevision(Vbid vbid) override;
 
     /**
      * Prepare for delete of the vbucket file, this just removes the in-memory
@@ -458,7 +461,7 @@ public:
      * @param vbid ID of the vbucket being deleted
      * @return the revision ID to delete (via ::delVBucket)
      */
-    uint64_t prepareToDelete(uint16_t vbid) override;
+    uint64_t prepareToDelete(Vbid vbid) override;
 
 protected:
     /**
@@ -522,9 +525,9 @@ protected:
     /*
      * Returns the DbInfo for the given vbucket database.
      */
-    DbInfo getDbInfo(uint16_t vbid);
+    DbInfo getDbInfo(Vbid vbid);
 
-    bool setVBucketState(uint16_t vbucketId,
+    bool setVBucketState(Vbid vbucketId,
                          const vbucket_state& vbstate,
                          VBStatePersist options);
 
@@ -538,15 +541,15 @@ protected:
     bool commit2couchstore(Collections::VB::Flush& collectionsFlush);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
-    void populateFileNameMap(std::vector<std::string> &filenames,
-                             std::vector<uint16_t> *vbids);
-    void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev);
-    couchstore_error_t openDB(uint16_t vbucketId,
+    void populateFileNameMap(std::vector<std::string>& filenames,
+                             std::vector<Vbid>* vbids);
+    void updateDbFileMap(Vbid vbucketId, uint64_t newFileRev);
+    couchstore_error_t openDB(Vbid vbucketId,
                               DbHolder& db,
                               couchstore_open_flags options,
                               FileOpsInterface* ops = nullptr);
 
-    couchstore_error_t openSpecificDB(uint16_t vbucketId,
+    couchstore_error_t openSpecificDB(Vbid vbucketId,
                                       uint64_t rev,
                                       DbHolder& db,
                                       couchstore_open_flags options,
@@ -565,7 +568,7 @@ protected:
      *
      * @returns COUCHSTORE_SUCCESS or a failure code (failure paths log)
      */
-    couchstore_error_t saveDocs(uint16_t vbid,
+    couchstore_error_t saveDocs(Vbid vbid,
                                 const std::vector<Doc*>& docs,
                                 std::vector<DocInfo*>& docinfos,
                                 kvstats_ctx& kvctx,
@@ -620,7 +623,7 @@ protected:
      * Unlink selected couch file, which will be removed by the OS,
      * once all its references close.
      */
-    void unlinkCouchFile(uint16_t vbucket, uint64_t fRev);
+    void unlinkCouchFile(Vbid vbucket, uint64_t fRev);
 
     /**
      * Remove compact file
@@ -628,7 +631,7 @@ protected:
      * @param dbname
      * @param vbucket id
      */
-    void removeCompactFile(const std::string& dbname, uint16_t vbid);
+    void removeCompactFile(const std::string& dbname, Vbid vbid);
 
     void removeCompactFile(const std::string &filename);
 

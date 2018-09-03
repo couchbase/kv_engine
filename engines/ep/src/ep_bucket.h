@@ -170,7 +170,7 @@ protected:
      *
      * @param db_file_id vbucket id for couchstore
      */
-    void updateCompactionTasks(DBFileId db_file_id);
+    void updateCompactionTasks(Vbid db_file_id);
 
     /**
      * Max number of backill items in a single flusher batch before we split

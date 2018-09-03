@@ -99,6 +99,10 @@ public:
         return (vbid == other.get());
     }
 
+    bool operator!=(const Vbid& other) const {
+        return (vbid != other.get());
+    }
+
     Vbid operator++() {
         return Vbid(++vbid);
     }

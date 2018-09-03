@@ -576,7 +576,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
                 rv = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
             }
         } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
-            runVbStatePersistTask(std::stoi(valz));
+            runVbStatePersistTask(Vbid(std::stoi(valz)));
         } else if (strcmp(keyz, "ephemeral_full_policy") == 0) {
             getConfiguration().requirementsMetOrThrow("ephemeral_full_policy");
             getConfiguration().setEphemeralFullPolicy(valz);
@@ -1043,7 +1043,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         EP_LOG_WARN(
                 "Compaction of db file id: {} failed "
                 "because the db file doesn't exist!!!",
-                compactionConfig.db_file_id);
+                compactionConfig.db_file_id.get());
         res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         break;
     case ENGINE_EINVAL:
@@ -1051,21 +1051,21 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         EP_LOG_WARN(
                 "Compaction of db file id: {} failed "
                 "because of an invalid argument",
-                compactionConfig.db_file_id);
+                compactionConfig.db_file_id.get());
         res = PROTOCOL_BINARY_RESPONSE_EINVAL;
         break;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
                 "Compaction of db file id: {} scheduled "
                 "(awaiting completion).",
-                compactionConfig.db_file_id);
+                compactionConfig.db_file_id.get());
         e->storeEngineSpecific(cookie, req);
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:
         EP_LOG_WARN(
                 "Request to compact db file id: {} hit"
                 " a temporary failure and may need to be retried",
-                compactionConfig.db_file_id);
+                compactionConfig.db_file_id.get());
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
         res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
         break;
@@ -1074,7 +1074,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
         EP_LOG_WARN(
                 "Compaction of db file id: {} failed "
                 "because of unknown reasons",
-                compactionConfig.db_file_id);
+                compactionConfig.db_file_id.get());
         e->setErrorContext(cookie, "Failed to compact db file.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         break;
@@ -3978,7 +3978,7 @@ bool EventuallyPersistentEngine::runAccessScannerTask(void) {
     return kvBucket->runAccessScannerTask();
 }
 
-void EventuallyPersistentEngine::runVbStatePersistTask(int vbid) {
+void EventuallyPersistentEngine::runVbStatePersistTask(Vbid vbid) {
     kvBucket->runVbStatePersistTask(vbid);
 }
 

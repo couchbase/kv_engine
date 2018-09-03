@@ -40,7 +40,7 @@ typedef union {
 
 class IORequest {
 public:
-    IORequest(uint16_t vbId,
+    IORequest(Vbid vbId,
               MutationRequestCallback& cb,
               bool del,
               const DocKey itmKey);
@@ -52,7 +52,7 @@ public:
         return deleteItem;
     }
 
-    uint16_t getVBucketId() {
+    Vbid getVBucketId() {
         return vbucketId;
     }
 
@@ -74,7 +74,7 @@ public:
     }
 
 protected:
-    uint16_t vbucketId;
+    Vbid vbucketId;
     bool deleteItem;
     MutationRequestCallback callback;
     ProcessClock::time_point start;

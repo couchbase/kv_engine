@@ -125,7 +125,7 @@ public:
     /**
      * Reset database to a clean state.
      */
-    void reset(uint16_t vbucketId) override;
+    void reset(Vbid vbucketId) override;
 
     /**
      * Begin a transaction (if not already in one).
@@ -169,16 +169,16 @@ public:
      * Overrides get().
      */
     GetValue get(const StoredDocKey& key,
-                 uint16_t vb,
+                 Vbid vb,
                  bool fetchDelete = false) override;
 
     GetValue getWithHeader(void* dbHandle,
                            const StoredDocKey& key,
-                           uint16_t vb,
+                           Vbid vb,
                            GetMetaOnly getMetaOnly,
                            bool fetchDelete = false) override;
 
-    void getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) override;
+    void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) override;
 
     /**
      * Overrides del().
@@ -188,7 +188,7 @@ public:
     // This is a blocking call. The function waits until other threads have
     // finished processing on a VBucket DB (e.g., 'commit') before deleting
     // the VBucket and returning to the caller.
-    void delVBucket(uint16_t vbucket, uint64_t vb_version) override;
+    void delVBucket(Vbid vbucket, uint64_t vb_version) override;
 
     std::vector<vbucket_state*> listPersistedVbuckets(void) override;
 
@@ -199,7 +199,7 @@ public:
     /**
      * Take a snapshot of the vbucket states in the main DB.
      */
-    bool snapshotVBucket(uint16_t vbucketId,
+    bool snapshotVBucket(Vbid vbucketId,
                          const vbucket_state& vbstate,
                          VBStatePersist options) override;
 
@@ -222,21 +222,21 @@ public:
         return true;
     }
 
-    uint16_t getDBFileId(const protocol_binary_request_compact_db&) override {
+    Vbid getDBFileId(const protocol_binary_request_compact_db&) override {
         // Not needed if there is no explicit compaction
-        return 0;
+        return Vbid(0);
     }
 
-    vbucket_state* getVBucketState(uint16_t vbucketId) override {
-        return cachedVBStates[vbucketId].get();
+    vbucket_state* getVBucketState(Vbid vbucketId) override {
+        return cachedVBStates[vbucketId.get()].get();
     }
 
-    size_t getNumPersistedDeletes(uint16_t vbid) override {
+    size_t getNumPersistedDeletes(Vbid vbid) override {
         // TODO vmx 2016-10-29: implement
         return 0;
     }
 
-    DBFileInfo getDbFileInfo(uint16_t vbid) override {
+    DBFileInfo getDbFileInfo(Vbid vbid) override {
         // TODO vmx 2016-10-29: implement
         DBFileInfo vbinfo;
         return vbinfo;
@@ -248,12 +248,12 @@ public:
         return vbinfo;
     }
 
-    size_t getItemCount(uint16_t vbid) override {
+    size_t getItemCount(Vbid vbid) override {
         // TODO vmx 2016-10-29: implement
         return 0;
     }
 
-    RollbackResult rollback(uint16_t vbid,
+    RollbackResult rollback(Vbid vbid,
                             uint64_t rollbackSeqno,
                             std::shared_ptr<RollbackCB> cb) override {
         // TODO vmx 2016-10-29: implement
@@ -268,7 +268,7 @@ public:
     }
 
     ENGINE_ERROR_CODE getAllKeys(
-            uint16_t vbid,
+            Vbid vbid,
             const DocKey start_key,
             uint32_t count,
             std::shared_ptr<Callback<const DocKey&>> cb) override {
@@ -279,7 +279,7 @@ public:
     ScanContext* initScanContext(
             std::shared_ptr<StatusCallback<GetValue>> cb,
             std::shared_ptr<StatusCallback<CacheLookup>> cl,
-            uint16_t vbid,
+            Vbid vbid,
             uint64_t startSeqno,
             DocumentFilter options,
             ValueFilter valOptions) override;
@@ -288,13 +288,13 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
-    std::string getCollectionsManifest(uint16_t vbid) override {
+    std::string getCollectionsManifest(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
         return "";
     }
 
     std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
-            uint16_t vbid) override {
+            Vbid vbid) override {
         // TODO JWW 2018-07-30 implement this fully - for now return something
         // as this function is called from warmup
 
@@ -313,11 +313,11 @@ public:
         return 0;
     }
 
-    void incrementRevision(uint16_t vbid) override {
+    void incrementRevision(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
     }
 
-    uint64_t prepareToDelete(uint16_t vbid) override {
+    uint64_t prepareToDelete(Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
         return 0;
     }
@@ -379,7 +379,7 @@ private:
      *
      * @param vbid vbucket id for the vbucket DB to open
      */
-    std::shared_ptr<VBHandle> getVBHandle(uint16_t vbid);
+    std::shared_ptr<VBHandle> getVBHandle(Vbid vbid);
 
     /*
      * The DB for each Shard is created in a separated subfolder of
@@ -412,12 +412,12 @@ private:
     rocksdb::Slice getSeqnoSlice(const int64_t* seqno);
     int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice);
 
-    std::unique_ptr<Item> makeItem(uint16_t vb,
+    std::unique_ptr<Item> makeItem(Vbid vb,
                                    const DocKey& key,
                                    const rocksdb::Slice& s,
                                    GetMetaOnly getMetaOnly);
 
-    GetValue makeGetValue(uint16_t vb,
+    GetValue makeGetValue(Vbid vb,
                           const DocKey& key,
                           const std::string& value,
                           GetMetaOnly getMetaOnly = GetMetaOnly::No);
@@ -431,7 +431,7 @@ private:
                                        rocksdb::WriteBatch& batch);
 
     rocksdb::Status saveDocs(
-            uint16_t vbid,
+            Vbid vbid,
             Collections::VB::Flush& collectionsFlush,
             const std::vector<std::unique_ptr<RocksRequest>>& commitBatch);
 
