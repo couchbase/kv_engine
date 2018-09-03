@@ -51,7 +51,7 @@ public:
                                      const int flags,
                                      const rel_time_t exptime,
                                      uint8_t datatype,
-                                     uint16_t vbucket) override;
+                                     Vbid vbucket) override;
     std::pair<cb::unique_item_ptr, item_info> allocate_ex(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
@@ -60,43 +60,43 @@ public:
             int flags,
             rel_time_t exptime,
             uint8_t datatype,
-            uint16_t vbucket) override;
+            Vbid vbucket) override;
 
     ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
                              const DocKey& key,
                              uint64_t& cas,
-                             uint16_t vbucket,
+                             Vbid vbucket,
                              mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
 
     cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
                                 const DocKey& key,
-                                uint16_t vbucket,
+                                Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_if(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
-            uint16_t vbucket,
+            Vbid vbucket,
             std::function<bool(const item_info&)> filter) override;
 
     cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
-                                         uint16_t vbucket) override;
+                                         Vbid vbucket) override;
 
     cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
                                        const DocKey& key,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint32_t lock_timeout) override;
 
     ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
                              const DocKey& key,
-                             uint16_t vbucket,
+                             Vbid vbucket,
                              uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
                                           const DocKey& key,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint32_t expirytime) override;
 
     ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
@@ -186,7 +186,7 @@ cb::EngineErrorItemPair CrashEngine::allocate(gsl::not_null<const void*> cookie,
                                               const int flags,
                                               const rel_time_t exptime,
                                               uint8_t datatype,
-                                              uint16_t vbucket) {
+                                              Vbid vbucket) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
@@ -198,14 +198,14 @@ std::pair<cb::unique_item_ptr, item_info> CrashEngine::allocate_ex(
         int flags,
         rel_time_t exptime,
         uint8_t datatype,
-        uint16_t vbucket) {
+        Vbid vbucket) {
     throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
 }
 
 ENGINE_ERROR_CODE CrashEngine::remove(gsl::not_null<const void*> cookie,
                                       const DocKey& key,
                                       uint64_t& cas,
-                                      uint16_t vbucket,
+                                      Vbid vbucket,
                                       mutation_descr_t& mut_info) {
     return ENGINE_FAILED;
 }
@@ -215,7 +215,7 @@ void CrashEngine::release(gsl::not_null<item*> item) {
 
 cb::EngineErrorItemPair CrashEngine::get(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          DocStateFilter) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
@@ -223,34 +223,32 @@ cb::EngineErrorItemPair CrashEngine::get(gsl::not_null<const void*> cookie,
 cb::EngineErrorItemPair CrashEngine::get_if(
         gsl::not_null<const void*>,
         const DocKey&,
-        uint16_t,
+        Vbid,
         std::function<bool(const item_info&)>) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 cb::EngineErrorMetadataPair CrashEngine::get_meta(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint16_t vbucket) {
+        gsl::not_null<const void*> cookie, const DocKey& key, Vbid vbucket) {
     return {cb::engine_errc::failed, {}};
 }
 
 cb::EngineErrorItemPair CrashEngine::get_and_touch(
-        gsl::not_null<const void*> cookie, const DocKey&, uint16_t, uint32_t) {
+        gsl::not_null<const void*> cookie, const DocKey&, Vbid, uint32_t) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 cb::EngineErrorItemPair CrashEngine::get_locked(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t lock_timeout) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
 ENGINE_ERROR_CODE CrashEngine::unlock(gsl::not_null<const void*> cookie,
                                       const DocKey& key,
-                                      uint16_t vbucket,
+                                      Vbid vbucket,
                                       uint64_t cas) {
     return ENGINE_FAILED;
 }

@@ -27,7 +27,7 @@
 uint8_t dcp_last_op;
 uint8_t dcp_last_status;
 uint8_t dcp_last_nru;
-uint16_t dcp_last_vbucket;
+Vbid dcp_last_vbucket;
 uint32_t dcp_last_opaque;
 uint32_t dcp_last_flags;
 uint32_t dcp_last_stream_opaque;
@@ -73,13 +73,13 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::get_failover_log(uint32_t opaque,
-                                                            uint16_t vbucket) {
+                                                            Vbid vbucket) {
     clear_dcp_data();
     return ENGINE_ENOTSUP;
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::stream_req(uint32_t opaque,
-                                                      uint16_t vbucket,
+                                                      Vbid vbucket,
                                                       uint32_t flags,
                                                       uint64_t start_seqno,
                                                       uint64_t end_seqno,
@@ -132,7 +132,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state_rsp(
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(uint32_t opaque,
-                                                      uint16_t vbucket,
+                                                      Vbid vbucket,
                                                       uint32_t flags) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_STREAM_END;
@@ -144,7 +144,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
-                                                  uint16_t vbucket,
+                                                  Vbid vbucket,
                                                   uint64_t snap_start_seqno,
                                                   uint64_t snap_end_seqno,
                                                   uint32_t flags) {
@@ -161,7 +161,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                                     item* itm,
-                                                    uint16_t vbucket,
+                                                    Vbid vbucket,
                                                     uint64_t by_seqno,
                                                     uint64_t rev_seqno,
                                                     uint32_t lock_time,
@@ -202,7 +202,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(uint32_t opaque,
                                                          item* itm,
-                                                         uint16_t vbucket,
+                                                         Vbid vbucket,
                                                          uint64_t by_seqno,
                                                          uint64_t rev_seqno,
                                                          const void* meta,
@@ -239,7 +239,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(uint32_t opaque,
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
                                                     item* itm,
-                                                    uint16_t vbucket,
+                                                    Vbid vbucket,
                                                     uint64_t by_seqno,
                                                     uint64_t rev_seqno,
                                                     const void* meta,
@@ -257,7 +257,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
                                                        gsl::not_null<item*> itm,
-                                                       uint16_t vbucket,
+                                                       Vbid vbucket,
                                                        uint64_t by_seqno,
                                                        uint64_t rev_seqno,
                                                        uint32_t deleteTime) {
@@ -272,13 +272,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
                          protocol_binary_request_dcp_deletion_v2::extlen);
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t,
-                                                      item* itm,
-                                                      uint16_t,
-                                                      uint64_t,
-                                                      uint64_t,
-                                                      const void*,
-                                                      uint16_t) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(
+        uint32_t, item* itm, Vbid, uint64_t, uint64_t, const void*, uint16_t) {
     clear_dcp_data();
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(itm);
@@ -287,7 +282,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t,
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state(
-        uint32_t opaque, uint16_t vbucket, vbucket_state_t state) {
+        uint32_t opaque, Vbid vbucket, vbucket_state_t state) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
     dcp_last_opaque = opaque;
@@ -305,7 +300,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::noop(uint32_t opaque) {
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::buffer_acknowledgement(
-        uint32_t opaque, uint16_t vbucket, uint32_t buffer_bytes) {
+        uint32_t opaque, Vbid vbucket, uint32_t buffer_bytes) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
     dcp_last_opaque = opaque;
@@ -328,7 +323,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::control(uint32_t opaque,
 
 static ENGINE_ERROR_CODE mock_system_event(gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
-                                           uint16_t vbucket,
+                                           Vbid vbucket,
                                            mcbp::systemevent::id event,
                                            uint64_t bySeqno,
                                            cb::const_byte_buffer key,

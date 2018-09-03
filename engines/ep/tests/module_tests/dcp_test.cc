@@ -414,7 +414,7 @@ ENGINE_ERROR_CODE mock_mutation_return_engine_e2big(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
         item* itm,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t lock_time,
@@ -1890,7 +1890,7 @@ protected:
         }
     }
 
-    ENGINE_ERROR_CODE set_vb_state(uint16_t vbid, vbucket_state_t state) {
+    ENGINE_ERROR_CODE set_vb_state(Vbid vbid, vbucket_state_t state) {
         return engine->getKVBucket()->setVBucketState(vbid, state, true);
     }
 
@@ -1913,7 +1913,7 @@ protected:
     void processConsumerMutationsNearThreshold(bool beyondThreshold);
 
     /* vbucket associated with this connection */
-    uint16_t vbid;
+    Vbid vbid;
 };
 
 /*
@@ -2276,7 +2276,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     /* Open stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
-    const uint16_t vbid = 0;
+    const Vbid vbid = 0;
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       opaque,
@@ -2354,7 +2354,7 @@ TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
     /* Open stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
-    const uint16_t vbid = 0;
+    const Vbid vbid = 0;
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       opaque,
@@ -2511,7 +2511,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
 
 TEST_P(ConnectionTest, test_consumer_add_stream) {
     const void* cookie = create_mock_cookie();
-    uint16_t vbid = 0;
+    Vbid vbid = 0;
 
     /* Create a Mock Dcp consumer */
     auto consumer =
@@ -2818,7 +2818,7 @@ protected:
     }
 
     SynchronousEPEngine engine;
-    const uint16_t vbid = 0;
+    const Vbid vbid = 0;
 };
 
 /* Tests that there is no memory loss due to cyclic reference between connection
@@ -3071,7 +3071,7 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
 // correct size.
 TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
     const void* cookie = create_mock_cookie();
-    uint16_t vbid = 0;
+    Vbid vbid = 0;
 
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
@@ -3121,7 +3121,7 @@ TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
 // correct size.
 TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
     const void* cookie = create_mock_cookie();
-    uint16_t vbid = 0;
+    Vbid vbid = 0;
 
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");

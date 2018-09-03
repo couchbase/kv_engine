@@ -58,7 +58,7 @@ public:
         producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         createDcpObjects({{nullptr, 0}} /*collections on, but no filter*/);
     }
-    std::string getManifest(uint16_t vb) const {
+    std::string getManifest(Vbid vb) const {
         return store->getVBucket(vb)
                 ->getShard()
                 ->getRWUnderlying()
@@ -160,7 +160,7 @@ public:
      */
     static ENGINE_ERROR_CODE sendSystemEvent(gsl::not_null<const void*> cookie,
                                              uint32_t opaque,
-                                             uint16_t vbucket,
+                                             Vbid vbucket,
                                              mcbp::systemevent::id event,
                                              uint64_t bySeqno,
                                              cb::const_byte_buffer key,

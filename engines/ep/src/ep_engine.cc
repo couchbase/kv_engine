@@ -157,7 +157,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::allocate(
         const int flags,
         const rel_time_t exptime,
         uint8_t datatype,
-        uint16_t vbucket) {
+        Vbid vbucket) {
     if (!mcbp::datatype::is_valid(datatype)) {
         EP_LOG_WARN(
                 "Invalid value for datatype "
@@ -185,7 +185,7 @@ EventuallyPersistentEngine::allocate_ex(gsl::not_null<const void*> cookie,
                                         int flags,
                                         rel_time_t exptime,
                                         uint8_t datatype,
-                                        uint16_t vbucket) {
+                                        Vbid vbucket) {
     item* it = nullptr;
     auto err = acquireEngine(this)->itemAllocate(
             &it, key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
@@ -209,7 +209,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         uint64_t& cas,
-        uint16_t vbucket,
+        Vbid vbucket,
         mutation_descr_t& mut_info) {
     return acquireEngine(this)->itemDelete(
             cookie, key, cas, vbucket, nullptr, mut_info);
@@ -222,7 +222,7 @@ void EventuallyPersistentEngine::release(gsl::not_null<item*> itm) {
 cb::EngineErrorItemPair EventuallyPersistentEngine::get(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         DocStateFilter documentStateFilter) {
     get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
@@ -257,7 +257,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
     return acquireEngine(this)->getIfInner(cookie, key, vbucket, filter);
 }
@@ -265,7 +265,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t expiry_time) {
     return acquireEngine(this)->getAndTouchInner(
             cookie, key, vbucket, expiry_time);
@@ -274,7 +274,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t lock_timeout) {
     item* itm = nullptr;
     auto ret = acquireEngine(this)->getLockedInner(
@@ -285,7 +285,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unlock(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t cas) {
     return acquireEngine(this)->unlockInner(cookie, key, vbucket, cas);
 }
@@ -677,10 +677,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setDcpParam(
 }
 
 protocol_binary_response_status EventuallyPersistentEngine::setVbucketParam(
-        uint16_t vbucket,
-        const char* keyz,
-        const char* valz,
-        std::string& msg) {
+        Vbid vbucket, const char* keyz, const char* valz, std::string& msg) {
     protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     try {
         if (strcmp(keyz, "hlc_drift_ahead_threshold_us") == 0) {
@@ -694,7 +691,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setVbucketParam(
         } else if (strcmp(keyz, "max_cas") == 0) {
             uint64_t v = std::strtoull(valz, nullptr, 10);
             checkNumeric(valz);
-            EP_LOG_WARN("setVbucketParam: max_cas:{} {}", v, Vbid(vbucket));
+            EP_LOG_WARN("setVbucketParam: max_cas:{} {}", v, vbucket);
             if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
                 rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 msg = "Not my vbucket";
@@ -720,7 +717,7 @@ protocol_binary_response_status EventuallyPersistentEngine::evictKey(
     const uint8_t* keyPtr = reinterpret_cast<const uint8_t*>(request) +
                             sizeof(*request);
     size_t keylen = ntohs(req->message.header.request.keylen);
-    uint16_t vbucket = ntohs(request->request.vbucket);
+    Vbid vbucket = request->request.vbucket.ntoh();
 
     EP_LOG_DEBUG("Manually evicting object with key {}",
                  cb::UserDataView(keyPtr, keylen));
@@ -741,7 +738,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setParam(
     size_t keylen = ntohs(req->message.header.request.keylen);
     uint8_t extlen = req->message.header.request.extlen;
     size_t vallen = ntohl(req->message.header.request.bodylen);
-    uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+    Vbid vbucket = req->message.header.request.vbucket.ntoh();
     protocol_binary_engine_param_t paramtype =
         static_cast<protocol_binary_engine_param_t>(ntohl(
             req->message.body.param_type));
@@ -810,7 +807,7 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
                                         " to protocol_binary_request_get_vbucket");
     }
 
-    uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+    Vbid vbucket = req->message.header.request.vbucket.ntoh();
     VBucketPtr vb = e->getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -855,7 +852,7 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
                             cas, cookie);
     }
 
-    uint16_t vb = ntohs(req->message.header.request.vbucket);
+    Vbid vb = req->message.header.request.vbucket.ntoh();
     return e->setVBucketState(cookie, response, vb, state, false, cas);
 }
 
@@ -867,7 +864,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     uint64_t cas = ntohll(req->request.cas);
 
     protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    uint16_t vbucket = ntohs(req->request.vbucket);
+    Vbid vbucket = req->request.vbucket.ntoh();
 
     if (ntohs(req->request.keylen) > 0 || req->request.extlen > 0) {
         e->setErrorContext(cookie, "Key and extras required");
@@ -895,7 +892,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
             e->storeEngineSpecific(cookie, e);
         } else {
             e->storeEngineSpecific(cookie, NULL);
-            EP_LOG_DEBUG("Completed sync deletion of {}", Vbid(vbucket));
+            EP_LOG_DEBUG("Completed sync deletion of {}", vbucket);
             err = ENGINE_SUCCESS;
         }
     } else {
@@ -903,19 +900,19 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
     }
     switch (err) {
     case ENGINE_SUCCESS:
-        EP_LOG_INFO("Deletion of {} was completed.", Vbid(vbucket));
+        EP_LOG_INFO("Deletion of {} was completed.", vbucket);
         break;
     case ENGINE_NOT_MY_VBUCKET:
         EP_LOG_WARN(
                 "Deletion of {} failed because the vbucket doesn't exist!!!",
-                Vbid(vbucket));
+                vbucket);
         res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
         break;
     case ENGINE_EINVAL:
         EP_LOG_WARN(
                 "Deletion of {} failed "
                 "because the vbucket is not in a dead state",
-                Vbid(vbucket));
+                vbucket);
         e->setErrorContext(
                 cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
@@ -925,12 +922,12 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         EP_LOG_INFO(
                 "Request for {} deletion is in"
                 " EWOULDBLOCK until the database file is removed from disk",
-                Vbid(vbucket));
+                vbucket);
         e->storeEngineSpecific(cookie, req);
         return ENGINE_EWOULDBLOCK;
     default:
         EP_LOG_WARN("Deletion of {} failed because of unknown reasons",
-                    Vbid(vbucket));
+                    vbucket);
         e->setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
         res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
@@ -961,7 +958,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
     protocol_binary_request_no_extras* req =
         (protocol_binary_request_no_extras*)request;
     size_t keylen = ntohs(req->message.header.request.keylen);
-    uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+    Vbid vbucket = req->message.header.request.vbucket.ntoh();
     ENGINE_ERROR_CODE error_code;
     DocKey key = makeDocKey(
             cookie,
@@ -1022,7 +1019,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
             ntohll(req->message.body.purge_before_seq);
     compactionConfig.drop_deletes = req->message.body.drop_deletes;
     compactionConfig.db_file_id = e->getKVBucket()->getDBFileId(*req);
-    uint16_t vbid = ntohs(req->message.header.request.vbucket);
+    Vbid vbid = req->message.header.request.vbucket.ntoh();
 
     ENGINE_ERROR_CODE err;
     void* es = e->getEngineSpecific(cookie);
@@ -1330,13 +1327,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::open(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::add_stream(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t flags) {
     return acquireEngine(this)->dcpAddStream(cookie, opaque, vbucket, flags);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::close_stream(
-        gsl::not_null<const void*> cookie, uint32_t opaque, uint16_t vbucket) {
+        gsl::not_null<const void*> cookie, uint32_t opaque, Vbid vbucket) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
@@ -1349,7 +1346,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
         gsl::not_null<const void*> cookie,
         uint32_t flags,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t startSeqno,
         uint64_t endSeqno,
         uint64_t vbucketUuid,
@@ -1379,7 +1376,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         dcp_add_failover_log callback) {
     // This function covers two commands:
     // 1) DCP_GET_FAILOVER_LOG
@@ -1412,7 +1409,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
                 "{} ({}) Get Failover Log failed because this "
                 "vbucket doesn't exist",
                 conn ? conn->logHeader() : "MCBP-Connection",
-                Vbid(vbucket));
+                vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
     auto failoverEntries = vb->failovers->getFailoverLog();
@@ -1424,7 +1421,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get_failover_log(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_end(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t flags) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
@@ -1437,7 +1434,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_end(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::snapshot_marker(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags) {
@@ -1458,7 +1455,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::mutation(
         size_t priv_bytes,
         uint8_t datatype,
         uint64_t cas,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t flags,
         uint64_t by_seqno,
         uint64_t rev_seqno,
@@ -1490,7 +1487,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deletion(
         size_t priv_bytes,
         uint8_t datatype,
         uint64_t cas,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         cb::const_byte_buffer meta) {
@@ -1511,7 +1508,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deletion_v2(
         size_t priv_bytes,
         uint8_t datatype,
         uint64_t cas,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t delete_time) {
@@ -1540,7 +1537,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::expiration(
         size_t priv_bytes,
         uint8_t datatype,
         uint64_t cas,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         cb::const_byte_buffer meta) {
@@ -1556,7 +1553,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::expiration(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::set_vbucket_state(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         vbucket_state_t state) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
@@ -1579,7 +1576,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::noop(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::buffer_acknowledgement(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t buffer_bytes) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
@@ -1620,7 +1617,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::response_handler(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::system_event(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         mcbp::systemevent::id event,
         uint64_t bySeqno,
         cb::const_byte_buffer key,
@@ -1743,9 +1740,7 @@ bool EventuallyPersistentEngine::get_item_info(
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint16_t vbucket) {
+        gsl::not_null<const void*> cookie, const DocKey& key, Vbid vbucket) {
     return acquireEngine(this)->getMetaInner(cookie, key, vbucket);
 }
 
@@ -2114,7 +2109,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemAllocate(
         const int flags,
         rel_time_t exptime,
         uint8_t datatype,
-        uint16_t vbucket) {
+        Vbid vbucket) {
     if (priv_nbytes > maxItemPrivilegedBytes) {
         return ENGINE_E2BIG;
     }
@@ -2154,7 +2149,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::itemDelete(
         const void* cookie,
         const DocKey& key,
         uint64_t& cas,
-        uint16_t vbucket,
+        Vbid vbucket,
         ItemMetaData* item_meta,
         mutation_descr_t& mut_info) {
     ENGINE_ERROR_CODE ret = kvBucket->deleteItem(key,
@@ -2181,7 +2176,7 @@ void EventuallyPersistentEngine::itemRelease(item* itm) {
 ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
                                                   item** itm,
                                                   const DocKey& key,
-                                                  uint16_t vbucket,
+                                                  Vbid vbucket,
                                                   get_options_t options) {
     ScopeTimer2<MicrosecondStopwatch, TracerStopwatch> timer(
             MicrosecondStopwatch(stats.getCmdHisto),
@@ -2205,10 +2200,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::get(const void* cookie,
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
-        const void* cookie,
-        const DocKey& key,
-        uint16_t vbucket,
-        uint32_t exptime) {
+        const void* cookie, const DocKey& key, Vbid vbucket, uint32_t exptime) {
     auto* handle = reinterpret_cast<EngineIface*>(this);
 
     cb::ExpiryLimit expiryLimit;
@@ -2250,7 +2242,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
 cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         const void* cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
     auto* handle = reinterpret_cast<EngineIface*>(this);
 
@@ -2331,7 +2323,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
         const void* cookie,
         item** itm,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t lock_timeout) {
     auto default_timeout = static_cast<uint32_t>(getGetlDefaultTimeout());
 
@@ -2360,7 +2352,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getLockedInner(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unlockInner(const void* cookie,
                                                           const DocKey& key,
-                                                          uint16_t vbucket,
+                                                          Vbid vbucket,
                                                           uint64_t cas) {
     return kvBucket->unlockKey(key, vbucket, cas, ep_current_time());
 }
@@ -3067,7 +3059,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
             if (isPrevStateRequested) {
                 try {
                     char buf[16];
-                    checked_snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
+                    checked_snprintf(
+                            buf, sizeof(buf), "vb_%d", vb->getId().get());
                     add_casted_stat(buf,
                                     VBucket::toString(vb->getInitialState()),
                                     add_stat, cookie);
@@ -3094,7 +3087,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
         if (!parseUint16(vbid.c_str(), &vbucket_id)) {
             return ENGINE_EINVAL;
         }
-        VBucketPtr vb = getVBucket(vbucket_id);
+        Vbid vbucketId = Vbid(vbucket_id);
+        VBucketPtr vb = getVBucket(vbucketId);
         if (!vb) {
             return ENGINE_NOT_MY_VBUCKET;
         }
@@ -3122,10 +3116,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
         }
 
         void visitBucket(VBucketPtr &vb) override {
-            uint16_t vbid = vb->getId();
+            Vbid vbid = vb->getId();
             char buf[32];
             try {
-                checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid.get());
                 add_casted_stat(buf, VBucket::toString(vb->getState()),
                                 add_stat, cookie);
             } catch (std::exception& error) {
@@ -3139,40 +3133,44 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
             vb->ht.visitDepth(depthVisitor);
 
             try {
-                checked_snprintf(buf, sizeof(buf), "vb_%d:size", vbid);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:size", vbid.get());
                 add_casted_stat(buf, vb->ht.getSize(), add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:locks", vbid);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:locks", vbid.get());
                 add_casted_stat(buf, vb->ht.getNumLocks(), add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:min_depth", vbid);
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:min_depth", vbid.get());
                 add_casted_stat(buf,
                                 depthVisitor.min == -1 ? 0 : depthVisitor.min,
                                 add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:max_depth", vbid);
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:max_depth", vbid.get());
                 add_casted_stat(buf, depthVisitor.max, add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:histo", vbid);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:histo", vbid.get());
                 add_casted_stat(buf, depthVisitor.depthHisto, add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:reported", vbid);
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:reported", vbid.get());
                 add_casted_stat(buf, vb->ht.getNumInMemoryItems(), add_stat,
                                 cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:counted", vbid);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:counted", vbid.get());
                 add_casted_stat(buf, depthVisitor.size, add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:resized", vbid);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:resized", vbid.get());
                 add_casted_stat(buf, vb->ht.getNumResizes(), add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:mem_size", vbid);
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:mem_size", vbid.get());
                 add_casted_stat(buf, vb->ht.getItemMemory(), add_stat, cookie);
 
                 if (compressionMode != BucketCompressionMode::Off) {
                     checked_snprintf(buf,
                                      sizeof(buf),
                                      "vb_%d:mem_size_uncompressed",
-                                     vbid);
+                                     vbid.get());
                     add_casted_stat(buf,
                                     vb->ht.getUncompressedItemMemory(),
                                     add_stat,
                                     cookie);
                 }
-                checked_snprintf(buf, sizeof(buf), "vb_%d:mem_size_counted",
-                                 vbid);
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:mem_size_counted", vbid.get());
                 add_casted_stat(buf, depthVisitor.memUsed, add_stat, cookie);
             } catch (std::exception& error) {
                 EP_LOG_WARN(
@@ -3229,16 +3227,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashDump(
         // Must specify a vbucket.
         return ENGINE_EINVAL;
     }
-    uint16_t vbid;
-    if (!parseUint16(keyArgs.data(), &vbid)) {
+    uint16_t vbucket_id;
+    if (!parseUint16(keyArgs.data(), &vbucket_id)) {
         return ENGINE_EINVAL;
     }
+    Vbid vbid = Vbid(vbucket_id);
     VBucketPtr vb = getVBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    AddStatsStream as(std::to_string(vbid), addStat, cookie);
+    AddStatsStream as(std::to_string(vbid.get()), addStat, cookie);
     as << vb->ht << std::endl;
 
     return ENGINE_SUCCESS;
@@ -3250,16 +3249,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointDump(
         // Must specify a vbucket.
         return ENGINE_EINVAL;
     }
-    uint16_t vbid;
-    if (!parseUint16(keyArgs.data(), &vbid)) {
+    uint16_t vbucket_id;
+    if (!parseUint16(keyArgs.data(), &vbucket_id)) {
         return ENGINE_EINVAL;
     }
+    Vbid vbid = Vbid(vbucket_id);
     VBucketPtr vb = getVBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    AddStatsStream as(std::to_string(vbid), addStat, cookie);
+    AddStatsStream as(std::to_string(vbid.get()), addStat, cookie);
     as << *vb->checkpointManager << std::endl;
 
     return ENGINE_SUCCESS;
@@ -3282,10 +3282,10 @@ public:
             return;
         }
 
-        uint16_t vbid = vb->getId();
+        Vbid vbid = vb->getId();
         char buf[256];
         try {
-            checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+            checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid.get());
             add_casted_stat(buf, VBucket::toString(vb->getState()),
                             add_stat, cookie);
             vb->checkpointManager->addStats(add_stat, cookie);
@@ -3295,7 +3295,7 @@ public:
                 checked_snprintf(buf,
                                  sizeof(buf),
                                  "vb_%d:persisted_checkpoint_id",
-                                 vbid);
+                                 vbid.get());
                 add_casted_stat(buf, result.first, add_stat, cookie);
             }
         } catch (std::exception& error) {
@@ -3367,7 +3367,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
         if (!parseUint16(vbid.c_str(), &vbucket_id)) {
             return ENGINE_EINVAL;
         }
-        VBucketPtr vb = getVBucket(vbucket_id);
+        Vbid vbucketId = Vbid(vbucket_id);
+        VBucketPtr vb = getVBucket(vbucketId);
 
         StatCheckpointVisitor::addCheckpointStat(cookie, add_stat,
                                                  kvBucket.get(), vb);
@@ -3594,9 +3595,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEvictionStats(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void* cookie,
                                                          ADD_STAT add_stat,
-                                                         uint16_t vbid,
+                                                         Vbid vbid,
                                                          const DocKey& key,
                                                          bool validate) {
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
@@ -3652,9 +3653,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doVbIdFailoverLogStats(
-                                                            const void *cookie,
-                                                            ADD_STAT add_stat,
-                                                            uint16_t vbid) {
+        const void* cookie, ADD_STAT add_stat, Vbid vbid) {
     VBucketPtr vb = getVBucket(vbid);
     if(!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -3942,7 +3941,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             return ENGINE_EINVAL;
         }
 
-        int vbucket = atoi(value.c_str());
+        Vbid vbucket(atoi(value.c_str()));
         VBucketPtr vb = getVBucket(vbucket);
         if (!vb || vb->getState() == vbucket_state_dead) {
             return ENGINE_NOT_MY_VBUCKET;
@@ -4045,11 +4044,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         ss >> vbid;
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
+        Vbid vbucketId = Vbid(vbucket_id);
         // Non-validating, non-blocking version
         // @todo MB-30524: Collection - getStats needs DocNamespace
         rv = doKeyStats(cookie,
                         add_stat,
-                        vbucket_id,
+                        vbucketId,
                         DocKey(reinterpret_cast<const uint8_t*>(key.data()),
                                key.size(),
                                DocKeyEncodesCollectionId::No),
@@ -4063,11 +4063,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         ss >> vbid;
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
+        Vbid vbucketId = Vbid(vbucket_id);
         // Validating version; blocks
         // @todo MB-30524: Collection - getStats needs DocNamespace
         rv = doKeyStats(cookie,
                         add_stat,
-                        vbucket_id,
+                        vbucketId,
                         DocKey(reinterpret_cast<const uint8_t*>(key.data()),
                                key.size(),
                                DocKeyEncodesCollectionId::No),
@@ -4106,7 +4107,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         ss >> tStream;
         uint16_t vbucket_id(0);
         parseUint16(vbid.c_str(), &vbucket_id);
-        rv = doDcpVbTakeoverStats(cookie, add_stat, tStream, vbucket_id);
+        Vbid vbucketId = Vbid(vbucket_id);
+        rv = doDcpVbTakeoverStats(cookie, add_stat, tStream, vbucketId);
     } else if (statKey == "workload") {
         return doWorkloadStats(cookie, add_stat);
     } else if (cb_isPrefix(statKey, "failovers")) {
@@ -4121,7 +4123,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
             ss >> vbid;
             uint16_t vbucket_id(0);
             parseUint16(vbid.c_str(), &vbucket_id);
-            rv = doVbIdFailoverLogStats(cookie, add_stat, vbucket_id);
+            Vbid vbucketId = Vbid(vbucket_id);
+            rv = doVbIdFailoverLogStats(cookie, add_stat, vbucketId);
         }
     } else if (cb_isPrefix(statKey, "diskinfo")) {
         if (nkey == 8) {
@@ -4187,7 +4190,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
     std::stringstream result;
 
     while (offset < data_len) {
-        uint16_t vb_id;
+        Vbid vb_id;
         uint16_t keylen;
 
         // Parse a key
@@ -4199,8 +4202,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
                                 cookie);
         }
 
-        memcpy(&vb_id, data + offset, sizeof(uint16_t));
-        vb_id = ntohs(vb_id);
+        memcpy(&vb_id, data + offset, sizeof(Vbid));
+        vb_id = vb_id.ntoh();
         offset += sizeof(uint16_t);
 
         memcpy(&keylen, data + offset, sizeof(uint16_t));
@@ -4219,7 +4222,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         offset += keylen;
         EP_LOG_DEBUG("Observing key {} in {}",
                      cb::UserDataView(key.data(), key.size()),
-                     Vbid(vb_id));
+                     vb_id);
 
         // Get key stats
         uint16_t keystatus = 0;
@@ -4249,7 +4252,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         }
 
         // Put the result into a response buffer
-        vb_id = htons(vb_id);
+        vb_id = vb_id.ntoh();
         keylen = htons(keylen);
         uint64_t cas = htonll(kstats.cas);
         result.write((char*) &vb_id, sizeof(uint16_t));
@@ -4283,7 +4286,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
                           (protocol_binary_request_no_extras*)request;
     const char* data = reinterpret_cast<const char*>(req->bytes) +
                                                    sizeof(req->bytes);
-    uint16_t vb_id;
+    Vbid vb_id;
     uint64_t vb_uuid;
     uint8_t  format_type;
     uint64_t last_persisted_seqno;
@@ -4291,11 +4294,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
 
     std::stringstream result;
 
-    vb_id = ntohs(req->message.header.request.vbucket);
+    vb_id = req->message.header.request.vbucket.ntoh();
     memcpy(&vb_uuid, data, sizeof(uint64_t));
     vb_uuid = ntohll(vb_uuid);
 
-    EP_LOG_DEBUG("Observing {} with uuid: {}", Vbid(vb_id), vb_uuid);
+    EP_LOG_DEBUG("Observing {} with uuid: {}", vb_id, vb_uuid);
 
     VBucketPtr vb = kvBucket->getVBucket(vb_id);
 
@@ -4326,7 +4329,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        last_persisted_seqno = htonll(vb->getPublicPersistenceSeqno());
        current_seqno = htonll(vb->getHighSeqno());
        latest_uuid = htonll(entry.vb_uuid);
-       vb_id = htons(vb_id);
+       vb_id = vb_id.hton();
        vb_uuid = htonll(vb_uuid);
        failover_highseqno = htonll(failover_highseqno);
 
@@ -4341,7 +4344,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
         format_type = 0;
         last_persisted_seqno = htonll(vb->getPublicPersistenceSeqno());
         current_seqno = htonll(vb->getHighSeqno());
-        vb_id   =  htons(vb_id);
+        vb_id = vb_id.hton();
         vb_uuid =  htonll(vb_uuid);
 
         result.write((char*) &format_type, sizeof(uint8_t));
@@ -4358,7 +4361,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
                         cookie);
 }
 
-VBucketPtr EventuallyPersistentEngine::getVBucket(uint16_t vbucket) {
+VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) {
     return kvBucket->getVBucket(vbucket);
 }
 
@@ -4367,7 +4370,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                            protocol_binary_request_header *req,
                                            ADD_RESPONSE response)
 {
-    uint16_t vbucket = ntohs(req->request.vbucket);
+    Vbid vbucket = req->request.vbucket.ntoh();
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -4464,7 +4467,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                 "handleCheckpointCmds(): "
                                 "High priority async chk request "
                                 "for {} is NOT supported",
-                                Vbid(vbucket));
+                                vbucket);
                         break;
 
                     case HighPriorityVBReqStatus::RequestNotScheduled:
@@ -4475,15 +4478,14 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                 "handleCheckpointCmds(): "
                                 "Did NOT add high priority async chk request "
                                 "for {}",
-                                Vbid(vbucket));
+                                vbucket);
 
                         break;
                     }
                 } else {
                     storeEngineSpecific(cookie, NULL);
-                    EP_LOG_DEBUG("Checkpoint {} persisted for {}",
-                                 chk_id,
-                                 Vbid(vbucket));
+                    EP_LOG_DEBUG(
+                            "Checkpoint {} persisted for {}", chk_id, vbucket);
                 }
             }
         }
@@ -4508,7 +4510,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                                            protocol_binary_request_header *req,
                                            ADD_RESPONSE response)
 {
-    uint16_t vbucket = ntohs(req->request.vbucket);
+    Vbid vbucket = req->request.vbucket.ntoh();
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -4544,7 +4546,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                             "EventuallyPersistentEngine::handleSeqnoCmds(): "
                             "High priority async seqno request "
                             "for {} is NOT supported",
-                            Vbid(vbucket));
+                            vbucket);
                     break;
 
                 case HighPriorityVBReqStatus::RequestNotScheduled:
@@ -4555,7 +4557,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                             "Did NOT add high priority async seqno request "
                             "for {}, Persisted seqno {} > requested seqno "
                             "{}",
-                            Vbid(vbucket),
+                            vbucket,
                             persisted_seqno,
                             seqno);
                     break;
@@ -4563,9 +4565,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
             }
         } else {
             storeEngineSpecific(cookie, NULL);
-            EP_LOG_DEBUG("Sequence number {} persisted for {}",
-                         seqno,
-                         Vbid(vbucket));
+            EP_LOG_DEBUG("Sequence number {} persisted for {}", seqno, vbucket);
         }
     }
 
@@ -4576,7 +4576,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
-        const void* cookie, const DocKey& key, uint16_t vbucket) {
+        const void* cookie, const DocKey& key, Vbid vbucket) {
     uint32_t deleted;
     uint8_t datatype;
     ItemMetaData itemMeta;
@@ -4710,7 +4710,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
 
     uint8_t opcode = request->message.header.request.opcode;
     uint8_t* key = request->bytes + sizeof(request->bytes);
-    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    Vbid vbucket = request->message.header.request.vbucket.ntoh();
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     uint8_t datatype = request->message.header.request.datatype;
     size_t vallen = bodylen - keylen - extlen;
@@ -4850,7 +4850,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
-        uint16_t vbucket,
+        Vbid vbucket,
         DocKey key,
         cb::const_byte_buffer value,
         ItemMetaData itemMeta,
@@ -4965,7 +4965,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     }
 
     uint8_t opcode = request->message.header.request.opcode;
-    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    Vbid vbucket = request->message.header.request.vbucket.ntoh();
     uint64_t cas = ntohll(request->message.header.request.cas);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     uint32_t flags = request->message.body.flags;
@@ -5075,7 +5075,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
-        uint16_t vbucket,
+        Vbid vbucket,
         DocKey key,
         ItemMetaData itemMeta,
         uint64_t& cas,
@@ -5173,10 +5173,10 @@ bool EventuallyPersistentEngine::isDegradedMode() const {
 }
 
 ENGINE_ERROR_CODE
-EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
+EventuallyPersistentEngine::doDcpVbTakeoverStats(const void* cookie,
                                                  ADD_STAT add_stat,
-                                                 std::string &key,
-                                                 uint16_t vbid) {
+                                                 std::string& key,
+                                                 Vbid vbid) {
     VBucketPtr vb = getVBucket(vbid);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -5189,7 +5189,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
     if (!conn) {
         EP_LOG_DEBUG("doDcpVbTakeoverStats - cannot find connection {} for {}",
                      dcpName,
-                     Vbid(vbid));
+                     vbid);
         size_t vb_items = vb->getNumItems();
 
         size_t del_items = 0;
@@ -5200,7 +5200,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
                     "doDcpVbTakeoverStats: exception while getting num "
                     "persisted deletes for {} - treating as 0 "
                     "deletes. Details: {}",
-                    Vbid(vbid),
+                    vbid,
                     e.what());
         }
         size_t chk_items =
@@ -5226,7 +5226,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
                 "doDcpVbTakeoverStats: connection {} for "
                 "{} is not a DcpProducer",
                 dcpName,
-                Vbid(vbid));
+                vbid);
         return ENGINE_KEY_ENOENT;
     }
 
@@ -5254,7 +5254,7 @@ EventuallyPersistentEngine::returnMeta(
     }
 
     uint8_t* keyPtr = request->bytes + sizeof(request->bytes);
-    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    Vbid vbucket = request->message.header.request.vbucket.ntoh();
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     uint64_t cas = ntohll(request->message.header.request.cas);
     uint8_t datatype = request->message.header.request.datatype;
@@ -5397,14 +5397,13 @@ public:
                      const void* c,
                      ADD_RESPONSE resp,
                      const DocKey start_key_,
-                     uint16_t vbucket,
+                     Vbid vbucket,
                      uint32_t count_,
                      bool encodeCollectionID)
         : GlobalTask(e, TaskId::FetchAllKeysTask, 0, false),
           engine(e),
           cookie(c),
-          description("Running the ALL_DOCS api on vbucket: " +
-                      std::to_string(vbucket)),
+          description("Running the ALL_DOCS api on " + vbucket.to_string()),
           response(resp),
           start_key(start_key_),
           vbid(vbucket),
@@ -5457,7 +5456,7 @@ private:
     const std::string description;
     ADD_RESPONSE response;
     StoredDocKey start_key;
-    uint16_t vbid;
+    Vbid vbid;
     uint32_t count;
     bool encodeCollectionID{false};
 };
@@ -5481,7 +5480,7 @@ EventuallyPersistentEngine::getAllKeys(
         }
     }
 
-    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
+    Vbid vbucket = request->message.header.request.vbucket.ntoh();
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -5613,9 +5612,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(const void* cookie,
                                                            uint32_t opaque,
-                                                           uint16_t vbucket,
-                                                           uint32_t flags)
-{
+                                                           Vbid vbucket,
+                                                           uint32_t flags) {
     ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
     ConnHandler* conn = getConnHandler(cookie);
     if (conn) {
@@ -5691,17 +5689,17 @@ protocol_binary_response_status EventuallyPersistentEngine::startFlusher(
     return rv;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(uint16_t vbid,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteVBucket(Vbid vbid,
                                                             const void* c) {
     return kvBucket->deleteVBucket(vbid, c);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
-        uint16_t vbid, const CompactionConfig& c, const void* cookie) {
+        Vbid vbid, const CompactionConfig& c, const void* cookie) {
     return kvBucket->scheduleCompaction(vbid, c, cookie);
 }
 
-bool EventuallyPersistentEngine::resetVBucket(uint16_t vbid) {
+bool EventuallyPersistentEngine::resetVBucket(Vbid vbid) {
     return kvBucket->resetVBucket(vbid);
 }
 
@@ -5751,7 +5749,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                                     (state == vbucket_state_pending);
             }
             if (getSeqnoForThisVb) {
-                uint16_t vbid = htons(static_cast<uint16_t>(id));
+                Vbid vbid = id.hton();
                 uint64_t highSeqno;
                 if (vb->getState() == vbucket_state_active) {
                     highSeqno = htonll(vb->getHighSeqno());
@@ -5809,7 +5807,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendErrorResponse(
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sendMutationExtras(
         ADD_RESPONSE response,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t bySeqno,
         protocol_binary_response_status status,
         uint64_t cas,
@@ -5854,7 +5852,7 @@ std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
         const void* cookie,
         ADD_RESPONSE response,
-        uint16_t vbid,
+        Vbid vbid,
         vbucket_state_t to,
         bool transfer,
         uint64_t cas) {

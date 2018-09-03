@@ -37,7 +37,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                                      const int flags,
                                      const rel_time_t exptime,
                                      uint8_t datatype,
-                                     uint16_t vbucket) override;
+                                     Vbid vbucket) override;
     std::pair<cb::unique_item_ptr, item_info> allocate_ex(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
@@ -46,43 +46,43 @@ struct mock_engine : public EngineIface, public DcpIface {
             int flags,
             rel_time_t exptime,
             uint8_t datatype,
-            uint16_t vbucket) override;
+            Vbid vbucket) override;
 
     ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
                              const DocKey& key,
                              uint64_t& cas,
-                             uint16_t vbucket,
+                             Vbid vbucket,
                              mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
 
     cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
                                 const DocKey& key,
-                                uint16_t vbucket,
+                                Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_if(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
-            uint16_t vbucket,
+            Vbid vbucket,
             std::function<bool(const item_info&)> filter) override;
 
     cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
-                                         uint16_t vbucket) override;
+                                         Vbid vbucket) override;
 
     cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
                                        const DocKey& key,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint32_t lock_timeout) override;
 
     ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
                              const DocKey& key,
-                             uint16_t vbucket,
+                             Vbid vbucket,
                              uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
                                           const DocKey& key,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint32_t expirytime) override;
 
     ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
@@ -146,18 +146,18 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint32_t flags) override;
 
     ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
-                                   uint16_t vbucket) override;
+                                   Vbid vbucket) override;
 
     ENGINE_ERROR_CODE stream_req(
             gsl::not_null<const void*> cookie,
             uint32_t flags,
             uint32_t opaque,
-            uint16_t vbucket,
+            Vbid vbucket,
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint64_t vbucket_uuid,
@@ -169,17 +169,17 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        dcp_add_failover_log callback) override;
 
     ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint32_t flags) override;
 
     ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
                                       uint32_t opaque,
-                                      uint16_t vbucket,
+                                      Vbid vbucket,
                                       uint64_t start_seqno,
                                       uint64_t end_seqno,
                                       uint32_t flags) override;
@@ -191,7 +191,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                                size_t priv_bytes,
                                uint8_t datatype,
                                uint64_t cas,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint32_t flags,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -207,7 +207,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                                size_t priv_bytes,
                                uint8_t datatype,
                                uint64_t cas,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                cb::const_byte_buffer meta) override;
@@ -219,14 +219,14 @@ struct mock_engine : public EngineIface, public DcpIface {
                                  size_t priv_bytes,
                                  uint8_t datatype,
                                  uint64_t cas,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  cb::const_byte_buffer meta) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
                                         uint32_t opaque,
-                                        uint16_t vbucket,
+                                        Vbid vbucket,
                                         vbucket_state_t state) override;
 
     ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
@@ -234,7 +234,7 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*> cookie,
                                              uint32_t opaque,
-                                             uint16_t vbucket,
+                                             Vbid vbucket,
                                              uint32_t buffer_bytes) override;
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
@@ -250,7 +250,7 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
-                                   uint16_t vbucket,
+                                   Vbid vbucket,
                                    mcbp::systemevent::id event,
                                    uint64_t bySeqno,
                                    cb::const_byte_buffer key,
@@ -378,7 +378,7 @@ cb::EngineErrorItemPair mock_engine::allocate(gsl::not_null<const void*> cookie,
                                               const int flags,
                                               const rel_time_t exptime,
                                               uint8_t datatype,
-                                              uint16_t vbucket) {
+                                              Vbid vbucket) {
     auto engine_fn = std::bind(&EngineIface::allocate,
                                the_engine,
                                cookie,
@@ -404,7 +404,7 @@ std::pair<cb::unique_item_ptr, item_info> mock_engine::allocate_ex(
         const int flags,
         const rel_time_t exptime,
         uint8_t datatype,
-        uint16_t vbucket) {
+        Vbid vbucket) {
     auto engine_fn = std::bind(&EngineIface::allocate_ex,
                                the_engine,
                                cookie,
@@ -438,7 +438,7 @@ std::pair<cb::unique_item_ptr, item_info> mock_engine::allocate_ex(
 ENGINE_ERROR_CODE mock_engine::remove(gsl::not_null<const void*> cookie,
                                       const DocKey& key,
                                       uint64_t& cas,
-                                      uint16_t vbucket,
+                                      Vbid vbucket,
                                       mutation_descr_t& mut_info) {
     auto engine_fn = std::bind(&EngineIface::remove,
                                the_engine,
@@ -458,7 +458,7 @@ void mock_engine::release(gsl::not_null<item*> item) {
 
 cb::EngineErrorItemPair mock_engine::get(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          DocStateFilter documentStateFilter) {
     auto engine_fn = std::bind(&EngineIface::get,
                                the_engine,
@@ -476,7 +476,7 @@ cb::EngineErrorItemPair mock_engine::get(gsl::not_null<const void*> cookie,
 cb::EngineErrorItemPair mock_engine::get_if(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
     auto engine_fn = std::bind(
             &EngineIface::get_if, the_engine, cookie, key, vbucket, filter);
@@ -490,7 +490,7 @@ cb::EngineErrorItemPair mock_engine::get_if(
 cb::EngineErrorItemPair mock_engine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t expiry_time) {
     auto engine_fn = std::bind(&EngineIface::get_and_touch,
                                the_engine,
@@ -508,7 +508,7 @@ cb::EngineErrorItemPair mock_engine::get_and_touch(
 cb::EngineErrorItemPair mock_engine::get_locked(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t lock_timeout) {
     auto engine_fn = std::bind(&EngineIface::get_locked,
                                the_engine,
@@ -524,9 +524,7 @@ cb::EngineErrorItemPair mock_engine::get_locked(
 }
 
 cb::EngineErrorMetadataPair mock_engine::get_meta(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint16_t vbucket) {
+        gsl::not_null<const void*> cookie, const DocKey& key, Vbid vbucket) {
     auto engine_fn =
             std::bind(&EngineIface::get_meta, the_engine, cookie, key, vbucket);
 
@@ -538,7 +536,7 @@ cb::EngineErrorMetadataPair mock_engine::get_meta(
 
 ENGINE_ERROR_CODE mock_engine::unlock(gsl::not_null<const void*> cookie,
                                       const DocKey& key,
-                                      uint16_t vbucket,
+                                      Vbid vbucket,
                                       uint64_t cas) {
     auto engine_fn = std::bind(
             &EngineIface::unlock, the_engine, cookie, key, vbucket, cas);
@@ -641,7 +639,7 @@ ENGINE_ERROR_CODE mock_engine::open(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE mock_engine::add_stream(gsl::not_null<const void*> cookie,
                                           uint32_t opaque,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint32_t flags) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::add_stream,
@@ -660,7 +658,7 @@ ENGINE_ERROR_CODE mock_engine::add_stream(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE mock_engine::close_stream(gsl::not_null<const void*> cookie,
                                             uint32_t opaque,
-                                            uint16_t vbucket) {
+                                            Vbid vbucket) {
     return the_engine_dcp->close_stream(cookie, opaque, vbucket);
 }
 
@@ -668,7 +666,7 @@ ENGINE_ERROR_CODE mock_engine::stream_req(
         gsl::not_null<const void*> cookie,
         uint32_t flags,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint64_t vbucket_uuid,
@@ -694,14 +692,14 @@ ENGINE_ERROR_CODE mock_engine::stream_req(
 ENGINE_ERROR_CODE mock_engine::get_failover_log(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         dcp_add_failover_log cb) {
     return the_engine_dcp->get_failover_log(cookie, opaque, vbucket, cb);
 }
 
 ENGINE_ERROR_CODE mock_engine::stream_end(gsl::not_null<const void*> cookie,
                                           uint32_t opaque,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint32_t flags) {
     return the_engine_dcp->stream_end(cookie, opaque, vbucket, flags);
 }
@@ -709,7 +707,7 @@ ENGINE_ERROR_CODE mock_engine::stream_end(gsl::not_null<const void*> cookie,
 ENGINE_ERROR_CODE mock_engine::snapshot_marker(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint32_t flags) {
@@ -724,7 +722,7 @@ ENGINE_ERROR_CODE mock_engine::mutation(gsl::not_null<const void*> cookie,
                                         size_t priv_bytes,
                                         uint8_t datatype,
                                         uint64_t cas,
-                                        uint16_t vbucket,
+                                        Vbid vbucket,
                                         uint32_t flags,
                                         uint64_t by_seqno,
                                         uint64_t rev_seqno,
@@ -764,7 +762,7 @@ ENGINE_ERROR_CODE mock_engine::deletion(gsl::not_null<const void*> cookie,
                                         size_t priv_bytes,
                                         uint8_t datatype,
                                         uint64_t cas,
-                                        uint16_t vbucket,
+                                        Vbid vbucket,
                                         uint64_t by_seqno,
                                         uint64_t rev_seqno,
                                         cb::const_byte_buffer meta) {
@@ -797,7 +795,7 @@ ENGINE_ERROR_CODE mock_engine::expiration(gsl::not_null<const void*> cookie,
                                           size_t priv_bytes,
                                           uint8_t datatype,
                                           uint64_t cas,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           cb::const_byte_buffer meta) {
@@ -826,7 +824,7 @@ ENGINE_ERROR_CODE mock_engine::expiration(gsl::not_null<const void*> cookie,
 ENGINE_ERROR_CODE mock_engine::set_vbucket_state(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         vbucket_state_t state) {
     return the_engine_dcp->set_vbucket_state(cookie, opaque, vbucket, state);
 }
@@ -848,7 +846,7 @@ ENGINE_ERROR_CODE mock_engine::control(gsl::not_null<const void*> cookie,
 ENGINE_ERROR_CODE mock_engine::buffer_acknowledgement(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t bb) {
     return the_engine_dcp->buffer_acknowledgement(cookie, opaque, vbucket, bb);
 }
@@ -861,7 +859,7 @@ ENGINE_ERROR_CODE mock_engine::response_handler(
 
 ENGINE_ERROR_CODE mock_engine::system_event(gsl::not_null<const void*> cookie,
                                             uint32_t opaque,
-                                            uint16_t vbucket,
+                                            Vbid vbucket,
                                             mcbp::systemevent::id event,
                                             uint64_t bySeqno,
                                             cb::const_byte_buffer key,

@@ -1509,8 +1509,7 @@ ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
 //                                                                        //
 ////////////////////////////////////////////////////////////////////////////
 
-ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque,
-                                               uint16_t vbucket) {
+ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque, Vbid vbucket) {
     protocol_binary_request_dcp_get_failover_log packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode =
@@ -1522,7 +1521,7 @@ ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint32_t flags,
                                          uint64_t start_seqno,
                                          uint64_t end_seqno,
@@ -1591,7 +1590,7 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint32_t flags) {
     protocol_binary_request_dcp_stream_end packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -1607,7 +1606,7 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
-                                     uint16_t vbucket,
+                                     Vbid vbucket,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,
                                      uint32_t flags) {
@@ -1628,7 +1627,7 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
                                        item* it,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        uint32_t lock_time,
@@ -1764,7 +1763,7 @@ ENGINE_ERROR_CODE Connection::deletionInner(const item_info& info,
 
 ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
                                        item* it,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        const void* meta,
@@ -1816,7 +1815,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
                                           gsl::not_null<item*> it,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time) {
@@ -1865,7 +1864,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
                                          item* it,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          const void* meta,
@@ -1879,7 +1878,7 @@ ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
-                                                uint16_t vbucket,
+                                                Vbid vbucket,
                                                 vbucket_state_t state) {
     protocol_binary_request_dcp_set_vbucket_state packet = {};
 
@@ -1910,7 +1909,7 @@ ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
 }
 
 ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
-                                                     uint16_t vbucket,
+                                                     Vbid vbucket,
                                                      uint32_t buffer_bytes) {
     protocol_binary_request_dcp_buffer_acknowledgement packet = {};
     packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
@@ -1968,7 +1967,7 @@ ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
 
 ENGINE_ERROR_CODE dcp_message_system_event(gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
-                                           uint16_t vbucket,
+                                           Vbid vbucket,
                                            mcbp::systemevent::id event,
                                            uint64_t bySeqno,
                                            cb::const_byte_buffer key,

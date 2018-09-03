@@ -38,10 +38,10 @@ struct dcp_message_producers {
     virtual ~dcp_message_producers() = default;
 
     virtual ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
-                                               uint16_t vbucket) = 0;
+                                               Vbid vbucket) = 0;
 
     virtual ENGINE_ERROR_CODE stream_req(uint32_t opaque,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint32_t flags,
                                          uint64_t start_seqno,
                                          uint64_t end_seqno,
@@ -74,7 +74,7 @@ struct dcp_message_producers {
      *         ENGINE_* for errors
      */
     virtual ENGINE_ERROR_CODE stream_end(uint32_t opaque,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint32_t flags) = 0;
 
     /**
@@ -87,7 +87,7 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE marker(uint32_t opaque,
-                                     uint16_t vbucket,
+                                     Vbid vbucket,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,
                                      uint32_t flags) = 0;
@@ -111,7 +111,7 @@ struct dcp_message_producers {
      */
     virtual ENGINE_ERROR_CODE mutation(uint32_t opaque,
                                        item* itm,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        uint32_t lock_time,
@@ -134,7 +134,7 @@ struct dcp_message_producers {
      */
     virtual ENGINE_ERROR_CODE deletion(uint32_t opaque,
                                        item* itm,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        const void* meta,
@@ -156,7 +156,7 @@ struct dcp_message_producers {
      */
     virtual ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
                                           gsl::not_null<item*> itm,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time) = 0;
@@ -176,7 +176,7 @@ struct dcp_message_producers {
      */
     virtual ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                          item* itm,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          const void* meta,
@@ -193,7 +193,7 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
-                                                uint16_t vbucket,
+                                                Vbid vbucket,
                                                 vbucket_state_t state) = 0;
 
     /**
@@ -216,7 +216,7 @@ struct dcp_message_producers {
      * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE buffer_acknowledgement(uint32_t opaque,
-                                                     uint16_t vbucket,
+                                                     Vbid vbucket,
                                                      uint32_t buffer_bytes) = 0;
 
     /**
@@ -252,7 +252,7 @@ struct dcp_message_producers {
     ENGINE_ERROR_CODE(*system_event)
     (gsl::not_null<const void*> cookie,
      uint32_t opaque,
-     uint16_t vbucket,
+     Vbid vbucket,
      mcbp::systemevent::id event,
      uint64_t bySeqno,
      cb::const_byte_buffer key,
@@ -334,7 +334,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint32_t flags) = 0;
 
     /**
@@ -350,7 +350,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
-                                           uint16_t vbucket) = 0;
+                                           Vbid vbucket) = 0;
 
     /**
      * Callback to the engine that a Stream Request message was received
@@ -359,7 +359,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
             gsl::not_null<const void*> cookie,
             uint32_t flags,
             uint32_t opaque,
-            uint16_t vbucket,
+            Vbid vbucket,
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint64_t vbucket_uuid,
@@ -375,7 +375,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     virtual ENGINE_ERROR_CODE get_failover_log(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
-            uint16_t vbucket,
+            Vbid vbucket,
             dcp_add_failover_log callback) = 0;
 
     /**
@@ -383,7 +383,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
                                          uint32_t opaque,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint32_t flags) = 0;
 
     /**
@@ -391,7 +391,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
                                               uint32_t opaque,
-                                              uint16_t vbucket,
+                                              Vbid vbucket,
                                               uint64_t start_seqno,
                                               uint64_t end_seqno,
                                               uint32_t flags) = 0;
@@ -424,7 +424,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                        size_t priv_bytes,
                                        uint8_t datatype,
                                        uint64_t cas,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint32_t flags,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
@@ -457,7 +457,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                        size_t priv_bytes,
                                        uint8_t datatype,
                                        uint64_t cas,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        cb::const_byte_buffer meta) = 0;
@@ -486,7 +486,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                           size_t priv_bytes,
                                           uint8_t datatype,
                                           uint64_t cas,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time) {
@@ -517,7 +517,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                          size_t priv_bytes,
                                          uint8_t datatype,
                                          uint64_t cas,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          cb::const_byte_buffer meta) = 0;
@@ -528,7 +528,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     virtual ENGINE_ERROR_CODE set_vbucket_state(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
-            uint16_t vbucket,
+            Vbid vbucket,
             vbucket_state_t state) = 0;
 
     /**
@@ -543,7 +543,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     virtual ENGINE_ERROR_CODE buffer_acknowledgement(
             gsl::not_null<const void*> cookie,
             uint32_t opaque,
-            uint16_t vbucket,
+            Vbid vbucket,
             uint32_t buffer_bytes) = 0;
 
     /**
@@ -588,7 +588,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      */
     virtual ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
-                                           uint16_t vbucket,
+                                           Vbid vbucket,
                                            mcbp::systemevent::id event,
                                            uint64_t bySeqno,
                                            cb::const_byte_buffer key,

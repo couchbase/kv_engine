@@ -423,7 +423,7 @@ public:
     static struct StreamRequestData {
         bool called;
         uint32_t opaque;
-        uint16_t vbucket;
+        Vbid vbucket;
         uint32_t flags;
         uint64_t start_seqno;
         uint64_t end_seqno;
@@ -435,7 +435,7 @@ public:
     class DcpProducers : public MockDcpMessageProducers {
     public:
         ENGINE_ERROR_CODE stream_req(uint32_t opaque,
-                                     uint16_t vbucket,
+                                     Vbid vbucket,
                                      uint32_t flags,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,

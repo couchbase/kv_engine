@@ -87,7 +87,7 @@ extern ItemMetaData last_meta;
 extern uint8_t dcp_last_op;
 extern uint8_t dcp_last_status;
 extern uint8_t dcp_last_nru;
-extern uint16_t dcp_last_vbucket;
+extern Vbid dcp_last_vbucket;
 extern uint32_t dcp_last_opaque;
 extern uint32_t dcp_last_flags;
 extern uint32_t dcp_last_stream_opaque;

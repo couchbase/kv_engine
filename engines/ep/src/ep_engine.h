@@ -99,7 +99,7 @@ public:
                                      const int flags,
                                      const rel_time_t exptime,
                                      uint8_t datatype,
-                                     uint16_t vbucket) override;
+                                     Vbid vbucket) override;
     std::pair<cb::unique_item_ptr, item_info> allocate_ex(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
@@ -108,43 +108,43 @@ public:
             int flags,
             rel_time_t exptime,
             uint8_t datatype,
-            uint16_t vbucket) override;
+            Vbid vbucket) override;
 
     ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
                              const DocKey& key,
                              uint64_t& cas,
-                             uint16_t vbucket,
+                             Vbid vbucket,
                              mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> itm) override;
 
     cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
                                 const DocKey& key,
-                                uint16_t vbucket,
+                                Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_if(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
-            uint16_t vbucket,
+            Vbid vbucket,
             std::function<bool(const item_info&)> filter) override;
 
     cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
-                                         uint16_t vbucket) override;
+                                         Vbid vbucket) override;
 
     cb::EngineErrorItemPair get_locked(gsl::not_null<const void*> cookie,
                                        const DocKey& key,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint32_t lock_timeout) override;
 
     ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
                              const DocKey& key,
-                             uint16_t vbucket,
+                             Vbid vbucket,
                              uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
                                           const DocKey& key,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint32_t expirytime) override;
 
     ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
@@ -212,18 +212,18 @@ public:
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint32_t flags) override;
 
     ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
-                                   uint16_t vbucket) override;
+                                   Vbid vbucket) override;
 
     ENGINE_ERROR_CODE stream_req(
             gsl::not_null<const void*> cookie,
             uint32_t flags,
             uint32_t opaque,
-            uint16_t vbucket,
+            Vbid vbucket,
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint64_t vbucket_uuid,
@@ -235,17 +235,17 @@ public:
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        dcp_add_failover_log callback) override;
 
     ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint32_t flags) override;
 
     ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*> cookie,
                                       uint32_t opaque,
-                                      uint16_t vbucket,
+                                      Vbid vbucket,
                                       uint64_t start_seqno,
                                       uint64_t end_seqno,
                                       uint32_t flags) override;
@@ -257,7 +257,7 @@ public:
                                size_t priv_bytes,
                                uint8_t datatype,
                                uint64_t cas,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint32_t flags,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
@@ -273,7 +273,7 @@ public:
                                size_t priv_bytes,
                                uint8_t datatype,
                                uint64_t cas,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                cb::const_byte_buffer meta) override;
@@ -285,7 +285,7 @@ public:
                                   size_t priv_bytes,
                                   uint8_t datatype,
                                   uint64_t cas,
-                                  uint16_t vbucket,
+                                  Vbid vbucket,
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
                                   uint32_t delete_time) override;
@@ -297,14 +297,14 @@ public:
                                  size_t priv_bytes,
                                  uint8_t datatype,
                                  uint64_t cas,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  cb::const_byte_buffer meta) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
                                         uint32_t opaque,
-                                        uint16_t vbucket,
+                                        Vbid vbucket,
                                         vbucket_state_t state) override;
 
     ENGINE_ERROR_CODE noop(gsl::not_null<const void*> cookie,
@@ -312,7 +312,7 @@ public:
 
     ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*> cookie,
                                              uint32_t opaque,
-                                             uint16_t vbucket,
+                                             Vbid vbucket,
                                              uint32_t buffer_bytes) override;
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
@@ -328,7 +328,7 @@ public:
 
     ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
-                                   uint16_t vbucket,
+                                   Vbid vbucket,
                                    mcbp::systemevent::id event,
                                    uint64_t bySeqno,
                                    cb::const_byte_buffer key,
@@ -356,7 +356,7 @@ public:
     ENGINE_ERROR_CODE itemDelete(const void* cookie,
                                  const DocKey& key,
                                  uint64_t& cas,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  ItemMetaData* item_meta,
                                  mutation_descr_t& mut_info);
 
@@ -365,7 +365,7 @@ public:
     ENGINE_ERROR_CODE get(const void* cookie,
                           item** itm,
                           const DocKey& key,
-                          uint16_t vbucket,
+                          Vbid vbucket,
                           get_options_t options);
 
     /**
@@ -386,23 +386,23 @@ public:
     cb::EngineErrorItemPair getIfInner(
             const void* cookie,
             const DocKey& key,
-            uint16_t vbucket,
+            Vbid vbucket,
             std::function<bool(const item_info&)> filter);
 
     cb::EngineErrorItemPair getAndTouchInner(const void* cookie,
                                              const DocKey& key,
-                                             uint16_t vbucket,
+                                             Vbid vbucket,
                                              uint32_t expiry_time);
 
     ENGINE_ERROR_CODE getLockedInner(const void* cookie,
                                      item** itm,
                                      const DocKey& key,
-                                     uint16_t vbucket,
+                                     Vbid vbucket,
                                      uint32_t lock_timeout);
 
     ENGINE_ERROR_CODE unlockInner(const void* cookie,
                                   const DocKey& key,
-                                  uint16_t vbucket,
+                                  Vbid vbucket,
                                   uint64_t cas);
 
     const std::string& getName() const {
@@ -435,12 +435,12 @@ public:
 
     ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
                                    uint32_t opaque,
-                                   uint16_t vbucket,
+                                   Vbid vbucket,
                                    uint32_t flags);
 
     cb::EngineErrorMetadataPair getMetaInner(const void* cookie,
                                              const DocKey& key,
-                                             uint16_t vbucket);
+                                             Vbid vbucket);
 
     ENGINE_ERROR_CODE setWithMeta(
             const void* cookie,
@@ -505,13 +505,13 @@ public:
     protocol_binary_response_status startFlusher(const char** msg,
                                                  size_t* msg_size);
 
-    ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL);
+    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = NULL);
 
-    ENGINE_ERROR_CODE compactDB(uint16_t vbid,
+    ENGINE_ERROR_CODE compactDB(Vbid vbid,
                                 const CompactionConfig& c,
                                 const void* cookie = NULL);
 
-    bool resetVBucket(uint16_t vbid);
+    bool resetVBucket(Vbid vbid);
 
     protocol_binary_response_status evictKey(
             const void* cookie,
@@ -527,11 +527,11 @@ public:
                                     protocol_binary_request_header *request,
                                     ADD_RESPONSE response);
 
-    VBucketPtr getVBucket(uint16_t vbucket);
+    VBucketPtr getVBucket(Vbid vbucket);
 
     ENGINE_ERROR_CODE setVBucketState(const void* cookie,
                                       ADD_RESPONSE response,
-                                      uint16_t vbid,
+                                      Vbid vbid,
                                       vbucket_state_t to,
                                       bool transfer,
                                       uint64_t cas);
@@ -555,7 +555,7 @@ public:
                                                 const char* valz,
                                                 std::string& msg);
 
-    protocol_binary_response_status setVbucketParam(uint16_t vbucket,
+    protocol_binary_response_status setVbucketParam(Vbid vbucket,
                                                     const char* keyz,
                                                     const char* valz,
                                                     std::string& msg);
@@ -727,7 +727,7 @@ public:
                                    const int flags,
                                    rel_time_t exptime,
                                    uint8_t datatype,
-                                   uint16_t vbucket);
+                                   Vbid vbucket);
 
     /**
      * class-specific deallocation. Required to ensure engine is
@@ -808,16 +808,19 @@ protected:
     ENGINE_ERROR_CODE doRunTimeStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doDispatcherStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doTasksStats(const void* cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doKeyStats(const void *cookie, ADD_STAT add_stat,
-                                 uint16_t vbid, const DocKey& key, bool validate=false);
+    ENGINE_ERROR_CODE doKeyStats(const void* cookie,
+                                 ADD_STAT add_stat,
+                                 Vbid vbid,
+                                 const DocKey& key,
+                                 bool validate = false);
 
-    ENGINE_ERROR_CODE doDcpVbTakeoverStats(const void *cookie,
+    ENGINE_ERROR_CODE doDcpVbTakeoverStats(const void* cookie,
                                            ADD_STAT add_stat,
-                                           std::string &key,
-                                           uint16_t vbid);
-    ENGINE_ERROR_CODE doVbIdFailoverLogStats(const void *cookie,
+                                           std::string& key,
+                                           Vbid vbid);
+    ENGINE_ERROR_CODE doVbIdFailoverLogStats(const void* cookie,
                                              ADD_STAT add_stat,
-                                             uint16_t vbid);
+                                             Vbid vbid);
     ENGINE_ERROR_CODE doAllFailoverLogStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doWorkloadStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doSeqnoStats(const void *cookie, ADD_STAT add_stat,
@@ -884,7 +887,7 @@ protected:
      * @returns NMVB if VB can't be located, or the ADD_RESPONSE return code.
      */
     ENGINE_ERROR_CODE sendMutationExtras(ADD_RESPONSE response,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t bySeqno,
                                          protocol_binary_response_status status,
                                          uint64_t cas,
@@ -933,7 +936,7 @@ protected:
      * @param emd buffer referencing ExtendedMetaData
      * @returns state of the operation as an ENGINE_ERROR_CODE
      */
-    ENGINE_ERROR_CODE setWithMeta(uint16_t vbucket,
+    ENGINE_ERROR_CODE setWithMeta(Vbid vbucket,
                                   DocKey key,
                                   cb::const_byte_buffer value,
                                   ItemMetaData itemMeta,
@@ -965,7 +968,7 @@ protected:
      * @param emd buffer referencing ExtendedMetaData
      * @returns state of the operation as an ENGINE_ERROR_CODE
      */
-    ENGINE_ERROR_CODE deleteWithMeta(uint16_t vbucket,
+    ENGINE_ERROR_CODE deleteWithMeta(Vbid vbucket,
                                      DocKey key,
                                      ItemMetaData itemMeta,
                                      uint64_t& cas,

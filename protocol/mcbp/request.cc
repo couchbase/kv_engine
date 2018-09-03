@@ -212,7 +212,7 @@ nlohmann::json cb::mcbp::Request::toJSON() const {
     ret["keylen"] = getKeylen();
     ret["extlen"] = getExtlen();
     ret["datatype"] = ::toJSON(getDatatype());
-    ret["vbucket"] = getVBucket();
+    ret["vbucket"] = getVBucket().get();
     ret["bodylen"] = getBodylen();
     ret["opaque"] = getOpaque();
     ret["cas"] = getCas();

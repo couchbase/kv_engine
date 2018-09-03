@@ -888,11 +888,10 @@ public:
 
     // Implementation of dcp_message_producers interface //////////////////////
 
-    ENGINE_ERROR_CODE get_failover_log(uint32_t opaque,
-                                       uint16_t vbucket) override;
+    ENGINE_ERROR_CODE get_failover_log(uint32_t opaque, Vbid vbucket) override;
 
     ENGINE_ERROR_CODE stream_req(uint32_t opaque,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint32_t flags,
                                  uint64_t start_seqno,
                                  uint64_t end_seqno,
@@ -910,18 +909,18 @@ public:
                                             uint8_t status) override;
 
     ENGINE_ERROR_CODE stream_end(uint32_t opaque,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint32_t flags) override;
 
     ENGINE_ERROR_CODE marker(uint32_t opaque,
-                             uint16_t vbucket,
+                             Vbid vbucket,
                              uint64_t start_seqno,
                              uint64_t end_seqno,
                              uint32_t flags) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
                                item* itm,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                uint32_t lock_time,
@@ -931,7 +930,7 @@ public:
 
     ENGINE_ERROR_CODE deletion(uint32_t opaque,
                                item* itm,
-                               uint16_t vbucket,
+                               Vbid vbucket,
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                const void* meta,
@@ -939,26 +938,26 @@ public:
 
     ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
                                   gsl::not_null<item*> itm,
-                                  uint16_t vbucket,
+                                  Vbid vbucket,
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
                                   uint32_t delete_time) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                  item* itm,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
                                  const void* meta,
                                  uint16_t nmeta) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
-                                        uint16_t vbucket,
+                                        Vbid vbucket,
                                         vbucket_state_t state) override;
     ENGINE_ERROR_CODE noop(uint32_t opaque) override;
 
     ENGINE_ERROR_CODE buffer_acknowledgement(uint32_t opaque,
-                                             uint16_t vbucket,
+                                             Vbid vbucket,
                                              uint32_t buffer_bytes) override;
     ENGINE_ERROR_CODE control(uint32_t opaque,
                               const void* key,

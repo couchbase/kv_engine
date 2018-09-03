@@ -183,7 +183,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
                                              const int flags,
                                              const rel_time_t exptime,
                                              uint8_t datatype,
-                                             uint16_t vbucket) = 0;
+                                             Vbid vbucket) = 0;
 
     /**
      * Allocate an item (extended API)
@@ -228,7 +228,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             int flags,
             rel_time_t exptime,
             uint8_t datatype,
-            uint16_t vbucket) = 0;
+            Vbid vbucket) = 0;
 
     /**
      * Remove an item.
@@ -244,7 +244,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
                                      const DocKey& key,
                                      uint64_t& cas,
-                                     uint16_t vbucket,
+                                     Vbid vbucket,
                                      mutation_descr_t& mut_info) = 0;
 
     /**
@@ -271,7 +271,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual cb::EngineErrorItemPair get(gsl::not_null<const void*> cookie,
                                         const DocKey& key,
-                                        uint16_t vbucket,
+                                        Vbid vbucket,
                                         DocStateFilter documentStateFilter) = 0;
 
     /**
@@ -293,7 +293,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual cb::EngineErrorItemPair get_if(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
-            uint16_t vbucket,
+            Vbid vbucket,
             std::function<bool(const item_info&)> filter) = 0;
 
     /**
@@ -308,7 +308,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual cb::EngineErrorMetadataPair get_meta(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
-            uint16_t vbucket) = 0;
+            Vbid vbucket) = 0;
 
     /**
      * Lock and Retrieve an item.
@@ -324,7 +324,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual cb::EngineErrorItemPair get_locked(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
-            uint16_t vbucket,
+            Vbid vbucket,
             uint32_t lock_timeout) = 0;
 
     /**
@@ -339,7 +339,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      */
     virtual ENGINE_ERROR_CODE unlock(gsl::not_null<const void*> cookie,
                                      const DocKey& key,
-                                     uint16_t vbucket,
+                                     Vbid vbucket,
                                      uint64_t cas) = 0;
 
     /**
@@ -354,7 +354,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual cb::EngineErrorItemPair get_and_touch(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
-            uint16_t vbucket,
+            Vbid vbucket,
             uint32_t expirytime) = 0;
 
     /**

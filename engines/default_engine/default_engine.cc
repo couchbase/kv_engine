@@ -32,22 +32,22 @@ union vbucket_info_adapter {
     struct vbucket_info v;
 };
 
-static void set_vbucket_state(struct default_engine *e,
-                              uint16_t vbid, vbucket_state_t to) {
+static void set_vbucket_state(struct default_engine* e,
+                              Vbid vbid,
+                              vbucket_state_t to) {
     union vbucket_info_adapter vi;
-    vi.c = e->vbucket_infos[vbid];
+    vi.c = e->vbucket_infos[vbid.get()];
     vi.v.state = to;
-    e->vbucket_infos[vbid] = vi.c;
+    e->vbucket_infos[vbid.get()] = vi.c;
 }
 
-static vbucket_state_t get_vbucket_state(struct default_engine *e,
-                                         uint16_t vbid) {
+static vbucket_state_t get_vbucket_state(struct default_engine* e, Vbid vbid) {
     union vbucket_info_adapter vi;
-    vi.c = e->vbucket_infos[vbid];
+    vi.c = e->vbucket_infos[vbid.get()];
     return vbucket_state_t(vi.v.state);
 }
 
-static bool handled_vbucket(struct default_engine *e, uint16_t vbid) {
+static bool handled_vbucket(struct default_engine* e, Vbid vbid) {
     return e->config.ignore_vbucket
         || (get_vbucket_state(e, vbid) == vbucket_state_active);
 }
@@ -167,7 +167,7 @@ cb::EngineErrorItemPair default_engine::allocate(
         const int flags,
         const rel_time_t exptime,
         uint8_t datatype,
-        uint16_t vbucket) {
+        Vbid vbucket) {
     try {
         auto pair = allocate_ex(cookie,
                                 key,
@@ -192,7 +192,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
         int flags,
         rel_time_t exptime,
         uint8_t datatype,
-        uint16_t vbucket) {
+        Vbid vbucket) {
     hash_item *it;
 
     unsigned int id;
@@ -244,7 +244,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
 ENGINE_ERROR_CODE default_engine::remove(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
                                          uint64_t& cas,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          mutation_descr_t& mut_info) {
     hash_item* it;
     uint64_t cas_in = cas;
@@ -320,7 +320,7 @@ void default_engine::release(gsl::not_null<item*> item) {
 cb::EngineErrorItemPair default_engine::get(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         DocStateFilter documentStateFilter) {
     if (!handled_vbucket(this, vbucket)) {
         return std::make_pair(
@@ -340,7 +340,7 @@ cb::EngineErrorItemPair default_engine::get(
 cb::EngineErrorItemPair default_engine::get_if(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
@@ -373,7 +373,7 @@ cb::EngineErrorItemPair default_engine::get_if(
 cb::EngineErrorItemPair default_engine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t expiry_time) {
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
@@ -395,7 +395,7 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
 cb::EngineErrorItemPair default_engine::get_locked(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t lock_timeout) {
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
@@ -420,9 +420,7 @@ cb::EngineErrorItemPair default_engine::get_locked(
 }
 
 cb::EngineErrorMetadataPair default_engine::get_meta(
-        gsl::not_null<const void*> cookie,
-        const DocKey& key,
-        uint16_t vbucket) {
+        gsl::not_null<const void*> cookie, const DocKey& key, Vbid vbucket) {
     if (!handled_vbucket(this, vbucket)) {
         return std::make_pair(cb::engine_errc::not_my_vbucket, item_info());
     }
@@ -449,7 +447,7 @@ cb::EngineErrorMetadataPair default_engine::get_meta(
 
 ENGINE_ERROR_CODE default_engine::unlock(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t cas) {
     VBUCKET_GUARD(this, vbucket);
     return item_unlock(this, cookie, key.data(), key.size(), cas);
@@ -682,7 +680,7 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
    }
 
    if (se->config.vb0) {
-       set_vbucket_state(se, 0, vbucket_state_active);
+       set_vbucket_state(se, Vbid(0), vbucket_state_active);
    }
 
    return ret;
@@ -711,7 +709,7 @@ static bool set_vbucket(struct default_engine *e,
                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
     }
 
-    set_vbucket_state(e, ntohs(req->message.header.request.vbucket), state);
+    set_vbucket_state(e, req->message.header.request.vbucket.ntoh(), state);
     return response(NULL, 0, NULL, 0, &state, sizeof(state),
                     PROTOCOL_BINARY_RAW_BYTES,
                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
@@ -722,7 +720,7 @@ static bool get_vbucket(struct default_engine *e,
                         protocol_binary_request_get_vbucket *req,
                         ADD_RESPONSE response) {
     vbucket_state_t state;
-    state = get_vbucket_state(e, ntohs(req->message.header.request.vbucket));
+    state = get_vbucket_state(e, req->message.header.request.vbucket.ntoh());
     state = vbucket_state_t(ntohl(state));
 
     return response(NULL, 0, NULL, 0, &state, sizeof(state),
@@ -734,7 +732,7 @@ static bool rm_vbucket(struct default_engine *e,
                        const void *cookie,
                        protocol_binary_request_header *req,
                        ADD_RESPONSE response) {
-    set_vbucket_state(e, ntohs(req->request.vbucket), vbucket_state_dead);
+    set_vbucket_state(e, req->request.vbucket.ntoh(), vbucket_state_dead);
     return response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }

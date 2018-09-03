@@ -24,7 +24,7 @@ void ship_dcp_log(Cookie& c);
 ENGINE_ERROR_CODE dcp_message_mutation(gsl::not_null<const void*> void_cookie,
                                        uint32_t opaque,
                                        item* it,
-                                       uint16_t vbucket,
+                                       Vbid vbucket,
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        uint32_t lock_time,
@@ -37,7 +37,7 @@ ENGINE_ERROR_CODE dcp_message_deletion_v1(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         item* it,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         const void* meta,
@@ -47,7 +47,7 @@ ENGINE_ERROR_CODE dcp_message_deletion_v2(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
         gsl::not_null<item*> it,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
         uint32_t delete_time,
@@ -56,7 +56,7 @@ ENGINE_ERROR_CODE dcp_message_deletion_v2(
 ENGINE_ERROR_CODE dcp_message_expiration(gsl::not_null<const void*> void_cookie,
                                          uint32_t opaque,
                                          item* it,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
                                          const void* meta,
@@ -65,12 +65,12 @@ ENGINE_ERROR_CODE dcp_message_expiration(gsl::not_null<const void*> void_cookie,
 
 ENGINE_ERROR_CODE dcp_message_flush(gsl::not_null<const void*> void_cookie,
                                     uint32_t opaque,
-                                    uint16_t vbucket);
+                                    Vbid vbucket);
 
 ENGINE_ERROR_CODE dcp_message_set_vbucket_state(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         vbucket_state_t state);
 
 ENGINE_ERROR_CODE dcp_message_noop(gsl::not_null<const void*> void_cookie,
@@ -79,7 +79,7 @@ ENGINE_ERROR_CODE dcp_message_noop(gsl::not_null<const void*> void_cookie,
 ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(
         gsl::not_null<const void*> void_cookie,
         uint32_t opaque,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t buffer_bytes);
 
 ENGINE_ERROR_CODE dcp_message_control(gsl::not_null<const void*> void_cookie,
@@ -91,7 +91,7 @@ ENGINE_ERROR_CODE dcp_message_control(gsl::not_null<const void*> void_cookie,
 
 ENGINE_ERROR_CODE dcp_message_system_event(gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
-                                           uint16_t vbucket,
+                                           Vbid vbucket,
                                            mcbp::systemevent::id event,
                                            uint64_t bySeqno,
                                            cb::const_byte_buffer key,

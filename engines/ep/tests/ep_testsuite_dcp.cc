@@ -334,7 +334,7 @@ void TestDcpConsumer::run(bool openConn) {
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
-            const uint16_t vbid = dcp_last_vbucket;
+            const Vbid vbid = dcp_last_vbucket;
             auto &stats = vb_stats[vbid];
             switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
@@ -471,7 +471,7 @@ void TestDcpConsumer::run(bool openConn) {
             }
             dcp_last_op = 0;
             dcp_last_nru = 0;
-            dcp_last_vbucket = -1;
+            dcp_last_vbucket = uint16_t(-1);
         }
     } while (!done);
 

@@ -56,7 +56,7 @@ public:
                                      const int,
                                      const rel_time_t,
                                      uint8_t,
-                                     uint16_t) override {
+                                     Vbid) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
@@ -68,14 +68,14 @@ public:
             int flags,
             rel_time_t exptime,
             uint8_t datatype,
-            uint16_t vbucket) override {
+            Vbid vbucket) override {
         throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
     }
 
     ENGINE_ERROR_CODE remove(gsl::not_null<const void*>,
                              const DocKey&,
                              uint64_t&,
-                             uint16_t,
+                             Vbid,
                              mutation_descr_t&) override {
         return ENGINE_NO_BUCKET;
     }
@@ -88,7 +88,7 @@ public:
 
     cb::EngineErrorItemPair get(gsl::not_null<const void*>,
                                 const DocKey&,
-                                uint16_t,
+                                Vbid,
                                 DocStateFilter) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
@@ -96,34 +96,34 @@ public:
     cb::EngineErrorItemPair get_if(
             gsl::not_null<const void*>,
             const DocKey&,
-            uint16_t,
+            Vbid,
             std::function<bool(const item_info&)>) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
     cb::EngineErrorMetadataPair get_meta(gsl::not_null<const void*> cookie,
                                          const DocKey& key,
-                                         uint16_t vbucket) override {
+                                         Vbid vbucket) override {
         return cb::EngineErrorMetadataPair(cb::engine_errc::no_bucket, {});
     }
 
     cb::EngineErrorItemPair get_locked(gsl::not_null<const void*>,
                                        const DocKey&,
-                                       uint16_t,
+                                       Vbid,
                                        uint32_t) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
     ENGINE_ERROR_CODE unlock(gsl::not_null<const void*>,
                              const DocKey&,
-                             uint16_t,
+                             Vbid,
                              uint64_t) override {
         return ENGINE_NO_BUCKET;
     }
 
     cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
                                           const DocKey&,
-                                          uint16_t,
+                                          Vbid,
                                           uint32_t) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
@@ -203,14 +203,14 @@ public:
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*>,
                                  uint32_t,
-                                 uint16_t,
+                                 Vbid,
                                  uint32_t) override {
         return ENGINE_NO_BUCKET;
     }
 
     ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*>,
                                    uint32_t,
-                                   uint16_t) override {
+                                   Vbid) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -218,7 +218,7 @@ public:
             gsl::not_null<const void*>,
             uint32_t,
             uint32_t,
-            uint16_t,
+            Vbid,
             uint64_t,
             uint64_t,
             uint64_t,
@@ -233,7 +233,7 @@ public:
     ENGINE_ERROR_CODE get_failover_log(
             gsl::not_null<const void*>,
             uint32_t,
-            uint16_t,
+            Vbid,
             ENGINE_ERROR_CODE (*)(vbucket_failover_t*,
                                   size_t,
                                   gsl::not_null<const void*>)) override {
@@ -242,14 +242,14 @@ public:
 
     ENGINE_ERROR_CODE stream_end(gsl::not_null<const void*>,
                                  uint32_t,
-                                 uint16_t,
+                                 Vbid,
                                  uint32_t) override {
         return ENGINE_NO_BUCKET;
     }
 
     ENGINE_ERROR_CODE snapshot_marker(gsl::not_null<const void*>,
                                       uint32_t,
-                                      uint16_t,
+                                      Vbid,
                                       uint64_t,
                                       uint64_t,
                                       uint32_t) override {
@@ -263,7 +263,7 @@ public:
                                size_t,
                                uint8_t,
                                uint64_t,
-                               uint16_t,
+                               Vbid,
                                uint32_t,
                                uint64_t,
                                uint64_t,
@@ -281,7 +281,7 @@ public:
                                size_t,
                                uint8_t,
                                uint64_t,
-                               uint16_t,
+                               Vbid,
                                uint64_t,
                                uint64_t,
                                cb::const_byte_buffer) override {
@@ -295,7 +295,7 @@ public:
                                   size_t,
                                   uint8_t,
                                   uint64_t,
-                                  uint16_t,
+                                  Vbid,
                                   uint64_t,
                                   uint64_t,
                                   uint32_t) override {
@@ -309,7 +309,7 @@ public:
                                  size_t,
                                  uint8_t,
                                  uint64_t,
-                                 uint16_t,
+                                 Vbid,
                                  uint64_t,
                                  uint64_t,
                                  cb::const_byte_buffer) override {
@@ -318,7 +318,7 @@ public:
 
     ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*>,
                                         uint32_t,
-                                        uint16_t,
+                                        Vbid,
                                         vbucket_state_t) override {
         return ENGINE_NO_BUCKET;
     }
@@ -330,7 +330,7 @@ public:
 
     ENGINE_ERROR_CODE buffer_acknowledgement(gsl::not_null<const void*>,
                                              uint32_t,
-                                             uint16_t,
+                                             Vbid,
                                              uint32_t) override {
         return ENGINE_NO_BUCKET;
     }
@@ -352,7 +352,7 @@ public:
 
     ENGINE_ERROR_CODE system_event(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
-                                   uint16_t vbucket,
+                                   Vbid vbucket,
                                    mcbp::systemevent::id event,
                                    uint64_t bySeqno,
                                    cb::const_byte_buffer key,

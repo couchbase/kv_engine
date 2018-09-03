@@ -22,6 +22,7 @@
 #include <cJSON_utils.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
+#include <memcached/vbucket.h>
 #include <platform/platform.h>
 #include <platform/sized_buffer.h>
 
@@ -44,7 +45,7 @@ struct Request {
     uint16_t keylen;
     uint8_t extlen;
     uint8_t datatype;
-    uint16_t vbucket;
+    Vbid vbucket;
     uint32_t bodylen;
     uint32_t opaque;
     uint64_t cas;
@@ -114,12 +115,12 @@ struct Request {
         return Datatype(datatype);
     }
 
-    void setVBucket(uint16_t value) {
-        vbucket = htons(value);
+    void setVBucket(Vbid value) {
+        vbucket = value.hton();
     }
 
-    uint16_t getVBucket() const {
-        return ntohs(vbucket);
+    Vbid getVBucket() const {
+        return vbucket.ntoh();
     }
 
     uint32_t getBodylen() const {
