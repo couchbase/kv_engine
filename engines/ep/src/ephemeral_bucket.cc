@@ -170,7 +170,7 @@ ENGINE_ERROR_CODE EphemeralBucket::scheduleCompaction(Vbid vbid,
 }
 
 VBucketPtr EphemeralBucket::makeVBucket(
-        VBucket::id_type id,
+        Vbid id,
         vbucket_state_t state,
         KVShard* shard,
         std::unique_ptr<FailoverTable> table,

@@ -249,7 +249,7 @@ public:
                                    uint64_t bySeqNum) = 0;
 
     virtual protocol_binary_response_status evictKey(const DocKey& key,
-                                                     VBucket::id_type vbucket,
+                                                     Vbid vbucket,
                                                      const char** msg) = 0;
 
     /**
@@ -723,7 +723,7 @@ public:
      * Create a VBucket object appropriate for this Bucket class.
      */
     virtual VBucketPtr makeVBucket(
-            VBucket::id_type id,
+            Vbid id,
             vbucket_state_t state,
             KVShard* shard,
             std::unique_ptr<FailoverTable> table,

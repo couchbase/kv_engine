@@ -83,16 +83,15 @@ void KVShard::setBucket(VBucketPtr vb) {
     vbuckets[vb->getId().get()].lock().set(vb);
 }
 
-void KVShard::dropVBucketAndSetupDeferredDeletion(VBucket::id_type id,
-                                                  const void* cookie) {
+void KVShard::dropVBucketAndSetupDeferredDeletion(Vbid id, const void* cookie) {
     auto vb = vbuckets[id.get()].lock();
     auto vbPtr = vb.get();
     vbPtr->setupDeferredDeletion(cookie);
     vb.reset();
 }
 
-std::vector<VBucket::id_type> KVShard::getVBucketsSortedByState() {
-    std::vector<VBucket::id_type> rv;
+std::vector<Vbid> KVShard::getVBucketsSortedByState() {
+    std::vector<Vbid> rv;
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead;
          ++state) {
@@ -107,8 +106,8 @@ std::vector<VBucket::id_type> KVShard::getVBucketsSortedByState() {
     return rv;
 }
 
-std::vector<VBucket::id_type> KVShard::getVBuckets() {
-    std::vector<VBucket::id_type> rv;
+std::vector<Vbid> KVShard::getVBuckets() {
+    std::vector<Vbid> rv;
     for (const auto& b : vbuckets) {
         auto vb = b.lock();
         auto vbPtr = vb.get();

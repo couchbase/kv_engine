@@ -65,7 +65,7 @@ public:
     /**
      * Creates an EphemeralVBucket
      */
-    VBucketPtr makeVBucket(VBucket::id_type id,
+    VBucketPtr makeVBucket(Vbid id,
                            vbucket_state_t state,
                            KVShard* shard,
                            std::unique_ptr<FailoverTable> table,

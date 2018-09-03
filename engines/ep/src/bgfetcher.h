@@ -78,13 +78,13 @@ public:
     bool pendingJob(void) const;
     void notifyBGEvent(void);
     void setTaskId(size_t newId) { taskId = newId; }
-    void addPendingVB(VBucket::id_type vbId) {
+    void addPendingVB(Vbid vbId) {
         LockHolder lh(queueMutex);
         pendingVbs.insert(vbId);
     }
 
 private:
-    size_t doFetch(VBucket::id_type vbId, vb_bgfetch_queue_t& items);
+    size_t doFetch(Vbid vbId, vb_bgfetch_queue_t& items);
 
     /// If the BGFetch task is currently snoozed (not scheduled to
     /// run), wake it up. Has no effect the if the task has already
@@ -98,7 +98,7 @@ private:
     EPStats &stats;
 
     std::atomic<bool> pendingFetch;
-    std::set<VBucket::id_type> pendingVbs;
+    std::set<Vbid> pendingVbs;
 };
 
 #endif  // SRC_BGFETCHER_H_

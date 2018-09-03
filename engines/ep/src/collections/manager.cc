@@ -75,7 +75,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
 
 boost::optional<Vbid> Collections::Manager::updateAllVBuckets(
         KVBucket& bucket, const Manifest& newManifest) {
-    for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {
+    for (Vbid::id_type i = 0; i < bucket.getVBuckets().getSize(); i++) {
         auto vb = bucket.getVBuckets().getBucket(Vbid(i));
 
         if (vb && vb->getState() == vbucket_state_active) {
@@ -115,7 +115,7 @@ Collections::Filter Collections::Manager::makeFilter(
 // collection data to the logs.
 void Collections::Manager::logAll(KVBucket& bucket) const {
     EP_LOG_INFO("{}", *this);
-    for (int i = 0; i < bucket.getVBuckets().getSize(); i++) {
+    for (Vbid::id_type i = 0; i < bucket.getVBuckets().getSize(); i++) {
         Vbid vbid = Vbid(i);
         auto vb = bucket.getVBuckets().getBucket(vbid);
         if (vb) {

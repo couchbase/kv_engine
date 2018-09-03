@@ -29,7 +29,7 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
 
-EphemeralVBucket::EphemeralVBucket(id_type i,
+EphemeralVBucket::EphemeralVBucket(Vbid i,
                                    vbucket_state_t newState,
                                    EPStats& st,
                                    CheckpointConfig& chkConfig,

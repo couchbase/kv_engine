@@ -39,9 +39,9 @@ VBucketMap::VBucketMap(Configuration& config, KVBucket& store)
             std::make_unique<VBucketConfigChangeListener>(*this));
 }
 
-VBucketPtr VBucketMap::getBucket(id_type id) const {
+VBucketPtr VBucketMap::getBucket(Vbid id) const {
     static VBucketPtr emptyVBucket;
-    if (id < size) {
+    if (id.get() < size) {
         return getShardByVbId(id)->getBucket(id);
     } else {
         return emptyVBucket;
@@ -49,7 +49,7 @@ VBucketPtr VBucketMap::getBucket(id_type id) const {
 }
 
 ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
-    if (vb->getId() < size) {
+    if (vb->getId().get() < size) {
         getShardByVbId(vb->getId())->setBucket(vb);
         ++vbStateCount[vb->getState()];
         EP_LOG_DEBUG("Mapped new {} in state {}",
@@ -67,17 +67,17 @@ void VBucketMap::enablePersistence(EPBucket& ep) {
     }
 }
 
-void VBucketMap::dropVBucketAndSetupDeferredDeletion(id_type id,
+void VBucketMap::dropVBucketAndSetupDeferredDeletion(Vbid id,
                                                      const void* cookie) {
-    if (id < size) {
+    if (id.get() < size) {
         getShardByVbId(id)->dropVBucketAndSetupDeferredDeletion(id, cookie);
     }
 }
 
-std::vector<VBucketMap::id_type> VBucketMap::getBuckets(void) const {
-    std::vector<id_type> rv;
+std::vector<Vbid> VBucketMap::getBuckets(void) const {
+    std::vector<Vbid> rv;
     for (size_t i = 0; i < size; ++i) {
-        VBucketPtr b(getBucket(i));
+        VBucketPtr b(getBucket(Vbid(i)));
         if (b) {
             rv.push_back(b->getId());
         }
@@ -85,12 +85,12 @@ std::vector<VBucketMap::id_type> VBucketMap::getBuckets(void) const {
     return rv;
 }
 
-std::vector<VBucketMap::id_type> VBucketMap::getBucketsSortedByState(void) const {
-    std::vector<id_type> rv;
+std::vector<Vbid> VBucketMap::getBucketsSortedByState(void) const {
+    std::vector<Vbid> rv;
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead; ++state) {
         for (size_t i = 0; i < size; ++i) {
-            VBucketPtr b = getBucket(i);
+            VBucketPtr b = getBucket(Vbid(i));
             if (b && b->getState() == state) {
                 rv.push_back(b->getId());
             }
@@ -99,11 +99,10 @@ std::vector<VBucketMap::id_type> VBucketMap::getBucketsSortedByState(void) const
     return rv;
 }
 
-std::vector<VBucketMap::id_type> VBucketMap::getBucketsInState(
-        vbucket_state_t state) const {
-    std::vector<id_type> rv;
+std::vector<Vbid> VBucketMap::getBucketsInState(vbucket_state_t state) const {
+    std::vector<Vbid> rv;
     for (size_t i = 0; i < size; ++i) {
-        VBucketPtr b = getBucket(i);
+        VBucketPtr b = getBucket(Vbid(i));
         if (b && b->getState() == state) {
             rv.push_back(b->getId());
         }
@@ -111,19 +110,19 @@ std::vector<VBucketMap::id_type> VBucketMap::getBucketsInState(
     return rv;
 }
 
-std::vector<std::pair<VBucketMap::id_type, size_t> >
+std::vector<std::pair<Vbid, size_t>>
 VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
-    std::vector<std::pair<id_type, size_t> > rv;
+    std::vector<std::pair<Vbid, size_t>> rv;
     for (size_t i = 0; i < size; ++i) {
-        VBucketPtr b = getBucket(i);
+        VBucketPtr b = getBucket(Vbid(i));
         if (b && b->getState() == vbucket_state_active) {
             rv.push_back(std::make_pair(b->getId(), b->getChkMgrMemUsage()));
         }
     }
 
     struct SortCtx {
-        static bool compareSecond(std::pair<id_type, size_t> a,
-                                  std::pair<id_type, size_t> b) {
+        static bool compareSecond(std::pair<Vbid, size_t> a,
+                                  std::pair<Vbid, size_t> b) {
             return (a.second < b.second);
         }
     };
@@ -136,7 +135,7 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
 size_t VBucketMap::getActiveVBucketsTotalCheckpointMemoryUsage() const {
     size_t checkpointMemoryUsage = 0;
     for (size_t i = 0; i < size; ++i) {
-        VBucketPtr b = getBucket(i);
+        VBucketPtr b = getBucket(Vbid(i));
         if (b && b->getState() == vbucket_state_active) {
             checkpointMemoryUsage += b->getChkMgrMemUsage();
         }
@@ -144,7 +143,7 @@ size_t VBucketMap::getActiveVBucketsTotalCheckpointMemoryUsage() const {
     return checkpointMemoryUsage;
 }
 
-KVShard* VBucketMap::getShardByVbId(id_type id) const {
+KVShard* VBucketMap::getShardByVbId(Vbid id) const {
     return shards[id.get() % shards.size()].get();
 }
 
@@ -158,7 +157,7 @@ size_t VBucketMap::getNumShards() const {
 
 void VBucketMap::setHLCDriftAheadThreshold(std::chrono::microseconds threshold) {
     for (size_t id = 0; id < size; id++) {
-        auto vb = getBucket(id);
+        auto vb = getBucket(Vbid(id));
         if (vb) {
             vb->setHLCDriftAheadThreshold(threshold);
         }
@@ -167,7 +166,7 @@ void VBucketMap::setHLCDriftAheadThreshold(std::chrono::microseconds threshold) 
 
 void VBucketMap::setHLCDriftBehindThreshold(std::chrono::microseconds threshold) {
     for (size_t id = 0; id < size; id++) {
-        auto vb = getBucket(id);
+        auto vb = getBucket(Vbid(id));
         if (vb) {
             vb->setHLCDriftBehindThreshold(threshold);
         }

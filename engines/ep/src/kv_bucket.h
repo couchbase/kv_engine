@@ -335,8 +335,7 @@ public:
      * @param state  the state used to filter which vbuckets to return
      * @return  vector of vbuckets that are in the given state.
      */
-    std::vector<VBucketMap::id_type> getVBucketsInState(
-            vbucket_state_t state) const {
+    std::vector<Vbid> getVBucketsInState(vbucket_state_t state) const {
         return vbMap.getBucketsInState(state);
     }
 
@@ -556,7 +555,7 @@ public:
     }
 
     protocol_binary_response_status evictKey(const DocKey& key,
-                                             VBucket::id_type vbucket,
+                                             Vbid vbucket,
                                              const char** msg);
 
     /**
@@ -592,7 +591,7 @@ public:
 
     virtual void scheduleVBStatePersist();
 
-    virtual void scheduleVBStatePersist(VBucket::id_type vbid);
+    virtual void scheduleVBStatePersist(Vbid vbid);
 
     const VBucketMap &getVBuckets() {
         return vbMap;
@@ -802,7 +801,7 @@ public:
      * Create a VBucket object appropriate for this Bucket class.
      */
     virtual VBucketPtr makeVBucket(
-            VBucket::id_type id,
+            Vbid id,
             vbucket_state_t state,
             KVShard* shard,
             std::unique_ptr<FailoverTable> table,

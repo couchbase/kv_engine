@@ -29,7 +29,7 @@ class BgFetcher;
  */
 class EPVBucket : public VBucket {
 public:
-    EPVBucket(id_type i,
+    EPVBucket(Vbid i,
               vbucket_state_t newState,
               EPStats& st,
               CheckpointConfig& chkConfig,
@@ -38,7 +38,7 @@ public:
               uint64_t lastSnapStart,
               uint64_t lastSnapEnd,
               std::unique_ptr<FailoverTable> table,
-              std::shared_ptr<Callback<id_type>> flusherCb,
+              std::shared_ptr<Callback<Vbid>> flusherCb,
               NewSeqnoCallback newSeqnoCb,
               Configuration& config,
               item_eviction_policy_t evictionPolicy,

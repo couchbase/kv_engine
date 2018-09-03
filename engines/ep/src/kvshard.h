@@ -82,7 +82,7 @@ public:
     Flusher *getFlusher();
     BgFetcher *getBgFetcher();
 
-    VBucketPtr getBucket(VBucket::id_type id) const;
+    VBucketPtr getBucket(Vbid id) const;
     void setBucket(VBucketPtr vb);
 
     /**
@@ -96,15 +96,14 @@ public:
      * @param cookie Optional connection cookie, this cookie will be notified
      *        when the deletion task is completed.
      */
-    void dropVBucketAndSetupDeferredDeletion(VBucket::id_type id,
-                                             const void* cookie);
+    void dropVBucketAndSetupDeferredDeletion(Vbid id, const void* cookie);
 
     KVShard::id_type getId() const {
         return kvConfig->getShardId();
     }
 
-    std::vector<VBucket::id_type> getVBucketsSortedByState();
-    std::vector<VBucket::id_type> getVBuckets();
+    std::vector<Vbid> getVBucketsSortedByState();
+    std::vector<Vbid> getVBuckets();
 
 private:
     // Holds the store configuration for the current shard.

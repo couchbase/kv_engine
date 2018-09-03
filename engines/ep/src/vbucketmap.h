@@ -53,9 +53,6 @@ friend class Warmup;
 
 public:
 
-    // This class uses the same id_type as VBucket
-    typedef VBucket::id_type id_type;
-
     VBucketMap(Configuration& config, KVBucket& store);
 
     /**
@@ -78,14 +75,16 @@ public:
      * @param cookie Optional connection cookie, this cookie will be notified
      *        when the deletion task is completed.
      */
-    void dropVBucketAndSetupDeferredDeletion(id_type id, const void* cookie);
-    VBucketPtr getBucket(id_type id) const;
+    void dropVBucketAndSetupDeferredDeletion(Vbid id, const void* cookie);
+    VBucketPtr getBucket(Vbid id) const;
 
     // Returns the size of the map, i.e. the total number of VBuckets it can
     // contain.
-    id_type getSize() const {return size;}
-    std::vector<id_type> getBuckets(void) const;
-    std::vector<id_type> getBucketsSortedByState(void) const;
+    size_t getSize() const {
+        return size;
+    }
+    std::vector<Vbid> getBuckets() const;
+    std::vector<Vbid> getBucketsSortedByState() const;
 
     /**
      * Returns a vector containing the vbuckets from the map that are in the
@@ -93,17 +92,17 @@ public:
      * @param state  the state used to filter which vbuckets to return
      * @return  vector of vbuckets that are in the given state.
      */
-    std::vector<VBucketMap::id_type> getBucketsInState(
-            vbucket_state_t state) const;
+    std::vector<Vbid> getBucketsInState(vbucket_state_t state) const;
 
-    std::vector<std::pair<id_type, size_t> > getActiveVBucketsSortedByChkMgrMem(void) const;
+    std::vector<std::pair<Vbid, size_t>> getActiveVBucketsSortedByChkMgrMem()
+            const;
 
     /**
      * Get the memory usage by checkpoints for all active vbuckets.
      * @return Total checkpoint memory usage
      */
     size_t getActiveVBucketsTotalCheckpointMemoryUsage() const;
-    KVShard* getShardByVbId(id_type id) const;
+    KVShard* getShardByVbId(Vbid id) const;
     KVShard* getShard(KVShard::id_type shardId) const;
     size_t getNumShards() const;
     void setHLCDriftAheadThreshold(std::chrono::microseconds threshold);
@@ -130,7 +129,7 @@ private:
 
     std::vector<std::unique_ptr<KVShard>> shards;
 
-    const id_type size;
+    const size_t size;
 
     /**
      * Count of how many vbuckets in vbMap are in each of the four valid

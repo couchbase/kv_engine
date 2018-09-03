@@ -30,7 +30,7 @@ public:
     class HTTombstonePurger;
     class StaleItemDeleter;
 
-    EphemeralVBucket(id_type i,
+    EphemeralVBucket(Vbid i,
                      vbucket_state_t newState,
                      EPStats& st,
                      CheckpointConfig& chkConfig,

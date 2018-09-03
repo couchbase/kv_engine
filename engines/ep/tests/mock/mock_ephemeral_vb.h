@@ -30,7 +30,7 @@
 
 class MockEphemeralVBucket : public EphemeralVBucket {
 public:
-    MockEphemeralVBucket(id_type i,
+    MockEphemeralVBucket(Vbid i,
                          vbucket_state_t newState,
                          EPStats& st,
                          CheckpointConfig& chkConfig,

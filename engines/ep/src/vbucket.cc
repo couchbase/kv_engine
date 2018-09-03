@@ -133,7 +133,7 @@ const vbucket_state_t VBucket::PENDING =
 const vbucket_state_t VBucket::DEAD =
                     static_cast<vbucket_state_t>(htonl(vbucket_state_dead));
 
-VBucket::VBucket(id_type i,
+VBucket::VBucket(Vbid i,
                  vbucket_state_t newState,
                  EPStats& st,
                  CheckpointConfig& chkConfig,
@@ -141,7 +141,7 @@ VBucket::VBucket(id_type i,
                  uint64_t lastSnapStart,
                  uint64_t lastSnapEnd,
                  std::unique_ptr<FailoverTable> table,
-                 std::shared_ptr<Callback<id_type>> flusherCb,
+                 std::shared_ptr<Callback<Vbid>> flusherCb,
                  std::unique_ptr<AbstractStoredValueFactory> valFact,
                  NewSeqnoCallback newSeqnoCb,
                  Configuration& config,

@@ -506,7 +506,7 @@ void KVBucket::wakeUpFlusher() {
 }
 
 protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
-                                                   VBucket::id_type vbucket,
+                                                   Vbid vbucket,
                                                    const char** msg) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb || (vb->getState() != vbucket_state_active)) {
@@ -855,7 +855,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
             ExecutorPool::get()->schedule(notifyTask);
         }
         scheduleVBStatePersist(vbid);
-    } else if (vbid < vbMap.getSize()) {
+    } else if (vbid.get() < vbMap.getSize()) {
         auto ft =
                 std::make_unique<FailoverTable>(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
@@ -909,7 +909,7 @@ void KVBucket::scheduleVBStatePersist() {
     }
 }
 
-void KVBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
+void KVBucket::scheduleVBStatePersist(Vbid vbid) {
     VBucketPtr vb = getVBucket(vbid);
 
     if (!vb) {
@@ -1403,10 +1403,10 @@ GetValue KVBucket::getInternal(const DocKey& key,
 }
 
 GetValue KVBucket::getRandomKey() {
-    VBucketMap::id_type max = vbMap.getSize();
+    size_t max = vbMap.getSize();
 
-    const long start = random() % max;
-    long curr = start;
+    const Vbid::id_type start = labs(random()) % max;
+    Vbid::id_type curr = start;
     std::unique_ptr<Item> itm;
 
     while (itm == NULL) {
@@ -2160,7 +2160,7 @@ void KVBucket::resetAccessScannerStartTime() {
 }
 
 void KVBucket::setAllBloomFilters(bool to) {
-    for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); vbid++) {
+    for (auto vbid : vbMap.getBuckets()) {
         VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
             if (to) {
@@ -2174,7 +2174,7 @@ void KVBucket::setAllBloomFilters(bool to) {
 
 void KVBucket::visit(VBucketVisitor &visitor)
 {
-    for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); ++vbid) {
+    for (auto vbid : vbMap.getBuckets()) {
         VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
             visitor.visitBucket(vb);
@@ -2197,7 +2197,7 @@ size_t KVBucket::visit(std::unique_ptr<VBucketVisitor> visitor,
 KVBucket::Position KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
                                               Position& start_pos) {
     Vbid vbid = start_pos.vbucket_id;
-    for (; vbid < vbMap.getSize(); ++vbid) {
+    for (; vbid.get() < vbMap.getSize(); ++vbid) {
         VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
             bool paused = !visitor.visit(*vb);

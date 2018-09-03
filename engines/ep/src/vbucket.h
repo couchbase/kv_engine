@@ -121,15 +121,12 @@ class VBucketMemoryDeletionTask;
 class VBucket : public std::enable_shared_from_this<VBucket> {
 public:
 
-    // Identifier for a vBucket
-    typedef Vbid id_type;
-
     enum class GetKeyOnly {
          Yes,
          No
      };
 
-    VBucket(id_type i,
+    VBucket(Vbid i,
             vbucket_state_t newState,
             EPStats& st,
             CheckpointConfig& chkConfig,
@@ -137,7 +134,7 @@ public:
             uint64_t lastSnapStart,
             uint64_t lastSnapEnd,
             std::unique_ptr<FailoverTable> table,
-            std::shared_ptr<Callback<id_type>> flusherCb,
+            std::shared_ptr<Callback<Vbid>> flusherCb,
             std::unique_ptr<AbstractStoredValueFactory> valFact,
             NewSeqnoCallback newSeqnoCb,
             Configuration& config,
@@ -1758,7 +1755,7 @@ private:
     cb::StoreIfStatus callPredicate(cb::StoreIfPredicate predicate,
                                     StoredValue* v);
 
-    id_type                         id;
+    Vbid id;
     std::atomic<vbucket_state_t>    state;
     cb::RWLock                      stateLock;
     vbucket_state_t                 initialState;

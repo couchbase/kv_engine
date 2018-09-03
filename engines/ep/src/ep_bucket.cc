@@ -646,15 +646,15 @@ ENGINE_ERROR_CODE EPBucket::scheduleCompaction(Vbid vbid,
 }
 
 void EPBucket::flushOneDeleteAll() {
-    for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
-        auto vb = getLockedVBucket(i);
+    for (auto vbid : vbMap.getBuckets()) {
+        auto vb = getLockedVBucket(vbid);
         if (!vb) {
             continue;
         }
         // Reset the vBucket if it's non-null and not already in the middle of
         // being created / destroyed.
         if (!(vb->isBucketCreation() || vb->isDeletionDeferred())) {
-            getRWUnderlying(vb->getId())->reset(i);
+            getRWUnderlying(vb->getId())->reset(vbid);
         }
         // Reset disk item count.
         vb->setNumTotalItems(0);
@@ -889,7 +889,7 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-VBucketPtr EPBucket::makeVBucket(VBucket::id_type id,
+VBucketPtr EPBucket::makeVBucket(Vbid id,
                                  vbucket_state_t state,
                                  KVShard* shard,
                                  std::unique_ptr<FailoverTable> table,

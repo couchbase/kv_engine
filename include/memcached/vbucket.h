@@ -54,13 +54,15 @@ using PermittedVBStates = cb::bitset<4, vbucket_state_t, PermittedVBStatesMap>;
  */
 class MCD_UTIL_PUBLIC_API Vbid {
 public:
+    typedef uint16_t id_type;
+
     Vbid() = default;
 
     // TODO: Not explicit to support conversion with previous usage
-    Vbid(uint16_t vbidParam) : vbid(vbidParam){};
+    Vbid(id_type vbidParam) : vbid(vbidParam){};
 
     // Retrieve the vBucket ID in the form of uint16_t
-    const uint16_t get() const {
+    const id_type get() const {
         return vbid;
     }
 
@@ -118,7 +120,7 @@ public:
     }
 
 protected:
-    uint16_t vbid;
+    id_type vbid;
 };
 
 MCD_UTIL_PUBLIC_API
