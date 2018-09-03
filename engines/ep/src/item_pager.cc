@@ -67,7 +67,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       stateFinalizer(sfin),
       owner(caller),
       canPause(pause),
-      completePhase(true),
+      isBelowLowWaterMark(false),
       wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
       taskStart(ProcessClock::now()),
       pager_phase(phase),
@@ -295,7 +295,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
             }
 
         } else { // stop eviction whenever memory usage is below low watermark
-            completePhase = false;
+            isBelowLowWaterMark = true;
         }
     }
 
@@ -335,7 +335,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
         bool inverse = false;
         (*stateFinalizer).compare_exchange_strong(inverse, true);
 
-        if (pager_phase && completePhase) {
+        if (pager_phase && !isBelowLowWaterMark) {
             if (*pager_phase == PAGING_UNREFERENCED) {
                 *pager_phase = PAGING_RANDOM;
             } else if (*pager_phase == PAGING_RANDOM) {

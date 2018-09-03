@@ -129,7 +129,8 @@ private:
     std::shared_ptr<std::atomic<bool>> stateFinalizer;
     pager_type_t owner;
     bool canPause;
-    bool completePhase;
+    /// Flag used to identify if memory usage is below the low watermark.
+    bool isBelowLowWaterMark;
     bool wasHighMemoryUsage;
     ProcessClock::time_point taskStart;
     std::atomic<item_pager_phase>* pager_phase;
