@@ -54,8 +54,8 @@ cb::AtomicDuration VBucket::chkFlushTimeout(MIN_CHK_FLUSH_TIMEOUT);
 double VBucket::mutationMemThreshold = 0.9;
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
-    std::vector<uint16_t> tmp(acceptable.size() + other.size());
-    std::vector<uint16_t>::iterator end;
+    std::vector<Vbid> tmp(acceptable.size() + other.size());
+    std::vector<Vbid>::iterator end;
     end = std::set_symmetric_difference(acceptable.begin(),
                                         acceptable.end(),
                                         other.acceptable.begin(),
@@ -66,8 +66,8 @@ VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
 
 VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other)
                                                                         const {
-    std::vector<uint16_t> tmp(acceptable.size() + other.size());
-    std::vector<uint16_t>::iterator end;
+    std::vector<Vbid> tmp(acceptable.size() + other.size());
+    std::vector<Vbid>::iterator end;
 
     end = std::set_intersection(acceptable.begin(), acceptable.end(),
                                 other.acceptable.begin(),
@@ -80,7 +80,8 @@ static bool isRange(std::set<Vbid>::const_iterator it,
                     const std::set<Vbid>::const_iterator& end,
                     size_t& length) {
     length = 0;
-    for (Vbid val = *it; it != end && (val + length) == *it; ++it, ++length) {
+    for (Vbid val = *it; it != end && Vbid(val.get() + length) == *it;
+         ++it, ++length) {
         // empty
     }
 
@@ -190,7 +191,7 @@ VBucket::VBucket(Vbid i,
           hlcEpochSeqno,
           std::chrono::microseconds(config.getHlcDriftAheadThresholdUs()),
           std::chrono::microseconds(config.getHlcDriftBehindThresholdUs())),
-      statPrefix("vb_" + std::to_string(i)),
+      statPrefix("vb_" + std::to_string(i.get())),
       persistenceCheckpointId(0),
       bucketCreation(false),
       deferredDeletion(false),
@@ -212,7 +213,7 @@ VBucket::VBucket(Vbid i,
             "VBucket: created {} with state:{} "
             "initialState:{} lastSeqno:{} lastSnapshot:{{{},{}}} "
             "persisted_snapshot:{{{},{}}} max_cas:{} uuid:{}",
-            Vbid(id),
+            id,
             VBucket::toString(state),
             VBucket::toString(initialState),
             lastSeqno,
@@ -226,9 +227,7 @@ VBucket::VBucket(Vbid i,
 
 VBucket::~VBucket() {
     if (!pendingOps.empty()) {
-        EP_LOG_WARN("~Vbucket(): {} has {} pending ops",
-                    Vbid(id),
-                    pendingOps.size());
+        EP_LOG_WARN("~VBucket(): {} has {} pending ops", id, pendingOps.size());
     }
 
     stats.diskQueueSize.fetch_sub(dirtyQueueSize.load());
@@ -240,7 +239,7 @@ VBucket::~VBucket() {
     stats.coreLocal.get()->memOverhead.fetch_sub(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
 
-    EP_LOG_INFO("Destroying {}", Vbid(id));
+    EP_LOG_INFO("Destroying {}", id);
 }
 
 int64_t VBucket::getHighSeqno() const {
@@ -291,7 +290,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
     }
 
     EP_LOG_DEBUG("Fired pendings ops for {} in state {}",
-                 Vbid(id),
+                 id,
                  VBucket::toString(state));
 }
 
@@ -377,7 +376,7 @@ void VBucket::setState_UNLOCKED(vbucket_state_t to,
     }
 
     EP_LOG_INFO("VBucket::setState: transitioning {} from:{} to:{}",
-                Vbid(id),
+                id,
                 VBucket::toString(oldstate),
                 VBucket::toString(to));
 
@@ -535,8 +534,10 @@ void VBucket::markDirty(const DocKey& key) {
     if (v) {
         v->markDirty();
     } else {
-        EP_LOG_WARN("markDirty: Error marking dirty, a key is missing from {}",
-                    Vbid(id));
+        EP_LOG_WARN(
+                "VBucket::markDirty: Error marking dirty, a key is "
+                "missing from {}",
+                id);
     }
 }
 
@@ -569,7 +570,7 @@ void VBucket::createFilter(size_t key_count, double probability) {
         bFilter = std::make_unique<BloomFilter>(key_count, probability,
                                         BFILTER_ENABLED);
     } else {
-        EP_LOG_WARN("({}) Bloom filter / Temp filter already exist!", Vbid(id));
+        EP_LOG_WARN("({}) Bloom filter / Temp filter already exist!", id);
     }
 }
 
@@ -2241,9 +2242,8 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         bool isReplication) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
-                "VBucket::processSet: htLock not held for "
-                "VBucket " +
-                std::to_string(getId()));
+                "VBucket::processSet: htLock not held for " +
+                getId().to_string());
     }
 
     if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
@@ -2355,9 +2355,8 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
-                "VBucket::processAdd: htLock not held for "
-                "VBucket " +
-                std::to_string(getId()));
+                "VBucket::processAdd: htLock not held for " +
+                getId().to_string());
     }
     if (v && !v->isDeleted() && !v->isExpired(ep_real_time()) &&
         !v->isTempItem() && !readHandle.isLogicallyDeleted(v->getBySeqno())) {
@@ -2476,8 +2475,8 @@ VBucket::processExpiredItem(const HashTable::HashBucketLock& hbl,
                             StoredValue& v) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
-                "VBucket::processExpiredItem: htLock not held for VBucket " +
-                std::to_string(getId()));
+                "VBucket::processExpiredItem: htLock not held for " +
+                getId().to_string());
     }
 
     if (v.isTempInitialItem() && eviction == FULL_EVICTION) {
@@ -2534,9 +2533,8 @@ TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
                                           bool isReplication) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
-                "VBucket::addTempStoredValue: htLock not held for "
-                "VBucket " +
-                std::to_string(getId()));
+                "VBucket::addTempStoredValue: htLock not held for " +
+                getId().to_string());
     }
 
     Item itm(key,
@@ -2565,7 +2563,7 @@ TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
 
 void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
     if (newSeqnoCb) {
-        newSeqnoCb->callback(getId().get(), notifyCtx);
+        newSeqnoCb->callback(getId(), notifyCtx);
     }
 }
 
@@ -2631,7 +2629,7 @@ void VBucket::addHighPriorityVBEntry(uint64_t seqnoOrChkId,
             "Added high priority async request {} for {}, Check for:{}, "
             "Persisted upto:{}, cookie:{}",
             to_string(reqType),
-            Vbid(getId()),
+            getId(),
             seqnoOrChkId,
             getPersistenceSeqno(),
             cookie);
@@ -2667,7 +2665,7 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
                     "Notified the completion of {} for {} Check for: {}, "
                     "Persisted upto: {}, cookie {}",
                     logStr,
-                    Vbid(getId()),
+                    getId(),
                     entry->id,
                     idNum,
                     entry->cookie);
@@ -2680,7 +2678,7 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
                     "Notified the timeout on {} for {} Check for: {}, "
                     "Persisted upto: {}, cookie {}",
                     logStr,
-                    Vbid(getId()),
+                    getId(),
                     entry->id,
                     idNum,
                     entry->cookie);

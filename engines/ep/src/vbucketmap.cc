@@ -53,7 +53,7 @@ ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
         getShardByVbId(vb->getId())->setBucket(vb);
         ++vbStateCount[vb->getState()];
         EP_LOG_DEBUG("Mapped new {} in state {}",
-                     Vbid(vb->getId()),
+                     vb->getId(),
                      VBucket::toString(vb->getState()));
         return ENGINE_SUCCESS;
     }

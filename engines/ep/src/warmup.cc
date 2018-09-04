@@ -444,7 +444,7 @@ static bool batchWarmupCallback(Vbid vbId,
                     EP_LOG_WARN(
                             "Warmup failed to load data for {}"
                             " key{{{}}} error = {}",
-                            Vbid(vbId),
+                            vbId,
                             items.first.c_str(),
                             val.getStatus());
                     c->error++;
@@ -480,7 +480,7 @@ static bool warmupCallback(void* arg, Vbid vb, const DocKey& key) {
         } else {
             EP_LOG_WARN(
                     "Warmup failed to load data for {}, key{{{}}}, error:{}",
-                    Vbid(vb),
+                    vb,
                     key.size(),
                     key.data(),
                     cb.getStatus());
@@ -881,7 +881,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
         // meta-data applied.
         if (!vbs.supportsCollections && config.isCollectionsEnabled()) {
             EP_LOG_CRITICAL(
-                    "Warmup::createVBuckets aborting warmup as vb:{} datafile "
+                    "Warmup::createVBuckets aborting warmup as {} datafile "
                     "is unusable (does not support collections)",
                     vbid);
             return;
@@ -1177,10 +1177,10 @@ void Warmup::loadingAccessLog(uint16_t shardId)
 }
 
 size_t Warmup::doWarmup(MutationLog& lf,
-                        const std::map<uint16_t, vbucket_state>& vbmap,
+                        const std::map<Vbid, vbucket_state>& vbmap,
                         StatusCallback<GetValue>& cb) {
     MutationLogHarvester harvester(lf, &store.getEPEngine());
-    std::map<uint16_t, vbucket_state>::const_iterator it;
+    std::map<Vbid, vbucket_state>::const_iterator it;
     for (it = vbmap.begin(); it != vbmap.end(); ++it) {
         harvester.setVBucket(it->first);
     }
@@ -1529,19 +1529,19 @@ void Warmup::populateShardVbStates()
             if (!allVbStates[vb] || allVbStates[vb]->state == vbucket_state_dead) {
                 continue;
             }
-            std::map<uint16_t, vbucket_state> &shardVB =
-                shardVbStates[vb % store.vbMap.getNumShards()];
-            shardVB.insert(std::pair<uint16_t, vbucket_state>(vb,
+            std::map<Vbid, vbucket_state>& shardVB =
+                    shardVbStates[vb % store.vbMap.getNumShards()];
+            shardVB.insert(std::pair<Vbid, vbucket_state>(Vbid(vb),
                                                           *(allVbStates[vb])));
         }
     }
 
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        std::vector<uint16_t> activeVBs, replicaVBs;
-        std::map<uint16_t, vbucket_state>::const_iterator it;
-        for (it = shardVbStates[i].begin(); it != shardVbStates[i].end(); ++it) {
-            uint16_t vbid = it->first;
-            vbucket_state vbs = it->second;
+        std::vector<Vbid> activeVBs, replicaVBs;
+        std::map<Vbid, vbucket_state>::const_iterator it;
+        for (auto it : shardVbStates[i]) {
+            Vbid vbid = it.first;
+            vbucket_state vbs = it.second;
             if (vbs.state == vbucket_state_active) {
                 activeVBs.push_back(vbid);
             } else if (vbs.state == vbucket_state_replica) {
@@ -1567,8 +1567,8 @@ void Warmup::populateShardVbStates()
         // Give 'true' (aka active) 60% of the time
         // Give 'false' (aka replica) 40% of the time.
         std::bernoulli_distribution distribute(0.6);
-        std::array<std::vector<uint16_t>*, 2> activeReplicaSource = {{&activeVBs,
-                                                                      &replicaVBs}};
+        std::array<std::vector<Vbid>*, 2> activeReplicaSource = {
+                {&activeVBs, &replicaVBs}};
 
         while (!activeVBs.empty() || !replicaVBs.empty()) {
             const bool active = distribute(twister);

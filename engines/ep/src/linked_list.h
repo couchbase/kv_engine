@@ -148,7 +148,7 @@ private:
  */
 class BasicLinkedList : public SequenceList {
 public:
-    BasicLinkedList(uint16_t vbucketId, EPStats& st);
+    BasicLinkedList(Vbid vbucketId, EPStats& st);
 
     ~BasicLinkedList();
 
@@ -303,7 +303,7 @@ private:
     cb::NonNegativeCounter<uint64_t> numDeletedItems;
 
     /* Used only to log debug messages */
-    const uint16_t vbid;
+    const Vbid vbid;
 
     /* Ep engine stats handle to track stats */
     EPStats& st;

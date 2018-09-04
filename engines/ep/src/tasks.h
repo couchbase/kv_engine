@@ -161,17 +161,23 @@ private:
  */
 class VKeyStatBGFetchTask : public GlobalTask {
 public:
-    VKeyStatBGFetchTask(EventuallyPersistentEngine *e, const DocKey& k,
-                        uint16_t vbid, uint64_t s, const void *c, int sleeptime = 0,
+    VKeyStatBGFetchTask(EventuallyPersistentEngine* e,
+                        const DocKey& k,
+                        Vbid vbid,
+                        uint64_t s,
+                        const void* c,
+                        int sleeptime = 0,
                         bool completeBeforeShutdown = false)
-        : GlobalTask(e, TaskId::VKeyStatBGFetchTask, sleeptime, completeBeforeShutdown),
+        : GlobalTask(e,
+                     TaskId::VKeyStatBGFetchTask,
+                     sleeptime,
+                     completeBeforeShutdown),
           key(k),
           vbucket(vbid),
           bySeqNum(s),
           cookie(c),
           description("Fetching item from disk for vkey stat: key{" +
-                      std::string(key.c_str()) + "} vb:" +
-                      std::to_string(vbucket)) {
+                      std::string(key.c_str()) + "} " + vbucket.to_string()) {
     }
 
     bool run();
@@ -192,7 +198,7 @@ public:
 
 private:
     const StoredDocKey key;
-    const uint16_t vbucket;
+    const Vbid vbucket;
     uint64_t                         bySeqNum;
     const void                      *cookie;
     const std::string description;
@@ -206,7 +212,7 @@ class SingleBGFetcherTask : public GlobalTask {
 public:
     SingleBGFetcherTask(EventuallyPersistentEngine* e,
                         const DocKey& k,
-                        uint16_t vbid,
+                        Vbid vbid,
                         const void* c,
                         bool isMeta,
                         int sleeptime = 0,
@@ -221,8 +227,7 @@ public:
           metaFetch(isMeta),
           init(ProcessClock::now()),
           description("Fetching item from disk: key{" +
-                      std::string(key.c_str()) + "}, vb:" +
-                      std::to_string(vbucket)) {
+                      std::string(key.c_str()) + "}, " + vbucket.to_string()) {
     }
 
     bool run();
@@ -243,7 +248,7 @@ public:
 
 private:
     const StoredDocKey key;
-    const uint16_t vbucket;
+    const Vbid vbucket;
     const void*                cookie;
     bool                       metaFetch;
     ProcessClock::time_point   init;

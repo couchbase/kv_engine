@@ -43,7 +43,7 @@ std::string to_string(MutationLogType t) {
 // ----------------------------------------------------------------------
 std::ostream& operator<<(std::ostream& out, const MutationLogEntryV1& mle) {
     out << "{MutationLogEntryV1 rowid=" << mle.rowid()
-        << ", vbucket=" << mle.vbucket() << ", magic=0x" << std::hex
+        << ", vbucket=" << mle.vbucket().get() << ", magic=0x" << std::hex
         << static_cast<uint16_t>(mle.magic) << std::dec
         << ", type=" << to_string(mle.type()) << ", key=``" << mle.key()
         << "''";
@@ -51,18 +51,16 @@ std::ostream& operator<<(std::ostream& out, const MutationLogEntryV1& mle) {
 }
 
 std::ostream& operator<<(std::ostream& out, const MutationLogEntryV2& mle) {
-    out << "{MutationLogEntryV2"
-        << " vbucket=" << mle.vbucket() << ", magic=0x" << std::hex
-        << static_cast<uint16_t>(mle.magic) << std::dec
+    out << "{MutationLogEntryV2 vbucket=" << mle.vbucket().get() << ", magic=0x"
+        << std::hex << static_cast<uint16_t>(mle.magic) << std::dec
         << ", type=" << to_string(mle.type()) << ", key=``" << mle.key().data()
         << "''";
     return out;
 }
 
 std::ostream& operator<<(std::ostream& out, const MutationLogEntryV3& mle) {
-    out << "{MutationLogEntryV3"
-        << " vbucket=" << mle.vbucket() << ", magic=0x" << std::hex
-        << static_cast<uint16_t>(mle.magic) << std::dec
+    out << "{MutationLogEntryV3 vbucket=" << mle.vbucket().get() << ", magic=0x"
+        << std::hex << static_cast<uint16_t>(mle.magic) << std::dec
         << ", type=" << to_string(mle.type()) << ", key=``" << mle.key().data()
         << "''";
     return out;

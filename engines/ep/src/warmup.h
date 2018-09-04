@@ -153,7 +153,7 @@ public:
     }
 
     size_t doWarmup(MutationLog& lf,
-                    const std::map<uint16_t, vbucket_state>& vbmap,
+                    const std::map<Vbid, vbucket_state>& vbmap,
                     StatusCallback<GetValue>& cb);
 
     bool isComplete() const {
@@ -242,13 +242,13 @@ private:
     cb::AtomicDuration metadata;
     cb::AtomicDuration warmup;
 
-    std::vector<std::map<uint16_t, vbucket_state>> shardVbStates;
+    std::vector<std::map<Vbid, vbucket_state>> shardVbStates;
     std::atomic<size_t> threadtask_count;
     std::vector<std::atomic<bool>> shardKeyDumpStatus;
 
     /// vector of vectors of VBucket IDs (one vector per shard). Each vector
     /// contains all vBucket IDs which are present for the given shard.
-    std::vector<std::vector<uint16_t>> shardVbIds;
+    std::vector<std::vector<Vbid>> shardVbIds;
 
     cb::AtomicDuration estimateTime;
     std::atomic<size_t> estimatedItemCount;

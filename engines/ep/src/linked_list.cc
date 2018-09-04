@@ -22,7 +22,7 @@
 #include <memcached/vbucket.h>
 #include <mutex>
 
-BasicLinkedList::BasicLinkedList(uint16_t vbucketId, EPStats& st)
+BasicLinkedList::BasicLinkedList(Vbid vbucketId, EPStats& st)
     : SequenceList(),
       readRange(0, 0),
       staleSize(0),
@@ -95,7 +95,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
     if ((start > end) || (start <= 0)) {
         EP_LOG_WARN(
                 "BasicLinkedList::rangeRead(): ({}) ERANGE: start {} > end {}",
-                Vbid(vbid),
+                vbid,
                 start,
                 end);
         return std::make_tuple(ENGINE_ERANGE, std::vector<UniqueItemPtr>(), 0);
@@ -111,7 +111,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
             EP_LOG_WARN(
                     "BasicLinkedList::rangeRead(): "
                     "({}) ERANGE: start {} > highSeqno {}",
-                    Vbid(vbid),
+                    vbid,
                     start,
                     static_cast<seqno_t>(highSeqno));
             /* If the request is for an invalid range, return before iterating
@@ -175,7 +175,7 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
                     "BasicLinkedList::rangeRead(): "
                     "({}) ENOMEM while trying to copy "
                     "item with seqno {}before streaming it",
-                    Vbid(vbid),
+                    vbid,
                     currSeqno);
             return std::make_tuple(
                     ENGINE_ENOMEM, std::vector<UniqueItemPtr>(), 0);
@@ -195,11 +195,10 @@ BasicLinkedList::rangeRead(seqno_t start, seqno_t end) {
 void BasicLinkedList::updateHighSeqno(std::lock_guard<std::mutex>& listWriteLg,
                                       const OrderedStoredValue& v) {
     if (v.getBySeqno() < 1) {
-        throw std::invalid_argument("BasicLinkedList::updateHighSeqno(): vb " +
-                                    std::to_string(vbid) +
-                                    "; Cannot set the highSeqno to a value " +
-                                    std::to_string(v.getBySeqno()) +
-                                    " which is < 1");
+        throw std::invalid_argument(
+                "BasicLinkedList::updateHighSeqno(): " + vbid.to_string() +
+                "; Cannot set the highSeqno to a value " +
+                std::to_string(v.getBySeqno()) + " which is < 1");
     }
     highSeqno = v.getBySeqno();
 }
@@ -207,8 +206,8 @@ void BasicLinkedList::updateHighestDedupedSeqno(
         std::lock_guard<std::mutex>& listWriteLg, const OrderedStoredValue& v) {
     if (v.getBySeqno() < 1) {
         throw std::invalid_argument(
-                "BasicLinkedList::updateHighestDedupedSeqno(): vb " +
-                std::to_string(vbid) +
+                "BasicLinkedList::updateHighestDedupedSeqno(): " +
+                vbid.to_string() +
                 "; Cannot set the highestDedupedSeqno to "
                 "a value " +
                 std::to_string(v.getBySeqno()) + " which is < 1");
@@ -506,7 +505,7 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(BasicLinkedList& ll,
                                : spdlog::level::level_enum::debug;
 
     EP_LOG_FMT(severity,
-               "vb:{} Created range iterator from {} to {}",
+               "{} Created range iterator from {} to {}",
                list.vbid,
                curr(),
                end());
@@ -520,8 +519,7 @@ BasicLinkedList::RangeIteratorLL::~RangeIteratorLL() {
         list.readRange.reset();
         auto severity = isBackfill ? spdlog::level::level_enum::info
                                    : spdlog::level::level_enum::debug;
-        EP_LOG_FMT(
-                severity, "{} Releasing the range iterator", Vbid(list.vbid));
+        EP_LOG_FMT(severity, "{} Releasing the range iterator", list.vbid);
     }
     /* As readLockHolder goes out of scope here, it will automatically release
        the snapshot read lock on the linked list */
@@ -571,8 +569,7 @@ void BasicLinkedList::RangeIteratorLL::incrOperatorHelper() {
         list.readRange.reset();
         auto severity = isBackfill ? spdlog::level::level_enum::info
                                    : spdlog::level::level_enum::debug;
-        EP_LOG_FMT(
-                severity, "{} Releasing the range iterator", Vbid(list.vbid));
+        EP_LOG_FMT(severity, "{} Releasing the range iterator", list.vbid);
         readLockHolder.unlock();
 
         /* Update the begin to end() so the client can see that the iteration

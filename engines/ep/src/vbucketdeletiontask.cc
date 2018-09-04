@@ -32,8 +32,8 @@ VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
                 "VBucketMemoryDeletionTask::VBucketMemoryDeletionTask no "
                 "vbucket");
     }
-    description = "Removing (dead) vb:" + std::to_string(vbucket->getId()) +
-                  " from memory";
+    description =
+            "Removing (dead) " + vbucket->getId().to_string() + " from memory";
 }
 
 std::string VBucketMemoryDeletionTask::getDescription() {

@@ -165,7 +165,7 @@ protected:
                                     const MutationLogEntryV1& e);
 
     const uint64_t _rowid;
-    const uint16_t _vbucket;
+    const Vbid _vbucket;
     const uint8_t magic;
     const MutationLogType _type;
     const uint8_t keylen;
@@ -268,8 +268,8 @@ public:
     /**
      * This entry's vbucket.
      */
-    uint16_t vbucket() const {
-        return ntohs(_vbucket);
+    Vbid vbucket() const {
+        return Vbid(ntohs(_vbucket));
     }
 
     /**
@@ -285,7 +285,7 @@ private:
     friend std::ostream& operator<<(std::ostream& out,
                                     const MutationLogEntryV2& e);
 
-    const uint16_t _vbucket;
+    const Vbid _vbucket;
     const uint8_t magic;
     const MutationLogType _type;
     const uint8_t pad[2] = {}; // padding to ensure _key is the final member
@@ -445,7 +445,7 @@ private:
                   t, vb, {nullptr, 0, DocKeyEncodesCollectionId::No}) {
     }
 
-    const uint16_t _vbucket;
+    const Vbid _vbucket;
     const uint8_t magic;
     const MutationLogType _type;
     const uint8_t pad[2] = {}; // padding to ensure _key is the final member
