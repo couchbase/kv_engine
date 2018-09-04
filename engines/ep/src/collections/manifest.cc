@@ -18,6 +18,8 @@
 #include "collections/manifest.h"
 #include "collections/collections_types.h"
 
+#include <json_utilities.h>
+
 #include <JSON_checker.h>
 #include <nlohmann/json.hpp>
 #include <gsl/gsl>
@@ -89,23 +91,13 @@ Manifest::Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections)
 nlohmann::json Manifest::getJsonObject(const nlohmann::json& object,
                                        const std::string& key,
                                        nlohmann::json::value_t expectedType) {
-    try {
-        auto rv = object.at(key);
-        throwIfWrongType(key, rv, expectedType);
-        return rv;
-    } catch (const nlohmann::json::exception& e) {
-        throw std::invalid_argument("Manifest: cannot find key:" + key +
-                                    ", e:" + e.what());
-    }
+    return cb::getJsonObject(object, key, expectedType, "Manifest");
 }
 
 void Manifest::throwIfWrongType(const std::string& errorKey,
                                 const nlohmann::json& object,
                                 nlohmann::json::value_t expectedType) {
-    if (object.type() != expectedType) {
-        throw std::invalid_argument("Manifest: wrong type for key:" + errorKey +
-                                    ", " + object.dump());
-    }
+    cb::throwIfWrongType(errorKey, object, expectedType, "Manifest");
 }
 
 void Manifest::enableDefaultCollection(CollectionID identifier) {

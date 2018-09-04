@@ -17,6 +17,8 @@ add_library(mcd_util STATIC
             config_parser.cc
             engine_loader.cc
             engine_loader.h
+            json_utilities.cc
+            json_utilities.h
             logtags.cc
             logtags.h
             protocol2text.cc

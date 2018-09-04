@@ -805,9 +805,11 @@ protected:
                                     CollectionID identifier) const;
 
     /**
-     * @returns the string for the given key from the cJSON object.
+     * @returns the json for the given key from the nlohmann::json object.
      */
-    const char* getJsonEntry(cJSON* cJson, const char* key);
+    nlohmann::json getJsonEntry(const nlohmann::json& object,
+                                const std::string& key,
+                                nlohmann::json::value_t expectedType);
 
     /**
      * Update greatestEndSeqno if the seqno is larger

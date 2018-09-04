@@ -24,9 +24,10 @@
 #include "item.h"
 #include "vbucket.h"
 
+#include <json_utilities.h>
+
 #include <JSON_checker.h>
-#include <cJSON.h>
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <memory>
 
 namespace Collections {
@@ -51,33 +52,38 @@ Manifest::Manifest(const std::string& manifest)
                                               "input not valid json");
     }
 
-    unique_cJSON_ptr cjson(cJSON_Parse(manifest.c_str()));
-    if (!cjson) {
-        throwException<std::invalid_argument>(__FUNCTION__,
-                                              "cJSON cannot parse json");
+    nlohmann::json parsed;
+    try {
+        parsed = nlohmann::json::parse(manifest);
+    } catch (const nlohmann::json::exception& e) {
+        throw std::invalid_argument(
+                "VB::Manifest nlohmann "
+                "cannot parse json" +
+                cb::to_string(manifest) + ", e:" + e.what());
     }
 
-    // Load the uid
-    manifestUid = makeUid(getJsonEntry(cjson.get(), "uid"));
+    manifestUid =
+            makeUid(getJsonEntry(parsed, "uid", nlohmann::json::value_t::string)
+                            .get<std::string>());
 
+    // Scopes does not exist, so we are reloading from disk
     // Load the collections array
-    auto jsonCollections = cJSON_GetObjectItem(cjson.get(), "collections");
-    if (!jsonCollections || jsonCollections->type != cJSON_Array) {
-        throwException<std::invalid_argument>(
-                __FUNCTION__,
-                "cannot find valid "
-                "collections: " +
-                        (!jsonCollections
-                                 ? "nullptr"
-                                 : std::to_string(jsonCollections->type)));
-    }
+    auto collections =
+            getJsonEntry(parsed, "collections", nlohmann::json::value_t::array);
 
-    // Iterate the collections and load-em up.
-    for (int ii = 0; ii < cJSON_GetArraySize(jsonCollections); ii++) {
-        auto collection = cJSON_GetArrayItem(jsonCollections, ii);
-        CollectionID cid = makeCollectionID(getJsonEntry(collection, "uid"));
-        int64_t startSeqno = std::stoll(getJsonEntry(collection, "startSeqno"));
-        int64_t endSeqno = std::stoll(getJsonEntry(collection, "endSeqno"));
+    for (const auto& collection : collections) {
+        auto cid = makeCollectionID(
+                getJsonEntry(collection, "uid", nlohmann::json::value_t::string)
+                        .get<std::string>());
+        auto startSeqno =
+                std::stoll(getJsonEntry(collection,
+                                        "startSeqno",
+                                        nlohmann::json::value_t::string)
+                                   .get<std::string>());
+        auto endSeqno = std::stoll(getJsonEntry(collection,
+                                                "endSeqno",
+                                                nlohmann::json::value_t::string)
+                                           .get<std::string>());
         auto& entry = addNewCollectionEntry(cid, startSeqno, endSeqno);
 
         if (cid.isDefaultCollection()) {
@@ -572,16 +578,10 @@ std::string Manifest::serialToJson(cb::const_char_buffer buffer) {
     return json.str();
 }
 
-const char* Manifest::getJsonEntry(cJSON* cJson, const char* key) {
-    auto jsonEntry = cJSON_GetObjectItem(cJson, key);
-    if (!jsonEntry || jsonEntry->type != cJSON_String) {
-        throwException<std::invalid_argument>(
-                __FUNCTION__,
-                "null or not string, key:" + std::string(key) + " " +
-                        (!jsonEntry ? "nullptr"
-                                    : std::to_string(jsonEntry->type)));
-    }
-    return jsonEntry->valuestring;
+nlohmann::json Manifest::getJsonEntry(const nlohmann::json& object,
+                                      const std::string& key,
+                                      nlohmann::json::value_t expectedType) {
+    return cb::getJsonObject(object, key, expectedType, "VB::Manifest");
 }
 
 void Manifest::trackEndSeqno(int64_t seqno) {
