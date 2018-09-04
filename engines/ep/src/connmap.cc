@@ -232,19 +232,18 @@ void ConnMap::notifyAllPausedConnections() {
     }
 }
 
-void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, int16_t vbid) {
+void ConnMap::addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid) {
     if (!conn.get()) {
         return;
     }
 
-    size_t lock_num = vbid % vbConnLockNum;
+    size_t lock_num = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
-    vbConns[vbid].emplace_back(std::move(conn));
+    vbConns[vbid.get()].emplace_back(std::move(conn));
 }
 
-void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie,
-                                          int16_t vbid) {
-    std::list<std::shared_ptr<ConnHandler>>& vb_conns = vbConns[vbid];
+void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie, Vbid vbid) {
+    std::list<std::shared_ptr<ConnHandler>>& vb_conns = vbConns[vbid.get()];
     for (auto itr = vb_conns.begin(); itr != vb_conns.end(); ++itr) {
         if (connCookie == (*itr)->getCookie()) {
             vb_conns.erase(itr);
@@ -253,8 +252,8 @@ void ConnMap::removeVBConnByVBId_UNLOCKED(const void* connCookie,
     }
 }
 
-void ConnMap::removeVBConnByVBId(const void* connCookie, int16_t vbid) {
-    size_t lock_num = vbid % vbConnLockNum;
+void ConnMap::removeVBConnByVBId(const void* connCookie, Vbid vbid) {
+    size_t lock_num = vbid.get() % vbConnLockNum;
     std::lock_guard<std::mutex> lh(vbConnLocks[lock_num]);
     removeVBConnByVBId_UNLOCKED(connCookie, vbid);
 }

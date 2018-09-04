@@ -284,7 +284,7 @@ void Flusher::flushVB(void) {
         EP_LOG_DEBUG("Flusher::flushVB: Trying to flush but no vbuckets exist");
         return;
     } else if (!hpVbs.empty()) {
-        uint16_t vbid = hpVbs.front();
+        Vbid vbid = hpVbs.front();
         hpVbs.pop();
         if (store->flushVBucket(vbid).first) {
             // More items still available, add vbid back to pending set.
@@ -294,7 +294,7 @@ void Flusher::flushVB(void) {
         if (doHighPriority && --numHighPriority == 0) {
             doHighPriority = false;
         }
-        uint16_t vbid = lpVbs.front();
+        Vbid vbid = lpVbs.front();
         lpVbs.pop();
         if (store->flushVBucket(vbid).first) {
             // More items still available, add vbid back to pending set.

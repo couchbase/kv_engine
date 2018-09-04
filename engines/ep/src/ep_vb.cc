@@ -165,7 +165,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
                 } else {
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
-                    EP_LOG_WARN("Failed background fetch for vb:{}, seqno:{}",
+                    EP_LOG_WARN("Failed background fetch for {}, seqno:{}",
                                 getId(),
                                 v->getBySeqno());
                     status = ENGINE_TMPFAIL;
@@ -370,7 +370,7 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
             // log returned error and notify TMPFAIL to client
             EP_LOG_WARN(
                     "VBucket::completeStatsVKey: "
-                    "Failed background fetch for vb:{}, seqno:{}",
+                    "Failed background fetch for {}, seqno:{}",
                     getId(),
                     v->getBySeqno());
         }
@@ -396,7 +396,7 @@ void EPVBucket::addStats(bool details, ADD_STAT add_stat, const void* c) {
         } catch (std::runtime_error& e) {
             EP_LOG_WARN(
                     "VBucket::addStats: Exception caught during getDbFileInfo "
-                    "for vb:{} - what(): {}",
+                    "for {} - what(): {}",
                     getId(),
                     e.what());
         }

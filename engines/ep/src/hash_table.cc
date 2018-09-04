@@ -829,7 +829,7 @@ std::unique_ptr<Item> HashTable::getRandomKeyFromSlot(int slot) {
     for (StoredValue* v = values[slot].get().get(); v;
             v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident()) {
-            return v->toItem(false, 0);
+            return v->toItem(false, Vbid(0));
         }
     }
 

@@ -4205,7 +4205,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 
         memcpy(&vb_id, data + offset, sizeof(Vbid));
         vb_id = vb_id.ntoh();
-        offset += sizeof(uint16_t);
+        offset += sizeof(Vbid);
 
         memcpy(&keylen, data + offset, sizeof(uint16_t));
         keylen = ntohs(keylen);
@@ -4256,7 +4256,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         vb_id = vb_id.ntoh();
         keylen = htons(keylen);
         uint64_t cas = htonll(kstats.cas);
-        result.write((char*) &vb_id, sizeof(uint16_t));
+        result.write((char*)&vb_id, sizeof(Vbid));
         result.write((char*) &keylen, sizeof(uint16_t));
         result.write(reinterpret_cast<const char*>(key.data()), key.size());
         result.write((char*) &keystatus, sizeof(uint8_t));
@@ -4335,7 +4335,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        failover_highseqno = htonll(failover_highseqno);
 
        result.write((char*) &format_type, sizeof(uint8_t));
-       result.write((char*) &vb_id, sizeof(uint16_t));
+       result.write((char*)&vb_id, sizeof(Vbid));
        result.write((char*) &latest_uuid, sizeof(uint64_t));
        result.write((char*) &last_persisted_seqno, sizeof(uint64_t));
        result.write((char*) &current_seqno, sizeof(uint64_t));
@@ -4349,7 +4349,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
         vb_uuid =  htonll(vb_uuid);
 
         result.write((char*) &format_type, sizeof(uint8_t));
-        result.write((char*) &vb_id, sizeof(uint16_t));
+        result.write((char*)&vb_id, sizeof(Vbid));
         result.write((char*) &vb_uuid, sizeof(uint64_t));
         result.write((char*) &last_persisted_seqno, sizeof(uint64_t));
         result.write((char*) &current_seqno, sizeof(uint64_t));

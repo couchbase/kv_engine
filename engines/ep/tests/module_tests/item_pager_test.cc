@@ -252,12 +252,12 @@ protected:
             ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
             ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
             for (size_t ii = 0; ii < online_vb_count; ii++) {
-                runNextTask(lpNonioQ, "Item pager on vb 0");
+                runNextTask(lpNonioQ, "Item pager on vb:0");
             }
         } else {
             runNextTask(lpNonioQ, "Paging expired items.");
             for (size_t ii = 0; ii < online_vb_count; ii++) {
-                runNextTask(lpNonioQ, "Expired item remover on vb 0");
+                runNextTask(lpNonioQ, "Expired item remover on vb:0");
             }
         }
         // Once complete, should have the same number of tasks we initially
@@ -344,13 +344,13 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     store->setVBucketState(replicaVB, vbucket_state_replica, false);
 
     runNextTask(lpNonioQ, "Paging out items.");
-    runNextTask(lpNonioQ, "Item pager on vb 0");
+    runNextTask(lpNonioQ, "Item pager on vb:0");
 
     if (std::get<0>(GetParam()) == "ephemeral") {
         // For ephemeral we do not evict from replicas and so they are
         // not visited first.  This means there will be another Item
         // pager task to run.
-        runNextTask(lpNonioQ, "Item pager on vb 0");
+        runNextTask(lpNonioQ, "Item pager on vb:0");
         // We should have not evicted from replica vbuckets
         EXPECT_EQ(count, store->getVBucket(replicaVB)->getNumItems());
         // We should have evicted from the active/pending vbuckets
@@ -795,7 +795,7 @@ protected:
         runNextTask(lpNonioQ, "Paging expired items.");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
-        runNextTask(lpNonioQ, "Expired item remover on vb 0");
+        runNextTask(lpNonioQ, "Expired item remover on vb:0");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }

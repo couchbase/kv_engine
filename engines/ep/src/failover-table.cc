@@ -250,25 +250,33 @@ void FailoverTable::cacheTableJSON() {
     cachedTableJSON = json.dump();
 }
 
-void FailoverTable::addStats(const void* cookie, uint16_t vbid,
-                             ADD_STAT add_stat) {
+void FailoverTable::addStats(const void* cookie, Vbid vbid, ADD_STAT add_stat) {
     std::lock_guard<std::mutex> lh(lock);
     try {
         char statname[80] = {0};
-        checked_snprintf(statname, sizeof(statname), "vb_%d:num_entries", vbid);
+        checked_snprintf(
+                statname, sizeof(statname), "vb_%d:num_entries", vbid.get());
         add_casted_stat(statname, table.size(), add_stat, cookie);
-        checked_snprintf(statname, sizeof(statname),
-                         "vb_%d:num_erroneous_entries_erased", vbid);
+        checked_snprintf(statname,
+                         sizeof(statname),
+                         "vb_%d:num_erroneous_entries_erased",
+                         vbid.get());
         add_casted_stat(statname, getNumErroneousEntriesErased(), add_stat,
                         cookie);
 
         table_t::iterator it;
         int entrycounter = 0;
         for (it = table.begin(); it != table.end(); ++it) {
-            checked_snprintf(statname, sizeof(statname), "vb_%d:%d:id", vbid,
+            checked_snprintf(statname,
+                             sizeof(statname),
+                             "vb_%d:%d:id",
+                             vbid.get(),
                              entrycounter);
             add_casted_stat(statname, it->vb_uuid, add_stat, cookie);
-            checked_snprintf(statname, sizeof(statname), "vb_%d:%d:seq", vbid,
+            checked_snprintf(statname,
+                             sizeof(statname),
+                             "vb_%d:%d:seq",
+                             vbid.get(),
                              entrycounter);
             add_casted_stat(statname, it->by_seqno, add_stat, cookie);
             entrycounter++;

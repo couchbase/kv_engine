@@ -82,8 +82,8 @@ void EphemeralVBucket::completeStatsVKey(const DocKey& key,
                                          const GetValue& gcb) {
     throw std::logic_error(
             "EphemeralVBucket::completeStatsVKey() is not valid call. "
-            "Called on vb " +
-            std::to_string(getId()) + "for key: " +
+            "Called on " +
+            getId().to_string() + "for key: " +
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
@@ -195,8 +195,8 @@ ENGINE_ERROR_CODE EphemeralVBucket::completeBGFetchForSingleItem(
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
     throw std::logic_error(
             "EphemeralVBucket::completeBGFetchForSingleItem() "
-            "is not valid. Called on vb " +
-            std::to_string(getId()) + "for key: " +
+            "is not valid. Called on " +
+            getId().to_string() + "for key: " +
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
@@ -207,15 +207,15 @@ void EphemeralVBucket::resetStats() {
 vb_bgfetch_queue_t EphemeralVBucket::getBGFetchItems() {
     throw std::logic_error(
             "EphemeralVBucket::getBGFetchItems() is not valid. "
-            "Called on vb " +
-            std::to_string(getId()));
+            "Called on " +
+            getId().to_string());
 }
 
 bool EphemeralVBucket::hasPendingBGFetchItems() {
     throw std::logic_error(
             "EphemeralVBucket::hasPendingBGFetchItems() is not valid. "
-            "Called on vb " +
-            std::to_string(getId()));
+            "Called on " +
+            getId().to_string());
 }
 
 HighPriorityVBReqStatus EphemeralVBucket::checkAddHighPriorityVBEntry(
@@ -248,8 +248,8 @@ void EphemeralVBucket::notifyHighPriorityRequests(
         HighPriorityVBNotify notifyType) {
     throw std::logic_error(
             "EphemeralVBucket::notifyHighPriorityRequests() is not valid. "
-            "Called on vb " +
-            std::to_string(getId()));
+            "Called on " +
+            getId().to_string());
 }
 
 void EphemeralVBucket::notifyAllPendingConnsFailed(
@@ -448,8 +448,8 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
     } catch (const std::bad_cast& e) {
         throw std::logic_error(
                 "EphemeralVBucket::addNewStoredValue(): Error " +
-                std::string(e.what()) + " for vbucket: " +
-                std::to_string(getId()) + " for key: " +
+                std::string(e.what()) + " for " + getId().to_string() +
+                " for key: " +
                 std::string(reinterpret_cast<const char*>(v->getKey().data()),
                             v->getKey().size()));
     }
@@ -568,8 +568,8 @@ void EphemeralVBucket::bgFetch(const DocKey& key,
                                const int bgFetchDelay,
                                const bool isMeta) {
     throw std::logic_error(
-            "EphemeralVBucket::bgFetch() is not valid. Called on vb " +
-            std::to_string(getId()) + "for key: " +
+            "EphemeralVBucket::bgFetch() is not valid. Called on " +
+            getId().to_string() + " for key: " +
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
@@ -584,8 +584,8 @@ EphemeralVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
     throw std::logic_error(
             "EphemeralVBucket::addTempItemAndBGFetch() is not valid. "
-            "Called on vb " +
-            std::to_string(getId()) + "for key: " +
+            "Called on " +
+            getId().to_string() + " for key: " +
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 

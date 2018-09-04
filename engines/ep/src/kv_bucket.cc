@@ -206,8 +206,8 @@ public:
         : GlobalTask(&e, TaskId::PendingOpsNotification, 0, false),
           engine(e),
           vbucket(vb),
-          description("Notify pending operations for vbucket " +
-                      std::to_string(vbucket->getId())) {
+          description("Notify pending operations for " +
+                      vbucket->getId().to_string()) {
     }
 
     std::string getDescription() {
@@ -533,7 +533,7 @@ void KVBucket::getValue(Item& it) {
         EP_LOG_WARN(
                 "KVBucket::getValue failed get for item {}, it.seqno:{}, "
                 "status:{}",
-                Vbid(it.getVBucketId()),
+                it.getVBucketId(),
                 it.getBySeqno(),
                 gv.getStatus());
         return;
@@ -648,7 +648,7 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a set op, because "
                 "takeover is lagging",
-                Vbid(vb->getId()));
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -685,7 +685,7 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a add op"
                 ", becuase takeover is lagging",
-                Vbid(vb->getId()));
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -777,7 +777,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
         EP_LOG_INFO(
                 "KVBucket::setVBucketState blocking {}, to:{}, transfer:{}, "
                 "cookie:{}",
-                Vbid(vbid),
+                vbid,
                 VBucket::toString(to),
                 transfer,
                 cookie);
@@ -843,7 +843,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
             EP_LOG_INFO(
                     "KVBucket::setVBucketState: {} created new failover entry "
                     "with uuid:{} and seqno:{}",
-                    Vbid(vbid),
+                    vbid,
                     entry.vb_uuid,
                     entry.by_seqno);
         }
@@ -916,7 +916,7 @@ void KVBucket::scheduleVBStatePersist(Vbid vbid) {
         EP_LOG_WARN(
                 "EPStore::scheduleVBStatePersist: {} does not not exist. "
                 "Unable to schedule persistence.",
-                Vbid(vbid));
+                vbid);
         return;
     }
 
@@ -960,7 +960,8 @@ ENGINE_ERROR_CODE KVBucket::checkForDBExistence(Vbid db_file_id) {
             return ENGINE_NOT_MY_VBUCKET;
         }
     } else {
-        EP_LOG_WARN("Unknown backend specified for db file id: {}", db_file_id);
+        EP_LOG_WARN("Unknown backend specified for db file id: {}",
+                    db_file_id.get());
         return ENGINE_FAILED;
     }
 
@@ -1309,7 +1310,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
             EP_LOG_DEBUG(
                     "{} file was deleted in the "
                     "middle of a bg fetch for key '{}'",
-                    Vbid(vbucket),
+                    vbucket,
                     cb::UserDataView(cb::const_char_buffer(key)));
             engine.notifyIOComplete(cookie, ENGINE_NOT_MY_VBUCKET);
         }
@@ -1334,7 +1335,7 @@ void KVBucket::completeBGFetchMulti(Vbid vbId,
                 "EP Store completes {} of batched background fetch "
                 "for {} endTime = {}",
                 uint64_t(fetchedItems.size()),
-                Vbid(vbId),
+                vbId,
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                         ProcessClock::now().time_since_epoch())
                         .count());
@@ -1347,7 +1348,7 @@ void KVBucket::completeBGFetchMulti(Vbid vbId,
                 "EP Store completes {} of batched background fetch for "
                 "for {} that is already deleted",
                 (int)fetchedItems.size(),
-                Vbid(vbId));
+                vbId);
     }
 }
 
@@ -1507,7 +1508,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a setWithMeta op"
                 ", becuase takeover is lagging",
-                Vbid(vb->getId()));
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -1733,7 +1734,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a delete op"
                 ", becuase takeover is lagging",
-                Vbid(vb->getId()));
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
     { // collections read scope
@@ -1787,7 +1788,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a deleteWithMeta op"
                 ", becuase takeover is lagging",
-                Vbid(vb->getId()));
+                vb->getId());
         return ENGINE_TMPFAIL;
     }
 
@@ -1827,8 +1828,7 @@ void KVBucket::reset() {
             vb->checkpointManager->clear(vb->getState());
             vb->resetStats();
             vb->setPersistedSnapshot(0, 0);
-            EP_LOG_INFO("KVBucket::reset(): Successfully flushed {}",
-                        Vbid(vbid));
+            EP_LOG_INFO("KVBucket::reset(): Successfully flushed {}", vbid);
         }
     }
     EP_LOG_INFO("KVBucket::reset(): Successfully flushed bucket");
@@ -2242,7 +2242,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
 }
 
 std::string VBCBAdaptor::getDescription() {
-    return std::string(label) + " on vb " + std::to_string(currentvb.load());
+    return std::string(label) + " on " + currentvb.load().to_string();
 }
 
 bool VBCBAdaptor::run(void) {
@@ -2348,8 +2348,7 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
     }
 
     if (!vb.getVB()) {
-        EP_LOG_WARN("{} Aborting rollback as the vbucket was not found",
-                    Vbid(vbid));
+        EP_LOG_WARN("{} Aborting rollback as the vbucket was not found", vbid);
         return TaskStatus::Abort;
     }
 
@@ -2381,11 +2380,11 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
             return TaskStatus::Complete;
         }
         EP_LOG_WARN("{} Aborting rollback as reset of the vbucket failed",
-                    Vbid(vbid));
+                    vbid);
         return TaskStatus::Abort;
     } else {
         EP_LOG_WARN("{} Rollback not supported on the vbucket state {}",
-                    Vbid(vbid),
+                    vbid,
                     VBucket::toString(vb->getState()));
         return TaskStatus::Abort;
     }
@@ -2455,7 +2454,7 @@ ENGINE_ERROR_CODE KVBucket::forceMaxCas(Vbid vbucket, uint64_t cas) {
 }
 
 std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
-    os << "vbucket:" << pos.vbucket_id;
+    os << pos.vbucket_id;
     return os;
 }
 
@@ -2464,10 +2463,8 @@ void KVBucket::notifyFlusher(const Vbid vbid) {
     if (shard) {
         shard->getFlusher()->notifyFlushEvent();
     } else {
-        throw std::logic_error(
-                "KVBucket::notifyFlusher() : shard null for "
-                "vbucket " +
-                std::to_string(vbid));
+        throw std::logic_error("KVBucket::notifyFlusher() : shard null for " +
+                               vbid.to_string());
     }
 }
 

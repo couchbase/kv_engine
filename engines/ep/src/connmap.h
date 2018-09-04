@@ -35,6 +35,7 @@
 // Forward declaration
 class ConnNotifier;
 class EventuallyPersistentEngine;
+class Vbid;
 
 /**
  * A collection of dcp connections.
@@ -71,11 +72,11 @@ public:
      * @param conn Connection to add to the set. Refcount is retained.
      * @param vbid vBucket to add to.
      */
-    void addVBConnByVBId(std::shared_ptr<ConnHandler> conn, int16_t vbid);
+    void addVBConnByVBId(std::shared_ptr<ConnHandler> conn, Vbid vbid);
 
-    void removeVBConnByVBId_UNLOCKED(const void* connCookie, int16_t vbid);
+    void removeVBConnByVBId_UNLOCKED(const void* connCookie, Vbid vbid);
 
-    void removeVBConnByVBId(const void* connCookie, int16_t vbid);
+    void removeVBConnByVBId(const void* connCookie, Vbid vbid);
 
     /**
      * Notify a given paused connection.

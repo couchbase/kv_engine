@@ -147,7 +147,7 @@ public:
          protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
          uint64_t theCas = 0,
          int64_t i = -1,
-         Vbid vbid = 0,
+         Vbid vbid = Vbid(0),
          uint64_t sno = 1);
 
     /* Constructor (new value).
@@ -168,7 +168,7 @@ public:
          protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
          uint64_t theCas = 0,
          int64_t i = -1,
-         Vbid vbid = 0,
+         Vbid vbid = Vbid(0),
          uint64_t sno = 1,
          uint8_t nru = INITIAL_NRU_VALUE,
          uint16_t freqCount = initialFreqCount);

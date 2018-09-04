@@ -52,8 +52,8 @@ public:
             if (!tempFilterInitialized) {
                 throw std::runtime_error(
                         "BloomFilterCallback::callback: Failed "
-                        "to initialize temporary filter for vbucket: " +
-                        std::to_string(vbucketId));
+                        "to initialize temporary filter for " +
+                        vbucketId.to_string());
             }
 
             if (store.getItemEvictionPolicy() == VALUE_ONLY) {
@@ -106,7 +106,7 @@ bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
         EP_LOG_WARN(
                 "BloomFilterCallback::initTempFilter: runtime error while "
                 "getting "
-                "number of persisted deletes for vbucket: {}Details: {}",
+                "number of persisted deletes for {} Details: {}",
                 vbucketId,
                 re.what());
         return false;
@@ -420,7 +420,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 }
 
                 if (vb->setBucketCreation(false)) {
-                    EP_LOG_DEBUG("{} created", Vbid(vbid));
+                    EP_LOG_DEBUG("{} created", vbid);
                 }
             }
 
@@ -434,7 +434,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
                 // Now the commit is complete, vBucket file must exist.
                 if (vb->setBucketCreation(false)) {
-                    EP_LOG_DEBUG("{} created", Vbid(vbid));
+                    EP_LOG_DEBUG("{} created", vbid);
                 }
             }
 
@@ -860,16 +860,16 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
 
         void visitBucket(VBucketPtr& vb) override {
             char buf[32];
-            // Explicitly custom print format, so maintain uint16_t instead
-            // of Vbid type.
-            uint16_t vbid = vb->getId().get();
+            Vbid vbid = vb->getId();
             DBFileInfo dbInfo =
                     vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
 
             try {
-                checked_snprintf(buf, sizeof(buf), "vb_%d:data_size", vbid);
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:data_size", vbid.get());
                 add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);
-                checked_snprintf(buf, sizeof(buf), "vb_%d:file_size", vbid);
+                checked_snprintf(
+                        buf, sizeof(buf), "vb_%d:file_size", vbid.get());
                 add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
             } catch (std::exception& error) {
                 EP_LOG_WARN(

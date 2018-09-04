@@ -103,7 +103,7 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(const LockHolder& lh,
             "Set the current open checkpoint id to {} for {} bySeqno is "
             "{}, max is {}",
             id,
-            Vbid(vbucketId),
+            vbucketId,
             (*ckpt_start)->getBySeqno(),
             lastBySeqno);
 }
@@ -137,7 +137,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
             "CheckpointManager::addNewCheckpoint_UNLOCKED: Close "
             "the current open checkpoint: [{}, id:{}, snapStart:{}, "
             "snapEnd:{}]",
-            Vbid(vbucketId),
+            vbucketId,
             oldOpenCkpt.getId(),
             oldOpenCkpt.getLowSeqno(),
             oldOpenCkpt.getHighSeqno());
@@ -150,7 +150,7 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
     // Now, we can create the new open checkpoint
     EP_LOG_DEBUG(
             "CheckpointManager::addNewCheckpoint_UNLOCKED: Create "
-            "a new open checkpoint: [vb:{}, id:{}, snapStart:{}, snapEnd:{}]",
+            "a new open checkpoint: [{}, id:{}, snapStart:{}, snapEnd:{}]",
             vbucketId,
             id,
             snapStartSeqno,
@@ -203,7 +203,7 @@ void CheckpointManager::addOpenCheckpoint(uint64_t id,
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
     // after the first cursor-increment.
-    queued_item qi = createCheckpointItem(0, 0xffff, queue_op::empty);
+    queued_item qi = createCheckpointItem(0, Vbid(0xffff), queue_op::empty);
     ckpt->queueDirty(qi, this);
     ckpt->incrementMemConsumption(qi->size());
     // Note: We don't include the empty-item in 'numItems'
@@ -723,15 +723,15 @@ queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
                 "CheckpointManager::nextItemForPersistence called with a null "
                 "cursor for {}",
                 vbucketId);
-        queued_item qi(new Item(emptyKey, 0xffff, queue_op::empty, 0, 0));
+        queued_item qi(new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));
         return qi;
     }
     if (getOpenCheckpointId_UNLOCKED(lh) == 0) {
         EP_LOG_DEBUG(
                 "{} is still in backfill phase that doesn't allow "
                 " the cursor to fetch an item from it's current checkpoint",
-                Vbid(vbucketId));
-        queued_item qi(new Item(emptyKey, 0xffff, queue_op::empty, 0, 0));
+                vbucketId);
+        queued_item qi(new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));
         return qi;
     }
 
@@ -742,7 +742,7 @@ queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
         return *(cursor.currentPos);
     } else {
         isLastMutationItem = false;
-        queued_item qi(new Item(emptyKey, 0xffff, queue_op::empty, 0, 0));
+        queued_item qi(new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));
         return qi;
     }
 }
@@ -1134,46 +1134,54 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
     char buf[256];
 
     try {
-        checked_snprintf(buf, sizeof(buf), "vb_%d:open_checkpoint_id",
-                         vbucketId);
+        checked_snprintf(
+                buf, sizeof(buf), "vb_%d:open_checkpoint_id", vbucketId.get());
         add_casted_stat(
                 buf, getOpenCheckpointId_UNLOCKED(lh), add_stat, cookie);
-        checked_snprintf(buf, sizeof(buf), "vb_%d:last_closed_checkpoint_id",
-                         vbucketId);
+        checked_snprintf(buf,
+                         sizeof(buf),
+                         "vb_%d:last_closed_checkpoint_id",
+                         vbucketId.get());
         add_casted_stat(
                 buf, getLastClosedCheckpointId_UNLOCKED(lh), add_stat, cookie);
-        checked_snprintf(buf, sizeof(buf), "vb_%d:num_conn_cursors", vbucketId);
+        checked_snprintf(
+                buf, sizeof(buf), "vb_%d:num_conn_cursors", vbucketId.get());
         add_casted_stat(buf, connCursors.size(), add_stat, cookie);
-        checked_snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items",
-                         vbucketId);
+        checked_snprintf(buf,
+                         sizeof(buf),
+                         "vb_%d:num_checkpoint_items",
+                         vbucketId.get());
         add_casted_stat(buf, numItems, add_stat, cookie);
-        checked_snprintf(buf, sizeof(buf), "vb_%d:num_open_checkpoint_items",
-                         vbucketId);
+        checked_snprintf(buf,
+                         sizeof(buf),
+                         "vb_%d:num_open_checkpoint_items",
+                         vbucketId.get());
         add_casted_stat(buf,
                         getOpenCheckpoint_UNLOCKED(lh).getNumItems(),
                         add_stat,
                         cookie);
-        checked_snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbucketId);
+        checked_snprintf(
+                buf, sizeof(buf), "vb_%d:num_checkpoints", vbucketId.get());
         add_casted_stat(buf, checkpointList.size(), add_stat, cookie);
 
         if (persistenceCursor) {
             checked_snprintf(buf,
                              sizeof(buf),
                              "vb_%d:num_items_for_persistence",
-                             vbucketId);
+                             vbucketId.get());
             add_casted_stat(buf,
                             getNumItemsForCursor_UNLOCKED(persistenceCursor),
                             add_stat,
                             cookie);
         }
-        checked_snprintf(buf, sizeof(buf), "vb_%d:mem_usage", vbucketId);
+        checked_snprintf(buf, sizeof(buf), "vb_%d:mem_usage", vbucketId.get());
         add_casted_stat(buf, getMemoryUsage_UNLOCKED(), add_stat, cookie);
 
         for (const auto& cursor : connCursors) {
             checked_snprintf(buf,
                              sizeof(buf),
                              "vb_%d:%s:cursor_checkpoint_id",
-                             vbucketId,
+                             vbucketId.get(),
                              cursor.second->name.c_str());
             add_casted_stat(buf,
                             (*(cursor.second->currentCheckpoint))->getId(),
@@ -1182,7 +1190,7 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
             checked_snprintf(buf,
                              sizeof(buf),
                              "vb_%d:%s:cursor_seqno",
-                             vbucketId,
+                             vbucketId.get(),
                              cursor.second->name.c_str());
             add_casted_stat(buf,
                             (*(cursor.second->currentPos))->getBySeqno(),
@@ -1191,7 +1199,7 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
             checked_snprintf(buf,
                              sizeof(buf),
                              "vb_%d:%s:num_visits",
-                             vbucketId,
+                             vbucketId.get(),
                              cursor.second->name.c_str());
             add_casted_stat(
                     buf, cursor.second->numVisits.load(), add_stat, cookie);
@@ -1199,7 +1207,7 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
                 checked_snprintf(buf,
                                  sizeof(buf),
                                  "vb_%d:%s:num_items_for_cursor",
-                                 vbucketId,
+                                 vbucketId.get(),
                                  cursor.second->name.c_str());
                 add_casted_stat(
                         buf,

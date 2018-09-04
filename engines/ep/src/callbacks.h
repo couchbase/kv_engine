@@ -31,7 +31,7 @@ class CacheLookup {
 public:
     CacheLookup(const DocKey& k,
                 int64_t s,
-                uint16_t vb,
+                Vbid vb,
                 Collections::VB::Manifest::CachingReadHandle& manifestHandle)
         : key(k), bySeqno(s), vbid(vb), manifestHandle(manifestHandle) {
     }
@@ -42,7 +42,9 @@ public:
 
     int64_t getBySeqno() { return bySeqno; }
 
-    uint16_t getVBucketId() { return vbid; }
+    Vbid getVBucketId() {
+        return vbid;
+    }
 
     const Collections::VB::Manifest::CachingReadHandle& getCollectionsHandle()
             const {
@@ -52,7 +54,7 @@ public:
 private:
     DocKey key;
     int64_t bySeqno;
-    uint16_t vbid;
+    Vbid vbid;
     const Collections::VB::Manifest::CachingReadHandle& manifestHandle;
 };
 

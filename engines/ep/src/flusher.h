@@ -20,13 +20,15 @@
 
 #include "config.h"
 
+#include "executorthread.h"
+#include "utility.h"
+
+#include <memcached/vbucket.h>
+
 #include <list>
 #include <map>
 #include <queue>
 #include <string>
-
-#include "executorthread.h"
-#include "utility.h"
 
 #define NO_VBUCKETS_INSTANTIATED 0xFFFF
 #define RETRY_FLUSH_VBUCKET (-1)
@@ -101,8 +103,8 @@ private:
 
     double                   minSleepTime;
     std::atomic<bool> forceShutdownReceived;
-    std::queue<uint16_t> hpVbs;
-    std::queue<uint16_t> lpVbs;
+    std::queue<Vbid> hpVbs;
+    std::queue<Vbid> lpVbs;
     bool doHighPriority;
     size_t numHighPriority;
     std::atomic<bool> pendingMutation;

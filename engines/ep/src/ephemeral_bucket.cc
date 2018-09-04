@@ -215,8 +215,8 @@ void EphemeralBucket::completeStatsVKey(const void* cookie,
                                         uint64_t bySeqNum) {
     throw std::logic_error(
             "EphemeralBucket::completeStatsVKey() "
-            "is not a valid call. Called on vb " +
-            std::to_string(vbid) + "for key: " +
+            "is not a valid call. Called on " +
+            vbid.to_string() + " for key: " +
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
@@ -258,7 +258,7 @@ size_t EphemeralBucket::getNumPersistedDeletes(Vbid vbid) {
     }
     throw std::runtime_error(
             "EphemeralBucket::getNumPersistedDeletes: No vbucket with id '" +
-            std::to_string(vbid) + "' in vbMap");
+            vbid.to_string() + "' in vbMap");
 }
 
 void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
