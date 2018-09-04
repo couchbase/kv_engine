@@ -49,6 +49,25 @@ struct WarmupCookie {
     size_t error;
 };
 
+void logWarmupStats(KVBucket& epstore) {
+    EPStats& stats = epstore.getEPEngine().getEpStats();
+    std::chrono::duration<double, std::chrono::seconds::period> seconds =
+            epstore.getWarmup()->getTime();
+    double keys_per_seconds = stats.warmedUpValues / seconds.count();
+    double megabytes = stats.getPreciseTotalMemoryUsed() / 1.0e6;
+    double megabytes_per_seconds = megabytes / seconds.count();
+    EP_LOG_INFO(
+            "Warmup completed: {} keys and {} values loaded in {} ({} keys/s), "
+            "mem_used now at {} MB ({} MB/s)",
+            stats.warmedUpKeys,
+            stats.warmedUpValues,
+            cb::time2text(
+                    std::chrono::nanoseconds(epstore.getWarmup()->getTime())),
+            keys_per_seconds,
+            megabytes,
+            megabytes_per_seconds);
+}
+
 // Warmup Tasks ///////////////////////////////////////////////////////////////
 
 class WarmupInitialize : public GlobalTask {
@@ -673,9 +692,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         if (epstore.getWarmup()->setComplete()) {
             epstore.getWarmup()->setWarmupTime();
             epstore.warmupCompleted();
-            EP_LOG_INFO("Warmup completed in {}",
-                        cb::time2text(std::chrono::nanoseconds(
-                                epstore.getWarmup()->getTime())));
+            logWarmupStats(epstore);
         }
         EP_LOG_INFO(
                 "Engine warmup is complete, request to stop "
@@ -1358,8 +1375,7 @@ void Warmup::done()
     if (setComplete()) {
         setWarmupTime();
         store.warmupCompleted();
-        EP_LOG_INFO("warmup completed in {}",
-                    cb::time2text(std::chrono::nanoseconds(warmup.load())));
+        logWarmupStats(store);
     }
 }
 
