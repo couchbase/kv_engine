@@ -206,8 +206,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     // accident due to the producer and the consumer having a different noop
     // interval.
     noopCtx.dcpNoopTxInterval = defaultDcpNoopTxInterval;
-    noopCtx.dcpIdleTimeout = std::chrono::seconds(
-            engine_.getConfiguration().getDcpIdleTimeout());
     noopCtx.pendingRecv = false;
     noopCtx.enabled = false;
 
@@ -1217,18 +1215,19 @@ void DcpProducer::notifyPaused(bool schedule) {
 
 ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
     const auto now = ep_current_time();
-    std::chrono::seconds elapsedTime(now - lastReceiveTime);
-    if (noopCtx.enabled && elapsedTime > noopCtx.dcpIdleTimeout) {
+    auto elapsedTime = now - lastReceiveTime;
+    auto dcpIdleTimeout = engine_.getConfiguration().getDcpIdleTimeout();
+    if (noopCtx.enabled && elapsedTime > dcpIdleTimeout) {
         logger->info(
                 "Disconnecting because a message has not been received for "
                 "DCP "
-                "idle timeout (which is"
+                "idle timeout (which is "
                 "{}s). Sent last message {}s ago, received last message {}s "
                 "ago. noopCtx {{now - sendTime:{}, opaque: {}, "
                 "pendingRecv:{}}}",
-                noopCtx.dcpIdleTimeout.count(),
+                dcpIdleTimeout,
                 (now - lastSendTime),
-                elapsedTime.count(),
+                elapsedTime,
                 (now - noopCtx.sendTime),
                 noopCtx.opaque,
                 noopCtx.pendingRecv ? "true" : "false");

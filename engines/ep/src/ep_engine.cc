@@ -660,6 +660,11 @@ protocol_binary_response_status EventuallyPersistentEngine::setDcpParam(
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(
                     v);
+        } else if (strcmp(keyz, "dcp_idle_timeout") == 0) {
+            size_t v = atoi(valz);
+            checkNumeric(valz);
+            validate(v, size_t(1), std::numeric_limits<size_t>::max());
+            getConfiguration().setDcpIdleTimeout(v);
         } else {
             msg = "Unknown config param";
             rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;

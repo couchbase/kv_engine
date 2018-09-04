@@ -333,11 +333,6 @@ protected:
     struct {
         rel_time_t sendTime;
         uint32_t opaque;
-        /**
-         * How long this DCP connection can be idle for (no response received)
-         * before it is disconnected.
-         */
-        std::chrono::seconds dcpIdleTimeout;
 
         /// How often are DCP noop messages transmitted?
         std::chrono::seconds dcpNoopTxInterval;

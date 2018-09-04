@@ -286,6 +286,9 @@ Available params for "set":
                                                         DCP processor will consume
                                                         in a single batch.
 
+    dcp_idle_timeout - The maximum time a DCP connection can be idle before it
+                       is disconnected.
+
 Available params for "set_vbucket_param":
     max_cas - Change the max_cas of a vbucket. The value and vbucket are specified as decimal
               integers. The new-value is interpretted as an unsigned 64-bit integer.

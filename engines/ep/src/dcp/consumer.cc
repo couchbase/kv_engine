@@ -151,7 +151,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       processorTaskState(all_processed),
       processorNotification(false),
       backoffs(0),
-      dcpIdleTimeout(engine.getConfiguration().getDcpIdleTimeout()),
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
       pendingSendStreamEndOnClientStreamClose(true),
       producerIsVersion5orHigher(false),
@@ -1267,11 +1266,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     }
 
     const auto now = ep_current_time();
-    if ((now - lastMessageTime) > dcpIdleTimeout.count()) {
+    auto dcpIdleTimeout = engine.getConfiguration().getDcpIdleTimeout();
+    if ((now - lastMessageTime) > dcpIdleTimeout) {
         logger->info(
                 "Disconnecting because a message has not been received for "
                 "{}s. lastMessageTime:{}",
-                dcpIdleTimeout.count(),
+                dcpIdleTimeout,
                 (now - lastMessageTime));
         return ENGINE_DISCONNECT;
     }
