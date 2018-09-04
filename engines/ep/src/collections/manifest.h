@@ -27,6 +27,26 @@
 
 namespace Collections {
 
+// strings used in JSON parsing
+static constexpr char const* ScopesKey = "scopes";
+static constexpr nlohmann::json::value_t ScopesType =
+        nlohmann::json::value_t::array;
+static constexpr char const* CollectionsKey = "collections";
+static constexpr nlohmann::json::value_t CollectionsType =
+        nlohmann::json::value_t::array;
+static constexpr char const* NameKey = "name";
+static constexpr nlohmann::json::value_t NameType =
+        nlohmann::json::value_t::string;
+static constexpr char const* UidKey = "uid";
+static constexpr nlohmann::json::value_t UidType =
+        nlohmann::json::value_t::string;
+static const size_t MaxCollectionNameSize = 30;
+
+struct Scope {
+    std::string name;
+    std::vector<CollectionID> collections;
+};
+
 /**
  * Manifest is an object that is constructed from JSON data as per
  * a set_collections command
@@ -54,7 +74,10 @@ public:
         return defaultCollectionExists;
     }
 
-    // This manifest object stores CID to name mappings
+    // This manifest object stores UID to Scope mappings
+    using scopeContainer = std::unordered_map<ScopeID, Scope>;
+
+    // This manifest object stores CID to name mappings for collections
     using collectionContainer = std::unordered_map<CollectionID, std::string>;
 
     collectionContainer::const_iterator begin() const {
@@ -69,16 +92,49 @@ public:
         return collections.size();
     }
 
-    /// @return the unique ID of the Manifest which constructed this
+    /**
+     * @return the unique ID of the Manifest which constructed this
+     */
     uid_t getUid() const {
         return uid;
     }
 
     /**
+     * Search for a collection by CollectionID
+     *
+     * @param cid CollectionID to search for.
      * @return iterator to the matching entry or end() if not found.
      */
     collectionContainer::const_iterator findCollection(CollectionID cid) const {
         return collections.find(cid);
+    }
+
+    /**
+     * Search for a collection by name (requires a scope name also)
+     *
+     * @param collectionName Name of the collection to search for.
+     * @param scopeName Name of the scope in which to search. Defaults to the
+     * default scope.
+     * @return iterator to the matching entry or end() if not found.
+     */
+    collectionContainer::const_iterator findCollection(
+            const std::string& collectionName,
+            const std::string& scopeName =
+                    cb::to_string(DefaultScopeIdentifier)) const {
+        for (auto& scope : scopes) {
+            if (scope.second.name == scopeName) {
+                for (auto& scopeCollection : scope.second.collections) {
+                    auto collection = collections.find(scopeCollection);
+
+                    if (collection != collections.end() &&
+                        collection->second == collectionName) {
+                        return collection;
+                    }
+                }
+            }
+        }
+
+        return collections.end();
     }
 
     /**
@@ -141,20 +197,9 @@ private:
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
     bool defaultCollectionExists;
+    scopeContainer scopes;
     collectionContainer collections;
     uid_t uid;
-
-    // strings used in JSON parsing
-    static constexpr char const* CollectionsKey = "collections";
-    static constexpr nlohmann::json::value_t CollectionsType =
-            nlohmann::json::value_t::array;
-    static constexpr char const* CollectionNameKey = "name";
-    static constexpr nlohmann::json::value_t CollectionNameType =
-            nlohmann::json::value_t::string;
-    static constexpr char const* CollectionUidKey = "uid";
-    static constexpr nlohmann::json::value_t CollectionUidType =
-            nlohmann::json::value_t::string;
-    static const size_t MaxCollectionNameSize = 30;
 };
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);

@@ -88,6 +88,8 @@ private:
     CollectionIDType value;
 };
 
+using ScopeID = CollectionID;
+
 /**
  * NetworkByte order version of CollectionID - limited interface for small areas
  * of code which deal with a network byte order CID

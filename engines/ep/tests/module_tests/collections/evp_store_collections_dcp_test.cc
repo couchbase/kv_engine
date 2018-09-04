@@ -347,7 +347,8 @@ TEST_F(CollectionsDcpTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
 
     // And now the new manifest-UID is exposed
-    EXPECT_EQ(3, replica->lockCollections().getManifestUid());
+    // The cm will have uid 3 + 1 (for the addition of the default scope)
+    EXPECT_EQ(4, replica->lockCollections().getManifestUid());
 
     // Remove two
     vb->updateFromManifest(
@@ -357,13 +358,13 @@ TEST_F(CollectionsDcpTest, mb30893_dcp_partial_updates) {
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    EXPECT_EQ(3, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(4, replica->lockCollections().getManifestUid());
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    EXPECT_EQ(5, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(6, replica->lockCollections().getManifestUid());
 
     // Add and remove
     vb->updateFromManifest(
@@ -373,13 +374,13 @@ TEST_F(CollectionsDcpTest, mb30893_dcp_partial_updates) {
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    EXPECT_EQ(5, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(6, replica->lockCollections().getManifestUid());
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_last_op);
-    EXPECT_EQ(7, replica->lockCollections().getManifestUid());
+    EXPECT_EQ(8, replica->lockCollections().getManifestUid());
 }
 
 void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
@@ -640,7 +641,8 @@ TEST_F(CollectionsDcpTest, MB_26455) {
             vb->updateFromManifest({cm});
 
             // add fruit (new generation)
-            vb->updateFromManifest({cm.add({CollectionName::fruit, n})});
+            vb->updateFromManifest(
+                    {cm.add(CollectionEntry::Entry{CollectionName::fruit, n})});
 
             // Mutate fruit
             for (int ii = 0; ii < items; ii++) {

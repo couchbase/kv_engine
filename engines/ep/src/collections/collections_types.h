@@ -28,6 +28,9 @@ const char* const _DefaultCollectionIdentifier = "_default";
 static cb::const_char_buffer DefaultCollectionIdentifier(
         _DefaultCollectionIdentifier);
 
+const char* const _DefaultScopeIdentifier = "_default";
+static cb::const_char_buffer DefaultScopeIdentifier(_DefaultScopeIdentifier);
+
 // SystemEvent keys or parts which will be made into keys
 const char* const SystemSeparator = ":"; // Note this never changes
 const char* const SystemEventPrefix = "_collections";
@@ -88,6 +91,29 @@ static inline CollectionID makeCollectionID(const char* uid) {
  */
 static inline CollectionID makeCollectionID(const std::string& uid) {
     return makeCollectionID(uid.c_str());
+}
+
+/**
+ * Return a ScopeID from a C-string.
+ * A valid CollectionID is a std::string where each character satisfies
+ * std::isxdigit and can be converted to a CollectionID by std::strtoul
+ * @param uid C-string uid
+ * @return std::invalid_argument if uid is invalid
+ */
+static inline ScopeID makeScopeID(const char* uid) {
+    // ScopeID currently follows the same rules as CollectionID
+    return makeCollectionID(uid);
+}
+
+/**
+ * Return a ScopeID from a std::string
+ * A valid ScopeID is a std::string where each character satisfies
+ * std::isxdigit and can be converted to a CollectionID by std::strtoul
+ * @param uid std::string
+ * @return std::invalid_argument if uid is invalid
+ */
+static inline ScopeID makeScopeID(const std::string& uid) {
+    return makeScopeID(uid.c_str());
 }
 
 /**

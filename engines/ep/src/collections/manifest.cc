@@ -33,58 +33,105 @@ namespace Collections {
 
 Manifest::Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections)
     : defaultCollectionExists(false), uid(0) {
-    if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),
-                       json.size())) {
-        throw std::invalid_argument("Manifest::Manifest input not valid json:" +
-                                    cb::to_string(json));
-    }
     nlohmann::json parsed;
     try {
         parsed = nlohmann::json::parse(json);
     } catch (const nlohmann::json::exception& e) {
         throw std::invalid_argument(
-                "Manifest::Manifest cJSON cannot parse json:" +
+                "Manifest::Manifest nlohmann cannot parse json:" +
                 cb::to_string(json) + ", e:" + e.what());
     }
 
     // Read the Manifest UID e.g. "uid" : "5fa1"
-    auto jsonUid = getJsonObject(parsed, CollectionUidKey, CollectionUidType);
+    auto jsonUid = getJsonObject(parsed, UidKey, UidType);
     uid = makeUid(jsonUid.get<std::string>());
 
-    auto collections = getJsonObject(parsed, CollectionsKey, CollectionsType);
+    // Read the scopes within the Manifest
+    auto scopes = getJsonObject(parsed, ScopesKey, ScopesType);
+    for (const auto& scope : scopes) {
+        throwIfWrongType(
+                std::string(ScopesKey), scope, nlohmann::json::value_t::object);
 
-    if (collections.size() > maxNumberOfCollections) {
-        throw std::invalid_argument(
-                "Manifest::Manifest too many collections count:" +
-                std::to_string(collections.size()));
-    }
+        auto name = getJsonObject(scope, NameKey, NameType);
+        auto uid = getJsonObject(scope, UidKey, UidType);
 
-    for (const auto& collection : collections) {
-        throwIfWrongType(std::string(CollectionsKey),
-                         collection,
-                         nlohmann::json::value_t::object);
-
-        auto name = getJsonObject(
-                collection, CollectionNameKey, CollectionNameType);
-        auto uid =
-                getJsonObject(collection, CollectionUidKey, CollectionUidType);
-
-        CollectionID uidValue = makeCollectionID(uid.get<std::string>());
         auto nameValue = name.get<std::string>();
+        ScopeID uidValue = makeScopeID(uid.get<std::string>());
         if (validCollection(nameValue) && validUid(uidValue)) {
-            if (this->collections.count(uidValue) > 0) {
+            if (this->scopes.count(uidValue) > 0) {
                 throw std::invalid_argument(
-                        "Manifest::Manifest duplicate cid:" +
+                        "Manifest::Manifest duplicate scope uid:" +
                         uidValue.to_string() + ", name:" + nameValue);
             }
 
-            enableDefaultCollection(uidValue);
-            this->collections.emplace(uidValue, nameValue);
+            std::vector<CollectionID> scopeCollections = {};
+
+            // Read the collections within this scope
+            auto collections =
+                    getJsonObject(scope, CollectionsKey, CollectionsType);
+
+            // Check that the number of collections in this scope + the
+            // number of already stored collections is not greater thatn
+            if (collections.size() + this->collections.size() >
+                maxNumberOfCollections) {
+                throw std::invalid_argument(
+                        "Manifest::Manifest too many collections count:" +
+                        std::to_string(collections.size()));
+            }
+
+            for (const auto& collection : collections) {
+                throwIfWrongType(std::string(CollectionsKey),
+                                 collection,
+                                 nlohmann::json::value_t::object);
+
+                auto cname = getJsonObject(collection, NameKey, NameType);
+                auto cuid = getJsonObject(collection, UidKey, UidType);
+
+                auto cnameValue = cname.get<std::string>();
+                CollectionID cuidValue =
+                        makeCollectionID(cuid.get<std::string>());
+                if (validCollection(cnameValue) && validUid(cuidValue)) {
+                    if (this->collections.count(cuidValue) > 0) {
+                        throw std::invalid_argument(
+                                "Manifest::Manifest duplicate collection uid:" +
+                                cuidValue.to_string() +
+                                ", name: " + cnameValue);
+                    }
+
+                    // The default collection must be within the default scope
+                    if (cuidValue.isDefaultCollection() &&
+                        !uidValue.isDefaultCollection()) {
+                        throw std::invalid_argument(
+                                "Manifest::Manifest the default collection is"
+                                " not in the default scope");
+                    }
+
+                    enableDefaultCollection(cuidValue);
+                    this->collections.emplace(cuidValue, cnameValue);
+                    scopeCollections.push_back(cuidValue);
+                } else {
+                    throw std::invalid_argument(
+                            "Manifest::Manifest invalid collection entry:" +
+                            cnameValue + ", uid: " + cuidValue.to_string());
+                }
+            }
+
+            this->scopes.emplace(uidValue,
+                                 Scope{nameValue, std::move(scopeCollections)});
         } else {
             throw std::invalid_argument(
-                    "Manifest::Manifest invalid collection entry:" + nameValue +
-                    " cid:" + uidValue.to_string());
+                    "Manifest::Manifest duplicate scope entry:" + nameValue +
+                    ", uid:" + uidValue.to_string());
         }
+    }
+
+    if (this->scopes.empty()) {
+        throw std::invalid_argument(
+                "Manifest::Manifest no scopes were defined in the manifest");
+    } else if (this->scopes.count(ScopeID::Default) == 0) {
+        throw std::invalid_argument(
+                "Manifest::Manifest the default scope was"
+                " not defined");
     }
 }
 
@@ -133,15 +180,31 @@ bool Manifest::validUid(CollectionID identifier) {
 
 std::string Manifest::toJson() const {
     std::stringstream json;
-    json << R"({"uid":")" << std::hex << uid << R"(","collections":[)";
-    size_t ii = 0;
-    for (const auto& collection : collections) {
-        json << R"({"name":")" << collection.second << R"(","uid":")"
-             << std::hex << collection.first << R"("})";
-        if (ii != collections.size() - 1) {
+    json << R"({"uid":")" << std::hex << uid << R"(","scopes":[)";
+    size_t nScopes = 0;
+    for (const auto& scope : scopes) {
+        json << R"({"name":")" << scope.second.name << R"(","uid":")"
+             << std::hex << scope.first << R"(")";
+        // Add the collections if this scope has any
+        if (!scope.second.collections.empty()) {
+            json << R"(,"collections":[)";
+            // Add all collections
+            size_t nCollections = 0;
+            for (const auto& collection : collections) {
+                json << R"({"name":")" << collection.second << R"(","uid":")"
+                     << std::hex << collection.first << R"("})";
+                if (nCollections != collections.size() - 1) {
+                    json << ",";
+                }
+                nCollections++;
+            }
+            json << "]";
+        }
+        json << R"(})";
+        if (nScopes != scopes.size() - 1) {
             json << ",";
         }
-        ii++;
+        nScopes++;
     }
     json << "]}";
     return json.str();
@@ -155,9 +218,14 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "Collections::Manifest"
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
        << ", collections.size:" << manifest.collections.size() << std::endl;
-    for (const auto& entry : manifest.collections) {
-        os << "collection:{" << std::hex << entry.first << "," << entry.second
-           << "}\n";
+    for (const auto& entry : manifest.scopes) {
+        os << "scope:{" << std::hex << entry.first << "," << entry.second.name
+           << ",collections:{";
+        for (const auto& entry : manifest.collections) {
+            os << "collection:{" << std::hex << entry.first << ","
+               << entry.second << "}\n";
+        }
+        os << "}\n";
     }
     return os;
 }

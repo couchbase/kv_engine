@@ -50,7 +50,7 @@ std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
 /**
  * Create a StoredDocKey object from a std::string.
  * By default places the key in the default namespace,
- * DocNamespace::DefaultCollection.
+ * DocNamespace::Default.
  */
 StoredDocKey makeStoredDocKey(const std::string& string,
                               DocNamespace ns = DocNamespace::Default);

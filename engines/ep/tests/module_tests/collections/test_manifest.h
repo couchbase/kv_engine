@@ -79,6 +79,35 @@ Entry_(dairy2);
 #undef Entry_
 } // namespace CollectionEntry
 
+// For build ScopeEntry we need a name
+namespace ScopeName {
+constexpr char defaultS[] = "_default";
+}
+
+// For building ScopeEntry we need a UID
+namespace ScopeUid {
+const ScopeID defaultS = 0;
+} // namespace ScopeUid
+
+namespace ScopeEntry {
+struct Entry {
+    std::string name;
+    ScopeID uid;
+    std::vector<CollectionEntry::Entry> collections;
+
+    std::vector<CollectionEntry::Entry> getCollections() const {
+        return collections;
+    }
+};
+
+#define Entry_(name)                      \
+    static Entry name = {ScopeName::name, \
+                         ScopeUid::name,  \
+                         std::vector<CollectionEntry::Entry>{}}
+Entry_(defaultS);
+#undef Entry_
+} // namespace ScopeEntry
+
 struct NoDefault {};
 
 /**
@@ -96,11 +125,22 @@ public:
     /// construct with default and one other
     CollectionsManifest(const CollectionEntry::Entry& entry);
 
-    /// Add the entry - allows duplicates
-    CollectionsManifest& add(const CollectionEntry::Entry& entry);
+    /// Add the scope entry - allows duplicates
+    CollectionsManifest& add(const ScopeEntry::Entry& entry);
+
+    /// Add the collection entry to the given scope - allows duplicates
+    /// Adds the collection to the default scope if not are specified
+    CollectionsManifest& add(
+            const CollectionEntry::Entry& collectionEntry,
+            const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
 
     /// Remove the entry if found (the first found entry is removed)
-    CollectionsManifest& remove(const CollectionEntry::Entry& entry);
+    CollectionsManifest& remove(const ScopeEntry::Entry& scopeEntry);
+
+    /// Remove the entry if found (the first found entry is removed)
+    CollectionsManifest& remove(
+            const CollectionEntry::Entry& collectionEntry,
+            const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
 
     /// Return the manifest UID
     Collections::uid_t getUid() const {

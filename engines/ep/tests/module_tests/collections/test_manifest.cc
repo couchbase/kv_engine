@@ -23,12 +23,12 @@
 #include <sstream>
 
 CollectionsManifest::CollectionsManifest() {
+    add(ScopeEntry::defaultS);
     add(CollectionEntry::defaultC);
 }
 
 CollectionsManifest::CollectionsManifest(NoDefault) {
-    updateUid();
-    json["collections"] = std::vector<nlohmann::json>();
+    add(ScopeEntry::defaultS);
 }
 
 CollectionsManifest::CollectionsManifest(const CollectionEntry::Entry& entry)
@@ -36,8 +36,7 @@ CollectionsManifest::CollectionsManifest(const CollectionEntry::Entry& entry)
     add(entry);
 }
 
-CollectionsManifest& CollectionsManifest::add(
-        const CollectionEntry::Entry& entry) {
+CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry) {
     updateUid();
 
     nlohmann::json jsonEntry;
@@ -46,21 +45,72 @@ CollectionsManifest& CollectionsManifest::add(
 
     jsonEntry["name"] = entry.name;
     jsonEntry["uid"] = ss.str();
+    jsonEntry["collections"] = std::vector<nlohmann::json>();
 
-    json["collections"].push_back(jsonEntry);
+    json["scopes"].push_back(jsonEntry);
+
+    return *this;
+}
+
+CollectionsManifest& CollectionsManifest::add(
+        const CollectionEntry::Entry& collectionEntry,
+        const ScopeEntry::Entry& scopeEntry) {
+    updateUid();
+
+    nlohmann::json jsonEntry;
+    std::stringstream ss;
+    ss << std::hex << collectionEntry.uid;
+
+    jsonEntry["name"] = collectionEntry.name;
+    jsonEntry["uid"] = ss.str();
+
+    // Add the new collection to the set of collections belonging to the
+    // given scope
+    for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
+         itr++) {
+        if ((*itr)["name"] == scopeEntry.name) {
+            (*itr)["collections"].push_back(jsonEntry);
+            break;
+        }
+    }
 
     return *this;
 }
 
 CollectionsManifest& CollectionsManifest::remove(
-        const CollectionEntry::Entry& entry) {
+        const ScopeEntry::Entry& entry) {
     updateUid();
 
-    for (auto itr = json["collections"].begin();
-         itr != json["collections"].end();
+    for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
          itr++) {
         if ((*itr)["name"] == entry.name) {
-            json["collections"].erase(itr);
+            json["scopes"].erase(itr);
+            break;
+        }
+    }
+
+    return *this;
+}
+
+CollectionsManifest& CollectionsManifest::remove(
+        const CollectionEntry::Entry& collectionEntry,
+        const ScopeEntry::Entry& scopeEntry) {
+    updateUid();
+
+    // Iterate on all scopes, find the one matching the passed scopeEntry
+    for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
+         itr++) {
+        if ((*itr)["name"] == scopeEntry.name) {
+            // Iterate on all collections within the scope, find the one
+            // matching the passed collectionEntry
+            for (auto citr = (*itr)["collections"].begin();
+                 citr != (*itr)["collections"].end();
+                 citr++) {
+                if ((*citr)["name"] == collectionEntry.name) {
+                    (*itr)["collections"].erase(citr);
+                    break;
+                }
+            }
             break;
         }
     }
