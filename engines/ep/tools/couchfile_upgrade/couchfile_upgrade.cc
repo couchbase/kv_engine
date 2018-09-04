@@ -54,9 +54,8 @@ static bool runUpgrade(const ProgramOptions& options,
     }
 
     // Open the output file now that the input file is ok for processing
-    Collections::OutputCouchFile output(options.options,
-                                        options.outputFilename,
-                                        CollectionID::DefaultCollection);
+    Collections::OutputCouchFile output(
+            options.options, options.outputFilename, CollectionID::Default);
 
     // Perform the upgrade steps
     // 1. Write out a new file tagged in a way we can determine upgrade has

@@ -195,11 +195,11 @@ TEST(ManifestTest, findCollection) {
     Collections::Manifest m(manifest);
 
     for (auto& collection : collectionT) {
-        EXPECT_NE(m.end(), m.find(collection));
+        EXPECT_NE(m.end(), m.findCollection(collection));
     }
 
     for (auto& collection : collectionF) {
-        EXPECT_EQ(m.end(), m.find(collection));
+        EXPECT_EQ(m.end(), m.findCollection(collection));
     }
 }
 

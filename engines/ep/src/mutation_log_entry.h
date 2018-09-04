@@ -196,7 +196,7 @@ public:
           magic(MagicMarker),
           _type(mleV1._type),
           _key({reinterpret_cast<const uint8_t*>(mleV1._key), mleV1.keylen},
-               CollectionID::DefaultCollection) {
+               CollectionID::Default) {
         (void)pad;
     }
 
@@ -319,7 +319,7 @@ public:
           magic(MagicMarker),
           _type(mleV2._type),
           _key({mleV2._key.data() + 1, mleV2._key.size() - 1},
-               CollectionID::DefaultCollection) {
+               CollectionID::Default) {
         (void)pad;
     }
 

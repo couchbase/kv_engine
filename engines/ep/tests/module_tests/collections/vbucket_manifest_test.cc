@@ -830,7 +830,7 @@ TEST_F(VBucketManifestTestEndSeqno, singleDelete) {
             StoredDocKey{"vegetable:sprout", CollectionEntry::defaultC}, 1));
     EXPECT_FALSE(manifest.isLogicallyDeleted(
             StoredDocKey{"vegetable:sprout", CollectionEntry::defaultC}, 2));
-    EXPECT_TRUE(manifest.completeDeletion(CollectionID::DefaultCollection));
+    EXPECT_TRUE(manifest.completeDeletion(CollectionID::Default));
     EXPECT_TRUE(
             manifest.checkGreatestEndSeqno(StoredValue::state_collection_open));
     EXPECT_TRUE(manifest.checkNumDeletingCollections(0));

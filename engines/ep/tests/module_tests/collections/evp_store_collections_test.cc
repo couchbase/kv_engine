@@ -416,7 +416,7 @@ std::string CollectionsFlushTest::completeDeletionAndFlush(
     runCompaction();
 
     // Default is still ok
-    storeItems(CollectionID::DefaultCollection, items);
+    storeItems(CollectionID::Default, items);
     flush_vbucket_to_disk(vbid, items); // just the items
 
     // No item count check here, the call will throw for the deleted collection

@@ -87,8 +87,7 @@ public:
         }
 
         // The presence of $default is a simple check against defaultAllowed
-        if (item.getKey().getCollectionID() ==
-                    CollectionID::DefaultCollection &&
+        if (item.getKey().getCollectionID() == CollectionID::Default &&
             defaultAllowed) {
             return true;
         }

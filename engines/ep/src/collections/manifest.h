@@ -55,13 +55,13 @@ public:
     }
 
     // This manifest object stores CID to name mappings
-    using container = std::unordered_map<CollectionID, std::string>;
+    using collectionContainer = std::unordered_map<CollectionID, std::string>;
 
-    container::const_iterator begin() const {
+    collectionContainer::const_iterator begin() const {
         return collections.begin();
     }
 
-    container::const_iterator end() const {
+    collectionContainer::const_iterator end() const {
         return collections.end();
     }
 
@@ -77,7 +77,7 @@ public:
     /**
      * @return iterator to the matching entry or end() if not found.
      */
-    container::const_iterator find(CollectionID cid) const {
+    collectionContainer::const_iterator findCollection(CollectionID cid) const {
         return collections.find(cid);
     }
 
@@ -94,7 +94,7 @@ public:
 private:
     /**
      * Set defaultCollectionExists to true if identifier matches
-     * CollectionID::DefaultCollection
+     * CollectionID::Default
      * @param identifier ID to check
      */
     void enableDefaultCollection(CollectionID identifier);
@@ -141,7 +141,7 @@ private:
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
     bool defaultCollectionExists;
-    container collections;
+    collectionContainer collections;
     uid_t uid;
 
     // strings used in JSON parsing

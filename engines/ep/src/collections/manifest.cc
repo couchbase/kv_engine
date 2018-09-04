@@ -101,7 +101,7 @@ void Manifest::throwIfWrongType(const std::string& errorKey,
 }
 
 void Manifest::enableDefaultCollection(CollectionID identifier) {
-    if (identifier == CollectionID::DefaultCollection) {
+    if (identifier == CollectionID::Default) {
         defaultCollectionExists = true;
     }
 }

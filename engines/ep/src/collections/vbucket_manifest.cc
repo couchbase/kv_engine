@@ -39,9 +39,8 @@ Manifest::Manifest(const std::string& manifest)
       nDeletingCollections(0) {
     if (manifest.empty()) {
         // Empty manifest, initialise the manifest with the default collection
-        addNewCollectionEntry(CollectionID::DefaultCollection,
-                              0,
-                              StoredValue::state_collection_open);
+        addNewCollectionEntry(
+                CollectionID::Default, 0, StoredValue::state_collection_open);
         defaultCollectionExists = true;
         return;
     }
@@ -159,8 +158,8 @@ void Manifest::addCollection(::VBucket& vb,
                              uid_t manifestUid,
                              CollectionID identifier,
                              OptionalSeqno optionalSeqno) {
-    // 1. Update the manifest, adding or updating an entry in the map. Specify a
-    //    non-zero start
+    // 1. Update the manifest, adding or updating an entry in the collections
+    // map. Specify a non-zero start
     auto& entry = addCollectionEntry(identifier);
 
     // 1.1 record the uid of the manifest which is adding the collection
@@ -311,7 +310,7 @@ Manifest::processResult Manifest::processManifest(
         // If the entry is open and not found in the new manifest it must be
         // deleted.
         if (entry.second.isOpen() &&
-            manifest.find(entry.first) == manifest.end()) {
+            manifest.findCollection(entry.first) == manifest.end()) {
             deletions.push_back(entry.first);
         }
     }

@@ -88,7 +88,7 @@ void Collections::VB::Filter::remove(const Item& item) {
 
     CollectionID collection =
             VB::Manifest::getCollectionIDFromKey(item.getKey());
-    if (collection == CollectionID::DefaultCollection) {
+    if (collection == CollectionID::Default) {
         defaultAllowed = false;
     } else {
         filter.erase(collection);
@@ -107,7 +107,7 @@ bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
     case SystemEvent::Collection: {
         CollectionID collection =
                 VB::Manifest::getCollectionIDFromKey(item.getKey());
-        if ((collection == CollectionID::DefaultCollection && defaultAllowed) ||
+        if ((collection == CollectionID::Default && defaultAllowed) ||
             passthrough) {
             return true;
         } else {

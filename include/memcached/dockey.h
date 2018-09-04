@@ -55,13 +55,13 @@ class CollectionID {
 public:
     enum {
         /// To allow KV to move legacy data into a collection, reserve 0
-        DefaultCollection = 0,
+        Default = 0,
 
         /// To weave system things into the users namespace, reserve 1
         System = 1
     };
 
-    CollectionID() : value(DefaultCollection) {
+    CollectionID() : value(Default) {
     }
 
     CollectionID(CollectionIDType value) : value(value) {
@@ -72,7 +72,7 @@ public:
     }
 
     bool isDefaultCollection() const {
-        return value == DefaultCollection;
+        return value == Default;
     }
 
     /// Get network byte order of the value
@@ -236,7 +236,7 @@ struct DocKey : DocKeyInterface<DocKey> {
             return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer)
                     .first;
         }
-        return CollectionID::DefaultCollection;
+        return CollectionID::Default;
     }
 
     DocKeyEncodesCollectionId getEncoding() const {
@@ -253,7 +253,7 @@ struct DocKey : DocKeyInterface<DocKey> {
         if (encoding == DocKeyEncodesCollectionId::Yes) {
             return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer);
         }
-        return {CollectionID::DefaultCollection, {data(), size()}};
+        return {CollectionID::Default, {data(), size()}};
     }
 
     /**
