@@ -136,7 +136,7 @@ extern "C" {
 
         // Issue a request with the unexpected large checkpoint id 100, which
         // will cause timeout.
-        check(checkpointPersistence(h, 100, 0) == ENGINE_TMPFAIL,
+        check(checkpointPersistence(h, 100, Vbid(0)) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
         check(get_int_stat(h, "ep_chk_persistence_timeout") > 10,
               "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be "
@@ -162,7 +162,7 @@ extern "C" {
 static enum test_result test_checkpoint_persistence(EngineIface* h) {
     if (!isPersistentBucket(h)) {
         checkeq(ENGINE_SUCCESS,
-                checkpointPersistence(h, 0, 0),
+                checkpointPersistence(h, 0, Vbid(0)),
                 "Failed to request checkpoint persistence");
         checkeq(last_status.load(),
                 PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
@@ -188,7 +188,7 @@ static enum test_result test_checkpoint_persistence(EngineIface* h) {
     int closed_chk_id =
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0");
     // Request to prioritize persisting vbucket 0.
-    check(checkpointPersistence(h, closed_chk_id, 0) == ENGINE_SUCCESS,
+    check(checkpointPersistence(h, closed_chk_id, Vbid(0)) == ENGINE_SUCCESS,
           "Failed to request checkpoint persistence");
 
     return SUCCESS;
@@ -198,14 +198,14 @@ extern "C" {
     static void wait_for_persistence_thread(void *arg) {
         auto* h = static_cast<EngineIface*>(arg);
 
-        check(checkpointPersistence(h, 100, 1) == ENGINE_TMPFAIL,
+        check(checkpointPersistence(h, 100, Vbid(1)) == ENGINE_TMPFAIL,
               "Expected temp failure for checkpoint persistence request");
     }
 }
 
 static enum test_result test_wait_for_persist_vb_del(EngineIface* h) {
     cb_thread_t th;
-    check(set_vbucket_state(h, 1, vbucket_state_active),
+    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
           "Failed to set vbucket state.");
 
     int ret = cb_create_thread(&th, wait_for_persistence_thread, h, 0);
@@ -213,10 +213,10 @@ static enum test_result test_wait_for_persist_vb_del(EngineIface* h) {
 
     wait_for_stat_to_be(h, "ep_chk_persistence_remains", 1);
 
-    checkeq(ENGINE_SUCCESS, vbucketDelete(h, 1), "Expected success");
+    checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failure deleting dead bucket.");
-    check(verify_vbucket_missing(h, 1),
+    check(verify_vbucket_missing(h, Vbid(1)),
           "vbucket 1 was not missing after deleting it.");
 
     ret = cb_join_thread(th);

@@ -357,7 +357,7 @@ void clear_dcp_data() {
     dcp_last_op = 0;
     dcp_last_status = 0;
     dcp_last_nru = 0;
-    dcp_last_vbucket = 0;
+    dcp_last_vbucket = Vbid(0);
     dcp_last_opaque = 0;
     dcp_last_flags = 0;
     dcp_last_stream_opaque = 0;

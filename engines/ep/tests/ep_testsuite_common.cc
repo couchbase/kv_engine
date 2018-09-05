@@ -141,7 +141,7 @@ enum test_result rmdb(const char* path) {
 bool test_setup(EngineIface* h) {
     wait_for_warmup_complete(h);
 
-    check(set_vbucket_state(h, 0, vbucket_state_active),
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set VB0 state.");
 
     const auto bucket_type = get_str_stat(h, "ep_bucket_type");

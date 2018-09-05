@@ -149,7 +149,9 @@ static enum test_result test_get_meta_deleted(EngineIface* h) {
     Item *it = reinterpret_cast<Item*>(i);
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS, del(h, key, it->getCas(), 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS,
+            del(h, key, it->getCas(), Vbid(0)),
+            "Delete failed");
     wait_for_flusher_to_settle(h);
 
     // check the stat
@@ -212,7 +214,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    auto ret = get(h, NULL, key1, 0);
+    auto ret = get(h, NULL, key1, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first,
             "Expected get success");
     ret.second.reset();
@@ -221,13 +223,13 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
     check(temp == 1, "Expect one getMeta op");
 
     // test get_meta followed by get for a deleted key. should fail.
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, key1, 0).first,
+            get(h, NULL, key1, Vbid(0)).first,
             "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
@@ -240,7 +242,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
             errorMetaPair.first,
             "Expected no_such_key");
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, key2, 0).first,
+            get(h, NULL, key2, Vbid(0)).first,
             "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
@@ -283,7 +285,7 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // test get_meta followed by set for a deleted key. should pass.
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
 
     wait_for_stat_to_be(h, "curr_items", 0);
@@ -339,7 +341,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
@@ -349,7 +351,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
           "Expected deleted flag to be set");
-    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, 0), "Expected enoent");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Expected enoent");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(2, temp, "Expect more getMeta op");
@@ -360,7 +362,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     checkeq(cb::engine_errc::no_such_key,
             errorMetaPair.first,
             "Expected no_such_key");
-    checkeq(ENGINE_KEY_ENOENT, del(h, key2, 0, 0), "Expected enoent");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key2, 0, Vbid(0)), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
     checkeq(3, temp, "Expected one extra getMeta ops");
@@ -383,7 +385,7 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h) {
                          data.size(),
                          9258,
                          0,
-                         0,
+                         Vbid(0),
                          0,
                          PROTOCOL_BINARY_DATATYPE_XATTR)
                     .first,
@@ -437,7 +439,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
                          data.size(),
                          9258,
                          0,
-                         0,
+                         Vbid(0),
                          0,
                          PROTOCOL_BINARY_DATATYPE_XATTR)
                     .first,
@@ -464,7 +466,7 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
 
         // Run compaction to start using the bloomfilter
         useconds_t sleepTime = 128;
-        compact_db(h, 0, 0, 1, 1, 0);
+        compact_db(h, Vbid(0), Vbid(0), 1, 1, 0);
         while (get_int_stat(h, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -501,11 +503,11 @@ static enum test_result test_add_with_meta(EngineIface* h) {
     check(temp == 0, "Expect zero setMeta ops");
 
     // store an item with meta data
-    add_with_meta(h, key, keylen, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, key, keylen, NULL, 0, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // store the item again, expect key exists
-    add_with_meta(h, key, keylen, NULL, 0, 0, &itemMeta, true);
+    add_with_meta(h, key, keylen, NULL, 0, Vbid(0), &itemMeta, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
             "Expected add to fail when the item exists already");
     // check the stat
@@ -552,8 +554,14 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
 
     // delete an item with meta data
-    del_with_meta(
-            h, key1, keylen, 0, &itemMeta, 0 /*cas*/, 0 /*options*/, cookie);
+    del_with_meta(h,
+                  key1,
+                  keylen,
+                  Vbid(0),
+                  &itemMeta,
+                  0 /*cas*/,
+                  0 /*options*/,
+                  cookie);
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
@@ -565,15 +573,21 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     testHarness->set_mutation_extras_handling(cookie, false);
 
     // delete an item with meta data
-    del_with_meta(
-            h, key2, keylen, 0, &itemMeta, 0 /*cas*/, 0 /*options*/, cookie);
+    del_with_meta(h,
+                  key2,
+                  keylen,
+                  Vbid(0),
+                  &itemMeta,
+                  0 /*cas*/,
+                  0 /*options*/,
+                  cookie);
 
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // delete an item with meta data
-    del_with_meta(h, key3, keylen, 0, &itemMeta);
+    del_with_meta(h, key3, keylen, Vbid(0), &itemMeta);
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
@@ -599,7 +613,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     // delete the key
-    checkeq(ENGINE_SUCCESS, del(h, key, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -620,7 +634,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
     // do delete with meta with an incorrect cas value. should fail.
-    del_with_meta(h, key, keylen, 0, &itm_meta, invalid_cas);
+    del_with_meta(h, key, keylen, Vbid(0), &itm_meta, invalid_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
             "Expected invalid cas error");
     checkeq(0,
@@ -630,7 +644,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
     checkPersistentBucketTempItems(h, 1);
 
     // do delete with meta with the correct cas value. should pass.
-    del_with_meta(h, key, keylen, 0, &itm_meta, valid_cas);
+    del_with_meta(h, key, keylen, Vbid(0), &itm_meta, valid_cas);
     wait_for_flusher_to_settle(h);
 
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
@@ -683,7 +697,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
     // do delete with meta with an incorrect cas value. should fail.
-    del_with_meta(h, key, keylen, 0, &itm_meta, invalid_cas);
+    del_with_meta(h, key, keylen, Vbid(0), &itm_meta, invalid_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
             "Expected invalid cas error");
     // check the stat
@@ -694,7 +708,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
     checkPersistentBucketTempItems(h, 1);
 
     // do delete with meta with the correct cas value. should pass.
-    del_with_meta(h, key, keylen, 0, &itm_meta, valid_cas);
+    del_with_meta(h, key, keylen, Vbid(0), &itm_meta, valid_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
@@ -727,7 +741,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
 
     // Run compaction to start using the bloomfilter
     useconds_t sleepTime = 128;
-    compact_db(h, 0, 0, 1, 1, 0);
+    compact_db(h, Vbid(0), Vbid(0), 1, 1, 0);
     while (get_int_stat(h, "ep_pending_compactions") != 0) {
         decayingSleep(&sleepTime);
     }
@@ -740,7 +754,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
 
     // do delete with meta with the correct cas value.
     // skipConflictResolution false
-    del_with_meta(h, key1, keylen1, 0, &itm_meta1, 0, false);
+    del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta1, 0, false);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
@@ -760,7 +774,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     itm_meta2.exptime = 1735689600; // expires in 2025
     itm_meta2.flags = 0xdeadbeef;
 
-    del_with_meta(h, key2, keylen2, 0, &itm_meta2, 0, true);
+    del_with_meta(h, key2, keylen2, Vbid(0), &itm_meta2, 0, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
@@ -804,7 +818,8 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
             "Failed set.");
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    del_with_meta(h, key1, keylen1, 0, &itm_meta, errorMetaPair.second.cas);
+    del_with_meta(
+            h, key1, keylen1, Vbid(0), &itm_meta, errorMetaPair.second.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
@@ -816,7 +831,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
     //
 
     // do get_meta for the deleted key
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
@@ -828,7 +843,8 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
             store(h, NULL, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
 
-    del_with_meta(h, key1, keylen1, 0, &itm_meta, errorMetaPair.second.cas);
+    del_with_meta(
+            h, key1, keylen1, Vbid(0), &itm_meta, errorMetaPair.second.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
@@ -866,7 +882,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
     uint64_t cas_from_store = errorMetaPair.second.cas;
 
     //Do a concurrent delete. This should modify the CAS
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
 
     //Get the latest meta data
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
@@ -879,7 +895,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
                           errorMetaPair.second.exptime);
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
-    del_with_meta(h, key1, keylen1, 0, &itm_meta, cas_from_store);
+    del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta, cas_from_store);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
@@ -898,10 +914,10 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
           "Expected deleted flag to be set");
 
     // do a concurrent delete
-    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    del_with_meta(h, key1, keylen1, 0, &itm_meta, last_cas);
+    del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta, last_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
@@ -921,10 +937,11 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
             "Expected no_such_key");
 
     // do a concurrent delete
-    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Delete failed");
 
     // attempt delete_with_meta. should pass.
-    del_with_meta(h, key2, keylen2, 0, &itm_meta, errorMetaPair.second.cas);
+    del_with_meta(
+            h, key2, keylen2, Vbid(0), &itm_meta, errorMetaPair.second.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
@@ -975,7 +992,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
                   keylen,
                   bigValue,
                   32 * 1024 * 1024,
-                  0,
+                  Vbid(0),
                   &itm_meta,
                   cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_E2BIG, last_status.load(),
@@ -983,7 +1000,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     delete []bigValue;
 
     // do set with meta with an incorrect cas value. should fail.
-    set_with_meta(h, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
+    set_with_meta(h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, 1229);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
@@ -1004,7 +1021,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
                   keylen,
                   newVal,
                   newValLen,
-                  0,
+                  Vbid(0),
                   &itm_meta,
                   cas_for_set,
                   0,
@@ -1016,7 +1033,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
 
     // Check that set_with_meta has marked the JSON input as JSON
     item_info info;
-    check(get_item_info(h, &info, key, 0 /*vb0*/), "get_item_info failed");
+    check(get_item_info(h, &info, key, Vbid(0)), "get_item_info failed");
     checkeq(int(PROTOCOL_BINARY_DATATYPE_JSON), int(info.datatype),
         "Expected datatype to now include JSON");
 
@@ -1040,7 +1057,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
                   keylen,
                   newVal,
                   newValLen,
-                  0,
+                  Vbid(0),
                   &itm_meta,
                   cas_for_set,
                   false,
@@ -1052,14 +1069,15 @@ static enum test_result test_set_with_meta(EngineIface* h) {
 
     itm_meta.revSeqno++;
     cas_for_set = last_meta.cas;
-    set_with_meta(h, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
+    set_with_meta(
+            h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
 
     // Make sure the item expiration was processed correctly
     testHarness->time_travel(301);
-    auto ret = get(h, NULL, key, 0);
+    auto ret = get(h, NULL, key, Vbid(0));
     checkeq(cb::engine_errc::no_such_key, ret.first, "Failed to get value.");
 
     testHarness->destroy_cookie(cookie);
@@ -1075,7 +1093,8 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h) {
     ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(NULL) + 300);
 
     // Pass true to force SetWithMeta.
-    set_with_meta(h, key, keylen, val, strlen(val), 0, &itm_meta, 0, true);
+    set_with_meta(
+            h, key, keylen, val, strlen(val), Vbid(0), &itm_meta, 0, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
@@ -1113,7 +1132,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
     // delete the key
-    checkeq(ENGINE_SUCCESS, del(h, key, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -1133,7 +1152,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
     // do set_with_meta with an incorrect cas for a deleted item. should fail.
-    set_with_meta(h, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
+    set_with_meta(h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, 1229);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected key_not_found error");
     // check the stat
@@ -1144,7 +1163,8 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
     checkPersistentBucketTempItems(h, 1);
 
     // do set with meta with the correct cas value. should pass.
-    set_with_meta(h, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
+    set_with_meta(
+            h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
@@ -1192,7 +1212,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h) {
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
     // do set_with_meta with an incorrect cas for a non-existent item. should fail.
-    set_with_meta(h, key, keylen, val, valLen, 0, &itm_meta, 1229);
+    set_with_meta(h, key, keylen, val, valLen, Vbid(0), &itm_meta, 1229);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected key_not_found error");
     // check the stat
@@ -1202,7 +1222,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
 
     // do set with meta with the correct cas value. should pass.
-    set_with_meta(h, key, keylen, val, valLen, 0, &itm_meta, cas_for_set);
+    set_with_meta(h, key, keylen, val, valLen, Vbid(0), &itm_meta, cas_for_set);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
@@ -1250,8 +1270,14 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
                       errorMetaPair.second.seqno + 2,
                       errorMetaPair.second.flags,
                       errorMetaPair.second.exptime);
-    set_with_meta(
-            h, key1, keylen1, NULL, 0, 0, &meta, errorMetaPair.second.cas);
+    set_with_meta(h,
+                  key1,
+                  keylen1,
+                  NULL,
+                  0,
+                  Vbid(0),
+                  &meta,
+                  errorMetaPair.second.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
@@ -1263,7 +1289,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
     //
 
     // do get_meta for the deleted key
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
     check(errorMetaPair.second.document_state == DocumentState::Deleted,
@@ -1279,8 +1305,14 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
                         errorMetaPair.second.seqno + 2,
                         errorMetaPair.second.flags,
                         errorMetaPair.second.exptime);
-    set_with_meta(
-            h, key1, keylen1, NULL, 0, 0, &meta, errorMetaPair.second.cas);
+    set_with_meta(h,
+                  key1,
+                  keylen1,
+                  NULL,
+                  0,
+                  Vbid(0),
+                  &meta,
+                  errorMetaPair.second.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
@@ -1312,7 +1344,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
 
     // do a concurrent delete that changes the cas
-    checkeq(ENGINE_SUCCESS, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     ItemMetaData meta(errorMetaPair.second.cas,
@@ -1324,7 +1356,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
                   keylen1,
                   NULL,
                   0,
-                  0,
+                  Vbid(0),
                   &meta,
                   errorMetaPair.second.cas,
                   true);
@@ -1350,7 +1382,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
           "Expected deleted flag to be set");
 
     // do a concurrent delete. should fail.
-    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, 0), "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
     meta = ItemMetaData(errorMetaPair.second.cas,
@@ -1362,7 +1394,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
                   keylen1,
                   NULL,
                   0,
-                  0,
+                  Vbid(0),
                   &meta,
                   errorMetaPair.second.cas,
                   true);
@@ -1384,11 +1416,11 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
             "Expected no_such_key");
 
     // do a concurrent delete. should fail.
-    checkeq(ENGINE_KEY_ENOENT, del(h, key2, 0, 0), "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, key2, 0, Vbid(0)), "Delete failed");
 
     // Attempt set_with_meta. This should pass as we set a new key passing 0 as
     // command CAS.
-    set_with_meta(h, key2, keylen2, NULL, 0, 0, &meta, 0, true);
+    set_with_meta(h, key2, keylen2, NULL, 0, Vbid(0), &meta, 0, true);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
@@ -1436,7 +1468,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
                   strlen(key),
                   data.data(),
                   data.size(),
-                  0,
+                  Vbid(0),
                   &itm_meta,
                   errorMetaPair.second.cas,
                   force,
@@ -1448,7 +1480,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
 
     // set_with_meta will mark JSON input as JSON
     item_info info;
-    check(get_item_info(h, &info, key, 0 /*vb0*/), "get_item_info failed");
+    check(get_item_info(h, &info, key, Vbid(0)), "get_item_info failed");
     checkeq(int(PROTOCOL_BINARY_DATATYPE_JSON|PROTOCOL_BINARY_DATATYPE_XATTR),
         int(info.datatype),
         "Expected datatype to be JSON and XATTR");
@@ -1465,7 +1497,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
                       strlen(key),
                       data.data(),
                       data.size(),
-                      0,
+                      Vbid(0),
                       &itm_meta,
                       last_meta.cas,
                       force,
@@ -1524,7 +1556,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
     del_with_meta(h,
                   key1,
                   strlen(key1),
-                  0, // vb
+                  Vbid(0),
                   &itm_meta,
                   0, // cas
                   force,
@@ -1557,7 +1589,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
 
     // Verify the new value is as expected
     item_info info;
-    auto ret = get(h, nullptr, key1, 0, DocStateFilter::AliveOrDeleted);
+    auto ret = get(h, nullptr, key1, Vbid(0), DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get(key1)");
 
     check(h->get_item_info(ret.second.get(), &info),
@@ -1593,13 +1625,13 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h) {
                   4,
                   "val0",
                   4,
-                  0,
+                  Vbid(0),
                   &itm_meta,
                   errorMetaPair.second.cas);
 
     itm_meta.revSeqno = 2;
     itm_meta.cas = 2;
-    set_with_meta(h, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
+    set_with_meta(h, "key3", 4, "val1", 4, Vbid(0), &itm_meta, last_meta.cas);
 
     // MB-21725 Depending on how fast the flusher is, we may see 1 or 2.
     wait_for_stat_to_be_gte(h, "ep_total_persisted", 1);
@@ -1607,7 +1639,7 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h) {
     itm_meta.revSeqno = 3;
     itm_meta.cas = 3;
     itm_meta.exptime = 1735689600; // expires in 2025
-    set_with_meta(h, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
+    set_with_meta(h, "key3", 4, "val1", 4, Vbid(0), &itm_meta, last_meta.cas);
 
     testHarness->time_travel(500000000);
     // Wait for the item to be expired, either by the pager,
@@ -1635,7 +1667,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
             "Failed set.");
     wait_for_flusher_to_settle(h);
 
-    checkeq(ENGINE_SUCCESS, del(h, k1, 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, k1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
@@ -1718,20 +1750,20 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(0,
             get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
 
-    checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, "key", 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
     itemMeta.revSeqno++;
     itemMeta.cas++;
-    add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(isPersistentBucket(h) ? 1 : 0,
             get_int_stat(h, "ep_bg_meta_fetched"),
@@ -1742,7 +1774,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
-    add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1750,14 +1782,14 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
-    add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
-    add_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta);
+    add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1778,14 +1810,14 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_meta"),
             "Expect zero setMeta ops");
 
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(0,
             get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
 
     // Check all meta data is the same
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1793,7 +1825,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1801,17 +1833,17 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
 
     // Check has newer flags passes
     itemMeta.flags = 0xdeadbeff;
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that newer exptime wins
     itemMeta.exptime = time(NULL) + 10;
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1819,14 +1851,14 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(4,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(4,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1851,16 +1883,30 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_meta"),
             "Expect zero setMeta ops");
 
-    set_with_meta(
-            h, "key", 3, NULL, 0, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
+    set_with_meta(h,
+                  "key",
+                  3,
+                  NULL,
+                  0,
+                  Vbid(0),
+                  &itemMeta,
+                  0,
+                  FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(0,
             get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetchs, thanks to bloom filters");
 
     // Check all meta data is the same
-    set_with_meta(
-            h, "key", 3, NULL, 0, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
+    set_with_meta(h,
+                  "key",
+                  3,
+                  NULL,
+                  0,
+                  Vbid(0),
+                  &itemMeta,
+                  0,
+                  FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1868,8 +1914,15 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
 
     // Check that an older cas fails
     itemMeta.cas = 0xdeadbeee;
-    set_with_meta(
-            h, "key", 3, NULL, 0, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
+    set_with_meta(h,
+                  "key",
+                  3,
+                  NULL,
+                  0,
+                  Vbid(0),
+                  &itemMeta,
+                  0,
+                  FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
@@ -1877,13 +1930,20 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
 
     // Check that a higher cas passes
     itemMeta.cas = 0xdeadbeff;
-    set_with_meta(
-            h, "key", 3, NULL, 0, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
+    set_with_meta(h,
+                  "key",
+                  3,
+                  NULL,
+                  0,
+                  Vbid(0),
+                  &itemMeta,
+                  0,
+                  FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that we fail requests if the force flag is not set
     itemMeta.cas = 0xdeadbeff + 1;
-    set_with_meta(h, "key", 3, NULL, 0, 0, &itemMeta, 0, 0 /*options*/);
+    set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0, 0 /*options*/);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
 
     return SUCCESS;
@@ -1902,13 +1962,13 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    del_with_meta(h, "key", 3, 0, &itemMeta);
+    del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
-    del_with_meta(h, "key", 3, 0, &itemMeta);
+    del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
@@ -1916,7 +1976,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
-    del_with_meta(h, "key", 3, 0, &itemMeta);
+    del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
@@ -1924,7 +1984,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
-    del_with_meta(h, "key", 3, 0, &itemMeta);
+    del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
@@ -1932,13 +1992,13 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
-    del_with_meta(h, "key", 3, 0, &itemMeta);
+    del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     check(get_int_stat(h, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected delete meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
-    del_with_meta(h, "key", 3, 0, &itemMeta);
+    del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(get_int_stat(h, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected delete meta conflict resolution failure");
@@ -1966,16 +2026,18 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     // first check the command fails if no force is set
-    del_with_meta(h, "key", 3, 0, &itemMeta, 0, 0 /*options*/);
+    del_with_meta(h, "key", 3, Vbid(0), &itemMeta, 0, 0 /*options*/);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
 
-    del_with_meta(h, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
+    del_with_meta(
+            h, "key", 3, Vbid(0), &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
-    del_with_meta(h, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
+    del_with_meta(
+            h, "key", 3, Vbid(0), &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
@@ -1984,7 +2046,8 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     // Check that higher rev seqno but lower cas fails
     itemMeta.cas = info.cas;
     itemMeta.revSeqno = 11;
-    del_with_meta(h, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
+    del_with_meta(
+            h, "key", 3, Vbid(0), &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
@@ -1993,7 +2056,8 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     // Check that a higher cas and lower rev seqno passes
     itemMeta.cas = info.cas + 2;
     itemMeta.revSeqno = 9;
-    del_with_meta(h, "key", 3, 0, &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
+    del_with_meta(
+            h, "key", 3, Vbid(0), &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected sucess");
 
     return SUCCESS;
@@ -2006,7 +2070,7 @@ static enum test_result test_getMeta_with_item_eviction(EngineIface* h) {
             store(h, NULL, OPERATION_SET, key, "somevalue", &i),
             "Failed set.");
     wait_for_flusher_to_settle(h);
-    evict_key(h, key, 0, "Ejected.");
+    evict_key(h, key, Vbid(0), "Ejected.");
 
     Item *it = reinterpret_cast<Item*>(i);
 
@@ -2025,7 +2089,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
     // Activate n vbuckets (vb 0 is already)
     const int n_vbuckets = 10;
     for (int ii = 1; ii < n_vbuckets; ii++) {
-        check(set_vbucket_state(h, ii, vbucket_state_active),
+        check(set_vbucket_state(h, Vbid(ii), vbucket_state_active),
               "Failed to set vbucket state.");
     }
 
@@ -2064,7 +2128,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
                           key.size(),
                           NULL,
                           0,
-                          ii,
+                          Vbid(ii),
                           &itm_meta,
                           0,
                           FORCE_ACCEPT_WITH_META_OPS);
@@ -2129,7 +2193,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
     // Activate n vbuckets (vb 0 is already)
     const int n_vbuckets = 10;
     for (int ii = 1; ii < n_vbuckets; ii++) {
-        check(set_vbucket_state(h, ii, vbucket_state_active),
+        check(set_vbucket_state(h, Vbid(ii), vbucket_state_active),
               "Failed to set vbucket state.");
     }
 
@@ -2165,7 +2229,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
                           key.size(),
                           NULL,
                           0,
-                          ii,
+                          Vbid(ii),
                           &itm_meta,
                           0,
                           FORCE_ACCEPT_WITH_META_OPS);
@@ -2200,7 +2264,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
             del_with_meta(h,
                           key.data(),
                           key.size(),
-                          ii,
+                          Vbid(ii),
                           &itm_meta,
                           1,
                           FORCE_ACCEPT_WITH_META_OPS);
@@ -2325,7 +2389,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
     }
 
     // Set the key with a low CAS value
-    set_with_meta(h, "key", 3, nullptr, 0, 0, &itemMeta, 0, force);
+    set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0, force);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -2345,7 +2409,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
                   3,
                   nullptr,
                   0,
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   REGENERATE_CAS /*but no skip*/);
@@ -2357,7 +2421,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
                   3,
                   nullptr,
                   0,
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG);
@@ -2378,7 +2442,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
                   3,
                   nullptr,
                   0,
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG | force);
@@ -2417,7 +2481,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
                   key.length(),
                   nullptr,
                   0,
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   force);
@@ -2438,7 +2502,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
     del_with_meta(h,
                   key.c_str(),
                   key.length(),
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   REGENERATE_CAS /*but no skip*/);
@@ -2449,7 +2513,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
     del_with_meta(h,
                   key.c_str(),
                   key.length(),
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG);
@@ -2467,7 +2531,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
     del_with_meta(h,
                   key.c_str(),
                   key.length(),
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG | force);
@@ -2510,7 +2574,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                   3,
                   NULL,
                   0,
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   force,
@@ -2526,7 +2590,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                   3,
                   NULL,
                   0,
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0,
                   force,
@@ -2583,7 +2647,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       4,
                       nullptr,
                       0,
-                      0,
+                      Vbid(0),
                       &itemMeta,
                       0,
                       force,
@@ -2594,8 +2658,15 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected success");
 
         itemMeta.cas++;
-        del_with_meta(
-                h, "key1", 4, 0, &itemMeta, 0, force, nullptr, validMetaVector);
+        del_with_meta(h,
+                      "key1",
+                      4,
+                      Vbid(0),
+                      &itemMeta,
+                      0,
+                      force,
+                      nullptr,
+                      validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
     }
@@ -2614,7 +2685,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       4,
                       nullptr,
                       0,
-                      0,
+                      Vbid(0),
                       &itemMeta,
                       0,
                       force,
@@ -2625,8 +2696,15 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected success");
 
         itemMeta.cas++;
-        del_with_meta(
-                h, "key2", 4, 0, &itemMeta, 0, force, nullptr, validMetaVector);
+        del_with_meta(h,
+                      "key2",
+                      4,
+                      Vbid(0),
+                      &itemMeta,
+                      0,
+                      force,
+                      nullptr,
+                      validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
     }
@@ -2647,7 +2725,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       4,
                       nullptr,
                       0,
-                      0,
+                      Vbid(0),
                       &itemMeta,
                       0,
                       force,
@@ -2658,8 +2736,15 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected success");
 
         itemMeta.cas++;
-        del_with_meta(
-                h, "key3", 4, 0, &itemMeta, 0, force, nullptr, validMetaVector);
+        del_with_meta(h,
+                      "key3",
+                      4,
+                      Vbid(0),
+                      &itemMeta,
+                      0,
+                      force,
+                      nullptr,
+                      validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
     }
@@ -2680,7 +2765,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       4,
                       NULL,
                       0,
-                      0,
+                      Vbid(0),
                       &itemMeta,
                       0,
                       force,
@@ -2691,8 +2776,15 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                 "Expected success");
 
         itemMeta.cas++;
-        del_with_meta(
-                h, "key4", 4, 0, &itemMeta, 0, force, nullptr, validMetaVector);
+        del_with_meta(h,
+                      "key4",
+                      4,
+                      Vbid(0),
+                      &itemMeta,
+                      0,
+                      force,
+                      nullptr,
+                      validMetaVector);
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
                 "Expected success");
     }
@@ -2719,7 +2811,7 @@ static enum test_result test_MB29119(EngineIface* h) {
     del_with_meta(h,
                   key1,
                   keylen,
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0 /*cas*/,
                   0 /*options*/,
@@ -2737,7 +2829,7 @@ static enum test_result test_MB29119(EngineIface* h) {
     del_with_meta(h,
                   key1,
                   keylen,
-                  0,
+                  Vbid(0),
                   &itemMeta,
                   0 /*cas*/,
                   0 /*options*/,

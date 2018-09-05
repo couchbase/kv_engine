@@ -266,7 +266,7 @@ void check_key_value(EngineIface* h,
                      const char* key,
                      const char* val,
                      size_t vlen,
-                     Vbid vbucket = 0);
+                     Vbid vbucket = Vbid(0));
 
 std::string get_dbname(const char* test_cfg);
 

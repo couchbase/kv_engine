@@ -309,16 +309,16 @@ void encodeWithMetaExt(char* buffer, ItemMetaData* meta) {
 }
 
 protocol_binary_request_header* createPacket(uint8_t opcode,
-                                             uint16_t vbid,
+                                             Vbid vbid,
                                              uint64_t cas,
-                                             const char *ext,
+                                             const char* ext,
                                              uint8_t extlen,
-                                             const char *key,
+                                             const char* key,
                                              uint32_t keylen,
-                                             const char *val,
+                                             const char* val,
                                              uint32_t vallen,
                                              uint8_t datatype,
-                                             const char *meta,
+                                             const char* meta,
                                              uint16_t nmeta) {
     char *pkt_raw;
     uint32_t headerlen = sizeof(protocol_binary_request_header);
@@ -329,7 +329,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     req->request.opcode = opcode;
     req->request.keylen = htons(keylen);
     req->request.extlen = extlen;
-    req->request.vbucket = htons(vbid);
+    req->request.vbucket = vbid.hton();
     req->request.bodylen = htonl(keylen + vallen + extlen + nmeta);
     req->request.cas = htonll(cas);
     req->request.datatype = datatype;
@@ -365,7 +365,7 @@ void createCheckpoint(EngineIface* h) {
 ENGINE_ERROR_CODE del(EngineIface* h,
                       const char* key,
                       uint64_t cas,
-                      uint16_t vbucket,
+                      Vbid vbucket,
                       const void* cookie) {
     mutation_descr_t mut_info{};
     return del(h, key, &cas, vbucket, cookie, &mut_info);
@@ -374,7 +374,7 @@ ENGINE_ERROR_CODE del(EngineIface* h,
 ENGINE_ERROR_CODE del(EngineIface* h,
                       const char* key,
                       uint64_t* cas,
-                      uint16_t vbucket,
+                      Vbid vbucket,
                       const void* cookie,
                       mutation_descr_t* mut_info) {
     bool create_cookie = false;
@@ -412,7 +412,7 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
                             value.size(),
                             9258,
                             cas,
-                            /*vb*/ 0,
+                            Vbid(0),
                             /*exp*/ 0,
                             uint8_t(datatype),
                             DocumentState::Deleted);
@@ -424,7 +424,7 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
 void del_with_meta(EngineIface* h,
                    const char* key,
                    const size_t keylen,
-                   const uint32_t vb,
+                   const Vbid vb,
                    ItemMetaData* itemMeta,
                    uint64_t cas_for_delete,
                    uint32_t options,
@@ -452,7 +452,7 @@ void del_with_meta(EngineIface* h,
 void del_with_meta(EngineIface* h,
                    const char* key,
                    const size_t keylen,
-                   const uint32_t vb,
+                   const Vbid vb,
                    RawItemMetaData* itemMeta,
                    uint64_t cas_for_delete,
                    uint32_t options,
@@ -500,14 +500,20 @@ void del_with_meta(EngineIface* h,
 
 void evict_key(EngineIface* h,
                const char* key,
-               uint16_t vbucketId,
+               Vbid vbucketId,
                const char* msg,
                bool expectError) {
     int nonResidentItems = get_int_stat(h, "ep_num_non_resident");
     int numEjectedItems = get_int_stat(h, "ep_num_value_ejects");
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY, 0, 0,
-                                                       NULL, 0, key, strlen(key));
-    pkt->request.vbucket = htons(vbucketId);
+    protocol_binary_request_header* pkt =
+            createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY,
+                         Vbid(0),
+                         0,
+                         NULL,
+                         0,
+                         key,
+                         strlen(key));
+    pkt->request.vbucket = vbucketId.hton();
 
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
@@ -542,7 +548,7 @@ void evict_key(EngineIface* h,
 
 ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
                                         uint64_t checkpoint_id,
-                                        uint16_t vb) {
+                                        Vbid vb) {
     checkpoint_id = htonll(checkpoint_id);
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, vb, 0, NULL, 0, NULL, 0,
@@ -554,7 +560,7 @@ ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
 
 ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
                                    const void* cookie,
-                                   uint16_t vbucket,
+                                   Vbid vbucket,
                                    uint64_t seqno) {
     seqno = htonll(seqno);
     char buffer[8];
@@ -569,7 +575,7 @@ ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
 
 cb::EngineErrorItemPair gat(EngineIface* h,
                             const char* key,
-                            uint16_t vb,
+                            Vbid vb,
                             uint32_t exp) {
     const auto* cookie = testHarness->create_cookie();
     auto ret = h->get_and_touch(
@@ -587,10 +593,7 @@ cb::EngineErrorItemPair gat(EngineIface* h,
     return ret;
 }
 
-bool get_item_info(EngineIface* h,
-                   item_info* info,
-                   const char* key,
-                   uint16_t vb) {
+bool get_item_info(EngineIface* h, item_info* info, const char* key, Vbid vb) {
     auto ret = get(h, NULL, key, vb);
     if (ret.first != cb::engine_errc::success) {
         return false;
@@ -606,7 +609,7 @@ bool get_item_info(EngineIface* h,
 cb::EngineErrorItemPair getl(EngineIface* h,
                              const void* cookie,
                              const char* key,
-                             uint16_t vb,
+                             Vbid vb,
                              uint32_t lock_timeout) {
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -643,7 +646,7 @@ bool get_meta(EngineIface* h,
         cookie_create = true;
     }
 
-    out = h->get_meta(cookie, docKey, /*vb*/ 0);
+    out = h->get_meta(cookie, docKey, Vbid(0));
 
     if (cookie_create) {
         testHarness->destroy_cookie(cookie);
@@ -652,30 +655,34 @@ bool get_meta(EngineIface* h,
     return out.first == cb::engine_errc::success;
 }
 
-ENGINE_ERROR_CODE observe(EngineIface* h,
-                          std::map<std::string, uint16_t> obskeys) {
+ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys) {
     std::stringstream value;
-    std::map<std::string, uint16_t>::iterator it;
+    std::map<std::string, Vbid>::iterator it;
     for (it = obskeys.begin(); it != obskeys.end(); ++it) {
-        uint16_t vb = htons(it->second);
+        Vbid vb = it->second.hton();
         uint16_t keylen = htons(it->first.length());
-        value.write((char*) &vb, sizeof(uint16_t));
+        value.write((char*)&vb, sizeof(Vbid));
         value.write((char*) &keylen, sizeof(uint16_t));
         value.write(it->first.c_str(), it->first.length());
     }
 
     protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0,
-                           value.str().data(), value.str().length());
+    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE,
+                           Vbid(0),
+                           0,
+                           NULL,
+                           0,
+                           NULL,
+                           0,
+                           value.str().data(),
+                           value.str().length());
 
     auto ret = h->unknown_command(nullptr, request, add_response);
     cb_free(request);
     return ret;
 }
 
-ENGINE_ERROR_CODE observe_seqno(EngineIface* h,
-                                uint16_t vb_id,
-                                uint64_t uuid) {
+ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
     protocol_binary_request_header *request;
     uint64_t vb_uuid = htonll(uuid);
     std::stringstream data;
@@ -688,9 +695,7 @@ ENGINE_ERROR_CODE observe_seqno(EngineIface* h,
     return ret;
 }
 
-void get_replica(EngineIface* h,
-                 const char* key,
-                 uint16_t vbid) {
+void get_replica(EngineIface* h, const char* key, Vbid vbid) {
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
     check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
@@ -701,7 +706,7 @@ void get_replica(EngineIface* h,
 protocol_binary_request_header* prepare_get_replica(EngineIface* h,
                                                     vbucket_state_t state,
                                                     bool makeinvalidkey) {
-    uint16_t id = 0;
+    Vbid id(0);
     const char *key = "k0";
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, id, 0, NULL, 0, key, strlen(key));
@@ -728,7 +733,7 @@ bool set_param(EngineIface* h,
                protocol_binary_engine_param_t paramtype,
                const char* param,
                const char* val,
-               uint16_t vb) {
+               Vbid vb) {
     char ext[4];
     protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(paramtype));
@@ -744,9 +749,7 @@ bool set_param(EngineIface* h,
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-bool set_vbucket_state(EngineIface* h,
-                       uint16_t vb,
-                       vbucket_state_t state) {
+bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state) {
     char ext[4];
     protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(state));
@@ -767,7 +770,10 @@ bool get_all_vb_seqnos(EngineIface* h,
     if (state) {
         char ext[sizeof(vbucket_state_t)];
         encodeExt(ext, static_cast<uint32_t>(state));
-        pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, 0, 0, ext,
+        pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS,
+                           Vbid(0),
+                           0,
+                           ext,
                            sizeof(vbucket_state_t));
     } else {
         pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS);
@@ -815,7 +821,7 @@ static void store_with_meta(EngineIface* h,
                             const size_t keylen,
                             const char* val,
                             const size_t vallen,
-                            const uint32_t vb,
+                            const Vbid vb,
                             ItemMetaData* itemMeta,
                             uint64_t cas_for_store,
                             uint32_t options,
@@ -855,7 +861,7 @@ void set_with_meta(EngineIface* h,
                    const size_t keylen,
                    const char* val,
                    const size_t vallen,
-                   const uint32_t vb,
+                   const Vbid vb,
                    ItemMetaData* itemMeta,
                    uint64_t cas_for_set,
                    uint32_t options,
@@ -882,7 +888,7 @@ void add_with_meta(EngineIface* h,
                    const size_t keylen,
                    const char* val,
                    const size_t vallen,
-                   const uint32_t vb,
+                   const Vbid vb,
                    ItemMetaData* itemMeta,
                    uint64_t cas_for_add,
                    uint32_t options,
@@ -909,7 +915,7 @@ static ENGINE_ERROR_CODE return_meta(EngineIface* h,
                                      const size_t keylen,
                                      const char* val,
                                      const size_t vallen,
-                                     const uint32_t vb,
+                                     const Vbid vb,
                                      const uint64_t cas,
                                      const uint32_t flags,
                                      const uint32_t exp,
@@ -934,7 +940,7 @@ ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
                                const size_t keylen,
                                const char* val,
                                const size_t vallen,
-                               const uint32_t vb,
+                               const Vbid vb,
                                const uint64_t cas,
                                const uint32_t flags,
                                const uint32_t exp,
@@ -959,7 +965,7 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
                                const size_t keylen,
                                const char* val,
                                const size_t vallen,
-                               const uint32_t vb,
+                               const Vbid vb,
                                const uint64_t cas,
                                const uint32_t flags,
                                const uint32_t exp,
@@ -982,7 +988,7 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
 ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
                                const char* key,
                                const size_t keylen,
-                               const uint32_t vb,
+                               const Vbid vb,
                                const uint64_t cas,
                                const void* cookie) {
     return return_meta(h,
@@ -1060,7 +1066,7 @@ ENGINE_ERROR_CODE store(EngineIface* h,
                         const char* value,
                         item** outitem,
                         uint64_t casIn,
-                        uint16_t vb,
+                        Vbid vb,
                         uint32_t exp,
                         uint8_t datatype,
                         DocumentState docState) {
@@ -1084,7 +1090,7 @@ ENGINE_ERROR_CODE store(EngineIface* h,
 
 ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
                               const void* cookie,
-                              uint16_t vb,
+                              Vbid vb,
                               const std::string& key,
                               const std::string& value,
                               protocol_binary_datatype_t datatype,
@@ -1120,7 +1126,7 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
                                      size_t vlen,
                                      uint32_t flags,
                                      uint64_t casIn,
-                                     uint16_t vb,
+                                     Vbid vb,
                                      uint32_t exp,
                                      uint8_t datatype,
                                      DocumentState docState) {
@@ -1156,7 +1162,7 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
 
 ENGINE_ERROR_CODE touch(EngineIface* h,
                         const char* key,
-                        uint16_t vb,
+                        Vbid vb,
                         uint32_t exp) {
     const auto* cookie = testHarness->create_cookie();
     auto result = h->get_and_touch(
@@ -1177,7 +1183,7 @@ ENGINE_ERROR_CODE touch(EngineIface* h,
 ENGINE_ERROR_CODE unl(EngineIface* h,
                       const void* cookie,
                       const char* key,
-                      uint16_t vb,
+                      Vbid vb,
                       uint64_t cas) {
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -1194,8 +1200,8 @@ ENGINE_ERROR_CODE unl(EngineIface* h,
 }
 
 void compact_db(EngineIface* h,
-                const uint16_t vbucket_id,
-                const uint16_t db_file_id,
+                const Vbid vbucket_id,
+                const Vbid db_file_id,
                 const uint64_t purge_before_ts,
                 const uint64_t purge_before_seq,
                 const uint8_t drop_deletes) {
@@ -1224,9 +1230,7 @@ void compact_db(EngineIface* h,
     cb_free(pkt);
 }
 
-ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
-                                uint16_t vb,
-                                const char* args) {
+ENGINE_ERROR_CODE vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
     uint32_t argslen = args ? strlen(args) : 0;
     protocol_binary_request_header *pkt =
         createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, vb, 0, NULL, 0, NULL, 0,
@@ -1238,9 +1242,7 @@ ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
     return ret;
 }
 
-ENGINE_ERROR_CODE verify_key(EngineIface* h,
-                             const char* key,
-                             uint16_t vbucket) {
+ENGINE_ERROR_CODE verify_key(EngineIface* h, const char* key, Vbid vbucket) {
     auto rv = get(h, NULL, key, vbucket);
     return ENGINE_ERROR_CODE(rv.first);
 }
@@ -1248,7 +1250,7 @@ ENGINE_ERROR_CODE verify_key(EngineIface* h,
 std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
                                                     const void* cookie,
                                                     const char* key,
-                                                    uint16_t vbucket,
+                                                    Vbid vbucket,
                                                     DocStateFilter state) {
     auto rv = get(h, cookie, key, vbucket, state);
     if (rv.first != cb::engine_errc::success) {
@@ -1263,8 +1265,8 @@ std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
     return make_pair(ENGINE_ERROR_CODE(rv.first), value);
 }
 
-bool verify_vbucket_missing(EngineIface* h, uint16_t vb) {
-    const auto vbstr = "vb_" + std::to_string(vb);
+bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
+    const auto vbstr = "vb_" + std::to_string(vb.get());
 
     // Try up to three times to verify the bucket is missing.  Bucket
     // state changes are async.
@@ -1291,7 +1293,7 @@ bool verify_vbucket_missing(EngineIface* h, uint16_t vb) {
 }
 
 bool verify_vbucket_state(EngineIface* h,
-                          uint16_t vb,
+                          Vbid vb,
                           vbucket_state_t expected,
                           bool mute) {
     protocol_binary_request_header *pkt;
@@ -1675,7 +1677,7 @@ void wait_for_rollback_to_finish(EngineIface* h) {
 void wait_for_persisted_value(EngineIface* h,
                               const char* key,
                               const char* val,
-                              uint16_t vbucketId) {
+                              Vbid vbucketId) {
     int commitNum = 0;
     if (isPersistentBucket(h)) {
         commitNum = get_int_stat(h, "ep_commit_num");
@@ -1727,7 +1729,7 @@ void write_items(EngineIface* h,
                  const char* key_prefix,
                  const char* value,
                  uint32_t expiry,
-                 uint16_t vb,
+                 Vbid vb,
                  DocumentState docState) {
     int j = 0;
     while (1) {
@@ -1781,7 +1783,7 @@ int write_items_upto_mem_perc(EngineIface* h,
 }
 
 uint64_t get_CAS(EngineIface* h, const std::string& key) {
-    auto ret = get(h, nullptr, key, 0);
+    auto ret = get(h, nullptr, key, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
@@ -1798,7 +1800,7 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
                                  int flags,
                                  rel_time_t exptime,
                                  uint8_t datatype,
-                                 uint16_t vb) {
+                                 Vbid vb) {
     bool cookie_created = false;
     if (cookie == nullptr) {
         cookie = testHarness->create_cookie();
@@ -1821,7 +1823,7 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
 cb::EngineErrorItemPair get(EngineIface* h,
                             const void* cookie,
                             const std::string& key,
-                            uint16_t vb,
+                            Vbid vb,
                             DocStateFilter documentStateFilter) {
     bool create_cookie = false;
     if (cookie == nullptr) {

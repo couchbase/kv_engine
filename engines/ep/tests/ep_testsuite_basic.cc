@@ -53,7 +53,7 @@ static enum test_result test_alloc_limit(EngineIface* h) {
                        0,
                        0,
                        PROTOCOL_BINARY_RAW_BYTES,
-                       0);
+                       Vbid(0));
     checkeq(cb::engine_errc::success, rv.first, "Allocated 20MB item");
 
     rv = allocate(h,
@@ -63,7 +63,7 @@ static enum test_result test_alloc_limit(EngineIface* h) {
                   0,
                   0,
                   PROTOCOL_BINARY_RAW_BYTES,
-                  0);
+                  Vbid(0));
     checkeq(cb::engine_errc::too_big, rv.first, "Object too big");
 
     return SUCCESS;
@@ -278,7 +278,7 @@ extern "C" {
                     store(h, nullptr, OPERATION_SET, "key", "somevalue"),
                     "Error setting.");
             // Ignoring the result here -- we're racing.
-            del(h, "key", 0, 0);
+            del(h, "key", 0, Vbid(0));
         }
     }
 }
@@ -381,14 +381,16 @@ static enum test_result test_getl_delete_with_cas(EngineIface* h) {
             store(h, NULL, OPERATION_SET, "key", "value"),
             "Failed to set key");
 
-    auto ret = getl(h, nullptr, "key", 0, 15);
+    auto ret = getl(h, nullptr, "key", Vbid(0), 15);
     checkeq(cb::engine_errc::success,
             ret.first,
             "Expected getl to succeed on key");
     item_info info;
     check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
 
-    checkeq(ENGINE_SUCCESS, del(h, "key", info.cas, 0), "Expected SUCCESS");
+    checkeq(ENGINE_SUCCESS,
+            del(h, "key", info.cas, Vbid(0)),
+            "Expected SUCCESS");
 
     return SUCCESS;
 }
@@ -400,10 +402,12 @@ static enum test_result test_getl_delete_with_bad_cas(EngineIface* h) {
 
     uint64_t cas = last_cas;
     checkeq(cb::engine_errc::success,
-            getl(h, nullptr, "key", 0, 15).first,
+            getl(h, nullptr, "key", Vbid(0), 15).first,
             "Expected getl to succeed on key");
 
-    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, "key", cas, 0), "Expected TMPFAIL");
+    checkeq(ENGINE_LOCKED_TMPFAIL,
+            del(h, "key", cas, Vbid(0)),
+            "Expected TMPFAIL");
 
     return SUCCESS;
 }
@@ -417,7 +421,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
             "Failed to set key");
 
     checkeq(cb::engine_errc::success,
-            getl(h, nullptr, key, 0, 15).first,
+            getl(h, nullptr, key, Vbid(0), 15).first,
             "Expected getl to succeed on key");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -432,14 +436,14 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
                   strlen(key),
                   newval,
                   strlen(newval),
-                  0,
+                  Vbid(0),
                   &itm_meta,
                   errorMetaPair.second.cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_LOCKED, last_status.load(),
           "Expected item to be locked");
 
     //do a del with meta
-    del_with_meta(h, key, strlen(key), 0, &itm_meta, last_cas);
+    del_with_meta(h, key, strlen(key), Vbid(0), &itm_meta, last_cas);
     checkeq(PROTOCOL_BINARY_RESPONSE_LOCKED, last_status.load(),
           "Expected item to be locked");
     return SUCCESS;
@@ -447,7 +451,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
 
 static enum test_result test_getl(EngineIface* h) {
     const char *key = "k1";
-    uint16_t vbucketId = 0;
+    Vbid vbucketId = Vbid(0);
     uint32_t expiration = 25;
 
     const void* cookie = testHarness->create_cookie();
@@ -522,7 +526,7 @@ static enum test_result test_getl(EngineIface* h) {
 
     /* point to wrong vbucket, to test NOT_MY_VB response */
     checkeq(cb::engine_errc::not_my_vbucket,
-            getl(h, cookie, key, 10, expiration).first,
+            getl(h, cookie, key, Vbid(10), expiration).first,
             "Should have received not my vbucket response");
 
     /* acquire lock, should succeed */
@@ -537,7 +541,7 @@ static enum test_result test_getl(EngineIface* h) {
     /* try an delete operation which should fail */
     uint64_t cas = 0;
 
-    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, key, 0, 0), "Delete failed");
+    checkeq(ENGINE_LOCKED_TMPFAIL, del(h, key, 0, Vbid(0)), "Delete failed");
 
     /* bug MB 2699 append after getl should fail with ENGINE_TMPFAIL */
 
@@ -554,7 +558,7 @@ static enum test_result test_getl(EngineIface* h) {
                          sizeof(binaryData1) - 1,
                          82758,
                          0,
-                         0)
+                         Vbid(0))
                     .first,
             "Failed set.");
 
@@ -580,7 +584,7 @@ static enum test_result test_getl(EngineIface* h) {
                    0,
                    2,
                    PROTOCOL_BINARY_RAW_BYTES,
-                   0);
+                   Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation Failed");
 
     check(h->get_item_info(ret.second.get(), &info), "Failed to get item info");
@@ -608,7 +612,7 @@ static enum test_result test_getl(EngineIface* h) {
                        sizeof(binaryData1) - 1,
                        82758,
                        cas,
-                       0);
+                       Vbid(0));
     checkne(cb::engine_errc::success, ret.first, "CAS succeeded.");
 
     /* but a simple store should succeed */
@@ -629,7 +633,7 @@ static enum test_result test_getl(EngineIface* h) {
 
 static enum test_result test_unl(EngineIface* h) {
     const char *key = "k2";
-    uint16_t vbucketId = 0;
+    Vbid vbucketId = Vbid(0);
 
     checkeq(ENGINE_SUCCESS,
             get_stats(h, {}, add_stats),
@@ -702,7 +706,7 @@ static enum test_result test_unl(EngineIface* h) {
 
 static enum test_result test_unl_nmvb(EngineIface* h) {
     const char *key = "k2";
-    uint16_t vbucketId = 10;
+    Vbid vbucketId = Vbid(10);
 
     checkeq(ENGINE_NOT_MY_VBUCKET,
             unl(h, nullptr, key, vbucketId),
@@ -725,7 +729,7 @@ static enum test_result test_set_get_hit_bin(EngineIface* h) {
                          sizeof(binaryData),
                          82758,
                          0,
-                         0)
+                         Vbid(0))
                     .first,
             "Failed to set.");
     check_key_value(h, "key", binaryData, sizeof(binaryData));
@@ -735,7 +739,8 @@ static enum test_result test_set_get_hit_bin(EngineIface* h) {
 static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
     const char *key = "test_expiry_flush";
     const auto* cookie = testHarness->create_cookie();
-    auto ret = allocate(h, cookie, key, 10, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = allocate(
+            h, cookie, key, 10, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     Item* it = reinterpret_cast<Item*>(ret.second.get());
@@ -773,7 +778,7 @@ static enum test_result test_set_change_flags(EngineIface* h) {
                          strlen("newvalue"),
                          flags,
                          0,
-                         0)
+                         Vbid(0))
                     .first,
             "Failed to set again.");
 
@@ -849,7 +854,7 @@ static enum test_result test_cas(EngineIface* h) {
           "Failed to fail initial CAS.");
     check_key_value(h, "key", "somevalue", 9);
 
-    auto ret = get(h, NULL, "key", 0);
+    auto ret = get(h, NULL, "key", Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value.");
 
     item_info info;
@@ -913,11 +918,13 @@ static enum test_result test_replace(EngineIface* h) {
 
 static enum test_result test_touch(EngineIface* h) {
     // Try to touch an unknown item...
-    checkeq(ENGINE_KEY_ENOENT, touch(h, "mykey", 0, 0), "Testing unknown key");
+    checkeq(ENGINE_KEY_ENOENT,
+            touch(h, "mykey", Vbid(0), 0),
+            "Testing unknown key");
 
     // illegal vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            touch(h, "mykey", 5, 0),
+            touch(h, "mykey", Vbid(5), 0),
             "Testing illegal vbucket");
 
     // Store the item!
@@ -934,7 +941,7 @@ static enum test_result test_touch(EngineIface* h) {
     item_info currMeta = errorMetaPair.second;
 
     checkeq(ENGINE_SUCCESS,
-            touch(h, "mykey", 0, uint32_t(time(NULL) + 10)),
+            touch(h, "mykey", Vbid(0), uint32_t(time(NULL) + 10)),
             "touch mykey");
     check(last_cas != currMeta.cas,
           "touch should have returned an updated CAS");
@@ -959,7 +966,7 @@ static enum test_result test_touch(EngineIface* h) {
 
     // The item should have expired now...
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, "mykey", 0).first,
+            get(h, NULL, "mykey", Vbid(0)).first,
             "Item should be gone");
     return SUCCESS;
 }
@@ -971,7 +978,7 @@ static enum test_result test_touch_mb7342(EngineIface* h) {
             store(h, NULL, OPERATION_SET, key, "v"),
             "Failed set.");
 
-    checkeq(ENGINE_SUCCESS, touch(h, key, 0, 0), "touch key");
+    checkeq(ENGINE_SUCCESS, touch(h, key, Vbid(0), 0), "touch key");
 
     check_key_value(h, key, "v", 1);
 
@@ -991,12 +998,12 @@ static enum test_result test_touch_mb10277(EngineIface* h) {
             store(h, NULL, OPERATION_SET, key, "v"),
             "Failed set.");
     wait_for_flusher_to_settle(h);
-    evict_key(h, key, 0, "Ejected.");
+    evict_key(h, key, Vbid(0), "Ejected.");
 
     checkeq(ENGINE_SUCCESS,
             touch(h,
                   key,
-                  0,
+                  Vbid(0),
                   3600), // A new expiration time remains in the same.
             "touch key");
 
@@ -1005,12 +1012,12 @@ static enum test_result test_touch_mb10277(EngineIface* h) {
 
 static enum test_result test_gat(EngineIface* h) {
     // Try to gat an unknown item...
-    auto ret = gat(h, "mykey", 0, 10);
+    auto ret = gat(h, "mykey", Vbid(0), 10);
     checkeq(ENGINE_KEY_ENOENT, ENGINE_ERROR_CODE(ret.first),
             "Testing unknown key");
 
     // illegal vbucket
-    ret = gat(h, "mykey", 5, 10);
+    ret = gat(h, "mykey", Vbid(5), 10);
     checkeq(ENGINE_NOT_MY_VBUCKET,
             ENGINE_ERROR_CODE(ret.first), "Testing illegal vbucket");
 
@@ -1023,7 +1030,7 @@ static enum test_result test_gat(EngineIface* h) {
                   "{\"some\":\"value\"}",
                   nullptr,
                   0,
-                  0,
+                  Vbid(0),
                   3600,
                   PROTOCOL_BINARY_DATATYPE_JSON),
             "Failed set.");
@@ -1031,7 +1038,7 @@ static enum test_result test_gat(EngineIface* h) {
     check_key_value(
             h, "mykey", "{\"some\":\"value\"}", strlen("{\"some\":\"value\"}"));
 
-    ret = gat(h, "mykey", 0, 10);
+    ret = gat(h, "mykey", Vbid(0), 10);
     checkeq(ENGINE_SUCCESS,
             ENGINE_ERROR_CODE(ret.first), "gat mykey");
 
@@ -1060,7 +1067,7 @@ static enum test_result test_gat(EngineIface* h) {
 
     // The item should have expired now...
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, "mykey", 0).first,
+            get(h, NULL, "mykey", Vbid(0)).first,
             "Item should be gone");
     return SUCCESS;
 }
@@ -1071,19 +1078,19 @@ static enum test_result test_gat_locked(EngineIface* h) {
             "Failed to set key");
 
     checkeq(cb::engine_errc::success,
-            getl(h, nullptr, "key", 0, 15).first,
+            getl(h, nullptr, "key", Vbid(0), 15).first,
             "Expected getl to succeed on key");
 
-    auto ret = gat(h, "key", 0, 10);
+    auto ret = gat(h, "key", Vbid(0), 10);
     checkeq(ENGINE_LOCKED, ENGINE_ERROR_CODE(ret.first), "Expected LOCKED");
 
     testHarness->time_travel(16);
-    ret = gat(h, "key", 0, 10);
+    ret = gat(h, "key", Vbid(0), 10);
     checkeq(ENGINE_SUCCESS, ENGINE_ERROR_CODE(ret.first), "Expected success");
 
     testHarness->time_travel(11);
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, "key", 0).first,
+            get(h, NULL, "key", Vbid(0)).first,
             "Expected value to be expired");
     return SUCCESS;
 }
@@ -1096,17 +1103,17 @@ static enum test_result test_touch_locked(EngineIface* h) {
     h->release(itm);
 
     checkeq(cb::engine_errc::success,
-            getl(h, nullptr, "key", 0, 15).first,
+            getl(h, nullptr, "key", Vbid(0), 15).first,
             "Expected getl to succeed on key");
 
-    checkeq(ENGINE_LOCKED, touch(h, "key", 0, 10), "Expected tmp fail");
+    checkeq(ENGINE_LOCKED, touch(h, "key", Vbid(0), 10), "Expected tmp fail");
 
     testHarness->time_travel(16);
-    checkeq(ENGINE_SUCCESS, touch(h, "key", 0, 10), "Expected success");
+    checkeq(ENGINE_SUCCESS, touch(h, "key", Vbid(0), 10), "Expected success");
 
     testHarness->time_travel(11);
     checkeq(cb::engine_errc::no_such_key,
-            get(h, NULL, "key", 0).first,
+            get(h, NULL, "key", Vbid(0)).first,
             "Expected value to be expired");
 
     return SUCCESS;
@@ -1126,7 +1133,9 @@ static enum test_result test_mb5215(EngineIface* h) {
     // set new exptime to 111
     int expTime = time(NULL) + 111;
 
-    checkeq(ENGINE_SUCCESS, touch(h, "coolkey", 0, expTime), "touch coolkey");
+    checkeq(ENGINE_SUCCESS,
+            touch(h, "coolkey", Vbid(0), expTime),
+            "touch coolkey");
 
     //reload engine
     testHarness->reload_engine(&h,
@@ -1140,16 +1149,18 @@ static enum test_result test_mb5215(EngineIface* h) {
     const char *statkey = "key coolkey 0";
     int newExpTime;
     checkeq(cb::engine_errc::success,
-            get(h, NULL, "coolkey", 0).first,
+            get(h, NULL, "coolkey", Vbid(0)).first,
             "Missing key");
     newExpTime = get_int_stat(h, "key_exptime", statkey);
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
 
     // evict key, touch expiration time, and verify
-    evict_key(h, "coolkey", 0, "Ejected.");
+    evict_key(h, "coolkey", Vbid(0), "Ejected.");
 
     expTime = time(NULL) + 222;
-    checkeq(ENGINE_SUCCESS, touch(h, "coolkey", 0, expTime), "touch coolkey");
+    checkeq(ENGINE_SUCCESS,
+            touch(h, "coolkey", Vbid(0), expTime),
+            "touch coolkey");
 
     testHarness->reload_engine(&h,
                                testHarness->engine_path,
@@ -1160,7 +1171,7 @@ static enum test_result test_mb5215(EngineIface* h) {
     wait_for_warmup_complete(h);
 
     checkeq(cb::engine_errc::success,
-            get(h, NULL, "coolkey", 0).first,
+            get(h, NULL, "coolkey", Vbid(0)).first,
             "Missing key");
     newExpTime = get_int_stat(h, "key_exptime", statkey);
     checkeq(expTime, newExpTime, "Failed to persist new exptime");
@@ -1177,7 +1188,7 @@ static enum test_result test_mb5215(EngineIface* h) {
  */
 static enum test_result test_delete_with_value(EngineIface* h) {
     const uint64_t cas_0 = 0;
-    const uint16_t vbid = 0;
+    const Vbid vbid = Vbid(0);
     const void* cookie = testHarness->create_cookie();
 
     // Store an initial (not-deleted) value.
@@ -1304,7 +1315,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
                   "deletevalue",
                   nullptr,
                   0,
-                  0,
+                  Vbid(0),
                   3600,
                   0x00,
                   DocumentState::Deleted),
@@ -1339,7 +1350,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
                   "deletevaluewithcas",
                   nullptr,
                   info.cas,
-                  0,
+                  Vbid(0),
                   3600,
                   0x00,
                   DocumentState::Deleted),
@@ -1363,7 +1374,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
                   "newdeletevalue",
                   &i,
                   0,
-                  0,
+                  Vbid(0),
                   3600,
                   0x00,
                   DocumentState::Deleted),
@@ -1397,7 +1408,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
                   "newdeletevaluewithcas",
                   nullptr,
                   incorrect_CAS,
-                  0,
+                  Vbid(0),
                   3600,
                   0x00,
                   DocumentState::Deleted),
@@ -1412,7 +1423,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
                   "newdeletevaluewithcas",
                   nullptr,
                   info.cas,
-                  0,
+                  Vbid(0),
                   3600,
                   0x00,
                   DocumentState::Deleted),
@@ -1420,7 +1431,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    auto ret = get(h, nullptr, "key2", 0, DocStateFilter::AliveOrDeleted);
+    auto ret = get(h, nullptr, "key2", Vbid(0), DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value");
 
     check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
@@ -1444,7 +1455,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 
     checkeq(0, buf.compare("newdeletevaluewithcas"), "Data mismatch");
 
-    ret = get(h, nullptr, "key", 0, DocStateFilter::Alive);
+    ret = get(h, nullptr, "key", Vbid(0), DocStateFilter::Alive);
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Getting value should have failed");
@@ -1456,7 +1467,7 @@ static enum test_result test_delete(EngineIface* h) {
     item *i = NULL;
     // First try to delete something we know to not be there.
     checkeq(ENGINE_KEY_ENOENT,
-            del(h, "key", 0, 0),
+            del(h, "key", 0, Vbid(0)),
             "Failed to fail initial delete.");
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "somevalue", &i),
@@ -1476,7 +1487,7 @@ static enum test_result test_delete(EngineIface* h) {
     vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, "vb_0:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS,
-            del(h, "key", &cas, 0, nullptr, &mut_info),
+            del(h, "key", &cas, Vbid(0), nullptr, &mut_info),
             "Failed remove with value.");
     check(orig_cas != cas, "Expected CAS to be updated on delete");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
@@ -1490,7 +1501,7 @@ static enum test_result test_delete(EngineIface* h) {
     h->release(i);
     testHarness->time_travel(3617);
     checkeq(ENGINE_KEY_ENOENT,
-            del(h, "key", 0, 0),
+            del(h, "key", 0, Vbid(0)),
             "Did not get ENOENT removing an expired object.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
 
@@ -1502,7 +1513,9 @@ static enum test_result test_set_delete(EngineIface* h) {
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
-    checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, "key", 0, Vbid(0)),
+            "Failed remove with value.");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
@@ -1520,11 +1533,11 @@ static enum test_result test_set_delete_invalid_cas(EngineIface* h) {
     h->release(i);
 
     checkeq(ENGINE_KEY_EEXISTS,
-            del(h, "key", info.cas + 1, 0),
+            del(h, "key", info.cas + 1, Vbid(0)),
             "Didn't expect to be able to remove the item with wrong cas");
 
     checkeq(ENGINE_SUCCESS,
-            del(h, "key", info.cas, 0),
+            del(h, "key", info.cas, Vbid(0)),
             "Subsequent delete with correct CAS did not succeed");
 
     return SUCCESS;
@@ -1537,7 +1550,9 @@ static enum test_result test_delete_set(EngineIface* h) {
 
     wait_for_persisted_value(h, "key", "value1");
 
-    checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, "key", 0, Vbid(0)),
+            "Failed remove with value.");
 
     wait_for_persisted_value(h, "key", "value2");
 
@@ -1550,7 +1565,9 @@ static enum test_result test_delete_set(EngineIface* h) {
     wait_for_warmup_complete(h);
 
     check_key_value(h, "key", "value2", 6);
-    checkeq(ENGINE_SUCCESS, del(h, "key", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, "key", 0, Vbid(0)),
+            "Failed remove with value.");
     wait_for_flusher_to_settle(h);
 
     testHarness->reload_engine(&h,
@@ -1578,14 +1595,14 @@ static enum test_result test_get_delete_missing_file(EngineIface* h) {
     std::string dbname = vals["ep_dbname"];
     rmdb(dbname.c_str());
 
-    auto ret = get(h, NULL, key, 0);
+    auto ret = get(h, NULL, key, Vbid(0));
 
     // ep engine must be unaware of well-being of the db file as long as
     // the item is still in the memory
     checkeq(cb::engine_errc::success, ret.first, "Expected success for get");
 
     evict_key(h, key);
-    ret = get(h, NULL, key, 0);
+    ret = get(h, NULL, key, Vbid(0));
 
     // ep engine must be now aware of the ill-fated db file where
     // the item is supposedly stored
@@ -1603,7 +1620,7 @@ static enum test_result test_bug2509(EngineIface* h) {
                 "Failed set.");
         usleep(10);
         checkeq(ENGINE_SUCCESS,
-                del(h, "key", 0, 0),
+                del(h, "key", 0, Vbid(0)),
                 "Failed remove with value.");
         usleep(10);
     }
@@ -1634,13 +1651,13 @@ static enum test_result test_bug7023(EngineIface* h) {
 
     std::vector<std::string>::iterator it;
     for (int j = 0; j < iterations; ++j) {
-        check(set_vbucket_state(h, 0, vbucket_state_dead),
+        check(set_vbucket_state(h, Vbid(0), vbucket_state_dead),
               "Failed set set vbucket 0 dead.");
-        checkeq(ENGINE_SUCCESS, vbucketDelete(h, 0), "expected success");
+        checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(0)), "expected success");
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
                 last_status.load(),
                 "Expected vbucket deletion to work.");
-        check(set_vbucket_state(h, 0, vbucket_state_active),
+        check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
               "Failed set set vbucket 0 active.");
         for (it = keys.begin(); it != keys.end(); ++it) {
             checkeq(ENGINE_SUCCESS,
@@ -1679,9 +1696,9 @@ static enum test_result test_mb3169(EngineIface* h) {
 
     wait_for_stat_to_be(h, "ep_total_persisted", 3);
 
-    evict_key(h, "set", 0, "Ejected.");
-    evict_key(h, "delete", 0, "Ejected.");
-    evict_key(h, "get", 0, "Ejected.");
+    evict_key(h, "set", Vbid(0), "Ejected.");
+    evict_key(h, "delete", Vbid(0), "Ejected.");
+    evict_key(h, "get", Vbid(0), "Ejected.");
 
     checkeq(3, get_int_stat(h, "curr_items"), "Expected 3 items");
     checkeq(3,
@@ -1698,7 +1715,7 @@ static enum test_result test_mb3169(EngineIface* h) {
             get_int_stat(h, "ep_num_non_resident"),
             "Expected mutation to mark item resident");
 
-    checkeq(ENGINE_SUCCESS, del(h, "delete", 0, 0), "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, "delete", 0, Vbid(0)), "Delete failed");
 
     wait_for_flusher_to_settle(h);
 
@@ -1750,7 +1767,7 @@ static enum test_result test_mb5172(EngineIface* h) {
 }
 
 static enum test_result test_set_vbucket_out_of_range(EngineIface* h) {
-    check(!set_vbucket_state(h, 10000, vbucket_state_active),
+    check(!set_vbucket_state(h, Vbid(10000), vbucket_state_active),
           "Shouldn't have been able to set vbucket 10000");
     return SUCCESS;
 }
@@ -1762,7 +1779,7 @@ static enum test_result set_max_cas_mb21190(EngineIface* h) {
               protocol_binary_engine_param_vbucket,
               "max_cas",
               max_cas_str.data(),
-              0);
+              Vbid(0));
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Failed to set_param max_cas");
     checkeq(max_cas + 1,
@@ -1772,10 +1789,14 @@ static enum test_result set_max_cas_mb21190(EngineIface* h) {
               protocol_binary_engine_param_vbucket,
               "max_cas",
               max_cas_str.data(),
-              1);
+              Vbid(1));
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
             "Expected not my vbucket for vb 1");
-    set_param(h, protocol_binary_engine_param_vbucket, "max_cas", "JUNK", 0);
+    set_param(h,
+              protocol_binary_engine_param_vbucket,
+              "max_cas",
+              "JUNK",
+              Vbid(0));
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
             "Expected EINVAL");
     return SUCCESS;
@@ -1791,22 +1812,22 @@ static enum test_result warmup_mb21769(EngineIface* h) {
     // VB 1 will not be empty
     // VB 2 will not be empty and will have had set_state as the final ops
 
-    check(set_vbucket_state(h, 1, vbucket_state_active),
+    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
           "Failed to set vbucket state for vb1");
-    check(set_vbucket_state(h, 2, vbucket_state_active),
+    check(set_vbucket_state(h, Vbid(2), vbucket_state_active),
           "Failed to set vbucket state for vb2");
 
     const int num_items = 10;
-    write_items(h, num_items, 0, "vb1", "value", 0 /*expiry*/, 1 /*vb*/);
-    write_items(h, num_items, 0, "vb2", "value", 0 /*expiry*/, 2 /*vb*/);
+    write_items(h, num_items, 0, "vb1", "value", 0 /*expiry*/, Vbid(1));
+    write_items(h, num_items, 0, "vb2", "value", 0 /*expiry*/, Vbid(2));
     wait_for_flusher_to_settle(h);
 
     // flip replica to active to drive more _local writes
-    check(set_vbucket_state(h, 2, vbucket_state_replica),
+    check(set_vbucket_state(h, Vbid(2), vbucket_state_replica),
           "Failed to set vbucket state (replica) for vb2");
     wait_for_flusher_to_settle(h);
 
-    check(set_vbucket_state(h, 2, vbucket_state_active),
+    check(set_vbucket_state(h, Vbid(2), vbucket_state_active),
           "Failed to set vbucket state (replica) for vb2");
     wait_for_flusher_to_settle(h);
 
@@ -1887,7 +1908,7 @@ static test_result pre_link_document(EngineIface* h) {
     testHarness->set_pre_link_function({});
 
     // Fetch the value and verify that the callback was called!
-    auto ret = get(h, nullptr, "key", 0);
+    auto ret = get(h, nullptr, "key", Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "get failed");
     check(h->get_item_info(ret.second.get(), &info),
           "Failed to get item info.");
@@ -1910,35 +1931,35 @@ static test_result get_if(EngineIface* h) {
 
     if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h);
-        evict_key(h, key.c_str(), 0, "Ejected.");
+        evict_key(h, key.c_str(), Vbid(0), "Ejected.");
     }
 
     const auto* cookie = testHarness->create_cookie();
     auto doc = h->get_if(cookie,
                          DocKey(key, DocKeyEncodesCollectionId::No),
-                         0,
+                         Vbid(0),
                          [](const item_info&) { return true; });
     check(doc.second, "document should be found");
 
     doc = h->get_if(cookie,
                     DocKey(key, DocKeyEncodesCollectionId::No),
-                    0,
+                    Vbid(0),
                     [](const item_info&) { return false; });
     check(!doc.second, "document should not be found");
 
     doc = h->get_if(cookie,
                     DocKey("no", DocKeyEncodesCollectionId::No),
-                    0,
+                    Vbid(0),
                     [](const item_info&) { return true; });
     check(!doc.second, "non-existing document should not be found");
 
     checkeq(ENGINE_SUCCESS,
-            del(h, key.c_str(), 0, 0),
+            del(h, key.c_str(), 0, Vbid(0)),
             "Failed remove with value");
 
     doc = h->get_if(cookie,
                     DocKey(key, DocKeyEncodesCollectionId::No),
-                    0,
+                    Vbid(0),
                     [](const item_info&) { return true; });
     check(!doc.second, "deleted document should not be found");
 
@@ -1995,7 +2016,7 @@ static test_result max_ttl(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(absoluteExpiry + 1);
 
-    auto ret = get(h, NULL, "key-abs", 0);
+    auto ret = get(h, NULL, "key-abs", Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2022,7 +2043,7 @@ static test_result max_ttl(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(relativeExpiry + 1);
 
-    ret = get(h, NULL, "key-rel", 0);
+    ret = get(h, NULL, "key-rel", Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2060,7 +2081,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
                   keyAbs.size(),
                   keyAbs.c_str(),
                   keyAbs.size(),
-                  0 /*vb*/,
+                  Vbid(0),
                   &itemMeta,
                   0 /*cas*/);
 
@@ -2073,7 +2094,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(absoluteExpiry + 1);
 
-    auto ret = get(h, NULL, keyAbs.c_str(), 0);
+    auto ret = get(h, NULL, keyAbs.c_str(), Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2092,7 +2113,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
                   keyRel.size(),
                   keyRel.c_str(),
                   keyRel.size(),
-                  0 /*vb*/,
+                  Vbid(0),
                   &itemMeta,
                   0 /*cas*/);
 
@@ -2104,7 +2125,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(relativeExpiry + 1);
 
-    ret = get(h, NULL, keyRel.c_str(), 0);
+    ret = get(h, NULL, keyRel.c_str(), Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2116,7 +2137,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
                   keyRel.size(),
                   keyRel.c_str(),
                   keyRel.size(),
-                  0 /*vb*/,
+                  Vbid(0),
                   &itemMeta,
                   0 /*cas*/);
 

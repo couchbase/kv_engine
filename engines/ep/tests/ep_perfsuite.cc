@@ -328,7 +328,7 @@ void output_result(const std::string& name,
  * a run (sequence numbers are only supported by DCP, and
  * de-duplication complicates simply counting mutations).
  */
-static void add_sentinel_doc(EngineIface* h, uint16_t vbid) {
+static void add_sentinel_doc(EngineIface* h, Vbid vbid) {
     // Use ADD instead of SET as we only expect to mutate the sentinel
     // doc once per run.
     checkeq(cb::engine_errc::success,
@@ -387,7 +387,7 @@ static void perf_latency_core(EngineIface* h,
                              data.length(),
                              0,
                              0,
-                             /*vBucket*/ 0,
+                             Vbid(0),
                              0,
                              0)
                         .first,
@@ -399,7 +399,7 @@ static void perf_latency_core(EngineIface* h,
     // Get
     for (auto& key : keys) {
         const auto start = ProcessClock::now();
-        auto ret = get(h, cookie, key, 0);
+        auto ret = get(h, cookie, key, Vbid(0));
         checkeq(cb::engine_errc::success, ret.first, "Failed to get a value");
         const auto end = ProcessClock::now();
         get_timings.push_back((end - start).count());
@@ -417,7 +417,7 @@ static void perf_latency_core(EngineIface* h,
                              data.length(),
                              0,
                              0,
-                             /*vBucket*/ 0,
+                             Vbid(0),
                              0,
                              0)
                         .first,
@@ -430,7 +430,7 @@ static void perf_latency_core(EngineIface* h,
     for (auto& key : keys) {
         const auto start = ProcessClock::now();
         checkeq(ENGINE_SUCCESS,
-                del(h, key.c_str(), 0, 0, cookie),
+                del(h, key.c_str(), 0, Vbid(0), cookie),
                 "Failed to delete a value");
         const auto end = ProcessClock::now();
         delete_timings.push_back((end - start).count());
@@ -464,7 +464,7 @@ static enum test_result perf_latency(EngineIface* h,
                       replace_timings,
                       delete_timings);
 
-    add_sentinel_doc(h, /*vbid*/ 0);
+    add_sentinel_doc(h, Vbid(0));
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     all_timings.push_back(std::make_pair("Add", &add_timings));
@@ -657,7 +657,7 @@ struct Handle_args {
                 Doc_format _type,
                 std::string _name,
                 uint32_t _opaque,
-                uint16_t _vb,
+                Vbid _vb,
                 bool _getCompressed)
         : h(_h),
           h1(_h1),
@@ -684,7 +684,7 @@ struct Handle_args {
     Doc_format typeOfData;
     std::string name;
     uint32_t opaque;
-    uint16_t vb;
+    Vbid vb;
     bool retrieveCompressed;
     std::vector<hrtime_t> timings;
     std::vector<size_t> bytes_received;
@@ -801,7 +801,7 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
 
 /* Function which loads documents into a bucket */
 static void perf_load_client(EngineIface* h,
-                             uint16_t vbid,
+                             Vbid vbid,
                              int count,
                              Doc_format typeOfData,
                              std::vector<hrtime_t>& insertTimes) {
@@ -836,7 +836,7 @@ static void perf_load_client(EngineIface* h,
 
 /* Function which loads documents into a bucket until told to stop*/
 static void perf_background_sets(EngineIface* h,
-                                 uint16_t vbid,
+                                 Vbid vbid,
                                  int count,
                                  Doc_format typeOfData,
                                  std::vector<hrtime_t>& insertTimes,
@@ -892,13 +892,13 @@ static void perf_dcp_client(EngineIface* h,
                             int itemCount,
                             const std::string& name,
                             uint32_t opaque,
-                            uint16_t vbid,
+                            Vbid vbid,
                             bool retrieveCompressed,
                             std::vector<hrtime_t>& recv_timings,
                             std::vector<size_t>& bytes_received) {
     const void* cookie = testHarness->create_cookie();
 
-    std::string uuid("vb_" + std::to_string(vbid) + ":0:id");
+    std::string uuid("vb_" + std::to_string(vbid.get()) + ":0:id");
     uint64_t vb_uuid = get_ull_stat(h, uuid.c_str(), "failovers");
     uint32_t streamOpaque = opaque;
 
@@ -1045,7 +1045,7 @@ struct Ret_vals {
  */
 static std::pair<std::vector<hrtime_t>, std::vector<size_t>>
 single_dcp_latency_bw_test(EngineIface* h,
-                           uint16_t vb,
+                           Vbid vb,
                            size_t item_count,
                            Doc_format typeOfData,
                            const std::string& name,
@@ -1106,7 +1106,7 @@ static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
 
     // For Loader & DCP client to get documents as is from vbucket 0
     auto as_is_results = single_dcp_latency_bw_test(h,
-                                                    /*vb*/ 0,
+                                                    Vbid(0),
                                                     item_count,
                                                     typeOfData,
                                                     "As_is",
@@ -1117,7 +1117,7 @@ static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
 
     // For Loader & DCP client to get documents compressed from vbucket 1
     auto compress_results = single_dcp_latency_bw_test(h,
-                                                       /*vb*/ 1,
+                                                       Vbid(1),
                                                        item_count,
                                                        typeOfData,
                                                        "Compress",
@@ -1181,7 +1181,7 @@ static enum test_result perf_dcp_latency_with_random_binary(EngineIface* h) {
  */
 static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
         EngineIface* h) {
-    const uint16_t vbid = 0;
+    const Vbid vbid = Vbid(0);
     const uint32_t opaque = 1;
 
     check(set_vbucket_state(h, vbid, vbucket_state_replica),
@@ -1325,7 +1325,7 @@ static enum test_result perf_latency_dcp_impact(EngineIface* h) {
                            num_dcp_ops,
                            "DCP",
                            /*opaque*/ 0x1,
-                           /*vb*/ 0,
+                           Vbid(0),
                            /*compressed*/ false,
                            std::ref(ignored_send_times),
                            std::ref(ignored_send_bytes)};
@@ -1354,7 +1354,7 @@ static void perf_stat_latency_core(EngineIface* h,
                          0,
                          /*flags*/ 0,
                          0,
-                         /*vbid*/ 0)
+                         Vbid(0))
                     .first,
             "Failed to add example document.");
 
@@ -1420,7 +1420,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
     insert_timings.reserve(iterations_for_fast_stats);
 
     for (int vb = 0; vb < active_vbuckets; vb++) {
-        check(set_vbucket_state(h, vb, vbucket_state_active),
+        check(set_vbucket_state(h, Vbid(vb), vbucket_state_active),
               "Failed set_vbucket_state for vbucket");
     }
     if (isPersistentBucket(h)) {
@@ -1433,7 +1433,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
     if ((backgroundWork & BackgroundWork::Sets) == BackgroundWork::Sets) {
         std::thread load_thread{perf_background_sets,
                                 h,
-                                /*vbid*/ 0,
+                                Vbid(0),
                                 iterations_for_fast_stats,
                                 Doc_format::JSON_RANDOM,
                                 std::ref(insert_timings),
@@ -1447,7 +1447,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
                                          0,
                                          "DCP",
                                          /*opaque*/ 0x1,
-                                         /*vb*/ 0,
+                                         Vbid(0),
                                          /*compressed*/ false,
                                          std::ref(ignored_send_times),
                                          std::ref(ignored_send_bytes)};
@@ -1467,7 +1467,7 @@ static enum test_result perf_stat_latency(EngineIface* h,
         load_thread.join();
         if ((backgroundWork & BackgroundWork::Dcp) == BackgroundWork::Dcp) {
             // Need to tell the thread performing DCP to stop
-            add_sentinel_doc(h, /*vbid*/ 0);
+            add_sentinel_doc(h, Vbid(0));
             dcp_thread.join();
             all_timings.emplace_back("Sets and DCP (bg)", &insert_timings);
         } else {

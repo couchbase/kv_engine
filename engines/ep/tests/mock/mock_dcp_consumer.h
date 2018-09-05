@@ -39,11 +39,11 @@ public:
         return lastMessageTime;
     }
 
-    std::shared_ptr<PassiveStream> getVbucketStream(uint16_t vbid) {
+    std::shared_ptr<PassiveStream> getVbucketStream(Vbid vbid) {
         return findStream(vbid);
     }
 
-    void public_notifyVbucketReady(uint16_t vbid) {
+    void public_notifyVbucketReady(Vbid vbid) {
         notifyVbucketReady(vbid);
     }
 

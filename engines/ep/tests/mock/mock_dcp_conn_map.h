@@ -51,8 +51,8 @@ public:
     }
 
     /// return if the named handler exists for the vbid in the vbConns structure
-    bool doesConnHandlerExist(uint16_t vbid, const std::string& name) const {
-        const auto& list = vbConns[vbid];
+    bool doesConnHandlerExist(Vbid vbid, const std::string& name) const {
+        const auto& list = vbConns[vbid.get()];
         return std::find_if(
                        list.begin(),
                        list.end(),

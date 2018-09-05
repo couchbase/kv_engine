@@ -51,7 +51,7 @@ public:
     ENGINE_ERROR_CODE public_doDcpVbTakeoverStats(const void* cookie,
                                                   ADD_STAT add_stat,
                                                   std::string& key,
-                                                  uint16_t vbid) {
+                                                  Vbid vbid) {
         return doDcpVbTakeoverStats(cookie, add_stat, key, vbid);
     }
 

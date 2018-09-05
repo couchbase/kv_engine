@@ -186,31 +186,31 @@ public:
 
 void decayingSleep(useconds_t *sleepTime);
 
-
 protocol_binary_request_header* createPacket(uint8_t opcode,
-                                             uint16_t vbid = 0,
+                                             Vbid vbid = Vbid(0),
                                              uint64_t cas = 0,
-                                             const char *ext = NULL,
+                                             const char* ext = NULL,
                                              uint8_t extlen = 0,
-                                             const char *key = NULL,
+                                             const char* key = NULL,
                                              uint32_t keylen = 0,
-                                             const char *val = NULL,
+                                             const char* val = NULL,
                                              uint32_t vallen = 0,
                                              uint8_t datatype = 0x00,
-                                             const char *meta = NULL,
-                                             uint16_t nmeta = 0) CB_MUST_USE_RESULT;
+                                             const char* meta = NULL,
+                                             uint16_t nmeta = 0)
+        CB_MUST_USE_RESULT;
 
 // Basic Operations
 ENGINE_ERROR_CODE del(EngineIface* h,
                       const char* key,
                       uint64_t cas,
-                      uint16_t vbucket,
+                      Vbid vbucket,
                       const void* cookie = nullptr);
 
 ENGINE_ERROR_CODE del(EngineIface* h,
                       const char* key,
                       uint64_t* cas,
-                      uint16_t vbucket,
+                      Vbid vbucket,
                       const void* cookie,
                       mutation_descr_t* mut_info);
 
@@ -229,22 +229,22 @@ void disable_traffic(EngineIface* h);
 void enable_traffic(EngineIface* h);
 void evict_key(EngineIface* h,
                const char* key,
-               uint16_t vbucketId = 0,
+               Vbid vbucketId = Vbid(0),
                const char* msg = NULL,
                bool expectError = false);
 cb::EngineErrorItemPair gat(EngineIface* h,
                             const char* key,
-                            uint16_t vb,
+                            Vbid vb,
                             uint32_t exp);
 bool get_item_info(EngineIface* h,
                    item_info* info,
                    const char* key,
-                   uint16_t vb = 0);
+                   Vbid vb = Vbid(0));
 
 cb::EngineErrorItemPair getl(EngineIface* h,
                              const void* cookie,
                              const char* key,
-                             uint16_t vb,
+                             Vbid vb,
                              uint32_t lock_timeout);
 
 protocol_binary_request_header* prepare_get_replica(EngineIface* h,
@@ -252,17 +252,16 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
                                                     bool makeinvalidkey = false)
         CB_MUST_USE_RESULT;
 
-void get_replica(EngineIface* h, const char* key, uint16_t vb);
-ENGINE_ERROR_CODE observe(EngineIface* h,
-                          std::map<std::string, uint16_t> obskeys);
-ENGINE_ERROR_CODE observe_seqno(EngineIface* h, uint16_t vb_id, uint64_t uuid);
+void get_replica(EngineIface* h, const char* key, Vbid vb);
+ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys);
+ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid);
 
 bool set_param(EngineIface* h,
                protocol_binary_engine_param_t paramtype,
                const char* param,
                const char* val,
-               uint16_t vb = 0);
-bool set_vbucket_state(EngineIface* h, uint16_t vb, vbucket_state_t state);
+               Vbid vb = Vbid(0));
+bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state);
 bool get_all_vb_seqnos(EngineIface* h,
                        vbucket_state_t state,
                        const void* cookie);
@@ -283,7 +282,7 @@ ENGINE_ERROR_CODE store(EngineIface* h,
                         const char* value,
                         item** outitem = nullptr,
                         uint64_t casIn = 0,
-                        uint16_t vb = 0,
+                        Vbid vb = Vbid(0),
                         uint32_t exp = 3600,
                         uint8_t datatype = 0x00,
                         DocumentState docState = DocumentState::Alive);
@@ -295,13 +294,13 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
                                  int flags,
                                  rel_time_t exptime,
                                  uint8_t datatype,
-                                 uint16_t vb);
+                                 Vbid vb);
 
 cb::EngineErrorItemPair get(
         EngineIface* h,
         const void* cookie,
         const std::string& key,
-        uint16_t vb,
+        Vbid vb,
         DocStateFilter documentStateFilter = DocStateFilter::Alive);
 
 /* Stores the specified document; returning the new CAS value via
@@ -309,7 +308,7 @@ cb::EngineErrorItemPair get(
  */
 ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
                               const void* cookie,
-                              uint16_t vb,
+                              Vbid vb,
                               const std::string& key,
                               const std::string& value,
                               protocol_binary_datatype_t datatype,
@@ -326,22 +325,19 @@ cb::EngineErrorItemPair storeCasVb11(
         size_t vlen,
         uint32_t flags,
         uint64_t casIn,
-        uint16_t vb,
+        Vbid vb,
         uint32_t exp = 3600,
         uint8_t datatype = 0x00,
         DocumentState docState = DocumentState::Alive);
-ENGINE_ERROR_CODE touch(EngineIface* h,
-                        const char* key,
-                        uint16_t vb,
-                        uint32_t exp);
+ENGINE_ERROR_CODE touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp);
 ENGINE_ERROR_CODE unl(EngineIface* h,
                       const void* cookie,
                       const char* key,
-                      uint16_t vb,
+                      Vbid vb,
                       uint64_t cas = 0);
 ENGINE_ERROR_CODE verify_key(EngineIface* h,
                              const char* key,
-                             uint16_t vbucket = 0);
+                             Vbid vbucket = Vbid(0));
 
 /**
  * Attempts to fetch the given key. On success returns ENGINE_SUCCESS and the
@@ -350,12 +346,12 @@ ENGINE_ERROR_CODE verify_key(EngineIface* h,
 std::pair<ENGINE_ERROR_CODE, std::string> get_value(EngineIface* h,
                                                     const void* cookie,
                                                     const char* key,
-                                                    uint16_t vbucket,
+                                                    Vbid vbucket,
                                                     DocStateFilter state);
 
-bool verify_vbucket_missing(EngineIface* h, uint16_t vb);
+bool verify_vbucket_missing(EngineIface* h, Vbid vb);
 bool verify_vbucket_state(EngineIface* h,
-                          uint16_t vb,
+                          Vbid vb,
                           vbucket_state_t expected,
                           bool mute = false);
 
@@ -369,10 +365,10 @@ void sendDcpAck(EngineIface* h,
 void createCheckpoint(EngineIface* h);
 ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
                                         uint64_t checkpoint_id,
-                                        uint16_t vb);
+                                        Vbid vb);
 ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
                                    const void* cookie,
-                                   uint16_t vbucket,
+                                   Vbid vbucket,
                                    uint64_t seqno);
 
 // Stats Operations
@@ -483,7 +479,7 @@ void wait_for_rollback_to_finish(EngineIface* h);
 void wait_for_persisted_value(EngineIface* h,
                               const char* key,
                               const char* val,
-                              uint16_t vbucketId = 0);
+                              Vbid vbucketId = Vbid(0));
 
 void wait_for_memory_usage_below(EngineIface* h,
                                  int mem_threshold,
@@ -501,12 +497,12 @@ bool repeat_till_true(std::function<bool()> functor,
 
 // VBucket operations
 ENGINE_ERROR_CODE vbucketDelete(EngineIface* h,
-                                uint16_t vb,
+                                Vbid vb,
                                 const char* args = nullptr);
 
 void compact_db(EngineIface* h,
-                const uint16_t vbid,
-                const uint16_t db_file_id,
+                const Vbid vbid,
+                const Vbid db_file_id,
                 const uint64_t purge_before_ts,
                 const uint64_t purge_before_seq,
                 const uint8_t drop_deletes);
@@ -525,7 +521,7 @@ void set_with_meta(EngineIface* h,
                    const size_t keylen,
                    const char* val,
                    const size_t vallen,
-                   const uint32_t vb,
+                   const Vbid vb,
                    ItemMetaData* itemMeta,
                    uint64_t cas_for_set,
                    uint32_t options = 0,
@@ -538,7 +534,7 @@ void add_with_meta(EngineIface* h,
                    const size_t keylen,
                    const char* val,
                    const size_t vallen,
-                   const uint32_t vb,
+                   const Vbid vb,
                    ItemMetaData* itemMeta,
                    uint64_t cas_for_add = 0,
                    uint32_t options = 0,
@@ -549,7 +545,7 @@ void add_with_meta(EngineIface* h,
 void del_with_meta(EngineIface* h,
                    const char* key,
                    const size_t keylen,
-                   const uint32_t vb,
+                   const Vbid vb,
                    ItemMetaData* itemMeta,
                    uint64_t cas_for_delete = 0,
                    uint32_t options = 0,
@@ -562,7 +558,7 @@ void del_with_meta(EngineIface* h,
 void del_with_meta(EngineIface* h,
                    const char* key,
                    const size_t keylen,
-                   const uint32_t vb,
+                   const Vbid vb,
                    RawItemMetaData* itemMeta,
                    uint64_t cas_for_delete = 0,
                    uint32_t options = 0,
@@ -576,7 +572,7 @@ ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
                                const size_t keylen,
                                const char* val,
                                const size_t vallen,
-                               const uint32_t vb,
+                               const Vbid vb,
                                const uint64_t cas = 0,
                                const uint32_t flags = 0,
                                const uint32_t exp = 0,
@@ -588,7 +584,7 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
                                const size_t keylen,
                                const char* val,
                                const size_t vallen,
-                               const uint32_t vb,
+                               const Vbid vb,
                                const uint64_t cas = 0,
                                const uint32_t flags = 0,
                                const uint32_t exp = 0,
@@ -598,7 +594,7 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
 ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
                                const char* key,
                                const size_t keylen,
-                               const uint32_t vb,
+                               const Vbid vb,
                                const uint64_t cas = 0,
                                const void* cookie = nullptr);
 
@@ -622,7 +618,7 @@ void write_items(EngineIface* h,
                  const char* key_prefix = "key",
                  const char* value = "data",
                  uint32_t expiry = 0,
-                 uint16_t vb = 0,
+                 Vbid vb = Vbid(0),
                  DocumentState docState = DocumentState::Alive);
 
 /* Helper function to write unique items starting from keyXX until memory usage
