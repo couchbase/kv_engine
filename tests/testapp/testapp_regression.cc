@@ -180,3 +180,29 @@ TEST_P(RegressionTest, MB_31070) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
     EXPECT_EQ(exptime, std::stol(results[0].value));
 }
+
+/**
+ * https://issues.couchbase.com/browse/MB-31149
+ *
+ * When sending an Append (0x0e) request to the server I'm seeing a status
+ * of success with a CAS value of 0 when the MutationSeqNo Hello Feature is
+ * set. When the MutationSeqNo Hello Feature is not set then the CAS value is
+ * correct and everything looks fine.
+ */
+TEST_P(RegressionTest, MB_31149) {
+    auto& conn = getConnection();
+
+    Document document;
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.flags = 0xcaffee;
+    document.info.id = name;
+    document.info.expiration = 30;
+    document.value = "hello";
+
+    conn.mutate(document, 0, MutationType::Set);
+    document.info.expiration = 0;
+    document.value = " world";
+    const auto info = conn.mutate(document, 0, MutationType::Append);
+
+    EXPECT_NE(0, info.cas);
+}
