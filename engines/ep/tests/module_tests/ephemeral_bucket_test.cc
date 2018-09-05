@@ -28,7 +28,7 @@
  * Test statistics related to an individual VBucket's sequence list.
  */
 
-void EphemeralBucketStatTest::addDocumentsForSeqListTesting(uint16_t vb) {
+void EphemeralBucketStatTest::addDocumentsForSeqListTesting(Vbid vb) {
     // Add some documents to the vBucket to use to test the stats.
     store_item(vb, makeStoredDocKey("deleted"), "value");
     delete_item(vb, makeStoredDocKey("deleted"));
@@ -202,13 +202,13 @@ protected:
 
         /* Set up 4 vbuckets */
         for (int vbid = 0; vbid < numVbs; ++vbid) {
-            setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+            setVBucketStateAndRunPersistTask(Vbid(vbid), vbucket_state_active);
         }
     }
 
     bool checkAllPurged(uint64_t expPurgeUpto) {
         for (int vbid = 0; vbid < numVbs; ++vbid) {
-            if (store->getVBucket(vbid)->getPurgeSeqno() < expPurgeUpto) {
+            if (store->getVBucket(Vbid(vbid))->getPurgeSeqno() < expPurgeUpto) {
                 return false;
             }
         }
@@ -226,14 +226,14 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
         for (int i = 0; i < numItems; ++i) {
             const std::string key("key" + std::to_string(vbid) +
                                   std::to_string(i));
-            store_item(vbid, makeStoredDocKey(key), "value");
+            store_item(Vbid(vbid), makeStoredDocKey(key), "value");
         }
     }
 
     /* Add and delete an item in every vbucket */
     for (int vbid = 0; vbid < numVbs; ++vbid) {
         const std::string key("keydelete" + std::to_string(vbid));
-        storeAndDeleteItem(vbid, makeStoredDocKey(key), "value");
+        storeAndDeleteItem(Vbid(vbid), makeStoredDocKey(key), "value");
     }
 
     /* We have added an item at seqno 100 and deleted it immediately */
@@ -242,7 +242,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
     /* Add another item as we do not purge last element in the list */
     for (int vbid = 0; vbid < numVbs; ++vbid) {
         const std::string key("afterdelete" + std::to_string(vbid));
-        store_item(vbid, makeStoredDocKey(key), "value");
+        store_item(Vbid(vbid), makeStoredDocKey(key), "value");
     }
 
     /* Run the HTCleaner task, so that we can wake up the stale item deleter */

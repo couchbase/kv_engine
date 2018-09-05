@@ -124,7 +124,7 @@ protected:
                 << "Memory tracker not enabled - cannot continue";
 
         for (int ii = 0; ii < noOfVBs; ii++) {
-            store->setVBucketState(ii, vbucket_state_active, false);
+            store->setVBucketState(Vbid(ii), vbucket_state_active, false);
         }
 
         // Sanity check - to ensure memory usage doesn't increase without us
@@ -187,9 +187,9 @@ protected:
                 }
             }
             auto key = makeStoredDocKey("DOC_" + std::to_string(noOfDocs));
-            auto item = make_item(vbid, key, value, 0);
+            auto item = make_item(Vbid(vbid), key, value, 0);
             result = storeItem(item);
-            vbucketLookup.insert(std::pair<size_t, uint16_t>(noOfDocs, vbid));
+            vbucketLookup.insert(std::pair<size_t, Vbid>(noOfDocs, Vbid(vbid)));
         }
 
         EXPECT_EQ(ENGINE_TMPFAIL, result);
@@ -198,8 +198,9 @@ protected:
 
         if (!isEphemeral) {
             for (int ii = 0; ii < noOfVBs; ii++) {
-                store->getVBucket(ii)->checkpointManager->createNewCheckpoint();
-                while (getEPBucket().flushVBucket(ii).second != 0)
+                store->getVBucket(Vbid(ii))
+                        ->checkpointManager->createNewCheckpoint();
+                while (getEPBucket().flushVBucket(Vbid(ii)).second != 0)
                     ;
             }
         }
@@ -241,7 +242,7 @@ protected:
                 auto key = makeStoredDocKey("DOC_" + std::to_string(kk));
                 EventuallyPersistentEngine* epe =
                         ObjectRegistry::onSwitchThread(NULL, true);
-                uint16_t vbucket = 0;
+                Vbid vbucket = Vbid(0);
                 auto it = vbucketLookup.find(kk);
                 if (it != vbucketLookup.end()) {
                     vbucket = it->second;
@@ -283,7 +284,9 @@ protected:
             while ((current > lower) && vbucketcount < noOfVBs / 2) {
                 runNextTask(lpNonioQ);
                 if (!isEphemeral) {
-                    while (getEPBucket().flushVBucket(vbucketcount).second != 0)
+                    while (getEPBucket()
+                                   .flushVBucket(Vbid(vbucketcount))
+                                   .second != 0)
                         ;
                 }
                 vbucketcount++;
@@ -307,7 +310,7 @@ protected:
             key_stats kstats;
             kstats.resident = false;
 
-            uint16_t vbucket = 0;
+            Vbid vbucket = Vbid(0);
             auto it = vbucketLookup.find(kk);
             if (it != vbucketLookup.end()) {
                 vbucket = it->second;
@@ -336,10 +339,10 @@ protected:
      */
     void printNoOfResidentDocs() {
         for (uint16_t ii = 0; ii < noOfVBs; ii++) {
-            auto vb = engine->getVBucket(ii);
+            auto vb = engine->getVBucket(Vbid(ii));
             const auto numResidentItems =
                     vb->getNumItems() - vb->getNumNonResidentItems();
-            std::cout << "number of resident docs for vb " << ii << " = "
+            std::cout << "number of resident docs for vb:" << ii << " = "
                       << numResidentItems << std::endl;
         }
     }
@@ -350,7 +353,7 @@ protected:
     double zipfScew = 0;
     uint32_t noOfDocs = 0;
     // map of document number to vbucket
-    std::map<uint32_t, uint16_t> vbucketLookup;
+    std::map<uint32_t, Vbid> vbucketLookup;
     std::array<uint64_t, maxNoOfDocs> frequencies{};
     bool isEphemeral{false};
 };
@@ -365,7 +368,7 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
     accessPattern();
 
     for (int ii = 0; ii < noOfVBs / 2; ii++) {
-        store->setVBucketState(ii, vbucket_state_replica, false);
+        store->setVBucketState(Vbid(ii), vbucket_state_replica, false);
     }
 
     eviction();

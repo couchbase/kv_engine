@@ -106,7 +106,7 @@ TEST_F(MutationLogTest, Unconfigured) {
     MutationLog ml("");
     ml.open();
     ASSERT_FALSE(ml.isEnabled());
-    ml.newItem(3, makeStoredDocKey("somekey"));
+    ml.newItem(Vbid(3), makeStoredDocKey("somekey"));
     ml.commit1();
     ml.commit2();
     ml.flush();
@@ -189,7 +189,7 @@ TEST_F(MutationLogTest, SyncSet) {
 
 static bool loaderFun(void* arg, Vbid vb, const DocKey& k) {
     std::set<StoredDocKey>* sets = reinterpret_cast<std::set<StoredDocKey> *>(arg);
-    sets[vb].insert(k);
+    sets[vb.get()].insert(k);
     return true;
 }
 
@@ -199,10 +199,10 @@ TEST_F(MutationLogTest, Logging) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(2, makeStoredDocKey("key1"));
+        ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
         ml.commit2();
-        ml.newItem(3, makeStoredDocKey("key2"));
+        ml.newItem(Vbid(3), makeStoredDocKey("key2"));
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
@@ -216,9 +216,9 @@ TEST_F(MutationLogTest, Logging) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVBucket(1);
-        h.setVBucket(2);
-        h.setVBucket(3);
+        h.setVBucket(Vbid(1));
+        h.setVBucket(Vbid(2));
+        h.setVBucket(Vbid(3));
 
         EXPECT_TRUE(h.load());
 
@@ -253,13 +253,13 @@ TEST_F(MutationLogTest, LoggingDirty) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(3, makeStoredDocKey("key1"));
-        ml.newItem(2, makeStoredDocKey("key1"));
+        ml.newItem(Vbid(3), makeStoredDocKey("key1"));
+        ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
         ml.commit2();
         // This will be dropped from the normal loading path
         // because there's no commit.
-        ml.newItem(3, makeStoredDocKey("key2"));
+        ml.newItem(Vbid(3), makeStoredDocKey("key2"));
         // Remaining:   3:key1, 2:key1
 
         EXPECT_EQ(3, ml.itemsLogged[int(MutationLogType::New)]);
@@ -271,9 +271,9 @@ TEST_F(MutationLogTest, LoggingDirty) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVBucket(1);
-        h.setVBucket(2);
-        h.setVBucket(3);
+        h.setVBucket(Vbid(1));
+        h.setVBucket(Vbid(2));
+        h.setVBucket(Vbid(3));
 
         EXPECT_FALSE(h.load());
 
@@ -310,10 +310,10 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(2, makeStoredDocKey("key1"));
+        ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
         ml.commit2();
-        ml.newItem(3, makeStoredDocKey("key2"));
+        ml.newItem(Vbid(3), makeStoredDocKey("key2"));
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
@@ -337,9 +337,9 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVBucket(1);
-        h.setVBucket(2);
-        h.setVBucket(3);
+        h.setVBucket(Vbid(1));
+        h.setVBucket(Vbid(2));
+        h.setVBucket(Vbid(3));
 
         EXPECT_THROW(h.load(), MutationLog::CRCReadException);
 
@@ -374,10 +374,10 @@ TEST_F(MutationLogTest, LoggingShortRead) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(2, makeStoredDocKey("key1"));
+        ml.newItem(Vbid(2), makeStoredDocKey("key1"));
         ml.commit1();
         ml.commit2();
-        ml.newItem(3, makeStoredDocKey("key2"));
+        ml.newItem(Vbid(3), makeStoredDocKey("key2"));
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
@@ -395,9 +395,9 @@ TEST_F(MutationLogTest, LoggingShortRead) {
 
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVBucket(1);
-        h.setVBucket(2);
-        h.setVBucket(3);
+        h.setVBucket(Vbid(1));
+        h.setVBucket(Vbid(2));
+        h.setVBucket(Vbid(3));
 
         EXPECT_THROW(h.load(), MutationLog::ShortReadException);
     }
@@ -428,9 +428,9 @@ TEST_F(MutationLogTest, Iterator) {
     {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
-        ml.newItem(0, makeStoredDocKey("key1"));
-        ml.newItem(0, makeStoredDocKey("key2"));
-        ml.newItem(0, makeStoredDocKey("key3"));
+        ml.newItem(Vbid(0), makeStoredDocKey("key1"));
+        ml.newItem(Vbid(0), makeStoredDocKey("key2"));
+        ml.newItem(Vbid(0), makeStoredDocKey("key3"));
         ml.commit1();
         ml.commit2();
 
@@ -469,7 +469,7 @@ TEST_F(MutationLogTest, BatchLoad) {
         // the requested number.
         for (size_t ii = 0; ii < 10; ii++) {
             std::string key = std::string("key") + std::to_string(ii);
-            ml.newItem(ii % 2, makeStoredDocKey(key));
+            ml.newItem(Vbid(ii % 2), makeStoredDocKey(key));
         }
         ml.commit1();
         ml.commit2();
@@ -483,8 +483,8 @@ TEST_F(MutationLogTest, BatchLoad) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
         MutationLogHarvester h(ml);
-        h.setVBucket(0);
-        h.setVBucket(1);
+        h.setVBucket(Vbid(0));
+        h.setVBucket(Vbid(1));
 
         // Ask for 2 items, ensure we get just two.
         auto next_it = h.loadBatch(ml.begin(), 2);
@@ -519,14 +519,14 @@ TEST_F(MutationLogTest, ReadOnly) {
 
     MutationLog m2(tmp_log_filename);
     m2.open();
-    m2.newItem(3, makeStoredDocKey("key1"));
+    m2.newItem(Vbid(3), makeStoredDocKey("key1"));
     m2.close();
 
     // We should be able to open the file now
     ml.open(true);
 
     // But we should not be able to add items to a read only stream
-    EXPECT_THROW(ml.newItem(4, makeStoredDocKey("key2")),
+    EXPECT_THROW(ml.newItem(Vbid(4), makeStoredDocKey("key2")),
                  MutationLog::WriteException);
 }
 
@@ -543,14 +543,14 @@ public:
     static MockMutationLogEntryV1* newEntry(uint8_t* buf,
                                             uint64_t r,
                                             MutationLogType t,
-                                            uint16_t vb,
+                                            Vbid vb,
                                             const std::string& k) {
         return new (buf) MockMutationLogEntryV1(r, t, vb, k);
     }
 
     MockMutationLogEntryV1(uint64_t r,
                            MutationLogType t,
-                           uint16_t vb,
+                           Vbid vb,
                            const std::string& k)
         : MutationLogEntryV1(r, t, vb, k) {
     }
@@ -578,7 +578,7 @@ TEST_F(MutationLogTest, upgrade) {
                    reinterpret_cast<uint8_t*>(&swapped),
                    reinterpret_cast<uint8_t*>(&swapped) + sizeof(uint16_t));
 
-    const uint16_t vbid = 3;
+    const Vbid vbid = Vbid(3);
     std::vector<std::string> keys;
     for (int ii = 0; ii < items; ii++) {
         keys.push_back({"mykey" + std::to_string(ii)});
@@ -631,10 +631,10 @@ TEST_F(MutationLogTest, upgrade) {
         auto next_it = h.loadBatch(ml.begin(), 2);
         EXPECT_NE(next_it, ml.end());
 
-        std::map<StoredDocKey, uint64_t> maps[vbid + 1];
+        std::map<StoredDocKey, uint64_t> maps[4]; // 4 <- vbid.get() + 1
         h.apply(&maps, loaderFun);
         for (int i = 0; i < 2; i++) {
-            EXPECT_TRUE(maps[vbid].count(makeStoredDocKey(keys[i])) == 1);
+            EXPECT_TRUE(maps[vbid.get()].count(makeStoredDocKey(keys[i])) == 1);
         }
 
         // Ask for the remainder
@@ -642,7 +642,7 @@ TEST_F(MutationLogTest, upgrade) {
         EXPECT_EQ(ml.end(), next_it);
         h.apply(&maps, loaderFun);
         for (int i = 2; i < items; i++) {
-            EXPECT_TRUE(maps[vbid].count(makeStoredDocKey(keys[i])) == 1);
+            EXPECT_TRUE(maps[vbid.get()].count(makeStoredDocKey(keys[i])) == 1);
         }
     }
 }

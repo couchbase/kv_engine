@@ -42,14 +42,15 @@ protected:
     /* Helper methods for tests */
 
     /* Stores an item into the given vbucket. */
-    void store_item(uint16_t vbid, const std::string& key,
+    void store_item(Vbid vbid,
+                    const std::string& key,
                     const std::string& value);
 
     std::string config_string;
 
     static const char test_dbname[];
 
-    const uint16_t vbid = 0;
+    const Vbid vbid = Vbid(0);
 
     EngineIface* handle;
     EngineIface* engine_v1;

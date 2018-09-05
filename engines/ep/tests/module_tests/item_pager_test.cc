@@ -132,7 +132,7 @@ protected:
      * @param expiry value for items. 0 == no TTL.
      * @return number of documents written.
      */
-    size_t populateUntilTmpFail(uint16_t vbid, rel_time_t ttl = 0) {
+    size_t populateUntilTmpFail(Vbid vbid, rel_time_t ttl = 0) {
         size_t count = 0;
         const std::string value(512, 'x'); // 512B value to use for documents.
         ENGINE_ERROR_CODE result;
@@ -174,7 +174,7 @@ protected:
         return count;
     }
 
-    void populateUntilAboveHighWaterMark(uint16_t vbid) {
+    void populateUntilAboveHighWaterMark(Vbid vbid) {
         bool populate = true;
         int count = 0;
         auto& stats = engine->getEpStats();
@@ -320,9 +320,10 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     }
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
-    const uint16_t activeVB = 0;
-    const uint16_t pendingVB = 1;
-    const uint16_t replicaVB = 2;
+    const Vbid activeVB = Vbid(0);
+    const Vbid pendingVB = Vbid(1);
+    const Vbid replicaVB = Vbid(2);
+
     // Set pendingVB online, initially as active (so we can populate it).
     store->setVBucketState(pendingVB, vbucket_state_active, false);
     // Set replicaVB online, initially as active (so we can populate it).
@@ -698,8 +699,8 @@ class STEphemeralItemPagerTest : public STItemPagerTest {
 // For Ephemeral buckets, replica items should not be paged out (deleted) -
 // as that would cause the replica to have a diverging history from the active.
 TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
-    const uint16_t active_vb = 0;
-    const uint16_t replica_vb = 1;
+    const Vbid active_vb = Vbid(0);
+    const Vbid replica_vb = Vbid(1);
     // Set vBucket 1 online, initially as active (so we can populate it).
     store->setVBucketState(replica_vb, vbucket_state_active, false);
 
@@ -902,7 +903,7 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
 TEST_P(STExpiryPagerTest, MB_25650) {
     expiredItemsDeleted();
 
-    auto vb = store->getVBucket(0);
+    auto vb = store->getVBucket(Vbid(0));
 
     auto key_1 = makeStoredDocKey("key_1");
     ItemMetaData metadata;

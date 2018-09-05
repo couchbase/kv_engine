@@ -82,9 +82,8 @@ void SingleThreadedKVBucketTest::TearDown() {
     KVBucketTest::TearDown();
 }
 
-void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(uint16_t vbid,
-                                                                 vbucket_state_t
-                                                                 newState) {
+void SingleThreadedKVBucketTest::setVBucketStateAndRunPersistTask(
+        Vbid vbid, vbucket_state_t newState) {
     // Change state - this should add 1 set_vbucket_state op to the
     //VBuckets' persistence queue.
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -254,7 +253,7 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
 }
 
 void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
-                                                 uint16_t vbid) {
+                                                 Vbid vbid) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(ENGINE_SUCCESS,
               producer.streamRequest(0, // flags
@@ -448,8 +447,9 @@ TEST_F(SingleThreadedEPBucketTest,
             engine->getConfiguration().getDcpProducerSnapshotMarkerYieldLimit();
     std::shared_ptr<MockActiveStream> stream;
     for (size_t id = 0; id < iterationLimit + 1; id++) {
-        setVBucketStateAndRunPersistTask(id, vbucket_state_active);
-        auto vb = store->getVBucket(id);
+        Vbid vbid = Vbid(id);
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+        auto vb = store->getVBucket(vbid);
         stream = producer->mockActiveStreamRequest(/*flags*/ 0,
                                                    /*opaque*/ 0,
                                                    *vb,
@@ -464,21 +464,21 @@ TEST_F(SingleThreadedEPBucketTest,
         auto result = stream->next();
         EXPECT_FALSE(result);
         EXPECT_TRUE(stream->isInMemory())
-                << "vb:" << id << " should be state:in-memory at start";
+                << vbid << " should be state:in-memory at start";
 
         // Create an item and flush to disk (so ActiveStream::nextCheckpointItem
         // will have data available when call next() - and will add vb to
         // ActiveStreamCheckpointProcessorTask's queue.
         EXPECT_TRUE(queueNewItem(*vb, "key1"));
         EXPECT_EQ(std::make_pair(false, size_t(1)),
-                  getEPBucket().flushVBucket(id));
+                  getEPBucket().flushVBucket(vbid));
 
         // And then request another item, to add the VBID to
         // ActiveStreamCheckpointProcessorTask's queue.
         result = stream->next();
         EXPECT_FALSE(result);
         EXPECT_EQ(id + 1, producer->getCheckpointSnapshotTask().queueSize())
-                << "Should have added vb:" << id << " to ProcessorTask queue";
+                << "Should have added " << vbid << " to ProcessorTask queue";
     }
 
     // Should now have dcp_producer_snapshot_marker_yield_limit + 1 items
@@ -489,7 +489,7 @@ TEST_F(SingleThreadedEPBucketTest,
 
     // Use last Stream as the one we're going to drop the cursor on (this is
     // also at the back of the queue).
-    auto vb = store->getVBuckets().getBucket(iterationLimit);
+    auto vb = store->getVBuckets().getBucket(Vbid(iterationLimit));
     auto& ckptMgr = *vb->checkpointManager;
 
     // 1. Now trigger cursor dropping for this stream.
@@ -633,7 +633,7 @@ TEST_F(SingleThreadedEPBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
 
     // Now close the stream
-    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(vbid, 0 /*opaque*/));
+    EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(0 /*opaque*/, vbid));
 
     // Next we to ensure the recreated stream really does a backfill, so drop
     // in-memory items
@@ -2134,9 +2134,9 @@ public:
     /**
      * Test is currently using couchstore API directly to make the VB appear old
      */
-    static void rewriteVBStateAs25x(uint16_t vbucket) {
+    static void rewriteVBStateAs25x(Vbid vbucket) {
         std::string filename = std::string(test_dbname) + "/" +
-                               std::to_string(vbucket) + ".couch.1";
+                               std::to_string(vbucket.get()) + ".couch.1";
         Db* handle;
         couchstore_error_t err = couchstore_open_db(
                 filename.c_str(), COUCHSTORE_OPEN_FLAG_CREATE, &handle);
@@ -2787,7 +2787,7 @@ public:
     void closeAndRecreateStream() {
         // Without the fix, 5 will be lost
         store_item(vbid, makeStoredDocKey("5"), "don't lose me");
-        producer->closeStream(1, 0);
+        producer->closeStream(1, Vbid(0));
         auto vb = store->getVBuckets().getBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
         producer->mockActiveStreamRequest(DCP_ADD_STREAM_FLAG_TAKEOVER,
@@ -3078,7 +3078,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
         store_item(vbid, makeStoredDocKey(key), key);
     }
 
-    auto vb0Stream = producer->findStream(0);
+    auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
     EXPECT_TRUE(vb0Stream->isBackfilling());
@@ -3162,7 +3162,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
 
     EXPECT_EQ(vb->getPurgeSeqno(), 4);
 
-    auto vb0Stream = producer->findStream(0);
+    auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
     EXPECT_TRUE(vb0Stream->isBackfilling());
@@ -3251,7 +3251,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     // Next the backfill should switch to takeover-send and progress to close
     // with the correct sequence of step/ack
 
-    auto vb0Stream = producer->findStream(0);
+    auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
     // However without the fix from MB-29541 this would return success, meaning
     // the front-end thread should sleep until notified the stream is ready.
@@ -3431,7 +3431,7 @@ TEST_F(SingleThreadedEPBucketTest, testRetainErroneousTombstones) {
     // KVStore layer to set the delete time to 0.
     auto* kvstore = epstore.getVBucket(vbid)->getShard()
                                             ->getRWUnderlying();
-    GetValue gv = kvstore->get(key1, 0);
+    GetValue gv = kvstore->get(key1, Vbid(0));
     std::unique_ptr<Item> itm = std::move(gv.item);
     ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
     ASSERT_TRUE(itm->isDeleted());

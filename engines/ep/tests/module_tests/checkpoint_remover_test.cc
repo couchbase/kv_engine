@@ -38,11 +38,11 @@ size_t CheckpointRemoverTest::getMaxCheckpointItems(VBucket& vb) {
  */
 TEST_F(CheckpointRemoverEPTest, GetActiveVBucketsSortedByChkMgrMem) {
     for (uint16_t i = 0; i < 3; i++) {
-        setVBucketStateAndRunPersistTask(i, vbucket_state_active);
+        setVBucketStateAndRunPersistTask(Vbid(i), vbucket_state_active);
         for (uint16_t j = 0; j < i; j++) {
             std::string doc_key =
                     "key_" + std::to_string(i) + "_" + std::to_string(j);
-            store_item(i, makeStoredDocKey(doc_key), "value");
+            store_item(Vbid(i), makeStoredDocKey(doc_key), "value");
         }
     }
 

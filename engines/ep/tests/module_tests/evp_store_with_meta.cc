@@ -561,7 +561,7 @@ TEST_P(AllWithMetaTest, nmvb) {
     std::string value = "myvalue";
     auto swm = buildWithMetaPacket(GetParam(),
                                    0 /*datatype*/,
-                                   vbid + 1 /*vbucket*/,
+                                   Vbid(vbid.get() + 1),
                                    0 /*opaque*/,
                                    0 /*cas*/,
                                    {1, 0, 0, 0},
@@ -571,20 +571,23 @@ TEST_P(AllWithMetaTest, nmvb) {
 
     // Set a dead VB
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(vbid + 1, vbucket_state_dead, false));
+              store->setVBucketState(
+                      Vbid(vbid.get() + 1), vbucket_state_dead, false));
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(GetParam(), swm));
 
     // update the VB in the packet to the pending one
     auto packet = reinterpret_cast<protocol_binary_request_header*>(swm.data());
-    packet->request.vbucket = htons(vbid + 2);
+    packet->request.vbucket = Vbid(vbid.get() + 2).hton();
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(vbid + 2, vbucket_state_pending, false));
+              store->setVBucketState(
+                      Vbid(vbid.get() + 2), vbucket_state_pending, false));
     EXPECT_EQ(ENGINE_EWOULDBLOCK, callEngine(GetParam(), swm));
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
 
     // Re-run the op now active, else we have a memory leak
     EXPECT_EQ(ENGINE_SUCCESS,
-              store->setVBucketState(vbid + 2, vbucket_state_active, false));
+              store->setVBucketState(
+                      Vbid(vbid.get() + 2), vbucket_state_active, false));
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
 }
 

@@ -34,13 +34,13 @@ class VBucket;
 
 /// Creates an item with the given vbucket id, key and value.
 Item make_item(
-        uint16_t vbid,
+        Vbid vbid,
         const DocKey& key,
         const std::string& value,
         uint32_t exptime = 0,
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON);
 
-std::unique_ptr<Item> makeCompressibleItem(uint16_t vbid,
+std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                            const DocKey& key,
                                            const std::string& value,
                                            protocol_binary_datatype_t datatype,

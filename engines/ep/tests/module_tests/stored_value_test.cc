@@ -44,7 +44,7 @@ public:
              std::make_unique<Factory>(stats),
              /*size*/ 47,
              /*locks*/ 1),
-          item(make_item(0, makeStoredDocKey("key"), "value")) {
+          item(make_item(Vbid(0), makeStoredDocKey("key"), "value")) {
     }
 
     void SetUp() override {
@@ -110,7 +110,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
      */
 
     auto sv = this->factory(
-            make_item(0,
+            make_item(Vbid(0),
                       makeStoredDocKey(std::string(10, 'k').c_str()),
                       std::string(182, 'v').c_str()),
             {});
@@ -140,7 +140,7 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
  */
 TYPED_TEST(ValueTest, StoredValueUncompressibleReallocateGivesSameSize) {
     auto sv = this->factory(
-            make_item(0,
+            make_item(Vbid(0),
                       makeStoredDocKey(std::string(10, 'k').c_str()),
                       std::string(182, 'v').c_str()),
             {});
@@ -268,7 +268,7 @@ TYPED_TEST(ValueTest, freqCounter) {
 }
 
 TYPED_TEST(ValueTest, initialFreqCounterForTemp) {
-    Item itm = make_item(0,
+    Item itm = make_item(Vbid(0),
                          makeStoredDocKey(std::string("key").c_str()),
                          std::string("value").c_str());
     itm.setBySeqno(StoredValue::state_temp_init);
@@ -285,7 +285,7 @@ TYPED_TEST(ValueTest, replaceValue) {
     ASSERT_EQ(100, this->sv->getFreqCounterValue());
 
     auto sv = this->factory(
-            make_item(0,
+            make_item(Vbid(0),
                       makeStoredDocKey(std::string("key").c_str()),
                       std::string("value").c_str()),
             {});
@@ -299,9 +299,9 @@ TYPED_TEST(ValueTest, restoreValue) {
     this->sv->setFreqCounterValue(100);
     ASSERT_EQ(100, this->sv->getFreqCounterValue());
 
-    auto itm = make_item(0,
-                      makeStoredDocKey(std::string("key").c_str()),
-                      std::string("value").c_str());
+    auto itm = make_item(Vbid(0),
+                         makeStoredDocKey(std::string("key").c_str()),
+                         std::string("value").c_str());
 
     this->sv->restoreValue(itm);
     EXPECT_EQ(4, this->sv->getFreqCounterValue());
@@ -312,9 +312,9 @@ TYPED_TEST(ValueTest, restoreMeta) {
     this->sv->setFreqCounterValue(100);
     ASSERT_EQ(100, this->sv->getFreqCounterValue());
 
-    auto itm = make_item(0,
-                      makeStoredDocKey(std::string("key").c_str()),
-                      std::string("value").c_str());
+    auto itm = make_item(Vbid(0),
+                         makeStoredDocKey(std::string("key").c_str()),
+                         std::string("value").c_str());
 
     this->sv->restoreMeta(itm);
     EXPECT_EQ(4, this->sv->getFreqCounterValue());

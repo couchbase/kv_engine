@@ -663,7 +663,7 @@ TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
             "{\"product\": \"bus\",\"price\": \"1000\"},"
             "{\"product\": \"Train\",\"price\": \"100000\"}");
 
-    auto item = makeCompressibleItem(0,
+    auto item = makeCompressibleItem(Vbid(0),
                                      makeStoredDocKey("key0"),
                                      valueData,
                                      PROTOCOL_BINARY_DATATYPE_JSON,

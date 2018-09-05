@@ -34,7 +34,7 @@
 
 void VBucketTest::SetUp() {
     const auto eviction_policy = GetParam();
-    vbucket.reset(new EPVBucket(0,
+    vbucket.reset(new EPVBucket(Vbid(0),
                                 vbucket_state_active,
                                 global_stats,
                                 checkpoint_config,

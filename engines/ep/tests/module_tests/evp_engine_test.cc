@@ -83,7 +83,7 @@ void EventuallyPersistentEngineTest::TearDown() {
     cb::io::rmrf(test_dbname);
 }
 
-void EventuallyPersistentEngineTest::store_item(uint16_t vbid,
+void EventuallyPersistentEngineTest::store_item(Vbid vbid,
                                                 const std::string& key,
                                                 const std::string& value) {
     Item item(makeStoredDocKey(key),

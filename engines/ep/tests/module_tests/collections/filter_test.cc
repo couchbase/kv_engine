@@ -41,7 +41,7 @@ public:
     };
 
     CollectionsFilterTest()
-        : vb(0,
+        : vb(Vbid(0),
              vbucket_state_active,
              global_stats,
              checkpoint_config,

@@ -51,7 +51,7 @@
 template <typename V>
 CheckpointTest<V>::CheckpointTest()
     : callback(new DummyCB()),
-      vbucket(new V(0,
+      vbucket(new V(Vbid(0),
                     vbucket_state_active,
                     global_stats,
                     checkpoint_config,
@@ -196,7 +196,7 @@ TYPED_TEST_CASE(CheckpointTest, VBucketTypes);
 
 TYPED_TEST(CheckpointTest, basic_chk_test) {
     std::shared_ptr<Callback<Vbid> > cb(new DummyCB());
-    this->vbucket.reset(new TypeParam(0,
+    this->vbucket.reset(new TypeParam(Vbid(0),
                                       vbucket_state_active,
                                       this->global_stats,
                                       this->checkpoint_config,
@@ -211,7 +211,7 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
                                       item_eviction_policy_t::VALUE_ONLY));
 
     this->manager.reset(new CheckpointManager(
-            this->global_stats, 0, this->checkpoint_config, 1, 0, 0, cb));
+            this->global_stats, Vbid(0), this->checkpoint_config, 1, 0, 0, cb));
 
     const size_t n_set_threads = RUNNING_ON_VALGRIND ? NUM_SET_THREADS_VG :
                                                        NUM_SET_THREADS;

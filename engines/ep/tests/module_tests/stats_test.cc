@@ -83,7 +83,7 @@ protected:
 
 TEST_F(StatTest, vbucket_seqno_stats_test) {
     using namespace testing;
-    const std::string vbucket = "vb_" + std::to_string(vbid);
+    const std::string vbucket = "vb_" + std::to_string(vbid.get());
     auto vals = get_stat("vbucket-seqno");
 
     EXPECT_THAT(vals, UnorderedElementsAre(
@@ -105,8 +105,9 @@ TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
                                         "test_producer",
                                         /*flags*/ 0);
 
-    const std::string stat = "dcp-vbtakeover " + std::to_string(vbid) +
-            " test_producer";;
+    const std::string stat =
+            "dcp-vbtakeover " + std::to_string(vbid.get()) + " test_producer";
+    ;
     auto vals = get_stat(stat.c_str());
     EXPECT_EQ("does_not_exist", vals["status"]);
     EXPECT_EQ(0, std::stoi(vals["estimate"]));
@@ -122,7 +123,7 @@ TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
             cookie, "test_producer", DCP_OPEN_NOTIFIER);
 
     uint64_t rollbackSeqno;
-    const std::string stat = "dcp-vbtakeover " + std::to_string(vbid) +
+    const std::string stat = "dcp-vbtakeover " + std::to_string(vbid.get()) +
             " test_producer";;
     ASSERT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
@@ -175,7 +176,7 @@ void setDatatypeItem(KVBucket* store,
                      protocol_binary_datatype_t datatype,
                      std::string name, std::string val = "[0]") {
     Item item(make_item(
-            0, {name, DocKeyEncodesCollectionId::No}, val, 0, datatype));
+            Vbid(0), {name, DocKeyEncodesCollectionId::No}, val, 0, datatype));
     store->set(item, cookie);
 }
 
@@ -261,7 +262,7 @@ TEST_P(DatatypeStatTest, datatypeDeletion) {
     mutation_descr_t mutation_descr;
     store->deleteItem({"jsonXattrDoc", DocKeyEncodesCollectionId::No},
                       cas,
-                      0,
+                      Vbid(0),
                       cookie,
                       nullptr,
                       mutation_descr);
@@ -281,13 +282,16 @@ TEST_P(DatatypeStatTest, datatypeCompressedJsonXattr) {
 }
 
 TEST_P(DatatypeStatTest, datatypeExpireItem) {
-    Item item(make_item(0,
+    Item item(make_item(Vbid(0),
                         {"expiryDoc", DocKeyEncodesCollectionId::No},
                         "[0]",
                         1,
                         PROTOCOL_BINARY_DATATYPE_JSON));
     store->set(item, cookie);
-    store->get({"expiryDoc", DocKeyEncodesCollectionId::No}, 0, cookie, NONE);
+    store->get({"expiryDoc", DocKeyEncodesCollectionId::No},
+               Vbid(0),
+               cookie,
+               NONE);
     auto vals = get_stat(nullptr);
 
     //Should be 0, becuase the doc should have expired
@@ -297,6 +301,7 @@ TEST_P(DatatypeStatTest, datatypeExpireItem) {
 
 TEST_P(DatatypeStatTest, datatypeEviction) {
     const DocKey key = {"jsonXattrDoc", DocKeyEncodesCollectionId::No};
+    Vbid vbid = Vbid(0);
     setDatatypeItem(
             store,
             cookie,
@@ -304,9 +309,9 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
             "jsonXattrDoc");
     auto vals = get_stat(nullptr);
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
-    getEPBucket().flushVBucket(0);
+    getEPBucket().flushVBucket(vbid);
     const char* msg;
-    store->evictKey(key, 0, &msg);
+    store->evictKey(key, vbid, &msg);
     vals = get_stat(nullptr);
     if (GetParam() == "value_only"){
         // Should still be 1 as only value is evicted
@@ -316,11 +321,11 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
         EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_json,xattr"]));
     }
 
-    store->get(key, 0, cookie, QUEUE_BG_FETCH);
+    store->get(key, vbid, cookie, QUEUE_BG_FETCH);
     if (GetParam() == "full_eviction") {
         // Run the bgfetch to restore the item from disk
         ExTask task = std::make_shared<SingleBGFetcherTask>(
-                engine.get(), key, 0, cookie, false, 0, false);
+                engine.get(), key, Vbid(0), cookie, false, 0, false);
         task_executor->schedule(task);
         runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX]);
     }
@@ -333,6 +338,7 @@ TEST_P(DatatypeStatTest, MB23892) {
     // This test checks that updating a document with a different datatype is
     // safe to do after an eviction (where the blob is now null)
     const DocKey key = {"jsonXattrDoc", DocKeyEncodesCollectionId::No};
+    Vbid vbid = Vbid(0);
     setDatatypeItem(
             store,
             cookie,
@@ -340,10 +346,10 @@ TEST_P(DatatypeStatTest, MB23892) {
             "jsonXattrDoc");
     auto vals = get_stat(nullptr);
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
-    getEPBucket().flushVBucket(0);
+    getEPBucket().flushVBucket(vbid);
     const char* msg;
-    store->evictKey(key, 0, &msg);
-    getEPBucket().flushVBucket(0);
+    store->evictKey(key, vbid, &msg);
+    getEPBucket().flushVBucket(vbid);
     setDatatypeItem(store, cookie, PROTOCOL_BINARY_DATATYPE_JSON, "jsonXattrDoc", "[1]");
 }
 

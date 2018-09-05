@@ -53,7 +53,7 @@ public:
     void TearDown() override;
 
     // Stores an item into the given vbucket. Returns the item stored.
-    Item store_item(uint16_t vbid,
+    Item store_item(Vbid vbid,
                     const DocKey& key,
                     const std::string& value,
                     uint32_t exptime = 0,
@@ -68,7 +68,7 @@ public:
      */
     ::testing::AssertionResult store_items(
             int nitems,
-            uint16_t vbid,
+            Vbid vbid,
             const DocKey& key,
             const std::string& value,
             uint32_t exptime = 0,
@@ -78,7 +78,7 @@ public:
     /* Flush the given vbucket to disk, so any outstanding dirty items are
      * written (and are clean).
      */
-    void flush_vbucket_to_disk(uint16_t vbid, size_t expected = 1);
+    void flush_vbucket_to_disk(Vbid vbid, size_t expected = 1);
 
     /**
      * Flush the given vBucket to disk if the bucket is peristent, otherwise
@@ -86,12 +86,12 @@ public:
      * @param vbid vBucket to flush
      * @param expected Expected number of items to be flushed.
      */
-    void flushVBucketToDiskIfPersistent(uint16_t vbid, int expected = 1);
+    void flushVBucketToDiskIfPersistent(Vbid vbid, int expected = 1);
 
     /* Delete the given item from the given vbucket, verifying it was
      * successfully deleted.
      */
-    void delete_item(uint16_t vbid, const DocKey& key);
+    void delete_item(Vbid vbid, const DocKey& key);
 
     /**
      * Store and delete a given key
@@ -100,18 +100,16 @@ public:
      * @param key    key that needs to be stored and deleted
      * @param value  value for the key
      */
-    void storeAndDeleteItem(uint16_t vbid,
-                            const DocKey& key,
-                            std::string value);
+    void storeAndDeleteItem(Vbid vbid, const DocKey& key, std::string value);
 
     /* Evict the given key from memory according to the current eviction
      * strategy. Verifies it was successfully evicted.
      */
-    void evict_key(uint16_t vbid, const DocKey& key);
+    void evict_key(Vbid vbid, const DocKey& key);
 
     /// Exposes the normally-protected getInternal method from the store.
     GetValue getInternal(const DocKey& key,
-                         uint16_t vbucket,
+                         Vbid vbucket,
                          const void* cookie,
                          vbucket_state_t allowedState,
                          get_options_t options);
@@ -128,7 +126,7 @@ public:
      *
      * @result engine error code signifying result of the operation
      */
-    ENGINE_ERROR_CODE getMeta(uint16_t vbid,
+    ENGINE_ERROR_CODE getMeta(Vbid vbid,
                               const DocKey key,
                               const void* cookie,
                               ItemMetaData& itemMeta,
@@ -166,7 +164,7 @@ public:
     static std::vector<char> buildWithMetaPacket(
             protocol_binary_command opcode,
             protocol_binary_datatype_t datatype,
-            uint16_t vbucket,
+            Vbid vbucket,
             uint32_t opaque,
             uint64_t cas,
             ItemMetaData metaData,
@@ -226,7 +224,7 @@ private:
 public:
     std::string config_string;
 
-    const uint16_t vbid = 0;
+    const Vbid vbid = Vbid(0);
 
     // The mock engine (needed to construct the store).
     std::unique_ptr<SynchronousEPEngine> engine;

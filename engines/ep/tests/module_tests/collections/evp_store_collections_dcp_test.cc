@@ -47,6 +47,7 @@ public:
         : cookieC(create_mock_cookie()), cookieP(create_mock_cookie()) {
         mock_set_collections_support(cookieP, true);
         mock_set_collections_support(cookieC, true);
+        replicaVB = Vbid(1);
     }
 
     // Setup a producer/consumer ready for the test
@@ -151,7 +152,7 @@ public:
         cookieP = create_mock_cookie();
     }
 
-    static const uint16_t replicaVB{1};
+    static Vbid replicaVB;
     static std::shared_ptr<MockDcpConsumer> consumer;
     static mcbp::systemevent::id dcp_last_system_event;
 
@@ -198,7 +199,7 @@ public:
     std::unique_ptr<dcp_message_producers> producers;
     std::shared_ptr<MockDcpProducer> producer;
 };
-
+Vbid CollectionsDcpTest::replicaVB;
 std::shared_ptr<MockDcpConsumer> CollectionsDcpTest::consumer;
 mcbp::systemevent::id CollectionsDcpTest::dcp_last_system_event;
 
@@ -420,7 +421,7 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
     // Finally check that the active and replica have the same manifest, our
     // BeginDeleteCollection should of contained enough information to form
     // an equivalent manifest
-    EXPECT_EQ(getManifest(vbid), getManifest(vbid + 1));
+    EXPECT_EQ(getManifest(vbid), getManifest(Vbid(vbid.get() + 1)));
 }
 
 // Test that a create/delete don't dedup (collections creates new checkpoints)
@@ -451,7 +452,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
 
         // Persist everything ready for warmup and check.
         // Flusher will merge create/delete and we only flush the delete
-        flush_vbucket_to_disk(0, (2 * items) + 2);
+        flush_vbucket_to_disk(Vbid(0), (2 * items) + 2);
 
         // We will see create fruit/dairy and delete dairy (from another CP)
         // In-memory stream will also see all 2*items mutations (ordered with
@@ -506,7 +507,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
         }
 
         // Flush the creates and the items, but do not flush the next delete
-        flush_vbucket_to_disk(0, (2 * items) + 2);
+        flush_vbucket_to_disk(Vbid(0), (2 * items) + 2);
     }
 
     // To force the first full backfill, kill the engine
@@ -572,7 +573,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
 
         // Persist everything ready for warmup and check.
         // Flush the items + 1 delete (dairy) and 1 create (dairy2)
-        flush_vbucket_to_disk(0, items + 2);
+        flush_vbucket_to_disk(Vbid(0), items + 2);
 
         // However DCP - Should see 2x create dairy and 1x delete dairy
         testDcpCreateDelete(2, 1, items);
@@ -612,7 +613,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
 
         // Persist everything ready for warmup and check.
         // Flush the items + 1 delete (dairy) and 1 create (dairy2)
-        flush_vbucket_to_disk(0, items + 2);
+        flush_vbucket_to_disk(Vbid(0), items + 2);
 
         // However DCP - Should see 2x create dairy and 1x delete dairy
         testDcpCreateDelete(2, 1, items);
@@ -768,7 +769,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     store_item(
             vbid, StoredDocKey{"meat:three", CollectionEntry::meat}, "value");
 
-    auto vb0Stream = producer->findStream(0);
+    auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
     notifyAndStepToCheckpoint();
@@ -864,7 +865,7 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
     store_item(
             vbid, StoredDocKey{"meat:three", CollectionEntry::meat}, "value");
 
-    auto vb0Stream = producer->findStream(0);
+    auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
     // Now step into the items of which we expect to see only anykey
@@ -889,7 +890,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     // Setup filtered DCP
     createDcpObjects({{R"({"collections":["2"]})"}});
 
-    auto vb0Stream = producer->findStream(0);
+    auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
     notifyAndStepToCheckpoint();
@@ -970,7 +971,7 @@ TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
     // and should self-close if the default collection were to be deleted
     createDcpObjects({});
 
-    auto vb0Stream = producer->findStream(0);
+    auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
     // No keys have been written and no event can be sent, so expect nothing

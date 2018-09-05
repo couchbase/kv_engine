@@ -365,7 +365,7 @@ protected:
     void SetUp() override {
         bucketType = GetParam();
         DCPTest::SetUp();
-        vb0 = engine->getVBucket(0);
+        vb0 = engine->getVBucket(Vbid(0));
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
     }
 
@@ -391,7 +391,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
                                        /*opaque*/ 0,
-                                       /*vbucket*/ 0,
+                                       Vbid(0),
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 0,
                                        /*vb_uuid*/ 0,
@@ -403,8 +403,8 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
-    auto activeStream =
-            std::dynamic_pointer_cast<ActiveStream>(producer->findStream(0));
+    auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
+            producer->findStream(Vbid(0)));
     ASSERT_NE(nullptr, activeStream);
     EXPECT_TRUE(activeStream->isKeyOnly());
     destroy_dcp_stream();
@@ -447,7 +447,7 @@ public:
     void SetUp() override {
         bucketType = ::testing::get<0>(GetParam());
         DCPTest::SetUp();
-        vb0 = engine->getVBucket(0);
+        vb0 = engine->getVBucket(Vbid(0));
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
     }
 
@@ -591,7 +591,7 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       /*opaque*/ 0,
-                                      /*vbucket*/ 0,
+                                      Vbid(0),
                                       /*start_seqno*/ 0,
                                       /*end_seqno*/ ~0,
                                       /*vb_uuid*/ 0,
@@ -686,7 +686,7 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       /*opaque*/ 0,
-                                      /*vbucket*/ 0,
+                                      Vbid(0),
                                       /*start_seqno*/ 0,
                                       /*end_seqno*/ ~0,
                                       /*vb_uuid*/ 0,
@@ -775,7 +775,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       /*opaque*/ 0,
-                                      /*vbucket*/ 0,
+                                      Vbid(0),
                                       /*start_seqno*/ 0,
                                       /*end_seqno*/ ~0,
                                       /*vb_uuid*/ 0,
@@ -856,7 +856,7 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
                                        /*opaque*/ 0,
-                                       /*vbucket*/ 0,
+                                       Vbid(0),
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ ~0,
                                        /*vb_uuid*/ 0,
@@ -954,7 +954,7 @@ TEST_P(StreamTest, test_verifyProducerStats) {
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
                                        /*opaque*/ 0,
-                                       /*vbucket*/ 0,
+                                       Vbid(0),
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ ~0,
                                        /*vb_uuid*/ 0,
@@ -1019,7 +1019,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
                                        /*opaque*/ 0,
-                                       /*vbucket*/ 0,
+                                       Vbid(0),
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 0,
                                        /*vb_uuid*/ 0,
@@ -1031,8 +1031,8 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
-    auto activeStream =
-            std::dynamic_pointer_cast<ActiveStream>(producer->findStream(0));
+    auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
+            producer->findStream(Vbid(0)));
     ASSERT_NE(nullptr, activeStream);
     EXPECT_FALSE(activeStream->isKeyOnly());
     destroy_dcp_stream();
@@ -1048,7 +1048,7 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
                                        /*opaque*/ 0,
-                                       /*vbucket*/ 0,
+                                       Vbid(0),
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 0,
                                        /*vb_uuid*/ 0,
@@ -1060,8 +1060,8 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
-    auto activeStream =
-            std::dynamic_pointer_cast<ActiveStream>(producer->findStream(0));
+    auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
+            producer->findStream(Vbid(0)));
     ASSERT_NE(nullptr, activeStream);
     EXPECT_FALSE(activeStream->isKeyOnly());
     destroy_dcp_stream();
@@ -1631,7 +1631,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       /*opaque*/ 0,
-                                      /*vbucket*/ 0,
+                                      Vbid(0),
                                       /*start_seqno*/ numItems - 2,
                                       /*end_seqno*/ numItems,
                                       vbUuid,
@@ -1650,7 +1650,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       /*opaque*/ 0,
-                                      /*vbucket*/ 0,
+                                      Vbid(0),
                                       /*start_seqno*/ numItems - 2,
                                       /*end_seqno*/ numItems,
                                       vbUuid,
@@ -1669,7 +1669,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     EXPECT_EQ(ENGINE_ROLLBACK,
               producer->streamRequest(/*flags*/ 0,
                                       /*opaque*/ 0,
-                                      /*vbucket*/ 0,
+                                      Vbid(0),
                                       /*start_seqno*/ numItems - 2,
                                       /*end_seqno*/ numItems,
                                       vbUuid,
@@ -1703,7 +1703,7 @@ TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
               producer->streamRequest(/*flags*/ 0,
                                       /*opaque*/ 0,
-                                      /*vbucket*/ 0,
+                                      Vbid(0),
                                       /*start_seqno*/ 0,
                                       /*end_seqno*/ 0,
                                       vbUuid,
@@ -1883,7 +1883,7 @@ protected:
     void SetUp() override {
         bucketType = std::get<0>(GetParam());
         DCPTest::SetUp();
-        vbid = 0;
+        vbid = Vbid(0);
         if (bucketType == "ephemeral") {
             engine->getConfiguration().setEphemeralFullPolicy(
                     std::get<1>(GetParam()));
@@ -2276,7 +2276,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     /* Open stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
-    const Vbid vbid = 0;
+    const Vbid vbid = Vbid(0);
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       opaque,
@@ -2354,7 +2354,7 @@ TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
     /* Open stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
-    const Vbid vbid = 0;
+    const Vbid vbid = Vbid(0);
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(/*flags*/ 0,
                                       opaque,
@@ -2430,19 +2430,20 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
 
 TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     const void* cookie = create_mock_cookie();
+    Vbid vbid(0);
     // Create a Mock Dcp consumer
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     consumer->setLastMessageTime(1234);
-    consumer->addStream(/*opaque*/0, /*vbucket*/0, /*flags*/0);
+    consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for addStream";
     consumer->setLastMessageTime(1234);
-    consumer->closeStream(/*opaque*/0, /*vbucket*/0);
+    consumer->closeStream(/*opaque*/ 0, vbid);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for closeStream";
     consumer->setLastMessageTime(1234);
-    consumer->streamEnd(/*opaque*/0, /*vbucket*/0, /*flags*/0);
+    consumer->streamEnd(/*opaque*/ 0, vbid, /*flags*/ 0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for streamEnd";
     const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
@@ -2452,7 +2453,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                        0, // priv bytes
                        PROTOCOL_BINARY_RAW_BYTES,
                        0, // cas
-                       0, // vbucket
+                       vbid, // vbucket
                        0, // flags
                        0, // locktime
                        0, // by seqno
@@ -2469,7 +2470,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                        0, // priv bytes
                        PROTOCOL_BINARY_RAW_BYTES,
                        0, // cas
-                       0, // vbucket
+                       vbid, // vbucket
                        0, // by seqno
                        0, // rev seqno
                        {}); // meta
@@ -2482,18 +2483,18 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                          0, // priv bytes
                          PROTOCOL_BINARY_RAW_BYTES,
                          0, // cas
-                         0, // vbucket
+                         vbid, // vbucket
                          0, // by seqno
                          0, // rev seqno
                          {}); // meta
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for expiration";
     consumer->setLastMessageTime(1234);
-    consumer->snapshotMarker(/*opaque*/0,
-                             /*vbucket*/0,
-                             /*start_seqno*/0,
-                             /*end_seqno*/0,
-                             /*flags*/0);
+    consumer->snapshotMarker(/*opaque*/ 0,
+                             vbid,
+                             /*start_seqno*/ 0,
+                             /*end_seqno*/ 0,
+                             /*flags*/ 0);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for snapshotMarker";
     consumer->setLastMessageTime(1234);
@@ -2501,9 +2502,9 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for noop";
     consumer->setLastMessageTime(1234);
-    consumer->setVBucketState(/*opaque*/0,
-                              /*vbucket*/0,
-                              /*state*/vbucket_state_active);
+    consumer->setVBucketState(/*opaque*/ 0,
+                              vbid,
+                              /*state*/ vbucket_state_active);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for setVBucketState";
     destroy_mock_cookie(cookie);
@@ -2511,7 +2512,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
 
 TEST_P(ConnectionTest, test_consumer_add_stream) {
     const void* cookie = create_mock_cookie();
-    Vbid vbid = 0;
+    Vbid vbid = Vbid(0);
 
     /* Create a Mock Dcp consumer */
     auto consumer =
@@ -2762,21 +2763,21 @@ TEST_P(ConnectionTest, test_mb21784) {
     EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     // Send a snapshotMarker to move the vbucket into a backfilling state
-    consumer->snapshotMarker(/*opaque*/1,
-                             /*vbucket*/0,
-                             /*start_seqno*/0,
-                             /*end_seqno*/0,
-                             /*flags set to MARKER_FLAG_DISK*/0x2);
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             Vbid(0),
+                             /*start_seqno*/ 0,
+                             /*end_seqno*/ 0,
+                             /*flags set to MARKER_FLAG_DISK*/ 0x2);
 
     // A side effect of moving the vbucket into a backfill state is that
     // the openCheckpointId is set to 0
     EXPECT_EQ(0, manager.getOpenCheckpointId());
 
-    consumer->snapshotMarker(/*opaque*/1,
-                             /*vbucket*/0,
-                             /*start_seqno*/0,
-                             /*end_seqno*/0,
-                             /*flags*/0);
+    consumer->snapshotMarker(/*opaque*/ 1,
+                             Vbid(0),
+                             /*start_seqno*/ 0,
+                             /*end_seqno*/ 0,
+                             /*flags*/ 0);
 
     // Check that a new checkpoint was created, which means the
     // opencheckpointid increases to 1
@@ -2818,7 +2819,7 @@ protected:
     }
 
     SynchronousEPEngine engine;
-    const Vbid vbid = 0;
+    const Vbid vbid = Vbid(0);
 };
 
 /* Tests that there is no memory loss due to cyclic reference between connection
@@ -3071,7 +3072,7 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
 // correct size.
 TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
     const void* cookie = create_mock_cookie();
-    Vbid vbid = 0;
+    Vbid vbid = Vbid(0);
 
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
@@ -3121,7 +3122,7 @@ TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
 // correct size.
 TEST_P(ConnectionTest, test_mb24424_mutationResponse) {
     const void* cookie = create_mock_cookie();
-    Vbid vbid = 0;
+    Vbid vbid = Vbid(0);
 
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
@@ -3499,7 +3500,7 @@ public:
     const void* cookie;
     std::unique_ptr<dcp_message_producers> producers;
     std::shared_ptr<MockDcpProducer> producer;
-    const int vbid = 0;
+    const Vbid vbid = Vbid(0);
 };
 
 TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {

@@ -87,7 +87,7 @@ public:
     /**
      * Create a DCP stream on the producer for vbid
      */
-    void createDcpStream(MockDcpProducer& producer, uint16_t vbid);
+    void createDcpStream(MockDcpProducer& producer, Vbid vbid);
 
     /**
      * Run the compaction task
@@ -107,8 +107,7 @@ protected:
      * for this bucket type).
      * On return the state will be changed and the task completed.
      */
-    void setVBucketStateAndRunPersistTask(uint16_t vbid,
-                                          vbucket_state_t newState);
+    void setVBucketStateAndRunPersistTask(Vbid vbid, vbucket_state_t newState);
 
     /*
      * Set the stats isShutdown and attempt to drive all tasks to cancel for

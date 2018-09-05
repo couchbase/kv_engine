@@ -174,7 +174,7 @@ public:
     ActiveReplicaManifest()
         : active(),
           replica(),
-          vbA(0,
+          vbA(Vbid(0),
               vbucket_state_active,
               global_stats,
               checkpoint_config,
@@ -187,7 +187,7 @@ public:
               /*newSeqnoCb*/ nullptr,
               config,
               VALUE_ONLY),
-          vbR(1,
+          vbR(Vbid(1),
               vbucket_state_replica,
               global_stats,
               checkpoint_config,
@@ -375,8 +375,8 @@ public:
         }
 
         if (events.empty()) {
-            throw std::logic_error("getEventsFromCheckpoint: no events in vb:" +
-                                   std::to_string(vb.getId()));
+            throw std::logic_error("getEventsFromCheckpoint: no events in " +
+                                   vb.getId().to_string());
         }
     }
 

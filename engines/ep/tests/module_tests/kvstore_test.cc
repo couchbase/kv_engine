@@ -43,8 +43,9 @@
 
 class KVStoreTestCacheCallback : public StatusCallback<CacheLookup> {
 public:
-    KVStoreTestCacheCallback(int64_t s, int64_t e, uint16_t vbid) :
-        start(s), end(e), vb(vbid) { }
+    KVStoreTestCacheCallback(int64_t s, int64_t e, Vbid vbid)
+        : start(s), end(e), vb(vbid) {
+    }
 
     void callback(CacheLookup &lookup) {
         EXPECT_EQ(vb, lookup.getVBucketId());
@@ -55,7 +56,7 @@ public:
 private:
     int64_t start;
     int64_t end;
-    uint16_t vb;
+    Vbid vb;
 };
 
 class GetCallback : public StatusCallback<GetValue> {
@@ -173,7 +174,7 @@ protected:
 };
 
 // Initializes a KVStore
-static void initialize_kv_store(KVStore* kvstore, uint16_t vbid = 0) {
+static void initialize_kv_store(KVStore* kvstore, Vbid vbid = Vbid(0)) {
     std::string failoverLog("");
     // simulate the setVbState by incrementing the rev
     kvstore->incrementRevision(vbid);
@@ -197,8 +198,8 @@ static void initialize_kv_store(KVStore* kvstore, uint16_t vbid = 0) {
 
 // Creates and initializes a KVStore with the given config
 static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config,
-                                               std::vector<uint16_t> vbids = {
-                                                       0}) {
+                                               std::vector<Vbid> vbids = {
+                                                       Vbid(0)}) {
     auto kvstore = KVStoreFactory::create(config);
     for (auto vbid : vbids) {
         initialize_kv_store(kvstore.rw.get(), vbid);
@@ -277,9 +278,12 @@ TEST_F(CouchKVStoreTest, CompressedTest) {
     kvstore->commit(flush);
 
     auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
-    auto cl = std::make_shared<KVStoreTestCacheCallback>(1, 5, 0);
+    auto cl = std::make_shared<KVStoreTestCacheCallback>(1, 5, Vbid(0));
     ScanContext* scanCtx;
-    scanCtx = kvstore->initScanContext(cb, cl, 0, 1,
+    scanCtx = kvstore->initScanContext(cb,
+                                       cl,
+                                       Vbid(0),
+                                       1,
                                        DocumentFilter::ALL_ITEMS,
                                        ValueFilter::VALUES_COMPRESSED);
 
@@ -339,7 +343,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     compactionConfig.purge_before_seq = 0;
     compactionConfig.purge_before_ts = 0;
     compactionConfig.drop_deletes = 0;
-    compactionConfig.db_file_id = 0;
+    compactionConfig.db_file_id = Vbid(0);
     compaction_ctx cctx(compactionConfig, 0);
     cctx.curr_time = 0;
 
@@ -385,7 +389,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
                         failoverLog,
                         false);
     EXPECT_TRUE(kvstore.rw->snapshotVBucket(
-            /*vbid*/ 0, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
+            Vbid(0), state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT));
     EXPECT_EQ(~0ull, kvstore.rw->listPersistedVbuckets()[0]->maxCas);
 
     // Close the file, then re-open.
@@ -408,7 +412,7 @@ TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
     ASSERT_NE(nullptr, kvstore.ro);
 
     // Expect to get a system_error (ENOENT)
-    EXPECT_THROW(kvstore.ro->getDbFileInfo(0), std::system_error);
+    EXPECT_THROW(kvstore.ro->getDbFileInfo(Vbid(0)), std::system_error);
 }
 
 class CollectionsOfflineUpgadeCallback : public StatusCallback<CacheLookup> {
@@ -476,7 +480,7 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     ScanContext* scanCtx;
     scanCtx = kvstore2.rw->initScanContext(cb,
                                            cl,
-                                           0,
+                                           Vbid(0),
                                            1,
                                            DocumentFilter::ALL_ITEMS,
                                            ValueFilter::VALUES_COMPRESSED);
@@ -805,7 +809,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
-        gv = kvstore->get(items.front().getKey(), 0);
+        gv = kvstore->get(items.front().getKey(), Vbid(0));
     }
     EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
 }
@@ -829,7 +833,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
-        gv = kvstore->get(items.front().getKey(), 0);
+        gv = kvstore->get(items.front().getKey(), Vbid(0));
     }
     EXPECT_EQ(ENGINE_TMPFAIL, gv.getStatus());
 }
@@ -854,8 +858,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
-        kvstore->getMulti(0, itms);
-
+        kvstore->getMulti(Vbid(0), itms);
     }
     EXPECT_EQ(ENGINE_TMPFAIL, itms[items.at(0).getKey()].value.getStatus());
 }
@@ -875,7 +878,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
-        kvstore->getMulti(0, itms);
+        kvstore->getMulti(Vbid(0), itms);
 
         EXPECT_EQ(1, kvstore->getKVStoreStat().numGetFailure);
     }
@@ -892,7 +895,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     config.purge_before_seq = 0;
     config.purge_before_ts = 0;
     config.drop_deletes = 0;
-    config.db_file_id = 0;
+    config.db_file_id = Vbid(0);
     compaction_ctx cctx(config, 0);
     cctx.curr_time = 0;
 
@@ -931,7 +934,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, reset_commit) {
         EXPECT_CALL(ops, sync(_, _))
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
 
-        kvstore->reset(0);
+        kvstore->reset(Vbid(0));
     }
 }
 
@@ -949,7 +952,10 @@ TEST_F(CouchKVStoreErrorInjectionTest, initScanContext_changes_count) {
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
 
         ScanContext* scanCtx = nullptr;
-        scanCtx = kvstore->initScanContext(cb, cl, 0, 0,
+        scanCtx = kvstore->initScanContext(cb,
+                                           cl,
+                                           Vbid(0),
+                                           0,
                                            DocumentFilter::ALL_ITEMS,
                                            ValueFilter::VALUES_DECOMPRESSED);
         EXPECT_EQ(nullptr, scanCtx)
@@ -969,9 +975,13 @@ TEST_F(CouchKVStoreErrorInjectionTest, scan_changes_since) {
     populate_items(1);
     auto cb(std::make_shared<CustomCallback<GetValue>>());
     auto cl(std::make_shared<CustomCallback<CacheLookup>>());
-    auto scan_context = kvstore->initScanContext(cb, cl, 0, 0,
-                                              DocumentFilter::ALL_ITEMS,
-                                              ValueFilter::VALUES_DECOMPRESSED);
+    auto scan_context =
+            kvstore->initScanContext(cb,
+                                     cl,
+                                     Vbid(0),
+                                     0,
+                                     DocumentFilter::ALL_ITEMS,
+                                     ValueFilter::VALUES_DECOMPRESSED);
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -998,9 +1008,13 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
     populate_items(1);
     auto cb(std::make_shared<CustomCallback<GetValue>>());
     auto cl(std::make_shared<CustomCallback<CacheLookup>>());
-    auto scan_context = kvstore->initScanContext(cb, cl, 0, 0,
-                                                 DocumentFilter::ALL_ITEMS,
-                                                 ValueFilter::VALUES_DECOMPRESSED);
+    auto scan_context =
+            kvstore->initScanContext(cb,
+                                     cl,
+                                     Vbid(0),
+                                     0,
+                                     DocumentFilter::ALL_ITEMS,
+                                     ValueFilter::VALUES_DECOMPRESSED);
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -1049,7 +1063,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
 
-        kvstore->rollback(0, 5, rcb);
+        kvstore->rollback(Vbid(0), 5, rcb);
     }
 }
 
@@ -1083,7 +1097,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
             .WillOnce(Return(COUCHSTORE_ERROR_ALLOC_FAIL)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(9).RetiresOnSaturation();
 
-        kvstore->rollback(0, 5, rcb);
+        kvstore->rollback(Vbid(0), 5, rcb);
     }
 }
 
@@ -1115,7 +1129,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(11).RetiresOnSaturation();
 
-        kvstore->rollback(0, 5, rcb);
+        kvstore->rollback(Vbid(0), 5, rcb);
     }
 }
 
@@ -1147,7 +1161,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(20).RetiresOnSaturation();
 
-        kvstore->rollback(0, 5, rcb);
+        kvstore->rollback(Vbid(0), 5, rcb);
     }
 }
 
@@ -1173,8 +1187,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
 
-
-        kvstore->getAllKeys(0, start, 1, adcb);
+        kvstore->getAllKeys(Vbid(0), start, 1, adcb);
     }
 }
 
@@ -1332,7 +1345,7 @@ public:
 
         bool deleteItem = false;
         MutationRequestCallback requestcb;
-        uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId()];
+        uint64_t fileRev = (*dbFileRevMap)[itm.getVBucketId().get()];
 
         // each req will be de-allocated after commit
         requestcb.setCb = &cb;
@@ -1377,7 +1390,7 @@ public:
         std::string failoverLog("");
         // simulate a setVBState - increment the rev and then persist the
         // state
-        kvstore->incrementRevision(0);
+        kvstore->incrementRevision(vbid);
         vbucket_state state(vbucket_state_active,
                             0,
                             0,
@@ -1391,9 +1404,9 @@ public:
                             failoverLog,
                             false);
         // simulate a setVBState - increment the dbFile revision
-        kvstore->incrementRevision(0);
-        kvstore->snapshotVBucket(0, state,
-                                 VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
+        kvstore->incrementRevision(vbid);
+        kvstore->snapshotVBucket(
+                vbid, state, VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT);
     }
 
     ~CouchstoreTest() {
@@ -1403,7 +1416,7 @@ public:
 protected:
     std::string data_dir;
     std::unique_ptr<MockCouchKVStore> kvstore;
-    uint16_t vbid;
+    Vbid vbid;
     KVStoreConfig config;
     Collections::VB::Manifest manifest;
     Collections::VB::Flush flush;
@@ -1473,7 +1486,7 @@ TEST_F(CouchstoreTest, noMeta) {
 
     kvstore->commit(flush);
 
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     checkGetValue(gv, ENGINE_TMPFAIL);
 }
 
@@ -1489,7 +1502,7 @@ TEST_F(CouchstoreTest, shortMeta) {
     request->writeMetaData(meta, 4); // not enough meta!
     kvstore->commit(flush);
 
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     checkGetValue(gv, ENGINE_TMPFAIL);
 }
 
@@ -1517,7 +1530,7 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
     EXPECT_CALL(gc, expTime(0xaa00bb11));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_RAW_BYTES));
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1547,7 +1560,7 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_DATATYPE_JSON));
 
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1573,7 +1586,7 @@ TEST_F(CouchstoreTest, fuzzV0) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_RAW_BYTES));
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1600,7 +1613,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(expectedDataType)));
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1641,7 +1654,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     gc.callback(gv);
 
     // Write back the item we read (this will write out V1 meta)
@@ -1656,7 +1669,7 @@ TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     EXPECT_CALL(gc2, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc2, flags(0x01020304));
     EXPECT_CALL(gc2, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv2 = kvstore->get(key, 0);
+    GetValue gv2 = kvstore->get(key, Vbid(0));
     gc2.callback(gv2);
 }
 
@@ -1702,7 +1715,7 @@ TEST_F(CouchstoreTest, testV2WriteRead) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1761,7 +1774,7 @@ TEST_F(CouchstoreTest, testV0CompactionUpgrade) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     gc.callback(gv);
 }
 
@@ -1815,7 +1828,7 @@ TEST_F(CouchstoreTest, testV2CompactionUpgrade) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     gc.callback(gv);
 }
 
@@ -2068,7 +2081,7 @@ TEST_P(KVStoreParamTest, BasicTest) {
 
     EXPECT_TRUE(kvstore->commit(flush));
 
-    GetValue gv = kvstore->get(key, 0);
+    GetValue gv = kvstore->get(key, Vbid(0));
     checkGetValue(gv);
 }
 
@@ -2119,7 +2132,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
 TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     WriteCallback wc;
     std::string value = "value";
-    std::vector<uint16_t> vbids = {0, 1};
+    std::vector<Vbid> vbids = {Vbid(0), Vbid(1)};
 
     // For this test we need to initialize both VBucket 0 and VBucket 1.
     // In the case of RocksDB we need to release the DB already opened in 'kvstore'
@@ -2131,7 +2144,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     // Store an item into each VBucket
     for (auto vbid : vbids) {
         kvstore->begin(std::make_unique<TransactionContext>());
-        Item item(makeStoredDocKey("key-" + std::to_string(vbid)),
+        Item item(makeStoredDocKey("key-" + std::to_string(vbid.get())),
                   0 /*flags*/,
                   0 /*exptime*/,
                   value.c_str(),
@@ -2147,14 +2160,14 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
     // Check that each item has been stored in the right VBucket
     for (auto vbid : vbids) {
         GetValue gv = kvstore->get(
-                makeStoredDocKey("key-" + std::to_string(vbid)), vbid);
+                makeStoredDocKey("key-" + std::to_string(vbid.get())), vbid);
         checkGetValue(gv);
     }
 
     // Check that an item is not found in a different VBucket
-    GetValue gv = kvstore->get(makeStoredDocKey("key-0"), 1 /*vbid*/);
+    GetValue gv = kvstore->get(makeStoredDocKey("key-0"), Vbid(1));
     checkGetValue(gv, ENGINE_KEY_ENOENT);
-    gv = kvstore->get(makeStoredDocKey("key-1"), 0 /*vbid*/);
+    gv = kvstore->get(makeStoredDocKey("key-1"), Vbid(0));
     checkGetValue(gv, ENGINE_KEY_ENOENT);
 }
 
@@ -2170,7 +2183,7 @@ TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
               PROTOCOL_BINARY_RAW_BYTES,
               0 /*cas*/,
               -1 /*bySeqno*/,
-              0 /*vbid*/);
+              Vbid(0));
     auto set = [&] {
         for (int i = 0; i < 10; i++) {
             kvstore->begin(std::make_unique<TransactionContext>());
@@ -2180,7 +2193,7 @@ TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
     };
     auto delVBucket = [&] {
         for (int i = 0; i < 10; i++) {
-            kvstore->delVBucket(0 /*vbid*/, 0 /*fileRev*/);
+            kvstore->delVBucket(Vbid(0), 0 /*fileRev*/);
         }
     };
     auto getStat = [&] {
@@ -2207,9 +2220,10 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
     WriteCallback wc;
     for (int i = 1; i < 10; i++) {
         kvstore->begin(std::make_unique<TransactionContext>());
-        kvstore->set(
-                make_item(0, makeStoredDocKey(std::string(i, 'k')), "value"),
-                wc);
+        kvstore->set(make_item(Vbid(0),
+                               makeStoredDocKey(std::string(i, 'k')),
+                               "value"),
+                     wc);
         kvstore->commit(flush);
     }
 
@@ -2219,11 +2233,11 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         tg.threadUp();
         for (int i = 0; i < 10; i++) {
             auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
-            auto cl = std::make_shared<KVStoreTestCacheCallback>(1, 5, 0);
+            auto cl = std::make_shared<KVStoreTestCacheCallback>(1, 5, Vbid(0));
             ScanContext* scanCtx;
             scanCtx = kvstore->initScanContext(cb,
                                                cl,
-                                               0,
+                                               Vbid(0),
                                                1,
                                                DocumentFilter::ALL_ITEMS,
                                                ValueFilter::VALUES_COMPRESSED);
@@ -2241,7 +2255,7 @@ TEST_P(KVStoreParamTest, CompactAndScan) {
         config.purge_before_ts = 0;
 
         config.drop_deletes = 0;
-        config.db_file_id = 0;
+        config.db_file_id = Vbid(0);
         compaction_ctx cctx(config, 0);
         cctx.curr_time = 0;
         for (int i = 0; i < 10; i++) {
@@ -2261,7 +2275,7 @@ TEST_P(KVStoreParamTest, HighSeqnoCorrectlyStoredForCommitBatch) {
     const std::string key = "key";
     std::string value = "value";
     WriteCallback wc;
-    uint16_t vbid = 0;
+    Vbid vbid = Vbid(0);
 
     // Upsert an item 10 times in a single transaction (we want to test that
     // the VBucket state is updated with the highest seqno found in a commit

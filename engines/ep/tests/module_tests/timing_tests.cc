@@ -84,7 +84,7 @@ static ENGINE_ERROR_CODE storeCasVb11(EngineIface* h,
                                       uint32_t flags,
                                       item** outitem,
                                       uint64_t casIn,
-                                      uint16_t vb) {
+                                      Vbid vb) {
     uint64_t cas = 0;
 
     auto ret = h->allocate(cookie,
@@ -183,9 +183,17 @@ static test_result test_persistence(EngineIface* h) {
         item *it = NULL;
         snprintf(key, sizeof(key), "k%d", static_cast<int>(i));
 
-        check(storeCasVb11(h, NULL, OPERATION_SET, key, data,
-                           size, 9713, &it, 0, 0) == ENGINE_SUCCESS,
-                  "store failure");
+        check(storeCasVb11(h,
+                           NULL,
+                           OPERATION_SET,
+                           key,
+                           data,
+                           size,
+                           9713,
+                           &it,
+                           0,
+                           Vbid(0)) == ENGINE_SUCCESS,
+              "store failure");
     }
     cb_free(data);
     wait_for_flusher_to_settle(h);

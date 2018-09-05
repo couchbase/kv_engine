@@ -113,7 +113,7 @@ void KVBucketTest::reinitialise(std::string config) {
     initialise(config);
 }
 
-Item KVBucketTest::store_item(uint16_t vbid,
+Item KVBucketTest::store_item(Vbid vbid,
                               const DocKey& key,
                               const std::string& value,
                               uint32_t exptime,
@@ -130,7 +130,7 @@ Item KVBucketTest::store_item(uint16_t vbid,
 
 ::testing::AssertionResult KVBucketTest::store_items(
         int nitems,
-        uint16_t vbid,
+        Vbid vbid,
         const DocKey& key,
         const std::string& value,
         uint32_t exptime,
@@ -151,7 +151,7 @@ Item KVBucketTest::store_item(uint16_t vbid,
     return ::testing::AssertionSuccess();
 }
 
-void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, size_t expected) {
+void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {
     size_t actualFlushed = 0;
     const auto time_limit = std::chrono::seconds(10);
     const auto deadline = std::chrono::steady_clock::now() + time_limit;
@@ -182,13 +182,13 @@ void KVBucketTest::flush_vbucket_to_disk(uint16_t vbid, size_t expected) {
             << ") in flush_vbucket_to_disk(" << vbid << ", " << expected << ")";
 }
 
-void KVBucketTest::flushVBucketToDiskIfPersistent(uint16_t vbid, int expected) {
+void KVBucketTest::flushVBucketToDiskIfPersistent(Vbid vbid, int expected) {
     if (engine->getConfiguration().getBucketType() == "persistent") {
         flush_vbucket_to_disk(vbid, expected);
     }
 }
 
-void KVBucketTest::delete_item(uint16_t vbid, const DocKey& key) {
+void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -200,7 +200,7 @@ void KVBucketTest::delete_item(uint16_t vbid, const DocKey& key) {
                                 mutation_descr));
 }
 
-void KVBucketTest::evict_key(uint16_t vbid, const DocKey& key) {
+void KVBucketTest::evict_key(Vbid vbid, const DocKey& key) {
     const char* msg;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               store->evictKey(key, vbid, &msg));
@@ -208,7 +208,7 @@ void KVBucketTest::evict_key(uint16_t vbid, const DocKey& key) {
 }
 
 GetValue KVBucketTest::getInternal(const DocKey& key,
-                                   uint16_t vbucket,
+                                   Vbid vbucket,
                                    const void* cookie,
                                    vbucket_state_t allowedState,
                                    get_options_t options) {
@@ -239,7 +239,7 @@ void KVBucketTest::runBGFetcherTask() {
 std::vector<char> KVBucketTest::buildWithMetaPacket(
         protocol_binary_command opcode,
         protocol_binary_datatype_t datatype,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint32_t opaque,
         uint64_t cas,
         ItemMetaData metaData,
@@ -276,7 +276,7 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
     header.message.header.request.keylen = htons(key.size());
     header.message.header.request.extlen = uint8_t(extlen);
     header.message.header.request.datatype = datatype;
-    header.message.header.request.vbucket = htons(vbucket);
+    header.message.header.request.vbucket = vbucket.hton();
     header.message.header.request.bodylen = htonl(bodylen);
     header.message.header.request.opaque = opaque;
     header.message.header.request.cas = htonll(cas);
@@ -346,15 +346,15 @@ TEST_P(KVBucketParamTest, GetKeyStatsResident) {
     // Should start with key not existing.
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               store->getKeyStats(makeStoredDocKey("key"),
-                                 0,
+                                 Vbid(0),
                                  cookie,
                                  kstats,
                                  WantsDeleted::No));
 
-    store_item(0, makeStoredDocKey("key"), "value");
+    store_item(Vbid(0), makeStoredDocKey("key"), "value");
     EXPECT_EQ(ENGINE_SUCCESS,
               store->getKeyStats(makeStoredDocKey("key"),
-                                 0,
+                                 Vbid(0),
                                  cookie,
                                  kstats,
                                  WantsDeleted::No))
@@ -369,13 +369,13 @@ TEST_P(KVBucketParamTest, GetKeyStatsDeleted) {
     auto& kvbucket = *engine->getKVBucket();
     key_stats kstats;
 
-    store_item(0, makeStoredDocKey("key"), "value");
+    store_item(Vbid(0), makeStoredDocKey("key"), "value");
     delete_item(vbid, makeStoredDocKey("key"));
 
     // Should get ENOENT if we don't ask for deleted items.
     EXPECT_EQ(ENGINE_KEY_ENOENT,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
-                                   0,
+                                   Vbid(0),
                                    cookie,
                                    kstats,
                                    WantsDeleted::No));
@@ -384,7 +384,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsDeleted) {
     // items.
     EXPECT_EQ(ENGINE_SUCCESS,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
-                                   0,
+                                   Vbid(0),
                                    cookie,
                                    kstats,
                                    WantsDeleted::Yes));
@@ -399,7 +399,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsNMVB) {
 
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
-                                   1,
+                                   Vbid(1),
                                    cookie,
                                    kstats,
                                    WantsDeleted::No));
@@ -426,7 +426,8 @@ TEST_P(KVBucketParamTest, ReplaceDeleted) {
 
 // Check incorrect vbucket returns not-my-vbucket.
 TEST_P(KVBucketParamTest, ReplaceNMVB) {
-    auto item = make_item(vbid + 1, makeStoredDocKey("key"), "value2");
+    auto item =
+            make_item(Vbid(vbid.get() + 1), makeStoredDocKey("key"), "value2");
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->replace(item, cookie));
 }
 
@@ -576,7 +577,8 @@ TEST_P(KVBucketParamTest, Add) {
 
 // Check incorrect vbucket returns not-my-vbucket.
 TEST_P(KVBucketParamTest, AddNMVB) {
-    auto item = make_item(vbid + 1, makeStoredDocKey("key"), "value2");
+    auto item =
+            make_item(Vbid(vbid.get() + 1), makeStoredDocKey("key"), "value2");
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->add(item, cookie));
 }
 
@@ -726,7 +728,7 @@ TEST_P(KVBucketParamTest, mb22824) {
     auto key = makeStoredDocKey("key");
 
     // Store key and force expiry
-    store_item(0, key, "value", 1);
+    store_item(Vbid(0), key, "value", 1);
     TimeTraveller docBrown(20);
 
     uint32_t deleted = false;
@@ -824,7 +826,7 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     pool->cancel(task->getId());
 }
 
-void KVBucketTest::storeAndDeleteItem(uint16_t vbid,
+void KVBucketTest::storeAndDeleteItem(Vbid vbid,
                                       const DocKey& key,
                                       std::string value) {
     Item item = store_item(vbid,
@@ -838,7 +840,7 @@ void KVBucketTest::storeAndDeleteItem(uint16_t vbid,
     flushVBucketToDiskIfPersistent(vbid, 1);
 }
 
-ENGINE_ERROR_CODE KVBucketTest::getMeta(uint16_t vbid,
+ENGINE_ERROR_CODE KVBucketTest::getMeta(Vbid vbid,
                                         const DocKey key,
                                         const void* cookie,
                                         ItemMetaData& itemMeta,
@@ -1057,7 +1059,7 @@ TEST_P(KVBucketParamTest, MB_25948) {
 
     std::string value = createXattrValue("body");
 
-    Item item = store_item(0,
+    Item item = store_item(Vbid(0),
                            key,
                            value,
                            1,

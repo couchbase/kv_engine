@@ -34,7 +34,7 @@ class EphemeralVBucketTest : public VBucketTest {
 protected:
     void SetUp() {
         /* to test ephemeral vbucket specific stuff */
-        mockEpheVB = new MockEphemeralVBucket(0,
+        mockEpheVB = new MockEphemeralVBucket(Vbid(0),
                                               vbucket_state_active,
                                               global_stats,
                                               checkpoint_config,

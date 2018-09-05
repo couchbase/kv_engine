@@ -43,7 +43,7 @@ TEST_F(ObjectRegistryTest, NumItem) {
     ASSERT_EQ(0, engine.getEpStats().getNumItem());
 
     {
-        auto item = make_item(0, makeStoredDocKey("key"), "value");
+        auto item = make_item(Vbid(0), makeStoredDocKey("key"), "value");
         EXPECT_EQ(1, engine.getEpStats().getNumItem());
     }
     EXPECT_EQ(0, engine.getEpStats().getNumItem());
@@ -55,7 +55,7 @@ TEST_F(ObjectRegistryTest, MemOverhead) {
     ASSERT_EQ(0, engine.getEpStats().getMemOverhead());
 
     {
-        auto item = make_item(0, makeStoredDocKey("key"), "value");
+        auto item = make_item(Vbid(0), makeStoredDocKey("key"), "value");
         // Currently just checking the overhead is non-zero; could expand
         // to calculate expected size based on the Item's size.
         EXPECT_NE(0, engine.getEpStats().getMemOverhead());

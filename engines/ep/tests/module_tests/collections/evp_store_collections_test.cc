@@ -42,7 +42,7 @@ public:
         store->setVBucketState(vbid, vbucket_state_active, false);
     }
 
-    std::string getManifest(uint16_t vb) const {
+    std::string getManifest(Vbid vb) const {
         return store->getVBucket(vb)
                 ->getShard()
                 ->getRWUnderlying()
@@ -822,16 +822,16 @@ class CollectionsManagerTest : public CollectionsTest {};
 TEST_F(CollectionsManagerTest, basic) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
-    for (int vb = vbid + 1; vb <= (vbid + extraVbuckets); vb++) {
-        store->setVBucketState(vb, vbucket_state_active, false);
+    for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
+        store->setVBucketState(Vbid(vb), vbucket_state_active, false);
     }
 
     CollectionsManifest cm(CollectionEntry::meat);
     store->setCollections({cm});
 
     // Check all vbuckets got the collections
-    for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
-        auto vbp = store->getVBucket(vb);
+    for (int vb = vbid.get(); vb <= (vbid.get() + extraVbuckets); vb++) {
+        auto vbp = store->getVBucket(Vbid(vb));
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                 StoredDocKey{"meat:bacon", CollectionEntry::meat}));
         EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
@@ -847,11 +847,11 @@ TEST_F(CollectionsManagerTest, basic2) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
     // Add active and replica
-    for (int vb = vbid + 1; vb <= (vbid + extraVbuckets); vb++) {
+    for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
         if (vb & 1) {
-            store->setVBucketState(vb, vbucket_state_active, false);
+            store->setVBucketState(Vbid(vb), vbucket_state_active, false);
         } else {
-            store->setVBucketState(vb, vbucket_state_replica, false);
+            store->setVBucketState(Vbid(vb), vbucket_state_replica, false);
         }
     }
 
@@ -859,8 +859,8 @@ TEST_F(CollectionsManagerTest, basic2) {
     store->setCollections({cm});
 
     // Check all vbuckets got the collections
-    for (int vb = vbid; vb <= (vbid + extraVbuckets); vb++) {
-        auto vbp = store->getVBucket(vb);
+    for (int vb = vbid.get(); vb <= (vbid.get() + extraVbuckets); vb++) {
+        auto vbp = store->getVBucket(Vbid(vb));
         if (vbp->getState() == vbucket_state_active) {
             EXPECT_TRUE(vbp->lockCollections().doesKeyContainValidCollection(
                     StoredDocKey{"meat:bacon", CollectionEntry::meat}));
@@ -883,8 +883,8 @@ TEST_F(CollectionsManagerTest, basic2) {
 TEST_F(CollectionsManagerTest, cid_clash) {
     // Add some more VBuckets just so there's some iteration happening
     const int extraVbuckets = 2;
-    for (int vb = vbid + 1; vb <= (vbid + extraVbuckets); vb++) {
-        store->setVBucketState(vb, vbucket_state_active, false);
+    for (int vb = vbid.get() + 1; vb <= (vbid.get() + extraVbuckets); vb++) {
+        store->setVBucketState(Vbid(vb), vbucket_state_active, false);
     }
 
     CollectionsManifest cm;

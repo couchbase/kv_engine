@@ -32,11 +32,11 @@ public:
 
     SingleThreadedRCPtr<Item> item;
     void SetUp() {
-         item = std::make_unique<Item>(makeStoredDocKey("key"),
-                                       /*vb*/ 0,
-                                       queue_op::empty,
-                                       /*revSeq*/ 0,
-                                       /*bySeq*/0);
+        item = std::make_unique<Item>(makeStoredDocKey("key"),
+                                      Vbid(0),
+                                      queue_op::empty,
+                                      /*revSeq*/ 0,
+                                      /*bySeq*/ 0);
         }
 };
 

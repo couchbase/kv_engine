@@ -34,7 +34,7 @@ protected:
     }
 
     /// Add a number of documents to allow testing of sequence list stats.
-    void addDocumentsForSeqListTesting(uint16_t vbid);
+    void addDocumentsForSeqListTesting(Vbid vbid);
 };
 
 /**
