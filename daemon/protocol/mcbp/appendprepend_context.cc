@@ -184,7 +184,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
                                    old.len + value.len,
                                    priv_size,
                                    oldItemInfo.flags,
-                                   0,
+                                   (rel_time_t)oldItemInfo.exptime,
                                    datatype,
                                    vbucket);
 
@@ -239,7 +239,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
                     {},
                     {},
                     cb::mcbp::Datatype::Raw,
-                    0);
+                    ncas);
         } else {
             cookie.sendResponse(cb::mcbp::Status::Success);
         }
