@@ -132,3 +132,51 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
     conn.executeCommand(cmd, resp);
     EXPECT_TRUE(resp.isSuccess());
 }
+
+/**
+ * https://issues.couchbase.com/browse/MB-31070
+ *
+ * Expiry time becomes 0 after append.
+ *
+ * This test validates that it is fixed by:
+ *   1. Store a document with 30 seconds expiry time
+ *   2. Fetch the expiry time of the document (absolute time)
+ *   3. Performs an append
+ *   4. Fetch the expiry time of the document and verifies that it is unchanged
+ */
+TEST_P(RegressionTest, MB_31070) {
+    auto& conn = getConnection();
+
+    Document document;
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.flags = 0xcaffee;
+    document.info.id = name;
+    document.info.expiration = 30;
+    document.value = "hello";
+
+    conn.mutate(document, 0, MutationType::Set);
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$document.exptime", SUBDOC_FLAG_XATTR_PATH);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    conn.executeCommand(cmd, multiResp);
+
+    auto& results = multiResp.getResults();
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
+    const auto exptime = std::stol(results[0].value);
+    EXPECT_LT(0, exptime);
+
+    document.value = " world";
+    document.info.expiration = 0;
+    conn.mutate(document, 0, MutationType::Append);
+
+    conn.executeCommand(cmd, multiResp);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
+    EXPECT_EQ(exptime, std::stol(results[0].value));
+}

@@ -183,7 +183,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
                                    old.len + value.len,
                                    priv_size,
                                    oldItemInfo.flags,
-                                   0,
+                                   (rel_time_t)oldItemInfo.exptime,
                                    datatype,
                                    vbucket);
 
