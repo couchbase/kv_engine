@@ -238,7 +238,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
                     {},
                     {},
                     cb::mcbp::Datatype::Raw,
-                    0);
+                    ncas);
         } else {
             cookie.sendResponse(cb::mcbp::Status::Success);
         }
