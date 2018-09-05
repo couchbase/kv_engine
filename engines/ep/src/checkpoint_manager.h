@@ -88,16 +88,12 @@ public:
      * startBySeqno and endBySeqno, and close the open checkpoint if endBySeqno
      * belongs to the open checkpoint.
      * @param startBySeqno start bySeqno.
-     * @param needsCheckpointEndMetaItem indicates the CheckpointEndMetaItem
-     *        must not be skipped for the cursor.
      * @return Cursor registration result which consists of (1) the bySeqno with
      * which the cursor can start and (2) flag indicating if the cursor starts
      * with the first item on a checkpoint.
      */
-    CursorRegResult registerCursorBySeqno(
-                            const std::string &name,
-                            uint64_t startBySeqno,
-                            MustSendCheckpointEnd needsCheckpointEndMetaItem);
+    CursorRegResult registerCursorBySeqno(const std::string& name,
+                                          uint64_t startBySeqno);
 
     /**
      * Remove the cursor for a given connection.
@@ -399,11 +395,9 @@ protected:
 
     bool removeCursor_UNLOCKED(const CheckpointCursor* cursor);
 
-    CursorRegResult registerCursorBySeqno_UNLOCKED(
-            const LockHolder& lh,
-            const std::string& name,
-            uint64_t startBySeqno,
-            MustSendCheckpointEnd needsCheckpointEndMetaItem);
+    CursorRegResult registerCursorBySeqno_UNLOCKED(const LockHolder& lh,
+                                                   const std::string& name,
+                                                   uint64_t startBySeqno);
 
     size_t getNumItemsForCursor_UNLOCKED(const CheckpointCursor* cursor) const;
 

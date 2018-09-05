@@ -68,11 +68,6 @@ uint64_t CheckpointCursor::getId() const {
     return (*currentCheckpoint)->getId();
 }
 
-MustSendCheckpointEnd CheckpointCursor::shouldSendCheckpointEndMetaItem() const
-{
-    return sendCheckpointEndMetaItem;
-}
-
 size_t CheckpointCursor::getCurrentCkptMetaItemsRead() const {
     return ckptMetaItemsRead;
 }

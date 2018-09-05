@@ -189,8 +189,8 @@ std::unique_ptr<DcpResponse> ActiveStream::next(
 void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
                                   uint64_t lastProcessedSeqno) {
     try {
-        CursorRegResult result = chkptmgr.registerCursorBySeqno(
-                name_, lastProcessedSeqno, MustSendCheckpointEnd::NO);
+        CursorRegResult result =
+                chkptmgr.registerCursorBySeqno(name_, lastProcessedSeqno);
 
         /*
          * MB-22960:  Due to cursor dropping we re-register the replication
@@ -1161,9 +1161,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
         try {
             auto registerResult =
                     vbucket->checkpointManager->registerCursorBySeqno(
-                            name_,
-                            lastReadSeqno.load(),
-                            MustSendCheckpointEnd::NO);
+                            name_, lastReadSeqno.load());
             curChkSeqno = registerResult.seqno;
             tryBackfill = registerResult.tryBackfill;
             cursor = registerResult.cursor;
@@ -1262,9 +1260,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             try {
                 CursorRegResult result =
                         vbucket->checkpointManager->registerCursorBySeqno(
-                                name_,
-                                lastReadSeqno.load(),
-                                MustSendCheckpointEnd::NO);
+                                name_, lastReadSeqno.load());
                 curChkSeqno = result.seqno;
             } catch (std::exception& error) {
                 log(spdlog::level::level_enum::warn,

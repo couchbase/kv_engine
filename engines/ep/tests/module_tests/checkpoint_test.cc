@@ -232,8 +232,7 @@ TYPED_TEST(CheckpointTest, basic_chk_test) {
     std::vector<thread_args> dcp_t_args;
     for (size_t i = 0; i < n_dcp_threads; ++i) {
         std::string name(DCP_CURSOR_PREFIX + std::to_string(i));
-        auto cursorRegResult = this->manager->registerCursorBySeqno(
-                name, 0, MustSendCheckpointEnd::YES);
+        auto cursorRegResult = this->manager->registerCursorBySeqno(name, 0);
         dcp_t_args.emplace_back(thread_args{this->vbucket.get(),
                                             this->manager.get(),
                                             cursorRegResult.cursor,
@@ -655,8 +654,8 @@ TYPED_TEST(CheckpointTest, ItemsForCheckpointCursor) {
 
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
-    auto dcpCursor = this->manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 0, MustSendCheckpointEnd::NO);
+    auto dcpCursor =
+            this->manager->registerCursorBySeqno(dcp_cursor.c_str(), 0);
 
     /* Get items for persistence*/
     std::vector<queued_item> items;
@@ -744,8 +743,8 @@ TYPED_TEST(CheckpointTest, CursorMovement) {
 
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
-    auto dcpCursor = this->manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 0, MustSendCheckpointEnd::NO);
+    auto dcpCursor =
+            this->manager->registerCursorBySeqno(dcp_cursor.c_str(), 0);
 
     /* Get items for persistence cursor */
     std::vector<queued_item> items;
@@ -815,8 +814,8 @@ TYPED_TEST(CheckpointTest, MB25056_backfill_not_required) {
     // Register DCP replication cursor
     std::string dcp_cursor(DCP_CURSOR_PREFIX);
     // Request to register the cursor with a seqno that has been de-duped away
-    CursorRegResult result = this->manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 1005, MustSendCheckpointEnd::NO);
+    CursorRegResult result =
+            this->manager->registerCursorBySeqno(dcp_cursor.c_str(), 1005);
     EXPECT_EQ(1011, result.seqno) << "Returned seqno is not expected value.";
     EXPECT_FALSE(result.tryBackfill) << "Backfill is unexpectedly required.";
 }
@@ -1271,23 +1270,18 @@ TEST_F(SingleThreadedCheckpointTest,
 
 // Test that when the same client registers twice, the first cursor 'dies'
 TYPED_TEST(CheckpointTest, reRegister) {
-    auto dcpCursor1 = this->manager->registerCursorBySeqno(
-            "name", 0, MustSendCheckpointEnd::NO);
+    auto dcpCursor1 = this->manager->registerCursorBySeqno("name", 0);
     EXPECT_NE(nullptr, dcpCursor1.cursor.lock().get());
-    auto dcpCursor2 = this->manager->registerCursorBySeqno(
-            "name", 0, MustSendCheckpointEnd::NO);
+    auto dcpCursor2 = this->manager->registerCursorBySeqno("name", 0);
     EXPECT_EQ(nullptr, dcpCursor1.cursor.lock().get());
     EXPECT_NE(nullptr, dcpCursor2.cursor.lock().get());
     EXPECT_EQ(2, this->manager->getNumOfCursors());
 }
 
 TYPED_TEST(CheckpointTest, takeAndResetCursors) {
-    auto dcpCursor1 = this->manager->registerCursorBySeqno(
-            "name1", 0, MustSendCheckpointEnd::NO);
-    auto dcpCursor2 = this->manager->registerCursorBySeqno(
-            "name2", 0, MustSendCheckpointEnd::NO);
-    auto dcpCursor3 = this->manager->registerCursorBySeqno(
-            "name3", 0, MustSendCheckpointEnd::NO);
+    auto dcpCursor1 = this->manager->registerCursorBySeqno("name1", 0);
+    auto dcpCursor2 = this->manager->registerCursorBySeqno("name2", 0);
+    auto dcpCursor3 = this->manager->registerCursorBySeqno("name3", 0);
 
     EXPECT_EQ(0, this->manager->getNumItemsForPersistence());
     this->queueNewItem("key");

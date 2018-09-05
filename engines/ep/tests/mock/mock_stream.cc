@@ -18,12 +18,9 @@
 #include "mock_stream.h"
 #include "checkpoint_manager.h"
 
-void MockActiveStream::public_registerCursor(
-        CheckpointManager& manager,
-        const std::string& name,
-        int64_t seqno,
-        MustSendCheckpointEnd needsCheckpointEndMetaItem) {
-    auto registerResult = manager.registerCursorBySeqno(
-            name, seqno, needsCheckpointEndMetaItem);
+void MockActiveStream::public_registerCursor(CheckpointManager& manager,
+                                             const std::string& name,
+                                             int64_t seqno) {
+    auto registerResult = manager.registerCursorBySeqno(name, seqno);
     cursor = registerResult.cursor;
 }

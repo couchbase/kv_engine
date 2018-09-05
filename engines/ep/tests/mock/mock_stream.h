@@ -169,11 +169,9 @@ public:
     /// A callback to allow tests to inject code before we access the checkpoint
     std::function<void()> preGetOutstandingItemsCallback = [] { return; };
 
-    void public_registerCursor(
-            CheckpointManager& manager,
-            const std::string& name,
-            int64_t seqno,
-            MustSendCheckpointEnd needsCheckpointEndMetaItem);
+    void public_registerCursor(CheckpointManager& manager,
+                               const std::string& name,
+                               int64_t seqno);
 };
 
 /**

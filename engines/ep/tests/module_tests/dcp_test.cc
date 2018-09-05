@@ -248,10 +248,8 @@ protected:
                                                     includeVal,
                                                     includeXattrs);
 
-        stream->public_registerCursor(*vb0->checkpointManager,
-                                      producer->getName(),
-                                      0,
-                                      MustSendCheckpointEnd::NO);
+        stream->public_registerCursor(
+                *vb0->checkpointManager, producer->getName(), 0);
         stream->setActive();
     }
 

@@ -106,14 +106,14 @@ public:
 
     CheckpointCursor() { }
 
-    CheckpointCursor(const std::string &n)
+    CheckpointCursor(const std::string& n)
         : name(n),
           currentCheckpoint(),
           currentPos(),
           offset(0),
           ckptMetaItemsRead(0),
-          fromBeginningOnChkCollapse(false),
-          sendCheckpointEndMetaItem(MustSendCheckpointEnd::YES) { }
+          fromBeginningOnChkCollapse(false) {
+    }
 
     /**
      * @param offset_ Count of items (normal+meta) already read for *all*
@@ -126,27 +126,27 @@ public:
                      CheckpointQueue::iterator pos,
                      size_t offset_,
                      size_t meta_items_read,
-                     bool beginningOnChkCollapse,
-                     MustSendCheckpointEnd needsCheckpointEndMetaItem)
+                     bool beginningOnChkCollapse)
         : name(n),
           currentCheckpoint(checkpoint),
           currentPos(pos),
           numVisits(0),
           offset(offset_),
           ckptMetaItemsRead(meta_items_read),
-          fromBeginningOnChkCollapse(beginningOnChkCollapse),
-          sendCheckpointEndMetaItem(needsCheckpointEndMetaItem) {
+          fromBeginningOnChkCollapse(beginningOnChkCollapse) {
     }
 
     // We need to define the copy construct explicitly due to the fact
     // that std::atomic implicitly deleted the assignment operator
-    CheckpointCursor(const CheckpointCursor &other) :
-        name(other.name), currentCheckpoint(other.currentCheckpoint),
-        currentPos(other.currentPos), numVisits(other.numVisits.load()),
-        offset(other.offset.load()),
-        ckptMetaItemsRead(other.ckptMetaItemsRead),
-        fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse),
-        sendCheckpointEndMetaItem(other.sendCheckpointEndMetaItem) { }
+    CheckpointCursor(const CheckpointCursor& other)
+        : name(other.name),
+          currentCheckpoint(other.currentCheckpoint),
+          currentPos(other.currentPos),
+          numVisits(other.numVisits.load()),
+          offset(other.offset.load()),
+          ckptMetaItemsRead(other.ckptMetaItemsRead),
+          fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse) {
+    }
 
     CheckpointCursor &operator=(const CheckpointCursor &other) {
         name.assign(other.name);
@@ -156,7 +156,6 @@ public:
         offset.store(other.offset.load());
         setMetaItemOffset(other.ckptMetaItemsRead);
         fromBeginningOnChkCollapse = other.fromBeginningOnChkCollapse;
-        sendCheckpointEndMetaItem = other.sendCheckpointEndMetaItem;
         return *this;
     }
 
@@ -167,11 +166,6 @@ public:
     void decrOffset(size_t decr);
 
     void decrPos();
-
-    /* Indicates whether we must send checkpoint end meta item for the cursor.
-       Currently TAP cursors require checkpoint end meta item to be sent to
-       the consumer. DCP cursors don't have this constraint */
-    MustSendCheckpointEnd shouldSendCheckpointEndMetaItem() const;
 
     /**
      * Return the count of meta items processed (i.e. moved past) for the
@@ -210,7 +204,6 @@ private:
     // the *current* checkpoint.
     size_t ckptMetaItemsRead;
     bool                             fromBeginningOnChkCollapse;
-    MustSendCheckpointEnd            sendCheckpointEndMetaItem;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 };

@@ -59,14 +59,6 @@ typedef struct {
     snapshot_range_t range;
 } snapshot_info_t;
 
-/**
- * Flag indicating that we must send checkpoint end meta item for the cursor
- */
-enum class MustSendCheckpointEnd {
-    NO,
-    YES
-};
-
 // List of Checkpoints used by class CheckpointManager to store Checkpoints for
 // a given vBucket.
 using CheckpointList = std::list<std::unique_ptr<Checkpoint>>;

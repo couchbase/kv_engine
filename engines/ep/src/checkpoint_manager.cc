@@ -50,10 +50,8 @@ CheckpointManager::CheckpointManager(EPStats& st,
 
     if (checkpointConfig.isPersistenceEnabled()) {
         // Register the persistence cursor
-        pCursor =
-                registerCursorBySeqno_UNLOCKED(
-                        lh, pCursorName, lastBySeqno, MustSendCheckpointEnd::NO)
-                        .cursor;
+        pCursor = registerCursorBySeqno_UNLOCKED(lh, pCursorName, lastBySeqno)
+                          .cursor;
         persistenceCursor = pCursor.lock().get();
     }
 }
@@ -161,18 +159,16 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
 
     /* If cursors reached to the end of its current checkpoint, move it to the
        next checkpoint. DCP and Persistence cursors can skip a "checkpoint end"
-       meta item, but TAP cursors cannot. This is needed so that the checkpoint
-       remover can remove the closed checkpoints and hence reduce the memory
-       usage */
+       meta item. This is needed so that the checkpoint remover can remove the
+       closed checkpoints and hence reduce the memory usage */
     for (auto& cur_it : connCursors) {
         CheckpointCursor& cursor = *cur_it.second;
         ++(cursor.currentPos);
-        if ((cursor.shouldSendCheckpointEndMetaItem() ==
-             MustSendCheckpointEnd::NO) &&
-            cursor.currentPos != (*(cursor.currentCheckpoint))->end() &&
-            (*(cursor.currentPos))->getOperation() == queue_op::checkpoint_end) {
-            /* checkpoint_end meta item is expected by TAP cursors. Hence skip
-               it only for persitence and DCP cursors */
+        if (cursor.currentPos != (*(cursor.currentCheckpoint))->end() &&
+            (*(cursor.currentPos))->getOperation() ==
+                    queue_op::checkpoint_end) {
+            /* checkpoint_end meta item is skipped for persistence and
+             * DCP cursors */
             ++(cursor.offset);
             cursor.incrMetaItemOffset(1);
             ++(cursor.currentPos); // cursor now reaches to the checkpoint end
@@ -225,19 +221,13 @@ void CheckpointManager::addOpenCheckpoint(uint64_t id,
 }
 
 CursorRegResult CheckpointManager::registerCursorBySeqno(
-                            const std::string &name,
-                            uint64_t startBySeqno,
-                            MustSendCheckpointEnd needsCheckPointEndMetaItem) {
+        const std::string& name, uint64_t startBySeqno) {
     LockHolder lh(queueLock);
-    return registerCursorBySeqno_UNLOCKED(
-            lh, name, startBySeqno, needsCheckPointEndMetaItem);
+    return registerCursorBySeqno_UNLOCKED(lh, name, startBySeqno);
 }
 
 CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
-        const LockHolder& lh,
-        const std::string& name,
-        uint64_t startBySeqno,
-        MustSendCheckpointEnd needsCheckPointEndMetaItem) {
+        const LockHolder& lh, const std::string& name, uint64_t startBySeqno) {
     const auto& openCkpt = getOpenCheckpoint_UNLOCKED(lh);
     if (openCkpt.getHighSeqno() < startBySeqno) {
         throw std::invalid_argument(
@@ -266,14 +256,12 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
         if (startBySeqno < st) {
             // Requested sequence number is before the start of this
             // checkpoint, position cursor at the checkpoint start.
-            auto cursor = std::make_shared<CheckpointCursor>(
-                    name,
-                    itr,
-                    (*itr)->begin(),
-                    skipped,
-                    /*meta_offset*/ 0,
-                    false,
-                    needsCheckPointEndMetaItem);
+            auto cursor = std::make_shared<CheckpointCursor>(name,
+                                                             itr,
+                                                             (*itr)->begin(),
+                                                             skipped,
+                                                             /*meta_offset*/ 0,
+                                                             false);
             connCursors[name] = cursor;
             (*itr)->registerCursorName(name);
             result.seqno = (*itr)->getLowSeqno();
@@ -302,13 +290,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
             }
 
             auto cursor = std::make_shared<CheckpointCursor>(
-                    name,
-                    itr,
-                    iitr,
-                    skipped,
-                    ckpt_meta_skipped,
-                    false,
-                    needsCheckPointEndMetaItem);
+                    name, itr, iitr, skipped, ckpt_meta_skipped, false);
             connCursors[name] = cursor;
             (*itr)->registerCursorName(name);
             result.cursor.setCursor(cursor);
