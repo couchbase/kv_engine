@@ -138,3 +138,38 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
     conn.executeCommand(cmd, resp);
     EXPECT_TRUE(resp.isSuccess());
 }
+
+/**
+ * https://issues.couchbase.com/browse/MB-31070
+ *
+ * Expiry time becomes 0 after append.
+ *
+ * This test validates that it is fixed by:
+ *   1. Store a document with 30 seconds expiry time
+ *   2. Fetch the expiry time of the document (absolute time)
+ *   3. Performs an append
+ *   4. Fetch the expiry time of the document and verifies that it is unchanged
+ */
+TEST_P(RegressionTest, MB_31070) {
+    auto& conn = getConnection();
+
+    Document document;
+    document.info.cas = mcbp::cas::Wildcard;
+    document.info.flags = 0xcaffee;
+    document.info.id = name;
+    document.info.expiration = 30;
+    document.info.datatype = cb::mcbp::Datatype::Raw;
+    std::string value = "hello";
+    std::copy(value.begin(), value.end(), std::back_inserter(document.value));
+
+    conn.mutate(document, 0, MutationType::Set);
+
+    auto metadata = conn.getMeta(name, 0, 0);
+    EXPECT_LT(0, metadata.expiry);
+
+    document.info.expiration = 0;
+    conn.mutate(document, 0, MutationType::Append);
+
+    auto metadata2 = conn.getMeta(name, 0, 0);
+    EXPECT_NE(0, metadata2.expiry);
+}

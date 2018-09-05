@@ -57,6 +57,14 @@ public:
     uint32_t expiration;
     cb::mcbp::Datatype datatype;
     uint64_t cas;
+
+    DocumentInfo()
+        : id(""),
+          flags(0),
+          expiration(0),
+          datatype(cb::mcbp::Datatype::Raw),
+          cas(0) {
+    }
 };
 
 class Document {

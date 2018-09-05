@@ -147,7 +147,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
     auto pair = bucket_allocate_ex(connection, key,
                                    old.len + value.len,
                                    priv_size, oldItemInfo.flags,
-                                   0, datatype, vbucket);
+                                   (rel_time_t)oldItemInfo.exptime, datatype, vbucket);
 
     newitem = std::move(pair.first);
     cb::byte_buffer body{static_cast<uint8_t*>(pair.second.value[0].iov_base),

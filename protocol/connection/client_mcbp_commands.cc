@@ -277,7 +277,7 @@ BinprotMutationCommand& BinprotMutationCommand::setDocumentInfo(
 
     setDocumentFlags(info.flags);
     setCas(info.cas);
-    // TODO: Set expiration from DocInfo
+    setExpiry(info.expiration);
 
     datatype = uint8_t(info.datatype);
     return *this;
@@ -299,7 +299,7 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
 
     if (getOp() == PROTOCOL_BINARY_CMD_APPEND ||
         getOp() == PROTOCOL_BINARY_CMD_PREPEND) {
-        if (expiry.isSet()) {
+        if (expiry.getValue() != 0) {
             throw std::invalid_argument("BinprotMutationCommand::encode: Expiry invalid with append/prepend");
         }
         extlen = 0;
