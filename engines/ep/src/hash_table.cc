@@ -18,7 +18,6 @@
 #include "hash_table.h"
 
 #include "item.h"
-#include "item_eviction.h" // Needed for ItemEviction::initialFreqCount
 #include "stats.h"
 #include "stored_value_factories.h"
 

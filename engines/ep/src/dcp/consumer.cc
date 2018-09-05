@@ -423,8 +423,9 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
                                   cas,
                                   bySeqno,
                                   vbucket,
-                                  revSeqno));
-        item->setNRUValue(nru);
+                                  revSeqno,
+                                  nru,
+                                  nru /*freqCounter */));
 
         std::unique_ptr<ExtendedMetaData> emd;
         if (meta.size() > 0) {

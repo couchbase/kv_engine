@@ -41,7 +41,7 @@ Item::Item(const DocKey& k,
            Vbid vbid,
            uint64_t sno)
     : metaData(theCas, sno, fl, exp),
-      value(TaggedPtr<Blob>(val.get().get(), ItemEviction::initialFreqCount)),
+      value(TaggedPtr<Blob>(val.get().get(), initialFreqCount)),
       key(k),
       bySeqno(i),
       queuedTime(ep_current_time()),
@@ -67,9 +67,11 @@ Item::Item(const DocKey& k,
            uint64_t theCas,
            int64_t i,
            Vbid vbid,
-           uint64_t sno)
+           uint64_t sno,
+           uint8_t nru,
+           uint16_t freqCount)
     : metaData(theCas, sno, fl, exp),
-      value(TaggedPtr<Blob>(nullptr, ItemEviction::initialFreqCount)),
+      value(TaggedPtr<Blob>(nullptr, initialFreqCount)),
       key(k),
       bySeqno(i),
       queuedTime(ep_current_time()),
@@ -77,12 +79,13 @@ Item::Item(const DocKey& k,
       deleted(false),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
                                                      : queue_op::mutation),
-      nru(INITIAL_NRU_VALUE),
+      nru(nru),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
     }
     setData(static_cast<const char*>(dta), nb);
+    setFreqCounterValue(freqCount);
     ObjectRegistry::onCreateItem(this);
 }
 

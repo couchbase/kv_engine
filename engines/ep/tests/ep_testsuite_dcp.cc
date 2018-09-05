@@ -2441,6 +2441,80 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     return SUCCESS;
 }
 
+/**
+ * Test that eviction hotness data is picked up by the DCP consumer
+ */
+static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
+    const void* cookie = testHarness->create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char* name = "unittest";
+
+    // Set vbucket 0 to a replica so we can consume a mutation over DCP
+    check(set_vbucket_state(h, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // Open consumer connection
+    auto dcp = requireDcpIface(h);
+    checkeq(ENGINE_SUCCESS,
+            dcp->open(cookie, opaque, 0, flags, name),
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h,
+                            cookie,
+                            opaque++,
+                            0,
+                            DCP_ADD_STREAM_FLAG_TAKEOVER,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+
+    // Snapshot marker indicating a mutation will follow
+    checkeq(ENGINE_SUCCESS,
+            dcp->snapshot_marker(cookie, stream_opaque, 0, 0, 1, 0),
+            "Failed to send marker!");
+
+    const DocKey docKey("key", DocKeyEncodesCollectionId::No);
+        checkeq(ENGINE_SUCCESS,
+                dcp->mutation(cookie,
+                              stream_opaque,
+                              docKey,
+                              {(const uint8_t*)"value", 5},
+                              0, // privileged bytes
+                              PROTOCOL_BINARY_RAW_BYTES,
+                              0, // cas
+                              0, // vbucket
+                              0, // flags
+                              1, // by_seqno
+                              0, // rev_seqno
+                              0, // expiration
+                              0, // lock_time
+                              {}, // meta
+                              128 // frequency value
+                              ),
+                              "Failed to send dcp mutation");
+
+    // Set vbucket 0 to active so we can perform a get
+    check(set_vbucket_state(h, 0, vbucket_state_active),
+          "Failed to set vbucket state.");
+
+    // Perform a get to retrieve the frequency counter value
+    auto rv = get(h, cookie, "key", 0, DocStateFilter::AliveOrDeleted);
+    checkeq(cb::engine_errc::success, rv.first, "Failed to fetch");
+    const Item* it = reinterpret_cast<const Item*>(rv.second.get());
+
+    // Confirm that the item that was consumed over DCP has picked up
+    // the correct hotness data value.
+    checkeq(128,
+            int(it->getFreqCounterValue()),
+            "Failed to set the hotness data to the correct value");
+
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_producer_stream_latest(EngineIface* h) {
     const int num_items = 300, batch_items = 100;
     for (int start_seqno = 0; start_seqno < num_items;
@@ -6481,6 +6555,13 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_remover_stime=1;chk_max_items=2",
                  prepare_skip_broken_under_ephemeral,
+                 cleanup),
+        TestCase("test dcp consumer hotness data",
+                 test_dcp_consumer_hotness_data,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request (latest flag)",
                  test_dcp_producer_stream_latest,

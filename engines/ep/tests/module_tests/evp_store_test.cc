@@ -259,7 +259,7 @@ TEST_P(EPStoreEvictionTest, SetEExists) {
 // Check performing a mutation to an existing document does not reset the
 // frequency count
 TEST_P(EPStoreEvictionTest, FreqCountTest) {
-    const uint8_t initialFreqCount = ItemEviction::initialFreqCount;
+    const uint8_t initialFreqCount = Item::initialFreqCount;
     StoredDocKey a = makeStoredDocKey("a");
     auto item_v1 = store_item(vbid, a, "old");
 

@@ -169,7 +169,9 @@ public:
          uint64_t theCas = 0,
          int64_t i = -1,
          Vbid vbid = 0,
-         uint64_t sno = 1);
+         uint64_t sno = 1,
+         uint8_t nru = INITIAL_NRU_VALUE,
+         uint16_t freqCount = initialFreqCount);
 
     Item(const DocKey& k,
          const Vbid vb,
@@ -437,6 +439,14 @@ public:
      **/
     void pruneValueAndOrXattrs(IncludeValue includeVal,
                                IncludeXattrs includeXattrs);
+
+    /**
+     * Each Item has a frequency counter that is used by the hifi_mfu hash
+     * table eviction policy.  The counter is initialised to "initialFreqCount"
+     * when first added to the hash table.  It is not 0, as we want to ensure
+     * that we do not immediately evict items that we have just added.
+     */
+    static const uint8_t initialFreqCount = 4;
 
 private:
     /**

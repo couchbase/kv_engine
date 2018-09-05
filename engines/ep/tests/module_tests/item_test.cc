@@ -118,6 +118,24 @@ TEST_F(ItemTest, getAndSetCachedDataType) {
               (PROTOCOL_BINARY_DATATYPE_JSON & item->getDataType()));
 }
 
+TEST_F(ItemTest, checkNRUandFreqCounterValueSetCorrectly) {
+    std::string valueData = R"(raw data)";
+    item = std::make_unique<Item>(makeStoredDocKey("key"),
+                                  0 /* flags */,
+                                  0 /* exptime */,
+                                  valueData.c_str(),
+                                  valueData.size(),
+                                  PROTOCOL_BINARY_RAW_BYTES,
+                                  0 /* cas */,
+                                  -1 /* bySeqno */,
+                                  0 /* vbid */,
+                                  1 /* revSeqno */,
+                                  1 /* nru */,
+                                  128 /* freqCount */);
+    EXPECT_EQ(1, int(item->getNRUValue()));
+    EXPECT_EQ(128, item->getFreqCounterValue());
+}
+
 TEST_F(ItemPruneTest, testPruneNothing) {
     item->pruneValueAndOrXattrs(IncludeValue::Yes, IncludeXattrs::Yes);
 

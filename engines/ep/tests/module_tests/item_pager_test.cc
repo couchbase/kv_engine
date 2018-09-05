@@ -570,7 +570,7 @@ TEST_P(STItemPagerTest, isEligible) {
 
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(vb);
-    auto initialCount = ItemEviction::initialFreqCount;
+    auto initialCount = Item::initialFreqCount;
     EXPECT_NE(initialCount,
               pv->getItemEviction().getThresholds(100.0, 0.0).first);
     EXPECT_NE(255, pv->getItemEviction().getThresholds(100.0, 0.0).first);
@@ -578,7 +578,7 @@ TEST_P(STItemPagerTest, isEligible) {
 
 /**
  * MB-29333:  Test that if a vbucket contains a single document with an
- * execution frequency of ItemEviction::initialFreqCount, the document will
+ * execution frequency of Item::initialFreqCount, the document will
  * be evicted if the paging visitor is run a sufficient number of times.
  */
 TEST_P(STItemPagerTest, decayByOne) {
@@ -616,7 +616,7 @@ TEST_P(STItemPagerTest, decayByOne) {
     }
     int iterationCount = 0;
     while ((pv->getEjected() == 0) &&
-           iterationCount <= ItemEviction::initialFreqCount) {
+           iterationCount <= Item::initialFreqCount) {
         pv->setFreqCounterThreshold(0);
         VBucketPtr vb = store->getVBucket(vbid);
         vb->ht.visit(*pv);
@@ -627,7 +627,7 @@ TEST_P(STItemPagerTest, decayByOne) {
 
 /**
  * MB-29333:  Test that if a vbucket contains a single document with an
- * execution frequency of ItemEviction::initialFreqCount, but the document
+ * execution frequency of Item::initialFreqCount, but the document
  * is not eligible for eviction (due to being replica in ephemeral case and
  * not flushed in the persistent case) check that its frequency count is not
  * decremented.
@@ -663,7 +663,7 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
 
     pv->setCurrentBucket(engine->getKVBucket()->getVBucket(vbid));
     store->setVBucketState(vbid, vbucket_state_replica, false);
-    for (int ii = 0; ii <= ItemEviction::initialFreqCount; ii++) {
+    for (int ii = 0; ii <= Item::initialFreqCount; ii++) {
         pv->setFreqCounterThreshold(0);
         pv->getItemEviction().reset();
         VBucketPtr vb = store->getVBucket(vbid);
@@ -677,12 +677,12 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
     }
 
     // Check still not be able to evict, because the frequency count is still
-    // at ItemEviction::initialFreqCount
+    // at Item::initialFreqCount
     pv->setFreqCounterThreshold(0);
     pv->getItemEviction().reset();
     VBucketPtr vb = store->getVBucket(vbid);
     vb->ht.visit(*pv);
-    auto initialFreqCount = ItemEviction::initialFreqCount;
+    auto initialFreqCount = Item::initialFreqCount;
     EXPECT_EQ(initialFreqCount,
               pv->getItemEviction().getThresholds(100.0, 0.0).first);
     EXPECT_EQ(0, pv->getEjected());
