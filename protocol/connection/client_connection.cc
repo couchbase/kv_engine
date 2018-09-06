@@ -1383,6 +1383,12 @@ void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
     throw std::invalid_argument("setUnorderedExecutionMode: Invalid mode");
 }
 
+BinprotResponse MemcachedConnection::execute(const BinprotCommand &command) {
+    BinprotResponse response;
+    executeCommand(command, response);
+    return response;
+}
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionError class
 /////////////////////////////////////////////////////////////////////////

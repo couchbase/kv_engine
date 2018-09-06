@@ -521,6 +521,11 @@ public:
     }
 
     /**
+     * Execute a command on the server and return the raw response packet.
+     */
+    BinprotResponse execute(const BinprotCommand& command);
+
+    /**
      * Get a textual representation of this connection
      *
      * @return a textual representation of the connection including the
