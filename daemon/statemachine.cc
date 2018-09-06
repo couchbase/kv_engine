@@ -93,10 +93,10 @@ bool StateMachine::isIdleState() const {
     case State::new_cmd:
     case State::ship_log:
     case State::send_data:
+    case State::pending_close:
         return true;
     case State::parse_cmd:
     case State::closing:
-    case State::pending_close:
     case State::immediate_close:
     case State::destroyed:
     case State::execute:
