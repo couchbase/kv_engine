@@ -141,16 +141,6 @@ LOGGER_PUBLIC_API
 EXTENSION_SPDLOG_GETTER& getSpdloggerRef();
 
 /**
- * Convert a log level as being used by the memcached logger
- * to spdlog's log levels
- *
- * @param sev The memcached severity level
- * @return The corresponding value in spdlog
- */
-LOGGER_PUBLIC_API
-spdlog::level::level_enum convertToSpdSeverity(EXTENSION_LOG_LEVEL sev);
-
-/**
  * Tell the logger to flush its buffers
  */
 LOGGER_PUBLIC_API

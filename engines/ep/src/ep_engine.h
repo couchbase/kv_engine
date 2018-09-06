@@ -180,7 +180,7 @@ public:
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
-    void set_log_level(EXTENSION_LOG_LEVEL level) override;
+    void set_log_level(spdlog::level::level_enum level) override;
 
     bool isXattrEnabled() override;
 

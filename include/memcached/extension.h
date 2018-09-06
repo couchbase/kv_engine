@@ -7,15 +7,6 @@ namespace spdlog {
 class logger;
 }
 
-typedef enum {
-    EXTENSION_LOG_TRACE = 0,
-    EXTENSION_LOG_DEBUG,
-    EXTENSION_LOG_INFO,
-    EXTENSION_LOG_NOTICE,
-    EXTENSION_LOG_WARNING,
-    EXTENSION_LOG_FATAL
-} EXTENSION_LOG_LEVEL;
-
 typedef struct {
     /**
      * Pointer to an spdlog getter function used by memcached

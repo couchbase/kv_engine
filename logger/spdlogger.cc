@@ -49,26 +49,6 @@ static EXTENSION_SPDLOG_GETTER ref;
  */
 static const std::string log_pattern{"%Y-%m-%dT%T.%fZ %l %v"};
 
-spdlog::level::level_enum cb::logger::convertToSpdSeverity(
-        EXTENSION_LOG_LEVEL sev) {
-    using namespace spdlog::level;
-    switch (sev) {
-    case EXTENSION_LOG_TRACE:
-        return level_enum::trace;
-    case EXTENSION_LOG_DEBUG:
-        return level_enum::debug;
-    case EXTENSION_LOG_INFO:
-        return level_enum::info;
-    case EXTENSION_LOG_NOTICE:
-        return level_enum::info;
-    case EXTENSION_LOG_WARNING:
-        return level_enum::warn;
-    case EXTENSION_LOG_FATAL:
-        return level_enum::critical;
-    }
-    throw std::invalid_argument("Unknown severity level");
-}
-
 /**
  * Instances of spdlog (async) file logger.
  * The files logger requires a rotating file sink which is manually configured

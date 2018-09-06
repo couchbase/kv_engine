@@ -494,7 +494,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @param level the current log level
      */
-    virtual void set_log_level(EXTENSION_LOG_LEVEL level){};
+    virtual void set_log_level(spdlog::level::level_enum level){};
 
     collections_interface collections;
 

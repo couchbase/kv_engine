@@ -247,14 +247,13 @@ void associate_initial_bucket(Connection& connection) {
 static void populate_log_level(void*) {
     // Lock the entire buckets array so that buckets can't be modified while
     // we notify them (blocking bucket creation/deletion)
-    auto val = settings.getLogLevel();
+    const auto val = settings.getLogLevel();
 
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (auto& bucket : all_buckets) {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         if (bucket.state == BucketState::Ready) {
-            bucket.getEngine()->set_log_level(
-                    static_cast<EXTENSION_LOG_LEVEL>(val));
+            bucket.getEngine()->set_log_level(val);
         }
     }
 }
