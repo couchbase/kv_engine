@@ -561,7 +561,7 @@ static protocol_binary_response_status update_user_permissions_validator(
     if (!verify_header(cookie,
                        0,
                        ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
+                       ExpectedValueLen::Any,
                        ExpectedCas::NotSet,
                        PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;

@@ -506,11 +506,20 @@ static void update_user_permissions_executor(Cookie& cookie) {
     auto& request = cookie.getRequest(Cookie::PacketContent::Full);
     auto key = request.getKey();
     auto value = request.getValue();
-    cb::rbac::updateUser(
-            std::string{reinterpret_cast<const char*>(key.data()), key.size()},
-            std::string{reinterpret_cast<const char*>(value.data()),
-                        value.size()});
-    cookie.sendResponse(cb::mcbp::Status::Success);
+    auto status = cb::mcbp::Status::Success;
+
+    try {
+        cb::rbac::updateUser(
+                std::string{reinterpret_cast<const char*>(key.data()),
+                            key.size()},
+                std::string{reinterpret_cast<const char*>(value.data()),
+                            value.size()});
+    } catch (const std::runtime_error& error) {
+        cookie.setErrorContext(error.what());
+        status = cb::mcbp::Status::Einval;
+    }
+
+    cookie.sendResponse(status);
 }
 
 static void rbac_refresh_executor(Cookie& cookie) {

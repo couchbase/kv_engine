@@ -883,3 +883,17 @@ void BinprotObserveSeqnoResponse::assign(std::vector<uint8_t>&& buf) {
                 std::to_string(info.formatType));
     }
 }
+
+BinprotUpdateUserPermissionsCommand::BinprotUpdateUserPermissionsCommand(
+        const std::string& username, std::string payload)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::UpdateUserPermissions),
+      payload(std::move(payload)) {
+    setKey(username);
+}
+
+void BinprotUpdateUserPermissionsCommand::encode(
+        std::vector<uint8_t>& buf) const {
+    writeHeader(buf, payload.size(), 0);
+    buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), payload.begin(), payload.end());
+}

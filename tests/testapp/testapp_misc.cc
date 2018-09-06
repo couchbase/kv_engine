@@ -86,3 +86,52 @@ TEST_P(MiscTest, GetActiveUsers) {
     // server
     EXPECT_EQ("[]", resp.getDataString());
 }
+
+/**
+ * Send the UpdateUserPermissions with a valid username and paylaod.
+ *
+ * Unfortunately there isn't a way to verify that the user was actually
+ * updated as we can't fetch the updated entry.
+ */
+TEST_P(MiscTest, UpdateUserPermissionsSuccess) {
+    const std::string rbac = R"(
+{"johndoe" : {
+  "domain" : "external",
+  "buckets": {
+    "default": ["Read","SimpleStats","Insert","Delete","Upsert"]
+  },
+  "privileges": []
+}})";
+    auto& conn = getAdminConnection();
+    auto resp =
+            conn.execute(BinprotUpdateUserPermissionsCommand{"johndoe", rbac});
+    EXPECT_TRUE(resp.isSuccess());
+}
+
+/**
+ * Send the UpdateUserPermissions with a valid username, but no payload
+ * (this means remove).
+ *
+ * Unfortunately there isn't a way to verify that the user was actually
+ * updated as we can't fetch the updated entry.
+ */
+TEST_P(MiscTest, UpdateUserPermissionsRemoveUser) {
+    auto& conn = getAdminConnection();
+    auto resp =
+            conn.execute(BinprotUpdateUserPermissionsCommand{"johndoe", ""});
+    EXPECT_TRUE(resp.isSuccess());
+}
+
+/**
+ * Send the UpdateUserPermissions with a valid username, but invalid payload.
+ *
+ * Unfortunately there isn't a way to verify that the user was actually
+ * updated as we can't fetch the updated entry.
+ */
+TEST_P(MiscTest, UpdateUserPermissionsInvalidPayload) {
+    auto& conn = getAdminConnection();
+    auto resp = conn.execute(
+            BinprotUpdateUserPermissionsCommand{"johndoe", "bogus"});
+    EXPECT_FALSE(resp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, resp.getStatus());
+}

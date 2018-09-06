@@ -223,6 +223,9 @@ public:
     BinprotGenericCommand(protocol_binary_command opcode) : BinprotCommandT() {
         setOp(opcode);
     }
+    BinprotGenericCommand(cb::mcbp::ClientOpcode opcode)
+        : BinprotGenericCommand(protocol_binary_command(opcode)) {
+    }
     BinprotGenericCommand() : BinprotCommandT() {
     }
     BinprotGenericCommand& setValue(const std::string& value_) {
@@ -1423,4 +1426,15 @@ public:
     void assign(std::vector<uint8_t>&& buf) override;
 
     ObserveInfo info;
+};
+
+class BinprotUpdateUserPermissionsCommand : public BinprotGenericCommand {
+public:
+    BinprotUpdateUserPermissionsCommand(const std::string& username,
+                                        std::string payload);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    const std::string payload;
 };
