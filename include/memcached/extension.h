@@ -24,8 +24,7 @@ typedef struct {
 } EXTENSION_SPDLOG_GETTER;
 
 struct ServerLogIface {
-    ~ServerLogIface() = default;
+    virtual ~ServerLogIface() = default;
     virtual EXTENSION_SPDLOG_GETTER* get_spdlogger() = 0;
-    virtual spdlog::level::level_enum get_level() = 0;
     virtual void set_level(spdlog::level::level_enum severity) = 0;
 };

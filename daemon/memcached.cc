@@ -1375,10 +1375,6 @@ struct ServerLogApi : public ServerLogIface {
         return settings.extensions.spdlogger;
     }
 
-    spdlog::level::level_enum get_level() override {
-        return settings.getLogLevel();
-    }
-
     void set_level(spdlog::level::level_enum severity) override {
         switch (severity) {
         case spdlog::level::level_enum::trace:

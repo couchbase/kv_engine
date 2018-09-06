@@ -195,10 +195,6 @@ struct MockServerLogApi : public ServerLogIface {
         return extensions.spdlogGetter;
     }
 
-    spdlog::level::level_enum get_level() override {
-        return log_level;
-    }
-
     void set_level(spdlog::level::level_enum severity) override {
         log_level = severity;
     }
