@@ -31,12 +31,12 @@
 class CollectionsFilterTest : public ::testing::Test {
 public:
     /// Dummy callback to replace the flusher callback so we can create VBuckets
-    class DummyCB : public Callback<Vbid> {
+    class DummyCB : public Callback<uint16_t> {
     public:
         DummyCB() {
         }
 
-        void callback(Vbid& dummy) {
+        void callback(uint16_t& dummy) {
         }
     };
 

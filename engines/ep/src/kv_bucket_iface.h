@@ -64,10 +64,9 @@ public:
         }
 
     private:
-        Position(Vbid vbucket_id_) : vbucket_id(vbucket_id_) {
-        }
+        Position(uint16_t vbucket_id_) : vbucket_id(vbucket_id_) {}
 
-        Vbid vbucket_id;
+        uint16_t vbucket_id;
 
         friend class KVBucket;
         friend std::ostream& operator<<(std::ostream& os, const Position& pos);
@@ -142,10 +141,8 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    virtual GetValue get(const DocKey& key,
-                         Vbid vbucket,
-                         const void* cookie,
-                         get_options_t options) = 0;
+    virtual GetValue get(const DocKey& key, uint16_t vbucket,
+                         const void *cookie, get_options_t options) = 0;
 
     virtual GetValue getRandomKey(void) = 0;
 
@@ -159,13 +156,15 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    virtual GetValue getReplica(
-            const DocKey& key,
-            Vbid vbucket,
-            const void* cookie,
-            get_options_t options = static_cast<get_options_t>(
-                    QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
-                    DELETE_TEMP | HIDE_LOCKED_CAS)) = 0;
+    virtual GetValue getReplica(const DocKey& key, uint16_t vbucket,
+                                const void *cookie,
+                                get_options_t options = static_cast<get_options_t>(
+                                                                                   QUEUE_BG_FETCH |
+                                                                                   HONOR_STATES |
+                                                                                   TRACK_REFERENCE |
+                                                                                   DELETE_TEMP |
+                                                                                   HIDE_LOCKED_CAS)) = 0;
+
 
     /**
      * Retrieve the meta data for an item
@@ -178,7 +177,7 @@ public:
      * @param[out] datatype specifies the datatype of the item
      */
     virtual ENGINE_ERROR_CODE getMetaData(const DocKey& key,
-                                          Vbid vbucket,
+                                          uint16_t vbucket,
                                           const void* cookie,
                                           ItemMetaData& metadata,
                                           uint32_t& deleted,
@@ -224,10 +223,8 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    virtual GetValue getAndUpdateTtl(const DocKey& key,
-                                     Vbid vbucket,
-                                     const void* cookie,
-                                     time_t exptime) = 0;
+    virtual GetValue getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
+                                     const void *cookie, time_t exptime) = 0;
 
     /**
      * Retrieve an item from the disk for vkey stats
@@ -240,13 +237,11 @@ public:
      * @return a status resulting form executing the method
      */
     virtual ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                        Vbid vbucket,
-                                        const void* cookie) = 0;
+                                        uint16_t vbucket,
+                                        const void *cookie) = 0;
 
-    virtual void completeStatsVKey(const void* cookie,
-                                   const DocKey& key,
-                                   Vbid vbid,
-                                   uint64_t bySeqNum) = 0;
+    virtual void completeStatsVKey(const void* cookie, const DocKey& key,
+                                   uint16_t vbid, uint64_t bySeqNum) = 0;
 
     virtual protocol_binary_response_status evictKey(const DocKey& key,
                                                      VBucket::id_type vbucket,
@@ -266,7 +261,7 @@ public:
      */
     virtual ENGINE_ERROR_CODE deleteItem(const DocKey& key,
                                          uint64_t& cas,
-                                         Vbid vbucket,
+                                         uint16_t vbucket,
                                          const void* cookie,
                                          ItemMetaData* itemMeta,
                                          mutation_descr_t& mutInfo) = 0;
@@ -298,7 +293,7 @@ public:
             const DocKey& key,
             uint64_t& cas,
             uint64_t* seqno,
-            Vbid vbucket,
+            uint16_t vbucket,
             const void* cookie,
             PermittedVBStates permittedVBStates,
             CheckConflicts checkConflicts,
@@ -394,7 +389,7 @@ public:
      *               a (possibly) deleted item
      */
     virtual void completeBGFetch(const DocKey& key,
-                                 Vbid vbucket,
+                                 uint16_t vbucket,
                                  const void* cookie,
                                  ProcessClock::time_point init,
                                  bool isMeta) = 0;
@@ -408,11 +403,11 @@ public:
      *
      */
     virtual void completeBGFetchMulti(
-            Vbid vbId,
+            uint16_t vbId,
             std::vector<bgfetched_item_t>& fetchedItems,
             ProcessClock::time_point start) = 0;
 
-    virtual VBucketPtr getVBucket(Vbid vbid) = 0;
+    virtual VBucketPtr getVBucket(uint16_t vbid) = 0;
 
     /**
      * Returns the last persisted checkpoint Id for the specified vBucket.
@@ -421,9 +416,10 @@ public:
      *         available (Persistent bucket), or false if bucket is not
      *         persistent.
      */
-    virtual std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) = 0;
+    virtual std::pair<uint64_t, bool> getLastPersistedCheckpointId(
+            uint16_t vb) = 0;
 
-    virtual uint64_t getLastPersistedSeqno(Vbid vb) = 0;
+    virtual uint64_t getLastPersistedSeqno(uint16_t vb) = 0;
 
     /**
      * Deletes a vbucket
@@ -433,7 +429,7 @@ public:
      *          Used in synchronous bucket deletes
      *          to notify the connection of operation completion.
      */
-    virtual ENGINE_ERROR_CODE deleteVBucket(Vbid vbid,
+    virtual ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid,
                                             const void* c = NULL) = 0;
 
     /**
@@ -450,7 +446,7 @@ public:
      * @param c The context for compaction of a DB file
      * @param ck cookie used to notify connection of operation completion
      */
-    virtual ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
+    virtual ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid,
                                                  const CompactionConfig& c,
                                                  const void* ck) = 0;
 
@@ -469,7 +465,7 @@ public:
      * deletion in that it does not delete the vbucket instance from memory hash
      * table.
      */
-    virtual bool resetVBucket(Vbid vbid) = 0;
+    virtual bool resetVBucket(uint16_t vbid) = 0;
 
     /**
      * Run a vBucket visitor, visiting all items. Synchronous.
@@ -536,33 +532,31 @@ public:
      *                     ENGINE_KEY_ENOENT for deleted items.
      */
     virtual ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
-                                          Vbid vbucket,
+                                          uint16_t vbucket,
                                           const void* cookie,
                                           key_stats& kstats,
                                           WantsDeleted wantsDeleted) = 0;
 
-    virtual std::string validateKey(const DocKey& key,
-                                    Vbid vbucket,
-                                    Item& diskItem) = 0;
+    virtual std::string validateKey(const DocKey& key, uint16_t vbucket,
+                                    Item &diskItem) = 0;
 
-    virtual GetValue getLocked(const DocKey& key,
-                               Vbid vbucket,
-                               rel_time_t currentTime,
-                               uint32_t lockTimeout,
-                               const void* cookie) = 0;
+    virtual GetValue getLocked(const DocKey& key, uint16_t vbucket,
+                               rel_time_t currentTime, uint32_t lockTimeout,
+                               const void *cookie) = 0;
 
     virtual ENGINE_ERROR_CODE unlockKey(const DocKey& key,
-                                        Vbid vbucket,
+                                        uint16_t vbucket,
                                         uint64_t cas,
                                         rel_time_t currentTime) = 0;
 
-    virtual KVStore* getRWUnderlying(Vbid vbId) = 0;
+
+    virtual KVStore* getRWUnderlying(uint16_t vbId) = 0;
 
     virtual KVStore* getRWUnderlyingByShard(size_t shardId) = 0;
 
     virtual KVStore* getROUnderlyingByShard(size_t shardId) = 0;
 
-    virtual KVStore* getROUnderlying(Vbid vbId) = 0;
+    virtual KVStore* getROUnderlying(uint16_t vbId) = 0;
 
     virtual void deleteExpiredItem(Item& it,
                                    time_t startTime,
@@ -583,7 +577,7 @@ public:
     /**
      * Schedule a vbstate persistence task for a given vbucket.
      */
-    virtual void scheduleVBStatePersist(Vbid vbid) = 0;
+    virtual void scheduleVBStatePersist(uint16_t vbid) = 0;
 
     virtual const VBucketMap &getVBuckets() = 0;
 
@@ -675,7 +669,7 @@ public:
     virtual KVStore *getOneRWUnderlying(void) = 0;
 
     virtual item_eviction_policy_t getItemEvictionPolicy(void) const  = 0;
-    virtual TaskStatus rollback(Vbid vbid, uint64_t rollbackSeqno) = 0;
+    virtual TaskStatus rollback(uint16_t vbid, uint64_t rollbackSeqno) = 0;
 
     /**
      * Attempt to free up currently in-use memory this bucket.
@@ -718,7 +712,7 @@ public:
      * Change the max_cas of the specified vbucket to cas without any
      * care for the data or ongoing operations...
      */
-    virtual ENGINE_ERROR_CODE forceMaxCas(Vbid vbucket, uint64_t cas) = 0;
+    virtual ENGINE_ERROR_CODE forceMaxCas(uint16_t vbucket, uint64_t cas) = 0;
 
     /**
      * Create a VBucket object appropriate for this Bucket class.
@@ -745,7 +739,7 @@ public:
      * @param vbid vBucket number
      * @param notifyCtx notify information
      */
-    virtual void notifyNewSeqno(const Vbid vbid,
+    virtual void notifyNewSeqno(const uint16_t vbid,
                                 const VBNotifyCtx& notifyCtx) = 0;
 
     /**
@@ -758,7 +752,7 @@ public:
      * @throws std::runtime_error (and subclasses) if it was not possible to
      *         obtain a count of persisted deletes.
      */
-    virtual size_t getNumPersistedDeletes(Vbid vbid) = 0;
+    virtual size_t getNumPersistedDeletes(uint16_t vbid) = 0;
 
     /**
      * @return true if the bucket supports 'get_all_keys'; else false
@@ -773,9 +767,8 @@ protected:
     virtual void warmupCompleted() = 0;
     virtual void stopWarmup(void) = 0;
 
-    virtual GetValue getInternal(const DocKey& key,
-                                 Vbid vbucket,
-                                 const void* cookie,
+    virtual GetValue getInternal(const DocKey& key, uint16_t vbucket,
+                                 const void *cookie,
                                  vbucket_state_t allowedState,
                                  get_options_t options = TRACK_REFERENCE) = 0;
 
@@ -789,7 +782,8 @@ protected:
      *         highSeqno of the vBucket after rollback,
      *         and the last snaspshot range in the vb after rollback.
      */
-    virtual RollbackResult doRollback(Vbid vbid, uint64_t rollbackSeqno) = 0;
+    virtual RollbackResult doRollback(uint16_t vbid,
+                                      uint64_t rollbackSeqno) = 0;
 
     /*
      * Helper method for the rollback function.

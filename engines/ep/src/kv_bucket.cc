@@ -223,7 +223,7 @@ public:
         TRACE_EVENT1("ep-engine/task",
                      "PendingOpsNotification",
                      "vb",
-                     (vbucket->getId()).get());
+                     vbucket->getId());
         vbucket->fireAllOps(engine);
         return false;
     }
@@ -766,7 +766,7 @@ ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
     return vb->addBackfillItem(itm, genBySeqno);
 }
 
-ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
+ENGINE_ERROR_CODE KVBucket::setVBucketState(uint16_t vbid,
                                             vbucket_state_t to,
                                             bool transfer,
                                             const void* cookie) {
@@ -789,7 +789,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,
 }
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
-        Vbid vbid,
+        uint16_t vbid,
         vbucket_state_t to,
         bool transfer,
         bool notify_dcp,
@@ -922,7 +922,7 @@ void KVBucket::scheduleVBStatePersist(VBucket::id_type vbid) {
     vb->checkpointManager->queueSetVBState(*vb);
 }
 
-ENGINE_ERROR_CODE KVBucket::deleteVBucket(Vbid vbid, const void* c) {
+ENGINE_ERROR_CODE KVBucket::deleteVBucket(uint16_t vbid, const void* c) {
     // Lock to prevent a race condition between a failed update and add
     // (and delete).
     VBucketPtr vb = vbMap.getBucket(vbid);
@@ -971,7 +971,7 @@ uint16_t KVBucket::getDBFileId(const protocol_binary_request_compact_db& req) {
     return store->getDBFileId(req);
 }
 
-bool KVBucket::resetVBucket(Vbid vbid) {
+bool KVBucket::resetVBucket(uint16_t vbid) {
     std::unique_lock<std::mutex> vbsetLock(vbsetMutex);
     // Obtain a locked VBucket to ensure we interlock with other
     // threads that are manipulating the VB (particularly ones which may
@@ -1286,7 +1286,7 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
 }
 
 void KVBucket::completeBGFetch(const DocKey& key,
-                               Vbid vbucket,
+                               uint16_t vbucket,
                                const void* cookie,
                                ProcessClock::time_point init,
                                bool isMeta) {
@@ -1317,7 +1317,7 @@ void KVBucket::completeBGFetch(const DocKey& key,
     --stats.numRemainingBgJobs;
 }
 
-void KVBucket::completeBGFetchMulti(Vbid vbId,
+void KVBucket::completeBGFetchMulti(uint16_t vbId,
                                     std::vector<bgfetched_item_t>& fetchedItems,
                                     ProcessClock::time_point startTime) {
     VBucketPtr vb = getVBucket(vbId);
@@ -1351,8 +1351,8 @@ void KVBucket::completeBGFetchMulti(Vbid vbId,
 }
 
 GetValue KVBucket::getInternal(const DocKey& key,
-                               Vbid vbucket,
-                               const void* cookie,
+                               uint16_t vbucket,
+                               const void *cookie,
                                vbucket_state_t allowedState,
                                get_options_t options) {
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
@@ -1440,11 +1440,12 @@ GetValue KVBucket::getRandomKey() {
 }
 
 ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
-                                        Vbid vbucket,
+                                        uint16_t vbucket,
                                         const void* cookie,
                                         ItemMetaData& metadata,
                                         uint32_t& deleted,
-                                        uint8_t& datatype) {
+                                        uint8_t& datatype)
+{
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -1542,10 +1543,9 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
     return rv;
 }
 
-GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
-                                   Vbid vbucket,
-                                   const void* cookie,
-                                   time_t exptime) {
+GetValue KVBucket::getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
+                                   const void *cookie, time_t exptime)
+{
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1576,11 +1576,9 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     }
 }
 
-GetValue KVBucket::getLocked(const DocKey& key,
-                             Vbid vbucket,
-                             rel_time_t currentTime,
-                             uint32_t lockTimeout,
-                             const void* cookie) {
+GetValue KVBucket::getLocked(const DocKey& key, uint16_t vbucket,
+                             rel_time_t currentTime, uint32_t lockTimeout,
+                             const void *cookie) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb || vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
@@ -1603,9 +1601,11 @@ GetValue KVBucket::getLocked(const DocKey& key,
 }
 
 ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
-                                      Vbid vbucket,
+                                      uint16_t vbucket,
                                       uint64_t cas,
-                                      rel_time_t currentTime) {
+                                      rel_time_t currentTime)
+{
+
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb || vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
@@ -1653,7 +1653,7 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
 }
 
 ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
-                                        Vbid vbucket,
+                                        uint16_t vbucket,
                                         const void* cookie,
                                         struct key_stats& kstats,
                                         WantsDeleted wantsDeleted) {
@@ -1677,9 +1677,8 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
 }
 }
 
-std::string KVBucket::validateKey(const DocKey& key,
-                                  Vbid vbucket,
-                                  Item& diskItem) {
+std::string KVBucket::validateKey(const DocKey& key, uint16_t vbucket,
+                                  Item &diskItem) {
     VBucketPtr vb = getVBucket(vbucket);
 
     auto collectionsRHandle = vb->lockCollections(key);
@@ -1709,11 +1708,12 @@ std::string KVBucket::validateKey(const DocKey& key,
     } else {
         return "item_deleted";
     }
+
 }
 
 ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
                                        uint64_t& cas,
-                                       Vbid vbucket,
+                                       uint16_t vbucket,
                                        const void* cookie,
                                        ItemMetaData* itemMeta,
                                        mutation_descr_t& mutInfo) {
@@ -1754,7 +1754,7 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
 ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                            uint64_t& cas,
                                            uint64_t* seqno,
-                                           Vbid vbucket,
+                                           uint16_t vbucket,
                                            const void* cookie,
                                            PermittedVBStates permittedVBStates,
                                            CheckConflicts checkConflicts,
@@ -2195,7 +2195,7 @@ size_t KVBucket::visit(std::unique_ptr<VBucketVisitor> visitor,
 
 KVBucket::Position KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
                                               Position& start_pos) {
-    Vbid vbid = start_pos.vbucket_id;
+    uint16_t vbid = start_pos.vbucket_id;
     for (; vbid < vbMap.getSize(); ++vbid) {
         VBucketPtr vb = vbMap.getBucket(vbid);
         if (vb) {
@@ -2337,7 +2337,7 @@ KVStore *KVBucket::getOneRWUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying();
 }
 
-TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
+TaskStatus KVBucket::rollback(uint16_t vbid, uint64_t rollbackSeqno) {
     std::unique_lock<std::mutex> vbset(vbsetMutex);
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
@@ -2444,7 +2444,7 @@ size_t KVBucket::getReplicaResidentRatio() const {
     return cachedResidentRatio.replicaRatio.load();
 }
 
-ENGINE_ERROR_CODE KVBucket::forceMaxCas(Vbid vbucket, uint64_t cas) {
+ENGINE_ERROR_CODE KVBucket::forceMaxCas(uint16_t vbucket, uint64_t cas) {
     VBucketPtr vb = vbMap.getBucket(vbucket);
     if (vb) {
         vb->forceMaxCas(cas);
@@ -2458,7 +2458,7 @@ std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
     return os;
 }
 
-void KVBucket::notifyFlusher(const Vbid vbid) {
+void KVBucket::notifyFlusher(const uint16_t vbid) {
     KVShard* shard = vbMap.getShardByVbId(vbid);
     if (shard) {
         shard->getFlusher()->notifyFlushEvent();
@@ -2470,7 +2470,7 @@ void KVBucket::notifyFlusher(const Vbid vbid) {
     }
 }
 
-void KVBucket::notifyReplication(const Vbid vbid, const int64_t bySeqno) {
+void KVBucket::notifyReplication(const uint16_t vbid, const int64_t bySeqno) {
     engine.getDcpConnMap().notifyVBConnections(vbid, bySeqno);
 }
 
@@ -2517,7 +2517,7 @@ void KVBucket::setXattrEnabled(bool value) {
 }
 
 bool KVBucket::collectionsEraseKey(
-        Vbid vbid,
+        uint16_t vbid,
         const DocKey key,
         int64_t bySeqno,
         bool deleted,

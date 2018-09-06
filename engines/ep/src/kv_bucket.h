@@ -62,13 +62,13 @@ public:
     bool run(void);
 
 private:
-    std::queue<Vbid> vbList;
-    KVBucket* store;
+    std::queue<uint16_t>        vbList;
+    KVBucket  *store;
     std::unique_ptr<VBucketVisitor> visitor;
     const char                 *label;
     double                      sleepTime;
     std::chrono::microseconds maxDuration;
-    std::atomic<Vbid> currentvb;
+    std::atomic<uint16_t>       currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };
@@ -170,10 +170,8 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue get(const DocKey& key,
-                 Vbid vbucket,
-                 const void* cookie,
-                 get_options_t options) {
+    GetValue get(const DocKey& key, uint16_t vbucket,
+                 const void *cookie, get_options_t options) {
         return getInternal(key, vbucket, cookie, vbucket_state_active,
                            options);
     }
@@ -190,13 +188,12 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue getReplica(const DocKey& key,
-                        Vbid vbucket,
-                        const void* cookie,
-                        get_options_t options) {
+    GetValue getReplica(const DocKey& key, uint16_t vbucket,
+                        const void *cookie, get_options_t options) {
         return getInternal(key, vbucket, cookie, vbucket_state_replica,
                            options);
     }
+
 
     /**
      * Retrieve the meta data for an item
@@ -209,7 +206,7 @@ public:
      * @param[out] datatype specifies the datatype for the given item
      */
     ENGINE_ERROR_CODE getMetaData(const DocKey& key,
-                                  Vbid vbucket,
+                                  uint16_t vbucket,
                                   const void* cookie,
                                   ItemMetaData& metadata,
                                   uint32_t& deleted,
@@ -238,14 +235,12 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue getAndUpdateTtl(const DocKey& key,
-                             Vbid vbucket,
-                             const void* cookie,
-                             time_t exptime);
+    GetValue getAndUpdateTtl(const DocKey& key, uint16_t vbucket,
+                             const void *cookie, time_t exptime);
 
     ENGINE_ERROR_CODE deleteItem(const DocKey& key,
                                  uint64_t& cas,
-                                 Vbid vbucket,
+                                 uint16_t vbucket,
                                  const void* cookie,
                                  ItemMetaData* itemMeta,
                                  mutation_descr_t& mutInfo);
@@ -253,7 +248,7 @@ public:
     ENGINE_ERROR_CODE deleteWithMeta(const DocKey& key,
                                      uint64_t& cas,
                                      uint64_t* seqno,
-                                     Vbid vbucket,
+                                     uint16_t vbucket,
                                      const void* cookie,
                                      PermittedVBStates permittedVBStates,
                                      CheckConflicts checkConflicts,
@@ -306,7 +301,7 @@ public:
      *               a (possibly) deleted item
      */
     void completeBGFetch(const DocKey& key,
-                         Vbid vbucket,
+                         uint16_t vbucket,
                          const void* cookie,
                          ProcessClock::time_point init,
                          bool isMeta);
@@ -319,7 +314,7 @@ public:
      * @param start the time when the background fetch was started
      *
      */
-    void completeBGFetchMulti(Vbid vbId,
+    void completeBGFetchMulti(uint16_t vbId,
                               std::vector<bgfetched_item_t>& fetchedItems,
                               ProcessClock::time_point start);
 
@@ -341,7 +336,7 @@ public:
         return vbMap.getBucketsInState(state);
     }
 
-    VBucketPtr getVBucket(Vbid vbid) {
+    VBucketPtr getVBucket(uint16_t vbid) {
         return vbMap.getBucket(vbid);
     }
 
@@ -352,7 +347,7 @@ public:
      * @return A RAII-style handle which owns the correct VBucket mutex,
      *         alongside a shared pointer to the requested VBucket.
      */
-    LockedVBucketPtr getLockedVBucket(Vbid vbid) {
+    LockedVBucketPtr getLockedVBucket(uint16_t vbid) {
         std::unique_lock<std::mutex> lock(vb_mutexes[vbid]);
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
@@ -368,7 +363,7 @@ public:
      * For correct usage, clients should call owns_lock() to check if they
      * successfully acquired a locked VBucket.
      */
-    LockedVBucketPtr getLockedVBucket(Vbid vbid, std::try_to_lock_t) {
+    LockedVBucketPtr getLockedVBucket(uint16_t vbid, std::try_to_lock_t) {
         std::unique_lock<std::mutex> lock(vb_mutexes[vbid], std::try_to_lock);
         if (!lock) {
             return {{}, std::move(lock)};
@@ -376,12 +371,12 @@ public:
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
 
-    std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) {
+    std::pair<uint64_t, bool> getLastPersistedCheckpointId(uint16_t vb) {
         // No persistence at the KVBucket class level.
         return {0, false};
     }
 
-    uint64_t getLastPersistedSeqno(Vbid vb) {
+    uint64_t getLastPersistedSeqno(uint16_t vb) {
         auto vbucket = vbMap.getBucket(vb);
         if (vbucket) {
             return vbucket->getPersistenceSeqno();
@@ -401,7 +396,7 @@ public:
      *
      * @return status of the operation
      */
-    ENGINE_ERROR_CODE setVBucketState(Vbid vbid,
+    ENGINE_ERROR_CODE setVBucketState(uint16_t vbid,
                                       vbucket_state_t state,
                                       bool transfer,
                                       const void* cookie = nullptr);
@@ -424,12 +419,12 @@ public:
      * return status of the operation
      */
     ENGINE_ERROR_CODE setVBucketState_UNLOCKED(
-            Vbid vbid,
-            vbucket_state_t state,
-            bool transfer,
-            bool notify_dcp,
-            std::unique_lock<std::mutex>& vbset,
-            WriterLockHolder* vbStateLock = nullptr);
+                                    uint16_t vbid,
+                                    vbucket_state_t state,
+                                    bool transfer,
+                                    bool notify_dcp,
+                                    std::unique_lock<std::mutex>& vbset,
+                                    WriterLockHolder* vbStateLock = nullptr);
 
     /**
      * Returns the 'vbsetMutex'
@@ -446,7 +441,7 @@ public:
      *          Used in synchronous bucket deletes
      *          to notify the connection of operation completion.
      */
-    ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = NULL);
+    ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL);
 
     /**
      * Check for the existence of a vbucket in the case of couchstore.
@@ -475,7 +470,7 @@ public:
      * Reset a given vbucket from memory and disk. This differs from vbucket deletion in that
      * it does not delete the vbucket instance from memory hash table.
      */
-    bool resetVBucket(Vbid vbid);
+    bool resetVBucket(uint16_t vbid);
 
     /**
      * Run a vBucket visitor, visiting all items. Synchronous.
@@ -522,25 +517,25 @@ public:
      *                     ENGINE_KEY_ENOENT for deleted items.
      */
     ENGINE_ERROR_CODE getKeyStats(const DocKey& key,
-                                  Vbid vbucket,
+                                  uint16_t vbucket,
                                   const void* cookie,
                                   key_stats& kstats,
                                   WantsDeleted wantsDeleted);
 
-    std::string validateKey(const DocKey& key, Vbid vbucket, Item& diskItem);
+    std::string validateKey(const DocKey& key,  uint16_t vbucket,
+                            Item &diskItem);
 
-    GetValue getLocked(const DocKey& key,
-                       Vbid vbucket,
-                       rel_time_t currentTime,
-                       uint32_t lockTimeout,
-                       const void* cookie);
+    GetValue getLocked(const DocKey& key, uint16_t vbucket,
+                       rel_time_t currentTime, uint32_t lockTimeout,
+                       const void *cookie);
 
     ENGINE_ERROR_CODE unlockKey(const DocKey& key,
-                                Vbid vbucket,
+                                uint16_t vbucket,
                                 uint64_t cas,
                                 rel_time_t currentTime);
 
-    KVStore* getRWUnderlying(Vbid vbId) {
+
+    KVStore* getRWUnderlying(uint16_t vbId) {
         return vbMap.getShardByVbId(vbId)->getRWUnderlying();
     }
 
@@ -552,7 +547,7 @@ public:
         return vbMap.shards[shardId]->getROUnderlying();
     }
 
-    KVStore* getROUnderlying(Vbid vbId) {
+    KVStore* getROUnderlying(uint16_t vbId) {
         return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
@@ -743,7 +738,7 @@ public:
      *                           if vbucket reset and rollback fails
      *         TaskStatus::Reschedule if you cannot get a lock on the vbucket
      */
-    TaskStatus rollback(Vbid vbid, uint64_t rollbackSeqno);
+    TaskStatus rollback(uint16_t vbid, uint64_t rollbackSeqno);
 
     virtual void attemptToFreeMemory();
 
@@ -797,7 +792,7 @@ public:
      * Change the max_cas of the specified vbucket to cas without any
      * care for the data or ongoing operations...
      */
-    ENGINE_ERROR_CODE forceMaxCas(Vbid vbucket, uint64_t cas);
+    ENGINE_ERROR_CODE forceMaxCas(uint16_t vbucket, uint64_t cas);
 
     /**
      * Create a VBucket object appropriate for this Bucket class.
@@ -860,7 +855,7 @@ public:
      * @return true if the collection manifest for the vbucket determines the
      *         key at bySeqno is part of a deleted collection.
      */
-    bool collectionsEraseKey(Vbid vbid,
+    bool collectionsEraseKey(uint16_t vbid,
                              const DocKey key,
                              int64_t bySeqno,
                              bool deleted,
@@ -896,8 +891,8 @@ protected:
      * @return the result of the operation
      */
     GetValue getInternal(const DocKey& key,
-                         Vbid vbucket,
-                         const void* cookie,
+                         uint16_t vbucket,
+                         const void *cookie,
                          vbucket_state_t allowedState,
                          get_options_t options);
 
@@ -905,10 +900,10 @@ protected:
                                std::unique_lock<std::mutex>& vbset);
 
     /* Notify flusher of a new seqno being added in the vbucket */
-    virtual void notifyFlusher(const Vbid vbid);
+    virtual void notifyFlusher(const uint16_t vbid);
 
     /* Notify replication of a new seqno being added in the vbucket */
-    void notifyReplication(const Vbid vbid, const int64_t bySeqno);
+    void notifyReplication(const uint16_t vbid, const int64_t bySeqno);
 
     /// Helper method from initialize() to setup the expiry pager
     void initializeExpiryPager(Configuration& config);
@@ -1025,12 +1020,12 @@ protected:
  * Callback for notifying clients of the Bucket (KVBucket) about a new item in
  * the partition (Vbucket).
  */
-class NotifyNewSeqnoCB : public Callback<const Vbid, const VBNotifyCtx&> {
+class NotifyNewSeqnoCB : public Callback<const uint16_t, const VBNotifyCtx&> {
 public:
     NotifyNewSeqnoCB(KVBucket& kvb) : kvBucket(kvb) {
     }
 
-    void callback(const Vbid& vbid, const VBNotifyCtx& notifyCtx) {
+    void callback(const uint16_t& vbid, const VBNotifyCtx& notifyCtx) {
         kvBucket.notifyNewSeqno(vbid, notifyCtx);
     }
 

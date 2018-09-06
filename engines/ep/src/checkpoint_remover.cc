@@ -54,14 +54,14 @@ public:
         // corresponding paused DCP connections.
         if (newCheckpointCreated) {
             store->getEPEngine().getDcpConnMap().notifyVBConnections(
-                    vb->getId().get(), vb->checkpointManager->getHighSeqno());
+                    vb->getId(), vb->checkpointManager->getHighSeqno());
         }
 
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
         if (removed > 0) {
             EP_LOG_DEBUG("Removed {} closed unreferenced checkpoints from {}",
                          removed,
-                         vb->getId());
+                         Vbid(vb->getId()));
         }
         removed = 0;
     }
@@ -142,7 +142,7 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
                    kvBucket->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
         for (const auto& it: vbuckets) {
             if (memoryCleared < amountOfMemoryToClear) {
-                Vbid vbid = it.first;
+                uint16_t vbid = it.first;
                 VBucketPtr vb = kvBucket->getVBucket(vbid);
                 if (vb) {
                     // Get a list of cursors that can be dropped from the

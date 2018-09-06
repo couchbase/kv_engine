@@ -46,7 +46,7 @@ public:
      *         vBucket.
      *         flushCount - the number of items flushed.
      */
-    std::pair<bool, size_t> flushVBucket(Vbid vbid);
+    std::pair<bool, size_t> flushVBucket(uint16_t vbid);
 
     /**
      * Set the number of flusher items which can be included in a
@@ -77,7 +77,7 @@ public:
     /// Stops the background fetcher for each shard.
     void stopBgFetcher();
 
-    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
+    ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid,
                                          const CompactionConfig& c,
                                          const void* ck) override;
 
@@ -94,7 +94,8 @@ public:
                    uint64_t purgeSeq,
                    const void* cookie);
 
-    std::pair<uint64_t, bool> getLastPersistedCheckpointId(Vbid vb) override;
+    std::pair<uint64_t, bool> getLastPersistedCheckpointId(
+            uint16_t vb) override;
 
     ENGINE_ERROR_CODE getFileStats(const void* cookie,
                                    ADD_STAT add_stat) override;
@@ -120,23 +121,24 @@ public:
                            const std::string& collectionsManifest) override;
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                Vbid vbucket,
+                                uint16_t vbucket,
                                 const void* cookie) override;
 
     void completeStatsVKey(const void* cookie,
                            const DocKey& key,
-                           Vbid vbid,
+                           uint16_t vbid,
                            uint64_t bySeqNum) override;
 
-    RollbackResult doRollback(Vbid vbid, uint64_t rollbackSeqno) override;
+    RollbackResult doRollback(uint16_t vbid, uint64_t rollbackSeqno) override;
 
     void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override;
 
-    size_t getNumPersistedDeletes(Vbid vbid) override {
+    size_t getNumPersistedDeletes(uint16_t vbid) override {
         return getROUnderlying(vbid)->getNumPersistedDeletes(vbid);
     }
 
-    void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
+    void notifyNewSeqno(const uint16_t vbid,
+                        const VBNotifyCtx& notifyCtx) override;
 
     virtual bool isGetAllKeysSupported() const override {
         return true;

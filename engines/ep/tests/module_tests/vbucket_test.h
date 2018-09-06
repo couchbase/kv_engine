@@ -33,12 +33,11 @@ class VBucketBGFetchItem;
 /**
  * Dummy callback to replace the flusher callback.
  */
-class DummyCB : public Callback<Vbid> {
+class DummyCB: public Callback<uint16_t> {
 public:
     DummyCB() {}
 
-    void callback(Vbid& dummy) {
-    }
+    void callback(uint16_t &dummy) { }
 };
 
 /**

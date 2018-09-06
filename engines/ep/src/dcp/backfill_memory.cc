@@ -114,19 +114,13 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
       state(BackfillState::Init),
       rangeItr(nullptr),
       vbid(evb->getId()) {
-    TRACE_ASYNC_START1("dcp/backfill",
-                       "DCPBackfillMemoryBuffered",
-                       this,
-                       "vbid",
-                       vbid.get());
+    TRACE_ASYNC_START1(
+            "dcp/backfill", "DCPBackfillMemoryBuffered", this, "vbid", vbid);
 }
 
 DCPBackfillMemoryBuffered::~DCPBackfillMemoryBuffered() {
-    TRACE_ASYNC_END1("dcp/backfill",
-                     "DCPBackfillMemoryBuffered",
-                     this,
-                     "vbid",
-                     vbid.get());
+    TRACE_ASYNC_END1(
+            "dcp/backfill", "DCPBackfillMemoryBuffered", this, "vbid", vbid);
 }
 
 backfill_status_t DCPBackfillMemoryBuffered::run() {
@@ -147,7 +141,7 @@ backfill_status_t DCPBackfillMemoryBuffered::run() {
     TRACE_EVENT2("dcp/backfill",
                  "MemoryBuffered::run",
                  "vbid",
-                 (evb->getId()).get(),
+                 evb->getId(),
                  "state",
                  uint8_t(state));
 
@@ -171,10 +165,8 @@ void DCPBackfillMemoryBuffered::cancel() {
 }
 
 backfill_status_t DCPBackfillMemoryBuffered::create() {
-    TRACE_EVENT1("dcp/backfill",
-                 "MemoryBuffered::create",
-                 "vbid",
-                 (evb->getId()).get());
+    TRACE_EVENT1(
+            "dcp/backfill", "MemoryBuffered::create", "vbid", evb->getId());
 
     auto stream = streamPtr.lock();
     if (!stream) {

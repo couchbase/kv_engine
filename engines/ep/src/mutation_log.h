@@ -42,12 +42,7 @@
 
 #include "mutation_log_entry.h"
 
-#include "utility.h"
-#include <memcached/vbucket.h>
-#include <platform/histogram.h>
-
 #include <array>
-#include <atomic>
 #include <cstring>
 #include <memory>
 #include <set>
@@ -55,6 +50,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include <atomic>
+#include <platform/histogram.h>
+#include "utility.h"
 
 #define ML_BUFLEN (128 * 1024 * 1024)
 
@@ -212,7 +210,7 @@ public:
 
     ~MutationLog();
 
-    void newItem(Vbid vbucket, const StoredDocKey& key);
+    void newItem(uint16_t vbucket, const StoredDocKey& key);
 
     void commit1();
 
@@ -491,10 +489,10 @@ typedef std::pair<uint64_t, uint8_t> mutation_log_event_t;
 /**
  * MutationLogHarvester::apply callback type.
  */
-typedef bool (*mlCallback)(void*, Vbid, const DocKey&);
-typedef bool (*mlCallbackWithQueue)(Vbid,
+typedef bool (*mlCallback)(void*, uint16_t, const DocKey&);
+typedef bool (*mlCallbackWithQueue)(uint16_t,
                                     const std::set<StoredDocKey>&,
-                                    void* arg);
+                                    void *arg);
 
 /**
  * Type for mutation log leftovers.
@@ -503,7 +501,7 @@ struct mutation_log_uncommitted_t {
     StoredDocKey        key;
     uint64_t            rowid;
     MutationLogType     type;
-    Vbid vbucket;
+    uint16_t            vbucket;
 };
 
 class EventuallyPersistentEngine;
@@ -522,7 +520,7 @@ public:
     /**
      * Set a vbucket before loading.
      */
-    void setVBucket(Vbid vb) {
+    void setVBucket(uint16_t vb) {
         vbid_set.insert(vb);
     }
 
@@ -569,9 +567,9 @@ private:
 
     MutationLog &mlog;
     EventuallyPersistentEngine *engine;
-    std::set<Vbid> vbid_set;
+    std::set<uint16_t> vbid_set;
 
-    std::unordered_map<Vbid, std::set<StoredDocKey>> committed;
-    std::unordered_map<Vbid, std::set<StoredDocKey>> loading;
+    std::unordered_map<uint16_t, std::set<StoredDocKey>> committed;
+    std::unordered_map<uint16_t, std::set<StoredDocKey>> loading;
     size_t itemsSeen[int(MutationLogType::NumberOfTypes)];
 };

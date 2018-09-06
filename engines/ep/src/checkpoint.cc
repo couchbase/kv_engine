@@ -92,7 +92,7 @@ Checkpoint::Checkpoint(EPStats& st,
                        uint64_t id,
                        uint64_t snapStart,
                        uint64_t snapEnd,
-                       Vbid vbid)
+                       uint16_t vbid)
     : stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
@@ -110,7 +110,7 @@ Checkpoint::Checkpoint(EPStats& st,
 Checkpoint::~Checkpoint() {
     EP_LOG_DEBUG("Checkpoint {} for {} is purged from memory",
                  checkpointId,
-                 vbucketId);
+                 Vbid(vbucketId));
     stats.coreLocal.get()->memOverhead.fetch_sub(memorySize());
 }
 

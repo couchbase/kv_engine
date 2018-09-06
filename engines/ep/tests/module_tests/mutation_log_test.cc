@@ -187,7 +187,7 @@ TEST_F(MutationLogTest, SyncSet) {
     EXPECT_EQ(FLUSH_COMMIT_1, ml.getFlushConfig());
 }
 
-static bool loaderFun(void* arg, Vbid vb, const DocKey& k) {
+static bool loaderFun(void *arg, uint16_t vb, const DocKey& k) {
     std::set<StoredDocKey>* sets = reinterpret_cast<std::set<StoredDocKey> *>(arg);
     sets[vb].insert(k);
     return true;

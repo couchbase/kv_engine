@@ -22,7 +22,6 @@
 #include "storeddockey.h"
 #include "utility.h"
 
-#include <memcached/vbucket.h>
 #include <type_traits>
 
 enum class MutationLogType : uint8_t {
@@ -128,8 +127,8 @@ public:
     /**
      * This entry's vbucket.
      */
-    Vbid vbucket() const {
-        return Vbid(ntohs(_vbucket));
+    uint16_t vbucket() const {
+        return ntohs(_vbucket);
     }
 
     /**
@@ -144,10 +143,10 @@ protected:
 
     MutationLogEntryV1(uint64_t r,
                        MutationLogType t,
-                       Vbid vb,
+                       uint16_t vb,
                        const std::string& k)
         : _rowid(htonll(r)),
-          _vbucket(htons(vb.get())),
+          _vbucket(htons(vb)),
           magic(MagicMarker),
           _type(t),
           keylen(static_cast<uint8_t>(k.length())) {
@@ -333,14 +332,14 @@ public:
      */
     static MutationLogEntryV3* newEntry(uint8_t* buf,
                                         MutationLogType t,
-                                        Vbid vb,
+                                        uint16_t vb,
                                         const DocKey& k) {
         return new (buf) MutationLogEntryV3(t, vb, k);
     }
 
     static MutationLogEntryV3* newEntry(uint8_t* buf,
                                         MutationLogType t,
-                                        Vbid vb) {
+                                        uint16_t vb) {
         if (MutationLogType::Commit1 != t && MutationLogType::Commit2 != t) {
             throw std::invalid_argument(
                     "MutationLogEntryV3::newEntry: invalid type");
@@ -416,8 +415,8 @@ public:
     /**
      * This entry's vbucket.
      */
-    Vbid vbucket() const {
-        return Vbid(ntohs(_vbucket));
+    uint16_t vbucket() const {
+        return ntohs(_vbucket);
     }
 
     /**
@@ -431,7 +430,7 @@ private:
     friend std::ostream& operator<<(std::ostream& out,
                                     const MutationLogEntryV3& e);
 
-    MutationLogEntryV3(MutationLogType t, Vbid vb, const DocKey& k)
+    MutationLogEntryV3(MutationLogType t, uint16_t vb, const DocKey& k)
         : _vbucket(htons(vb)), magic(MagicMarker), _type(t), _key(k) {
         // Assert that _key is the final member
         static_assert(
@@ -440,7 +439,7 @@ private:
                 "_key must be the final member of MutationLogEntryV2");
     }
 
-    MutationLogEntryV3(MutationLogType t, Vbid vb)
+    MutationLogEntryV3(MutationLogType t, uint16_t vb)
         : MutationLogEntryV3(
                   t, vb, {nullptr, 0, DocKeyEncodesCollectionId::No}) {
     }

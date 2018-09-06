@@ -49,7 +49,7 @@ bool VBucketMemoryDeletionTask::run() {
     TRACE_EVENT1("ep-engine/task",
                  "VBucketMemoryDeletionTask",
                  "vb",
-                 (vbucket->getId()).get());
+                 vbucket->getId());
 
     notifyAllPendingConnsFailed(true);
 
@@ -80,7 +80,7 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
     TRACE_EVENT1("ep-engine/task",
                  "VBucketMemoryAndDiskDeletionTask",
                  "vb",
-                 (vbucket->getId()).get());
+                 vbucket->getId());
     notifyAllPendingConnsFailed(false);
 
     auto start = ProcessClock::now();

@@ -195,7 +195,7 @@ typedef ::testing::Types<EPVBucket> VBucketTypes;
 TYPED_TEST_CASE(CheckpointTest, VBucketTypes);
 
 TYPED_TEST(CheckpointTest, basic_chk_test) {
-    std::shared_ptr<Callback<Vbid> > cb(new DummyCB());
+    std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     this->vbucket.reset(new TypeParam(0,
                                       vbucket_state_active,
                                       this->global_stats,

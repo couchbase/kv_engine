@@ -36,14 +36,14 @@ public:
 
     bool initialize() override;
 
-    ENGINE_ERROR_CODE scheduleCompaction(Vbid vbid,
+    ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid,
                                          const CompactionConfig& c,
                                          const void* ck) override;
 
     /// Eviction not supported for Ephemeral buckets - without some backing
     /// storage, there is nowhere to evict /to/.
     protocol_binary_response_status evictKey(const DocKey& key,
-                                             Vbid vbucket,
+                                             uint16_t vbucket,
                                              const char** msg) override {
         return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
     }
@@ -81,29 +81,30 @@ public:
                            const std::string& collectionsManifest) override;
 
     /// Do nothing - no flusher to notify
-    void notifyFlusher(const Vbid vbid) override {
+    void notifyFlusher(const uint16_t vbid) override {
     }
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
-                                Vbid vbucket,
+                                uint16_t vbucket,
                                 const void* cookie) override {
         return ENGINE_ENOTSUP;
     }
 
     void completeStatsVKey(const void* cookie,
                            const DocKey& key,
-                           Vbid vbid,
+                           uint16_t vbid,
                            uint64_t bySeqNum) override;
 
-    RollbackResult doRollback(Vbid vbid, uint64_t rollbackSeqno) override;
+    RollbackResult doRollback(uint16_t vbid, uint64_t rollbackSeqno) override;
 
     void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override {
         // No op
     }
 
-    size_t getNumPersistedDeletes(Vbid vbid) override;
+    size_t getNumPersistedDeletes(uint16_t vbid) override;
 
-    void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
+    void notifyNewSeqno(const uint16_t vbid,
+                        const VBNotifyCtx& notifyCtx) override;
 
     /**
      * Enables the Ephemeral Tombstone purger task (if not already enabled).

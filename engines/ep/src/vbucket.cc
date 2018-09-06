@@ -60,7 +60,7 @@ VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {
                                         other.acceptable.begin(),
                                         other.acceptable.end(),
                                         tmp.begin());
-    return VBucketFilter(std::vector<Vbid>(tmp.begin(), end));
+    return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
 }
 
 VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other)
@@ -72,14 +72,17 @@ VBucketFilter VBucketFilter::filter_intersection(const VBucketFilter &other)
                                 other.acceptable.begin(),
                                 other.acceptable.end(),
                                 tmp.begin());
-    return VBucketFilter(std::vector<Vbid>(tmp.begin(), end));
+    return VBucketFilter(std::vector<uint16_t>(tmp.begin(), end));
 }
 
-static bool isRange(std::set<Vbid>::const_iterator it,
-                    const std::set<Vbid>::const_iterator& end,
-                    size_t& length) {
+static bool isRange(std::set<uint16_t>::const_iterator it,
+                    const std::set<uint16_t>::const_iterator &end,
+                    size_t &length)
+{
     length = 0;
-    for (Vbid val = *it; it != end && (val + length) == *it; ++it, ++length) {
+    for (uint16_t val = *it;
+         it != end && (val + length) == *it;
+         ++it, ++length) {
         // empty
     }
 
@@ -90,7 +93,7 @@ static bool isRange(std::set<Vbid>::const_iterator it,
 
 std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 {
-    std::set<Vbid>::const_iterator it;
+    std::set<uint16_t>::const_iterator it;
 
     if (filter.acceptable.empty()) {
         out << "{ empty }";
@@ -106,7 +109,7 @@ std::ostream& operator <<(std::ostream &out, const VBucketFilter &filter)
 
             size_t length;
             if (isRange(it, filter.acceptable.end(), length)) {
-                std::set<Vbid>::iterator last = it;
+                std::set<uint16_t>::iterator last = it;
                 for (size_t i = 0; i < length; ++i) {
                     ++last;
                 }
@@ -2564,7 +2567,7 @@ TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
 
 void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
     if (newSeqnoCb) {
-        newSeqnoCb->callback(getId().get(), notifyCtx);
+        newSeqnoCb->callback(getId(), notifyCtx);
     }
 }
 

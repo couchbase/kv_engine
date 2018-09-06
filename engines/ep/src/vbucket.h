@@ -107,7 +107,7 @@ struct HighPriorityVBEntry {
     ProcessClock::time_point start;
 };
 
-typedef std::unique_ptr<Callback<const Vbid, const VBNotifyCtx&>>
+typedef std::unique_ptr<Callback<const uint16_t, const VBNotifyCtx&>>
         NewSeqnoCallback;
 
 class EventuallyPersistentEngine;
@@ -122,7 +122,7 @@ class VBucket : public std::enable_shared_from_this<VBucket> {
 public:
 
     // Identifier for a vBucket
-    typedef Vbid id_type;
+    typedef uint16_t id_type;
 
     enum class GetKeyOnly {
          Yes,
@@ -320,9 +320,7 @@ public:
         persistenceSeqno.store(seqno);
     }
 
-    Vbid getId() const {
-        return id;
-    }
+    id_type getId() const { return id; }
     vbucket_state_t getState(void) const { return state.load(); }
 
     /**

@@ -895,9 +895,7 @@ static int time_purge_hook(Db* d, DocInfo* info, sized_buf item, void* ctx_p) {
 
         try {
             ctx->bloomFilterCallback->callback(
-                    reinterpret_cast<Vbid&>(ctx->compactConfig.db_file_id),
-                    key,
-                    deleted);
+                    ctx->compactConfig.db_file_id, key, deleted);
         } catch (std::runtime_error& re) {
             EP_LOG_WARN(
                     "time_purge_hook: exception occurred when invoking the "
@@ -1893,11 +1891,10 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
     }
 
     // Use the vbucket of the first item or the manifest item
-    auto vbucket2flush =
+    uint16_t vbucket2flush =
             pendingCommitCnt ? pendingReqsQ[0]->getVBucketId()
                              : collectionsFlush.getCollectionsManifestItem()
-                                       ->getVBucketId()
-                                       .get();
+                                       ->getVBucketId();
 
     TRACE_EVENT2("CouchKVStore",
                  "commit2couchstore",
@@ -1914,7 +1911,7 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
         throw std::logic_error(
                 "CouchKVStore::commit2couchstore: manifest/item vbucket "
                 "mismatch vbucket2flush:" +
-                std::to_string(vbucket2flush) + " manifest " +
+                std::to_string(vbucket2flush) + " manifest vb:" +
                 std::to_string(collectionsFlush.getCollectionsManifestItem()
                                        ->getVBucketId()));
     }

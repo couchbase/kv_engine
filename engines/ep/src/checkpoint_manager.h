@@ -47,7 +47,8 @@ class CheckpointManager {
     friend class CheckpointManagerTestIntrospector;
 
 public:
-    typedef std::shared_ptr<Callback<Vbid>> FlusherCallback;
+
+    typedef std::shared_ptr<Callback<uint16_t> > FlusherCallback;
 
     /// Return type of getItemsForCursor()
     struct ItemsForCursor {
@@ -56,7 +57,7 @@ public:
     };
 
     CheckpointManager(EPStats& st,
-                      Vbid vbucket,
+                      uint16_t vbucket,
                       CheckpointConfig& config,
                       int64_t lastSeqno,
                       uint64_t lastSnapStart,
@@ -338,7 +339,7 @@ public:
 
     void notifyFlusher() {
         if (flusherCB) {
-            Vbid vbid = vbucketId;
+            uint16_t vbid = vbucketId;
             flusherCB->callback(vbid);
         }
     }
@@ -468,8 +469,7 @@ protected:
 
     void resetCursors(bool resetPersistenceCursor = true);
 
-    queued_item createCheckpointItem(uint64_t id,
-                                     Vbid vbid,
+    queued_item createCheckpointItem(uint64_t id, uint16_t vbid,
                                      queue_op checkpoint_op);
 
     /**
@@ -480,7 +480,7 @@ protected:
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
     mutable std::mutex       queueLock;
-    const Vbid vbucketId;
+    const uint16_t           vbucketId;
 
     // Total number of items (including meta items) in /all/ checkpoints managed
     // by this object.
@@ -498,7 +498,7 @@ protected:
             std::unordered_map<std::string, std::shared_ptr<CheckpointCursor>>;
     cursor_index connCursors;
 
-    const FlusherCallback flusherCB;
+    FlusherCallback          flusherCB;
 
     static constexpr const char* pCursorName = "persistence";
     Cursor pCursor;

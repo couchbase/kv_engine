@@ -163,7 +163,7 @@ void EphemeralBucket::attemptToFreeMemory() {
     }
 }
 
-ENGINE_ERROR_CODE EphemeralBucket::scheduleCompaction(Vbid vbid,
+ENGINE_ERROR_CODE EphemeralBucket::scheduleCompaction(uint16_t vbid,
                                                       const CompactionConfig& c,
                                                       const void* ck) {
     return ENGINE_ENOTSUP;
@@ -211,7 +211,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
 
 void EphemeralBucket::completeStatsVKey(const void* cookie,
                                         const DocKey& key,
-                                        Vbid vbid,
+                                        uint16_t vbid,
                                         uint64_t bySeqNum) {
     throw std::logic_error(
             "EphemeralBucket::completeStatsVKey() "
@@ -220,7 +220,8 @@ void EphemeralBucket::completeStatsVKey(const void* cookie,
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
-RollbackResult EphemeralBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
+RollbackResult EphemeralBucket::doRollback(uint16_t vbid,
+                                           uint64_t rollbackSeqno) {
     /* For now we always rollback to zero */
     return RollbackResult(/* not a success as we would rather reset vb */ false,
                           /* highSeqno */ 0,
@@ -248,7 +249,7 @@ void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
     config.setWarmup(false);
 }
 
-size_t EphemeralBucket::getNumPersistedDeletes(Vbid vbid) {
+size_t EphemeralBucket::getNumPersistedDeletes(uint16_t vbid) {
     /* the name is getNumPersistedDeletes, in ephemeral buckets the equivalent
        meaning is the number of deletes seen by the vbucket.
        This is needed by ns-server during vb-takeover */
@@ -261,7 +262,7 @@ size_t EphemeralBucket::getNumPersistedDeletes(Vbid vbid) {
             std::to_string(vbid) + "' in vbMap");
 }
 
-void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
+void EphemeralBucket::notifyNewSeqno(const uint16_t vbid,
                                      const VBNotifyCtx& notifyCtx) {
     if (notifyCtx.notifyFlusher) {
         notifyFlusher(vbid);

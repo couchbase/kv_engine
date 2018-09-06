@@ -606,7 +606,7 @@ public:
      * @param lck if true, the new item will return a locked CAS ID.
      * @param vbucket the vbucket containing this item.
      */
-    std::unique_ptr<Item> toItem(bool lck, Vbid vbucket) const;
+    std::unique_ptr<Item> toItem(bool lck, uint16_t vbucket) const;
 
     /**
      * Generate a new Item with only key and metadata out of this object.
@@ -614,7 +614,7 @@ public:
      *
      * @param vbucket the vbucket containing this item.
      */
-    std::unique_ptr<Item> toItemKeyOnly(Vbid vbucket) const;
+    std::unique_ptr<Item> toItemKeyOnly(uint16_t vbucket) const;
 
     /**
      * Get an item_info from the StoredValue

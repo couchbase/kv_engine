@@ -89,8 +89,8 @@ private:
      * Apply newManifest to all active vbuckets
      * @return uninitialized if success, else the vbid which triggered failure.
      */
-    boost::optional<Vbid> updateAllVBuckets(KVBucket& bucket,
-                                            const Manifest& newManifest);
+    boost::optional<uint16_t> updateAllVBuckets(KVBucket& bucket,
+                                                const Manifest& newManifest);
 
     friend std::ostream& operator<<(std::ostream& os, const Manager& manager);
 

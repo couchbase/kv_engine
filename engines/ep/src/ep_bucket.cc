@@ -32,12 +32,12 @@
  * Callback class used by EpStore, for adding relevant keys
  * to bloomfilter during compaction.
  */
-class BloomFilterCallback : public Callback<Vbid&, const DocKey&, bool&> {
+class BloomFilterCallback : public Callback<uint16_t&, const DocKey&, bool&> {
 public:
     BloomFilterCallback(KVBucket& eps) : store(eps) {
     }
 
-    void callback(Vbid& vbucketId, const DocKey& key, bool& isDeleted) {
+    void callback(uint16_t& vbucketId, const DocKey& key, bool& isDeleted) {
         VBucketPtr vb = store.getVBucket(vbucketId);
         if (vb) {
             /* Check if a temporary filter has been initialized. If not,
@@ -86,11 +86,11 @@ public:
     }
 
 private:
-    bool initTempFilter(Vbid vbucketId);
+    bool initTempFilter(uint16_t vbucketId);
     KVBucket& store;
 };
 
-bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
+bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
     Configuration& config = store.getEPEngine().getConfiguration();
     VBucketPtr vb = store.getVBucket(vbucketId);
     if (!vb) {
@@ -261,7 +261,7 @@ void EPBucket::reset() {
     vbMap.getShard(EP_PRIMARY_SHARD)->getFlusher()->notifyFlushEvent();
 }
 
-std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
+std::pair<bool, size_t> EPBucket::flushVBucket(uint16_t vbid) {
     KVShard *shard = vbMap.getShardByVbId(vbid);
     if (diskDeleteAll && !deleteAllTaskCtx.delay) {
         if (shard->getId() == EP_PRIMARY_SHARD) {
@@ -602,7 +602,7 @@ void EPBucket::stopBgFetcher() {
     }
 }
 
-ENGINE_ERROR_CODE EPBucket::scheduleCompaction(Vbid vbid,
+ENGINE_ERROR_CODE EPBucket::scheduleCompaction(uint16_t vbid,
                                                const CompactionConfig& c,
                                                const void* cookie) {
     ENGINE_ERROR_CODE errCode = checkForDBExistence(c.db_file_id);
@@ -763,7 +763,7 @@ bool EPBucket::doCompact(const CompactionConfig& config,
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     StorageProperties storeProp = getStorageProperties();
     bool concWriteCompact = storeProp.hasConcWriteCompact();
-    Vbid vbid = config.db_file_id;
+    uint16_t vbid = config.db_file_id;
 
     /**
      * Check if the underlying storage engine allows writes concurrently
@@ -824,7 +824,7 @@ void EPBucket::updateCompactionTasks(DBFileId db_file_id) {
     }
 }
 
-std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(Vbid vb) {
+std::pair<uint64_t, bool> EPBucket::getLastPersistedCheckpointId(uint16_t vb) {
     auto vbucket = vbMap.getBucket(vb);
     if (vbucket) {
         return {vbucket->getPersistenceCheckpointId(), true};
@@ -860,9 +860,7 @@ ENGINE_ERROR_CODE EPBucket::getPerVBucketDiskStats(const void* cookie,
 
         void visitBucket(VBucketPtr& vb) override {
             char buf[32];
-            // Explicitly custom print format, so maintain uint16_t instead
-            // of Vbid type.
-            uint16_t vbid = vb->getId().get();
+            uint16_t vbid = vb->getId();
             DBFileInfo dbInfo =
                     vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
 
@@ -931,7 +929,7 @@ VBucketPtr EPBucket::makeVBucket(VBucket::id_type id,
 }
 
 ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key,
-                                      Vbid vbucket,
+                                      uint16_t vbucket,
                                       const void* cookie) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
@@ -943,7 +941,7 @@ ENGINE_ERROR_CODE EPBucket::statsVKey(const DocKey& key,
 
 void EPBucket::completeStatsVKey(const void* cookie,
                                  const DocKey& key,
-                                 Vbid vbid,
+                                 uint16_t vbid,
                                  uint64_t bySeqNum) {
     GetValue gcb = getROUnderlying(vbid)->get(key, vbid);
 
@@ -1037,7 +1035,7 @@ private:
     EventuallyPersistentEngine& engine;
 };
 
-RollbackResult EPBucket::doRollback(Vbid vbid, uint64_t rollbackSeqno) {
+RollbackResult EPBucket::doRollback(uint16_t vbid, uint64_t rollbackSeqno) {
     auto cb = std::make_shared<EPDiskRollbackCB>(engine);
     KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
     return rwUnderlying->rollback(vbid, rollbackSeqno, cb);
@@ -1061,7 +1059,8 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
     }
 }
 
-void EPBucket::notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) {
+void EPBucket::notifyNewSeqno(const uint16_t vbid,
+                              const VBNotifyCtx& notifyCtx) {
     if (notifyCtx.notifyFlusher) {
         notifyFlusher(vbid);
     }

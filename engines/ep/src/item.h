@@ -147,7 +147,7 @@ public:
          protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
          uint64_t theCas = 0,
          int64_t i = -1,
-         Vbid vbid = 0,
+         uint16_t vbid = 0,
          uint64_t sno = 1);
 
     /* Constructor (new value).
@@ -168,11 +168,11 @@ public:
          protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
          uint64_t theCas = 0,
          int64_t i = -1,
-         Vbid vbid = 0,
+         uint16_t vbid = 0,
          uint64_t sno = 1);
 
     Item(const DocKey& k,
-         const Vbid vb,
+         const uint16_t vb,
          queue_op o,
          const uint64_t revSeq,
          const int64_t bySeq);
@@ -268,11 +268,11 @@ public:
         metaData.exptime = exp_time;
     }
 
-    Vbid getVBucketId() const {
+    uint16_t getVBucketId(void) const {
         return vbucketId;
     }
 
-    void setVBucketId(Vbid to) {
+    void setVBucketId(uint16_t to) {
         vbucketId = to;
     }
 
@@ -463,7 +463,7 @@ private:
     // CheckpointManager::setOpenCheckpointId_UNLOCKED
     std::atomic<int64_t> bySeqno;
     uint32_t queuedTime;
-    Vbid vbucketId;
+    uint16_t vbucketId;
     bool deleted;
     queue_op op;
     uint8_t nru  : 2;
