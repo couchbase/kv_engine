@@ -37,12 +37,12 @@ struct ProgramOptions {
 };
 
 static bool runUpgrade(const ProgramOptions& options,
-                       Collections::InputCouchFile& input,
-                       Collections::OutputCouchFile& output) {
+                       Collections::InputCouchFile& input) {
     using PreflightStatus = Collections::InputCouchFile::PreflightStatus;
     switch (input.preflightChecks(std::cerr)) {
     case PreflightStatus::ReadyForUpgrade:
         break;
+    case PreflightStatus::InputFileCannotBeProcessed:
     case PreflightStatus::UpgradePartial:
     case PreflightStatus::UpgradeCompleteAndPartial: {
         std::cerr << "Pre-upgrade checks have failed\n";
@@ -52,6 +52,11 @@ static bool runUpgrade(const ProgramOptions& options,
         return options.options.test(Options::Tolerate);
     }
     }
+
+    // Open the output file now that the input file is ok for processing
+    Collections::OutputCouchFile output(options.options,
+                                        options.outputFilename,
+                                        CollectionID::DefaultCollection);
 
     // Perform the upgrade steps
     // 1. Write out a new file tagged in a way we can determine upgrade has
@@ -164,11 +169,7 @@ int main(int argc, char** argv) {
         if (options.options.test(Options::Status)) {
             runStatus(input);
         } else {
-            Collections::OutputCouchFile output(
-                    options.options,
-                    options.outputFilename,
-                    CollectionID::DefaultCollection);
-            success = runUpgrade(options, input, output);
+            success = runUpgrade(options, input);
         }
     } catch (const std::exception& e) {
         success = false;

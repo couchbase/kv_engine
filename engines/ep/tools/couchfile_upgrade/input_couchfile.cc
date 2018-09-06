@@ -27,11 +27,14 @@ InputCouchFile::InputCouchFile(OptionsSet options, const std::string& filename)
     : CouchFile(options, filename, 0) {
 }
 
-/**
- * @return true if the checks pass
- */
 InputCouchFile::PreflightStatus InputCouchFile::preflightChecks(
         std::ostream& os) const {
+    if (!doesLocalDocumentExist("_local/vbstate")) {
+        os << "filename:" << filename
+           << " does not have a \"_local/vbstate\" document\n";
+        return PreflightStatus::InputFileCannotBeProcessed;
+    }
+
     bool partial = isPartiallyNamespaced();
     bool complete = isCompletelyNamespaced();
 

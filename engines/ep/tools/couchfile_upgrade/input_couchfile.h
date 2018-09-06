@@ -37,9 +37,10 @@ public:
         UpgradePartial,
         UpgradeComplete,
         UpgradeCompleteAndPartial,
-
+        InputFileCannotBeProcessed
     };
 
+    /// @return a PreflightStatus for the file
     PreflightStatus preflightChecks(std::ostream& os) const;
 
     /**
