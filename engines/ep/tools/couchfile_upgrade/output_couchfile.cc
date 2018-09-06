@@ -27,19 +27,27 @@ namespace Collections {
 
 OutputCouchFile::OutputCouchFile(OptionsSet options,
                                  const std::string& filename,
-                                 CollectionID newCollection)
+                                 CollectionID newCollection,
+                                 size_t maxBufferedSize)
     : CouchFile(options, filename, COUCHSTORE_OPEN_FLAG_CREATE),
-      collection(newCollection) {
+      collection(newCollection),
+      bufferedOutput(maxBufferedSize) {
 }
 
-void OutputCouchFile::commit() const {
+void OutputCouchFile::commit() {
+    if (!bufferedOutput.empty()) {
+        verbose("commit is triggering a write");
+        writeDocuments();
+    }
+
+    verbose("commit");
+
     auto errcode = couchstore_commit(db);
     if (errcode) {
         throw std::runtime_error(
                 "OutputCouchFile::commit couchstore_commit failed errcode:" +
                 std::to_string(errcode));
     }
-    verbose("commit");
 }
 
 // Moving a document to a collection in the context of this upgrade is to
@@ -56,36 +64,33 @@ std::string OutputCouchFile::moveDocToCollection(const sized_buf in,
     return rv;
 }
 
-void OutputCouchFile::processDocument(const Doc* doc,
-                                      const DocInfo* docinfo) const {
-    auto newName = moveDocToCollection(doc->id, collection);
-    Doc newDoc = *doc;
-    DocInfo newDocInfo = *docinfo;
-    newDoc.id.buf = const_cast<char*>(newName.data());
-    newDoc.id.size = newName.size();
-    newDocInfo.id = newDoc.id;
-
-    writeDocument(&newDoc, &newDocInfo);
+void OutputCouchFile::processDocument(const Doc* doc, const DocInfo* docinfo) {
+    if (bufferedOutput.addDocument(
+                moveDocToCollection(doc->id, collection), doc, docinfo)) {
+        verbose("processDocument triggering write");
+        writeDocuments();
+    }
 }
 
-void OutputCouchFile::writeDocument(const Doc* doc,
-                                    const DocInfo* docinfo) const {
-    auto errcode = couchstore_save_document(
+void OutputCouchFile::writeDocuments() {
+    verbose("writeDocuments size:" + std::to_string(bufferedOutput.size()));
+    bufferedOutput.prepareForWrite();
+
+    auto errcode = couchstore_save_documents(
             db,
-            doc,
-            const_cast<DocInfo*>(docinfo),
+            bufferedOutput.getDocs(),
+            bufferedOutput.getDocInfos(),
+            unsigned(bufferedOutput.size()),
             COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS);
 
     if (errcode) {
         throw std::runtime_error(
-                "OutputCouchFile::writeDocument couchstore_save_document "
+                "OutputCouchFile::writeDocuments couchstore_save_documents "
                 "errcode:" +
                 std::to_string(errcode));
     }
 
-    verbose("writeDocument(" + std::string(doc->id.buf, doc->id.size) +
-            ", db_seq:" + std::to_string(docinfo->db_seq) + ", rev_seq:" +
-            std::to_string(docinfo->rev_seq));
+    bufferedOutput.reset();
 }
 
 void OutputCouchFile::setVBState(const std::string& inputVBS) {
@@ -132,7 +137,77 @@ void OutputCouchFile::writeSupportsCollections(const std::string& vbs,
                 vbs + " exception:" + e.what());
     }
     json[CollectionsSupportedKey] = value;
-    std::cout << json.dump() << std::endl;
     writeLocalDocument("_local/vbstate", json.dump());
 }
+
+OutputCouchFile::BufferedOutputDocuments::Document::Document(
+        const std::string& newDocKey, const Doc* doc, const DocInfo* docInfo)
+    : newDocKey(newDocKey), newDoc(*doc), newDocInfo(*docInfo), doc(doc) {
+    // Update the ID fields with the newDocKey
+    newDoc.id.buf = const_cast<char*>(this->newDocKey.data());
+    newDoc.id.size = this->newDocKey.size();
+    newDocInfo.id = newDoc.id;
+
+    // Copy the rev_meta
+    if (docInfo->rev_meta.buf) {
+        std::copy(docInfo->rev_meta.buf,
+                  docInfo->rev_meta.buf + docInfo->rev_meta.size,
+                  std::back_inserter(revMeta));
+        newDocInfo.rev_meta = {revMeta.data(), revMeta.size()};
+    }
+}
+
+OutputCouchFile::BufferedOutputDocuments::Document::Document(Document&& other) {
+    newDocKey = std::move(other.newDocKey);
+    revMeta = std::move(other.revMeta);
+    newDoc = other.newDoc;
+    newDocInfo = other.newDocInfo;
+
+    // Now make sure pointers make sense
+    newDoc.id.buf = const_cast<char*>(newDocKey.data());
+    newDoc.id.size = newDocKey.size();
+    newDocInfo.id = newDoc.id;
+
+    if (other.newDocInfo.rev_meta.buf) {
+        // point to this revMeta
+        newDocInfo.rev_meta = {revMeta.data(), revMeta.size()};
+    }
+
+    doc = other.doc;
+    other.doc = nullptr;
+}
+
+OutputCouchFile::BufferedOutputDocuments::Document::~Document() {
+    if (doc) {
+        couchstore_free_document(const_cast<Doc*>(doc));
+    }
+}
+
+OutputCouchFile::BufferedOutputDocuments::BufferedOutputDocuments(
+        size_t maxBufferedSize)
+    : maxBufferedSize(maxBufferedSize) {
+}
+
+bool OutputCouchFile::BufferedOutputDocuments::addDocument(
+        const std::string& newDocKey, const Doc* doc, const DocInfo* docInfo) {
+    outputDocuments.emplace_back(newDocKey, doc, docInfo);
+
+    approxBufferedSize +=
+            (newDocKey.size() + docInfo->rev_meta.size + doc->id.size);
+
+    auto vectorSizes = (sizeof(Document) * outputDocuments.size()) +
+                       (sizeof(Doc*) * outputDocs.size()) +
+                       (sizeof(DocInfo*) * outputDocInfos.size());
+
+    // Return if we should now trigger the write of the buffer
+    return (approxBufferedSize + vectorSizes) >= maxBufferedSize;
+}
+
+void OutputCouchFile::BufferedOutputDocuments::prepareForWrite() {
+    for (auto& doc : outputDocuments) {
+        outputDocs.push_back(&doc.newDoc);
+        outputDocInfos.push_back(&doc.newDocInfo);
+    }
+}
+
 } // end namespace Collections

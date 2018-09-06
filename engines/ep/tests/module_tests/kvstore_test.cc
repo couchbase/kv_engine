@@ -458,7 +458,10 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     // Use the upgrade tool's objects to run an upgrade
     // setup_kv_store will have progressed the rev to .2
     Collections::InputCouchFile input({}, data_dir + "/0.couch.2");
-    Collections::OutputCouchFile output({}, data_dir + "/0.couch.3", 500);
+    Collections::OutputCouchFile output({},
+                                        data_dir + "/0.couch.3",
+                                        500 /*collection-id*/,
+                                        1024 * 1024 /*buffersize*/);
     input.upgrade(output);
     output.commit();
 

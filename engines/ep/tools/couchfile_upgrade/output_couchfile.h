@@ -32,11 +32,12 @@ public:
      */
     OutputCouchFile(OptionsSet options,
                     const std::string& filename,
-                    CollectionID newCollection);
+                    CollectionID newCollection,
+                    size_t maxBufferedSize);
 
-    void commit() const;
+    void commit();
 
-    void processDocument(const Doc* doc, const DocInfo* docinfo) const;
+    void processDocument(const Doc* doc, const DocInfo* docinfo);
 
     void setVBState(const std::string& inputVBS);
 
@@ -52,7 +53,10 @@ public:
      */
     void writeUpgradeComplete(const InputCouchFile& input) const;
 
-    void writeDocument(const Doc* doc, const DocInfo* docinfo) const;
+    /**
+     * write all documents that are in the BufferedOutputDocuments
+     */
+    void writeDocuments();
 
 protected:
     /**
@@ -67,5 +71,78 @@ protected:
 
     /// The destination collection to use in the upgrade
     CollectionID collection;
+
+    /**
+     * Inner class for storing the documents ready for buffered writing, the
+     * buffer itself tracks an approx memory usage and returns true from
+     * addDocument if that memory usage exceeds the maxBufferedSize used in
+     * construction.
+     */
+    class BufferedOutputDocuments {
+    public:
+        BufferedOutputDocuments(size_t maxBufferedSize);
+
+        /**
+         * Add a document to the buffer and return true if the buffer should
+         * now be written to disk
+         */
+        bool addDocument(const std::string& newDocKey,
+                         const Doc* doc,
+                         const DocInfo* docInfo);
+
+        /**
+         * the couchstore_save_docs expects a plain array of Doc* and DocInfo*
+         * This method is called just before we use couchstore_save_docs and
+         * creates arrays of Doc* and DocInfo* from the internal Document
+         * buffers
+         */
+        void prepareForWrite();
+
+        Doc** getDocs() {
+            return outputDocs.data();
+        }
+
+        DocInfo** getDocInfos() {
+            return outputDocInfos.data();
+        }
+
+        size_t size() const {
+            return outputDocuments.size();
+        }
+
+        void reset() {
+            outputDocs.clear();
+            outputDocInfos.clear();
+            outputDocuments.clear();
+            approxBufferedSize = 0;
+        }
+
+        bool empty() const {
+            return outputDocuments.empty();
+        }
+
+    private:
+        struct Document {
+            Document(const std::string& newDocKey,
+                     const Doc* doc,
+                     const DocInfo* docInfo);
+            ~Document();
+
+            Document(const Document& other) = delete;
+            Document(Document&& other);
+
+            std::string newDocKey;
+            std::vector<char> revMeta;
+            Doc newDoc;
+            DocInfo newDocInfo;
+            const Doc* doc;
+        };
+
+        std::vector<Doc*> outputDocs;
+        std::vector<DocInfo*> outputDocInfos;
+        std::vector<Document> outputDocuments;
+        size_t approxBufferedSize = 0;
+        size_t maxBufferedSize = 0;
+    } bufferedOutput;
 };
 } // end namespace Collections

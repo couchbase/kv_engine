@@ -34,6 +34,7 @@ struct ProgramOptions {
     OptionsSet options;
     const char* inputFilename;
     const char* outputFilename;
+    size_t outputBufferMaxSize = (1024 * 1024) * 500;
 };
 
 static bool runUpgrade(const ProgramOptions& options,
@@ -54,8 +55,10 @@ static bool runUpgrade(const ProgramOptions& options,
     }
 
     // Open the output file now that the input file is ok for processing
-    Collections::OutputCouchFile output(
-            options.options, options.outputFilename, CollectionID::Default);
+    Collections::OutputCouchFile output(options.options,
+                                        options.outputFilename,
+                                        CollectionID::Default,
+                                        options.outputBufferMaxSize);
 
     // Perform the upgrade steps
     // 1. Write out a new file tagged in a way we can determine upgrade has
@@ -90,7 +93,8 @@ static void usage() {
     -s or --status         Optional: Print upgrade status of input file.
     -t or --tolerate       Optional: Tolerate upgraded files - exit 0 if file is already marked as upgraded.
     -i or --input <name>   Required: Input filename.
-    -o or --output <name>  Required (only if not -s): Output filename to be created.)"
+    -o or --output <name>  Required (only if not -s): Output filename to be created.
+    -b or --buffer size    Optional: Specify the amount of memory (bytes) we can use for buffering documents (default 524288000))"
               << std::endl;
 }
 
@@ -103,10 +107,11 @@ static ProgramOptions parseArguments(int argc, char** argv) {
                                     {"verbose", no_argument, nullptr, 'v'},
                                     {"input", required_argument, nullptr, 'i'},
                                     {"output", required_argument, nullptr, 'o'},
+                                    {"buffer", optional_argument, nullptr, 'b'},
                                     {nullptr, 0, nullptr, 0}};
 
-    while ((cmd = getopt_long(argc, argv, "tsvi:o:", long_options, nullptr)) !=
-           -1) {
+    while ((cmd = getopt_long(
+                    argc, argv, "tsvi:o:b:", long_options, nullptr)) != -1) {
         switch (cmd) {
         case 'v': {
             pOptions.options.set(Options::Verbose);
@@ -131,6 +136,11 @@ static ProgramOptions parseArguments(int argc, char** argv) {
         case 'o': {
             pOptions.outputFilename = optarg;
             std::cout << "Output:" << optarg << "\n";
+            break;
+        }
+        case 'b': {
+            pOptions.outputBufferMaxSize = std::stoll(optarg);
+            std::cout << "Buffer size:" << pOptions.outputBufferMaxSize << "\n";
             break;
         }
         case ':':
