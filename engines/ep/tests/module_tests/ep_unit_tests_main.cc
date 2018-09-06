@@ -69,8 +69,7 @@ int main(int argc, char **argv) {
                                        : spdlog::level::level_enum::critical;
 
     // Set the logging level in the api then setup the BucketLogger
-    get_mock_server_api()->log->get_spdlogger()->spdlogGetter()->set_level(
-            spd_log_level);
+    get_mock_server_api()->log->get_spdlogger()->set_level(spd_log_level);
     BucketLogger::setLoggerAPI(get_mock_server_api()->log);
 
     // Need to initialize ep_real_time and friends.

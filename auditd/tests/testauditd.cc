@@ -37,7 +37,6 @@
 #include "auditd/src/audit.h"
 #include "auditd/src/auditconfig.h"
 #include "auditd/tests/mock_auditconfig.h"
-#include "memcached/extension.h"
 
 // The event descriptor file is normally stored in the directory named
 // auditd relative to the binary.. let's just use that as the default

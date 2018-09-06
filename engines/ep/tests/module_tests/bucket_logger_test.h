@@ -18,7 +18,6 @@
 #pragma once
 
 #include "logger/logger_test_fixture.h"
-#include <memcached/extension.h>
 
 /**
  * Unit tests for the BucketLogger class

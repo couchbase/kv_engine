@@ -37,7 +37,6 @@
 #include <spdlog/logger.h>
 
 #include <boost/optional/optional_fwd.hpp>
-#include <memcached/extension.h>
 
 #include <string>
 
@@ -130,15 +129,6 @@ spdlog::logger* get();
  */
 LOGGER_PUBLIC_API
 void reset();
-
-/**
- * Get a reference to a function that returns a reference to the memcached
- * spdlog::logger object
- *
- * @return Function pointer
- */
-LOGGER_PUBLIC_API
-EXTENSION_SPDLOG_GETTER& getSpdloggerRef();
 
 /**
  * Tell the logger to flush its buffers

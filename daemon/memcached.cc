@@ -1370,8 +1370,8 @@ struct ServerCoreApi : public ServerCoreIface {
 };
 
 struct ServerLogApi : public ServerLogIface {
-    EXTENSION_SPDLOG_GETTER* get_spdlogger() override {
-        return settings.extensions.spdlogger;
+    spdlog::logger* get_spdlogger() override {
+        return cb::logger::get();
     }
 
     void set_level(spdlog::level::level_enum severity) override {
@@ -2192,7 +2192,6 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     try {
         cb::logger::createConsoleLogger();
-        settings.extensions.spdlogger = &cb::logger::getSpdloggerRef();
     } catch (const std::exception& e) {
         std::cerr << "Failed to create logger object: " << e.what()
                   << std::endl;

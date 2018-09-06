@@ -48,7 +48,6 @@
 #include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <memcached/engine.h>
-#include <memcached/extension.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_api.h>
 #include <memcached/util.h>

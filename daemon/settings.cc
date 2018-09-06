@@ -63,7 +63,6 @@ Settings::Settings()
     collections_prototype.store(false);
 
     memset(&has, 0, sizeof(has));
-    memset(&extensions, 0, sizeof(extensions));
 }
 
 Settings::Settings(const unique_cJSON_ptr& json)

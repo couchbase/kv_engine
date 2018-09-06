@@ -18,7 +18,6 @@
 #include "logger_test_fixture.h"
 
 #include <memcached/engine.h>
-#include <memcached/extension.h>
 #include <platform/cbassert.h>
 
 #include <valgrind/valgrind.h>

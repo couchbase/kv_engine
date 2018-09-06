@@ -80,7 +80,6 @@
 #include <logger/logger.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
-#include <memcached/extension.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/thread.h>
@@ -1634,7 +1633,7 @@ ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {
         return ENGINE_SUCCESS;
 
     } catch (std::exception& e) {
-        auto logger = gsa()->log->get_spdlogger()->spdlogGetter();
+        auto logger = gsa()->log->get_spdlogger();
         logger->warn("EWB_Engine: failed to create engine: {}", e.what());
         return ENGINE_FAILED;
     }

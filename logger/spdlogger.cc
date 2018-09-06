@@ -22,7 +22,6 @@
 #include "logger.h"
 
 #include <memcached/engine.h>
-#include <memcached/extension.h>
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/sinks/stdout_sinks.h>
@@ -31,14 +30,11 @@
 #include <cstdio>
 
 #ifndef WIN32
-#include <include/memcached/extension.h>
 #include <spdlog/sinks/ansicolor_sink.h>
 
 #endif
 
 static const std::string logger_name{"spdlog_file_logger"};
-
-static EXTENSION_SPDLOG_GETTER ref;
 
 /**
  * Custom log pattern which the loggers will use.
@@ -197,10 +193,4 @@ void cb::logger::createConsoleLogger() {
     file_logger = spdlog::stderr_color_mt(logger_name);
     file_logger->set_level(spdlog::level::info);
     file_logger->set_pattern(log_pattern);
-}
-
-LOGGER_PUBLIC_API
-EXTENSION_SPDLOG_GETTER& cb::logger::getSpdloggerRef() {
-    ref.spdlogGetter = get;
-    return ref;
 }

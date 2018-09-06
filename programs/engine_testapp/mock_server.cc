@@ -5,7 +5,6 @@
 #include <memcached/allocator_hooks.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-#include <memcached/extension.h>
 #include <memcached/server_api.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,10 +27,6 @@
 #define REALTIME_MAXDELTA 60*60*24*3
 #define CONN_MAGIC 0xbeefcafe
 
-struct mock_extensions {
-    EXTENSION_SPDLOG_GETTER* spdlogGetter;
-};
-
 std::array<std::list<mock_callbacks>, MAX_ENGINE_EVENT_TYPE + 1> mock_event_handlers;
 
 std::atomic<time_t> process_started;     /* when the mock server was started */
@@ -41,7 +36,6 @@ std::atomic<rel_time_t> time_travel_offset;
 
 /* ref_mutex to guard references, and object deletion in case references becomes zero */
 static cb_mutex_t ref_mutex;
-struct mock_extensions extensions;
 spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 
 /**
@@ -191,8 +185,8 @@ struct MockServerCoreApi : public ServerCoreIface {
 };
 
 struct MockServerLogApi : public ServerLogIface {
-    EXTENSION_SPDLOG_GETTER* get_spdlogger() override {
-        return extensions.spdlogGetter;
+    spdlog::logger* get_spdlogger() override {
+        return cb::logger::get();
     }
 
     void set_level(spdlog::level::level_enum severity) override {
@@ -414,7 +408,6 @@ SERVER_HANDLE_V1* get_mock_server_api() {
 void init_mock_server() {
     process_started = time(0);
     time_travel_offset = 0;
-    extensions.spdlogGetter = &cb::logger::getSpdloggerRef();
     log_level = spdlog::level::level_enum::critical;
 
     session_cas = 0x0102030405060708;

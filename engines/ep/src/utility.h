@@ -29,7 +29,6 @@
 
 #pragma once
 
-#include <memcached/extension.h>
 #include <platform/dynamic.h>
 
 // A macro to disallow the copy constructor and operator= functions

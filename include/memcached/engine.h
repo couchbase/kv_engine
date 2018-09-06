@@ -21,7 +21,6 @@
 #include "memcached/config_parser.h"
 #include "memcached/dockey.h"
 #include "memcached/engine_common.h"
-#include "memcached/extension.h"
 #include "memcached/protocol_binary.h"
 #include "memcached/server_api.h"
 #include "memcached/types.h"

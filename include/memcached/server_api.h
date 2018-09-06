@@ -23,11 +23,22 @@
 #include <memcached/rbac.h>
 #include <memcached/types.h>
 
+#include <spdlog/common.h>
 #include <gsl/gsl>
 
 #include <string>
 
 #include "tracing/tracetypes.h"
+
+namespace spdlog {
+class logger;
+}
+
+struct ServerLogIface {
+    virtual ~ServerLogIface() = default;
+    virtual spdlog::logger* get_spdlogger() = 0;
+    virtual void set_level(spdlog::level::level_enum severity) = 0;
+};
 
 struct ServerCoreIface {
     virtual ~ServerCoreIface() = default;

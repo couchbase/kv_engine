@@ -379,7 +379,7 @@ ENGINE_ERROR_CODE create_no_bucket_instance(GET_SERVER_API get_server_api,
         NoBucket* engine = new NoBucket();
         *handle = reinterpret_cast<EngineIface*>(engine);
     } catch (std::bad_alloc& e) {
-        auto logger = get_server_api()->log->get_spdlogger()->spdlogGetter();
+        auto logger = get_server_api()->log->get_spdlogger();
         logger->warn("NoBucket: failed to create engine: {}", e.what());
         return ENGINE_FAILED;
     }

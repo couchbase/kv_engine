@@ -19,15 +19,12 @@
 #include "ep_engine.h"
 #include "objectregistry.h"
 
-#include <memcached/extension.h>
-
 // Construct the base logger with a nullptr for the sinks as they will never be
 // used. Requires a unique name for registry
 BucketLogger::BucketLogger(const std::string& name, const std::string& p)
     : spdlog::logger(name, nullptr), prefix(p) {
     spdLogger = BucketLogger::loggerAPI.load(std::memory_order_relaxed)
-                        ->get_spdlogger()
-                        ->spdlogGetter();
+                        ->get_spdlogger();
 
     // Take the logging level of the memcached logger so we don't format
     // anything unnecessarily

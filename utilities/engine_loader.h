@@ -17,7 +17,6 @@
 #pragma once
 
 #include <memcached/engine.h>
-#include <memcached/extension.h>
 #include <memcached/mcd_util-visibility.h>
 
 #include <platform/dynamic.h>

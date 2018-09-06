@@ -965,11 +965,6 @@ protected:
 protected:
     int maxconns;           /* Total number of permitted connections. Derived
                                from sum of all individual interfaces */
-
-public:
-    struct {
-        EXTENSION_SPDLOG_GETTER* spdlogger;
-    } extensions;
 };
 
 extern Settings settings;
