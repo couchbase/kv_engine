@@ -633,7 +633,8 @@ ENGINE_ERROR_CODE TestDcpConsumer::openStreams() {
                                                ctx.snapshot.start,
                                                ctx.snapshot.end,
                                                &rollback,
-                                               mock_dcp_add_failover_log);
+                                               mock_dcp_add_failover_log,
+                                               {});
 
         checkeq(ctx.exp_err, rv, "Failed to initiate stream request");
 
@@ -787,7 +788,8 @@ static void notifier_request(EngineIface* h,
                                             snap_start_seqno,
                                             snap_end_seqno,
                                             &rollback,
-                                            mock_dcp_add_failover_log);
+                                            mock_dcp_add_failover_log,
+                                            {});
     checkeq(ENGINE_SUCCESS, err, "Failed to initiate stream request");
 
     std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
@@ -2735,7 +2737,8 @@ static test_result test_dcp_producer_stream_req_nmvb(EngineIface* h) {
                             0,
                             0,
                             &rollback,
-                            mock_dcp_add_failover_log),
+                            mock_dcp_add_failover_log,
+                            {}),
             "Expected not my vbucket");
     testHarness->destroy_cookie(cookie1);
 
@@ -3015,7 +3018,8 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
                             snap_start_seqno,
                             snap_end_seqno,
                             &rollback,
-                            mock_dcp_add_failover_log),
+                            mock_dcp_add_failover_log,
+                            {}),
             "Failed to initiate stream request");
 
     MockDcpMessageProducers producers(h);
@@ -5565,7 +5569,8 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
                               0,
                               num_items,
                               &rollback,
-                              mock_dcp_add_failover_log) == ENGINE_SUCCESS,
+                              mock_dcp_add_failover_log,
+                              {}) == ENGINE_SUCCESS,
               "Failed to initiate stream request");
         dcp->step(cookie, &producers);
     }
@@ -6186,7 +6191,8 @@ static enum test_result test_mb19153(EngineIface* h) {
                             0,
                             0,
                             &rollback,
-                            mock_dcp_add_failover_log),
+                            mock_dcp_add_failover_log,
+                            {}),
             "Expected success");
 
     // Disconnect the producer

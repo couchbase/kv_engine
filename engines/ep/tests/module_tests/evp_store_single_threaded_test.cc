@@ -1505,7 +1505,8 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
                                        /*snap_start*/ 0,
                                        /*snap_end*/ 0,
                                        &rollbackSeqno,
-                                       dummy_dcp_add_failover_cb));
+                                       dummy_dcp_add_failover_cb,
+                                       {}));
 }
 
 /*
@@ -1889,7 +1890,8 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
                                  /*snap_start*/ 0,
                                  /*snap_end*/ 0,
                                  &rollbackSeqno,
-                                 dummy_dcp_add_failover_cb));
+                                 dummy_dcp_add_failover_cb,
+                                 {}));
 
     // FutureQ should now have an additional DCPBackfill task.
     EXPECT_EQ(2, lpAuxioQ->getFutureQueueSize());

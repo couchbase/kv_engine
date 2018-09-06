@@ -943,7 +943,8 @@ static void perf_dcp_client(EngineIface* h,
                            0,
                            0,
                            &rollback,
-                           mock_dcp_add_failover_log),
+                           mock_dcp_add_failover_log,
+                           {}),
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
@@ -1221,7 +1222,8 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                            0 /*snap_start_seqno*/,
                            0 /*snap_end_seqno*/,
                            &rollbackSeqno,
-                           mock_dcp_add_failover_log),
+                           mock_dcp_add_failover_log,
+                           {}),
             "dcp.stream_req failed");
 
     // We have done with preventing checkpoints from being closed and released.

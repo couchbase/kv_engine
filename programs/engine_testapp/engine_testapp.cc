@@ -153,17 +153,19 @@ struct mock_engine : public EngineIface, public DcpIface {
                                    uint32_t opaque,
                                    uint16_t vbucket) override;
 
-    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
-                                 uint32_t flags,
-                                 uint32_t opaque,
-                                 uint16_t vbucket,
-                                 uint64_t start_seqno,
-                                 uint64_t end_seqno,
-                                 uint64_t vbucket_uuid,
-                                 uint64_t snap_start_seqno,
-                                 uint64_t snap_end_seqno,
-                                 uint64_t* rollback_seqno,
-                                 dcp_add_failover_log callback) override;
+    ENGINE_ERROR_CODE stream_req(
+            gsl::not_null<const void*> cookie,
+            uint32_t flags,
+            uint32_t opaque,
+            uint16_t vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t* rollback_seqno,
+            dcp_add_failover_log callback,
+            boost::optional<cb::const_char_buffer> json) override;
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
@@ -664,17 +666,19 @@ ENGINE_ERROR_CODE mock_engine::close_stream(gsl::not_null<const void*> cookie,
     return the_engine_dcp->close_stream(cookie, opaque, vbucket);
 }
 
-ENGINE_ERROR_CODE mock_engine::stream_req(gsl::not_null<const void*> cookie,
-                                          uint32_t flags,
-                                          uint32_t opaque,
-                                          uint16_t vbucket,
-                                          uint64_t start_seqno,
-                                          uint64_t end_seqno,
-                                          uint64_t vbucket_uuid,
-                                          uint64_t snap_start_seqno,
-                                          uint64_t snap_end_seqno,
-                                          uint64_t* rollback_seqno,
-                                          dcp_add_failover_log callback) {
+ENGINE_ERROR_CODE mock_engine::stream_req(
+        gsl::not_null<const void*> cookie,
+        uint32_t flags,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        uint64_t* rollback_seqno,
+        dcp_add_failover_log callback,
+        boost::optional<cb::const_char_buffer> json) {
     return the_engine_dcp->stream_req(cookie,
                                       flags,
                                       opaque,
@@ -685,7 +689,8 @@ ENGINE_ERROR_CODE mock_engine::stream_req(gsl::not_null<const void*> cookie,
                                       snap_start_seqno,
                                       snap_end_seqno,
                                       rollback_seqno,
-                                      callback);
+                                      callback,
+                                      json);
 }
 
 ENGINE_ERROR_CODE mock_engine::get_failover_log(

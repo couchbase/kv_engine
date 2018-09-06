@@ -214,17 +214,19 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
-    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*>,
-                                 uint32_t,
-                                 uint32_t,
-                                 uint16_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t,
-                                 uint64_t*,
-                                 dcp_add_failover_log) override {
+    ENGINE_ERROR_CODE stream_req(
+            gsl::not_null<const void*>,
+            uint32_t,
+            uint32_t,
+            uint16_t,
+            uint64_t,
+            uint64_t,
+            uint64_t,
+            uint64_t,
+            uint64_t,
+            uint64_t*,
+            dcp_add_failover_log,
+            boost::optional<cb::const_char_buffer>) override {
         return ENGINE_NO_BUCKET;
     }
 

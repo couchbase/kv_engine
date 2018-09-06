@@ -219,17 +219,19 @@ public:
                                    uint32_t opaque,
                                    uint16_t vbucket) override;
 
-    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
-                                 uint32_t flags,
-                                 uint32_t opaque,
-                                 uint16_t vbucket,
-                                 uint64_t start_seqno,
-                                 uint64_t end_seqno,
-                                 uint64_t vbucket_uuid,
-                                 uint64_t snap_start_seqno,
-                                 uint64_t snap_end_seqno,
-                                 uint64_t* rollback_seqno,
-                                 dcp_add_failover_log callback) override;
+    ENGINE_ERROR_CODE stream_req(
+            gsl::not_null<const void*> cookie,
+            uint32_t flags,
+            uint32_t opaque,
+            uint16_t vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t* rollback_seqno,
+            dcp_add_failover_log callback,
+            boost::optional<cb::const_char_buffer> json) override;
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,

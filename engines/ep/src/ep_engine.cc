@@ -1358,7 +1358,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
         uint64_t* rollbackSeqno,
-        dcp_add_failover_log callback) {
+        dcp_add_failover_log callback,
+        boost::optional<cb::const_char_buffer> json) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {

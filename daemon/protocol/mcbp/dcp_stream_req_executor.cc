@@ -50,6 +50,21 @@ void dcp_stream_req_executor(Cookie& cookie) {
         uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
         uint64_t snap_start_seqno = ntohll(req->message.body.snap_start_seqno);
         uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
+
+        // Collection enabled DCP allows a value containing stream config data.
+        const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
+                                  req->message.header.request.extlen;
+
+        boost::optional<cb::const_char_buffer> collections;
+        // Initialise the optional only if collections is enabled and even
+        // if valuelen is 0
+        if (cookie.getConnection().isCollectionsSupported()) {
+            collections = cb::const_char_buffer{
+                    reinterpret_cast<const char*>(req->bytes +
+                                                  sizeof(req->bytes)),
+                    valuelen};
+        }
+
         ret = dcpStreamReq(cookie,
                            flags,
                            request.getOpaque(),
@@ -60,7 +75,8 @@ void dcp_stream_req_executor(Cookie& cookie) {
                            snap_start_seqno,
                            snap_end_seqno,
                            &rollback_seqno,
-                           add_failover_log);
+                           add_failover_log,
+                           collections);
     }
 
     ret = connection.remapErrorCode(ret);

@@ -360,17 +360,19 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
     /**
      * Callback to the engine that a Stream Request message was received
      */
-    virtual ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
-                                         uint32_t flags,
-                                         uint32_t opaque,
-                                         uint16_t vbucket,
-                                         uint64_t start_seqno,
-                                         uint64_t end_seqno,
-                                         uint64_t vbucket_uuid,
-                                         uint64_t snap_start_seqno,
-                                         uint64_t snap_end_seqno,
-                                         uint64_t* rollback_seqno,
-                                         dcp_add_failover_log callback) = 0;
+    virtual ENGINE_ERROR_CODE stream_req(
+            gsl::not_null<const void*> cookie,
+            uint32_t flags,
+            uint32_t opaque,
+            uint16_t vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t* rollback_seqno,
+            dcp_add_failover_log callback,
+            boost::optional<cb::const_char_buffer> json) = 0;
 
     /**
      * Callback to the engine that a get failover log message was received

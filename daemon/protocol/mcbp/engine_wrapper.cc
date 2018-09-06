@@ -616,7 +616,8 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
                                uint64_t snapStartSeqno,
                                uint64_t snapEndSeqno,
                                uint64_t* rollbackSeqno,
-                               dcp_add_failover_log callback) {
+                               dcp_add_failover_log callback,
+                               boost::optional<cb::const_char_buffer> json) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->stream_req(&cookie,
@@ -629,7 +630,8 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
                                snapStartSeqno,
                                snapEndSeqno,
                                rollbackSeqno,
-                               callback);
+                               callback,
+                               json);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.stream_req returned ENGINE_DISCONNECT",
                     connection.getId(),

@@ -713,17 +713,19 @@ public:
                                    uint32_t opaque,
                                    uint16_t vbucket) override;
 
-    ENGINE_ERROR_CODE stream_req(gsl::not_null<const void*> cookie,
-                                 uint32_t flags,
-                                 uint32_t opaque,
-                                 uint16_t vbucket,
-                                 uint64_t start_seqno,
-                                 uint64_t end_seqno,
-                                 uint64_t vbucket_uuid,
-                                 uint64_t snap_start_seqno,
-                                 uint64_t snap_end_seqno,
-                                 uint64_t* rollback_seqno,
-                                 dcp_add_failover_log callback) override;
+    ENGINE_ERROR_CODE stream_req(
+            gsl::not_null<const void*> cookie,
+            uint32_t flags,
+            uint32_t opaque,
+            uint16_t vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            uint64_t* rollback_seqno,
+            dcp_add_failover_log callback,
+            boost::optional<cb::const_char_buffer> json) override;
 
     ENGINE_ERROR_CODE get_failover_log(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
@@ -1310,17 +1312,19 @@ ENGINE_ERROR_CODE EWB_Engine::open(
     }
 }
 
-ENGINE_ERROR_CODE EWB_Engine::stream_req(gsl::not_null<const void*> cookie,
-                                         uint32_t flags,
-                                         uint32_t opaque,
-                                         uint16_t vbucket,
-                                         uint64_t start_seqno,
-                                         uint64_t end_seqno,
-                                         uint64_t vbucket_uuid,
-                                         uint64_t snap_start_seqno,
-                                         uint64_t snap_end_seqno,
-                                         uint64_t* rollback_seqno,
-                                         dcp_add_failover_log callback) {
+ENGINE_ERROR_CODE EWB_Engine::stream_req(
+        gsl::not_null<const void*> cookie,
+        uint32_t flags,
+        uint32_t opaque,
+        uint16_t vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        uint64_t* rollback_seqno,
+        dcp_add_failover_log callback,
+        boost::optional<cb::const_char_buffer> json) {
     auto stream = dcp_stream.find(cookie.get());
     if (stream != dcp_stream.end()) {
         // This is a client of our internal streams.. just let it pass
@@ -1346,7 +1350,8 @@ ENGINE_ERROR_CODE EWB_Engine::stream_req(gsl::not_null<const void*> cookie,
                                            snap_start_seqno,
                                            snap_end_seqno,
                                            rollback_seqno,
-                                           callback);
+                                           callback,
+                                           json);
     }
 }
 

@@ -408,6 +408,9 @@ ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
  * response
  * @param callback The callback to be used by the engine to add the failover log
  * in the response
+ * @param json Optional JSON string; which if non-empty can be used
+ *                   to further control how data is requested - for example
+ *                   to filter collections.
  * @return ENGINE_ERROR_CODE
  */
 ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
@@ -420,7 +423,8 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
                                uint64_t snapStartSeqno,
                                uint64_t snapEndSeqno,
                                uint64_t* rollbackSeqno,
-                               dcp_add_failover_log callback);
+                               dcp_add_failover_log callback,
+                               boost::optional<cb::const_char_buffer> json);
 
 /**
  * Calls the underlying engine DCP system-event
