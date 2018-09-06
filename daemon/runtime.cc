@@ -56,9 +56,10 @@ static std::atomic_long ssl_protocol_mask;
 
 void set_ssl_protocol_mask(const std::string& mask) {
     try {
+        auto old = ssl_protocol_mask.load();
         ssl_protocol_mask.store(decode_ssl_protocol(mask),
                                 std::memory_order_release);
-        if (!mask.empty()) {
+        if (old != ssl_protocol_mask.load() && !mask.empty()) {
             LOG_INFO("Setting SSL minimum protocol to: {}", mask);
         }
     } catch (const std::invalid_argument&) {
