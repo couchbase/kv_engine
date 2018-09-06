@@ -261,8 +261,11 @@ void process_hello_packet_executor(Cookie& cookie) {
             added = true;
             break;
         case cb::mcbp::Feature::COLLECTIONS:
-            connection.setCollectionsSupported(true);
-            added = true;
+            // Allow KV engine to chicken out
+            if (settings.isCollectionsPrototypeEnabled()) {
+                connection.setCollectionsSupported(true);
+                added = true;
+            }
             break;
         case cb::mcbp::Feature::Duplex:
             connection.setDuplexSupported(true);
