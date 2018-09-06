@@ -29,7 +29,6 @@
 #define CONN_MAGIC 0xbeefcafe
 
 struct mock_extensions {
-    EXTENSION_LOGGER_DESCRIPTOR *logger;
     EXTENSION_SPDLOG_GETTER* spdlogGetter;
 };
 
@@ -192,10 +191,6 @@ struct MockServerCoreApi : public ServerCoreIface {
 };
 
 struct MockServerLogApi : public ServerLogIface {
-    EXTENSION_LOGGER_DESCRIPTOR* get_logger() override {
-        return extensions.logger;
-    }
-
     EXTENSION_SPDLOG_GETTER* get_spdlogger() override {
         return extensions.spdlogGetter;
     }
@@ -423,7 +418,6 @@ SERVER_HANDLE_V1* get_mock_server_api() {
 void init_mock_server() {
     process_started = time(0);
     time_travel_offset = 0;
-    extensions.logger = &cb::logger::getLoggerDescriptor();
     extensions.spdlogGetter = &cb::logger::getSpdloggerRef();
     log_level = spdlog::level::level_enum::critical;
 

@@ -38,7 +38,6 @@
 
 static const std::string logger_name{"spdlog_file_logger"};
 
-static EXTENSION_LOGGER_DESCRIPTOR descriptor;
 static EXTENSION_SPDLOG_GETTER ref;
 
 /**
@@ -79,43 +78,6 @@ spdlog::level::level_enum cb::logger::convertToSpdSeverity(
  * to stream etc.) or further processing.
  */
 static std::shared_ptr<spdlog::logger> file_logger;
-
-/**
- * Retrieves a message, applies formatting and then logs it to stderr and
- * to file, according to the severity.
- */
-static void log(EXTENSION_LOG_LEVEL mcd_severity,
-                const void* client_cookie,
-                const char* fmt,
-                ...) {
-    const auto severity = cb::logger::convertToSpdSeverity(mcd_severity);
-
-    // Retrieve formatted log message
-    char msg[2048];
-    int len;
-    va_list va;
-    va_start(va, fmt);
-    len = vsnprintf(msg, 2048, fmt, va);
-    va_end(va);
-
-    // Something went wrong during formatting, so return
-    if (len < 0) {
-        return;
-    }
-    // len does not include '\0', hence >= and not >
-    if (len >= int(sizeof(msg))) {
-        // Crop message for logging
-        const char cropped[] = " [cut]";
-        snprintf(msg + (sizeof(msg) - sizeof(cropped)),
-                 sizeof(cropped),
-                 "%s",
-                 cropped);
-    } else {
-        msg[len] = '\0';
-    }
-
-    file_logger->log(severity, msg);
-}
 
 LOGGER_PUBLIC_API
 void cb::logger::flush() {
@@ -255,12 +217,6 @@ void cb::logger::createConsoleLogger() {
     file_logger = spdlog::stderr_color_mt(logger_name);
     file_logger->set_level(spdlog::level::info);
     file_logger->set_pattern(log_pattern);
-}
-
-LOGGER_PUBLIC_API
-EXTENSION_LOGGER_DESCRIPTOR& cb::logger::getLoggerDescriptor() {
-    descriptor.log = log;
-    return descriptor;
 }
 
 LOGGER_PUBLIC_API

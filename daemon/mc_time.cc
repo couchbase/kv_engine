@@ -240,7 +240,7 @@ void mc_time_clock_tick(void) {
         if (previous_time_valid
             && ((difference > memcached_check_system_time + 1)
             || (difference < memcached_check_system_time - 1))) {
-            if (settings.extensions.logger) {
+            if (cb::logger::get() != nullptr) {
                 /* log all variables used in time calculations */
                 LOG_WARNING(
                         "system clock changed? difference = {}, "

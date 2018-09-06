@@ -28,19 +28,6 @@
 #endif
 
 /**
- * Test that the printf-style of the logger still works
- */
-TEST_F(SpdloggerTest, OldStylePrintf) {
-    auto& logger = cb::logger::getLoggerDescriptor();
-    const uint32_t value = 0xdeadbeef;
-    logger.log(EXTENSION_LOG_INFO, nullptr, "OldStylePrintf %x", value);
-    cb::logger::shutdown();
-    files = cb::io::findFilesWithPrefix(filename);
-    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "INFO OldStylePrintf deadbeef"));
-}
-
-/**
  * Test that the new fmt-style formatting works
  */
 TEST_F(SpdloggerTest, FmtStyleFormatting) {
@@ -51,45 +38,6 @@ TEST_F(SpdloggerTest, FmtStyleFormatting) {
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1,
               countInFile(files.front(), "INFO FmtStyleFormatting deadbeef"));
-}
-
-/**
- * Tests writing the maximum allowed message to file. Messages are held in
- * a buffer of size 2048, which allows for a message of size 2047 characters
- * (excluding logger formatting and null terminator).
- *
- * (old printf style)
- */
-TEST_F(SpdloggerTest, LargeMessageTest) {
-    const std::string message(2047,
-                              'x'); // max message size is 2047 + 1 for '\0'
-    auto& logger = cb::logger::getLoggerDescriptor();
-    logger.log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
-    cb::logger::shutdown();
-
-    files = cb::io::findFilesWithPrefix(filename);
-    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), message));
-}
-
-/**
- * Tests the message cropping feature.
- * Crops a message which wouldn't fit in the message buffer.
- *
- * (old printf style)
- */
-TEST_F(SpdloggerTest, LargeMessageWithCroppingTest) {
-    const std::string message(2048, 'x'); // just 1 over max message size
-    std::string cropped(2047 - strlen(" [cut]"), 'x');
-    cropped.append(" [cut]");
-
-    auto& logger = cb::logger::getLoggerDescriptor();
-    logger.log(EXTENSION_LOG_DEBUG, nullptr, message.c_str());
-    cb::logger::shutdown();
-
-    files = cb::io::findFilesWithPrefix(filename);
-    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), cropped));
 }
 
 /**

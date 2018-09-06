@@ -20,7 +20,6 @@
 
 int main(int argc, char** argv) {
     cb::logger::createConsoleLogger();
-    settings.extensions.logger = &cb::logger::getLoggerDescriptor();
     settings.extensions.spdlogger = &cb::logger::getSpdloggerRef();
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

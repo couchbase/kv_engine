@@ -968,7 +968,6 @@ protected:
 
 public:
     struct {
-        EXTENSION_LOGGER_DESCRIPTOR *logger;
         EXTENSION_SPDLOG_GETTER* spdlogger;
     } extensions;
 };
