@@ -47,7 +47,7 @@ public:
         opcode = PROTOCOL_BINARY_CMD_INVALID;
         key.clear();
         cas = 0;
-        vbucket = 0;
+        vbucket = Vbid(0);
     }
 
     BinprotCommand& setKey(const std::string& key_) {
@@ -65,7 +65,7 @@ public:
         return *this;
     }
 
-    BinprotCommand& setVBucket(uint16_t vbid) {
+    BinprotCommand& setVBucket(Vbid vbid) {
         vbucket = vbid;
         return *this;
     }
@@ -167,7 +167,7 @@ protected:
     protocol_binary_command opcode = PROTOCOL_BINARY_CMD_INVALID;
     std::string key;
     uint64_t cas = 0;
-    uint16_t vbucket = 0;
+    Vbid vbucket = Vbid(0);
 };
 
 /**
@@ -1300,7 +1300,7 @@ class BinprotSetWithMetaCommand
     : public BinprotGenericCommand {
 public:
     BinprotSetWithMetaCommand(const Document& doc,
-                              uint16_t vbucket,
+                              Vbid vbucket,
                               uint64_t operationCas,
                               uint64_t seqno,
                               uint32_t options,
@@ -1413,7 +1413,7 @@ protected:
 
 class BinprotObserveSeqnoCommand : public BinprotGenericCommand {
 public:
-    BinprotObserveSeqnoCommand(uint16_t vbid, uint64_t uuid);
+    BinprotObserveSeqnoCommand(Vbid vbid, uint64_t uuid);
 
     void encode(std::vector<uint8_t>& buf) const override;
 

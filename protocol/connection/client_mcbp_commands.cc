@@ -41,7 +41,7 @@ void BinprotCommand::fillHeader(protocol_binary_request_header& header,
     header.request.keylen = htons(gsl::narrow<uint16_t>(key.size()));
     header.request.extlen = gsl::narrow<uint8_t>(extlen);
     header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    header.request.vbucket = htons(vbucket);
+    header.request.vbucket = vbucket.hton();
     header.request.bodylen =
             htonl(gsl::narrow<uint32_t>(key.size() + extlen + payload_len));
     header.request.opaque = 0xdeadbeef;
@@ -694,12 +694,12 @@ static uint8_t netToHost(uint8_t x) {
     return x;
 }
 
-static uint16_t netToHost(uint16_t x) {
-    return ntohs(x);
-}
-
 static uint64_t netToHost(uint64_t x) {
     return ntohll(x);
+}
+
+static Vbid netToHost(Vbid x) {
+    return x.ntoh();
 }
 
 /**
@@ -835,8 +835,7 @@ void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), config.begin(), config.end());
 }
 
-BinprotObserveSeqnoCommand::BinprotObserveSeqnoCommand(uint16_t vbid,
-                                                       uint64_t uuid)
+BinprotObserveSeqnoCommand::BinprotObserveSeqnoCommand(Vbid vbid, uint64_t uuid)
     : BinprotGenericCommand(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO), uuid(uuid) {
     setVBucket(vbid);
 }

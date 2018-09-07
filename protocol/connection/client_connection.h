@@ -125,7 +125,7 @@ public:
 
 struct ObserveInfo {
     uint8_t formatType;
-    uint16_t vbId;
+    Vbid vbId;
     uint64_t uuid;
     uint64_t lastPersistedSeqno;
     uint64_t currentSeqno;
@@ -390,7 +390,7 @@ public:
      * @return a document object containg the information about the
      *         document.
      */
-    Document get(const std::string& id, uint16_t vbucket);
+    Document get(const std::string& id, Vbid vbucket);
 
     /**
      * Fetch and lock a document from the server
@@ -403,7 +403,7 @@ public:
      *         document.
      */
     Document get_and_lock(const std::string& id,
-                          uint16_t vbucket,
+                          Vbid vbucket,
                           uint32_t lock_timeout);
 
     /**
@@ -412,7 +412,7 @@ public:
      * @param vbucket
      * @return the raw BinprotResponse
      */
-    BinprotResponse getFailoverLog(uint16_t vbucket);
+    BinprotResponse getFailoverLog(Vbid vbucket);
 
     /**
      * Unlock a locked document
@@ -421,18 +421,16 @@ public:
      * @param vbucket the vbucket the document resides in
      * @param cas the cas identifier of the locked document
      */
-    void unlock(const std::string& id, uint16_t vbucket, uint64_t cas);
+    void unlock(const std::string& id, Vbid vbucket, uint64_t cas);
 
     void dropPrivilege(cb::rbac::Privilege privilege);
 
     /*
      * Form a Frame representing a CMD_GET
      */
-    Frame encodeCmdGet(const std::string& id, uint16_t vbucket);
+    Frame encodeCmdGet(const std::string& id, Vbid vbucket);
 
-    MutationInfo mutate(const Document& doc,
-                        uint16_t vbucket,
-                        MutationType type) {
+    MutationInfo mutate(const Document& doc, Vbid vbucket, MutationType type) {
         return mutate(doc.info,
                       vbucket,
                       cb::const_byte_buffer(reinterpret_cast<const uint8_t*>(
@@ -453,7 +451,7 @@ public:
      * @return the new cas value for success
      */
     MutationInfo mutate(const DocumentInfo& info,
-                        uint16_t vbucket,
+                        Vbid vbucket,
                         cb::const_byte_buffer value,
                         MutationType type);
 
@@ -465,7 +463,7 @@ public:
      * @return The mutation result.
      */
     MutationInfo store(const std::string& id,
-                       uint16_t vbucket,
+                       Vbid vbucket,
                        std::string value,
                        cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
 
@@ -661,9 +659,7 @@ public:
      * @param cas the specific version of the document or 0 for "any"
      * @return Details about the detion
      */
-    MutationInfo remove(const std::string& key,
-                        uint16_t vbucket,
-                        uint64_t cas = 0);
+    MutationInfo remove(const std::string& key, Vbid vbucket, uint64_t cas = 0);
 
     /**
      * Mutate with meta - stores doc into the bucket using all the metadata
@@ -679,20 +675,20 @@ public:
      *                   of this.
      */
     MutationInfo mutateWithMeta(Document& doc,
-                                uint16_t vbucket,
+                                Vbid vbucket,
                                 uint64_t cas,
                                 uint64_t seqno,
                                 uint32_t metaOption,
                                 std::vector<uint8_t> metaExtras = {});
 
     std::pair<protocol_binary_response_status, GetMetaResponse> getMeta(
-            const std::string& key, uint16_t vbucket, GetMetaVersion version);
+            const std::string& key, Vbid vbucket, GetMetaVersion version);
 
     /**
      * Observe Seqno command - retrieve the persistence status of the given
      * vBucket and UUID.
      */
-    ObserveInfo observeSeqno(uint16_t vbid, uint64_t uuid);
+    ObserveInfo observeSeqno(Vbid vbid, uint64_t uuid);
 
     /// Enable persistence for the connected bucket.
     void enablePersistence();

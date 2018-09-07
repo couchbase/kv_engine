@@ -867,7 +867,7 @@ std::vector<std::string> MemcachedConnection::listBuckets() {
     return ret;
 }
 
-Document MemcachedConnection::get(const std::string& id, uint16_t vbucket) {
+Document MemcachedConnection::get(const std::string& id, Vbid vbucket) {
     BinprotGetCommand command;
     command.setKey(id);
     command.setVBucket(vbucket);
@@ -890,8 +890,7 @@ Document MemcachedConnection::get(const std::string& id, uint16_t vbucket) {
     return ret;
 }
 
-Frame MemcachedConnection::encodeCmdGet(const std::string& id,
-                                        uint16_t vbucket) {
+Frame MemcachedConnection::encodeCmdGet(const std::string& id, Vbid vbucket) {
     BinprotGetCommand command;
     command.setKey(id);
     command.setVBucket(vbucket);
@@ -899,7 +898,7 @@ Frame MemcachedConnection::encodeCmdGet(const std::string& id,
 }
 
 MutationInfo MemcachedConnection::mutate(const DocumentInfo& info,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          cb::const_byte_buffer value,
                                          MutationType type) {
     BinprotMutationCommand command;
@@ -920,7 +919,7 @@ MutationInfo MemcachedConnection::mutate(const DocumentInfo& info,
 }
 
 MutationInfo MemcachedConnection::store(const std::string& id,
-                                        uint16_t vbucket,
+                                        Vbid vbucket,
                                         std::string value,
                                         cb::mcbp::Datatype datatype) {
     Document doc{};
@@ -1184,7 +1183,7 @@ uint64_t MemcachedConnection::incr_decr(protocol_binary_command opcode,
 }
 
 MutationInfo MemcachedConnection::remove(const std::string& key,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t cas) {
     BinprotRemoveCommand command;
     command.setKey(key).setVBucket(vbucket);
@@ -1203,7 +1202,7 @@ MutationInfo MemcachedConnection::remove(const std::string& key,
 }
 
 Document MemcachedConnection::get_and_lock(const std::string& id,
-                                           uint16_t vbucket,
+                                           Vbid vbucket,
                                            uint32_t lock_timeout) {
     BinprotGetAndLockCommand command;
     command.setKey(id);
@@ -1228,7 +1227,7 @@ Document MemcachedConnection::get_and_lock(const std::string& id,
     return ret;
 }
 
-BinprotResponse MemcachedConnection::getFailoverLog(uint16_t vbucket) {
+BinprotResponse MemcachedConnection::getFailoverLog(Vbid vbucket) {
     BinprotGetFailoverLogCommand command;
     command.setVBucket(vbucket);
     sendCommand(command);
@@ -1240,7 +1239,7 @@ BinprotResponse MemcachedConnection::getFailoverLog(uint16_t vbucket) {
 }
 
 void MemcachedConnection::unlock(const std::string& id,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  uint64_t cas) {
     BinprotUnlockCommand command;
     command.setKey(id);
@@ -1278,7 +1277,7 @@ void MemcachedConnection::dropPrivilege(cb::rbac::Privilege privilege) {
 
 MutationInfo MemcachedConnection::mutateWithMeta(
         Document& doc,
-        uint16_t vbucket,
+        Vbid vbucket,
         uint64_t cas,
         uint64_t seqno,
         uint32_t metaOption,
@@ -1297,7 +1296,7 @@ MutationInfo MemcachedConnection::mutateWithMeta(
     return response.getMutationInfo();
 }
 
-ObserveInfo MemcachedConnection::observeSeqno(uint16_t vbid, uint64_t uuid) {
+ObserveInfo MemcachedConnection::observeSeqno(Vbid vbid, uint64_t uuid) {
     BinprotObserveSeqnoCommand observe(vbid, uuid);
     sendCommand(observe);
 
@@ -1305,9 +1304,9 @@ ObserveInfo MemcachedConnection::observeSeqno(uint16_t vbid, uint64_t uuid) {
     recvResponse(response);
 
     if (!response.isSuccess()) {
-        throw ConnectionError(std::string("Failed to observeSeqno for vbid:") +
-                                      std::to_string(vbid) +
-                                      " uuid:" + std::to_string(uuid),
+        throw ConnectionError(std::string("Failed to observeSeqno for ") +
+                                      vbid.to_string() + " uuid:" +
+                                      std::to_string(uuid),
                               response.getStatus());
     }
     return response.info;
@@ -1337,7 +1336,7 @@ void MemcachedConnection::disablePersistence() {
 
 std::pair<protocol_binary_response_status, GetMetaResponse>
 MemcachedConnection::getMeta(const std::string& key,
-                             uint16_t vbucket,
+                             Vbid vbucket,
                              GetMetaVersion version) {
     BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_META, key};
     const std::vector<uint8_t> extras = {uint8_t(version)};

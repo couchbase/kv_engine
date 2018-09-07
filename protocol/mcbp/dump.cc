@@ -246,7 +246,7 @@ protected:
         out << "    Data type    (5)    : 0x" << std::setw(2)
             << (uint32_t(request.bytes[5]) & 0xff) << std::endl;
         out << "    Vbucket      (6,7)  : 0x" << std::setw(4)
-            << (ntohs(request.request.vbucket) & 0xffff) << std::endl;
+            << (request.request.vbucket.ntoh().get() & 0xffff) << std::endl;
         out << "    Total body   (8-11) : 0x" << std::setw(8)
             << (uint64_t(ntohl(request.request.bodylen)) & 0xffff) << std::endl;
         out << "    Opaque       (12-15): 0x" << std::setw(8)

@@ -187,6 +187,6 @@ TEST(RequestBuilder, SetFields) {
               request->getValue().data());
 
     // setVBucket should only be available for Request packets
-    builder.setVBucket(0xfeed);
-    EXPECT_EQ(uint16_t(0xfeed), request->getVBucket());
+    builder.setVBucket(Vbid(0xfeed));
+    EXPECT_EQ(uint16_t(0xfeed), request->getVBucket().get());
 }

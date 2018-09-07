@@ -59,7 +59,7 @@ public:
         getFrame()->setDatatype(datatype);
     }
 
-    void setVBucket(uint16_t value) {
+    void setVBucket(Vbid value) {
         getFrame()->setVBucket(value);
     }
 
@@ -182,7 +182,7 @@ class RequestBuilder : public FrameBuilder<Request> {
 public:
     RequestBuilder(cb::byte_buffer backing) : FrameBuilder<Request>(backing) {
     }
-    void setVbucket(uint16_t vbucket) {
+    void setVbucket(Vbid vbucket) {
         getFrame()->setVBucket(vbucket);
     }
 };
