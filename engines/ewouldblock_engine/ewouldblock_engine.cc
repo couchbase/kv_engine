@@ -699,13 +699,11 @@ public:
             gsl::not_null<const void*> cookie,
             gsl::not_null<struct dcp_message_producers*> producers) override;
 
-    ENGINE_ERROR_CODE open(
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint32_t seqno,
-            uint32_t flags,
-            cb::const_char_buffer name,
-            boost::optional<cb::const_char_buffer> collections) override;
+    ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
+                           uint32_t opaque,
+                           uint32_t seqno,
+                           uint32_t flags,
+                           cb::const_char_buffer name) override;
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
@@ -1283,13 +1281,11 @@ ENGINE_ERROR_CODE EWB_Engine::step(
     return real_engine_dcp->step(cookie, producers);
 }
 
-ENGINE_ERROR_CODE EWB_Engine::open(
-        gsl::not_null<const void*> cookie,
-        uint32_t opaque,
-        uint32_t seqno,
-        uint32_t flags,
-        cb::const_char_buffer name,
-        boost::optional<cb::const_char_buffer> collections) {
+ENGINE_ERROR_CODE EWB_Engine::open(gsl::not_null<const void*> cookie,
+                                   uint32_t opaque,
+                                   uint32_t seqno,
+                                   uint32_t flags,
+                                   cb::const_char_buffer name) {
     std::string nm = cb::to_string(name);
     if (nm.find("ewb_internal") == 0) {
         // Yeah, this is a request for the internal "magic" DCP stream
@@ -1310,8 +1306,7 @@ ENGINE_ERROR_CODE EWB_Engine::open(
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return real_engine_dcp->open(
-                cookie, opaque, seqno, flags, name, collections);
+        return real_engine_dcp->open(cookie, opaque, seqno, flags, name);
     }
 }
 

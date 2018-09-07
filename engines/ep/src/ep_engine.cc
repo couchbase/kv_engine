@@ -1323,10 +1323,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::open(
         uint32_t opaque,
         uint32_t seqno,
         uint32_t flags,
-        cb::const_char_buffer name,
-        boost::optional<cb::const_char_buffer> json) {
-    return acquireEngine(this)->dcpOpen(
-            cookie, opaque, seqno, flags, name, json);
+        cb::const_char_buffer name) {
+    return acquireEngine(this)->dcpOpen(cookie, opaque, seqno, flags, name);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::add_stream(
@@ -5576,31 +5574,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
         uint32_t opaque,
         uint32_t seqno,
         uint32_t flags,
-        cb::const_char_buffer stream_name,
-        boost::optional<cb::const_char_buffer> json) {
+        cb::const_char_buffer stream_name) {
     (void) opaque;
     (void) seqno;
     std::string connName = cb::to_string(stream_name);
-
 
     if (getEngineSpecific(cookie) != NULL) {
         EP_LOG_WARN(
                 "Cannot open DCP connection as another"
                 " connection exists on the same socket");
         return ENGINE_DISCONNECT;
-    }
-
-    // Require that replication streams are opened with collections (only if
-    // we're running with the collections prototype). Eventually ns_server will
-    // request collection DCP and we won't need this...
-    // @todo MB-24547
-    static const std::string replicationConnName = "replication:";
-    if (getConfiguration().isCollectionsEnabled() &&
-        !connName.compare(0, replicationConnName.size(), replicationConnName) &&
-        !json.is_initialized()) {
-        // Fail DCP open, we need to have replication with collections enabled
-        // Use this specific collection error to get memcached to retry
-        return ENGINE_UNKNOWN_COLLECTION;
     }
 
     ConnHandler *handler = NULL;

@@ -334,17 +334,13 @@ ENGINE_ERROR_CODE dcpNoop(Cookie& cookie, uint32_t opaque);
  * @param seqno
  * @param flags The DCP open flags
  * @param name The DCP connection name
- * @param json Optional JSON string; which if non-empty can be used
- *                   to further control how data is requested - for example
- *                   to filter to specific collections.
  * @return ENGINE_ERROR_CODE
  */
 ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
                           uint32_t opaque,
                           uint32_t seqno,
                           uint32_t flags,
-                          cb::const_char_buffer name,
-                          boost::optional<cb::const_char_buffer> json);
+                          cb::const_char_buffer name);
 
 /**
  * Calls the underlying engine DCP set-vbucket-state

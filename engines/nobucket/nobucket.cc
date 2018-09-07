@@ -197,8 +197,7 @@ public:
                            uint32_t,
                            uint32_t,
                            uint32_t,
-                           cb::const_char_buffer,
-                           boost::optional<cb::const_char_buffer>) override {
+                           cb::const_char_buffer) override {
         return ENGINE_NO_BUCKET;
     }
 

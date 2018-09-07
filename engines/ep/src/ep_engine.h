@@ -204,13 +204,11 @@ public:
             gsl::not_null<const void*> cookie,
             gsl::not_null<dcp_message_producers*> producers) override;
 
-    ENGINE_ERROR_CODE open(
-            gsl::not_null<const void*> cookie,
-            uint32_t opaque,
-            uint32_t seqno,
-            uint32_t flags,
-            cb::const_char_buffer name,
-            boost::optional<cb::const_char_buffer> json) override;
+    ENGINE_ERROR_CODE open(gsl::not_null<const void*> cookie,
+                           uint32_t opaque,
+                           uint32_t seqno,
+                           uint32_t flags,
+                           cb::const_char_buffer name) override;
 
     ENGINE_ERROR_CODE add_stream(gsl::not_null<const void*> cookie,
                                  uint32_t opaque,
@@ -433,8 +431,7 @@ public:
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
-                              cb::const_char_buffer stream_name,
-                              boost::optional<cb::const_char_buffer> json);
+                              cb::const_char_buffer stream_name);
 
     ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
                                    uint32_t opaque,

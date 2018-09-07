@@ -44,46 +44,16 @@ void dcp_open_executor(Cookie& cookie) {
 
         ret = mcbp::checkPrivilege(cookie, privilege);
 
-        const uint16_t nkey = ntohs(req->message.header.request.keylen);
-        const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
-                                  nkey - req->message.header.request.extlen;
-
-        const auto* name =
-                reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
-
-        auto dcpOpenFunc = [&]() -> ENGINE_ERROR_CODE {
-            boost::optional<cb::const_char_buffer> collections;
-            // Initialise the optional only if collections is enabled and even
-            // if valuelen is 0
-            if (cookie.getConnection().isCollectionsSupported()) {
-                collections = cb::const_char_buffer{
-                        reinterpret_cast<const char*>(
-                                req->bytes + sizeof(req->bytes) + nkey),
-                        valuelen};
-            }
-            return dcpOpen(cookie,
-                           req->message.header.request.opaque,
-                           ntohl(req->message.body.seqno),
-                           flags,
-                           {name, nkey},
-                           collections);
-        };
-
-        // Collections Prototype: The following code allows the bucket to decide
-        // if this stream should be forced to being collection aware. So we can
-        // run with collections enabled, but with a non-collection bucket and a
-        // collection bucket. This is only whilst collections are in development
         if (ret == ENGINE_SUCCESS) {
-            ret = dcpOpenFunc();
-            if (settings.isCollectionsEnabled() &&
-                ret == ENGINE_UNKNOWN_COLLECTION) {
-                // Force collections on
-                cookie.getConnection().setCollectionsSupported(true);
-                ret = dcpOpenFunc();
-                LOG_INFO("{}: Retried DCP open with collections enabled ret:{}",
-                         connection.getId(),
-                         ret);
-            }
+            const uint16_t nkey = ntohs(req->message.header.request.keylen);
+            const auto* name = reinterpret_cast<const char*>(
+                    req->bytes + sizeof(req->bytes));
+
+            ret = dcpOpen(cookie,
+                          req->message.header.request.opaque,
+                          ntohl(req->message.body.seqno),
+                          flags,
+                          {name, nkey});
         }
     }
 

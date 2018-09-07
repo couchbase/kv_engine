@@ -903,7 +903,7 @@ static void perf_dcp_client(EngineIface* h,
     uint32_t streamOpaque = opaque;
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
-    checkeq(dcp.open(cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER, name, {}),
+    checkeq(dcp.open(cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER, name),
             ENGINE_SUCCESS,
             "Failed dcp producer open connection");
 
@@ -1206,8 +1206,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                      opaque,
                      0 /*seqno*/,
                      DCP_OPEN_PRODUCER /*flags*/,
-                     "test_producer",
-                     {} /*jsonExtras*/),
+                     "test_producer"),
             "dcp.open failed");
 
     uint64_t rollbackSeqno = 0;
@@ -1236,8 +1235,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                      opaque,
                      0 /*seqno*/,
                      0 /*flags*/,
-                     "test_consumer",
-                     {} /*jsonExtras*/),
+                     "test_consumer"),
             "dcp.open failed");
     checkeq(ENGINE_SUCCESS,
             dcp.add_stream(passiveCookie, opaque, vbid, 0 /*flags*/),
