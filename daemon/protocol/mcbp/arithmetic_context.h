@@ -126,7 +126,7 @@ private:
     const DocKey key;
     const protocol_binary_request_incr& request;
     const uint64_t cas;
-    const uint16_t vbucket;
+    const Vbid vbucket;
     const bool increment;
     cb::unique_item_ptr olditem;
     item_info oldItemInfo;

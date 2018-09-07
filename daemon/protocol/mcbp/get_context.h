@@ -122,7 +122,7 @@ protected:
     ENGINE_ERROR_CODE sendResponse();
 
 private:
-    const uint16_t vbucket;
+    const Vbid vbucket;
 
     cb::unique_item_ptr it;
     item_info info;

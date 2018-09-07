@@ -50,7 +50,7 @@ bool bucket_get_item_info(Cookie& cookie,
 
 cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,
-                                            uint16_t vbucket);
+                                            Vbid vbucket);
 
 ENGINE_ERROR_CODE bucket_store(
         Cookie& cookie,
@@ -70,24 +70,24 @@ cb::EngineErrorCasPair bucket_store_if(
 ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
                                 const DocKey& key,
                                 uint64_t& cas,
-                                uint16_t vbucket,
+                                Vbid vbucket,
                                 mutation_descr_t& mut_info);
 
 cb::EngineErrorItemPair bucket_get(
         Cookie& cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         DocStateFilter documentStateFilter = DocStateFilter::Alive);
 
 cb::EngineErrorItemPair bucket_get_if(
         Cookie& cookie,
         const DocKey& key,
-        uint16_t vbucket,
+        Vbid vbucket,
         std::function<bool(const item_info&)> filter);
 
 cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
                                              const DocKey& key,
-                                             uint16_t vbucket,
+                                             Vbid vbucket,
                                              uint32_t expiration);
 
 BucketCompressionMode bucket_get_compression_mode(Cookie& cookie);
@@ -98,12 +98,12 @@ float bucket_min_compression_ratio(Cookie& cookie);
 
 cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           const DocKey& key,
-                                          uint16_t vbucket,
+                                          Vbid vbucket,
                                           uint32_t lock_timeout);
 
 ENGINE_ERROR_CODE bucket_unlock(Cookie& cookie,
                                 const DocKey& key,
-                                uint16_t vbucket,
+                                Vbid vbucket,
                                 uint64_t cas);
 
 std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(Cookie& cookie,
@@ -113,7 +113,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(Cookie& cookie,
                                                              int flags,
                                                              rel_time_t exptime,
                                                              uint8_t datatype,
-                                                             uint16_t vbucket);
+                                                             Vbid vbucket);
 
 ENGINE_ERROR_CODE bucket_flush(Cookie& cookie);
 
@@ -132,7 +132,7 @@ ENGINE_ERROR_CODE bucket_get_stats(Cookie& cookie,
  */
 ENGINE_ERROR_CODE dcpAddStream(Cookie& cookie,
                                uint32_t opaque,
-                               uint16_t vbid,
+                               Vbid vbid,
                                uint32_t flags);
 
 /**
@@ -146,7 +146,7 @@ ENGINE_ERROR_CODE dcpAddStream(Cookie& cookie,
  */
 ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
                                            uint32_t opaque,
-                                           uint16_t vbid,
+                                           Vbid vbid,
                                            uint32_t ackSize);
 
 /**
@@ -157,9 +157,7 @@ ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
  * @param vbid The vbucket id
  * @return ENGINE_ERROR_CODE
  */
-ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
-                                 uint32_t opaque,
-                                 uint16_t vbid);
+ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie, uint32_t opaque, Vbid vbid);
 
 /**
  * Calls the underlying engine DCP control
@@ -203,7 +201,7 @@ ENGINE_ERROR_CODE dcpDeletion(Cookie& cookie,
                               size_t privilegedPoolSize,
                               uint8_t datatype,
                               uint64_t cas,
-                              uint16_t vbid,
+                              Vbid vbid,
                               uint64_t bySeqno,
                               uint64_t revSeqno,
                               cb::const_byte_buffer meta);
@@ -232,7 +230,7 @@ ENGINE_ERROR_CODE dcpDeletionV2(Cookie& cookie,
                                 size_t priv_bytes,
                                 uint8_t datatype,
                                 uint64_t cas,
-                                uint16_t vbid,
+                                Vbid vbid,
                                 uint64_t bySeqno,
                                 uint64_t revSeqno,
                                 uint32_t deleteTime);
@@ -261,7 +259,7 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
                                 size_t privilegedPoolSize,
                                 uint8_t datatype,
                                 uint64_t cas,
-                                uint16_t vbid,
+                                Vbid vbid,
                                 uint64_t bySeqno,
                                 uint64_t revSeqno,
                                 cb::const_byte_buffer meta);
@@ -277,7 +275,7 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
  */
 ENGINE_ERROR_CODE dcpGetFailoverLog(Cookie& cookie,
                                     uint32_t opaque,
-                                    uint16_t vbid,
+                                    Vbid vbid,
                                     dcp_add_failover_log callback);
 
 /**
@@ -308,7 +306,7 @@ ENGINE_ERROR_CODE dcpMutation(Cookie& cookie,
                               size_t privilegedPoolSize,
                               uint8_t datatype,
                               uint64_t cas,
-                              uint16_t vbid,
+                              Vbid vbid,
                               uint32_t flags,
                               uint64_t bySeqno,
                               uint64_t revSeqno,
@@ -353,7 +351,7 @@ ENGINE_ERROR_CODE dcpOpen(Cookie& cookie,
  */
 ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
                                      uint32_t opaque,
-                                     uint16_t vbid,
+                                     Vbid vbid,
                                      vbucket_state_t state);
 
 /**
@@ -369,7 +367,7 @@ ENGINE_ERROR_CODE dcpSetVbucketState(Cookie& cookie,
  */
 ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
                                     uint32_t opaque,
-                                    uint16_t vbid,
+                                    Vbid vbid,
                                     uint64_t startSeqno,
                                     uint64_t endSeqno,
                                     uint32_t flags);
@@ -385,7 +383,7 @@ ENGINE_ERROR_CODE dcpSnapshotMarker(Cookie& cookie,
  */
 ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
                                uint32_t opaque,
-                               uint16_t vbid,
+                               Vbid vbid,
                                uint32_t flags);
 
 /**
@@ -412,7 +410,7 @@ ENGINE_ERROR_CODE dcpStreamEnd(Cookie& cookie,
 ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
                                uint32_t flags,
                                uint32_t opaque,
-                               uint16_t vbid,
+                               Vbid vbid,
                                uint64_t startSeqno,
                                uint64_t endSeqno,
                                uint64_t vbucketUuid,
@@ -436,7 +434,7 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
  */
 ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
                                  uint32_t opaque,
-                                 uint16_t vbucket,
+                                 Vbid vbucket,
                                  mcbp::systemevent::id eventId,
                                  uint64_t bySeqno,
                                  cb::const_byte_buffer eventKey,

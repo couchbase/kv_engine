@@ -125,7 +125,7 @@ private:
     }
 
     const DocKey key;
-    const uint16_t vbucket;
+    const Vbid vbucket;
     const uint32_t lock_timeout;
 
     cb::unique_item_ptr it;

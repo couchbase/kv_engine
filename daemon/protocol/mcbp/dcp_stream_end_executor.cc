@@ -32,7 +32,7 @@ void dcp_stream_end_executor(Cookie& cookie) {
                         packet.data());
         ret = dcpStreamEnd(cookie,
                            req->message.header.request.opaque,
-                           ntohs(req->message.header.request.vbucket),
+                           req->message.header.request.vbucket.ntoh(),
                            ntohl(req->message.body.flags));
     }
 

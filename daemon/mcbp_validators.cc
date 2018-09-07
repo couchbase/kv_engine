@@ -1309,7 +1309,7 @@ static protocol_binary_response_status get_errmap_validator(Cookie& cookie) {
     const auto& hdr = *static_cast<const protocol_binary_request_header*>(
             cookie.getPacketAsVoidPtr());
 
-    if (hdr.request.vbucket != 0) {
+    if (hdr.request.vbucket != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
@@ -1394,7 +1394,7 @@ static protocol_binary_response_status collections_set_manifest_validator(
                        PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    if (cookie.getHeader().getRequest().getVBucket() != 0) {
+    if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }

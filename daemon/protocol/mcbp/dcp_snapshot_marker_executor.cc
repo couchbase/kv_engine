@@ -32,7 +32,7 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
                 const protocol_binary_request_dcp_snapshot_marker*>(
                 packet.data());
 
-        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+        Vbid vbucket = req->message.header.request.vbucket.ntoh();
         uint32_t opaque = req->message.header.request.opaque;
         uint32_t flags = ntohl(req->message.body.flags);
         uint64_t start_seqno = ntohll(req->message.body.start_seqno);

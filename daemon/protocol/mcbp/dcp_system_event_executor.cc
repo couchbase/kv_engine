@@ -40,7 +40,7 @@ void dcp_system_event_executor(Cookie& cookie) {
         ret = dcpSystemEvent(
                 cookie,
                 req->message.header.request.opaque,
-                ntohs(req->message.header.request.vbucket),
+                req->message.header.request.vbucket.ntoh(),
                 mcbp::systemevent::id(ntohl(req->message.body.event)),
                 ntohll(req->message.body.by_seqno),
                 key,

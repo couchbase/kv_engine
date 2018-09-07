@@ -81,7 +81,7 @@ private:
     const Mode mode;
     const DocKey key;
     cb::const_char_buffer value;
-    const uint16_t vbucket;
+    const Vbid vbucket;
     const uint64_t cas;
 
     cb::unique_item_ptr olditem;

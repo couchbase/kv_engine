@@ -129,7 +129,7 @@ protected:
 
 private:
     const DocKey key;
-    const uint16_t vbucket;
+    const Vbid vbucket;
     const uint64_t input_cas;
 
     // The current state we're operating in, and where we'll resume

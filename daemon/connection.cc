@@ -1529,7 +1529,7 @@ ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque, Vbid vbucket) {
     packet.message.header.request.opcode =
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG;
     packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
+    packet.message.header.request.vbucket = vbucket.hton();
 
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
 }
@@ -1549,7 +1549,7 @@ ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
     packet.message.header.request.extlen = 48;
     packet.message.header.request.bodylen = htonl(48);
     packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
+    packet.message.header.request.vbucket = vbucket.hton();
     packet.message.body.flags = ntohl(flags);
     packet.message.body.start_seqno = ntohll(start_seqno);
     packet.message.body.end_seqno = ntohll(end_seqno);
@@ -1613,7 +1613,7 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
     packet.message.header.request.extlen = 4;
     packet.message.header.request.bodylen = htonl(4);
     packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
+    packet.message.header.request.vbucket = vbucket.hton();
     packet.message.body.flags = ntohl(flags);
 
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
@@ -1629,7 +1629,7 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
     packet.message.header.request.opcode =
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
+    packet.message.header.request.vbucket = vbucket.hton();
     packet.message.header.request.extlen = 20;
     packet.message.header.request.bodylen = htonl(20);
     packet.message.body.start_seqno = htonll(start_seqno);
@@ -1906,7 +1906,7 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
     packet.message.header.request.extlen = 1;
     packet.message.header.request.bodylen = htonl(1);
     packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
+    packet.message.header.request.vbucket = vbucket.hton();
     packet.message.body.state = uint8_t(state);
 
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
@@ -1931,7 +1931,7 @@ ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
     packet.message.header.request.extlen = 4;
     packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = htons(vbucket);
+    packet.message.header.request.vbucket = vbucket.hton();
     packet.message.header.request.bodylen = ntohl(4);
     packet.message.body.buffer_bytes = ntohl(buffer_bytes);
 

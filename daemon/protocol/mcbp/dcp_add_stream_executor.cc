@@ -35,7 +35,7 @@ void dcp_add_stream_executor(Cookie& cookie) {
     if (ret == ENGINE_SUCCESS) {
         ret = dcpAddStream(cookie,
                            req->message.header.request.opaque,
-                           ntohs(req->message.header.request.vbucket),
+                           req->message.header.request.vbucket.ntoh(),
                            flags);
     }
 

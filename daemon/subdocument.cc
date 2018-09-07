@@ -58,15 +58,17 @@ static bool subdoc_fetch(Cookie& cookie,
                          ENGINE_ERROR_CODE ret,
                          const char* key,
                          size_t keylen,
-                         uint16_t vbucket,
+                         Vbid vbucket,
                          uint64_t cas);
 
 static bool subdoc_operate(SubdocCmdContext& context);
 
 static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        ENGINE_ERROR_CODE ret,
-                                       const char* key, size_t keylen,
-                                       uint16_t vbucket, uint32_t expiration);
+                                       const char* key,
+                                       size_t keylen,
+                                       Vbid vbucket,
+                                       uint32_t expiration);
 static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
 
 // Debug - print details of the specified subdocument command.
@@ -370,7 +372,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     const uint8_t extlen = header->request.extlen;
     const uint16_t keylen = ntohs(header->request.keylen);
     const uint32_t bodylen = ntohl(header->request.bodylen);
-    const uint16_t vbucket = ntohs(header->request.vbucket);
+    const Vbid vbucket = header->request.vbucket.ntoh();
     const uint64_t cas = ntohll(header->request.cas);
 
     const char* key = (char*)packet.data() + sizeof(*header) + extlen;
@@ -500,7 +502,7 @@ static bool subdoc_fetch(Cookie& cookie,
                          ENGINE_ERROR_CODE ret,
                          const char* key,
                          size_t keylen,
-                         uint16_t vbucket,
+                         Vbid vbucket,
                          uint64_t cas) {
     if (!ctx.fetchedItem && !ctx.needs_new_doc) {
         if (ret == ENGINE_SUCCESS) {
@@ -1198,8 +1200,10 @@ static bool subdoc_operate(SubdocCmdContext& context) {
 // Returns true if the update was successful (and execution should continue),
 // else false.
 static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
-                                       ENGINE_ERROR_CODE ret, const char* key,
-                                       size_t keylen, uint16_t vbucket,
+                                       ENGINE_ERROR_CODE ret,
+                                       const char* key,
+                                       size_t keylen,
+                                       Vbid vbucket,
                                        uint32_t expiration) {
     auto& connection = context.connection;
     auto& cookie = context.cookie;

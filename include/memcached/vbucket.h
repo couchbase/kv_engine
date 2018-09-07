@@ -101,16 +101,9 @@ public:
         return (vbid == other.get());
     }
 
-    //  Patch 5 changes the type of some elements that use the != operator
-    //  for one side, but still uint16_t on the other, which causes errors
-    //  due to ambiguous use of the operator.
-    //  Hence, this will be commented out until the issues have been resolved
-    //  to the correct type on both sides, which is addressed in both patches
-    //  8 and 10, with this comment being removed in the latter.
-
-    //    bool operator!=(const Vbid& other) const {
-    //        return (vbid != other.get());
-    //    }
+    bool operator!=(const Vbid& other) const {
+        return (vbid != other.get());
+    }
 
     Vbid operator++() {
         return Vbid(++vbid);

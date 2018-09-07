@@ -110,7 +110,7 @@ private:
     uint32_t getExptime(Cookie& cookie);
 
     const DocKey key;
-    const uint16_t vbucket;
+    const Vbid vbucket;
     const uint32_t exptime;
 
     cb::unique_item_ptr it;

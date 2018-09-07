@@ -118,7 +118,7 @@ private:
     // executed.
     cb::compression::Buffer decompressed_value;
 
-    const uint16_t vbucket;
+    const Vbid vbucket;
     const uint64_t input_cas;
     const rel_time_t expiration;
     const uint32_t flags;

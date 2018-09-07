@@ -41,7 +41,7 @@ static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
     const auto opaque = req->message.header.request.opaque;
     const auto datatype = req->message.header.request.datatype;
     const uint64_t cas = ntohll(req->message.header.request.cas);
-    const uint16_t vbucket = ntohs(req->message.header.request.vbucket);
+    const Vbid vbucket = req->message.header.request.vbucket.ntoh();
     const uint64_t by_seqno = ntohll(req->message.body.by_seqno);
     const uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
     const uint32_t flags = req->message.body.flags;

@@ -64,7 +64,7 @@ protected:
 
 private:
     const DocKey key;
-    const uint16_t vbucket;
+    const Vbid vbucket;
     const uint64_t cas;
 
     State state;
