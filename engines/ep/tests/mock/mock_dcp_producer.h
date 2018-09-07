@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include "collections/manager.h"
 #include "dcp/active_stream.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/producer.h"
@@ -37,15 +36,12 @@ public:
                     const void* cookie,
                     const std::string& name,
                     uint32_t flags,
-                    boost::optional<cb::const_char_buffer> collections,
                     bool startTask = true)
         : DcpProducer(
                   theEngine,
                   cookie,
                   name,
                   flags,
-                  theEngine.getKVBucket()->getCollectionsManager().makeFilter(
-                          collections),
                   startTask) {
         backfillMgr.reset(new MockDcpBackfillManager(engine_));
     }
@@ -129,10 +125,6 @@ public:
     auto& public_getBackfillScanBuffer() {
         return dynamic_cast<MockDcpBackfillManager&>(*backfillMgr)
                 .public_getBackfillScanBuffer();
-    }
-
-    const Collections::Filter& getFilter() {
-        return filter;
     }
 
     void bytesForceRead(size_t bytes) {

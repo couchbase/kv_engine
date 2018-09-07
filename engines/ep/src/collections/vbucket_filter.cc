@@ -16,52 +16,96 @@
  */
 
 #include "collections/vbucket_filter.h"
-#include "collections/filter.h"
 #include "collections/vbucket_manifest.h"
-
 #include "bucket_logger.h"
 #include "dcp/response.h"
 #include "statwriter.h"
 
+#include <JSON_checker.h>
+#include <json_utilities.h>
+#include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <memory>
 
-Collections::VB::Filter::Filter(const Collections::Filter& filter,
-                                const Collections::VB::Manifest& manifest)
-    : defaultAllowed(false),
-      passthrough(filter.isPassthrough()),
-      systemEventsAllowed(filter.allowSystemEvents()) {
-    // Don't build a filter if all documents are allowed
-    if (passthrough) {
+Collections::VB::Filter::Filter(
+        boost::optional<cb::const_char_buffer> jsonFilter,
+        const Collections::VB::Manifest& manifest) {
+    // If the jsonFilter is not initialised we are building a filter for a
+    // legacy DCP stream, one which could only ever support _default
+    if (!jsonFilter.is_initialized()) {
+        // Ask the manifest object if the default collection exists?
+        if (manifest.lock().doesDefaultCollectionExist()) {
+            defaultAllowed = true;
+            return;
+        } else {
+            throw cb::engine_error(cb::engine_errc::unknown_collection,
+                                   "Filter::Filter cannot make filter - no "
+                                   "_default collection");
+        }
+    }
+
+    auto json = jsonFilter.get();
+
+    // If the filter is initialised, collections are enabled - system events are
+    // allowed
+    systemEventsAllowed = true;
+
+    // If the filter is empty, then everything is allowed on DCP
+    if (json.size() == 0) {
+        passthrough = true;
         defaultAllowed = true;
         return;
     }
 
-    // Lock for reading and create a VB filter
-    auto rh = manifest.lock();
-    if (filter.allowDefaultCollection()) {
-        if (rh.doesDefaultCollectionExist()) {
-            defaultAllowed = true;
-        } else {
-            // The VB::Manifest no longer has $default so don't filter it
-            EP_LOG_INFO(
-                    "VB::Filter::Filter: dropping $default as it's not in the "
-                    "VB::Manifest");
+    // Filter is non-zero, it should contain JSON filter data, so let's parse it
+    if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),
+                       json.size())) {
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "Filter::Filter input not valid jsonFilter:" +
+                                       cb::to_string(json));
+    }
+
+    nlohmann::json parsed;
+    try {
+        parsed = nlohmann::json::parse(json);
+    } catch (const nlohmann::json::exception& e) {
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "Filter::Filter cannot parse jsonFilter:" +
+                                       cb::to_string(json) +
+                                       " json::exception:" + e.what());
+    }
+
+    auto jsonCollections = cb::getJsonObject(
+            parsed, CollectionsKey, CollectionsType, "Filter::Filter");
+
+    for (const auto& entry : jsonCollections) {
+        cb::throwIfWrongType(std::string(CollectionsKey),
+                             entry,
+                             nlohmann::json::value_t::string);
+        addCollection(entry, manifest);
+    }
+}
+
+void Collections::VB::Filter::addCollection(
+        const nlohmann::json& object,
+        const Collections::VB::Manifest& manifest) {
+    // Require that the requested collection exists in the manifest.
+    // DCP cannot filter an unknown collection.
+    auto uid = makeCollectionID(object.get<std::string>());
+    {
+        auto rh = manifest.lock();
+        if (!rh.isCollectionOpen(uid)) {
+            // Error time
+            throw cb::engine_error(
+                    cb::engine_errc::unknown_collection,
+                    "Filter::Filter unknown collection:" + uid.to_string());
         }
     }
 
-    for (const auto& collection : filter.getFilter()) {
-        // lookup by ID
-        if (rh.isCollectionOpen(collection)) {
-            this->filter.insert(collection);
-        } else {
-            // The VB::Manifest doesn't have the collection, or the collection
-            // is deleted
-            EP_LOG_INFO(
-                    "VB::Filter::Filter: dropping collection:{:x}"
-                    "as it's not open",
-                    collection);
-        }
+    if (uid.isDefaultCollection()) {
+        defaultAllowed = true;
+    } else {
+        this->filter.insert(uid);
     }
 }
 

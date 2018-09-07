@@ -59,7 +59,7 @@ public:
                        includeValue,
                        includeXattrs,
                        IncludeDeleteTime::No,
-                       p->getFilter(),
+                       {},
                        vb.getManifest()) {
     }
 

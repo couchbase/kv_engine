@@ -51,13 +51,10 @@ public:
      * DCP helper. Create a MockDcpProducer configured with (or without)
      * collections and/or delete_times enabled
      * @param cookie cookie to associate with the new producer
-     * @param collections define the optional to enable collections (a 0 sized
-     *        buffer means no filter)
      * @param deleteTime yes/no - enable/disable delete times
      */
     std::shared_ptr<MockDcpProducer> createDcpProducer(
             const void* cookie,
-            boost::optional<cb::const_char_buffer> collections,
             IncludeDeleteTime deleteTime);
 
     /*

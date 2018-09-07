@@ -124,16 +124,18 @@ TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
     uint64_t rollbackSeqno;
     const std::string stat = "dcp-vbtakeover " + std::to_string(vbid) +
             " test_producer";;
-    ASSERT_EQ(ENGINE_SUCCESS, producer->streamRequest(/*flags*/ 0,
-                                          /*opaque*/ 0,
-                                          /*vbucket*/ vbid,
-                                          /*start_seqno*/ 0,
-                                          /*end_seqno*/ 0,
-                                          /*vb_uuid*/ 0,
-                                          /*snap_start*/ 0,
-                                          /*snap_end*/ 0,
-                                          &rollbackSeqno,
-                                          fakeDcpAddFailoverLog));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(/*flags*/ 0,
+                                      /*opaque*/ 0,
+                                      /*vbucket*/ vbid,
+                                      /*start_seqno*/ 0,
+                                      /*end_seqno*/ 0,
+                                      /*vb_uuid*/ 0,
+                                      /*snap_start*/ 0,
+                                      /*snap_end*/ 0,
+                                      &rollbackSeqno,
+                                      fakeDcpAddFailoverLog,
+                                      {}));
 
     // Ensure its a notifier connection - this means that streams requested will
     // not be active

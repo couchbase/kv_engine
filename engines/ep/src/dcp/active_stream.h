@@ -39,7 +39,7 @@ public:
                  IncludeValue includeVal,
                  IncludeXattrs includeXattrs,
                  IncludeDeleteTime includeDeleteTime,
-                 const Collections::Filter& filter,
+                 boost::optional<cb::const_char_buffer> json,
                  const Collections::VB::Manifest& manifest);
 
     virtual ~ActiveStream();

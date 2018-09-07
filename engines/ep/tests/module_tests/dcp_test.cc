@@ -201,7 +201,6 @@ protected:
                 cookie,
                 "test_producer",
                 flags,
-                boost::optional<cb::const_char_buffer>{/*no collections*/},
                 /*startTask*/ true);
 
         if (includeXattrs == IncludeXattrs::Yes) {
@@ -399,7 +398,8 @@ TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
                                        /*snap_start*/ 0,
                                        /*snap_end*/ 0,
                                        &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog,
+                                       {});
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
@@ -598,7 +598,8 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ ~0,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
 
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
     ASSERT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
@@ -692,7 +693,8 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ ~0,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
 
     MockDcpMessageProducers producers(engine);
     ASSERT_TRUE(producer->isCompressionEnabled());
@@ -780,7 +782,8 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ ~0,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
     MockDcpMessageProducers producers(engine);
 
     ASSERT_TRUE(producer->isForceValueCompressionEnabled());
@@ -860,7 +863,8 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
                                        /*snap_start*/ 0,
                                        /*snap_end*/ ~0,
                                        &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog,
+                                       {});
 
     ASSERT_EQ(ENGINE_SUCCESS, err);
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
@@ -957,7 +961,8 @@ TEST_P(StreamTest, test_verifyProducerStats) {
                                        /*snap_start*/ 0,
                                        /*snap_end*/ ~0,
                                        &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog,
+                                       {});
 
     EXPECT_EQ(ENGINE_SUCCESS, err);
     producer->notifySeqnoAvailable(vbid, vb->getHighSeqno());
@@ -1021,7 +1026,8 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
                                        /*snap_start*/ 0,
                                        /*snap_end*/ 0,
                                        &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog,
+                                       {});
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
@@ -1049,7 +1055,8 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
                                        /*snap_start*/ 0,
                                        /*snap_end*/ 0,
                                        &rollbackSeqno,
-                                       DCPTest::fakeDcpAddFailoverLog);
+                                       DCPTest::fakeDcpAddFailoverLog,
+                                       {});
     ASSERT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
 
@@ -1631,7 +1638,8 @@ TEST_P(StreamTest, RollbackDueToPurge) {
                                       /*snap_start*/ numItems - 2,
                                       /*snap_end*/ numItems - 2,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->closeStream(/*opaque*/ 0, vb0->getId()));
 
@@ -1649,7 +1657,8 @@ TEST_P(StreamTest, RollbackDueToPurge) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ numItems - 2,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->closeStream(/*opaque*/ 0, vb0->getId()));
 
@@ -1667,7 +1676,8 @@ TEST_P(StreamTest, RollbackDueToPurge) {
                                       /*snap_start*/ numItems - 2,
                                       /*snap_end*/ numItems - 2,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
     EXPECT_EQ(0, rollbackSeqno);
     destroy_dcp_stream();
 }
@@ -1700,7 +1710,8 @@ TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ 0,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
     // The callback function past to streamRequest should not be invoked.
     ASSERT_EQ(0, callbackCount);
 }
@@ -1917,12 +1928,10 @@ TEST_P(ConnectionTest, test_mb19955) {
     engine->getConfiguration().setConnectionManagerInterval(2);
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer",
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/*no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
     // "1" is not a multiple of "2" and so we should return ENGINE_EINVAL
     EXPECT_EQ(ENGINE_EINVAL,
               producer->control(0,
@@ -1937,12 +1946,10 @@ TEST_P(ConnectionTest, test_mb19955) {
 TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer",
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/*no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
 
     class MockE2BigMessageProducers : public MockDcpMessageProducers {
     public:
@@ -1969,12 +1976,10 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
 TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer",
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/*no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
 
     MockDcpMessageProducers producers(handle);
     producer->setNoopEnabled(true);
@@ -1994,12 +1999,10 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
 TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer",
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/*no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
 
     MockDcpMessageProducers producers(engine);
     const auto send_time = ep_current_time();
@@ -2038,12 +2041,10 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
 TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer",
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/*no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
 
     MockDcpMessageProducers producers(handle);
     producer->setNoopEnabled(false);
@@ -2063,12 +2064,10 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
 TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer",
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/*no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
 
     MockDcpMessageProducers producers(handle);
     producer->setNoopEnabled(true);
@@ -2256,12 +2255,10 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
 #endif
     const void* cookie = create_mock_cookie();
     /* Create a new Dcp producer */
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer",
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/*no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
 
     /* Send a control message to the producer indicating that the DCP client
        expects a "DCP_STREAM_END" upon stream close */
@@ -2290,7 +2287,8 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ 0,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
 
     // MB-28739[UBSan]: The following cast is undefined behaviour - the DCP
     // connection map object is of type DcpConnMap; so it's undefined to cast
@@ -2324,7 +2322,8 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ 0,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
 
     /* Check that the new stream is opened properly */
     auto stream = producer->findStream(vbid);
@@ -2366,7 +2365,8 @@ TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ 0,
                                       &rollbackSeqno,
-                                      DCPTest::fakeDcpAddFailoverLog));
+                                      DCPTest::fakeDcpAddFailoverLog,
+                                      {}));
 
     /* Close stream */
     EXPECT_EQ(ENGINE_SUCCESS, producer->closeStream(opaque, vbid));
@@ -2388,12 +2388,10 @@ TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
 TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
     const void* cookie = create_mock_cookie();
     /* Create a new Dcp producer */
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer",
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/*no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
 
     /* Send an unkown control message to the producer and expect an error code
        of "ENGINE_EINVAL" */
@@ -2848,7 +2846,8 @@ TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ 0,
                                       &rollbackSeqno,
-                                      fakeDcpAddFailoverLog));
+                                      fakeDcpAddFailoverLog,
+                                      {}));
 
     destroy_mock_cookie(dummyMockCookie);
 
@@ -2879,7 +2878,8 @@ TEST_F(DcpConnMapTest, DeleteNotifierConnOnUncleanDCPConnMapDelete) {
                                       /*snap_start*/ 0,
                                       /*snap_end*/ 0,
                                       &rollbackSeqno,
-                                      fakeDcpAddFailoverLog));
+                                      fakeDcpAddFailoverLog,
+                                      {}));
 
     destroy_mock_cookie(dummyMockCookie);
 
@@ -3461,7 +3461,6 @@ public:
                 cookie,
                 "test_producer",
                 0 /*flags*/,
-                boost::optional<cb::const_char_buffer>{/*no collections*/},
                 false /*startTask*/);
 
         /* Create the checkpoint processor task object, but don't schedule */
@@ -3506,38 +3505,38 @@ public:
 TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
     uint64_t rollbackSeqno;
     uint32_t opaque = 1;
-    ASSERT_EQ(
-            ENGINE_SUCCESS,
-            producer->streamRequest(
-                    0, // flags
-                    opaque,
-                    vbid,
-                    0, // start_seqno
-                    ~0ull, // end_seqno
-                    0, // vbucket_uuid,
-                    0, // snap_start_seqno,
-                    0, // snap_end_seqno,
-                    &rollbackSeqno,
-                    ActiveStreamChkptProcessorTaskTest::fakeDcpAddFailoverLog));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(
+                      0, // flags
+                      opaque,
+                      vbid,
+                      0, // start_seqno
+                      ~0ull, // end_seqno
+                      0, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      0, // snap_end_seqno,
+                      &rollbackSeqno,
+                      ActiveStreamChkptProcessorTaskTest::fakeDcpAddFailoverLog,
+                      {}));
     /* Checkpoint task processor Q will already have any entry for the stream */
     EXPECT_EQ(1, producer->getCheckpointSnapshotTask().queueSize());
 
     /* Close and open the stream without clearing the checkpoint task processor
      Q */
     producer->closeStream(opaque, vbid);
-    ASSERT_EQ(
-            ENGINE_SUCCESS,
-            producer->streamRequest(
-                    0, // flags
-                    opaque,
-                    vbid,
-                    0, // start_seqno
-                    ~0ull, // end_seqno
-                    0, // vbucket_uuid,
-                    0, // snap_start_seqno,
-                    0, // snap_end_seqno,
-                    &rollbackSeqno,
-                    ActiveStreamChkptProcessorTaskTest::fakeDcpAddFailoverLog));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(
+                      0, // flags
+                      opaque,
+                      vbid,
+                      0, // start_seqno
+                      ~0ull, // end_seqno
+                      0, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      0, // snap_end_seqno,
+                      &rollbackSeqno,
+                      ActiveStreamChkptProcessorTaskTest::fakeDcpAddFailoverLog,
+                      {}));
 
     /* The checkpoint processor Q should be processed with the new stream
      getting the item(s) */

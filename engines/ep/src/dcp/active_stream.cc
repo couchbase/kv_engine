@@ -39,7 +39,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            IncludeValue includeVal,
                            IncludeXattrs includeXattrs,
                            IncludeDeleteTime includeDeleteTime,
-                           const Collections::Filter& filter,
+                           boost::optional<cb::const_char_buffer> json,
                            const Collections::VB::Manifest& manifest)
     : Stream(n,
              flags,
@@ -69,19 +69,15 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
-      // @todo MB-26618 stream-request is to be changed and the
-      // Collections::Filter is going away, calculating includeCollectionID will
-      // be made more succinct during that update.
-      includeCollectionID(
-              (!filter.isPassthrough() && filter.allowDefaultCollection())
-                      ? DocKeyEncodesCollectionId::No
-                      : DocKeyEncodesCollectionId::Yes),
+      includeCollectionID(json.is_initialized()
+                                  ? DocKeyEncodesCollectionId::Yes
+                                  : DocKeyEncodesCollectionId::No),
       snappyEnabled(p->isSnappyEnabled() ? SnappyEnabled::Yes
                                          : SnappyEnabled::No),
       forceValueCompression(p->isForceValueCompressionEnabled()
                                     ? ForceValueCompression::Yes
                                     : ForceValueCompression::No),
-      filter(filter, manifest) {
+      filter(json, manifest) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";

@@ -22,7 +22,6 @@
 
 #include "atomic_unordered_map.h"
 
-#include "collections/filter.h"
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/ready-queue.h"
@@ -46,7 +45,6 @@ public:
      * @param cookie Cookie of the connection creating the producer.
      * @param n A name chosen by the client.
      * @param flags The DCP_OPEN flags (as per mcbp).
-     * @param jsonFilter JSON document containing filter configuration.
      * @param startTask If true an internal checkpoint task is created and
      *        started. Test code may wish to defer or manually handle the task
      *        creation.
@@ -55,7 +53,6 @@ public:
                 const void* cookie,
                 const std::string& n,
                 uint32_t flags,
-                Collections::Filter filter,
                 bool startTask);
 
     virtual ~DcpProducer();
@@ -66,16 +63,18 @@ public:
      */
     void cancelCheckpointCreatorTask();
 
-    ENGINE_ERROR_CODE streamRequest(uint32_t flags,
-                                    uint32_t opaque,
-                                    Vbid vbucket,
-                                    uint64_t start_seqno,
-                                    uint64_t end_seqno,
-                                    uint64_t vbucket_uuid,
-                                    uint64_t last_seqno,
-                                    uint64_t next_seqno,
-                                    uint64_t* rollback_seqno,
-                                    dcp_add_failover_log callback) override;
+    ENGINE_ERROR_CODE streamRequest(
+            uint32_t flags,
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t last_seqno,
+            uint64_t next_seqno,
+            uint64_t* rollback_seqno,
+            dcp_add_failover_log callback,
+            boost::optional<cb::const_char_buffer> json) override;
 
     ENGINE_ERROR_CODE step(struct dcp_message_producers* producers) override;
 
@@ -424,13 +423,6 @@ protected:
      * send the tombstone creation time, (if any exist), in the delete messages.
      */
     IncludeDeleteTime includeDeleteTime;
-
-    /**
-     * The producer owns a "bucket" level filter which is used to build the
-     * actual data filter (Collections::VB::Filter) per VB stream at request
-     * time.
-     */
-    Collections::Filter filter;
 
     /* Indicates if the 'checkpoint processor task' should be created.
        NOTE: We always create the checkpoint processor task during regular

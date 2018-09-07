@@ -156,7 +156,6 @@ SET(CONFIG_SOURCE src/configuration.cc
 SET(COLLECTIONS_SOURCE src/collections/collections_callbacks.cc
                        src/collections/collections_types.cc
                        src/collections/flush.cc
-                       src/collections/filter.cc
                        src/collections/manager.cc
                        src/collections/manifest.cc
                        src/collections/vbucket_filter.cc
@@ -312,7 +311,6 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/collections/evp_store_collections_dcp_test.cc
                    tests/module_tests/collections/evp_store_collections_eraser_test.cc
                    tests/module_tests/collections/evp_store_collections_test.cc
-                   tests/module_tests/collections/filter_test.cc
                    tests/module_tests/collections/manifest_test.cc
                    tests/module_tests/collections/test_manifest.cc
                    tests/module_tests/collections/vbucket_manifest_test.cc

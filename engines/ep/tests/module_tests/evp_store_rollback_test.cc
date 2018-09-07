@@ -333,16 +333,17 @@ TEST_P(RollbackTest, MB21784) {
             cookie, "test_producer", /*flags*/ 0);
 
     uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/0,
-                                       /*opaque*/0,
-                                       /*vbucket*/vbid,
-                                       /*start_seqno*/0,
-                                       /*end_seqno*/0,
-                                       /*vb_uuid*/0,
-                                       /*snap_start*/0,
-                                       /*snap_end*/0,
+    auto err = producer->streamRequest(/*flags*/ 0,
+                                       /*opaque*/ 0,
+                                       /*vbucket*/ vbid,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ 0,
+                                       /*vb_uuid*/ 0,
+                                       /*snap_start*/ 0,
+                                       /*snap_end*/ 0,
                                        &rollbackSeqno,
-                                       RollbackTest::fakeDcpAddFailoverLog);
+                                       RollbackTest::fakeDcpAddFailoverLog,
+                                       {});
     EXPECT_EQ(ENGINE_SUCCESS, err)
         << "stream request did not return ENGINE_SUCCESS";
     // Close stream
@@ -688,12 +689,10 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     get_mock_server_api()->cookie->reserve(cookie);
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            /*cookie*/ cookie,
-            "MB-21682",
-            0,
-            boost::optional<cb::const_char_buffer>{/* no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      /*cookie*/ cookie,
+                                                      "MB-21682",
+                                                      0);
 
     MockDcpConnMap& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
@@ -715,7 +714,8 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
                          size_t nentries,
                          gsl::not_null<const void*> cookie) {
                           return ENGINE_SUCCESS;
-                      }));
+                      },
+                      {}));
 
     auto stream = producer->findStream(vbid);
     ASSERT_TRUE(stream->isActive());

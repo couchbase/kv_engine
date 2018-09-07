@@ -16,7 +16,6 @@
  */
 
 #include "collections/manager.h"
-#include "collections/filter.h"
 #include "collections/manifest.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
@@ -102,13 +101,6 @@ void Collections::Manager::update(VBucket& vb) const {
     if (current) {
         vb.updateFromManifest(*current);
     }
-}
-
-Collections::Filter Collections::Manager::makeFilter(
-        boost::optional<cb::const_char_buffer> collections) const {
-    // Lock manager updates
-    std::lock_guard<std::mutex> lg(lock);
-    return Collections::Filter(collections, current.get());
 }
 
 // This method is really to aid development and allow the dumping of the VB

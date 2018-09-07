@@ -65,20 +65,21 @@ public:
                 ->getCollectionsManifest(vbid);
     }
 
-    void createDcpStream() {
+    void createDcpStream(boost::optional<cb::const_char_buffer> collections) {
         uint64_t rollbackSeqno;
-        ASSERT_EQ(ENGINE_SUCCESS,
-                  producer->streamRequest(
-                          0, // flags
-                          1, // opaque
-                          vbid,
-                          0, // start_seqno
-                          ~0ull, // end_seqno
-                          0, // vbucket_uuid,
-                          0, // snap_start_seqno,
-                          0, // snap_end_seqno,
-                          &rollbackSeqno,
-                          &CollectionsDcpTest::dcpAddFailoverLog));
+        ASSERT_EQ(
+                ENGINE_SUCCESS,
+                producer->streamRequest(0, // flags
+                                        1, // opaque
+                                        vbid,
+                                        0, // start_seqno
+                                        ~0ull, // end_seqno
+                                        0, // vbucket_uuid,
+                                        0, // snap_start_seqno,
+                                        0, // snap_end_seqno,
+                                        &rollbackSeqno,
+                                        &CollectionsDcpTest::dcpAddFailoverLog,
+                                        collections));
     }
 
     void createDcpConsumer() {
@@ -101,10 +102,10 @@ public:
     void createDcpObjects(boost::optional<cb::const_char_buffer> collections) {
         createDcpConsumer();
         producer = SingleThreadedKVBucketTest::createDcpProducer(
-                cookieP, collections, IncludeDeleteTime::No);
+                cookieP, IncludeDeleteTime::No);
         // Patch our local callback into the handlers
         producers->system_event = &CollectionsDcpTest::sendSystemEvent;
-        createDcpStream();
+        createDcpStream(collections);
     }
 
     void TearDown() override {
@@ -679,7 +680,9 @@ public:
     CollectionsFilteredDcpErrorTest() : cookieP(create_mock_cookie()) {
     }
     void SetUp() override {
-        config_string += "collections_enabled=true";
+        config_string +=
+                "collections_enabled=true;dcp_noop_mandatory_for_v5_"
+                "features=false";
         SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
@@ -704,17 +707,21 @@ TEST_F(CollectionsFilteredDcpErrorTest, error1) {
 
     std::string filter = R"({"collections":["8"]})";
     // Can't create a filter for unknown collections
-    try {
-        MockDcpProducer mock(*engine,
-                             cookieP,
-                             "test_producer",
-                             0,
-                             cb::const_char_buffer{filter},
-                             false /*startTask*/);
-        FAIL() << "Expected an exception";
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
-    }
+    uint64_t rollback_seqno = 0;
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              producer->streamRequest(0,
+                                      0,
+                                      vbid,
+                                      0,
+                                      1,
+                                      0,
+                                      0,
+                                      0,
+                                      &rollback_seqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      cb::const_char_buffer{filter}));
 }
 
 class CollectionsFilteredDcpTest : public CollectionsDcpTest {
@@ -916,8 +923,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
 }
 
 /**
- * Test that creation of a stream that resulted in an empty filter, because
- * all the collection have been deleted, just goes to stream end.
+ * Test that you cannot create a filter for closed collections
  */
 TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     VBucketPtr vb = store->getVBucket(vbid);
@@ -927,69 +933,27 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     CollectionsManifest cm;
     store->setCollections({cm.add(CollectionEntry::meat)});
 
-    producer = createDcpProducer(
-            cookieP, {{R"({"collections":["2"]})"}}, IncludeDeleteTime::No);
+    producer = createDcpProducer(cookieP, IncludeDeleteTime::No);
     createDcpConsumer();
 
     // Perform a delete of meat
     store->setCollections({cm.remove(CollectionEntry::meat)});
 
-    createDcpStream();
-
-    auto vb0Stream = producer->findStream(0);
-    ASSERT_NE(nullptr, vb0Stream.get());
-
-    EXPECT_TRUE(vb0Stream->isActive());
-
-    // Expect a stream end marker and no data
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
-    EXPECT_EQ(END_STREAM_FILTER_EMPTY, dcp_last_flags);
-
-    // Done... collection deletion of meat has closed the stream
-    EXPECT_FALSE(vb0Stream->isActive());
-
-    // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    uint64_t rollbackSeqno;
+    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      0, // vbucket_uuid,
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{R"({"collections":["2"]})"}}));
 }
 
-/**
- * Test that creation of a stream that resulted in an empty filter, because
- * all the collection have been deleted, just goes to stream end.
- * This test uses a filter with name:uid
- */
-TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes2) {
-    VBucketPtr vb = store->getVBucket(vbid);
-
-    // Perform a create of meat via the bucket level (filters are worked out
-    // from the bucket manifest)
-    CollectionsManifest cm;
-    store->setCollections({cm.add(CollectionEntry::meat)});
-
-    // specific collection uid
-    producer = createDcpProducer(
-            cookieP, {{R"({"collections":["2"]})"}}, IncludeDeleteTime::No);
-    createDcpConsumer();
-
-    // Perform a delete of meat
-    store->setCollections({cm.remove(CollectionEntry::meat)});
-
-    createDcpStream();
-
-    auto vb0Stream = producer->findStream(0);
-    ASSERT_NE(nullptr, vb0Stream.get());
-
-    EXPECT_TRUE(vb0Stream->isActive());
-
-    // Expect a stream end marker and no data
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
-    EXPECT_EQ(END_STREAM_FILTER_EMPTY, dcp_last_flags);
-
-    // Done... collection deletion of meat:1 has closed the stream
-    EXPECT_FALSE(vb0Stream->isActive());
-
-    // And no more
-    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
-}
 
 TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
     VBucketPtr vb = store->getVBucket(vbid);

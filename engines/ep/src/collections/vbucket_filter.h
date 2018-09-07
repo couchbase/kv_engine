@@ -21,6 +21,7 @@
 
 #include <memcached/dockey.h>
 #include <memcached/engine_common.h>
+#include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>
 
 #include <memory>
@@ -65,10 +66,11 @@ public:
      * If the producer's filter is effectively a passthrough
      * (allowAllCollections returns true) then so will the resulting VB filter.
      *
-     * @param filter The producer's filter that the client configured.
+     * @param jsonFilter Optional string data that can contain JSON
+     *        configuration info
      * @param manifest The vbucket's collection manifest.
      */
-    Filter(const ::Collections::Filter& filter,
+    Filter(boost::optional<cb::const_char_buffer> jsonFilter,
            const ::Collections::VB::Manifest& manifest);
 
     /**
@@ -86,7 +88,7 @@ public:
             return true;
         }
 
-        // The presence of $default is a simple check against defaultAllowed
+        // The presence of _default is a simple check against defaultAllowed
         if (item.getKey().getCollectionID() == CollectionID::Default &&
             defaultAllowed) {
             return true;
@@ -115,6 +117,13 @@ public:
 
 protected:
     /**
+     * Private helper to examine the given collection object against the
+     * manifest and add to internal container or throw an exception
+     */
+    void addCollection(const nlohmann::json& object,
+                       const ::Collections::VB::Manifest& manifest);
+
+    /**
      * Does the filter allow the system event? I.e. a "meat,dairy" filter
      * shouldn't allow delete events for the "fruit" collection.
      *
@@ -133,9 +142,14 @@ protected:
 
     using Container = ::std::unordered_set<CollectionID>;
     Container filter;
-    bool defaultAllowed;
-    bool passthrough;
-    bool systemEventsAllowed;
+    bool defaultAllowed = false;
+    bool passthrough = false;
+    bool systemEventsAllowed = false;
+
+    // strings used in JSON parsing
+    static constexpr char const* CollectionsKey = "collections";
+    static constexpr nlohmann::json::value_t CollectionsType =
+            nlohmann::json::value_t::array;
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
 };

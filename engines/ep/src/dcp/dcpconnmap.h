@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include "collections/filter.h"
 #include "connmap.h"
 
 #include <memcached/engine.h>
@@ -51,9 +50,7 @@ public:
      */
     DcpProducer* newProducer(const void* cookie,
                              const std::string& name,
-                             uint32_t flags,
-                             Collections::Filter filter = {{/*no json*/},
-                                                           nullptr});
+                             uint32_t flags);
 
     /**
      * Create a new consumer and add it in the list of TapConnections

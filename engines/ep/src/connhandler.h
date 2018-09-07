@@ -150,16 +150,18 @@ public:
                                               Vbid vbucket,
                                               vbucket_state_t state);
 
-    virtual ENGINE_ERROR_CODE streamRequest(uint32_t flags,
-                                            uint32_t opaque,
-                                            Vbid vbucket,
-                                            uint64_t start_seqno,
-                                            uint64_t end_seqno,
-                                            uint64_t vbucket_uuid,
-                                            uint64_t snapStartSeqno,
-                                            uint64_t snapEndSeqno,
-                                            uint64_t* rollback_seqno,
-                                            dcp_add_failover_log callback);
+    virtual ENGINE_ERROR_CODE streamRequest(
+            uint32_t flags,
+            uint32_t opaque,
+            Vbid vbucket,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snapStartSeqno,
+            uint64_t snapEndSeqno,
+            uint64_t* rollback_seqno,
+            dcp_add_failover_log callback,
+            boost::optional<cb::const_char_buffer> json);
 
     virtual ENGINE_ERROR_CODE noop(uint32_t opaque);
 

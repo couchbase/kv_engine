@@ -144,7 +144,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          const void* cookie,
                          const std::string& name,
                          uint32_t flags,
-                         Collections::Filter filter,
                          bool startTask)
     : ConnHandler(e, cookie, name),
       notifyOnly((flags & DCP_OPEN_NOTIFIER) != 0),
@@ -163,7 +162,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       includeDeleteTime(((flags & DCP_OPEN_INCLUDE_DELETE_TIMES) != 0)
                                 ? IncludeDeleteTime::Yes
                                 : IncludeDeleteTime::No),
-      filter(std::move(filter)),
       createChkPtProcessorTsk(startTask) {
     setSupportAck(true);
     setReserved(true);
@@ -241,16 +239,18 @@ void DcpProducer::cancelCheckpointCreatorTask() {
     }
 }
 
-ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
-                                             uint32_t opaque,
-                                             Vbid vbucket,
-                                             uint64_t start_seqno,
-                                             uint64_t end_seqno,
-                                             uint64_t vbucket_uuid,
-                                             uint64_t snap_start_seqno,
-                                             uint64_t snap_end_seqno,
-                                             uint64_t* rollback_seqno,
-                                             dcp_add_failover_log callback) {
+ENGINE_ERROR_CODE DcpProducer::streamRequest(
+        uint32_t flags,
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        uint64_t* rollback_seqno,
+        dcp_add_failover_log callback,
+        boost::optional<cb::const_char_buffer> json) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -266,8 +266,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     }
 
     // check for mandatory noop
-    const bool collectionsEnabled = filter.allowSystemEvents();
-    if ((includeXattrs == IncludeXattrs::Yes) || collectionsEnabled) {
+    if ((includeXattrs == IncludeXattrs::Yes) || json.is_initialized()) {
         if (!noopCtx.enabled &&
             engine_.getConfiguration().isDcpNoopMandatoryForV5Features()) {
             logger->warn(
@@ -432,22 +431,31 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                              snap_start_seqno,
                                              snap_end_seqno);
     } else {
-        s = std::make_shared<ActiveStream>(&engine_,
-                                           shared_from_this(),
-                                           getName(),
-                                           flags,
-                                           opaque,
-                                           *vb,
-                                           start_seqno,
-                                           end_seqno,
-                                           vbucket_uuid,
-                                           snap_start_seqno,
-                                           snap_end_seqno,
-                                           includeValue,
-                                           includeXattrs,
-                                           includeDeleteTime,
-                                           filter,
-                                           vb->getManifest());
+        try {
+            s = std::make_shared<ActiveStream>(&engine_,
+                                               shared_from_this(),
+                                               getName(),
+                                               flags,
+                                               opaque,
+                                               *vb,
+                                               start_seqno,
+                                               end_seqno,
+                                               vbucket_uuid,
+                                               snap_start_seqno,
+                                               snap_end_seqno,
+                                               includeValue,
+                                               includeXattrs,
+                                               includeDeleteTime,
+                                               json,
+                                               vb->getManifest());
+        } catch (const cb::engine_error& e) {
+            logger->warn(
+                    "({}) Stream request failed because "
+                    "the filter cannot be constructed, returning:{}",
+                    Vbid(vbucket),
+                    e.code().value());
+            return ENGINE_ERROR_CODE(e.code().value());
+        }
         /* We want to create the 'createCheckpointProcessorTask' here even if
            the stream creation fails later on in the func. The goal is to
            create the 'checkpointProcessorTask' before any valid active stream
@@ -622,8 +630,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     "DcpProducer::step(Deletion): itmCpy must be != nullptr");
             }
 
-            if (includeDeleteTime == IncludeDeleteTime::Yes ||
-                filter.allowSystemEvents()) {
+            if (includeDeleteTime == IncludeDeleteTime::Yes) {
                 ret = producers->deletion_v2(
                         mutationResponse->getOpaque(),
                         itmCpy.release(),

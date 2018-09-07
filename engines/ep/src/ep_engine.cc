@@ -1372,7 +1372,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
                                    snapStartSeqno,
                                    snapEndSeqno,
                                    rollbackSeqno,
-                                   callback);
+                                   callback,
+                                   json);
     }
     return ENGINE_DISCONNECT;
 }
@@ -5604,20 +5605,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
 
     ConnHandler *handler = NULL;
     if (flags & (DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER)) {
-        try {
-            handler = dcpConnMap_->newProducer(
-                    cookie,
-                    connName,
-                    flags,
-                    getKVBucket()->getCollectionsManager().makeFilter(json));
-        } catch (const cb::engine_error& e) {
-            EP_LOG_INFO(
-                    "EPEngine::dcpOpen: failed to create a filter error:{}, "
-                    "what:{}",
-                    ENGINE_ERROR_CODE(e.code().value()),
-                    e.what());
-            return ENGINE_ERROR_CODE(e.code().value());
-        }
+        handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
         handler = dcpConnMap_->newConsumer(cookie, connName);
     }

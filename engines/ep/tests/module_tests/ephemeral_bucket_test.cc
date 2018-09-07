@@ -105,12 +105,10 @@ TEST_F(SingleThreadedEphemeralBackfillTest, RangeIteratorVBDeleteRaceTest) {
 
     // Create a Mock Dcp producer
     const std::string testName("test_producer");
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            testName,
-            /*flags*/ 0,
-            boost::optional<cb::const_char_buffer>{/* no collections*/});
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      testName,
+                                                      /*flags*/ 0);
 
     // Since we are creating a mock active stream outside of
     // DcpProducer::streamRequest(), and we want the checkpt processor task,

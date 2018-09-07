@@ -142,8 +142,7 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
 
 DcpProducer* DcpConnMap::newProducer(const void* cookie,
                                      const std::string& name,
-                                     uint32_t flags,
-                                     Collections::Filter filter) {
+                                     uint32_t flags) {
     LockHolder lh(connsLock);
 
     std::string conn_name("eq_dcpq:");
@@ -180,7 +179,6 @@ DcpProducer* DcpConnMap::newProducer(const void* cookie,
                                                   cookie,
                                                   conn_name,
                                                   flags,
-                                                  std::move(filter),
                                                   true /*startTask*/);
     EP_LOG_DEBUG("{} Connection created", producer->logHeader());
     auto* result = producer.get();
