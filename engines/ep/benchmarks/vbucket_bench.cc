@@ -128,7 +128,7 @@ protected:
         EngineFixture::SetUp(state);
         if (state.thread_index == 0) {
             engine->getKVBucket()->setVBucketState(
-                    0, vbucket_state_active, false);
+                    Vbid(0), vbucket_state_active, false);
         }
     }
 

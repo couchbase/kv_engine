@@ -58,8 +58,7 @@ public:
 
     Vbid() = default;
 
-    // TODO: Not explicit to support conversion with previous usage
-    Vbid(id_type vbidParam) : vbid(vbidParam){};
+    explicit Vbid(id_type vbidParam) : vbid(vbidParam){};
 
     // Retrieve the vBucket ID in the form of uint16_t
     const id_type get() const {
@@ -81,23 +80,23 @@ public:
         return Vbid(htons(vbid));
     }
 
-    bool operator<(const Vbid& other) {
+    bool operator<(const Vbid& other) const {
         return (vbid < other.get());
     }
 
-    bool operator<=(const Vbid& other) {
+    bool operator<=(const Vbid& other) const {
         return (vbid <= other.get());
     }
 
-    bool operator>(const Vbid& other) {
+    bool operator>(const Vbid& other) const {
         return (vbid > other.get());
     }
 
-    bool operator>=(const Vbid& other) {
+    bool operator>=(const Vbid& other) const {
         return (vbid >= other.get());
     }
 
-    bool operator==(const Vbid& other) {
+    bool operator==(const Vbid& other) const {
         return (vbid == other.get());
     }
 
@@ -111,12 +110,6 @@ public:
 
     Vbid operator++(int) {
         return Vbid(vbid++);
-    }
-
-    // TODO: Support previous usage of vBucket ID as a uint16_t, which is
-    // planned to be phased out in stages due to size of change
-    operator uint16_t() const {
-        return vbid;
     }
 
 protected:
