@@ -1886,7 +1886,7 @@ public:
     DcpMutationValidatorTest()
         : ValidatorTest(GetParam()),
           request(0 /*opaque*/,
-                  0 /*vbucket*/,
+                  Vbid(0),
                   0 /*cas*/,
                   GetParam() ? 2 : 1 /*keylen*/,
                   0 /*valueLen*/,
@@ -2022,7 +2022,7 @@ protected:
     public:
         RequestV1()
             : request(0 /*opaque*/,
-                      0 /*vbucket*/,
+                      Vbid(0),
                       0 /*cas*/,
                       2 /*keylen*/,
                       0 /*valueLen*/,
@@ -2051,7 +2051,7 @@ protected:
     public:
         RequestV2()
             : request(0 /*opaque*/,
-                      0 /*vbucket*/,
+                      Vbid(0),
                       0 /*cas*/,
                       2 /*keylen*/,
                       0 /*valueLen*/,
@@ -2164,7 +2164,7 @@ public:
     DcpExpirationValidatorTest()
         : ValidatorTest(GetParam()),
           request(0 /*opaque*/,
-                  0 /*vbucket*/,
+                  Vbid(0),
                   0 /*cas*/,
                   GetParam() ? 5 : 1 /*keylen*/,
                   0 /*valueLen*/,
@@ -3769,7 +3769,7 @@ TEST_P(CommandSpecificErrorContextTest, GetErrmap) {
     header.setExtlen(0);
     header.setKeylen(0);
     header.setBodylen(2);
-    header.setVBucket(1);
+    header.setVBucket(Vbid(1));
     EXPECT_EQ("Request vbucket id must be 0",
               validate_error_context(PROTOCOL_BINARY_CMD_GET_ERROR_MAP));
 }
@@ -3817,13 +3817,13 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsSetManifest) {
     header.setExtlen(0);
     header.setKeylen(0);
     header.setBodylen(4);
-    header.setVBucket(1);
+    header.setVBucket(Vbid(1));
     EXPECT_EQ("Request vbucket id must be 0",
               validate_error_context(
                       PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST));
 
     // Attached bucket must support collections
-    header.setVBucket(0);
+    header.setVBucket(Vbid(0));
     EXPECT_EQ("Attached bucket does not support collections",
               validate_error_context(
                       PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST));

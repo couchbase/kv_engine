@@ -54,7 +54,7 @@ TEST_F(TracingTest, NoDataUnlessRequested) {
     conn.setFeature(cb::mcbp::Feature::Tracing, false);
 
     // Tracing is NOT explicitly requested, so no trace data
-    conn.mutate(document, 0, MutationType::Add);
+    conn.mutate(document, Vbid(0), MutationType::Add);
     EXPECT_FALSE(conn.getTraceData());
     EXPECT_FALSE(conn.hasFeature(cb::mcbp::Feature::Tracing));
 }
@@ -69,7 +69,7 @@ TEST_F(TracingTest, ValidDataOnRequest) {
 
     // Expect some trace data
     auto start = ProcessClock::now();
-    conn.mutate(document, 0, MutationType::Add);
+    conn.mutate(document, Vbid(0), MutationType::Add);
     auto end = ProcessClock::now();
     auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start);
@@ -88,7 +88,7 @@ TEST_F(TracingTest, NoDataWhenDisabledOnServer) {
     setTracingFeatureOnServer(false);
 
     // Tracing is disabled on server, so no trace data
-    conn.mutate(document, 0, MutationType::Add);
+    conn.mutate(document, Vbid(0), MutationType::Add);
     EXPECT_FALSE(conn.getTraceData());
     EXPECT_FALSE(conn.hasFeature(cb::mcbp::Feature::Tracing));
 }

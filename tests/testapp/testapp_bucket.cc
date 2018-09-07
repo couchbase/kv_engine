@@ -155,7 +155,8 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     // state in memcached - i.e. waiting to read a variable-amount of data from
     // the client. Simplest is to perform a GET where we don't send the full key
     // length, by only sending a partial frame
-    Frame frame = second_conn->encodeCmdGet("dummy_key_which_we_will_crop", 0);
+    Frame frame =
+            second_conn->encodeCmdGet("dummy_key_which_we_will_crop", Vbid(0));
     second_conn->sendPartialFrame(frame, frame.payload.size() - 1);
 
     // Once we call deleteBucket below, it will hang forever (if the bug is
@@ -227,7 +228,8 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
                                             0,
                                             testfile);
 
-    Frame frame = second_conn->encodeCmdGet("dummy_key_where_never_return", 0);
+    Frame frame =
+            second_conn->encodeCmdGet("dummy_key_where_never_return", Vbid(0));
 
     // Send the get operation, however we will not get a response from the
     // engine, and so it will block indefinately.
@@ -524,7 +526,7 @@ TEST_P(BucketTest, MB29639TestDeleteWhileSendDataAndFullWriteBuffer) {
     // Store a 20MB value in the cache
     document.value.assign(20 * 1024 * 1024, 'b');
 
-    const auto info = conn.mutate(document, 0, MutationType::Set);
+    const auto info = conn.mutate(document, Vbid(0), MutationType::Set);
     EXPECT_NE(0, info.cas);
 
     BinprotGetCommand cmd;
@@ -685,7 +687,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
         ss << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
         const auto name = ss.str();
         connection.selectBucket(name);
-        connection.mutate(doc, 0, MutationType::Add);
+        connection.mutate(doc, Vbid(0), MutationType::Add);
     }
 
     connection = getAdminConnection();
@@ -717,7 +719,7 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects)
     // internal headers (this would be the key and the hash_item struct).
     doc.value.resize(item_max_size - name.length() - 100);
 
-    connection.mutate(doc, 0, MutationType::Add);
-    connection.get(name, 0);
+    connection.mutate(doc, Vbid(0), MutationType::Add);
+    connection.get(name, Vbid(0));
     connection.deleteBucket("mybucket_000");
 }

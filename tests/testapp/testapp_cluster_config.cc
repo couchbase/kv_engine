@@ -63,7 +63,7 @@ void ClusterConfigTest::test_MB_17506(bool dedupe) {
     auto& conn = getConnection();
     BinprotGetCommand command;
     command.setKey("foo");
-    command.setVBucket(1);
+    command.setVBucket(Vbid(1));
 
     // Execute the first get command. This one should _ALWAYS_ contain a map
     conn.executeCommand(command, response);

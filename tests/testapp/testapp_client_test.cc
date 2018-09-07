@@ -68,7 +68,7 @@ void TestappXattrClientTest::setBodyAndXattr(
                                        int(cb::mcbp::Datatype::JSON));
         }
         getConnection().mutateWithMeta(document,
-                                       0,
+                                       Vbid(0),
                                        mcbp::cas::Wildcard,
                                        /*seqno*/ 1,
                                        FORCE_WITH_META_OP);
@@ -79,8 +79,8 @@ void TestappXattrClientTest::setBodyAndXattr(
         document.info.cas = mcbp::cas::Wildcard;
         document.info.datatype = cb::mcbp::Datatype::Raw;
         document.value = startValue;
-        getConnection().mutate(document, 0, MutationType::Set);
-        auto doc = getConnection().get(name, 0);
+        getConnection().mutate(document, Vbid(0), MutationType::Set);
+        auto doc = getConnection().get(name, Vbid(0));
 
         EXPECT_EQ(doc.value, document.value);
 

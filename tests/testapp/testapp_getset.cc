@@ -60,8 +60,8 @@ void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    conn.mutate(document, 0, MutationType::Append);
-    const auto stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Append);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
@@ -87,15 +87,16 @@ void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
         document.compress();
         expectedDatatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
-    getConnection().mutate(document, 0, MutationType::Add);
-    auto meta =
-            getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
+    getConnection().mutate(document, Vbid(0), MutationType::Add);
+    auto meta = getConnection().getMeta(
+            document.info.id, Vbid(0), GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
     EXPECT_EQ(expectedDatatype, meta.second.datatype);
     EXPECT_EQ(0, meta.second.expiry);
 
-    meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
+    meta = getConnection().getMeta(
+            document.info.id, Vbid(0), GetMetaVersion::V1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
     EXPECT_NE(expectedDatatype, meta.second.datatype);
@@ -119,8 +120,8 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     if (compressedData) {
         document.compress();
     }
-    conn.mutate(document, 0, MutationType::Prepend);
-    const auto stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Prepend);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
@@ -146,12 +147,12 @@ void GetSetTest::doTestServerDetectsJSON(bool compressedSource) {
 
     setCompressionMode("passive"); // So server doesn't immediately inflate.
 
-    conn.mutate(document, 0, MutationType::Add);
+    conn.mutate(document, Vbid(0), MutationType::Add);
 
     // Fetch the document to see what datatype is has. It should be
     // marked as JSON if our connection is capable of receiving JSON,
     // and Snappy if we compressed it.
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     auto expectedDatatype = expectedJSONDatatype();
     if (compressedSource) {
         expectedDatatype = cb::mcbp::Datatype(int(expectedDatatype) |
@@ -167,11 +168,11 @@ void GetSetTest::doTestServerDetectsNonJSON(bool compressedSource) {
     if (compressedSource) {
         document.compress();
     }
-    conn.mutate(document, 0, MutationType::Add);
+    conn.mutate(document, Vbid(0), MutationType::Add);
 
     // Fetch the document to see what datatype is has. It should be
     // Raw, plus Snappy if we compressed it.
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     auto expectedDatatype = cb::mcbp::Datatype::Raw;
     if (compressedSource) {
         expectedDatatype = cb::mcbp::Datatype(int(expectedDatatype) |
@@ -195,7 +196,7 @@ void GetSetTest::doTestServerStoresUncompressed(bool compressedSource) {
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
 
     // Fetch the document to see what the data is stored as. It should be
     // stored as Raw and the data is store as is
@@ -214,7 +215,7 @@ void GetSetTest::doTestServerRejectsLargeSize(bool compressedSource) {
 
     int e2bigCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG);
     try {
-        conn.mutate(document, 0, MutationType::Set);
+        conn.mutate(document, Vbid(0), MutationType::Set);
         FAIL() << "It should not be possible to add a document whose size is "
                   "greater than the max item size";
     } catch (ConnectionError& error) {
@@ -247,7 +248,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
 
     int e2bigCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG);
     try {
-        conn.mutate(document, 0, MutationType::Set);
+        conn.mutate(document, Vbid(0), MutationType::Set);
         FAIL() << "It should not be possible to add a document whose size is "
                 "greater than the max item size";
     } catch (ConnectionError& error) {
@@ -277,7 +278,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
     }
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
     EXPECT_EQ(successCount + statResps() + 1,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
@@ -305,7 +306,7 @@ void GetSetTest::doTestServerRejectsLargeSizeWithXattr(bool compressedSource) {
 
     e2bigCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_E2BIG);
     try {
-        conn.mutate(document, 0, MutationType::Set);
+        conn.mutate(document, Vbid(0), MutationType::Set);
         FAIL() << "It should not be possible to add a document whose size is "
                 "greater than the max item size";
     } catch (ConnectionError& error) {
@@ -321,7 +322,7 @@ void GetSetTest::verifyData(MemcachedConnection& conn,
                             int numOps,
                             cb::mcbp::Datatype expectedDatatype,
                             std::string expectedValue) {
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_EQ(successCount + statResps() + numOps + 1,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
 
@@ -356,7 +357,7 @@ void GetSetSnappyOnOffTest::doTestCompressedRawData(std::string mode) {
         // Should be accepted.
         int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-        conn.mutate(document, 0, MutationType::Set);
+        conn.mutate(document, Vbid(0), MutationType::Set);
 
         // Expect to get Snappy-compressed data back in passive/active mode
         // (as it keeps data compressed), uncompressed if in off mode.
@@ -370,7 +371,7 @@ void GetSetSnappyOnOffTest::doTestCompressedRawData(std::string mode) {
     case ClientSnappySupport::No: {
         // Should fail as client didn't negotiate Snappy.
         try {
-            conn.mutate(document, 0, MutationType::Set);
+            conn.mutate(document, Vbid(0), MutationType::Set);
             FAIL() << "Should not accept datatype.Snappy document if client "
                       "didn't negotiate Snappy.";
         } catch (ConnectionError& error) {
@@ -395,7 +396,7 @@ void GetSetSnappyOnOffTest::doTestCompressedJSON(std::string mode) {
     case ClientSnappySupport::Yes: {
         // Should be accepted.
         int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        conn.mutate(document, 0, MutationType::Set);
+        conn.mutate(document, Vbid(0), MutationType::Set);
 
         // Expect to get Snappy-compressed data back in passive mode
         // (as it keeps data compressed), uncompressed if in off mode.
@@ -409,7 +410,7 @@ void GetSetSnappyOnOffTest::doTestCompressedJSON(std::string mode) {
     case ClientSnappySupport::No: {
         // Should fail as client didn't negotiate Snappy.
         try {
-            conn.mutate(document, 0, MutationType::Set);
+            conn.mutate(document, Vbid(0), MutationType::Set);
             FAIL() << "Should not accept datatype.Snappy document if client "
                       "didn't negotiate Snappy.";
         } catch (ConnectionError& error) {
@@ -445,12 +446,12 @@ INSTANTIATE_TEST_CASE_P(
 
 TEST_P(GetSetTest, TestAdd) {
     MemcachedConnection& conn = getConnection();
-    conn.mutate(document, 0, MutationType::Add);
+    conn.mutate(document, Vbid(0), MutationType::Add);
 
     int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     // Adding it one more time should fail
     try {
-        conn.mutate(document, 0, MutationType::Add);
+        conn.mutate(document, Vbid(0), MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -463,7 +464,7 @@ TEST_P(GetSetTest, TestAdd) {
     int invalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
     try {
         document.info.cas = mcbp::cas::Wildcard + 1;
-        conn.mutate(document, 0, MutationType::Add);
+        conn.mutate(document, Vbid(0), MutationType::Add);
         FAIL() << "It should not be possible to add a document that exists";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments()) << error.what();
@@ -479,7 +480,7 @@ TEST_P(GetSetTest, TestReplace) {
     // Replacing a nonexisting document should fail
     int eNoentCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     try {
-        conn.mutate(document, 0, MutationType::Replace);
+        conn.mutate(document, Vbid(0), MutationType::Replace);
         FAIL() << "It's not possible to replace a nonexisting document";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -488,17 +489,17 @@ TEST_P(GetSetTest, TestReplace) {
                   getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT));
     }
 
-    conn.mutate(document, 0, MutationType::Add);
+    conn.mutate(document, Vbid(0), MutationType::Add);
     // Replace this time should be fine!
     MutationInfo info;
-    info = conn.mutate(document, 0, MutationType::Replace);
+    info = conn.mutate(document, Vbid(0), MutationType::Replace);
 
     // Replace with invalid cas should fail
     document.info.cas = info.cas + 1;
 
     int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     try {
-        conn.mutate(document, 0, MutationType::Replace);
+        conn.mutate(document, Vbid(0), MutationType::Replace);
         FAIL() << "replace with CAS mismatch should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -508,10 +509,10 @@ TEST_P(GetSetTest, TestReplace) {
     }
 
     // Trying to replace a deleted document should also fail
-    conn.remove(name, 0, 0);
+    conn.remove(name, Vbid(0), 0);
     document.info.cas = 0;
     try {
-        conn.mutate(document, 0, MutationType::Replace);
+        conn.mutate(document, Vbid(0), MutationType::Replace);
         FAIL() << "It's not possible to replace a nonexisting document (deleted)";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -520,7 +521,7 @@ TEST_P(GetSetTest, TestReplace) {
     // And CAS replace
     document.info.cas = 1;
     try {
-        conn.mutate(document, 0, MutationType::Replace);
+        conn.mutate(document, Vbid(0), MutationType::Replace);
         FAIL() << "It's not possible to replace a nonexisting document (deleted)";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -535,7 +536,7 @@ TEST_P(GetSetTest, TestSet) {
 
     int eNoentCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     try {
-        conn.mutate(document, 0, MutationType::Set);
+        conn.mutate(document, Vbid(0), MutationType::Set);
         FAIL() << "Set with CAS and no such doc should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -546,14 +547,14 @@ TEST_P(GetSetTest, TestSet) {
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     // set should work even if a nonexisting document should fail
     document.info.cas = mcbp::cas::Wildcard;
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
 
     // And it should be possible to set it once more
-    auto info = conn.mutate(document, 0, MutationType::Set);
+    auto info = conn.mutate(document, Vbid(0), MutationType::Set);
 
     // And it should be possible to set it with a CAS
     document.info.cas = info.cas;
-    info = conn.mutate(document, 0, MutationType::Set);
+    info = conn.mutate(document, Vbid(0), MutationType::Set);
     // Check that we correctly increment the status counter stat
     EXPECT_EQ(successCount + statResps() + 3,
               getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
@@ -564,7 +565,7 @@ TEST_P(GetSetTest, TestSet) {
     int eExistsCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     try {
-        conn.mutate(document, 0, MutationType::Replace);
+        conn.mutate(document, Vbid(0), MutationType::Replace);
         FAIL() << "set with CAS mismatch should fail!";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -578,7 +579,7 @@ TEST_P(GetSetTest, TestGetMiss) {
     MemcachedConnection& conn = getConnection();
     int eNoentCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
     try {
-        conn.get("TestGetMiss", 0);
+        conn.get("TestGetMiss", Vbid(0));
         FAIL() << "Expected TestGetMiss to throw an exception";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
@@ -590,10 +591,10 @@ TEST_P(GetSetTest, TestGetMiss) {
 
 TEST_P(GetSetTest, TestGetSuccess) {
     MemcachedConnection& conn = getConnection();
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, expectedJSONSnappyDatatype()));
 
     // Check that we correctly increment the status counter stat
@@ -611,11 +612,11 @@ TEST_P(GetSetTest, TestAppend) {
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "a";
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
     document.value = "b";
-    conn.mutate(document, 0, MutationType::Append);
+    conn.mutate(document, Vbid(0), MutationType::Append);
 
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
@@ -635,14 +636,14 @@ TEST_P(GetSetTest, TestAppendJsonToJson) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "10";
-    conn.mutate(document, 0, MutationType::Set);
-    auto stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Set);
+    auto stored = conn.get(name, Vbid(0));
     EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
 
     // Now append another digit to it - should still be valid JSON.
     document.value = '1';
-    conn.mutate(document, 0, MutationType::Append);
-    stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Append);
+    stored = conn.get(name, Vbid(0));
     EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
     EXPECT_EQ("101", stored.value);
 }
@@ -654,14 +655,14 @@ TEST_P(GetSetTest, TestAppendRawToJson) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "[1";
-    conn.mutate(document, 0, MutationType::Set);
-    auto stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Set);
+    auto stored = conn.get(name, Vbid(0));
     EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
 
     // Now append closing square bracket - should become valid JSON array.
     document.value = ']';
-    conn.mutate(document, 0, MutationType::Append);
-    stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Append);
+    stored = conn.get(name, Vbid(0));
     EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
     EXPECT_EQ("[1]", stored.value);
 }
@@ -673,14 +674,14 @@ TEST_P(GetSetTest, TestPrependJsonToJson) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "10";
-    conn.mutate(document, 0, MutationType::Set);
-    auto stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Set);
+    auto stored = conn.get(name, Vbid(0));
     EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
 
     // Now prepend another digit to it - should still be valid JSON.
     document.value = '1';
-    conn.mutate(document, 0, MutationType::Prepend);
-    stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Prepend);
+    stored = conn.get(name, Vbid(0));
     EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
     EXPECT_EQ("110", stored.value);
 }
@@ -692,14 +693,14 @@ TEST_P(GetSetTest, TestPrependRawToJson) {
     MemcachedConnection& conn = getConnection();
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "1]";
-    conn.mutate(document, 0, MutationType::Set);
-    auto stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Set);
+    auto stored = conn.get(name, Vbid(0));
     EXPECT_EQ(cb::mcbp::Datatype::Raw, stored.info.datatype);
 
     // Now prepend closing square bracket - should become valid JSON array.
     document.value = '[';
-    conn.mutate(document, 0, MutationType::Prepend);
-    stored = conn.get(name, 0);
+    conn.mutate(document, Vbid(0), MutationType::Prepend);
+    stored = conn.get(name, Vbid(0));
     EXPECT_EQ(expectedJSONDatatype(), stored.info.datatype);
     EXPECT_EQ("[1]", stored.value);
 }
@@ -709,19 +710,19 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "a";
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    getConnection().mutate(document, 0, MutationType::Add);
+    getConnection().mutate(document, Vbid(0), MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
     document.value = "b";
-    getConnection().mutate(document, 0, MutationType::Append);
+    getConnection().mutate(document, Vbid(0), MutationType::Append);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
-    const auto stored = getConnection().get(name, 0);
+    const auto stored = getConnection().get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat.
@@ -754,12 +755,12 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
     document.value = "a";
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    const auto info = conn.mutate(document, 0, MutationType::Set);
+    const auto info = conn.mutate(document, Vbid(0), MutationType::Set);
     document.value = "b";
     document.info.cas = info.cas;
-    conn.mutate(document, 0, MutationType::Append);
+    conn.mutate(document, Vbid(0), MutationType::Append);
 
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
@@ -777,18 +778,18 @@ TEST_P(GetSetTest, TestAppendCasMismatch) {
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "a";
 
-    const auto info = conn.mutate(document, 0, MutationType::Set);
+    const auto info = conn.mutate(document, Vbid(0), MutationType::Set);
     document.value = "b";
     document.info.cas = info.cas + 1;
     try {
-        conn.mutate(document, 0, MutationType::Append);
+        conn.mutate(document, Vbid(0), MutationType::Append);
         FAIL() << "Append with illegal CAS should fail";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
 
     // verify it didn't change..
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     EXPECT_EQ(info.cas, stored.info.cas);
@@ -803,11 +804,11 @@ TEST_P(GetSetTest, TestPrepend) {
     document.value = "a";
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
     document.value = "b";
-    conn.mutate(document, 0, MutationType::Prepend);
+    conn.mutate(document, Vbid(0), MutationType::Prepend);
 
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
@@ -827,19 +828,19 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
 
     int sucCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    getConnection().mutate(document, 0, MutationType::Add);
+    getConnection().mutate(document, Vbid(0), MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
 
     document.value = "b";
-    getConnection().mutate(document, 0, MutationType::Prepend);
+    getConnection().mutate(document, Vbid(0), MutationType::Prepend);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
 
-    const auto stored = getConnection().get(name, 0);
+    const auto stored = getConnection().get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat.
@@ -871,12 +872,12 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
     document.value = "a";
 
     int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    const auto info = conn.mutate(document, 0, MutationType::Set);
+    const auto info = conn.mutate(document, Vbid(0), MutationType::Set);
     document.value = "b";
     document.info.cas = info.cas;
-    conn.mutate(document, 0, MutationType::Prepend);
+    conn.mutate(document, Vbid(0), MutationType::Prepend);
 
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     // Check that we correctly increment the status counter stat
@@ -894,16 +895,16 @@ TEST_P(GetSetTest, TestPrependCasMismatch) {
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value = "a";
 
-    const auto info = conn.mutate(document, 0, MutationType::Set);
+    const auto info = conn.mutate(document, Vbid(0), MutationType::Set);
     document.value = "b";
     document.info.cas = info.cas + 1;
     try {
-        conn.mutate(document, 0, MutationType::Prepend);
+        conn.mutate(document, Vbid(0), MutationType::Prepend);
         FAIL() << "Prepend with illegal CAS should fail";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
     }
-    const auto stored = conn.get(name, 0);
+    const auto stored = conn.get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
 
     EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
@@ -920,7 +921,7 @@ TEST_P(GetSetTest, TestIllegalVbucket) {
     conn.selectBucket("bucket");
 
     try {
-        conn.get("TestGetInvalidVbucket", 1);
+        conn.get("TestGetInvalidVbucket", Vbid(1));
         FAIL() << "Expected fetch of item in illegal vbucket to throw an exception";
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotMyVbucket()) << error.what();
@@ -966,7 +967,7 @@ TEST_P(GetSetSnappyOnOffTest, TestInvalidCompressedData) {
     // Replacing a nonexisting document should fail
     int einvalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
     try {
-        conn.mutate(document, 0, MutationType::Set);
+        conn.mutate(document, Vbid(0), MutationType::Set);
         FAIL() << "It's not possible to set uncompressed documents if the "
                   "datatype is set as SNAPPY";
     } catch (ConnectionError& error) {
@@ -997,7 +998,7 @@ TEST_P(GetSetTest, TestAppendInvalidCompressedData) {
     document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.assign(1024, 'a');
 
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
@@ -1005,7 +1006,7 @@ TEST_P(GetSetTest, TestAppendInvalidCompressedData) {
 
     int einvalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
     try {
-        conn.mutate(document, 0, MutationType::Append);
+        conn.mutate(document, Vbid(0), MutationType::Append);
         FAIL() << "It's not possible to append uncompressed documents if the "
                   "datatype is set as SNAPPY";
     } catch (ConnectionError& error) {
@@ -1033,7 +1034,7 @@ TEST_P(GetSetTest, TestPrependInvalidCompressedData) {
         document.info.datatype = cb::mcbp::Datatype::Raw;
     document.value.assign(1024, 'a');
 
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
 
     std::vector<char> input(1024);
     std::fill(input.begin(), input.end(), 'b');
@@ -1041,7 +1042,7 @@ TEST_P(GetSetTest, TestPrependInvalidCompressedData) {
 
     int einvalCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_EINVAL);
     try {
-        conn.mutate(document, 0, MutationType::Prepend);
+        conn.mutate(document, Vbid(0), MutationType::Prepend);
         FAIL() << "It's not possible to prepend uncompressed documents if the "
                   "datatype is set as SNAPPY";
     } catch (ConnectionError& error) {
@@ -1070,9 +1071,9 @@ TEST_P(GetSetTest, TestGetMetaInvalidJSON) {
         document.compress();
         expectedDatatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
-    getConnection().mutate(document, 0, MutationType::Add);
-    auto meta =
-            getConnection().getMeta(document.info.id, 0, GetMetaVersion::V2);
+    getConnection().mutate(document, Vbid(0), MutationType::Add);
+    auto meta = getConnection().getMeta(
+            document.info.id, Vbid(0), GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(0, meta.second.deleted);
     EXPECT_EQ(expectedDatatype, meta.second.datatype);
@@ -1099,9 +1100,9 @@ TEST_P(GetSetTest, TestGetMetaExpiry) {
     uint32_t seconds = 60;
     document.info.expiration = seconds;
     time_t now = time(nullptr);
-    getConnection().mutate(document, 0, MutationType::Add);
-    auto meta =
-            getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
+    getConnection().mutate(document, Vbid(0), MutationType::Add);
+    auto meta = getConnection().getMeta(
+            document.info.id, Vbid(0), GetMetaVersion::V1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     uint32_t expected = gsl::narrow<uint32_t>(now) + seconds - 2;
     EXPECT_GE(meta.second.expiry, expected);
@@ -1109,8 +1110,9 @@ TEST_P(GetSetTest, TestGetMetaExpiry) {
 
     // Case `expiry` > `num_seconds_in_a_month`
     document.info.expiration = gsl::narrow<uint32_t>(now) + 60;
-    getConnection().mutate(document, 0, MutationType::Replace);
-    meta = getConnection().getMeta(document.info.id, 0, GetMetaVersion::V1);
+    getConnection().mutate(document, Vbid(0), MutationType::Replace);
+    meta = getConnection().getMeta(
+            document.info.id, Vbid(0), GetMetaVersion::V1);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(meta.second.expiry, document.info.expiration);
 }

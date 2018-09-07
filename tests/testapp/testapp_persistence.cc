@@ -115,7 +115,7 @@ protected:
         waitForShutdown(mode == ShutdownMode::Unclean);
     }
 
-    uint16_t vbid = 0;
+    Vbid vbid = Vbid(0);
     bool skipTest = false;
 };
 
@@ -129,7 +129,7 @@ TEST_P(PersistToTest, PersistedAfterShutdown) {
     }
 
     // Store 1 item, noting it's sequence number
-    uint16_t vbid = 0;
+    Vbid vbid = Vbid(0);
     auto doc = storeAndPersistItem("1");
 
     // Shutdown of memcached.

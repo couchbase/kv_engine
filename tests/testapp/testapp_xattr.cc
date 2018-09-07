@@ -68,7 +68,7 @@ TEST_P(XattrTest, GetXattrAndBody) {
 
 TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
     // Ensure we are working on a new doc
-    getConnection().remove(name, 0);
+    getConnection().remove(name, Vbid(0));
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
@@ -84,7 +84,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
 TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     // For MB-24542
     // Ensure we are working on a new doc
-    getConnection().remove(name, 0);
+    getConnection().remove(name, Vbid(0));
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.setExpiry(3);
@@ -202,7 +202,7 @@ TEST_P(XattrTest, AddBodyAndXattr) {
     // Check that we can use the Add doc flag to create a new document
 
     // Get rid of any existing doc
-    getConnection().remove(name, 0);
+    getConnection().remove(name, Vbid(0));
 
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
@@ -361,19 +361,19 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
 
 // Test that macro expansion only happens once if the value is replaced.
 TEST_P(XattrTest, TestMacroExpansionOccursOnce) {
-    getConnection().mutate(document, 0, MutationType::Set);
+    getConnection().mutate(document, Vbid(0), MutationType::Set);
 
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
     EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue())
             << "Macro expansion did not occur when requested";
-    getConnection().mutate(document, 0, MutationType::Replace);
+    getConnection().mutate(document, Vbid(0), MutationType::Replace);
     EXPECT_EQ(mutation_cas, getXattr("meta.cas"))
             << "'meta.cas' should be unchanged when value replaced";
 }
 
 TEST_P(XattrTest, OperateOnDeletedItem) {
-    getConnection().remove(name, 0);
+    getConnection().remove(name, Vbid(0));
 
     // let's add an attribute to the deleted document
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
@@ -994,8 +994,8 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
     document.info.flags = 0xcaffee;
     document.info.id = name;
     document.value = value;
-    getConnection().mutate(document, 0, MutationType::Set);
-    auto doc = getConnection().get(name, 0);
+    getConnection().mutate(document, Vbid(0), MutationType::Set);
+    auto doc = getConnection().get(name, Vbid(0));
 
     EXPECT_EQ(doc.value, document.value);
 
@@ -1010,7 +1010,7 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
 
     // Create a docuement with a given value
     auto& connection = getConnection();
-    uint16_t vbid = 0;
+    Vbid vbid = Vbid(0);
     if (std::tr1::get<2>(GetParam()) == ClientJSONSupport::Yes) {
         document.info.datatype = cb::mcbp::Datatype::JSON;
         document.value = R"({"Test":45})";
@@ -1079,7 +1079,7 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
 
     // Compute the expected value_crc32c
-    auto value = getConnection().get(name, 0 /*vbid*/).value;
+    auto value = getConnection().get(name, Vbid(0)).value;
     auto _crc32c = crc32c(reinterpret_cast<const unsigned char*>(value.c_str()),
                           value.size(),
                           0 /*crc_in*/);
@@ -1124,7 +1124,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
 TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
 
     // Create a document without an XATTR.
-    getConnection().store(name, 0, value);
+    getConnection().store(name, Vbid(0), value);
 
     // Attempt to request both the body and a non-existent XATTR.
     BinprotSubdocMultiLookupCommand cmd;
@@ -1156,7 +1156,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
     // Store a document with body+XATTR; then delete it (so the body
     // becomes empty).
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
-    getConnection().remove(name, 0);
+    getConnection().remove(name, Vbid(0));
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
@@ -1214,7 +1214,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
 TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
     // Store an initial body+XATTR; then delete it.
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
-    getConnection().remove(name, 0);
+    getConnection().remove(name, Vbid(0));
 
     // Lookup two XATTRs - one which exists and one which doesn't.
     BinprotSubdocMultiLookupCommand cmd;
@@ -1257,7 +1257,7 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
+    auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
@@ -1310,7 +1310,7 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
+    auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
@@ -1377,7 +1377,7 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
     // Should now only be XATTR datatype
-    auto meta = conn.getMeta(name, 0, GetMetaVersion::V2);
+    auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
@@ -1397,7 +1397,7 @@ TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
     auto& conn = getConnection();
 
     std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
-    conn.store("mb25928", 0, std::move(blob));
+    conn.store("mb25928", Vbid(0), std::move(blob));
 
     std::string value(300, 'a');
     value.front() = '"';
@@ -1431,7 +1431,7 @@ TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
     auto& conn = getConnection();
 
     std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
-    conn.store("mb25928", 0, std::move(blob));
+    conn.store("mb25928", Vbid(0), std::move(blob));
 
     // Let it be almost 1MB (the internal length fields and keys
     // is accounted for in the system space
@@ -1467,7 +1467,7 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
     auto& conn = getConnection();
 
     std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
-    conn.store("mb25928", 0, std::move(blob));
+    conn.store("mb25928", Vbid(0), std::move(blob));
 
     std::string value(1024 * 1024, 'a');
     value.front() = '"';

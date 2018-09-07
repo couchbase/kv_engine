@@ -59,7 +59,7 @@ protected:
     }
 
     const char *key = "test_flush";
-    const uint16_t vbid = 0;
+    const Vbid vbid = Vbid(0);
     MemcachedConnection* conn = nullptr;
 };
 

@@ -131,7 +131,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
     connection.setXerrorSupport(true);
 
     try {
-        connection.get("foo", 0);
+        connection.get("foo", Vbid(0));
         FAIL() << "Should not be associated with a bucket";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied())
@@ -140,7 +140,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
 
     connection.selectBucket("default");
     try {
-        connection.get("foo", 0);
+        connection.get("foo", Vbid(0));
         FAIL() << "document should not exists";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())
@@ -177,7 +177,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
     connection.setXerrorSupport(true);
 
     try {
-        connection.get("foo", 0);
+        connection.get("foo", Vbid(0));
         FAIL() << "Should not be associated with a bucket";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied())
@@ -186,7 +186,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
 
     connection.selectBucket("default");
     try {
-        connection.get("foo", 0);
+        connection.get("foo", Vbid(0));
         FAIL() << "document should not exists";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())

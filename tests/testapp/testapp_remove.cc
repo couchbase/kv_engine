@@ -30,7 +30,7 @@ protected:
      * the info member
      */
     void createDocument() {
-        info = getConnection().mutate(document, 0, MutationType::Add);
+        info = getConnection().mutate(document, Vbid(0), MutationType::Add);
     }
 
     MutationInfo info;
@@ -50,11 +50,11 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     setBodyAndXattr("foobar", {{"_rbac", "{\"attribute\": \"read-only\"}"}});
 
     // Delete the document
-    conn.remove(name, 0);
+    conn.remove(name, Vbid(0));
 
     // The document itself should not be accessible MB-22553
     try {
-        conn.get(name, 0);
+        conn.get(name, Vbid(0));
         FAIL() << "Document with XATTRs should not be accessible after remove";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())
@@ -87,7 +87,7 @@ TEST_P(RemoveTest, RemoveNonexisting) {
     auto& conn = getConnection();
 
     try {
-        conn.remove(name, 0);
+        conn.remove(name, Vbid(0));
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.what();
     }
@@ -101,7 +101,7 @@ TEST_P(RemoveTest, RemoveCasWildcard) {
     auto& conn = getConnection();
 
     createDocument();
-    auto deleted = conn.remove(name, 0);
+    auto deleted = conn.remove(name, Vbid(0));
     EXPECT_NE(info.cas, deleted.cas);
 }
 
@@ -113,7 +113,7 @@ TEST_P(RemoveTest, RemoveWithInvalidCas) {
     auto& conn = getConnection();
     createDocument();
     try {
-        conn.remove(name, 0, info.cas + 1);
+        conn.remove(name, Vbid(0), info.cas + 1);
         FAIL() << "Invalid cas should return EEXISTS";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.what();
@@ -128,7 +128,7 @@ TEST_P(RemoveTest, RemoveWithCas) {
     auto& conn = getConnection();
 
     createDocument();
-    auto deleted = conn.remove(name, 0, info.cas);
+    auto deleted = conn.remove(name, Vbid(0), info.cas);
     EXPECT_NE(info.cas, deleted.cas);
 }
 
@@ -142,7 +142,7 @@ TEST_P(RemoveTest, RemoveWithXattr) {
             {{"meta",
               "{\"content-type\": \"application/json; charset=utf-8\"}"},
              {"_rbac", "{\"attribute\": \"read-only\"}"}});
-    getConnection().remove(name, 0, 0);
+    getConnection().remove(name, Vbid(0), 0);
 
     // The system xattr should have been preserved
     const auto status = getXattr("_rbac.attribute", true);

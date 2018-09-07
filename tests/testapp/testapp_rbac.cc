@@ -218,7 +218,7 @@ protected:
         document.info.flags = 0xcaffee;
         document.info.id = name;
         document.value = to_string(memcached_cfg, false);
-        return conn.mutate(document, 0, type);
+        return conn.mutate(document, Vbid(0), type);
     }
 
     BinprotResponse createXattr(MemcachedConnection& conn,
@@ -388,7 +388,7 @@ TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
             store(wo, type);
         }
 
-        wo.remove(name, 0, 0);
+        wo.remove(name, Vbid(0), 0);
 
         // If we drop the Insert privilege the upsert privilege should
         // allow us to do all that we want..
@@ -425,7 +425,7 @@ TEST_P(RbacRoleTest, Remove_ReadOnly) {
 
     try {
         auto& ro = getROConnection();
-        ro.remove(name, 0, 0);
+        ro.remove(name, Vbid(0), 0);
         FAIL() << "The read-only user should not be able to remove documents";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied());
@@ -435,7 +435,7 @@ TEST_P(RbacRoleTest, Remove_ReadOnly) {
 TEST_P(RbacRoleTest, Remove_WriteOnly) {
     auto& wo = getWOConnection();
     store(wo, MutationType::Add);
-    wo.remove(name, 0, 0);
+    wo.remove(name, Vbid(0), 0);
 
     store(wo, MutationType::Add);
 
@@ -443,7 +443,7 @@ TEST_P(RbacRoleTest, Remove_WriteOnly) {
     // the document
     wo.dropPrivilege(cb::rbac::Privilege::Delete);
     try {
-        wo.remove(name, 0, 0);
+        wo.remove(name, Vbid(0), 0);
         FAIL() << "The write-only user should not be able to delete document"
                << " without delete privilege";
 

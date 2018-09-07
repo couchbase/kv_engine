@@ -75,7 +75,7 @@ TEST_F(SetCollectionsValidator, InvalidDatatype) {
 }
 
 TEST_F(SetCollectionsValidator, InvalidVbucket) {
-    request.message.header.request.vbucket = 1;
+    request.message.header.request.vbucket = Vbid(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

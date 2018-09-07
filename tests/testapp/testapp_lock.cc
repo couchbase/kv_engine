@@ -47,7 +47,7 @@ TEST_P(LockTest, LockNonexistingDocument) {
     auto& conn = getConnection();
 
     try {
-        conn.get_and_lock(name, 0, 0);
+        conn.get_and_lock(name, Vbid(0), 0);
         FAIL() << "It should not be possible to lock a non-existing document";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isNotFound());
@@ -58,7 +58,7 @@ TEST_P(LockTest, LockIncorrectVBucket) {
     auto& conn = getConnection();
 
     try {
-        conn.get_and_lock(name, 1, 0);
+        conn.get_and_lock(name, Vbid(1), 0);
         FAIL() << "vbucket 1 should not exist";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isNotMyVbucket());
@@ -68,26 +68,26 @@ TEST_P(LockTest, LockIncorrectVBucket) {
 TEST_P(LockTest, LockWithDefaultValue) {
     auto& conn = getConnection();
 
-    conn.mutate(document, 0, MutationType::Add);
-    conn.get_and_lock(name, 0, 0);
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    conn.get_and_lock(name, Vbid(0), 0);
 }
 
 TEST_P(LockTest, LockWithTimeValue) {
     auto& conn = getConnection();
 
-    conn.mutate(document, 0, MutationType::Add);
-    conn.get_and_lock(name, 0, 5);
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    conn.get_and_lock(name, Vbid(0), 5);
 }
 
 
 TEST_P(LockTest, LockLockedDocument) {
     auto& conn = getConnection();
 
-    conn.mutate(document, 0, MutationType::Add);
-    conn.get_and_lock(name, 0, 0);
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    conn.get_and_lock(name, Vbid(0), 0);
 
     try {
-        conn.get_and_lock(name, 0, 0);
+        conn.get_and_lock(name, Vbid(0), 0);
         FAIL() << "it is not possible to lock a locked document";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isLocked());
@@ -102,11 +102,11 @@ TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
     auto& conn = getConnection();
     conn.setXerrorSupport(false);
 
-    conn.mutate(document, 0, MutationType::Add);
-    conn.get_and_lock(name, 0, 0);
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    conn.get_and_lock(name, Vbid(0), 0);
 
     try {
-        conn.get_and_lock(name, 0, 0);
+        conn.get_and_lock(name, Vbid(0), 0);
         FAIL() << "it is not possible to lock a locked document";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isTemporaryFailure()) << ex.what();
@@ -116,16 +116,16 @@ TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
 TEST_P(LockTest, MutateLockedDocument) {
     auto& conn = getConnection();
 
-    conn.mutate(document, 0, MutationType::Add);
+    conn.mutate(document, Vbid(0), MutationType::Add);
 
     for (const auto op : {MutationType::Set,
                           MutationType::Replace,
                           MutationType::Append,
                           MutationType::Prepend}) {
-        const auto locked = conn.get_and_lock(name, 0, 0);
+        const auto locked = conn.get_and_lock(name, Vbid(0), 0);
         EXPECT_NE(uint64_t(-1), locked.info.cas);
         try {
-            conn.mutate(document, 0, op);
+            conn.mutate(document, Vbid(0), op);
             FAIL() << "It should not be possible to mutate a locked document";
         } catch (const ConnectionError& ex) {
             EXPECT_TRUE(ex.isLocked());
@@ -133,7 +133,7 @@ TEST_P(LockTest, MutateLockedDocument) {
 
         // But using the locked cas should work!
         document.info.cas = locked.info.cas;
-        conn.mutate(document, 0, op);
+        conn.mutate(document, Vbid(0), op);
     }
 }
 
@@ -141,7 +141,7 @@ TEST_P(LockTest, ArithmeticLockedDocument) {
     auto& conn = getConnection();
 
     conn.arithmetic(name, 1);
-    conn.get_and_lock(name, 0, 0);
+    conn.get_and_lock(name, Vbid(0), 0);
 
     try {
         conn.arithmetic(name, 1);
@@ -156,23 +156,23 @@ TEST_P(LockTest, ArithmeticLockedDocument) {
 TEST_P(LockTest, DeleteLockedDocument) {
     auto& conn = getConnection();
 
-    conn.mutate(document, 0, MutationType::Add);
-    const auto locked = conn.get_and_lock(name, 0, 0);
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    const auto locked = conn.get_and_lock(name, Vbid(0), 0);
 
     try {
-        conn.remove(name, 0, 0);
+        conn.remove(name, Vbid(0), 0);
         FAIL() << "Remove a locked document should not be possible";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isLocked());
     }
 
-    conn.remove(name, 0, locked.info.cas);
+    conn.remove(name, Vbid(0), locked.info.cas);
 }
 
 TEST_P(LockTest, UnlockNoSuchDocument) {
     auto& conn = getConnection();
     try {
-        conn.unlock(name, 0, 0xdeadbeef);
+        conn.unlock(name, Vbid(0), 0xdeadbeef);
         FAIL() << "The document should not exist";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isNotFound());
@@ -182,7 +182,7 @@ TEST_P(LockTest, UnlockNoSuchDocument) {
 TEST_P(LockTest, UnlockInvalidVBucket) {
     auto& conn = getConnection();
     try {
-        conn.unlock(name, 1, 0xdeadbeef);
+        conn.unlock(name, Vbid(1), 0xdeadbeef);
         FAIL() << "The vbucket should not exist";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isNotMyVbucket());
@@ -191,11 +191,11 @@ TEST_P(LockTest, UnlockInvalidVBucket) {
 
 TEST_P(LockTest, UnlockWrongCas) {
     auto& conn = getConnection();
-    conn.mutate(document, 0, MutationType::Add);
-    const auto locked = conn.get_and_lock(name, 0, 0);
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    const auto locked = conn.get_and_lock(name, Vbid(0), 0);
 
     try {
-        conn.unlock(name, 0, locked.info.cas + 1);
+        conn.unlock(name, Vbid(0), locked.info.cas + 1);
         FAIL() << "The cas value should not match";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isLocked());
@@ -204,11 +204,11 @@ TEST_P(LockTest, UnlockWrongCas) {
 
 TEST_P(LockTest, UnlockThereIsNoCasWildcard) {
     auto& conn = getConnection();
-    conn.mutate(document, 0, MutationType::Add);
-    const auto locked = conn.get_and_lock(name, 0, 0);
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    const auto locked = conn.get_and_lock(name, Vbid(0), 0);
 
     try {
-        conn.unlock(name, 0, 0);
+        conn.unlock(name, Vbid(0), 0);
         FAIL() << "The cas value should not match";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isInvalidArguments());
@@ -217,12 +217,12 @@ TEST_P(LockTest, UnlockThereIsNoCasWildcard) {
 
 TEST_P(LockTest, UnlockSuccess) {
     auto& conn = getConnection();
-    conn.mutate(document, 0, MutationType::Add);
-    const auto locked = conn.get_and_lock(name, 0, 0);
-    conn.unlock(name, 0, locked.info.cas);
+    conn.mutate(document, Vbid(0), MutationType::Add);
+    const auto locked = conn.get_and_lock(name, Vbid(0), 0);
+    conn.unlock(name, Vbid(0), locked.info.cas);
 
     // The document should no longer be locked
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
 }
 
 /**
@@ -284,5 +284,5 @@ TEST_P(LockTest, MB_22778) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus())
                 << memcached_status_2_text(response.getStatus());
 
-    conn.remove("NET", 0, response.getCas());
+    conn.remove("NET", Vbid(0), response.getCas());
 }

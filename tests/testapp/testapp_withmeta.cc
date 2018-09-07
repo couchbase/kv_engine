@@ -106,7 +106,7 @@ TEST_P(WithMetaTest, basicSet) {
     MutationInfo resp;
     try {
         resp = getConnection().mutateWithMeta(document,
-                                              0,
+                                              Vbid(0),
                                               mcbp::cas::Wildcard,
                                               /*seqno*/ 1,
                                               /*options*/ 0,
@@ -127,7 +127,7 @@ TEST_P(WithMetaTest, basicSetXattr) {
     MutationInfo resp;
     try {
         resp = getConnection().mutateWithMeta(document,
-                                              0,
+                                              Vbid(0),
                                               mcbp::cas::Wildcard,
                                               /*seqno*/ 1,
                                               /*options*/ 0,

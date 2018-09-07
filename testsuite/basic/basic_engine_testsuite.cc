@@ -68,7 +68,8 @@ static void assert_ge_impl(const T& a_value, const T& b_value,
 static enum test_result allocate_test(EngineIface* h) {
     DocKey key("akey", DocKeyEncodesCollectionId::No);
     const auto* cookie = test_harness->create_cookie();
-    auto ret = h->allocate(cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     test_harness->destroy_cookie(cookie);
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(ret.second != nullptr);
@@ -84,7 +85,8 @@ static enum test_result set_test(EngineIface* h) {
     uint64_t cas = 0;
     int ii;
     const auto* cookie = test_harness->create_cookie();
-    auto ret = h->allocate(cookie, key, 1, 1, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 1, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
 
     for (ii = 0; ii < 10; ++ii) {
@@ -109,7 +111,8 @@ static enum test_result add_test(EngineIface* h) {
     uint64_t cas;
     int ii;
     const auto* cookie = test_harness->create_cookie();
-    auto ret = h->allocate(cookie, key, 1, 1, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 1, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
 
     for (ii = 0; ii < 10; ++ii) {
@@ -142,7 +145,7 @@ static enum test_result replace_test(EngineIface* h) {
     DocKey key("key", DocKeyEncodesCollectionId::No);
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(
-            cookie, key, sizeof(int), 1, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+            cookie, key, sizeof(int), 1, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->get_item_info(ret.second.get(), &item_info) == true);
 
@@ -157,7 +160,7 @@ static enum test_result replace_test(EngineIface* h) {
         cb_assert(cas != prev_cas);
     }
 
-    ret = h->get(cookie, key, 0, DocStateFilter::Alive);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->get_item_info(ret.second.get(), &item_info) == true);
     cb_assert(item_info.value[0].iov_len == sizeof(int));
@@ -175,7 +178,8 @@ static enum test_result store_test(EngineIface* h) {
     DocKey key("bkey", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
-    auto ret = h->allocate(cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 1, 1, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
@@ -195,14 +199,15 @@ static enum test_result get_test(EngineIface* h) {
     DocKey key("get_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
-    auto ret = h->allocate(cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
                        DocumentState::Alive) == ENGINE_SUCCESS);
-    ret = h->get(cookie, key, 0, DocStateFilter::Alive);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
     test_harness->destroy_cookie(cookie);
     return SUCCESS;
@@ -216,30 +221,31 @@ static enum test_result get_deleted_test(EngineIface* h) {
     DocKey key("get_removed_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
-    auto ret = h->allocate(cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
                        DocumentState::Alive) == ENGINE_SUCCESS);
-    ret = h->get(cookie, key, 0, DocStateFilter::Alive);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
 
     // Asking for a dead document should not find it!
-    ret = h->get(cookie, key, 0, DocStateFilter::Deleted);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Deleted);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
 
     // remove it
     mutation_descr_t mut_info;
-    cb_assert(h->remove(cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
-    ret = h->get(cookie, key, 0, DocStateFilter::Alive);
+    cb_assert(h->remove(cookie, key, cas, Vbid(0), mut_info) == ENGINE_SUCCESS);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
 
     // But we should be able to fetch it if we ask for deleted
-    ret = h->get(cookie, key, 0, DocStateFilter::Deleted);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Deleted);
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(ret.second != nullptr);
 
@@ -251,7 +257,8 @@ static enum test_result expiry_test(EngineIface* h) {
     DocKey key("get_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
-    auto ret = h->allocate(cookie, key, 1, 0, 10, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 0, 10, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
@@ -259,7 +266,7 @@ static enum test_result expiry_test(EngineIface* h) {
                        OPERATION_SET,
                        DocumentState::Alive) == ENGINE_SUCCESS);
     test_harness->time_travel(11);
-    ret = h->get(cookie, key, 0, DocStateFilter::Alive);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     test_harness->destroy_cookie(cookie);
     return SUCCESS;
@@ -274,7 +281,8 @@ static enum test_result release_test(EngineIface* h) {
     DocKey key("release_test_key", DocKeyEncodesCollectionId::No);
     uint64_t cas = 0;
     const auto* cookie = test_harness->create_cookie();
-    auto ret = h->allocate(cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
@@ -295,15 +303,16 @@ static enum test_result remove_test(EngineIface* h) {
     mutation_descr_t mut_info;
     const auto* cookie = test_harness->create_cookie();
 
-    auto ret = h->allocate(cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
                        DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h->remove(cookie, key, cas, 0, mut_info) == ENGINE_SUCCESS);
-    ret = h->get(cookie, key, 0, DocStateFilter::Alive);
+    cb_assert(h->remove(cookie, key, cas, Vbid(0), mut_info) == ENGINE_SUCCESS);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
     test_harness->destroy_cookie(cookie);
@@ -321,7 +330,8 @@ static enum test_result flush_test(EngineIface* h) {
     test_harness->time_travel(3);
     const auto* cookie = test_harness->create_cookie();
 
-    auto ret = h->allocate(cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
@@ -329,7 +339,7 @@ static enum test_result flush_test(EngineIface* h) {
                        OPERATION_SET,
                        DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h->flush(cookie) == ENGINE_SUCCESS);
-    ret = h->get(cookie, key, 0, DocStateFilter::Alive);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
 
@@ -348,8 +358,8 @@ static enum test_result get_item_info_test(EngineIface* h) {
     item_info ii;
     const auto* cookie = test_harness->create_cookie();
 
-    auto ret =
-            h->allocate(cookie, key, 1, 0, exp, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 0, exp, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
@@ -381,8 +391,8 @@ static enum test_result item_set_cas_test(EngineIface* h) {
     item_info ii;
 
     const auto* cookie = test_harness->create_cookie();
-    auto ret =
-            h->allocate(cookie, key, 1, 0, exp, PROTOCOL_BINARY_RAW_BYTES, 0);
+    auto ret = h->allocate(
+            cookie, key, 1, 0, exp, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
@@ -419,7 +429,7 @@ static enum test_result lru_test(EngineIface* h) {
 
     const auto* cookie = test_harness->create_cookie();
     auto ret = h->allocate(
-            cookie, hot_key, 4096, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+            cookie, hot_key, 4096, 0, 0, PROTOCOL_BINARY_RAW_BYTES, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
@@ -430,7 +440,7 @@ static enum test_result lru_test(EngineIface* h) {
     for (ii = 0; ii < 250; ++ii) {
         uint8_t key[1024];
 
-        ret = h->get(cookie, hot_key, 0, DocStateFilter::Alive);
+        ret = h->get(cookie, hot_key, Vbid(0), DocStateFilter::Alive);
         cb_assert(ret.first == cb::engine_errc::success);
         DocKey allocate_key(key,
                             snprintf(reinterpret_cast<char*>(key),
@@ -438,8 +448,13 @@ static enum test_result lru_test(EngineIface* h) {
                                      "lru_test_key_%08d",
                                      ii),
                             DocKeyEncodesCollectionId::No);
-        ret = h->allocate(
-                cookie, allocate_key, 4096, 0, 0, PROTOCOL_BINARY_RAW_BYTES, 0);
+        ret = h->allocate(cookie,
+                          allocate_key,
+                          4096,
+                          0,
+                          0,
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          Vbid(0));
         cb_assert(ret.first == cb::engine_errc::success);
         cb_assert(h->store(cookie,
                            ret.second.get(),
@@ -463,10 +478,10 @@ static enum test_result lru_test(EngineIface* h) {
                                 jj),
                        DocKeyEncodesCollectionId::No);
         if (jj == 0 || jj == 1) {
-            ret = h->get(cookie, get_key, 0, DocStateFilter::Alive);
+            ret = h->get(cookie, get_key, Vbid(0), DocStateFilter::Alive);
             cb_assert(ret.first == cb::engine_errc::no_such_key);
         } else {
-            ret = h->get(cookie, get_key, 0, DocStateFilter::Alive);
+            ret = h->get(cookie, get_key, Vbid(0), DocStateFilter::Alive);
             cb_assert(ret.first == cb::engine_errc::success);
             cb_assert(ret.second != nullptr);
         }
@@ -499,7 +514,7 @@ static enum test_result test_datatype(EngineIface* h) {
     memset(&ii, 0, sizeof(ii));
     const auto* cookie = test_harness->create_cookie();
 
-    auto ret = h->allocate(cookie, key, 1, 0, 0, 1, 0 /*vb*/);
+    auto ret = h->allocate(cookie, key, 1, 0, 0, 1, Vbid(0));
     cb_assert(ret.first == cb::engine_errc::success);
     cb_assert(h->store(cookie,
                        ret.second.get(),
@@ -507,7 +522,7 @@ static enum test_result test_datatype(EngineIface* h) {
                        OPERATION_SET,
                        DocumentState::Alive) == ENGINE_SUCCESS);
 
-    ret = h->get(cookie, key, 0, DocStateFilter::Alive);
+    ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
 
     cb_assert(h->get_item_info(ret.second.get(), &ii));
@@ -548,7 +563,7 @@ static enum test_result test_n_bucket_destroy(engine_test_t *test) {
                                                1,
                                                1,
                                                PROTOCOL_BINARY_RAW_BYTES,
-                                               0);
+                                               Vbid(0));
             cb_assert(ret.first == cb::engine_errc::success);
             cb_assert(bucket.second->store(cookie,
                                            ret.second.get(),
@@ -591,7 +606,7 @@ static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
                                    1,
                                    1,
                                    PROTOCOL_BINARY_RAW_BYTES,
-                                   0);
+                                   Vbid(0));
             cb_assert(ret.first == cb::engine_errc::success);
             cb_assert(h->store(cookie,
                                ret.second.get(),

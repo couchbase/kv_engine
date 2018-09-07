@@ -43,11 +43,11 @@ TEST_P(StatsTest, TestGetMeta) {
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = to_string(memcached_cfg.get());
-    conn.mutate(doc, 0, MutationType::Set);
+    conn.mutate(doc, Vbid(0), MutationType::Set);
 
     // Send 10 GET_META, this should not increase the `cmd_get` and `get_hits` stats
     for (int i = 0; i < 10; i++) {
-        auto meta = conn.getMeta(doc.info.id, 0, GetMetaVersion::V1);
+        auto meta = conn.getMeta(doc.info.id, Vbid(0), GetMetaVersion::V1);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
     }
     auto stats = conn.stats("");
@@ -60,7 +60,7 @@ TEST_P(StatsTest, TestGetMeta) {
     // not increase the `cmd_get` and `get_misses` stats or the `get_hits`
     // stat
     for (int i = 0; i < 10; i++) {
-        auto meta = conn.getMeta("no_key", 0, GetMetaVersion::V1);
+        auto meta = conn.getMeta("no_key", Vbid(0), GetMetaVersion::V1);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, meta.first);
     }
     stats = conn.stats("");
@@ -100,7 +100,7 @@ TEST_P(StatsTest, TestReset) {
     auto before = count->valueint;
 
     for (int ii = 0; ii < 10; ++ii) {
-        EXPECT_THROW(conn.get("foo", 0), ConnectionError);
+        EXPECT_THROW(conn.get("foo", Vbid(0)), ConnectionError);
     }
 
     stats = conn.stats("");
@@ -161,7 +161,7 @@ TEST_P(StatsTest, Test_MB_17815) {
     doc.info.id = name;
     doc.value = to_string(memcached_cfg.get());
 
-    conn.mutate(doc, 0, MutationType::Add);
+    conn.mutate(doc, Vbid(0), MutationType::Add);
     stats = conn.stats("");
     count = cJSON_GetObjectItem(stats.get(), "cmd_set");
     ASSERT_NE(nullptr, count);
@@ -199,10 +199,10 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = to_string(memcached_cfg.get());
-    conn.mutate(doc, 0, MutationType::Set);
+    conn.mutate(doc, Vbid(0), MutationType::Set);
 
     // Now append to the same doc
-    conn.mutate(doc, 0, MutationType::Append);
+    conn.mutate(doc, Vbid(0), MutationType::Append);
     stats = conn.stats("");
     count = cJSON_GetObjectItem(stats.get(), "cmd_set");
     ASSERT_NE(nullptr, count);
@@ -232,7 +232,7 @@ TEST_P(StatsTest, Test_MB_29259_Append) {
 
     // Try to append to non-existing document
     try {
-        conn.mutate(doc, 0, MutationType::Append);
+        conn.mutate(doc, Vbid(0), MutationType::Append);
         FAIL() << "Append on non-existing document should fail";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotStored());
@@ -254,11 +254,11 @@ TEST_P(StatsTest, TestAppend) {
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = to_string(memcached_cfg.get());
-    conn.mutate(doc, 0, MutationType::Set);
+    conn.mutate(doc, Vbid(0), MutationType::Set);
 
     // Send 10 appends, this should increase the `cmd_set` stat by 10
     for (int i = 0; i < 10; i++) {
-        conn.mutate(doc, 0, MutationType::Append);
+        conn.mutate(doc, Vbid(0), MutationType::Append);
     }
     auto stats = conn.stats("");
     cJSON* cmd_set = cJSON_GetObjectItem(stats.get(), "cmd_set");
@@ -469,7 +469,7 @@ TEST_P(StatsTest, TestTopkeys) {
         doc.info.id = name;
         doc.value = to_string(memcached_cfg.get());
 
-        conn.mutate(doc, 0, MutationType::Set);
+        conn.mutate(doc, Vbid(0), MutationType::Set);
     }
 
     auto stats = conn.stats("topkeys");
@@ -487,7 +487,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
         doc.info.id = name;
         doc.value = to_string(memcached_cfg.get());
 
-        conn.mutate(doc, 0, MutationType::Set);
+        conn.mutate(doc, Vbid(0), MutationType::Set);
     }
 
     auto stats = conn.stats("topkeys_json");

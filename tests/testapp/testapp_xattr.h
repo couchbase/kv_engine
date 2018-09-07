@@ -35,7 +35,7 @@ public:
             // Compress the complete body.
             document.compress();
         }
-        getConnection().mutate(document, 0, MutationType::Set);
+        getConnection().mutate(document, Vbid(0), MutationType::Set);
     }
 
 protected:
@@ -168,11 +168,11 @@ protected:
         if (compress) {
             document.compress();
         }
-        getConnection().mutate(document, 0, MutationType::Replace);
+        getConnection().mutate(document, Vbid(0), MutationType::Replace);
 
         // Validate contents.
         EXPECT_EQ(xattrVal, getXattr(sysXattr).getDataString());
-        auto response = getConnection().get(name, 0);
+        auto response = getConnection().get(name, Vbid(0));
         EXPECT_EQ(replacedValue, response.value);
         // Combined result will not be compressed; so just check for
         // JSON / not JSON.
@@ -203,7 +203,7 @@ protected:
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
 
         // Check the body was set correctly
-        auto doc = getConnection().get(name, 0);
+        auto doc = getConnection().get(name, Vbid(0));
         EXPECT_EQ(value, doc.value);
 
         // Check the xattr was set correctly

@@ -61,7 +61,7 @@ size_t TouchTest::get_cmd_counter(const std::string& name,
 
 void TouchTest::testHit(bool quiet) {
     auto& conn = getConnection();
-    const auto info = conn.mutate(document, 0, MutationType::Add);
+    const auto info = conn.mutate(document, Vbid(0), MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
     // getting a new cas value generated
@@ -144,7 +144,7 @@ TEST_P(TouchTest, Gatq_Miss) {
 
 TEST_P(TouchTest, Touch_Hit) {
     auto& conn = getConnection();
-    const auto info = conn.mutate(document, 0, MutationType::Add);
+    const auto info = conn.mutate(document, Vbid(0), MutationType::Add);
 
     // Verify that we can set the expiry time to the same value without
     // getting a new cas value generated (we're using 0 as the value)

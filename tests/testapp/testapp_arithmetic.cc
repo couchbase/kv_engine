@@ -196,7 +196,7 @@ TEST_P(ArithmeticTest, TestMutationInfo) {
     doc.info.id = name;
     doc.value = to_string(memcached_cfg.get());
 
-    conn.mutate(doc, 0, MutationType::Replace);
+    conn.mutate(doc, Vbid(0), MutationType::Replace);
 }
 
 TEST_P(ArithmeticTest, TestIllegalDatatype) {
@@ -208,7 +208,7 @@ TEST_P(ArithmeticTest, TestIllegalDatatype) {
     doc.info.id = name;
     doc.value = to_string(memcached_cfg.get());
 
-    ASSERT_NO_THROW(conn.mutate(doc, 0, MutationType::Add));
+    ASSERT_NO_THROW(conn.mutate(doc, Vbid(0), MutationType::Add));
 
     try {
         conn.increment(name, 0);
@@ -228,7 +228,7 @@ static void test_stored_doc(MemcachedConnection& conn,
     doc.info.id = key;
     doc.value = content;
 
-    ASSERT_NO_THROW(conn.mutate(doc, 0, MutationType::Set));
+    ASSERT_NO_THROW(conn.mutate(doc, Vbid(0), MutationType::Set));
     if (badval) {
         try {
             conn.increment(key, 1);

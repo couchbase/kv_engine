@@ -1672,7 +1672,7 @@ TEST_P(SubdocTestappTest, SubdocLockedItem) {
     store_document("item", "{}");
 
     // Lock the object
-    auto doc = getConnection().get_and_lock("item", 0, 10);
+    auto doc = getConnection().get_and_lock("item", Vbid(0), 10);
 
     // Construct the subdoc command
     BinprotSubdocCommand sd_cmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,

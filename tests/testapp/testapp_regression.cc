@@ -154,7 +154,7 @@ TEST_P(RegressionTest, MB_31070) {
     document.info.expiration = 30;
     document.value = "hello";
 
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
@@ -172,7 +172,7 @@ TEST_P(RegressionTest, MB_31070) {
 
     document.value = " world";
     document.info.expiration = 0;
-    conn.mutate(document, 0, MutationType::Append);
+    conn.mutate(document, Vbid(0), MutationType::Append);
 
     conn.executeCommand(cmd, multiResp);
 
@@ -199,10 +199,10 @@ TEST_P(RegressionTest, MB_31149) {
     document.info.expiration = 30;
     document.value = "hello";
 
-    conn.mutate(document, 0, MutationType::Set);
+    conn.mutate(document, Vbid(0), MutationType::Set);
     document.info.expiration = 0;
     document.value = " world";
-    const auto info = conn.mutate(document, 0, MutationType::Append);
+    const auto info = conn.mutate(document, Vbid(0), MutationType::Append);
 
     EXPECT_NE(0, info.cas);
 }
