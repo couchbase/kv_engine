@@ -89,6 +89,14 @@ public:
         return collections.end();
     }
 
+    scopeContainer::const_iterator beginScopes() const {
+        return scopes.begin();
+    }
+
+    scopeContainer::const_iterator endScopes() const {
+        return scopes.end();
+    }
+
     size_t size() const {
         return collections.size();
     }
@@ -136,6 +144,16 @@ public:
         }
 
         return collections.end();
+    }
+
+    /**
+     * Search for a scope by ScopeID
+     *
+     * @param sid ScopeID to search for.
+     * @return iterator to the matching entry or end() if not found.
+     */
+    scopeContainer::const_iterator findScope(ScopeID sid) const {
+        return scopes.find(sid);
     }
 
     /**

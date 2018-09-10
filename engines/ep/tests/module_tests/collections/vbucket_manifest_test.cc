@@ -133,9 +133,9 @@ public:
 
     void public_addCollection(::VBucket& vb,
                               Collections::ManifestUid manifestUid,
-                              CollectionID identifier,
+                              CollectionID collectionID,
                               OptionalSeqno optionalSeqno) {
-        addCollection(vb, manifestUid, identifier, optionalSeqno);
+        addCollection(vb, manifestUid, collectionID, optionalSeqno);
     }
 
 protected:

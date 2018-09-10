@@ -73,26 +73,28 @@ private:
     friend Collections::VB::Manifest;
     static SerialisedManifestEntry* make(
             SerialisedManifestEntry* address,
-            CollectionID collection,
+            CollectionID collectionID,
             const Collections::VB::ManifestEntry& me,
             cb::char_buffer out) {
-        return new (address) SerialisedManifestEntry(collection, me, out);
+        return new (address) SerialisedManifestEntry(collectionID, me, out);
     }
 
     static SerialisedManifestEntry* make(SerialisedManifestEntry* address,
-                                         CollectionID identifier,
+                                         CollectionID collectionID,
                                          cb::char_buffer out) {
-        return new (address) SerialisedManifestEntry(identifier, out);
+        return new (address) SerialisedManifestEntry(collectionID, out);
     }
 
-    SerialisedManifestEntry(CollectionID collection,
+    SerialisedManifestEntry(CollectionID collectionID,
                             const Collections::VB::ManifestEntry& me,
                             cb::char_buffer out) {
-        tryConstruction(out, collection, me.getStartSeqno(), me.getEndSeqno());
+        tryConstruction(
+                out, collectionID, me.getStartSeqno(), me.getEndSeqno());
     }
 
-    SerialisedManifestEntry(CollectionID identifier, cb::char_buffer out) {
-        tryConstruction(out, identifier, 0, StoredValue::state_collection_open);
+    SerialisedManifestEntry(CollectionID collectionID, cb::char_buffer out) {
+        tryConstruction(
+                out, collectionID, 0, StoredValue::state_collection_open);
     }
 
     /**
@@ -100,14 +102,15 @@ private:
      * the memory allocation represented by out.
      *
      * @param out The buffer we are writing to
-     * @param identifier The Identifier of the collection to save in this entry
+     * @param collectionID The Identifier of the collection to save in this
+     *        entry.
      * @param startSeqno The startSeqno value to be used
      * @param endSeqno The endSeqno value to be used
      * @throws std::length_error if the function would write outside of out's
      *         bounds.
      */
     void tryConstruction(cb::char_buffer out,
-                         CollectionID identifier,
+                         CollectionID collectionID,
                          int64_t startSeqno,
                          int64_t endSeqno) {
         if (!((out.data() + out.size()) >=
@@ -117,7 +120,7 @@ private:
                     "buffer of size " +
                     std::to_string(out.size()));
         }
-        this->cid = identifier;
+        this->cid = collectionID;
         this->startSeqno = startSeqno;
         this->endSeqno = endSeqno;
     }

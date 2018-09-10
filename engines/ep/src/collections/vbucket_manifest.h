@@ -351,15 +351,15 @@ public:
          *
          * @param vb The vbucket to add the collection to.
          * @param manifestUid the uid of the manifest which made the change
-         * @param identifier CID for the collection being added.
+         * @param collectionID CID for the collection being added.
          * @param startSeqno The start-seqno assigned to the collection.
          */
         void replicaAdd(::VBucket& vb,
                         ManifestUid manifestUid,
-                        CollectionID identifier,
+                        CollectionID collectionID,
                         int64_t startSeqno) {
             manifest.addCollection(
-                    vb, manifestUid, identifier, OptionalSeqno{startSeqno});
+                    vb, manifestUid, collectionID, OptionalSeqno{startSeqno});
         }
 
         /**
@@ -369,15 +369,15 @@ public:
          *
          * @param vb The vbucket to begin collection deletion on.
          * @param manifestUid the uid of the manifest which made the change
-         * @param identifier CID for the collection being removed.
+         * @param collectionID CID for the collection being removed.
          * @param endSeqno The end-seqno assigned to the end collection.
          */
         void replicaBeginDelete(::VBucket& vb,
                                 ManifestUid manifestUid,
-                                CollectionID identifier,
+                                CollectionID collectionID,
                                 int64_t endSeqno) {
             manifest.beginCollectionDelete(
-                    vb, manifestUid, identifier, OptionalSeqno{endSeqno});
+                    vb, manifestUid, collectionID, OptionalSeqno{endSeqno});
         }
 
         /// @return iterator to the beginning of the underlying collection map
@@ -490,7 +490,7 @@ public:
      * consumption by serialToJson
      *
      * @param se SystemEvent to create.
-     * @param identifier The CollectionID of the collection which is changing.
+     * @param collectionID The CollectionID of the collection which is changing.
      * @param deleted If the Item should be marked deleted.
      * @param seqno An optional sequence number. If a seqno is specified, the
      *        returned item will have its bySeqno set to seqno.
@@ -499,7 +499,7 @@ public:
      *          SystemEvent.
      */
     std::unique_ptr<Item> createSystemEvent(SystemEvent se,
-                                            CollectionID identifier,
+                                            CollectionID collectionID,
                                             bool deleted,
                                             OptionalSeqno seqno) const;
 
@@ -551,13 +551,13 @@ protected:
      *
      * @param vb The vbucket to add the collection to.
      * @param manifestUid the uid of the manifest which made the change
-     * @param identifier CollectionID of the new collection.
+     * @param collectionID CollectionID of the new collection.
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
     void addCollection(::VBucket& vb,
                        ManifestUid manifestUid,
-                       CollectionID identifier,
+                       CollectionID collectionID,
                        OptionalSeqno optionalSeqno);
 
     /**
@@ -565,14 +565,14 @@ protected:
      *
      * @param vb The vbucket to begin collection deletion on.
      * @param manifestUid the uid of the manifest which made the change
-     * @param identifier CollectionID of the deleted collection.
+     * @param collectionID CollectionID of the deleted collection.
      * @param revision manifest revision which started the deletion.
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
     void beginCollectionDelete(::VBucket& vb,
                                ManifestUid manifestUid,
-                               CollectionID identifier,
+                               CollectionID collectionID,
                                OptionalSeqno optionalSeqno);
 
     /**
@@ -722,39 +722,28 @@ protected:
 
     /**
      * Add a collection entry to the manifest specifing the revision that it was
-     * seen in and the sequence number for the point in 'time' it was created.
-     *
-     * @param identifier CollectionID of the collection to add.
-     * @return a non const reference to the new/updated ManifestEntry so the
-     *         caller can set the correct seqno.
-     */
-    ManifestEntry& addCollectionEntry(CollectionID identifier);
-
-    /**
-     * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number span covering it.
      *
-     * @param identifier CollectionID of the collection to add.
-     * @param startSeqno The seqno where the collection begins
-     * @param endSeqno The seqno where it ends (can be the special open marker)
+     * @param collectionID CollectionID of the collection to add.
+     * @param startSeqno The seqno where the collection begins. Defaults to 0.
+     * @param endSeqno The seqno where it ends (can be the special open
+     * marker). Defaults to the collection open state (-6).
      * @return a non const reference to the new ManifestEntry so the caller can
      *         set the correct seqno.
      */
-    ManifestEntry& addNewCollectionEntry(CollectionID identifier,
-                                         int64_t startSeqno,
-                                         int64_t endSeqno);
+    ManifestEntry& addNewCollectionEntry(
+            CollectionID collectionID,
+            int64_t startSeqno = 0,
+            int64_t endSeqno = StoredValue::state_collection_open);
 
     /**
-     * Begin the deletion process by marking the collection entry with the seqno
-     * that represents its end.
+     * Get the ManifestEntry for the given collection. Throws an
+     * std::logic_error if the collection was not found.
      *
-     * After "begin" delete a collection can be added again or fully deleted
-     * by the completeDeletion method.
-     *
-     * @param identifier CollectionID of the collection to delete.
-     * @return a reference to the updated ManifestEntry
+     * @param collectionID CollectionID of the collection to lookup
+     * @return a reference to the ManifestEntry
      */
-    ManifestEntry& beginDeleteCollectionEntry(CollectionID identifier);
+    ManifestEntry& getManifestEntry(CollectionID collectionID);
 
     /**
      * Process a Collections::Manifest to determine if collections need adding
@@ -780,7 +769,8 @@ protected:
      *
      * @param vb The vbucket onto which the Item is queued.
      * @param se The SystemEvent to create and queue.
-     * @param identifier The CollectionID of the collection being added/deleted.
+     * @param collectionID The CollectionID of the collection being
+     *        added/deleted.
      * @param deleted If the Item created should be marked as deleted.
      * @param seqno An optional seqno which if set will be assigned to the
      *        system event.
@@ -789,7 +779,7 @@ protected:
      */
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
-                             CollectionID identifier,
+                             CollectionID collectionID,
                              bool deleted,
                              OptionalSeqno seqno) const;
 
@@ -818,10 +808,11 @@ protected:
      *
      * @param out A buffer for the data to be written into.
      * @param revision The Manifest revision we are processing
-     * @param identifier The CollectionID of the collection being added/deleted
+     * @param collectionID The CollectionID of the collection being
+     *        added/deleted.
      */
     void populateWithSerialisedData(cb::char_buffer out,
-                                    CollectionID identifier) const;
+                                    CollectionID collectionID) const;
 
     /**
      * @returns the json for the given key from the nlohmann::json object.
@@ -905,6 +896,22 @@ protected:
     mutable cb::RWLock rwlock;
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
+
+    static constexpr char const* CollectionsKey = "collections";
+    static constexpr nlohmann::json::value_t CollectionsType =
+            nlohmann::json::value_t::array;
+    static constexpr char const* UidKey = "uid";
+    static constexpr nlohmann::json::value_t UidType =
+            nlohmann::json::value_t::string;
+    static constexpr char const* SidKey = "sid";
+    static constexpr nlohmann::json::value_t SidType =
+            nlohmann::json::value_t::string;
+    static constexpr char const* StartSeqnoKey = "startSeqno";
+    static constexpr nlohmann::json::value_t StartSeqnoType =
+            nlohmann::json::value_t::string;
+    static constexpr char const* EndSeqnoKey = "endSeqno";
+    static constexpr nlohmann::json::value_t EndSeqnoType =
+            nlohmann::json::value_t::string;
 };
 
 /// Note that the VB::Manifest << operator does not obtain the rwlock

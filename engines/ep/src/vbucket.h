@@ -656,13 +656,13 @@ public:
      * this VB is a replica.
      *
      * @param uid the uid of the manifest which made the change
-     * @param identifier CID for the collection being added.
+     * @param collectionID CID for the collection being added.
      * @param bySeqno The seqno assigned to the collection create event.
      */
     void replicaAddCollection(Collections::ManifestUid uid,
-                              CollectionID identifier,
+                              CollectionID collectionID,
                               int64_t bySeqno) {
-        manifest.wlock().replicaAdd(*this, uid, identifier, bySeqno);
+        manifest.wlock().replicaAdd(*this, uid, collectionID, bySeqno);
     }
 
     /**
@@ -670,13 +670,13 @@ public:
      * this VB is a replica.
      *
      * @param uid the uid of the manifest which made the change
-     * @param identifier CID for the collection to begin deleting.
+     * @param collectionID CID for the collection to begin deleting.
      * @param bySeqno The seqno assigned to the collection delete event.
      */
     void replicaBeginDeleteCollection(Collections::ManifestUid uid,
-                                      CollectionID identifier,
+                                      CollectionID collectionID,
                                       int64_t bySeqno) {
-        manifest.wlock().replicaBeginDelete(*this, uid, identifier, bySeqno);
+        manifest.wlock().replicaBeginDelete(*this, uid, collectionID, bySeqno);
     }
 
     /**
