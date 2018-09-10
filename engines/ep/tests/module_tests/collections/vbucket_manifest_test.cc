@@ -69,8 +69,7 @@ public:
         if (exists_UNLOCKED(id)) {
             auto itr = map.find(id);
             const auto& myEntry = itr->second;
-            return myEntry.getStartSeqno() == entry.getStartSeqno() &&
-                   myEntry.getEndSeqno() == entry.getEndSeqno();
+            return myEntry == entry;
         }
         return false;
     }
@@ -123,19 +122,19 @@ public:
     }
 
     // Wire through to private method
-    boost::optional<CollectionID> public_applyChanges(
+    boost::optional<std::pair<ScopeID, CollectionID>> public_applyChanges(
             std::function<void(Collections::ManifestUid,
-                               CollectionID,
+                               ScopeCollectionPair,
                                OptionalSeqno)> update,
-            std::vector<CollectionID>& changes) {
+            std::vector<ScopeCollectionPair>& changes) {
         return applyChanges(update, changes);
     }
 
     void public_addCollection(::VBucket& vb,
                               Collections::ManifestUid manifestUid,
-                              CollectionID collectionID,
+                              ScopeCollectionPair identifiers,
                               OptionalSeqno optionalSeqno) {
-        addCollection(vb, manifestUid, collectionID, optionalSeqno);
+        addCollection(vb, manifestUid, identifiers, optionalSeqno);
     }
 
 protected:
@@ -407,14 +406,15 @@ public:
                 case SystemEvent::Collection: {
                     if (qi->isDeleted()) {
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaBeginDelete(vbR,
-                                                           dcpData.manifestUid,
-                                                           dcpData.cid,
-                                                           qi->getBySeqno());
+                        replica.wlock().replicaBeginDelete(
+                                vbR,
+                                dcpData.manifestUid,
+                                {dcpData.sid, dcpData.cid},
+                                qi->getBySeqno());
                     } else {
                         replica.wlock().replicaAdd(vbR,
                                                    dcpData.manifestUid,
-                                                   dcpData.cid,
+                                                   {dcpData.sid, dcpData.cid},
                                                    qi->getBySeqno());
                     }
                     break;
@@ -488,6 +488,91 @@ TEST_F(VBucketManifestTest, defaultCollectionExists) {
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
     EXPECT_FALSE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"anykey", CollectionEntry::defaultC}));
+}
+
+TEST_F(VBucketManifestTest, add_to_scope) {
+    EXPECT_TRUE(manifest.update(
+            cm.add(CollectionEntry::vegetable, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"vegetable:cucumber", CollectionEntry::vegetable}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::vegetable));
+}
+
+TEST_F(VBucketManifestTest, add_delete_different_scopes) {
+    // Add dairy to default scope
+    EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+
+    // Add dairy to shop1 scope - we don't create scope creation/deletion events
+    cm.add(ScopeEntry::shop1);
+    EXPECT_TRUE(manifest.update(
+            cm.add(CollectionEntry::dairy2, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy2}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy2));
+
+    // Remove dairy from default scope
+    EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::dairy)));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
+
+    // We can still use dairy in shop1 scope
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy2}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy2));
+}
+
+TEST_F(VBucketManifestTest, add_delete_same_scopes) {
+    // Add dairy to default scope
+    EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+
+    // Remove dairy from default scope
+    EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::dairy)));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
+
+    // We should not be able to add the collection to the other scope until
+    // we have completed deletion
+    cm.add(ScopeEntry::shop1);
+    EXPECT_FALSE(
+            manifest.update(cm.add(CollectionEntry::dairy, ScopeEntry::shop1)));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::dairy));
+
+    // Add dairy to shop1 scope - we don't create scope creation/deletion events
+    EXPECT_TRUE(manifest.update(cm));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+
+    // Remove dairy from shop1 scope
+    EXPECT_TRUE(manifest.update(
+            cm.remove(CollectionEntry::dairy, ScopeEntry::shop1)));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
+}
+
+TEST_F(VBucketManifestTest, duplicate_cid_different_scope) {
+    // Add dairy to default scope
+    EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+
+    // Add dairy to shop1 scope
+    EXPECT_FALSE(
+            manifest.update(cm.add(CollectionEntry::dairy, ScopeEntry::shop1)));
 }
 
 TEST_F(VBucketManifestTest, add_delete_in_one_update) {
@@ -764,7 +849,7 @@ TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
 }
 
 TEST_F(VBucketManifestTest, check_applyChanges) {
-    std::vector<CollectionID> changes; // start out empty
+    std::vector<ScopeCollectionPair> changes; // start out empty
     auto value = manifest.getActiveManifest().public_applyChanges(
             std::bind(&MockVBManifest::public_addCollection,
                       &manifest.getActiveManifest(),
@@ -774,7 +859,7 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
                       std::placeholders::_3),
             changes);
     EXPECT_FALSE(value.is_initialized());
-    changes.push_back(5);
+    changes.push_back(std::make_pair(0, 5));
     value = manifest.getActiveManifest().public_applyChanges(
             std::bind(&MockVBManifest::public_addCollection,
                       &manifest.getActiveManifest(),
@@ -784,11 +869,12 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
                       std::placeholders::_3),
             changes);
     EXPECT_TRUE(value.is_initialized());
-    EXPECT_EQ(5, *value);
+    EXPECT_EQ(0, value->first);
+    EXPECT_EQ(5, value->second);
     EXPECT_TRUE(changes.empty());
 
-    changes.push_back(4);
-    changes.push_back(5);
+    changes.push_back(std::make_pair(0, 4));
+    changes.push_back(std::make_pair(0, 5));
     EXPECT_EQ(1, manifest.getActiveManifest().size());
     value = manifest.getActiveManifest().public_applyChanges(
             std::bind(&MockVBManifest::public_addCollection,
@@ -799,7 +885,8 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
                       std::placeholders::_3),
             changes);
     EXPECT_TRUE(value.is_initialized());
-    EXPECT_EQ(5, *value);
+    EXPECT_EQ(0, value->first);
+    EXPECT_EQ(5, value->second);
     EXPECT_EQ(2, manifest.getActiveManifest().size());
 }
 

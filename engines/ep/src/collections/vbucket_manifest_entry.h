@@ -34,15 +34,24 @@ namespace VB {
  * The Collections::VB::ManifestEntry stores the data a collection
  * needs from a vbucket's perspective.
  * - The CollectionID
+ * - The ScopeID
  * - The seqno lifespace of the collection
  */
 class ManifestEntry {
 public:
-    ManifestEntry(int64_t _startSeqno, int64_t _endSeqno)
-        : startSeqno(-1), endSeqno(-1), diskCount(0) {
+    ManifestEntry(ScopeID _scopeID, int64_t _startSeqno, int64_t _endSeqno)
+        : startSeqno(-1), endSeqno(-1), scopeID(_scopeID), diskCount(0) {
         // Setters validate the start/end range is valid
         setStartSeqno(_startSeqno);
         setEndSeqno(_endSeqno);
+    }
+
+    bool operator==(const ManifestEntry& other) const {
+        if (scopeID == other.scopeID && startSeqno == other.startSeqno &&
+            endSeqno == other.endSeqno) {
+            return true;
+        }
+        return false;
     }
 
     int64_t getStartSeqno() const {
@@ -80,6 +89,10 @@ public:
 
     void resetEndSeqno() {
         endSeqno = StoredValue::state_collection_open;
+    }
+
+    ScopeID getScopeID() const {
+        return scopeID;
     }
 
     /**
@@ -169,6 +182,7 @@ private:
      */
     int64_t startSeqno;
     int64_t endSeqno;
+    ScopeID scopeID;
 
     /**
      * The count of items in this collection

@@ -136,6 +136,7 @@ static inline ScopeID makeScopeID(const std::string& uid) {
  */
 struct SystemEventData {
     ManifestUid manifestUid; // The Manifest which created the event
+    ScopeID sid; // The scope that the collection belongs to
     CollectionID cid; // The collection the event belongs to
 };
 
@@ -146,14 +147,17 @@ struct SystemEventData {
  */
 struct SystemEventDcpData {
     SystemEventDcpData(const SystemEventData& data)
-        : manifestUid(data.manifestUid), cid(data.cid) {
+        : manifestUid(data.manifestUid), sid(data.sid), cid(data.cid) {
     }
     /// The manifest uid stored in network byte order ready for sending
     ManifestUidNetworkOrder manifestUid;
+    /// The scope id stored in network byte order ready for sending
+    ScopeIDNetworkOrder sid;
     /// The collection id stored in network byte order ready for sending
     CollectionIDNetworkOrder cid;
-    // The size is sizeof(manifestUid) + sizeof(cid) (msvc won't allow that expression)
-    constexpr static size_t size{12};
+    // The size is sizeof(manifestUid) + sizeof(cid) + sizeof(sid) (msvc won't
+    // allow that expression)
+    constexpr static size_t size{16};
 };
 
 } // end namespace Collections

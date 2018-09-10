@@ -45,6 +45,14 @@ public:
         this->cid = cid;
     }
 
+    ScopeID getScopeID() const {
+        return sid;
+    }
+
+    void setScopeID(ScopeID sid) {
+        this->sid = sid;
+    }
+
     const SerialisedManifestEntry* nextEntry() const {
         return const_cast<SerialisedManifestEntry*>(this)->nextEntry();
     }
@@ -73,28 +81,28 @@ private:
     friend Collections::VB::Manifest;
     static SerialisedManifestEntry* make(
             SerialisedManifestEntry* address,
-            CollectionID collectionID,
+            ScopeCollectionPair identifiers,
             const Collections::VB::ManifestEntry& me,
             cb::char_buffer out) {
-        return new (address) SerialisedManifestEntry(collectionID, me, out);
+        return new (address) SerialisedManifestEntry(identifiers, me, out);
     }
 
     static SerialisedManifestEntry* make(SerialisedManifestEntry* address,
-                                         CollectionID collectionID,
+                                         ScopeCollectionPair identifiers,
                                          cb::char_buffer out) {
-        return new (address) SerialisedManifestEntry(collectionID, out);
+        return new (address) SerialisedManifestEntry(identifiers, out);
     }
 
-    SerialisedManifestEntry(CollectionID collectionID,
+    SerialisedManifestEntry(ScopeCollectionPair identifiers,
                             const Collections::VB::ManifestEntry& me,
                             cb::char_buffer out) {
-        tryConstruction(
-                out, collectionID, me.getStartSeqno(), me.getEndSeqno());
+        tryConstruction(out, identifiers, me.getStartSeqno(), me.getEndSeqno());
     }
 
-    SerialisedManifestEntry(CollectionID collectionID, cb::char_buffer out) {
+    SerialisedManifestEntry(ScopeCollectionPair identifiers,
+                            cb::char_buffer out) {
         tryConstruction(
-                out, collectionID, 0, StoredValue::state_collection_open);
+                out, identifiers, 0, StoredValue::state_collection_open);
     }
 
     /**
@@ -102,15 +110,13 @@ private:
      * the memory allocation represented by out.
      *
      * @param out The buffer we are writing to
-     * @param collectionID The Identifier of the collection to save in this
-     *        entry.
-     * @param startSeqno The startSeqno value to be used
+     * @param identifiers ScopeID and CollectionID pair
      * @param endSeqno The endSeqno value to be used
      * @throws std::length_error if the function would write outside of out's
      *         bounds.
      */
     void tryConstruction(cb::char_buffer out,
-                         CollectionID collectionID,
+                         ScopeCollectionPair identifiers,
                          int64_t startSeqno,
                          int64_t endSeqno) {
         if (!((out.data() + out.size()) >=
@@ -120,7 +126,8 @@ private:
                     "buffer of size " +
                     std::to_string(out.size()));
         }
-        this->cid = collectionID;
+        this->sid = identifiers.first;
+        this->cid = identifiers.second;
         this->startSeqno = startSeqno;
         this->endSeqno = endSeqno;
     }
@@ -135,13 +142,15 @@ private:
      */
     std::string toJson(int64_t _startSeqno, int64_t _endSeqno) const {
         std::stringstream json;
-        json << R"({"uid":")" << std::hex << cid << "\"," << std::dec
+        json << R"({"uid":")" << std::hex << cid << "\","
+             << R"("sid":")" << std::hex << sid << "\"," << std::dec
              << R"("startSeqno":")" << _startSeqno << "\","
              << R"("endSeqno":")" << _endSeqno << "\"}";
         return json.str();
     }
 
     CollectionID cid;
+    ScopeID sid;
     int64_t startSeqno;
     int64_t endSeqno;
 };

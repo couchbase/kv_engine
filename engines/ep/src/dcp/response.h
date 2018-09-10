@@ -660,6 +660,13 @@ public:
         return dcpData->cid.to_host();
     }
 
+    ScopeID getScopeID() const {
+        const auto* dcpData =
+                reinterpret_cast<const Collections::SystemEventDcpData*>(
+                        event.getEventData().data());
+        return dcpData->sid.to_host();
+    }
+
     /**
      * @return manifest uid which triggered the create or delete
      */

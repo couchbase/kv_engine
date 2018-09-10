@@ -77,7 +77,8 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
 std::ostream& Collections::VB::operator<<(
         std::ostream& os,
         const Collections::VB::ManifestEntry& manifestEntry) {
-    os << "ManifestEntry: startSeqno:" << manifestEntry.getStartSeqno()
+    os << "ManifestEntry: scope:" << manifestEntry.getScopeID()
+       << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", endSeqno:" << manifestEntry.getEndSeqno()
        << ", diskCount:" << manifestEntry.getDiskCount();
     return os;

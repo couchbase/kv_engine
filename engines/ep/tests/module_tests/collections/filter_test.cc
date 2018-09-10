@@ -454,11 +454,11 @@ TEST_F(CollectionsVBFilterTest, remove1) {
              0}));
 
     // Process a deletion of fruit
-    EXPECT_TRUE(
-            vbf.checkAndUpdate(*vbm.createSystemEvent(SystemEvent::Collection,
-                                                      CollectionEntry::fruit,
-                                                      true /*delete*/,
-                                                      {})));
+    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
+            SystemEvent::Collection,
+            {ScopeEntry::defaultS, CollectionEntry::fruit},
+            true /*delete*/,
+            {})));
 
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
@@ -475,10 +475,11 @@ TEST_F(CollectionsVBFilterTest, remove1) {
              0}));
 
     // Process a deletion of meat
-    auto deleteMeat = vbm.createSystemEvent(SystemEvent::Collection,
-                                            CollectionEntry::meat,
-                                            true /*delete*/,
-                                            {});
+    auto deleteMeat =
+            vbm.createSystemEvent(SystemEvent::Collection,
+                                  {ScopeEntry::defaultS, CollectionEntry::meat},
+                                  true /*delete*/,
+                                  {});
     EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
     EXPECT_TRUE(vbf.empty()); // now empty
     EXPECT_FALSE(vbf.checkAndUpdate(*deleteMeat)); // no more meat for you
@@ -508,11 +509,11 @@ TEST_F(CollectionsVBFilterTest, remove2) {
              nullptr,
              0}));
     // Process a deletion of $default
-    EXPECT_TRUE(
-            vbf.checkAndUpdate(*vbm.createSystemEvent(SystemEvent::Collection,
-                                                      CollectionEntry::defaultC,
-                                                      true /*delete*/,
-                                                      {})));
+    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
+            SystemEvent::Collection,
+            {ScopeEntry::defaultS, CollectionEntry::defaultC},
+            true /*delete*/,
+            {})));
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"anykey", CollectionEntry::defaultC},
              0,
@@ -527,10 +528,11 @@ TEST_F(CollectionsVBFilterTest, remove2) {
              nullptr,
              0}));
     // Process a deletion of meat
-    auto deleteMeat = vbm.createSystemEvent(SystemEvent::Collection,
-                                            CollectionEntry::meat,
-                                            true /*delete*/,
-                                            {});
+    auto deleteMeat =
+            vbm.createSystemEvent(SystemEvent::Collection,
+                                  {ScopeEntry::defaultS, CollectionEntry::meat},
+                                  true /*delete*/,
+                                  {});
     EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"meat:apple", CollectionEntry::meat},
@@ -597,15 +599,25 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
 
     // meat system event is allowed by the meat filter
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection, CollectionEntry::meat, false, {})));
+            SystemEvent::Collection,
+            {ScopeEntry::defaultS, CollectionEntry::meat},
+            false,
+            {})));
 
     // $default system event is allowed by the filter
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection, CollectionEntry::defaultC, false, {})));
+            SystemEvent::Collection,
+            {ScopeEntry::defaultS, CollectionEntry::defaultC},
+
+            false,
+            {})));
 
     // dairy system event is not allowed by the filter
     EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection, CollectionEntry::dairy, false, {})));
+            SystemEvent::Collection,
+            {ScopeEntry::defaultS, CollectionEntry::dairy},
+            false,
+            {})));
 }
 
 /**

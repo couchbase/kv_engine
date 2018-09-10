@@ -628,7 +628,7 @@ ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
         VBucket& vb, const CreateOrDeleteCollectionEvent& event) {
     try {
         vb.replicaAddCollection(event.getManifestUid(),
-                                event.getCollectionID(),
+                                {event.getScopeID(), event.getCollectionID()},
                                 event.getBySeqno());
     } catch (std::exception& e) {
         EP_LOG_WARN("PassiveStream::processCreateCollection exception {}",
@@ -641,9 +641,10 @@ ENGINE_ERROR_CODE PassiveStream::processCreateCollection(
 ENGINE_ERROR_CODE PassiveStream::processBeginDeleteCollection(
         VBucket& vb, const CreateOrDeleteCollectionEvent& event) {
     try {
-        vb.replicaBeginDeleteCollection(event.getManifestUid(),
-                                        event.getCollectionID(),
-                                        event.getBySeqno());
+        vb.replicaBeginDeleteCollection(
+                event.getManifestUid(),
+                {event.getScopeID(), event.getCollectionID()},
+                event.getBySeqno());
     } catch (std::exception& e) {
         EP_LOG_WARN("PassiveStream::processBeginDeleteCollection exception {}",
                     e.what());

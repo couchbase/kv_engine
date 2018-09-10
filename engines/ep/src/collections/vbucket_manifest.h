@@ -95,6 +95,17 @@ public:
         }
 
         /**
+         * Does the key belong to the specified scope?
+         *
+         * @param key the document key
+         * @param scopeID the scopeID
+         * @return true if it belongs to the given scope, false if not
+         */
+        bool doesKeyBelongToScope(DocKey key, ScopeID scopeID) const {
+            return manifest.doesKeyBelongToScope(key, scopeID);
+        }
+
+        /**
          * Given a key and it's seqno, the manifest can determine if that key
          * is logically deleted - that is part of a collection which is in the
          * process of being erased.
@@ -349,15 +360,15 @@ public:
          *
          * @param vb The vbucket to add the collection to.
          * @param manifestUid the uid of the manifest which made the change
-         * @param collectionID CID for the collection being added.
+         * @param identifiers ScopeID and CollectionID pair
          * @param startSeqno The start-seqno assigned to the collection.
          */
         void replicaAdd(::VBucket& vb,
                         ManifestUid manifestUid,
-                        CollectionID collectionID,
+                        ScopeCollectionPair identifiers,
                         int64_t startSeqno) {
             manifest.addCollection(
-                    vb, manifestUid, collectionID, OptionalSeqno{startSeqno});
+                    vb, manifestUid, identifiers, OptionalSeqno{startSeqno});
         }
 
         /**
@@ -367,15 +378,15 @@ public:
          *
          * @param vb The vbucket to begin collection deletion on.
          * @param manifestUid the uid of the manifest which made the change
-         * @param collectionID CID for the collection being removed.
+         * @param identifiers ScopeID and CollectionID pair
          * @param endSeqno The end-seqno assigned to the end collection.
          */
         void replicaBeginDelete(::VBucket& vb,
                                 ManifestUid manifestUid,
-                                CollectionID collectionID,
+                                ScopeCollectionPair identifiers,
                                 int64_t endSeqno) {
             manifest.beginCollectionDelete(
-                    vb, manifestUid, collectionID, OptionalSeqno{endSeqno});
+                    vb, manifestUid, identifiers, OptionalSeqno{endSeqno});
         }
 
         /// @return iterator to the beginning of the underlying collection map
@@ -487,7 +498,7 @@ public:
      * consumption by serialToJson
      *
      * @param se SystemEvent to create.
-     * @param collectionID The CollectionID of the collection which is changing.
+     * @param identifiers ScopeID and CollectionID pair
      * @param deleted If the Item should be marked deleted.
      * @param seqno An optional sequence number. If a seqno is specified, the
      *        returned item will have its bySeqno set to seqno.
@@ -496,7 +507,7 @@ public:
      *          SystemEvent.
      */
     std::unique_ptr<Item> createSystemEvent(SystemEvent se,
-                                            CollectionID collectionID,
+                                            ScopeCollectionPair identifiers,
                                             bool deleted,
                                             OptionalSeqno seqno) const;
 
@@ -538,23 +549,23 @@ protected:
      * @param changes a vector of CollectionIDs to add/delete (based on update)
      * @return the last element of the changes vector
      */
-    boost::optional<CollectionID> applyChanges(
-            std::function<void(ManifestUid, CollectionID, OptionalSeqno)>
+    boost::optional<ScopeCollectionPair> applyChanges(
+            std::function<void(ManifestUid, ScopeCollectionPair, OptionalSeqno)>
                     update,
-            std::vector<CollectionID>& changes);
+            std::vector<ScopeCollectionPair>& changes);
 
     /**
      * Add a collection to the manifest.
      *
      * @param vb The vbucket to add the collection to.
      * @param manifestUid the uid of the manifest which made the change
-     * @param collectionID CollectionID of the new collection.
+     * @param identifiers ScopeID and CollectionID pair
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
     void addCollection(::VBucket& vb,
                        ManifestUid manifestUid,
-                       CollectionID collectionID,
+                       ScopeCollectionPair identifiers,
                        OptionalSeqno optionalSeqno);
 
     /**
@@ -562,14 +573,14 @@ protected:
      *
      * @param vb The vbucket to begin collection deletion on.
      * @param manifestUid the uid of the manifest which made the change
-     * @param collectionID CollectionID of the deleted collection.
+     * @param identifiers ScopeID and CollectionID pair
      * @param revision manifest revision which started the deletion.
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
     void beginCollectionDelete(::VBucket& vb,
                                ManifestUid manifestUid,
-                               CollectionID collectionID,
+                               ScopeCollectionPair identifiers,
                                OptionalSeqno optionalSeqno);
 
     /**
@@ -591,6 +602,15 @@ protected:
      *   not be in the process of deletion.
      */
     bool doesKeyContainValidCollection(const DocKey& key) const;
+
+    /**
+     * Does the key belong to the specified scope?
+     *
+     * @param key the document key
+     * @param scopeID the scopeID
+     * @return true if it belongs to the given scope, false if not
+     */
+    bool doesKeyBelongToScope(const DocKey& key, ScopeID scopeID) const;
 
     /**
      * Given a key and it's seqno, the manifest can determine if that key
@@ -720,8 +740,7 @@ protected:
     /**
      * Add a collection entry to the manifest specifing the revision that it was
      * seen in and the sequence number span covering it.
-     *
-     * @param collectionID CollectionID of the collection to add.
+     * @param identifiers ScopeID and CollectionID pair
      * @param startSeqno The seqno where the collection begins. Defaults to 0.
      * @param endSeqno The seqno where it ends (can be the special open
      * marker). Defaults to the collection open state (-6).
@@ -729,7 +748,7 @@ protected:
      *         set the correct seqno.
      */
     ManifestEntry& addNewCollectionEntry(
-            CollectionID collectionID,
+            ScopeCollectionPair identifiers,
             int64_t startSeqno = 0,
             int64_t endSeqno = StoredValue::state_collection_open);
 
@@ -751,13 +770,15 @@ protected:
      *
      * @param manifest The Manifest to compare with.
      * @returns An optional containing a std::pair of vectors, if successful
-     *          first contains collections that need adding whilst second
-     *          contains those which should be deleted. If the optional is
-     *          uninitialised than the manifest could not be processed against
-     *          this, the only error is trying to add a deleting collection-ID.
+     *          first contains ScopeCollectionPairs that need adding whilst
+     *          second contains those which should be deleted. If the
+     *          optional is uninitialised than the manifest could
+     *          not be processed against this, the only error is trying to
+     *          add a deleting collection-ID.
      */
-    using processResult = boost::optional<
-            std::pair<std::vector<CollectionID>, std::vector<CollectionID>>>;
+    using processResult =
+            boost::optional<std::pair<std::vector<ScopeCollectionPair>,
+                                      std::vector<ScopeCollectionPair>>>;
     processResult processManifest(const Collections::Manifest& manifest) const;
 
     /**
@@ -766,8 +787,7 @@ protected:
      *
      * @param vb The vbucket onto which the Item is queued.
      * @param se The SystemEvent to create and queue.
-     * @param collectionID The CollectionID of the collection being
-     *        added/deleted.
+     * @param identifiers ScopeID and CollectionID pair
      * @param deleted If the Item created should be marked as deleted.
      * @param seqno An optional seqno which if set will be assigned to the
      *        system event.
@@ -776,7 +796,7 @@ protected:
      */
     int64_t queueSystemEvent(::VBucket& vb,
                              SystemEvent se,
-                             CollectionID collectionID,
+                             ScopeCollectionPair identifiers,
                              bool deleted,
                              OptionalSeqno seqno) const;
 
@@ -805,11 +825,10 @@ protected:
      *
      * @param out A buffer for the data to be written into.
      * @param revision The Manifest revision we are processing
-     * @param collectionID The CollectionID of the collection being
-     *        added/deleted.
+     * @param identifiers ScopeID and CollectionID pair
      */
     void populateWithSerialisedData(cb::char_buffer out,
-                                    CollectionID collectionID) const;
+                                    ScopeCollectionPair identifiers) const;
 
     /**
      * @returns the json for the given key from the nlohmann::json object.

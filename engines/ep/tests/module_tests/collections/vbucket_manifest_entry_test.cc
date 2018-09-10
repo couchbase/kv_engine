@@ -16,12 +16,14 @@
  */
 
 #include "collections/vbucket_manifest_entry.h"
+#include "test_manifest.h"
 
 #include <gtest/gtest.h>
 
 // Basic ManifestEntry construction checks
 TEST(ManifestEntry, test_getters) {
-    Collections::VB::ManifestEntry m(1000, // start
+    Collections::VB::ManifestEntry m(ScopeEntry::defaultS,
+                                     1000, // start
                                      StoredValue::state_collection_open); // end
     EXPECT_EQ(1000, m.getStartSeqno());
     EXPECT_EQ(StoredValue::state_collection_open, m.getEndSeqno());
@@ -31,7 +33,8 @@ TEST(ManifestEntry, test_getters) {
 // Check isDeleting changes state when end seqno is adjusted
 TEST(ManifestEntry, test_state) {
     // Collection starts at seqno 1000
-    Collections::VB::ManifestEntry m(1000, // start
+    Collections::VB::ManifestEntry m(ScopeEntry::defaultS,
+                                     1000, // start
                                      StoredValue::state_collection_open); // end
     EXPECT_TRUE(m.isOpen());
     EXPECT_FALSE(m.isDeleting());
@@ -55,7 +58,8 @@ TEST(ManifestEntry, test_state) {
 TEST(ManifestEntry, exceptions) {
 
     // Collection starts at seqno 1000
-    Collections::VB::ManifestEntry m(1000, // start
+    Collections::VB::ManifestEntry m(ScopeEntry::defaultS,
+                                     1000, // start
                                      StoredValue::state_collection_open); // end
 
     // set end so it's not StoredValue::state_collection_open for full set of
@@ -85,14 +89,14 @@ TEST(ManifestEntry, exceptions) {
     EXPECT_NO_THROW(m.setEndSeqno(StoredValue::state_collection_open));
 
     // start/end can't be equal
-    EXPECT_THROW(Collections::VB::ManifestEntry(100, 100),
+    EXPECT_THROW(Collections::VB::ManifestEntry(ScopeEntry::defaultS, 100, 100),
                  std::invalid_argument);
 }
 
 TEST(ManifestEntry, construct_assign) {
 
     // Collection starts at seqno 1000
-    Collections::VB::ManifestEntry entry1(2, 9);
+    Collections::VB::ManifestEntry entry1(ScopeEntry::defaultS, 2, 9);
 
     //  Move entry1 to entry2
     Collections::VB::ManifestEntry entry2(std::move(entry1));

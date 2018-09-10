@@ -216,8 +216,9 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     // Create meat with uid 4 as if it came from manifest uid cafef00d
     std::string collection = "meat";
     CollectionID cid = CollectionEntry::meat.getId();
+    ScopeID sid = ScopeEntry::shop1.getId();
     Collections::ManifestUid manifestUid = 0xcafef00d;
-    Collections::SystemEventData eventData{manifestUid, cid};
+    Collections::SystemEventData eventData{manifestUid, sid, cid};
     Collections::SystemEventDcpData eventDcpData{eventData};
 
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -298,7 +299,7 @@ TEST_F(CollectionsDcpTest, test_dcp) {
     // Now step the producer to transfer the collection creation
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
 
-    // 1. Replica now knows the collection
+    // 2. Replica now knows the collection
     EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
@@ -313,6 +314,58 @@ TEST_F(CollectionsDcpTest, test_dcp) {
     // 3. Replica now blocking access to meat
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+
+    // Now step the producer, no more collection events
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+}
+
+/*
+ * test_dcp connects a producer and consumer to test that collections created
+ * on the producer are transferred to the consumer when not in the default scope
+ *
+ * The test replicates VBn to VBn+1
+ */
+TEST_F(CollectionsDcpTest, test_dcp_non_default_scope) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Add a collection, then remove it. This adds events into the CP which
+    // we'll manually replicate with calls to step
+    CollectionsManifest cm;
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::meat, ScopeEntry::shop1);
+    vb->updateFromManifest({cm});
+
+    notifyAndStepToCheckpoint();
+
+    VBucketPtr replica = store->getVBucket(replicaVB);
+
+    // 1. Replica does not know about meat
+    EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    // 2. Replica now knows the collection
+    EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+
+    // remove meat
+    vb->updateFromManifest(
+            {cm.remove(CollectionEntry::meat, ScopeEntry::shop1)});
+
+    notifyAndStepToCheckpoint();
+
+    // Now step the producer to transfer the collection deletion
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    // 3. Replica now blocking access to meat
+    EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+
+    // 4. Check that the scopeID was replicated properly
+    EXPECT_TRUE(replica->lockCollections().doesKeyBelongToScope(
+            StoredDocKey{"meat:bacon", CollectionEntry::meat},
+            ScopeEntry::shop1));
 
     // Now step the producer, no more collection events
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));

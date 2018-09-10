@@ -40,16 +40,11 @@ Manifest::Manifest(const std::string& manifest)
       nDeletingCollections(0) {
     if (manifest.empty()) {
         // Empty manifest, initialise the manifest with the default collection
-        addNewCollectionEntry(
-                CollectionID::Default, 0, StoredValue::state_collection_open);
+        addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
+                              0,
+                              StoredValue::state_collection_open);
         defaultCollectionExists = true;
         return;
-    }
-
-    if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(manifest.data()),
-                       manifest.size())) {
-        throwException<std::invalid_argument>(__FUNCTION__,
-                                              "input not valid json");
     }
 
     nlohmann::json parsed;
@@ -71,26 +66,29 @@ Manifest::Manifest(const std::string& manifest)
     for (const auto& collection : collections) {
         auto cid = makeCollectionID(
                 getJsonEntry(collection, UidKey, UidType).get<std::string>());
+        auto sid = makeScopeID(
+                getJsonEntry(collection, SidKey, SidType).get<std::string>());
         auto startSeqno = std::stoll(
                 getJsonEntry(collection, StartSeqnoKey, StartSeqnoType)
                         .get<std::string>());
         auto endSeqno =
                 std::stoll(getJsonEntry(collection, EndSeqnoKey, EndSeqnoType)
                                    .get<std::string>());
-        addNewCollectionEntry(cid, startSeqno, endSeqno);
+        addNewCollectionEntry({sid, cid}, startSeqno, endSeqno);
     }
 }
 
-boost::optional<CollectionID> Manifest::applyChanges(
-        std::function<void(ManifestUid, CollectionID, OptionalSeqno)> update,
-        std::vector<CollectionID>& changes) {
-    boost::optional<CollectionID> rv;
+boost::optional<ScopeCollectionPair> Manifest::applyChanges(
+        std::function<void(ManifestUid, ScopeCollectionPair, OptionalSeqno)>
+                update,
+        std::vector<ScopeCollectionPair>& changes) {
+    boost::optional<ScopeCollectionPair> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
     }
-    for (const auto& collection : changes) {
-        update(manifestUid, collection, OptionalSeqno{/*no-seqno*/});
+    for (const auto& pair : changes) {
+        update(manifestUid, pair, OptionalSeqno{/*no-seqno*/});
     }
 
     return rv;
@@ -101,8 +99,8 @@ bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
         EP_LOG_WARN("VB::Manifest::update cannot update {}", vb.getId());
         return false;
     } else {
-        std::vector<CollectionID>& additions = rv->first;
-        std::vector<CollectionID>& deletions = rv->second;
+        std::vector<ScopeCollectionPair>& additions = rv->first;
+        std::vector<ScopeCollectionPair>& deletions = rv->second;
 
         auto finalDeletion =
                 applyChanges(std::bind(&Manifest::beginCollectionDelete,
@@ -146,11 +144,11 @@ bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
 
 void Manifest::addCollection(::VBucket& vb,
                              ManifestUid manifestUid,
-                             CollectionID collectionID,
+                             ScopeCollectionPair identifiers,
                              OptionalSeqno optionalSeqno) {
     // 1. Update the manifest, adding or updating an entry in the collections
     // map. Specify a non-zero start
-    auto& entry = addNewCollectionEntry(collectionID);
+    auto& entry = addNewCollectionEntry(identifiers);
 
     // 1.1 record the uid of the manifest which is adding the collection
     this->manifestUid = manifestUid;
@@ -159,15 +157,16 @@ void Manifest::addCollection(::VBucket& vb,
     //    for persistence into the vb state file.
     auto seqno = queueSystemEvent(vb,
                                   SystemEvent::Collection,
-                                  collectionID,
+                                  identifiers,
                                   false /*deleted*/,
                                   optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: {} adding collection:{:x}, replica:{}, "
-            "backfill:{}, seqno:{}, manifest:{:x}",
+            "collections: {} adding collection:{:x} to scope:{:x}, "
+            "replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
-            collectionID,
+            identifiers.second,
+            identifiers.first,
             optionalSeqno.is_initialized(),
             vb.isBackfillPhase(),
             seqno,
@@ -179,24 +178,26 @@ void Manifest::addCollection(::VBucket& vb,
     entry.setStartSeqno(seqno);
 }
 
-ManifestEntry& Manifest::addNewCollectionEntry(CollectionID collectionID,
+ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                int64_t startSeqno,
                                                int64_t endSeqno) {
     // This method is only for when the map does not have the collection
-    auto itr = map.find(collectionID);
+    auto itr = map.find(identifiers.second);
     if (itr != map.end()) {
         throwException<std::logic_error>(
                 __FUNCTION__,
                 "collection already exists + "
                 ", collection:" +
-                        collectionID.to_string() +
+                        identifiers.second.to_string() +
+                        ", scope:" + identifiers.first.to_string() +
                         ", startSeqno:" + std::to_string(startSeqno) +
                         ", endSeqno:" + std::to_string(endSeqno));
     }
     auto inserted =
-            map.emplace(collectionID, ManifestEntry(startSeqno, endSeqno));
+            map.emplace(identifiers.second,
+                        ManifestEntry(identifiers.first, startSeqno, endSeqno));
 
-    if (collectionID.isDefaultCollection() && inserted.second) {
+    if (identifiers.second.isDefaultCollection() && inserted.second) {
         defaultCollectionExists = (*inserted.first).second.isOpen();
     }
 
@@ -211,30 +212,31 @@ ManifestEntry& Manifest::addNewCollectionEntry(CollectionID collectionID,
 
 void Manifest::beginCollectionDelete(::VBucket& vb,
                                      ManifestUid manifestUid,
-                                     CollectionID collectionID,
+                                     ScopeCollectionPair identifiers,
                                      OptionalSeqno optionalSeqno) {
-    auto& entry = getManifestEntry(collectionID);
+    auto& entry = getManifestEntry(identifiers.second);
 
     // record the uid of the manifest which removed the collection
     this->manifestUid = manifestUid;
 
     auto seqno = queueSystemEvent(vb,
                                   SystemEvent::Collection,
-                                  collectionID,
+                                  identifiers,
                                   true /*deleted*/,
                                   optionalSeqno);
 
     EP_LOG_INFO(
-            "collections: {} begin delete of collection:{:x}"
+            "collections: {} begin delete of collection:{:x} from scope:{:x}"
             ", replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
-            collectionID,
+            identifiers.second,
+            identifiers.first,
             optionalSeqno.is_initialized(),
             vb.isBackfillPhase(),
             seqno,
             manifestUid);
 
-    if (collectionID.isDefaultCollection()) {
+    if (identifiers.second.isDefaultCollection()) {
         defaultCollectionExists = false;
     }
 
@@ -269,6 +271,9 @@ void Manifest::completeDeletion(::VBucket& vb, CollectionID collectionID) {
 
     auto se = itr->second.completeDeletion();
 
+    // Grab the scopeID before we erase the object
+    auto scopeID = itr->second.getScopeID();
+
     if (se == SystemEvent::DeleteCollectionHard) {
         map.erase(itr); // wipe out
     }
@@ -278,36 +283,43 @@ void Manifest::completeDeletion(::VBucket& vb, CollectionID collectionID) {
         greatestEndSeqno = StoredValue::state_collection_open;
     }
 
-    queueSystemEvent(
-            vb, se, collectionID, false /*delete*/, OptionalSeqno{/*none*/});
+    queueSystemEvent(vb,
+                     se,
+                     {scopeID, collectionID},
+                     false /*delete*/,
+                     OptionalSeqno{/*none*/});
 }
 
 Manifest::processResult Manifest::processManifest(
         const Collections::Manifest& manifest) const {
-    std::vector<CollectionID> additions, deletions;
+    std::vector<ScopeCollectionPair> additions, deletions;
 
     for (const auto& entry : map) {
         // If the entry is open and not found in the new manifest it must be
         // deleted.
         if (entry.second.isOpen() &&
             manifest.findCollection(entry.first) == manifest.end()) {
-            deletions.push_back(entry.first);
+            deletions.push_back(
+                    std::make_pair(entry.second.getScopeID(), entry.first));
         }
     }
 
-    // iterate Manifest and add every collection in Manifest that is not in this
-    for (const auto& m : manifest) {
-        // if we don't find the collection, then it must be an addition.
-        auto itr = map.find(m.first);
+    // Add collections in Manifest but not in our map
+    for (auto scopeItr = manifest.beginScopes();
+         scopeItr != manifest.endScopes();
+         scopeItr++) {
+        for (const auto& m : scopeItr->second.collections) {
+            auto mapItr = map.find(m);
 
-        if (itr == map.end()) {
-            additions.push_back(m.first);
-        } else if (itr->second.isDeleting()) {
-            // trying to add a collection which is deleting, not allowed.
-            EP_LOG_WARN("Attempt to add a deleting collection:{}:{:x}",
-                        m.second,
-                        m.first);
-            return {};
+            if (mapItr == map.end()) {
+                additions.push_back(std::make_pair(scopeItr->first, m));
+            } else if (mapItr->second.isDeleting()) {
+                // trying to add a collection which is deleting, not allowed.
+                EP_LOG_WARN("Attempt to add a deleting collection:{}:{:x}",
+                            manifest.findCollection(m)->second,
+                            m);
+                return {};
+            }
         }
     }
     return std::make_pair(additions, deletions);
@@ -322,6 +334,14 @@ bool Manifest::doesKeyContainValidCollection(const DocKey& key) const {
         if (itr != map.end()) {
             return itr->second.isOpen();
         }
+    }
+    return false;
+}
+
+bool Manifest::doesKeyBelongToScope(const DocKey& key, ScopeID scopeID) const {
+    auto itr = map.find(key.getCollectionID());
+    if (itr != map.end()) {
+        return itr->second.getScopeID() == scopeID;
     }
     return false;
 }
@@ -399,28 +419,28 @@ CollectionID Manifest::getCollectionIDFromKey(const DocKey& key) {
     return {*reinterpret_cast<const uint32_t*>(raw.data())};
 }
 
-std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
-                                                  CollectionID collectionID,
-                                                  bool deleted,
-                                                  OptionalSeqno seqno) const {
+std::unique_ptr<Item> Manifest::createSystemEvent(
+        SystemEvent se,
+        ScopeCollectionPair identifiers,
+        bool deleted,
+        OptionalSeqno seqno) const {
     // Create an item (to be queued and written to disk) that represents
     // the update of a collection and allows the checkpoint to update
     // the _local document with a persisted version of this object (the entire
     // manifest is persisted to disk as JSON).
     // The key for the item includes the name and revision to ensure a
     // checkpoint consumer (e.g. DCP) can transmit the full collection info.
-
-    auto item =
-            SystemEventFactory::make(se,
-                                     makeCollectionIdIntoString(collectionID),
-                                     getSerialisedDataSize(collectionID),
-                                     seqno);
+    auto item = SystemEventFactory::make(
+            se,
+            makeCollectionIdIntoString(identifiers.second),
+            getSerialisedDataSize(identifiers.second),
+            seqno);
 
     // Quite rightly an Item's value is const, but in this case the Item is
     // owned only by the local scope so is safe to mutate (by const_cast force)
     populateWithSerialisedData(
             {const_cast<char*>(item->getData()), item->getNBytes()},
-            collectionID);
+            identifiers);
 
     if (deleted) {
         item->setDeleted();
@@ -431,12 +451,12 @@ std::unique_ptr<Item> Manifest::createSystemEvent(SystemEvent se,
 
 int64_t Manifest::queueSystemEvent(::VBucket& vb,
                                    SystemEvent se,
-                                   CollectionID collectionID,
+                                   ScopeCollectionPair identifiers,
                                    bool deleted,
                                    OptionalSeqno seq) const {
     // Create and transfer Item ownership to the VBucket
     auto rv = vb.queueItem(
-            createSystemEvent(se, collectionID, deleted, seq).release(), seq);
+            createSystemEvent(se, identifiers, deleted, seq).release(), seq);
 
     // If seq is not set, then this is an active vbucket queueing the event.
     // Collection events will end the CP so they don't de-dup.
@@ -459,8 +479,8 @@ size_t Manifest::getSerialisedDataSize(CollectionID identifier) const {
     return bytesNeeded + SerialisedManifestEntry::getObjectSize();
 }
 
-void Manifest::populateWithSerialisedData(cb::char_buffer out,
-                                          CollectionID collectionID) const {
+void Manifest::populateWithSerialisedData(
+        cb::char_buffer out, ScopeCollectionPair identifiers) const {
     auto* sMan = SerialisedManifest::make(out.data(), getManifestUid(), out);
     uint32_t itemCounter = 1; // always a final entry
     auto* serial = sMan->getManifestEntryBuffer();
@@ -469,14 +489,18 @@ void Manifest::populateWithSerialisedData(cb::char_buffer out,
     for (const auto& collectionEntry : map) {
         // Check if we find the mutated entry in the map (so we know if we're
         // mutating it)
-        if (collectionEntry.first == collectionID) {
+        if (collectionEntry.first == identifiers.second) {
             // If a collection in the map matches the collection being changed
             // save the iterator so we can use it when creating the final entry
             finalEntry = &collectionEntry.second;
         } else {
             itemCounter++;
             auto* sme = SerialisedManifestEntry::make(
-                    serial, collectionEntry.first, collectionEntry.second, out);
+                    serial,
+                    {collectionEntry.second.getScopeID(),
+                     collectionEntry.first},
+                    collectionEntry.second,
+                    out);
             serial = sme->nextEntry();
         }
     }
@@ -485,10 +509,10 @@ void Manifest::populateWithSerialisedData(cb::char_buffer out,
     if (finalEntry) {
         // delete
         finalSme = SerialisedManifestEntry::make(
-                serial, collectionID, *finalEntry, out);
+                serial, identifiers, *finalEntry, out);
     } else {
         // create
-        finalSme = SerialisedManifestEntry::make(serial, collectionID, out);
+        finalSme = SerialisedManifestEntry::make(serial, identifiers, out);
     }
 
     sMan->setEntryCount(itemCounter);
@@ -576,7 +600,7 @@ SystemEventData Manifest::getSystemEventData(
         cb::const_char_buffer serialisedManifest) {
     const auto* sm = SerialisedManifest::make(serialisedManifest);
     const auto* sme = sm->getFinalManifestEntry();
-    return {sm->getManifestUid(), sme->getCollectionID()};
+    return {sm->getManifestUid(), sme->getScopeID(), sme->getCollectionID()};
 }
 
 std::string Manifest::getExceptionString(const std::string& thrower,

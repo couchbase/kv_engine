@@ -83,6 +83,7 @@ private:
 };
 
 using ScopeID = CollectionID;
+using ScopeCollectionPair = std::pair<ScopeID, CollectionID>;
 
 /**
  * NetworkByte order version of CollectionID - limited interface for small areas
@@ -100,6 +101,8 @@ public:
 private:
     CollectionIDType value;
 };
+
+using ScopeIDNetworkOrder = CollectionIDNetworkOrder;
 
 static_assert(sizeof(CollectionIDType) == 4,
               "CollectionIDNetworkOrder assumes 4-byte id");
