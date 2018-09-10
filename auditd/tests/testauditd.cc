@@ -22,6 +22,7 @@
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
+#include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <chrono>

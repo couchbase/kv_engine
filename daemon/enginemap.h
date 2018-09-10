@@ -17,7 +17,7 @@
 #pragma once
 
 #include "buckets.h"
-#include <memcached/server_api.h>
+#include <memcached/engine.h>
 #include <platform/platform.h>
 
 /**

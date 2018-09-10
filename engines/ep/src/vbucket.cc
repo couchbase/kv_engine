@@ -34,6 +34,7 @@
 #include "vbucket.h"
 #include "vbucketdeletiontask.h"
 
+#include <memcached/server_document_iface.h>
 #include <platform/compress.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

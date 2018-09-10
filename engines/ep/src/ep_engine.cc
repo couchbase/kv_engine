@@ -49,7 +49,7 @@
 #include <logger/logger.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
-#include <memcached/server_api.h>
+#include <memcached/server_cookie_iface.h>
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>

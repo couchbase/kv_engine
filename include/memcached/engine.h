@@ -13,16 +13,16 @@
 #include <utility>
 
 #include <boost/optional/optional.hpp>
+#include <spdlog/common.h>
 #include <gsl/gsl>
 
-#include "memcached/allocator_hooks.h"
-#include "memcached/callback.h"
+#include <memcached/visibility.h>
+
 #include "memcached/collections.h"
 #include "memcached/config_parser.h"
 #include "memcached/dockey.h"
 #include "memcached/engine_common.h"
 #include "memcached/protocol_binary.h"
-#include "memcached/server_api.h"
 #include "memcached/types.h"
 #include "memcached/vbucket.h"
 
@@ -53,9 +53,12 @@
  * engine.
  */
 
-/**
- * Abstract interface to an engine.
- */
+struct ServerAllocatorIface;
+struct ServerCoreIface;
+struct ServerCallbackIface;
+struct ServerLogIface;
+struct ServerCookieIface;
+struct ServerDocumentIface;
 
 /* This is typedefed in types.h */
 struct server_handle_v1_t {
@@ -66,6 +69,10 @@ struct server_handle_v1_t {
     ServerAllocatorIface* alloc_hooks;
     ServerDocumentIface* document;
 };
+
+extern "C" {
+typedef SERVER_HANDLE_V1* (*GET_SERVER_API)();
+}
 
 /**
  * The signature for the "create_instance" function exported from the module.

@@ -80,6 +80,9 @@
 #include <logger/logger.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+#include <memcached/server_callback_iface.h>
+#include <memcached/server_cookie_iface.h>
+#include <memcached/server_log_iface.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/thread.h>

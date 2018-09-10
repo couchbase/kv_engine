@@ -9,12 +9,13 @@
 #include <time.h>
 #include <gsl/gsl>
 
-#include <logger/logger.h>
-#include <memcached/server_api.h>
-#include <platform/cb_malloc.h>
-#include <platform/crc32c.h>
 #include "default_engine_internal.h"
 #include "engine_manager.h"
+#include <logger/logger.h>
+#include <memcached/server_core_iface.h>
+#include <memcached/server_document_iface.h>
+#include <platform/cb_malloc.h>
+#include <platform/crc32c.h>
 
 /* Forward Declarations */
 static void item_link_q(struct default_engine *engine, hash_item *it);

@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <memcached/allocator_hooks.h>
+#include <memcached/server_allocator_iface.h>
 #include <atomic>
 #include <mutex>
 

@@ -31,6 +31,7 @@
 #include "tracing/trace_helpers.h"
 
 #include <gmock/gmock.h>
+#include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_server.h>
 
 #include <functional>

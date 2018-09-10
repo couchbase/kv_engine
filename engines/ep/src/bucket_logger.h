@@ -18,7 +18,7 @@
 #pragma once
 
 #include "spdlog/logger.h"
-#include <memcached/server_api.h>
+#include <memcached/server_log_iface.h>
 
 const std::string globalBucketLoggerName = "globalBucketLogger";
 

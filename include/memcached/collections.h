@@ -20,8 +20,10 @@
 #error "Please include memcached/engine.h instead"
 #endif
 
+#include "engine_common.h"
+#include "engine_error.h"
+
 #include <platform/sized_buffer.h>
-#include "memcached/engine_error.h"
 
 namespace cb {
 using EngineErrorStringPair = std::pair<engine_errc, std::string>;

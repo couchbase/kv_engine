@@ -2,10 +2,13 @@
 
 #include "config.h"
 
-#include <memcached/allocator_hooks.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-#include <memcached/server_api.h>
+#include <memcached/server_allocator_iface.h>
+#include <memcached/server_cookie_iface.h>
+#include <memcached/server_core_iface.h>
+#include <memcached/server_document_iface.h>
+#include <memcached/server_log_iface.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>

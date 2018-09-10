@@ -33,6 +33,8 @@
 #include "kv_bucket.h"
 #include "snappy-c.h"
 
+#include <memcached/server_cookie_iface.h>
+
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 
 DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED() {

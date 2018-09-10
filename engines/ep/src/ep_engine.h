@@ -28,9 +28,11 @@
 #include "vb_visitors.h"
 
 #include <memcached/engine.h>
+#include <memcached/server_callback_iface.h>
 #include <platform/processclock.h>
 
 #include <string>
+#include <unordered_map>
 
 class CheckpointConfig;
 struct CompactionConfig;

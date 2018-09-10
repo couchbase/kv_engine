@@ -62,7 +62,10 @@
 #include <mcbp/mcbp.h>
 #include <memcached/audit_interface.h>
 #include <memcached/rbac.h>
-#include <memcached/server_api.h>
+#include <memcached/server_cookie_iface.h>
+#include <memcached/server_core_iface.h>
+#include <memcached/server_document_iface.h>
+#include <memcached/server_log_iface.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>

@@ -3,8 +3,8 @@
 
 #include <JSON_checker.h>
 #include <event.h>
-#include <memcached/callback.h>
 #include <memcached/engine_error.h>
+#include <memcached/server_callback_iface.h>
 #include <memcached/types.h>
 #include <platform/socket.h>
 #include <subdoc/operations.h>

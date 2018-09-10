@@ -19,6 +19,8 @@
 
 #include "ep_time.h"
 
+#include <memcached/server_core_iface.h>
+
 #include <atomic>
 #include <stdexcept>
 

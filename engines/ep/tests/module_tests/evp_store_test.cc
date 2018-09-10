@@ -37,6 +37,7 @@
 #include "vbucketdeletiontask.h"
 #include "warmup.h"
 
+#include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>

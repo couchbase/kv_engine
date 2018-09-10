@@ -17,6 +17,8 @@
 #include "engines/default_engine.h"
 #include "engine_manager.h"
 
+#include <memcached/server_core_iface.h>
+
 // The default engine don't really use vbucket uuids, but in order
 // to run the unit tests and verify that we correctly convert the
 // vbucket uuid to network byte order it is nice to have a value

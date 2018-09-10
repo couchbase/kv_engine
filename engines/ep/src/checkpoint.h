@@ -26,6 +26,7 @@
 #include <list>
 #include <map>
 #include <set>
+#include <unordered_map>
 
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
 

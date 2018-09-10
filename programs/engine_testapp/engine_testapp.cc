@@ -19,6 +19,8 @@
 #include <daemon/alloc_hooks.h>
 #include <logger/logger.h>
 #include <memcached/dcp.h>
+#include <memcached/server_cookie_iface.h>
+#include <memcached/server_log_iface.h>
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>

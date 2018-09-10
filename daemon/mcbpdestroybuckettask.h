@@ -21,7 +21,6 @@
 #include "buckets.h"
 #include "connection.h"
 #include "memcached.h"
-#include "memcached/server_api.h"
 #include "task.h"
 
 #include <string>

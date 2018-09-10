@@ -26,7 +26,7 @@
 #include <mutex>
 #include <string>
 
-#include <memcached/allocator_hooks.h>
+#include <memcached/server_allocator_iface.h>
 #include <platform/platform.h>
 
 #include <atomic>

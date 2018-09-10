@@ -34,6 +34,8 @@
 #include "tests/module_tests/test_helpers.h"
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 
+#include <memcached/server_cookie_iface.h>
+
 class RollbackTest
         : public EPBucketTest,
           public ::testing::WithParamInterface<

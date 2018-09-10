@@ -16,9 +16,10 @@
  */
 #pragma once
 
-#include <memcached/server_api.h>
 #include <memcached/types.h>
 #include <time.h>
+
+struct ServerCoreIface;
 
 /* Initializes the below time functions using the function pointers
  * provided by the specified SERVER_CORE_API. This function should be

@@ -46,6 +46,7 @@
 #include "test_helpers.h"
 
 #include <gtest/gtest.h>
+#include <memcached/server_cookie_iface.h>
 #include <platform/compress.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <xattr/utils.h>

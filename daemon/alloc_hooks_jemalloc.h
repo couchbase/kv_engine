@@ -20,7 +20,7 @@
 #include "config.h"
 
 #include "alloc_hooks_types.h"
-#include <memcached/allocator_hooks.h>
+#include <memcached/server_allocator_iface.h>
 
 class JemallocHooks {
 public:

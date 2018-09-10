@@ -29,6 +29,8 @@
 #endif
 #include "statwriter.h"
 
+#include <memcached/server_core_iface.h>
+
 // Used to get a name from a type to use in logging
 template <typename T>
 struct type_name {

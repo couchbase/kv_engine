@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -17,14 +17,14 @@
 
 #pragma once
 
-#include "config.h"
+#include <spdlog/common.h>
 
-#include "alloc_hooks_types.h"
-#include <memcached/server_allocator_iface.h>
+namespace spdlog {
+class logger;
+}
 
-class DummyAllocHooks {
-public:
-#define X(name, ret, args) static ret name args;
-#include "alloc_hooks.def"
-#undef X
+struct ServerLogIface {
+    virtual ~ServerLogIface() = default;
+    virtual spdlog::logger* get_spdlogger() = 0;
+    virtual void set_level(spdlog::level::level_enum severity) = 0;
 };

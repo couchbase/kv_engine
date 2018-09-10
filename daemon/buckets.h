@@ -20,7 +20,7 @@
 #include "mcbp_validators.h"
 #include "timings.h"
 
-#include <memcached/callback.h>
+#include <memcached/server_callback_iface.h>
 #include <memcached/types.h>
 
 #include <condition_variable>

@@ -20,7 +20,7 @@
 #include "ep_engine.h"
 #include "item.h"
 
-#include <memcached/types.h>
+#include <memcached/server_document_iface.h>
 
 void PreLinkDocumentContext::preLink(uint64_t cas, uint64_t seqno) {
     // The vbucket_uuid is currently not being used by the pre_link callback

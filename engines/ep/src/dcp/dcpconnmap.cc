@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include <daemon/tracing.h>
+#include <memcached/server_cookie_iface.h>
 #include <memcached/vbucket.h>
 #include <phosphor/phosphor.h>
 

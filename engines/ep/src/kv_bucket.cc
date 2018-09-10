@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include <memcached/server_document_iface.h>
 #include <phosphor/phosphor.h>
 #include <utilities/logtags.h>
 

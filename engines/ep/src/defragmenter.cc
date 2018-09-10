@@ -17,6 +17,7 @@
 
 #include "defragmenter.h"
 
+#include <memcached/server_allocator_iface.h>
 #include <phosphor/phosphor.h>
 
 #include "defragmenter_visitor.h"

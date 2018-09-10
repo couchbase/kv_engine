@@ -28,6 +28,7 @@
 #include "kv_bucket.h"
 #include "replicationthrottle.h"
 
+#include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
 
 const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
