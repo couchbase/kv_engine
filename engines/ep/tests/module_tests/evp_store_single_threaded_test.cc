@@ -1613,16 +1613,13 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
                              /*startseq*/ 0,
                              /*endseq*/ 2,
                              /*flags*/ MARKER_FLAG_DISK);
-    std::string data = R"({"json":"yes"})";
-    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
-                                data.size()};
 
     // 2. Now add a deletion.
     consumer->deletion(/*opaque*/ 1,
                        {"key1", DocNamespace::DefaultCollection},
-                       /*values*/ value,
+                       /*value*/ {},
                        /*priv_bytes*/ 0,
-                       /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                       /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                        /*cas*/ 0,
                        /*vbucket*/ vbid,
                        /*bySeqno*/ 1,
@@ -1659,7 +1656,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
                                  deleted,
                                  datatype));
     EXPECT_EQ(1, deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
     EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
 }
 
@@ -1684,15 +1681,12 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                              /*startseq*/ 0,
                              /*endseq*/ 2,
                              /*flags*/ 0);
-    std::string data = R"({"json":"yes"})";
-    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
-                                data.size()};
     // 2. Now add two deletions, one without deleteTime, one with
     consumer->deletionV2(/*opaque*/ 1,
                          {"key1", DocNamespace::DefaultCollection},
-                         /*values*/ value,
+                         /*values*/ {},
                          /*priv_bytes*/ 0,
-                         /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                         /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                          /*cas*/ 0,
                          /*vbucket*/ vbid,
                          /*bySeqno*/ 1,
@@ -1702,9 +1696,9 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
     const uint32_t deleteTime = 10;
     consumer->deletionV2(/*opaque*/ 1,
                          {"key2", DocNamespace::DefaultCollection},
-                         /*values*/ value,
+                         /*value*/ {},
                          /*priv_bytes*/ 0,
-                         /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                         /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                          /*cas*/ 0,
                          /*vbucket*/ vbid,
                          /*bySeqno*/ 2,
@@ -1741,7 +1735,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                                  deleted,
                                  datatype));
     EXPECT_EQ(1, deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
     EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
 
     deleted = 0;
@@ -1762,7 +1756,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                                  deleted,
                                  datatype));
     EXPECT_EQ(1, deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
     EXPECT_EQ(deleteTime, metadata.exptime); // Our replicated deleteTime!
 }
 
@@ -3035,6 +3029,69 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
     EXPECT_EQ(isXattrSystem() ? PROTOCOL_BINARY_DATATYPE_XATTR
                               : PROTOCOL_BINARY_RAW_BYTES,
               gv.item->getDataType());
+}
+
+// Create a replica VB and consumer, then send it an delete with value which
+// should never of been created on the source.
+TEST_F(SingleThreadedEPBucketTest, MB_31141_sanitise_input) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto consumer = std::make_shared<MockDcpConsumer>(
+            *engine, cookie, "MB_31141_sanitise_input");
+    int opaque = 1;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
+
+    std::string body = "value";
+
+    // Send deletion in a single seqno snapshot
+    int64_t bySeqno = 1;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(
+                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->deletion(opaque,
+                                 {"key", DocNamespace::DefaultCollection},
+                                 {reinterpret_cast<const uint8_t*>(body.data()),
+                                  body.size()},
+                                 /*priv_bytes*/ 0,
+                                 PROTOCOL_BINARY_DATATYPE_SNAPPY |
+                                         PROTOCOL_BINARY_RAW_BYTES,
+                                 /*cas*/ 3,
+                                 vbid,
+                                 bySeqno,
+                                 /*revSeqno*/ 0,
+                                 /*meta*/ {}));
+
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+
+    // Switch to active
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(
+            {"key", DocNamespace::DefaultCollection}, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    gv = store->get({"key", DocNamespace::DefaultCollection},
+                    vbid,
+                    cookie,
+                    GET_DELETED_VALUE);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    EXPECT_TRUE(gv.item->isDeleted());
+    EXPECT_EQ(0, gv.item->getFlags());
+    EXPECT_EQ(3, gv.item->getCas());
+    EXPECT_EQ(0, gv.item->getValue()->valueSize());
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, gv.item->getDataType());
 }
 
 // Test highlighting MB_29480 - this is not demonstrating the issue is fixed.
