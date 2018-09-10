@@ -35,7 +35,7 @@ public:
     ~BenchmarkMemoryTracker();
 
     static BenchmarkMemoryTracker* getInstance(
-            const ALLOCATOR_HOOKS_API& hooks_api_);
+            const ServerAllocatorIface& hooks_api_);
 
     static void destroyInstance();
 
@@ -45,14 +45,14 @@ public:
     size_t getCurrentAlloc();
 
 private:
-    BenchmarkMemoryTracker(const ALLOCATOR_HOOKS_API& hooks_api);
+    BenchmarkMemoryTracker(const ServerAllocatorIface& hooks_api);
     void connectHooks();
     static void NewHook(const void* ptr, size_t);
     static void DeleteHook(const void* ptr);
 
     static std::atomic<BenchmarkMemoryTracker*> instance;
     static std::mutex instanceMutex;
-    ALLOCATOR_HOOKS_API hooks_api;
+    ServerAllocatorIface hooks_api;
     static std::atomic<size_t> maxTotalAllocation;
     static std::atomic<size_t> currentAlloc;
 };

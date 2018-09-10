@@ -63,7 +63,7 @@ struct server_handle_v1_t {
     ServerCallbackIface* callback;
     ServerLogIface* log;
     ServerCookieIface* cookie;
-    ALLOCATOR_HOOKS_API* alloc_hooks;
+    ServerAllocatorIface* alloc_hooks;
     ServerDocumentIface* document;
 };
 

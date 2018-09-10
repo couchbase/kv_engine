@@ -39,7 +39,3 @@
 #define DISALLOW_ASSIGN(TypeName)               \
     void operator=(const TypeName&) = delete
 
-
-// Utility functions implemented in various modules.
-
-typedef struct engine_allocator_hooks_v1 ALLOCATOR_HOOKS_API;

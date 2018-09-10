@@ -375,7 +375,7 @@ SERVER_HANDLE_V1* get_mock_server_api() {
     static MockServerCookieApi server_cookie_api;
     static MockServerCallbackApi callback_api;
     static MockServerLogApi log_api;
-    static ALLOCATOR_HOOKS_API hooks_api;
+    static ServerAllocatorIface hooks_api;
     static SERVER_HANDLE_V1 rv;
     static MockServerDocumentApi document_api;
     static int init;

@@ -49,7 +49,8 @@ void MemoryTracker::statsThreadMainLoop(void* arg) {
     }
 }
 
-MemoryTracker* MemoryTracker::getInstance(const ALLOCATOR_HOOKS_API& hooks_api_) {
+MemoryTracker* MemoryTracker::getInstance(
+        const ServerAllocatorIface& hooks_api_) {
     MemoryTracker* tmp = instance.load();
     if (tmp == nullptr) {
         // Double-checked locking if instance is null - ensure two threads
@@ -98,7 +99,7 @@ void MemoryTracker::DeleteHook(const void* ptr) {
     }
 }
 
-MemoryTracker::MemoryTracker(const ALLOCATOR_HOOKS_API& hooks_api_)
+MemoryTracker::MemoryTracker(const ServerAllocatorIface& hooks_api_)
     : hooks_api(hooks_api_) {
     // Just create the object, actual hook registration happens
     // once we have a concrete object constructed.

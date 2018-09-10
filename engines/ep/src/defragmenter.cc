@@ -35,7 +35,7 @@ DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
 bool DefragmenterTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "DefragmenterTask");
     if (engine->getConfiguration().isDefragmenterEnabled()) {
-        ALLOCATOR_HOOKS_API* alloc_hooks = engine->getServerApi()->alloc_hooks;
+        ServerAllocatorIface* alloc_hooks = engine->getServerApi()->alloc_hooks;
         // Get our pause/resume visitor. If we didn't finish the previous pass,
         // then resume from where we last were, otherwise create a new visitor
         // starting from the beginning.
@@ -151,7 +151,7 @@ size_t DefragmenterTask::getAgeThreshold() const {
     return engine->getConfiguration().getDefragmenterAgeThreshold();
 }
 
-size_t DefragmenterTask::getMaxValueSize(ALLOCATOR_HOOKS_API* alloc_hooks) {
+size_t DefragmenterTask::getMaxValueSize(ServerAllocatorIface* alloc_hooks) {
     size_t nbins{0};
     alloc_hooks->get_allocator_property("arenas.nbins", &nbins);
 
@@ -173,7 +173,7 @@ std::chrono::milliseconds DefragmenterTask::getChunkDuration() const {
 }
 
 size_t DefragmenterTask::getMappedBytes() {
-    ALLOCATOR_HOOKS_API* alloc_hooks = engine->getServerApi()->alloc_hooks;
+    ServerAllocatorIface* alloc_hooks = engine->getServerApi()->alloc_hooks;
 
     allocator_stats stats = {0};
     stats.ext_stats.resize(alloc_hooks->get_extra_stats_size());

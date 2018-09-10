@@ -33,7 +33,7 @@ BenchmarkMemoryTracker::~BenchmarkMemoryTracker() {
 }
 
 BenchmarkMemoryTracker* BenchmarkMemoryTracker::getInstance(
-        const ALLOCATOR_HOOKS_API& hooks_api_) {
+        const ServerAllocatorIface& hooks_api_) {
     BenchmarkMemoryTracker* tmp = instance.load();
     if (tmp == nullptr) {
         std::lock_guard<std::mutex> lock(instanceMutex);
@@ -66,7 +66,7 @@ size_t BenchmarkMemoryTracker::getCurrentAlloc() {
 }
 
 BenchmarkMemoryTracker::BenchmarkMemoryTracker(
-        const ALLOCATOR_HOOKS_API& hooks_api)
+        const ServerAllocatorIface& hooks_api)
     : hooks_api(hooks_api) {
     ObjectRegistry::initialize(hooks_api.get_allocation_size);
 }

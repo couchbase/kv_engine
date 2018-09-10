@@ -56,8 +56,8 @@ extern "C" {
     }
 }
 
-ALLOCATOR_HOOKS_API* getHooksApi(void) {
-    static ALLOCATOR_HOOKS_API hooksApi;
+ServerAllocatorIface* getHooksApi(void) {
+    static ServerAllocatorIface hooksApi;
     hooksApi.add_new_hook = mock_add_new_hook;
     hooksApi.remove_new_hook = mock_remove_new_hook;
     hooksApi.add_delete_hook = mock_add_delete_hook;

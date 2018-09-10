@@ -21,4 +21,4 @@
 
 #include <memcached/allocator_hooks.h>
 
-ALLOCATOR_HOOKS_API* getHooksApi(void);
+ServerAllocatorIface* getHooksApi(void);

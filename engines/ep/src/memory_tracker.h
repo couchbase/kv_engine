@@ -44,7 +44,7 @@ public:
      * same time.
      * @return The MemoryTracker singleton.
      */
-    static MemoryTracker* getInstance(const ALLOCATOR_HOOKS_API& hook_api_);
+    static MemoryTracker* getInstance(const ServerAllocatorIface& hook_api_);
 
     static void destroyInstance();
 
@@ -63,7 +63,7 @@ public:
     size_t getTotalHeapBytes();
 
 private:
-    MemoryTracker(const ALLOCATOR_HOOKS_API& hooks_api_);
+    MemoryTracker(const ServerAllocatorIface& hooks_api_);
 
     // Helper function for construction - connects the tracker
     // to the memory allocator via alloc_hooks.
@@ -91,7 +91,7 @@ private:
 
     // Memory allocator hooks API to use (needed by New / Delete hook
     // functions)
-    ALLOCATOR_HOOKS_API hooks_api;
+    ServerAllocatorIface hooks_api;
 };
 
 #endif  // SRC_MEMORY_TRACKER_H_

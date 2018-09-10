@@ -1654,7 +1654,7 @@ protected:
     ServerCookieApi server_cookie_api;
     ServerLogApi server_log_api;
     ServerCallbackApi callback_api;
-    ALLOCATOR_HOOKS_API hooks_api;
+    ServerAllocatorIface hooks_api;
     ServerDocumentApi document_api;
 };
 

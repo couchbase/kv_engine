@@ -52,8 +52,7 @@ typedef struct allocator_stats {
 /**
  * Engine allocator hooks for memory tracking.
  */
-typedef struct engine_allocator_hooks_v1 {
-
+struct ServerAllocatorIface {
     /**
      * Add a hook into the memory allocator that will be called each
      * time memory is allocated from the heap. Returns true if the
@@ -131,8 +130,7 @@ typedef struct engine_allocator_hooks_v1 {
      * @return whether the call was successful
      */
     bool (*get_allocator_property)(const char* name, size_t* value);
-
-} ALLOCATOR_HOOKS_API;
+};
 
 #ifdef __cplusplus
 }
