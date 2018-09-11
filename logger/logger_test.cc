@@ -187,3 +187,16 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
             << "Failed to restore RLIMIT_NOFILE: " << strerror(errno);
 }
 #endif
+
+/*
+ * Test that the custom type Vbid (see memcached/vbucket.h) performs
+ * its prefixing successfully whenever outputting a vBucket ID
+ */
+TEST_F(SpdloggerTest, VbidClassTest) {
+    const Vbid value = Vbid(1023);
+    LOG_INFO("VbidClassTest {}", value);
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(filename);
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1, countInFile(files.front(), "INFO VbidClassTest vb:1023"));
+}

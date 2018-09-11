@@ -34,6 +34,7 @@
 #include "config.h"
 
 #include <logger/visibility.h>
+#include <spdlog/fmt/ostr.h>
 #include <spdlog/logger.h>
 
 #include <boost/optional/optional_fwd.hpp>

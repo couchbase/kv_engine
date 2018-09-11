@@ -16,8 +16,7 @@
  */
 
 #include <memcached/vbucket.h>
-#include <spdlog/fmt/ostr.h> // Must be included when logging user defined
-// objects, which in this case is Vbid
+#include <spdlog/fmt/ostr.h>
 
 MCD_UTIL_PUBLIC_API
 std::ostream& operator<<(std::ostream& os, const Vbid& d) {

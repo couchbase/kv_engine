@@ -19,7 +19,6 @@
 
 #include <memcached/mcd_util-visibility.h>
 #include <platform/bitset.h>
-
 #include <platform/socket.h>
 #include <string>
 
