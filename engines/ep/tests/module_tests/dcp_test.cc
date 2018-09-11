@@ -2966,28 +2966,25 @@ TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
     ASSERT_TRUE(stream->isActive());
 
     std::string key = "key";
-    std::string data = R"({"json":"yes"})";
     const DocKey docKey{ reinterpret_cast<const uint8_t*>(key.data()),
         key.size(),
         DocNamespace::DefaultCollection};
-    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
-        data.size()};
     uint8_t extMeta[1] = {uint8_t(PROTOCOL_BINARY_DATATYPE_JSON)};
     cb::const_byte_buffer meta{extMeta, sizeof(uint8_t)};
 
-    consumer->deletion(/*opaque*/1,
-                       /*key*/docKey,
-                       /*values*/value,
-                       /*priv_bytes*/0,
-                       /*datatype*/PROTOCOL_BINARY_DATATYPE_JSON,
-                       /*cas*/0,
-                       /*vbucket*/vbid,
-                       /*bySeqno*/1,
-                       /*revSeqno*/0,
-                       /*meta*/meta);
+    consumer->deletion(/*opaque*/ 1,
+                       /*key*/ docKey,
+                       /*value*/ {},
+                       /*priv_bytes*/ 0,
+                       /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
+                       /*cas*/ 0,
+                       /*vbucket*/ vbid,
+                       /*bySeqno*/ 1,
+                       /*revSeqno*/ 0,
+                       /*meta*/ meta);
 
-    auto messageSize = MutationResponse::deletionBaseMsgBytes +
-            key.size() + data.size() + sizeof(extMeta);
+    auto messageSize = MutationResponse::deletionBaseMsgBytes + key.size() +
+                       sizeof(extMeta);
 
     EXPECT_EQ(messageSize, stream->responseMessageSize);
 

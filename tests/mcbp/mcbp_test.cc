@@ -1942,8 +1942,9 @@ TEST_P(DcpDeletionValidatorTest, InvalidMagic) {
 
 TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
     using cb::mcbp::Datatype;
-    const std::array<uint8_t, 3> datatypes = {
+    const std::array<uint8_t, 4> datatypes = {
             {uint8_t(Datatype::Raw),
+             uint8_t(Datatype::Raw) | uint8_t(Datatype::Snappy),
              uint8_t(Datatype::Xattr),
              uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy)}};
 
@@ -1956,9 +1957,8 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
 
 TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
     using cb::mcbp::Datatype;
-    const std::array<uint8_t, 3> datatypes = {
+    const std::array<uint8_t, 2> datatypes = {
             {uint8_t(Datatype::JSON),
-             uint8_t(Datatype::Snappy),
              uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON)}};
 
     for (auto invalid : datatypes) {
