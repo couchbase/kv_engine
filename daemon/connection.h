@@ -221,11 +221,9 @@ public:
 
     /**
      * Get the username this connection is authenticated as
-     *
-     * NOTE: the return value should not be returned by the client
      */
-    const char* getUsername() const {
-        return username.c_str();
+    const std::string& getUsername() const {
+        return username;
     }
 
     /**
