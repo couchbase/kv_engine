@@ -31,6 +31,7 @@
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "flusher.h"
+#include "item_eviction.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
@@ -253,6 +254,28 @@ TEST_P(EPStoreEvictionTest, SetEExists) {
     } else {
         FAIL() << "Unhandled GetParam() value:" << GetParam();
     }
+}
+
+// Check performing a mutation to an existing document does not reset the
+// frequency count
+TEST_P(EPStoreEvictionTest, FreqCountTest) {
+    const uint8_t initialFreqCount = ItemEviction::initialFreqCount;
+    StoredDocKey a = makeStoredDocKey("a");
+    auto item_v1 = store_item(vbid, a, "old");
+
+    // Perform one or more gets to increase the frequency count
+    get_options_t options = static_cast<get_options_t>(TRACK_REFERENCE);
+    GetValue v = store->get(a, vbid, nullptr, options);
+    while (v.item->getFreqCounterValue() == initialFreqCount) {
+        v = store->get(a, vbid, nullptr, options);
+    }
+
+    // Update the document with a new value
+    auto item_v2 = store_item(vbid, a, "new");
+
+    // Check that the frequency counter of the document has not been reset
+    auto result = store->get(a, vbid, nullptr, {});
+    EXPECT_NE(initialFreqCount, result.item->getFreqCounterValue());
 }
 
 // Add tests //////////////////////////////////////////////////////////////////

@@ -328,7 +328,7 @@ void StoredValue::setValueImpl(const Item& itm) {
         setResident(false);
     } else {
         setResident(true);
-        value = itm.getValue();
+        replaceValue(itm.getValue().get());
     }
 }
 

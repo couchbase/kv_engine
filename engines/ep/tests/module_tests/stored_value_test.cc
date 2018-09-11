@@ -320,6 +320,24 @@ TYPED_TEST(ValueTest, restoreMeta) {
     EXPECT_EQ(4, this->sv->getFreqCounterValue());
 }
 
+/**
+ *  Test that an mutation does not reset the frequency counter
+ */
+TYPED_TEST(ValueTest, freqCounterNotReset) {
+    Item itm(makeStoredDocKey("k"),
+             0,
+             0,
+             (const value_t)TaggedPtr<Blob>{},
+             PROTOCOL_BINARY_RAW_BYTES,
+             0,
+             1);
+    this->sv->setValue(itm);
+    this->sv->setFreqCounterValue(10);
+    ASSERT_EQ(10, this->sv->getFreqCounterValue());
+    this->sv->setValue(itm);
+    EXPECT_EQ(10, this->sv->getFreqCounterValue());
+}
+
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {
