@@ -22,6 +22,7 @@
 
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
+#include <mcbp/protocol/status.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
 #include <cstdint>
@@ -140,12 +141,12 @@ struct Response {
         return Datatype(datatype);
     }
 
-    uint16_t getStatus() const {
-        return ntohs(status);
+    cb::mcbp::Status getStatus() const {
+        return cb::mcbp::Status(ntohs(status));
     }
 
-    void setStatus(uint16_t value) {
-        status = htons(value);
+    void setStatus(cb::mcbp::Status value) {
+        status = htons(uint16_t(value));
     }
 
     uint32_t getBodylen() const {

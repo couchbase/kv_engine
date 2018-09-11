@@ -893,7 +893,7 @@ void validate_object(const char *key, const std::string& expected_value) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
     char* ptr = receive.data() + sizeof(*response) + 4;
     if (response->message.header.response.getStatus() ==
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        cb::mcbp::Status::Success) {
         size_t vallen = response->message.header.response.getBodylen() - 4;
         std::string actual(ptr, vallen);
         EXPECT_EQ(expected_value, actual);

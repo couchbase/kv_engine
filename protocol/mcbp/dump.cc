@@ -524,7 +524,7 @@ protected:
     }
 
     void dumpValue(std::ostream& out) const override {
-        if (response.response.getStatus() == 0) {
+        if (cb::mcbp::isStatusSuccess(response.response.getStatus())) {
             dumpSuccessValue(out);
         } else {
             dumpFailureValue(out);

@@ -195,7 +195,7 @@ public:
     ResponseBuilder(cb::byte_buffer backing) : FrameBuilder<Response>(backing) {
     }
     void setStatus(Status status) {
-        getFrame()->setStatus(uint16_t(status));
+        getFrame()->setStatus(status);
     }
 };
 
