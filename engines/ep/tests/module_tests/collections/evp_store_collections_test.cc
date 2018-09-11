@@ -551,6 +551,30 @@ public:
     }
 };
 
+// Test item counting when we store/delete flush and store again
+TEST_F(CollectionsTest, MB_31212) {
+    CollectionsManifest cm;
+    auto vb = store->getVBucket(vbid);
+
+    vb->updateFromManifest({cm.add(CollectionEntry::meat)});
+    auto key = StoredDocKey{"beef", CollectionEntry::meat};
+    // Now we can write to meat
+    store_item(vbid, key, "value");
+    delete_item(vbid, key);
+
+    // Trigger a flush to disk. Flushes the meat create event and the delete
+    flush_vbucket_to_disk(vbid, 2);
+
+    // 0 items, we only have a delete on disk
+    EXPECT_EQ(0, vb->lockCollections().getItemCount(CollectionEntry::meat));
+
+    // Store the same key again and expect 1 item
+    store_item(vbid, StoredDocKey{"beef", CollectionEntry::meat}, "value");
+
+    flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
+}
+
 //
 // Create a collection then create a second engine which will warmup from the
 // persisted collection state and should have the collection accessible.

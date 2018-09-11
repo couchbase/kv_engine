@@ -1981,7 +1981,10 @@ static void saveDocsCallback(const DocInfo* oldInfo,
                 cbCtx->collectionsFlush.decrementDiskCount(
                         makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
             }
-            return;
+        } else if (!newInfo->deleted && cbCtx->persistDocNamespace) {
+            // Adding an item
+            cbCtx->collectionsFlush.incrementDiskCount(
+                    makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
         }
 
     } else if (newInfo && !newInfo->deleted && cbCtx->persistDocNamespace) {
