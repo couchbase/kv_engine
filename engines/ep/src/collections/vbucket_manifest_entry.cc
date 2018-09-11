@@ -39,7 +39,7 @@ std::string Collections::VB::ManifestEntry::getExceptionString(
 }
 
 bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
-                                              uint16_t vbid,
+                                              Vbid vbid,
                                               const void* cookie,
                                               ADD_STAT add_stat) const {
     try {
@@ -48,25 +48,25 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
         checked_snprintf(buffer,
                          bsize,
                          "vb_%d:collection:%s:entry:start_seqno",
-                         vbid,
+                         vbid.get(),
                          cid.c_str());
         add_casted_stat(buffer, getStartSeqno(), add_stat, cookie);
         checked_snprintf(buffer,
                          bsize,
                          "vb_%d:collection:%s:entry:end_seqno",
-                         vbid,
+                         vbid.get(),
                          cid.c_str());
         add_casted_stat(buffer, getEndSeqno(), add_stat, cookie);
         checked_snprintf(buffer,
                          bsize,
                          "vb_%d:collection:%s:entry:items",
-                         vbid,
+                         vbid.get(),
                          cid.c_str());
         add_casted_stat(buffer, getDiskCount(), add_stat, cookie);
         return true;
     } catch (const std::exception& error) {
         EP_LOG_WARN(
-                "VB::ManifestEntry::addStats vb:{}, failed to build stats, "
+                "VB::ManifestEntry::addStats {}, failed to build stats, "
                 "exception:{}",
                 vbid,
                 error.what());

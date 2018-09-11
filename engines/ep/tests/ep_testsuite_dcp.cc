@@ -2446,10 +2446,11 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
+    Vbid vbid = Vbid(0);
     const char* name = "unittest";
 
     // Set vbucket 0 to a replica so we can consume a mutation over DCP
-    check(set_vbucket_state(h, 0, vbucket_state_replica),
+    check(set_vbucket_state(h, vbid, vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
@@ -2461,7 +2462,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
     add_stream_for_consumer(h,
                             cookie,
                             opaque++,
-                            0,
+                            vbid,
                             DCP_ADD_STREAM_FLAG_TAKEOVER,
                             cb::mcbp::Status::Success);
 
@@ -2470,35 +2471,35 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
 
     // Snapshot marker indicating a mutation will follow
     checkeq(ENGINE_SUCCESS,
-            dcp->snapshot_marker(cookie, stream_opaque, 0, 0, 1, 0),
+            dcp->snapshot_marker(cookie, stream_opaque, vbid, 0, 1, 0),
             "Failed to send marker!");
 
     const DocKey docKey("key", DocKeyEncodesCollectionId::No);
-        checkeq(ENGINE_SUCCESS,
-                dcp->mutation(cookie,
-                              stream_opaque,
-                              docKey,
-                              {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              0, // cas
-                              0, // vbucket
-                              0, // flags
-                              1, // by_seqno
-                              0, // rev_seqno
-                              0, // expiration
-                              0, // lock_time
-                              {}, // meta
-                              128 // frequency value
-                              ),
-                              "Failed to send dcp mutation");
+    checkeq(ENGINE_SUCCESS,
+            dcp->mutation(cookie,
+                          stream_opaque,
+                          docKey,
+                          {(const uint8_t*)"value", 5},
+                          0, // privileged bytes
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          0, // cas
+                          vbid,
+                          0, // flags
+                          1, // by_seqno
+                          0, // rev_seqno
+                          0, // expiration
+                          0, // lock_time
+                          {}, // meta
+                          128 // frequency value
+                          ),
+            "Failed to send dcp mutation");
 
     // Set vbucket 0 to active so we can perform a get
-    check(set_vbucket_state(h, 0, vbucket_state_active),
+    check(set_vbucket_state(h, vbid, vbucket_state_active),
           "Failed to set vbucket state.");
 
     // Perform a get to retrieve the frequency counter value
-    auto rv = get(h, cookie, "key", 0, DocStateFilter::AliveOrDeleted);
+    auto rv = get(h, cookie, "key", vbid, DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, rv.first, "Failed to fetch");
     const Item* it = reinterpret_cast<const Item*>(rv.second.get());
 

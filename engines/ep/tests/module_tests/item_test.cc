@@ -128,7 +128,7 @@ TEST_F(ItemTest, checkNRUandFreqCounterValueSetCorrectly) {
                                   PROTOCOL_BINARY_RAW_BYTES,
                                   0 /* cas */,
                                   -1 /* bySeqno */,
-                                  0 /* vbid */,
+                                  Vbid(0),
                                   1 /* revSeqno */,
                                   1 /* nru */,
                                   128 /* freqCount */);

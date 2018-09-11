@@ -598,26 +598,29 @@ uint64_t Manifest::getItemCount(CollectionID collection) const {
     return itr->second.getDiskCount();
 }
 
-bool Manifest::addStats(uint16_t vbid,
+bool Manifest::addStats(Vbid vbid,
                         const void* cookie,
                         ADD_STAT add_stat) const {
     try {
         const int bsize = 512;
         char buffer[bsize];
-        checked_snprintf(buffer, bsize, "vb_%d:manifest:entries", vbid);
+        checked_snprintf(buffer, bsize, "vb_%d:manifest:entries", vbid.get());
         add_casted_stat(buffer, map.size(), add_stat, cookie);
-        checked_snprintf(buffer, bsize, "vb_%d:manifest:default_exists", vbid);
+        checked_snprintf(
+                buffer, bsize, "vb_%d:manifest:default_exists", vbid.get());
         add_casted_stat(buffer,
                         defaultCollectionExists ? "true" : "false",
                         add_stat,
                         cookie);
-        checked_snprintf(buffer, bsize, "vb_%d:manifest:greatest_end", vbid);
+        checked_snprintf(
+                buffer, bsize, "vb_%d:manifest:greatest_end", vbid.get());
         add_casted_stat(buffer, greatestEndSeqno, add_stat, cookie);
-        checked_snprintf(buffer, bsize, "vb_%d:manifest:n_deleting", vbid);
+        checked_snprintf(
+                buffer, bsize, "vb_%d:manifest:n_deleting", vbid.get());
         add_casted_stat(buffer, nDeletingCollections, add_stat, cookie);
     } catch (const std::exception& e) {
         EP_LOG_WARN(
-                "VB::Manifest::addStats vb:{}, failed to build stats "
+                "VB::Manifest::addStats {}, failed to build stats "
                 "exception:{}",
                 vbid,
                 e.what());

@@ -180,7 +180,7 @@ ENGINE_ERROR_CODE Collections::Manager::doStats(KVBucket& bucket,
         auto pos = statKey.find_first_of(" ");
         if (pos != std::string::npos) {
             try {
-                uint16_t vbid = std::stoi(statKey.substr(pos));
+                Vbid vbid = Vbid(std::stoi(statKey.substr(pos)));
                 VBucketPtr vb = bucket.getVBucket(vbid);
                 if (vb) {
                     success = vb->lockCollections().addStats(

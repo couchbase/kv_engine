@@ -351,7 +351,7 @@ public:
      *         alongside a shared pointer to the requested VBucket.
      */
     LockedVBucketPtr getLockedVBucket(Vbid vbid) {
-        std::unique_lock<std::mutex> lock(vb_mutexes[vbid]);
+        std::unique_lock<std::mutex> lock(vb_mutexes[vbid.get()]);
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
 
@@ -367,7 +367,8 @@ public:
      * successfully acquired a locked VBucket.
      */
     LockedVBucketPtr getLockedVBucket(Vbid vbid, std::try_to_lock_t) {
-        std::unique_lock<std::mutex> lock(vb_mutexes[vbid], std::try_to_lock);
+        std::unique_lock<std::mutex> lock(vb_mutexes[vbid.get()],
+                                          std::try_to_lock);
         if (!lock) {
             return {{}, std::move(lock)};
         }

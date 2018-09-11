@@ -491,7 +491,7 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     EXPECT_EQ(keys, cl->callbacks);
 
     // Check item count
-    auto kvstoreContext = kvstore2.rw->makeFileHandle(0);
+    auto kvstoreContext = kvstore2.rw->makeFileHandle(Vbid(0));
     EXPECT_EQ(keys, kvstore2.rw->getCollectionItemCount(*kvstoreContext, cid));
 }
 

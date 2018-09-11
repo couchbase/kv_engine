@@ -130,7 +130,7 @@ public:
 
     /// @return true if successfully added stats, false otherwise
     bool addStats(const std::string& cid,
-                  uint16_t vbid,
+                  Vbid vbid,
                   const void* cookie,
                   ADD_STAT add_stat) const;
 

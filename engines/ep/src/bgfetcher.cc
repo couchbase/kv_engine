@@ -78,7 +78,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
                     startTime.time_since_epoch())
                     .count());
 
-    shard->getROUnderlying()->getMulti(vbId.get(), itemsToFetch);
+    shard->getROUnderlying()->getMulti(vbId, itemsToFetch);
 
     std::vector<bgfetched_item_t> fetchedItems;
     for (const auto& fetch : itemsToFetch) {
@@ -93,7 +93,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
     }
 
     if (fetchedItems.size() > 0) {
-        store->completeBGFetchMulti(vbId.get(), fetchedItems, startTime);
+        store->completeBGFetchMulti(vbId, fetchedItems, startTime);
         stats.getMultiHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
                         ProcessClock::now() - startTime),

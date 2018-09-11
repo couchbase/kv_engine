@@ -129,7 +129,7 @@ public:
      * This entry's vbucket.
      */
     Vbid vbucket() const {
-        return Vbid(ntohs(_vbucket));
+        return _vbucket.ntoh();
     }
 
     /**
@@ -269,7 +269,7 @@ public:
      * This entry's vbucket.
      */
     Vbid vbucket() const {
-        return Vbid(ntohs(_vbucket));
+        return _vbucket.ntoh();
     }
 
     /**
@@ -417,7 +417,7 @@ public:
      * This entry's vbucket.
      */
     Vbid vbucket() const {
-        return Vbid(ntohs(_vbucket));
+        return _vbucket.ntoh();
     }
 
     /**
@@ -432,7 +432,7 @@ private:
                                     const MutationLogEntryV3& e);
 
     MutationLogEntryV3(MutationLogType t, Vbid vb, const DocKey& k)
-        : _vbucket(htons(vb)), magic(MagicMarker), _type(t), _key(k) {
+        : _vbucket(vb.hton()), magic(MagicMarker), _type(t), _key(k) {
         // Assert that _key is the final member
         static_assert(
                 offsetof(MutationLogEntryV3, _key) ==

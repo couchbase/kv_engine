@@ -54,7 +54,7 @@ public:
         // corresponding paused DCP connections.
         if (newCheckpointCreated) {
             store->getEPEngine().getDcpConnMap().notifyVBConnections(
-                    vb->getId().get(), vb->checkpointManager->getHighSeqno());
+                    vb->getId(), vb->checkpointManager->getHighSeqno());
         }
 
         stats.itemsRemovedFromCheckpoints.fetch_add(removed);
