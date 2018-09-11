@@ -163,6 +163,8 @@ private:
  */
 class SerialisedManifest {
 public:
+    enum class Version : uint8_t { Zero = 0 };
+
     static size_t getObjectSize() {
         return sizeof(SerialisedManifest);
     }
@@ -229,6 +231,17 @@ private:
     }
 
     /**
+     * Factory method to return a SerialisedManifest from an existing buffer.
+     * validation is performed to check we are appear to be casting a valid
+     * buffer
+     */
+    static const SerialisedManifest* make(cb::const_char_buffer in) {
+        auto rv = reinterpret_cast<const SerialisedManifest*>(in.data());
+        rv->validate(in); // throws for problems
+        return rv;
+    }
+
+    /**
      * Construct a SerialisedManifest to have 0 items.
      *
      * @param manifestUid The UID to store
@@ -236,15 +249,45 @@ private:
      * @throws length_error if the consruction would access outside of out
      */
     SerialisedManifest(uid_t manifestUid, cb::char_buffer out)
-        : itemCount(0), finalEntryOffset(0), manifestUid(manifestUid) {
+        : version(Version::Zero),
+          pad{},
+          itemCount(0),
+          finalEntryOffset(0),
+          manifestUid(manifestUid) {
         if (!((out.data() + out.size()) >= (reinterpret_cast<char*>(this)))) {
             throw std::length_error(
-                    "SerialisedManifest::tryConstruction"
+                    "SerialisedManifest::Constructor#1"
                     " exceeds the buffer of size " +
                     std::to_string(out.size()));
         }
     }
 
+    /**
+     * Validate this object looks genuine and that the in buffer represents
+     * a SerialisedManifest
+     *
+     * @param in The existing buffer we are casting
+     * @throws length_error if in is not the correct size
+     * @throws invalid_argument if version is not known
+     */
+    void validate(cb::const_char_buffer in) const {
+        if (!((in.data() + in.size()) >=
+              (reinterpret_cast<const char*>(this)))) {
+            throw std::length_error(
+                    "SerialisedManifest::validate"
+                    " exceeds the buffer of size " +
+                    std::to_string(in.size()));
+        }
+        if (version != Version::Zero) {
+            throw std::invalid_argument(
+                    "SerialisedManifest::validate"
+                    " version mismatch version:" +
+                    std::to_string(uint32_t(version)));
+        }
+    }
+
+    Version version;
+    uint8_t pad[3];
     uint32_t itemCount;
     uint32_t finalEntryOffset;
     uid_t manifestUid;
