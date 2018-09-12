@@ -63,7 +63,7 @@ void EngineFixture::TearDown(const benchmark::State& state) {
     ObjectRegistry::onSwitchThread(nullptr);
 }
 
-Item EngineFixture::make_item(uint16_t vbid,
+Item EngineFixture::make_item(Vbid vbid,
                               const std::string& key,
                               const std::string& value) {
     Item item({key, DocKeyEncodesCollectionId::No},

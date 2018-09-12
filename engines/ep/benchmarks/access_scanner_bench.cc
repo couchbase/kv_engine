@@ -74,7 +74,8 @@ ProcessClock::time_point runNextTask(SingleThreadedExecutorPool* pool,
 BENCHMARK_DEFINE_F(AccessLogBenchEngine, MemoryOverhead)
 (benchmark::State& state) {
     ExTask task = nullptr;
-    engine->getKVBucket()->setVBucketState(0, vbucket_state_active, false);
+    engine->getKVBucket()->setVBucketState(
+            Vbid(0), vbucket_state_active, false);
     if (state.range(0) == 1) {
         state.SetLabel("AccessScanner");
         task = std::make_shared<AccessScanner>(*(engine->getKVBucket()),

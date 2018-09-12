@@ -34,13 +34,11 @@ protected:
 
     void TearDown(const benchmark::State& state) override;
 
-    Item make_item(uint16_t vbid,
-                   const std::string& key,
-                   const std::string& value);
+    Item make_item(Vbid vbid, const std::string& key, const std::string& value);
 
     std::unique_ptr<SynchronousEPEngine> engine;
     const void* cookie = nullptr;
-    const int vbid = 0;
+    const Vbid vbid = Vbid(0);
 
     // Allows subclasses to add stuff to the config
     std::string varConfig;

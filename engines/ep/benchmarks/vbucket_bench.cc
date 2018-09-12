@@ -43,7 +43,7 @@ protected:
         EngineFixture::SetUp(state);
         if (state.thread_index == 0) {
             engine->getKVBucket()->setVBucketState(
-                    0, vbucket_state_active, false);
+                    Vbid(0), vbucket_state_active, false);
         }
     }
 
@@ -55,7 +55,7 @@ protected:
     }
 
     /// Flush all items in the vBucket to disk.
-    size_t flushAllItems(uint16_t vbid) {
+    size_t flushAllItems(Vbid vbid) {
         size_t itemsFlushed = 0;
         auto& ep = dynamic_cast<EPBucket&>(*engine->getKVBucket());
         bool moreAvailable;

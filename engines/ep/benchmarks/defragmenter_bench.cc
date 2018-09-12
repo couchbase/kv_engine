@@ -43,7 +43,7 @@ public:
         default:
             FAIL() << "Invalid input param(0) value:" << state.range(0);
         }
-        vbucket.reset(new EPVBucket(0,
+        vbucket.reset(new EPVBucket(Vbid(0),
                                     vbucket_state_active,
                                     globalStats,
                                     checkpointConfig,
