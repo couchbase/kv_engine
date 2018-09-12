@@ -1529,7 +1529,7 @@ typedef protocol_binary_response_no_extras
 
 union protocol_binary_request_dcp_mutation {
     protocol_binary_request_dcp_mutation(uint32_t opaque,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t cas,
                                          uint16_t keyLen,
                                          uint32_t valueLen,
@@ -1545,7 +1545,7 @@ union protocol_binary_request_dcp_mutation {
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_MUTATION;
         req.opaque = opaque;
-        req.vbucket = htons(vbucket);
+        req.vbucket = vbucket.hton();
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
         req.extlen = gsl::narrow<uint8_t>(getExtrasLength());
@@ -1589,7 +1589,7 @@ union protocol_binary_request_dcp_mutation {
 union protocol_binary_request_dcp_deletion {
     static constexpr size_t extlen = 18;
     protocol_binary_request_dcp_deletion(uint32_t opaque,
-                                         uint16_t vbucket,
+                                         Vbid vbucket,
                                          uint64_t cas,
                                          uint16_t keyLen,
                                          uint32_t valueLen,
@@ -1601,7 +1601,7 @@ union protocol_binary_request_dcp_deletion {
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
         req.opaque = opaque;
-        req.vbucket = htons(vbucket);
+        req.vbucket = vbucket.hton();
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
         req.extlen = extlen;
@@ -1627,7 +1627,7 @@ union protocol_binary_request_dcp_deletion {
 union protocol_binary_request_dcp_deletion_v2 {
     static constexpr size_t extlen = 21;
     protocol_binary_request_dcp_deletion_v2(uint32_t opaque,
-                                            uint16_t vbucket,
+                                            Vbid vbucket,
                                             uint64_t cas,
                                             uint16_t keyLen,
                                             uint32_t valueLen,
@@ -1640,7 +1640,7 @@ union protocol_binary_request_dcp_deletion_v2 {
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
         req.opaque = opaque;
-        req.vbucket = htons(vbucket);
+        req.vbucket = vbucket.hton();
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
         req.extlen = extlen;
@@ -1668,7 +1668,7 @@ union protocol_binary_request_dcp_deletion_v2 {
 
 union protocol_binary_request_dcp_expiration {
     protocol_binary_request_dcp_expiration(uint32_t opaque,
-                                           uint16_t vbucket,
+                                           Vbid vbucket,
                                            uint64_t cas,
                                            uint16_t keyLen,
                                            uint32_t valueLen,
@@ -1680,7 +1680,7 @@ union protocol_binary_request_dcp_expiration {
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_EXPIRATION;
         req.opaque = opaque;
-        req.vbucket = htons(vbucket);
+        req.vbucket = vbucket.hton();
         req.cas = htonll(cas);
         req.keylen = htons(keyLen);
         req.extlen = gsl::narrow<uint8_t>(getExtrasLength());
@@ -1782,7 +1782,7 @@ static inline bool validate(uint32_t event) {
  */
 union protocol_binary_request_dcp_system_event {
     protocol_binary_request_dcp_system_event(uint32_t opaque,
-                                             uint16_t vbucket,
+                                             Vbid vbucket,
                                              uint16_t keyLen,
                                              size_t valueLen,
                                              mcbp::systemevent::id event,
@@ -1791,7 +1791,7 @@ union protocol_binary_request_dcp_system_event {
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
         req.opaque = opaque;
-        req.vbucket = htons(vbucket);
+        req.vbucket = vbucket.hton();
         req.keylen = htons(keyLen);
         req.extlen = getExtrasLength();
         req.bodylen =
@@ -2157,7 +2157,7 @@ union protocol_binary_request_compact_db {
             uint64_t purge_before_seq;
             uint8_t drop_deletes;
             uint8_t align_pad1;
-            uint16_t db_file_id;
+            Vbid db_file_id;
             uint32_t align_pad3;
         } body;
     } message;
@@ -2248,7 +2248,7 @@ typedef union {
  *       - format_type is of type uint8_t and it describes whether
  *         the vbucket has failed over or not. 1 indicates a hard
  *         failover, 0 indicates otherwise.
- *       - vbucket id is of type uint16_t and it is the identifier for
+ *       - vbucket id is of type Vbid and it is the identifier for
  *         the vbucket.
  *       - vbucket uuid is of type uint64_t and it represents a UUID for
  *          the vbucket.
