@@ -6,3 +6,12 @@ add_library(memcached_rbac STATIC
             )
 
 target_link_libraries(memcached_rbac cbsasl cJSON platform)
+
+if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+    add_executable(memcached_rbac_test privilege_test.cc)
+    target_link_libraries(memcached_rbac_test cJSON memcached_rbac
+                          gtest gtest_main)
+    add_test(NAME memcached-rbac-test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND memcached_rbac_test)
+endif ()
