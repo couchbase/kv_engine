@@ -514,9 +514,20 @@ static void update_user_permissions_executor(Cookie& cookie) {
                             key.size()},
                 std::string{reinterpret_cast<const char*>(value.data()),
                             value.size()});
+    } catch (const nlohmann::json::exception& error) {
+        cookie.setErrorContext(error.what());
+        status = cb::mcbp::Status::Einval;
+        LOG_WARNING(
+                R"({}: update_user_permissions_executor: Failed to parse provided JSON: {})",
+                cookie.getConnection().getId(),
+                error.what());
     } catch (const std::runtime_error& error) {
         cookie.setErrorContext(error.what());
         status = cb::mcbp::Status::Einval;
+        LOG_WARNING(
+                R"({}: update_user_permissions_executor: An error occurred while updating user: {})",
+                cookie.getConnection().getId(),
+                error.what());
     }
 
     cookie.sendResponse(status);

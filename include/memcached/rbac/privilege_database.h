@@ -21,10 +21,9 @@
  * by the memcached core. For more information see rbac.md in the
  * docs directory.
  */
-#include <cJSON.h>
-#include <memcached/rbac/privileges.h>
-
 #include <cbsasl/domain.h>
+#include <memcached/rbac/privileges.h>
+#include <nlohmann/json_fwd.hpp>
 #include <bitset>
 #include <cstdint>
 #include <limits>
@@ -57,12 +56,13 @@ public:
     /**
      * Create a new UserEntry from the provided JSON
      *
+     * @param username The name of the user we're currently parse
      * @param json A JSON representation of the user.
      * @throws std::invalid_argument if the provided JSON isn't according
      *         to the specification.
      * @throws std::bad_alloc if we run out of memory
      */
-    explicit UserEntry(const cJSON& json);
+    UserEntry(const std::string& username, const nlohmann::json& json);
 
     /**
      * Get a map containing all of the buckets and the privileges in those
@@ -87,6 +87,10 @@ public:
         return domain;
     }
 
+    void setDomain(cb::sasl::Domain domain) {
+        UserEntry::domain = domain;
+    }
+
     /**
      * Is this a system internal user or not? A system internal user is a
      * user one of the system components use.
@@ -105,11 +109,11 @@ protected:
      *                specify for a bucket)
      * @return A vector of all of the privileges found in the specified JSON
      */
-    PrivilegeMask parsePrivileges(const cJSON* priv, bool buckets);
+    PrivilegeMask parsePrivileges(const nlohmann::json& privs, bool buckets);
 
     std::unordered_map<std::string, PrivilegeMask> buckets;
     PrivilegeMask privileges;
-    cb::sasl::Domain domain;
+    cb::sasl::Domain domain = cb::sasl::Domain::Local;
     bool internal;
 };
 
@@ -244,7 +248,7 @@ public:
      * @throws std::invalid_argument for invalid syntax
      * @throws std::bad_alloc if we run out of memory
      */
-    explicit PrivilegeDatabase(const cJSON* json);
+    explicit PrivilegeDatabase(const nlohmann::json& json);
 
     /**
      * Try to look up a user in the privilege database

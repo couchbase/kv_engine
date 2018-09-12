@@ -16,7 +16,7 @@
  */
 #include <memcached/rbac.h>
 
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/rwlock.h>
 #include <strings.h>
@@ -45,60 +45,47 @@ bool UserEntry::operator==(const UserEntry& other) const {
             privileges == other.privileges && buckets == other.buckets);
 }
 
-UserEntry::UserEntry(const cJSON& root) {
-    if (root.string == nullptr) {
-        throw std::invalid_argument(
-            "UserEntry::UserEntry: string can't be nullptr. It should contain username");
-    }
-
+UserEntry::UserEntry(const std::string& username, const nlohmann::json& json) {
     // All system internal users is prefixed with @
-    internal = root.string[0] == '@';
+    internal = username.front() == '@';
 
-    auto* json = const_cast<cJSON*>(&root);
-    const auto* it = cJSON_GetObjectItem(json, "privileges");
-    if (it != nullptr) {
-        privileges = parsePrivileges(it, false);
+    // Domain must be present so that we know where it comes from
+    auto iter = json.find("domain");
+    if (iter != json.end()) {
+        domain = cb::sasl::to_domain(iter->get<std::string>());
+        if (internal && domain == cb::sasl::Domain::External) {
+            throw std::runtime_error(
+                    R"(UserEntry::UserEntry: internal users must be locally defined)");
+        }
     }
 
-    it = cJSON_GetObjectItem(json, "buckets");
-    if (it != nullptr) {
-        if (it->type != cJSON_Object) {
+    iter = json.find("privileges");
+    if (iter != json.end()) {
+        // Parse the privileges
+        privileges = parsePrivileges(*iter, false);
+    }
+
+    iter = json.find("buckets");
+    if (iter != json.end()) {
+        if (!iter->is_object()) {
             throw std::invalid_argument(
-                    "UserEntry::UserEntry::"
-                    " \"buckets\" should be an object");
+                    R"(UserEntry::UserEntry: "buckets" should be an object)");
         }
 
-        for (it = it->child; it != nullptr; it = it->next) {
-            auto privileges = parsePrivileges(it, true);
+        for (auto it = iter->begin(); it != iter->end(); ++it) {
+            auto privileges = parsePrivileges(it.value(), true);
             if (privileges.any()) {
-                buckets[it->string] = privileges;
+                buckets[it.key()] = privileges;
             }
         }
     }
-
-    it = cJSON_GetObjectItem(json, "domain");
-    if (it == nullptr) {
-        domain = cb::sasl::Domain::Local;
-    } else if (it->type == cJSON_String) {
-        domain = cb::sasl::to_domain(it->valuestring);
-    } else {
-        throw std::invalid_argument(
-                "UserEntry::UserEntry::"
-                " \"domain\" should be a string");
-    }
 }
 
-PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
+PrivilegeMask UserEntry::parsePrivileges(const nlohmann::json& privs,
+                                         bool buckets) {
     PrivilegeMask ret;
-
-    for (const auto* it = priv->child; it != nullptr; it = it->next) {
-        if (it->type != cJSON_String) {
-            throw std::runtime_error(
-                    "UserEntry::parsePrivileges: privileges must be specified "
-                    "as strings");
-        }
-
-        const std::string str(it->valuestring);
+    for (const auto& priv : privs) {
+        const std::string str{priv.get<std::string>()};
         if (str == "all") {
             ret.set();
         } else {
@@ -132,13 +119,11 @@ PrivilegeMask UserEntry::parsePrivileges(const cJSON* priv, bool buckets) {
     return ret;
 }
 
-PrivilegeDatabase::PrivilegeDatabase(const cJSON* json)
+PrivilegeDatabase::PrivilegeDatabase(const nlohmann::json& json)
     : generation(cb::rbac::generation.operator++()) {
-
-    if (json != nullptr) {
-        for (auto it = json->child; it != nullptr; it = it->next) {
-            userdb.emplace(it->string, UserEntry(*it));
-        }
+    for (auto it = json.begin(); it != json.end(); ++it) {
+        const std::string username = it.key();
+        userdb.emplace(username, UserEntry(username, it.value()));
     }
 }
 
@@ -294,14 +279,8 @@ std::pair<PrivilegeContext, bool> createInitialContext(
 
 void loadPrivilegeDatabase(const std::string& filename) {
     const auto content = cb::io::loadFile(filename);
-    unique_cJSON_ptr json(cJSON_Parse(content.c_str()));
-    if (json.get() == nullptr) {
-        throw std::runtime_error(
-                "PrivilegeDatabaseManager::load: Failed to parse json");
-    }
-
-    auto database = std::make_unique<PrivilegeDatabase>(json.get());
-
+    auto json = nlohmann::json::parse(content);
+    auto database = std::make_unique<PrivilegeDatabase>(json);
     std::lock_guard<cb::WriterLock> guard(rwlock.writer());
     // Handle race conditions
     if (db->generation < database->generation) {
@@ -312,7 +291,7 @@ void loadPrivilegeDatabase(const std::string& filename) {
 void initialize() {
     // Create an empty database to avoid having to add checks
     // if it exists or not...
-    db = std::make_unique<PrivilegeDatabase>(nullptr);
+    db = std::make_unique<PrivilegeDatabase>(nlohmann::json{});
 }
 
 void destroy() {
@@ -344,14 +323,9 @@ void updateUser(const std::string& user, const std::string& descr) {
 
     // Parse the JSON and create the UserEntry object before grabbing
     // the write lock!
-    unique_cJSON_ptr json(cJSON_Parse(descr.c_str()));
-    if (!json || json->child == nullptr || json->child->type != cJSON_Object ||
-        json->child->string == nullptr || user != json->child->string) {
-        throw std::runtime_error(
-                "cb::rbac::updateUser(): Invalid json provided");
-    }
-
-    UserEntry entry(*json->child);
+    auto json = nlohmann::json::parse(descr);
+    const std::string username = json.begin().key();
+    UserEntry entry(username, json[username]);
     std::lock_guard<cb::WriterLock> guard(rwlock.writer());
     auto next = db->updateUser(user, entry);
     if (next) {

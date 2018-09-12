@@ -27,8 +27,7 @@ TEST(UserEntryTest, ParseLegalConfig) {
     json["trond"]["buckets"]["bucket2"] = {"Read"};
     json["trond"]["domain"] = "external";
 
-    unique_cJSON_ptr root(cJSON_Parse(json.dump().data()));
-    cb::rbac::UserEntry ue(*root.get()->child);
+    cb::rbac::UserEntry ue("trond", *json.begin());
     EXPECT_EQ(cb::sasl::Domain::External, ue.getDomain());
 
     {
@@ -62,13 +61,58 @@ TEST(UserEntryTest, ParseLegalConfig) {
     EXPECT_FALSE(ue.isInternal());
 }
 
+TEST(UserEntryTest, DomainMustBeString) {
+    nlohmann::json json;
+    json["trond"]["privileges"] = {"Audit", "BucketManagement"};
+    json["trond"]["buckets"]["bucket1"] = {"Read", "Insert"};
+    json["trond"]["buckets"]["bucket2"] = {"Read"};
+    json["trond"]["domain"] = 5;
+    try {
+        cb::rbac::UserEntry ue("trond", *json.begin());
+        FAIL() << "The entry must be a string";
+    } catch (nlohmann::json::exception&) {
+    }
+}
+
+TEST(UserEntryTest, PrivilegesIsOptional) {
+    nlohmann::json json;
+    json["trond"]["buckets"]["bucket1"] = {"Read", "Insert"};
+    json["trond"]["buckets"]["bucket2"] = {"Read"};
+    json["trond"]["domain"] = "local";
+    cb::rbac::UserEntry ue("trond", *json.begin());
+}
+
+TEST(UserEntryTest, BucketsIsOptional) {
+    nlohmann::json json;
+    json["trond"]["privileges"] = {"Audit", "BucketManagement"};
+    json["trond"]["domain"] = "local";
+    cb::rbac::UserEntry ue("trond", *json.begin());
+}
+
+TEST(UserEntryTest, OnlyDomainIsMandatory) {
+    nlohmann::json json;
+    json["trond"]["domain"] = "local";
+    cb::rbac::UserEntry ue("trond", *json.begin());
+}
+
+TEST(UserEntryTest, InternalUsersMustBeLocal) {
+    nlohmann::json json;
+    json["@kv"]["domain"] = "local";
+    cb::rbac::UserEntry local("@kv", *json.begin());
+    json["@kv"]["domain"] = "external";
+    try {
+        cb::rbac::UserEntry external("@kv", *json.begin());
+        FAIL() << "Internal users must be locally defined";
+    } catch (const std::runtime_error&) {
+    }
+}
+
 TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
     nlohmann::json json;
     json["trond"]["privileges"] = {"Audit"};
     json["trond"]["buckets"]["mybucket"] = {"Read"};
     json["trond"]["domain"] = "external";
-    unique_cJSON_ptr root(cJSON_Parse(json.dump().data()));
-    cb::rbac::PrivilegeDatabase db(root.get());
+    cb::rbac::PrivilegeDatabase db(json);
 
     // Looking up an existing user should not throw an exception
     db.lookup("trond");
