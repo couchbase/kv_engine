@@ -18,38 +18,18 @@
 #include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <memcached/rbac.h>
+#include <nlohmann/json.hpp>
 
-TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    {
-        cJSON* trond = cJSON_CreateObject();
-        cJSON_AddItemToObject(root.get(), "trond", trond);
+TEST(UserEntryTest, ParseLegalConfig) {
+    nlohmann::json json;
+    json["trond"]["privileges"] = {"Audit", "BucketManagement"};
+    json["trond"]["buckets"]["bucket1"] = {"Read", "Insert"};
+    json["trond"]["buckets"]["bucket2"] = {"Read"};
+    json["trond"]["domain"] = "external";
 
-        cJSON* privileges = cJSON_CreateArray();
-        cJSON_AddItemToArray(privileges, cJSON_CreateString("Audit"));
-        cJSON_AddItemToArray(privileges,
-                             cJSON_CreateString("BucketManagement"));
-        cJSON_AddItemToObject(trond, "privileges", privileges);
-
-        cJSON* buckets = cJSON_CreateObject();
-        cJSON_AddItemToObject(trond, "buckets", buckets);
-
-        privileges = cJSON_CreateArray();
-        cJSON_AddItemToArray(privileges, cJSON_CreateString("Read"));
-        cJSON_AddItemToArray(privileges, cJSON_CreateString("Insert"));
-        cJSON_AddItemToArray(privileges, cJSON_CreateString("Delete"));
-        cJSON_AddItemToArray(privileges, cJSON_CreateString("Upsert"));
-        cJSON_AddItemToArray(privileges, cJSON_CreateString("SimpleStats"));
-        cJSON_AddItemToObject(buckets, "bucket1", privileges);
-
-        privileges = cJSON_CreateArray();
-        cJSON_AddItemToArray(privileges, cJSON_CreateString("Read"));
-
-        cJSON_AddItemToObject(buckets, "bucket2", privileges);
-    }
-
-    cb::rbac::PrivilegeDatabase db(root.get());
-    const auto& ue = db.lookup("trond");
+    unique_cJSON_ptr root(cJSON_Parse(json.dump().data()));
+    cb::rbac::UserEntry ue(*root.get()->child);
+    EXPECT_EQ(cb::sasl::Domain::External, ue.getDomain());
 
     {
         cb::rbac::PrivilegeMask privs{};
@@ -67,10 +47,6 @@ TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Read)] = true;
         privs[int(cb::rbac::Privilege::Insert)] = true;
-        privs[int(cb::rbac::Privilege::Delete)] = true;
-        privs[int(cb::rbac::Privilege::Upsert)] = true;
-        privs[int(cb::rbac::Privilege::SimpleStats)] = true;
-
         EXPECT_EQ(privs, it->second);
     }
 
@@ -80,6 +56,27 @@ TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Read)] = true;
         EXPECT_EQ(privs, it->second);
+    }
+
+    // The username does not start with @
+    EXPECT_FALSE(ue.isInternal());
+}
+
+TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
+    nlohmann::json json;
+    json["trond"]["privileges"] = {"Audit"};
+    json["trond"]["buckets"]["mybucket"] = {"Read"};
+    json["trond"]["domain"] = "external";
+    unique_cJSON_ptr root(cJSON_Parse(json.dump().data()));
+    cb::rbac::PrivilegeDatabase db(root.get());
+
+    // Looking up an existing user should not throw an exception
+    db.lookup("trond");
+    try {
+        db.lookup("foo");
+        FAIL() << "Trying to fetch a nonexisting user should throw exception";
+    } catch (const cb::rbac::NoSuchUserException& exception) {
+        EXPECT_STRCASEEQ("foo", exception.what());
     }
 }
 
