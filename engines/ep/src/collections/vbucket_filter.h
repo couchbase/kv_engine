@@ -88,13 +88,13 @@ public:
             return true;
         }
 
+        const auto cid = item.getKey().getCollectionID();
         // The presence of _default is a simple check against defaultAllowed
-        if (item.getKey().getCollectionID() == CollectionID::Default &&
-            defaultAllowed) {
+        if (cid.isDefaultCollection() && defaultAllowed) {
             return true;
         }
         // More complex checks needed...
-        return checkAndUpdateSlow(item);
+        return checkAndUpdateSlow(cid, item);
     }
 
     /**
@@ -133,7 +133,7 @@ protected:
     bool allowSystemEvent(const Item& item) const;
 
     /// Non-inline, slow path of checkAndUpdate().
-    bool checkAndUpdateSlow(const Item& item);
+    bool checkAndUpdateSlow(CollectionID cid, const Item& item);
 
     /**
      * Remove the collection of the item from the filter

@@ -109,17 +109,18 @@ void Collections::VB::Filter::addCollection(
     }
 }
 
-bool Collections::VB::Filter::checkAndUpdateSlow(const Item& item) {
+bool Collections::VB::Filter::checkAndUpdateSlow(CollectionID cid,
+                                                 const Item& item) {
     bool allowed = false;
 
-    if (item.getKey().getCollectionID() == DocNamespace::System) {
+    if (cid == DocNamespace::System) {
         allowed = allowSystemEvent(item);
 
         if (item.isDeleted()) {
             remove(item);
         }
     } else {
-        allowed = filter.count(item.getKey().getCollectionID());
+        allowed = filter.count(cid);
     }
 
     return allowed;
