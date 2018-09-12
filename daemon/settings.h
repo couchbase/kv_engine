@@ -659,8 +659,8 @@ public:
      *
      * @return true if the collections prototype should be enabled
      */
-    bool isCollectionsPrototypeEnabled() const {
-        return collections_prototype.load();
+    bool isCollectionsEnabled() const {
+        return collections_enabled.load();
     }
 
     /**
@@ -669,9 +669,9 @@ public:
      * @param collections_enabled true if the system should enable collections
      */
     void setCollectionsPrototype(const bool collections_enabled) {
-        Settings::collections_prototype.store(collections_enabled);
-        has.collections_prototype = collections_enabled;
-        notify_changed("collections_prototype");
+        Settings::collections_enabled.store(collections_enabled);
+        has.collections_enabled = collections_enabled;
+        notify_changed("collections_enabled");
     }
 
     const std::string getOpcodeAttributesOverride() const {
@@ -866,7 +866,7 @@ protected:
     /**
      * Should collections be enabled (off by default as it's a work in progress)
      */
-    std::atomic_bool collections_prototype;
+    std::atomic_bool collections_enabled;
 
     /**
      * Any settings to override opcode attributes
@@ -931,7 +931,7 @@ public:
         bool dedupe_nmvb_maps;
         bool error_maps;
         bool xattr_enabled;
-        bool collections_prototype;
+        bool collections_enabled;
         bool opcode_attributes_override;
         bool topkeys_enabled;
         bool tracing_enabled;

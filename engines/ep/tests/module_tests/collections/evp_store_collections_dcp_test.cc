@@ -51,7 +51,7 @@ public:
 
     // Setup a producer/consumer ready for the test
     void SetUp() override {
-        config_string += "collections_prototype_enabled=true";
+        config_string += "collections_enabled=true";
         SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
@@ -679,7 +679,7 @@ public:
     CollectionsFilteredDcpErrorTest() : cookieP(create_mock_cookie()) {
     }
     void SetUp() override {
-        config_string += "collections_prototype_enabled=true";
+        config_string += "collections_enabled=true";
         SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
@@ -723,7 +723,7 @@ public:
     }
 
     void SetUp() override {
-        config_string += "collections_prototype_enabled=true";
+        config_string += "collections_enabled=true";
         SingleThreadedKVBucketTest::SetUp();
         producers = std::make_unique<MockDcpMessageProducers>(engine.get());
         // Start vbucket as active to allow us to store items directly to it.

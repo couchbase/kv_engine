@@ -4136,7 +4136,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
             return ENGINE_EINVAL;
         }
     } else if (statKey == "collections" &&
-               configuration.isCollectionsPrototypeEnabled()) {
+               configuration.isCollectionsEnabled()) {
         // @todo MB-24546 For development, just log everything.
         kvBucket->getCollectionsManager().logAll(*kvBucket.get());
         rv = ENGINE_SUCCESS;
@@ -5594,7 +5594,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     // request collection DCP and we won't need this...
     // @todo MB-24547
     static const std::string replicationConnName = "replication:";
-    if (getConfiguration().isCollectionsPrototypeEnabled() &&
+    if (getConfiguration().isCollectionsEnabled() &&
         !connName.compare(0, replicationConnName.size(), replicationConnName) &&
         !json.is_initialized()) {
         // Fail DCP open, we need to have replication with collections enabled

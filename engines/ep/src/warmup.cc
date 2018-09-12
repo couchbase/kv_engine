@@ -862,8 +862,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
         // Collections requires that the VBucket datafiles have the collection
         // meta-data applied.
-        if (!vbs.supportsCollections &&
-            config.isCollectionsPrototypeEnabled()) {
+        if (!vbs.supportsCollections && config.isCollectionsEnabled()) {
             EP_LOG_CRITICAL(
                     "Warmup::createVBuckets aborting warmup as vb:{} datafile "
                     "is unusable (does not support collections)",
@@ -896,7 +895,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                     vbs.maxCas,
                     vbs.hlcCasEpochSeqno,
                     vbs.mightContainXattrs,
-                    config.isCollectionsPrototypeEnabled()
+                    config.isCollectionsEnabled()
                             ? store.getROUnderlyingByShard(shardId)
                                       ->getCollectionsManifest(vbid)
                             : "" /*no collections manifest*/);

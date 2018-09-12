@@ -194,9 +194,9 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "collections_prototype_enabled" : {
+        "collections_enabled" : {
             "default": "false",
-            "descr": "Enable the collections functionality. Warning breaks upgrades and compatibility with legacy clients",
+            "descr": "Enable the collections functionality, enabling the storage of collection metadata",
             "dynamic": true,
             "type": "bool"
         },

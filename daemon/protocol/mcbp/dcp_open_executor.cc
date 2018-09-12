@@ -75,7 +75,7 @@ void dcp_open_executor(Cookie& cookie) {
         // collection bucket. This is only whilst collections are in development
         if (ret == ENGINE_SUCCESS) {
             ret = dcpOpenFunc();
-            if (settings.isCollectionsPrototypeEnabled() &&
+            if (settings.isCollectionsEnabled() &&
                 ret == ENGINE_UNKNOWN_COLLECTION) {
                 // Force collections on
                 cookie.getConnection().setCollectionsSupported(true);

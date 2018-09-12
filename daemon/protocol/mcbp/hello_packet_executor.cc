@@ -262,7 +262,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
         case cb::mcbp::Feature::COLLECTIONS:
             // Allow KV engine to chicken out
-            if (settings.isCollectionsPrototypeEnabled()) {
+            if (settings.isCollectionsEnabled()) {
                 connection.setCollectionsSupported(true);
                 added = true;
             }

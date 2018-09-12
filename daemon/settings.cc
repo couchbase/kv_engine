@@ -60,7 +60,7 @@ Settings::Settings()
     dedupe_nmvb_maps.store(false);
     xattr_enabled.store(false);
     privilege_debug.store(false);
-    collections_prototype.store(false);
+    collections_enabled.store(true);
 
     memset(&has, 0, sizeof(has));
 }
@@ -563,21 +563,21 @@ static void handle_client_cert_auth(Settings& s, cJSON* obj) {
 }
 
 /**
- * Handle the "collections_prototype" tag in the settings
+ * Handle the "collections_enabled" tag in the settings
  *
  *  The value must be a boolean value
  *
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_collections_prototype(Settings& s, cJSON* obj) {
+static void handle_collections_enabled(Settings& s, cJSON* obj) {
     if (obj->type == cJSON_True) {
         s.setCollectionsPrototype(true);
     } else if (obj->type == cJSON_False) {
         s.setCollectionsPrototype(false);
     } else {
         throw std::invalid_argument(
-                "\"collections_prototype\" must be a boolean value");
+                "\"collections_enabled\" must be a boolean value");
     }
 }
 
@@ -691,7 +691,7 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"dedupe_nmvb_maps", handle_dedupe_nmvb_maps},
             {"xattr_enabled", handle_xattr_enabled},
             {"client_cert_auth", handle_client_cert_auth},
-            {"collections_prototype", handle_collections_prototype},
+            {"collections_enabled", handle_collections_enabled},
             {"opcode_attributes_override", handle_opcode_attributes_override},
             {"topkeys_enabled", handle_topkeys_enabled},
             {"tracing_enabled", handle_tracing_enabled},
@@ -962,11 +962,11 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.collections_prototype) {
-        if (other.collections_prototype != collections_prototype) {
-            LOG_INFO("{} collections_prototype",
-                     other.collections_prototype.load() ? "Enable" : "Disable");
-            setCollectionsPrototype(other.collections_prototype.load());
+    if (other.has.collections_enabled) {
+        if (other.collections_enabled != collections_enabled) {
+            LOG_INFO("{} collections_enabled",
+                     other.collections_enabled.load() ? "Enable" : "Disable");
+            setCollectionsPrototype(other.collections_enabled.load());
         }
     }
 

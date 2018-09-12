@@ -36,7 +36,7 @@ class CollectionsTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() override {
         // Enable collections (which will enable namespace persistence).
-        config_string += "collections_prototype_enabled=true";
+        config_string += "collections_enabled=true";
         SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
@@ -545,7 +545,7 @@ class CollectionsWarmupTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() override {
         // Enable collections (which will enable namespace persistence).
-        config_string += "collections_prototype_enabled=true";
+        config_string += "collections_enabled=true";
         SingleThreadedKVBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     }

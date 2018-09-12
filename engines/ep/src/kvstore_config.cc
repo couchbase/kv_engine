@@ -43,7 +43,7 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
                     config.getDbname(),
                     config.getBackend(),
                     shardid,
-                    config.isCollectionsPrototypeEnabled()) {
+                    config.isCollectionsEnabled()) {
     setPeriodicSyncBytes(config.getFsyncAfterEveryNBytesWritten());
     config.addValueChangedListener(
             "fsync_after_every_n_bytes_written",

@@ -769,10 +769,10 @@ static auto allConfigValues = ::testing::Values(
         // rollback
         std::make_tuple(std::string("value_only"),
                         std::string("replica"),
-                        std::string("collections_prototype_enabled=true")),
+                        std::string("collections_enabled=true")),
         std::make_tuple(std::string("full_eviction"),
                         std::string("replica"),
-                        std::string("collections_prototype_enabled=true")));
+                        std::string("collections_enabled=true")));
 
 // Test cases which run in both Full and Value eviction on replica and pending
 // vbucket states

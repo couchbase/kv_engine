@@ -25,7 +25,7 @@ class CollectionsEraserTest
 public:
     void SetUp() override {
         // Enable collections (which will enable namespace persistence).
-        config_string += "collections_prototype_enabled=true;";
+        config_string += "collections_enabled=true;";
         config_string += GetParam();
         SingleThreadedKVBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
