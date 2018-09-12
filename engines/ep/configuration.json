@@ -195,7 +195,7 @@
             "type": "size_t"
         },
         "collections_enabled" : {
-            "default": "false",
+            "default": "true",
             "descr": "Enable the collections functionality, enabling the storage of collection metadata",
             "dynamic": true,
             "type": "bool"

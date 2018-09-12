@@ -2144,10 +2144,14 @@ public:
         ASSERT_EQ(COUCHSTORE_SUCCESS, err) << "Failed to open new database";
 
         // Create a 2.5 _local/vbstate
+        // Note: adding 'collections_supported' keeps these tests running
+        // when collections is enabled, a true offline upgrade would do this
+        // as well (as long as couchfile_upgrade was invoked).
         std::string vbstate2_5_x =
-                "{\"state\": \"active\","
-                " \"checkpoint_id\": \"1\","
-                " \"max_deleted_seqno\": \"0\"}";
+                R"({"state": "active",
+                    "checkpoint_id": "1",
+                    "max_deleted_seqno": "0",
+                    "collections_supported":true})";
         LocalDoc vbstate;
         vbstate.id.buf = (char*)"_local/vbstate";
         vbstate.id.size = sizeof("_local/vbstate") - 1;

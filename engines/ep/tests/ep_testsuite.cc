@@ -2062,6 +2062,12 @@ static enum test_result test_io_stats(EngineIface* h) {
         return SKIPPED;
     }
 
+    std::string collections = get_str_stat(h, "ep_collections_enabled");
+    if (collections == "true") {
+        // 1 byte of meta data for the collection-ID
+        exp_write_bytes += 1;
+    }
+
     reset_stats(h);
 
     checkeq(0,
@@ -2111,9 +2117,12 @@ static enum test_result test_io_stats(EngineIface* h) {
             get_int_stat(h, numReadStatStr.str().c_str(), "kvstore"),
             "Expected reading the value back in to update the read counter");
 
-    const uint64_t exp_read_bytes =
-            key.size() + value.size() +
-            MetaData::getMetaDataSize(MetaData::Version::V1);
+    uint64_t exp_read_bytes = key.size() + value.size() +
+                              MetaData::getMetaDataSize(MetaData::Version::V1);
+    if (collections == "true") {
+        // 1 byte of meta data for the collection-ID
+        exp_read_bytes += 1;
+    }
     checkeq(exp_read_bytes,
             get_stat<uint64_t>(h, readBytesStatStr.str().c_str(), "kvstore"),
             "Expected reading the value back in to update the read bytes");
@@ -6275,9 +6284,12 @@ static void force_vbstate_to_25x(std::string dbname, int vbucket) {
     checkeq(COUCHSTORE_SUCCESS, err, "Failed to open new database");
 
     // Create 2.5 _local/vbstate
-    std::string vbstate2_5_x ="{\"state\": \"active\","
-                              " \"checkpoint_id\": \"1\","
-                              " \"max_deleted_seqno\": \"0\"}";
+    // Note: unconditionally adding collection_supported to keep this test
+    // working regardless of collections being enabled.
+    std::string vbstate2_5_x = R"({"state": "active",
+                                   "checkpoint_id": "1",
+                                   "max_deleted_seqno": "0",
+                                   "collections_supported":true})";
     LocalDoc vbstate;
     vbstate.id.buf = (char *)"_local/vbstate";
     vbstate.id.size = sizeof("_local/vbstate") - 1;

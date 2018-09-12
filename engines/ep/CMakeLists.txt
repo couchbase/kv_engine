@@ -592,7 +592,7 @@ INSTALL(TARGETS ep
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     IF (EP_USE_ROCKSDB)
         ADD_TEST(NAME ep-engine-persistence-unit-tests.rocksdb
-                 COMMAND memcached_testapp -E ep -c "backend=rocksdb" --gtest_filter=*PersistToTest*)
+                 COMMAND memcached_testapp -E ep -c "backend=rocksdb$<SEMICOLON>collections_enabled=false" --gtest_filter=*PersistToTest*)
         SET_TESTS_PROPERTIES(ep-engine-persistence-unit-tests.rocksdb PROPERTIES TIMEOUT 300)
     ENDIF (EP_USE_ROCKSDB)
 
@@ -633,9 +633,9 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
 
         IF (EP_USE_ROCKSDB)
             ADD_TEST(NAME ${name}.value_eviction.rocksdb
-                     COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.rocksdb$<SEMICOLON>backend=rocksdb")
+                     COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.rocksdb$<SEMICOLON>backend=rocksdb$<SEMICOLON>collections_enabled=false")
             ADD_TEST(NAME ${name}.full_eviction.rocksdb
-                     COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.rocksdb$<SEMICOLON>backend=rocksdb")
+                     COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.rocksdb$<SEMICOLON>backend=rocksdb$<SEMICOLON>collections_enabled=false")
             SET_TESTS_PROPERTIES(${name}.value_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
             SET_TESTS_PROPERTIES(${name}.full_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
         ENDIF (EP_USE_ROCKSDB)
