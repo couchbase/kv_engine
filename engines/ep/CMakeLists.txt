@@ -278,13 +278,23 @@ TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
                       ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep)
 
+ADD_LIBRARY(mock_dcp OBJECT tests/mock/mock_dcp.cc)
+SET_PROPERTY(TARGET mock_dcp PROPERTY POSITION_INDEPENDENT_CODE 1)
+add_sanitizers(mock_dcp)
+
+ADD_LIBRARY(ep_testsuite_objs OBJECT
+            tests/ep_testsuite_common.cc
+            tests/ep_test_apis.cc
+            src/ext_meta_parser.cc)
+SET_PROPERTY(TARGET ep_testsuite_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
+add_sanitizers(ep_testsuite_objs)
+
 if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     # Single executable containing all class-level unit tests involving
     # EventuallyPersistentEngine driven by GoogleTest.
     # (We end up compiling most of the src/ files of ep-engine for these unit tests,
     # so simpler / quicker just to link them into a single executable).
     ADD_EXECUTABLE(ep-engine_ep_unit_tests
-                   tests/mock/mock_dcp.cc
                    tests/mock/mock_dcp_producer.cc
                    tests/mock/mock_ephemeral_vb.cc
                    tests/mock/mock_stream.cc
@@ -347,6 +357,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/test_helpers.cc
                    tests/module_tests/vbucket_test.cc
                    tests/module_tests/warmup_test.cc
+                   $<TARGET_OBJECTS:mock_dcp>
                    $<TARGET_OBJECTS:ep_objs>
                    $<TARGET_OBJECTS:memory_tracking>
                    $<TARGET_OBJECTS:couchstore_test_fileops>
@@ -456,10 +467,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     ADD_LIBRARY(ep_testsuite SHARED
                 tests/ep_testsuite.cc
-                src/ext_meta_parser.cc
-                tests/ep_testsuite_common.cc
-                tests/ep_test_apis.cc
-                tests/mock/mock_dcp.cc)
+                $<TARGET_OBJECTS:ep_testsuite_objs>
+                $<TARGET_OBJECTS:mock_dcp>)
     SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcd_util
                           ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
@@ -469,10 +478,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     ADD_LIBRARY(ep_testsuite_basic SHARED
                 tests/ep_testsuite_basic.cc
-                src/ext_meta_parser.cc
-                tests/ep_testsuite_common.cc
-                tests/ep_test_apis.cc
-                tests/mock/mock_dcp.cc
+                $<TARGET_OBJECTS:ep_testsuite_objs>
+                $<TARGET_OBJECTS:mock_dcp>
                 )
     SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_testsuite_basic engine_utilities JSON_checker dirutils
@@ -482,20 +489,16 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     ADD_LIBRARY(ep_testsuite_dcp SHARED
                 tests/ep_testsuite_dcp.cc
-                src/ext_meta_parser.cc
-                tests/ep_testsuite_common.cc
-                tests/ep_test_apis.cc
-                tests/mock/mock_dcp.cc
+                $<TARGET_OBJECTS:ep_testsuite_objs>
+                $<TARGET_OBJECTS:mock_dcp>
                 )
     SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_testsuite_dcp engine_utilities cbcompress JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_checkpoint SHARED
-                tests/ep_testsuite_common.cc
                 tests/ep_testsuite_checkpoint.cc
-                tests/ep_test_apis.cc
-                src/ext_meta_parser.cc)
+                $<TARGET_OBJECTS:ep_testsuite_objs>)
     SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint engine_utilities JSON_checker
                           cbcompress dirutils platform ${LIBEVENT_LIBRARIES}
@@ -503,10 +506,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_xdcr SHARED
-                tests/ep_testsuite_common.cc
                 tests/ep_testsuite_xdcr.cc
-                tests/ep_test_apis.cc
-                src/ext_meta_parser.cc)
+                $<TARGET_OBJECTS:ep_testsuite_objs>)
     SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities JSON_checker dirutils platform xattr
                           ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
@@ -514,10 +515,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     ADD_LIBRARY(ep_perfsuite SHARED
                 tests/ep_perfsuite.cc
-                src/ext_meta_parser.cc
-                tests/ep_testsuite_common.cc
-                tests/ep_test_apis.cc
-                tests/mock/mock_dcp.cc)
+                $<TARGET_OBJECTS:ep_testsuite_objs>
+                $<TARGET_OBJECTS:mock_dcp>)
     SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
     TARGET_LINK_LIBRARIES(ep_perfsuite engine_utilities cbcompress dirutils platform)
     ADD_DEPENDENCIES(ep_perfsuite engine_testapp)
