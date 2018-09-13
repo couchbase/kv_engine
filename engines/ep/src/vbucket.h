@@ -30,6 +30,7 @@
 #include "monotonic.h"
 
 #include <memcached/engine.h>
+#include <memcached/protocol_binary.h>
 #include <platform/atomic_duration.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>

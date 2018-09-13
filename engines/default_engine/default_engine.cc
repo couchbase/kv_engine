@@ -17,6 +17,7 @@
 #include "engines/default_engine.h"
 #include "engine_manager.h"
 
+#include <memcached/protocol_binary.h>
 #include <memcached/server_core_iface.h>
 
 // The default engine don't really use vbucket uuids, but in order

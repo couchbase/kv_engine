@@ -24,6 +24,8 @@
 #include "item.h"
 #include "mock_dcp.h"
 
+#include <memcached/protocol_binary.h>
+
 uint8_t dcp_last_op;
 uint8_t dcp_last_status;
 uint8_t dcp_last_nru;

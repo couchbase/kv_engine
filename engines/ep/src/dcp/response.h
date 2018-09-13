@@ -27,6 +27,7 @@
 #include "item.h"
 #include "systemevent.h"
 
+#include <memcached/protocol_binary.h>
 #include <memory>
 
 class DcpResponse {

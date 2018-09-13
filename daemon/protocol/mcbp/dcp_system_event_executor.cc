@@ -18,6 +18,8 @@
 #include "engine_wrapper.h"
 #include "utilities.h"
 
+#include <memcached/protocol_binary.h>
+
 void dcp_system_event_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 

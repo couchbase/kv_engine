@@ -27,7 +27,6 @@
 
 #include <memcached/engine.h>
 #include <memcached/mcd_util-visibility.h>
-#include <memcached/protocol_binary.h>
 #include <platform/dynamic.h>
 #include <string>
 

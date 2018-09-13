@@ -21,9 +21,9 @@
  * binary protocol
  */
 
-#include <memcached/protocol_binary.h>
 #include "connection.h"
 #include "protocol/mcbp/engine_errc_2_mcbp.h"
+#include <mcbp/protocol/datatype.h>
 
 /**
  * Add a header to the current memcached connection

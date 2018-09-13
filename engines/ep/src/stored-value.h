@@ -25,8 +25,8 @@
 #include "tagged_ptr.h"
 #include "utility.h"
 
+#include <mcbp/protocol/datatype.h>
 #include <memcached/3rd_party/folly/AtomicBitSet.h>
-#include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <platform/n_byte_integer.h>
 

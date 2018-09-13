@@ -24,7 +24,6 @@
 #include "storeddockey.h"
 
 #include <memcached/engine_common.h>
-#include <memcached/protocol_binary.h>
 #include <platform/histogram.h>
 #include <platform/n_byte_integer.h>
 #include <platform/processclock.h>
@@ -55,6 +54,7 @@ class Flush;
 } // namespace Collections
 
 struct vb_bgfetch_item_ctx_t;
+union protocol_binary_request_compact_db;
 
 using vb_bgfetch_queue_t =
         std::unordered_map<StoredDocKey, vb_bgfetch_item_ctx_t>;

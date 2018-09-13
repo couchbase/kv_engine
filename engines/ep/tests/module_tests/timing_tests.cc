@@ -18,6 +18,7 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+#include <memcached/protocol_binary.h>
 #include <platform/cb_malloc.h>
 #include <stdio.h>
 #include <stdlib.h>

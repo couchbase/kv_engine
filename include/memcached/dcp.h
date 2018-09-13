@@ -17,12 +17,19 @@
 #pragma once
 
 #include <memcached/engine_error.h>
-#include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
 #include <memcached/visibility.h>
 
 struct DocKey;
+union protocol_binary_request_header;
+union protocol_binary_response_header;
+
+namespace mcbp {
+namespace systemevent {
+enum class id : uint32_t;
+}
+} // namespace mcbp
 
 /**
  * The message producers are used by the engine's DCP producer

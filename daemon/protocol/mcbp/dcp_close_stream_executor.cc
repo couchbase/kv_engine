@@ -20,6 +20,7 @@
 #include "engine_wrapper.h"
 #include <daemon/cookie.h>
 #include <mcbp/protocol/header.h>
+#include <mcbp/protocol/request.h>
 
 void dcp_close_stream_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

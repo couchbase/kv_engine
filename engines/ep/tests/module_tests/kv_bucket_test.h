@@ -31,6 +31,8 @@
 #include "item.h"
 
 #include <gtest/gtest.h>
+#include <memcached/protocol_binary.h>
+
 #include <memory>
 
 class KVBucket;

@@ -17,10 +17,9 @@
 
 #pragma once
 
+#include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/feature.h>
 #include <bitset>
-
-#include <memcached/protocol_binary.h>
 
 class Datatype {
 public:

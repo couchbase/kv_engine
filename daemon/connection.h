@@ -816,19 +816,7 @@ public:
      *
      * @return true if we've got the entire packet, false otherwise
      */
-    bool isPacketAvailable() const {
-        auto buffer = read->rdata();
-
-        if (buffer.size() < sizeof(cb::mcbp::Request)) {
-            // we don't have the header, so we can't even look at the body
-            // length
-            return false;
-        }
-
-        const auto* req =
-                reinterpret_cast<const cb::mcbp::Request*>(buffer.data());
-        return buffer.size() >= sizeof(cb::mcbp::Request) + req->getBodylen();
-    }
+    bool isPacketAvailable() const;
 
     /**
      * Is SASL disabled for this connection or not? (connection authenticated

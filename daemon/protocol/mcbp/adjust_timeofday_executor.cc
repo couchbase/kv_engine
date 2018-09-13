@@ -19,6 +19,7 @@
 
 #include <daemon/cookie.h>
 #include <daemon/mc_time.h>
+#include <memcached/protocol_binary.h>
 
 /**
  * The adjust_timeofday_executor implements the ability to mock the internal

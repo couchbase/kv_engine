@@ -20,6 +20,7 @@
 #include "engine_wrapper.h"
 
 #include <daemon/cookie.h>
+#include <memcached/protocol_binary.h>
 
 void dcp_add_stream_executor(Cookie& cookie) {
     auto packet = cookie.getPacket(Cookie::PacketContent::Full);

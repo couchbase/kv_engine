@@ -15,10 +15,11 @@
  *   limitations under the License.
  */
 
+#include "engine_wrapper.h"
 #include "executors.h"
 
 #include <daemon/cookie.h>
-#include "engine_wrapper.h"
+#include <memcached/protocol_binary.h>
 
 void dcp_stream_end_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

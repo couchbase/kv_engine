@@ -16,13 +16,13 @@
 #include <spdlog/common.h>
 #include <gsl/gsl>
 
+#include <mcbp/protocol/datatype.h>
 #include <memcached/visibility.h>
 
 #include "memcached/collections.h"
 #include "memcached/config_parser.h"
 #include "memcached/dockey.h"
 #include "memcached/engine_common.h"
-#include "memcached/protocol_binary.h"
 #include "memcached/types.h"
 #include "memcached/vbucket.h"
 
@@ -59,6 +59,7 @@ struct ServerCallbackIface;
 struct ServerLogIface;
 struct ServerCookieIface;
 struct ServerDocumentIface;
+union protocol_binary_request_header;
 
 /* This is typedefed in types.h */
 struct server_handle_v1_t {

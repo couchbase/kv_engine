@@ -18,6 +18,7 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
+#include <memcached/protocol_binary.h>
 
 void collections_set_manifest_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

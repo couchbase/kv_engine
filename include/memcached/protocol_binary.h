@@ -44,7 +44,6 @@
 #include <arpa/inet.h>
 #endif
 #include <cstdint>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -461,45 +460,23 @@ const uint8_t PROTOCOL_BINARY_CMD_DROP_PRIVILEGE =
 const uint8_t PROTOCOL_BINARY_CMD_INVALID =
         uint8_t(cb::mcbp::ClientOpcode::Invalid);
 
-using protocol_binary_datatype_t = uint8_t;
-#define PROTOCOL_BINARY_RAW_BYTES uint8_t(cb::mcbp::Datatype::Raw)
-#define PROTOCOL_BINARY_DATATYPE_JSON uint8_t(cb::mcbp::Datatype::JSON)
-#define PROTOCOL_BINARY_DATATYPE_SNAPPY uint8_t(cb::mcbp::Datatype::Snappy)
-#define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(cb::mcbp::Datatype::Xattr)
-
-/*
- * Bitmask that defines datatypes that can only be valid when a document body
- * exists. i.e. When the document is not soft-deleted
- */
-#define BODY_ONLY_DATATYPE_MASK \
-    uint8_t(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY);
-
-/*
- * Bitmask that defines the datatypes that can be resident in memory. For
- * example, DATATYPE_COMPRESSED is excluded as resident items are not
- * compressed.
- * This is useful for efficiently storing statistics about datatypes.
- */
-#define RESIDENT_DATATYPE_MASK uint8_t(5);
-
-
 /**
  * Definition of the header structure for a request packet.
  * See section 2
  */
-typedef union {
+union protocol_binary_request_header {
     cb::mcbp::Request request;
     uint8_t bytes[24];
-} protocol_binary_request_header;
+};
 
 /**
  * Definition of the header structure for a response packet.
  * See section 2
  */
-typedef union {
+union protocol_binary_response_header {
     cb::mcbp::Response response;
     uint8_t bytes[24];
-} protocol_binary_response_header;
+};
 
 /**
  * Definition of a request-packet containing no extras
@@ -1965,7 +1942,7 @@ typedef union {
  * set request with the addition of a bulk of extra meta data stored
  * at the <b>end</b> of the package.
  */
-typedef union {
+union protocol_binary_request_set_with_meta {
     struct {
         protocol_binary_request_header header;
         struct {
@@ -1976,7 +1953,7 @@ typedef union {
         } body;
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
-} protocol_binary_request_set_with_meta;
+};
 
 typedef union {
     struct {
@@ -2172,7 +2149,7 @@ typedef union {
  * successfully and a NOT_MY_VBUCKET (along with cluster config)
  * if the vbucket isn't found.
  */
-typedef union {
+union protocol_binary_request_compact_db {
     struct {
         protocol_binary_request_header header;
         struct {
@@ -2185,7 +2162,7 @@ typedef union {
         } body;
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
-} protocol_binary_request_compact_db;
+};
 
 typedef protocol_binary_request_get protocol_binary_request_get_random;
 
@@ -2499,62 +2476,6 @@ inline bool impliesMkdir_p(mcbp::subdoc::doc_flag a) {
 } // namespace subdoc
 } // namespace mcbp
 
-// Create a namespace to handle the Datatypes
-namespace mcbp {
-namespace datatype {
-const uint8_t highest = PROTOCOL_BINARY_DATATYPE_XATTR |
-                        PROTOCOL_BINARY_DATATYPE_SNAPPY |
-                        PROTOCOL_BINARY_DATATYPE_JSON;
-inline bool is_raw(const protocol_binary_datatype_t datatype) {
-    return datatype == PROTOCOL_BINARY_RAW_BYTES;
-}
-
-inline bool is_json(const protocol_binary_datatype_t datatype) {
-    return (datatype & PROTOCOL_BINARY_DATATYPE_JSON) ==
-           PROTOCOL_BINARY_DATATYPE_JSON;
-}
-
-inline bool is_snappy(const protocol_binary_datatype_t datatype) {
-    return (datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY) ==
-           PROTOCOL_BINARY_DATATYPE_SNAPPY;
-}
-
-inline bool is_xattr(const protocol_binary_datatype_t datatype) {
-    return (datatype & PROTOCOL_BINARY_DATATYPE_XATTR) ==
-           PROTOCOL_BINARY_DATATYPE_XATTR;
-}
-
-inline bool is_valid(const protocol_binary_datatype_t datatype) {
-    return datatype <= highest;
-}
-
-inline std::string to_string(const protocol_binary_datatype_t datatype) {
-    if (is_valid(datatype)) {
-        if (is_raw(datatype)) {
-            return std::string{"raw"};
-        } else {
-            std::stringstream ss;
-            if (is_snappy(datatype)) {
-                ss << "snappy,";
-            }
-            if (is_json(datatype)) {
-                ss << "json,";
-            }
-            if (is_xattr(datatype)) {
-                ss << "xattr,";
-            }
-
-            // remove the last ','
-            std::string ret = ss.str();
-            ret.resize(ret.size() - 1);
-            return ret;
-        }
-    } else {
-        return std::string{"invalid"};
-    }
-}
-} // namespace datatype
-} // namespace mcbp
 
 namespace mcbp {
 

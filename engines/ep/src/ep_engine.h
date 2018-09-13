@@ -28,6 +28,7 @@
 #include "vb_visitors.h"
 
 #include <memcached/engine.h>
+#include <memcached/protocol_binary.h>
 #include <memcached/server_callback_iface.h>
 #include <platform/processclock.h>
 
