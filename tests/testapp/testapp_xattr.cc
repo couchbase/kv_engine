@@ -782,7 +782,7 @@ TEST_P(XattrTest, MB_22691) {
  */
 static void verify_vattr_entry(cJSON* root, const char* name, int type) {
     auto* obj = cJSON_GetObjectItem(root, name);
-    ASSERT_NE(nullptr, obj);
+    ASSERT_NE(nullptr, obj) << "Failed for vattr:" << name;
     EXPECT_EQ(type, obj->type);
 }
 
