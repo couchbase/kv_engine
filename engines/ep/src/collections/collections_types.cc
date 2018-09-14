@@ -23,7 +23,7 @@
 
 namespace Collections {
 
-uid_t makeUid(const char* uid, size_t len) {
+ManifestUid makeUid(const char* uid, size_t len) {
     if (std::strlen(uid) == 0 || std::strlen(uid) > len) {
         throw std::invalid_argument(
                 "Collections::makeUid uid must be > 0 and <=" +

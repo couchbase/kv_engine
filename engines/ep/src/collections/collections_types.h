@@ -44,31 +44,31 @@ const char CouchstoreManifest[] = "_local/collections_manifest";
 // Length of the string excluding the zero terminator (i.e. strlen)
 const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 
-using uid_t = uint64_t;
+using ManifestUid = uint64_t;
 
 // Map used in summary stats
 using Summary = std::unordered_map<CollectionID, uint64_t>;
 
 /**
- * Return a uid_t from a C-string.
- * A valid uid_t is a C-string where each character satisfies std::isxdigit
- * and can be converted to a uid_t by std::strtoull.
+ * Return a ManifestUid from a C-string.
+ * A valid ManifestUid is a C-string where each character satisfies
+ * std::isxdigit and can be converted to a ManifestUid by std::strtoull.
  *
  * @param uid C-string uid
  * @param len a length for validation purposes
  * @throws std::invalid_argument if uid is invalid
  */
-uid_t makeUid(const char* uid, size_t len = 16);
+ManifestUid makeUid(const char* uid, size_t len = 16);
 
 /**
- * Return a uid_t from a std::string
- * A valid uid_t is a std::string where each character satisfies std::isxdigit
- * and can be converted to a uid_t by std::strtoull.
+ * Return a ManifestUid from a std::string
+ * A valid ManifestUid is a std::string where each character satisfies
+ * std::isxdigit and can be converted to a ManifestUid by std::strtoull.
  *
  * @param uid std::string
  * @throws std::invalid_argument if uid is invalid
  */
-static inline uid_t makeUid(const std::string& uid) {
+static inline ManifestUid makeUid(const std::string& uid) {
     return makeUid(uid.c_str());
 }
 
@@ -81,7 +81,7 @@ static inline uid_t makeUid(const std::string& uid) {
  * @throws std::invalid_argument if uid is invalid
  */
 static inline CollectionID makeCollectionID(const char* uid) {
-    // CollectionID is 8 characters max and smaller than a uid_t
+    // CollectionID is 8 characters max and smaller than a ManifestUid
     return gsl::narrow_cast<CollectionID>(makeUid(uid, 8));
 }
 
@@ -129,7 +129,7 @@ struct SystemEventDcpData {
 
 
     /// The manifest uid stored in network byte order ready for sending
-    uid_t manifestUid;
+    ManifestUid manifestUid;
     /// The collection id stored in network byte order ready for sending
     CollectionIDNetworkOrder cid;
     // The size is sizeof(manifestUid) + sizeof(cid) (msvc won't allow that expression)

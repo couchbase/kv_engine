@@ -215,7 +215,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     // Create meat with uid 4 as if it came from manifest uid cafef00d
     std::string collection = "meat";
     CollectionID cid = CollectionEntry::meat.getId();
-    Collections::uid_t manifestUid = 0xcafef00d;
+    Collections::ManifestUid manifestUid = 0xcafef00d;
     Collections::SystemEventDcpData eventData{htonll(manifestUid),
                                               cid.to_network()};
 

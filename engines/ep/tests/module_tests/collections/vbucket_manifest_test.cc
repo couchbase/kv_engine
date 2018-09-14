@@ -124,13 +124,15 @@ public:
 
     // Wire through to private method
     boost::optional<CollectionID> public_applyChanges(
-            std::function<void(Collections::uid_t, CollectionID, OptionalSeqno)> update,
+            std::function<void(Collections::ManifestUid,
+                               CollectionID,
+                               OptionalSeqno)> update,
             std::vector<CollectionID>& changes) {
         return applyChanges(update, changes);
     }
 
     void public_addCollection(::VBucket& vb,
-                              Collections::uid_t manifestUid,
+                              Collections::ManifestUid manifestUid,
                               CollectionID identifier,
                               OptionalSeqno optionalSeqno) {
         addCollection(vb, manifestUid, identifier, optionalSeqno);

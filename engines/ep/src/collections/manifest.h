@@ -96,7 +96,7 @@ public:
     /**
      * @return the unique ID of the Manifest which constructed this
      */
-    uid_t getUid() const {
+    ManifestUid getUid() const {
         return uid;
     }
 
@@ -202,7 +202,7 @@ private:
     bool defaultCollectionExists;
     scopeContainer scopes;
     collectionContainer collections;
-    uid_t uid;
+    ManifestUid uid;
 };
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest);

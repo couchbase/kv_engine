@@ -308,24 +308,24 @@ TEST(ManifestTest, validation) {
 }
 
 TEST(ManifestTest, getUid) {
-    std::vector<std::pair<Collections::uid_t, std::string>> validManifests = {
-            {0,
-             R"({"uid" : "0",
+    std::vector<std::pair<Collections::ManifestUid, std::string>>
+            validManifests = {{0,
+                               R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"3"},
                                {"name":"brewery","uid":"2"}]}]})"},
-            {0xabcd,
-             R"({"uid" : "ABCD",
+                              {0xabcd,
+                               R"({"uid" : "ABCD",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"3"},
                                {"name":"brewery","uid":"2"}]}]})"},
-            {0xabcd,
-             R"({"uid" : "abcd",
+                              {0xabcd,
+                               R"({"uid" : "abcd",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"3"},
                                {"name":"brewery","uid":"2"}]}]})"},
-            {0xabcd,
-             R"({"uid" : "aBcD",
+                              {0xabcd,
+                               R"({"uid" : "aBcD",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"3"},
                                {"name":"brewery","uid":"2"}]}]})"}};

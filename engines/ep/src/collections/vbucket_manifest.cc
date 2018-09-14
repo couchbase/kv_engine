@@ -93,7 +93,7 @@ Manifest::Manifest(const std::string& manifest)
 }
 
 boost::optional<CollectionID> Manifest::applyChanges(
-        std::function<void(uid_t, CollectionID, OptionalSeqno)> update,
+        std::function<void(ManifestUid, CollectionID, OptionalSeqno)> update,
         std::vector<CollectionID>& changes) {
     boost::optional<CollectionID> rv;
     if (!changes.empty()) {
@@ -156,7 +156,7 @@ bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
 }
 
 void Manifest::addCollection(::VBucket& vb,
-                             uid_t manifestUid,
+                             ManifestUid manifestUid,
                              CollectionID identifier,
                              OptionalSeqno optionalSeqno) {
     // 1. Update the manifest, adding or updating an entry in the collections
@@ -231,7 +231,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(CollectionID identifier,
 }
 
 void Manifest::beginCollectionDelete(::VBucket& vb,
-                                     uid_t manifestUid,
+                                     ManifestUid manifestUid,
                                      CollectionID identifier,
                                      OptionalSeqno optionalSeqno) {
     auto& entry = beginDeleteCollectionEntry(identifier);

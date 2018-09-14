@@ -143,12 +143,12 @@ public:
             const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
 
     /// Return the manifest UID
-    Collections::uid_t getUid() const {
+    Collections::ManifestUid getUid() const {
         return uid;
     }
 
     /// Set the uid, useful for tests which may want to assert uid values
-    void setUid(Collections::uid_t uid) {
+    void setUid(Collections::ManifestUid uid) {
         this->uid = uid;
     }
 
@@ -163,5 +163,5 @@ private:
     void updateUid();
     std::string toJson() const;
     nlohmann::json json;
-    Collections::uid_t uid = 0;
+    Collections::ManifestUid uid = 0;
 };

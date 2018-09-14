@@ -218,14 +218,14 @@ public:
                 getManifestEntryBuffer() + finalEntryOffset);
     }
 
-    uid_t getManifestUid() const {
+    ManifestUid getManifestUid() const {
         return manifestUid;
     }
 
 private:
     friend Collections::VB::Manifest;
     static SerialisedManifest* make(char* address,
-                                    uid_t manifestUid,
+                                    ManifestUid manifestUid,
                                     cb::char_buffer out) {
         return new (address) SerialisedManifest(manifestUid, out);
     }
@@ -248,7 +248,7 @@ private:
      * @param out The buffer into which this object is being constructed
      * @throws length_error if the consruction would access outside of out
      */
-    SerialisedManifest(uid_t manifestUid, cb::char_buffer out)
+    SerialisedManifest(ManifestUid manifestUid, cb::char_buffer out)
         : version(Version::Zero),
           pad{},
           itemCount(0),
@@ -290,7 +290,7 @@ private:
     uint8_t pad[3];
     uint32_t itemCount;
     uint32_t finalEntryOffset;
-    uid_t manifestUid;
+    ManifestUid manifestUid;
 };
 
 static_assert(std::is_standard_layout<SerialisedManifestEntry>::value,

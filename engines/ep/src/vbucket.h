@@ -654,29 +654,28 @@ public:
      * Add a collection to this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
-     * @param manifestUid the uid of the manifest which made the change
+     * @param uid the uid of the manifest which made the change
      * @param identifier CID for the collection being added.
      * @param bySeqno The seqno assigned to the collection create event.
      */
-    void replicaAddCollection(Collections::uid_t manifestUid,
+    void replicaAddCollection(Collections::ManifestUid uid,
                               CollectionID identifier,
                               int64_t bySeqno) {
-        manifest.wlock().replicaAdd(*this, manifestUid, identifier, bySeqno);
+        manifest.wlock().replicaAdd(*this, uid, identifier, bySeqno);
     }
 
     /**
      * Delete a collection from this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *
-     * @param manifestUid the uid of the manifest which made the change
+     * @param uid the uid of the manifest which made the change
      * @param identifier CID for the collection to begin deleting.
      * @param bySeqno The seqno assigned to the collection delete event.
      */
-    void replicaBeginDeleteCollection(Collections::uid_t manifestUid,
+    void replicaBeginDeleteCollection(Collections::ManifestUid uid,
                                       CollectionID identifier,
                                       int64_t bySeqno) {
-        manifest.wlock().replicaBeginDelete(
-                *this, manifestUid, identifier, bySeqno);
+        manifest.wlock().replicaBeginDelete(*this, uid, identifier, bySeqno);
     }
 
     /**

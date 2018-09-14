@@ -127,7 +127,7 @@ public:
         }
 
         /// @return the manifest UID that last updated this vb::manifest
-        uid_t getManifestUid() const {
+        ManifestUid getManifestUid() const {
             return manifest.getManifestUid();
         }
 
@@ -223,7 +223,7 @@ public:
         }
 
         /// @return the manifest UID that last updated this vb::manifest
-        uid_t getManifestUid() const {
+        ManifestUid getManifestUid() const {
             return manifest.getManifestUid();
         }
 
@@ -355,7 +355,7 @@ public:
          * @param startSeqno The start-seqno assigned to the collection.
          */
         void replicaAdd(::VBucket& vb,
-                        uid_t manifestUid,
+                        ManifestUid manifestUid,
                         CollectionID identifier,
                         int64_t startSeqno) {
             manifest.addCollection(
@@ -373,7 +373,7 @@ public:
          * @param endSeqno The end-seqno assigned to the end collection.
          */
         void replicaBeginDelete(::VBucket& vb,
-                                uid_t manifestUid,
+                                ManifestUid manifestUid,
                                 CollectionID identifier,
                                 int64_t endSeqno) {
             manifest.beginCollectionDelete(
@@ -533,7 +533,7 @@ protected:
     /**
      * Sub-function used by update
      * Removes the last ID of the changes vector and then calls 'update' on
-     * every remaining ID (using the current manifest uid_t).
+     * every remaining ID (using the current manifest ManifestUid).
      * So if the vector has 1 element, it returns that element and does nothing.
      *
      * @param update a function to call (either addCollection or
@@ -542,7 +542,8 @@ protected:
      * @return the last element of the changes vector
      */
     boost::optional<CollectionID> applyChanges(
-            std::function<void(uid_t, CollectionID, OptionalSeqno)> update,
+            std::function<void(ManifestUid, CollectionID, OptionalSeqno)>
+                    update,
             std::vector<CollectionID>& changes);
 
     /**
@@ -555,7 +556,7 @@ protected:
      *        none (none means the checkpoint will assign a seqno).
      */
     void addCollection(::VBucket& vb,
-                       uid_t manifestUid,
+                       ManifestUid manifestUid,
                        CollectionID identifier,
                        OptionalSeqno optionalSeqno);
 
@@ -570,7 +571,7 @@ protected:
      *        collection or none (none means the checkpoint assigns the seqno).
      */
     void beginCollectionDelete(::VBucket& vb,
-                               uid_t manifestUid,
+                               ManifestUid manifestUid,
                                CollectionID identifier,
                                OptionalSeqno optionalSeqno);
 
@@ -707,7 +708,7 @@ protected:
                                                bool allowSystem) const;
 
     /// @return the manifest UID that last updated this vb::manifest
-    uid_t getManifestUid() const {
+    ManifestUid getManifestUid() const {
         return manifestUid;
     }
 
@@ -896,7 +897,7 @@ protected:
             nDeletingCollections;
 
     /// The manifest UID which updated this vb::manifest
-    uid_t manifestUid{0};
+    ManifestUid manifestUid{0};
 
     /**
      * shared lock to allow concurrent readers and safe updates

@@ -657,7 +657,7 @@ public:
     /**
      * @return manifest uid which triggered the create or delete
      */
-    Collections::uid_t getManifestUid() const {
+    Collections::ManifestUid getManifestUid() const {
         const auto* dcpData =
                 reinterpret_cast<const Collections::SystemEventDcpData*>(
                         event.getEventData().data());
