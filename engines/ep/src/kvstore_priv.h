@@ -23,8 +23,9 @@
 
 #include "config.h"
 
+#include "callbacks.h"
+#include "kvstore.h"
 #include <cJSON.h>
-
 #include <unordered_map>
 
 class KVStoreConfig;

@@ -20,7 +20,8 @@
 #include "config.h"
 
 #include "globaltask.h"
-
+#include "kvstore.h"
+#include "storeddockey.h"
 #include <platform/processclock.h>
 
 #include <array>

@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 
+#include <cstdint>
+
 class DcpConsumer;
 class MockPassiveStream;
 

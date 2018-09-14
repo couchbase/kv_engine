@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "globaltask.h"
+
 class LambdaTask : public GlobalTask {
 public:
     LambdaTask(Taskable& t,

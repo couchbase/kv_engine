@@ -22,7 +22,6 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "executorpool.h"
-#include "item.h"
 #include "item_eviction.h"
 #include "kv_bucket.h"
 #include "kv_bucket_iface.h"

@@ -21,7 +21,7 @@
 #include "config.h"
 
 #include "collections/collections_types.h"
-#include "dcp-types.h"
+#include "dcp/dcp-types.h"
 #include "ep_types.h"
 #include "ext_meta_parser.h"
 #include "item.h"

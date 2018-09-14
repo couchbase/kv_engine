@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <memcached/rbac.h>
 

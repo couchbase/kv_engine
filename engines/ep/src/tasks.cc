@@ -20,7 +20,6 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "flusher.h"
-#include "kvstore.h"
 #include "tasks.h"
 #include "warmup.h"
 

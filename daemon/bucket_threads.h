@@ -16,7 +16,13 @@
  */
 #pragma once
 
+#include "buckets.h"
+
+#include <memcached/engine_error.h>
 #include <platform/thread.h>
+
+class Connection;
+class Task;
 
 /**
  * The CreateBucketThread is as the name implies a thread who creates a new

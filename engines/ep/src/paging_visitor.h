@@ -18,6 +18,7 @@
 #pragma once
 
 #include "hash_table.h"
+#include "item.h"
 #include "item_eviction.h"
 #include "item_pager.h"
 #include "vb_visitors.h"

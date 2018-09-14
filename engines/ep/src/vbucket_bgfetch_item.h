@@ -19,8 +19,11 @@
 
 #include "config.h"
 
+#include "callbacks.h"
 #include "item.h"
 #include "trace_helpers.h"
+
+enum class GetMetaOnly;
 
 class VBucketBGFetchItem {
 public:

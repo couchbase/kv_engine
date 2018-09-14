@@ -34,6 +34,8 @@ class ItemFreqDecayerTask : public GlobalTask {
 public:
     ItemFreqDecayerTask(EventuallyPersistentEngine* e, uint16_t percentage_);
 
+    ~ItemFreqDecayerTask() override;
+
     bool run() override;
 
     void stop();

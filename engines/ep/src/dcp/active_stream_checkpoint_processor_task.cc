@@ -17,7 +17,6 @@
 
 #include "active_stream_checkpoint_processor_task.h"
 
-#include "dcp/active_stream.h"
 #include "dcp/producer.h"
 #include "ep_engine.h"
 #include "executorpool.h"

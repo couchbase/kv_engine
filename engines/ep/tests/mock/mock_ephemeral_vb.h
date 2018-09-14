@@ -41,24 +41,7 @@ public:
                          std::unique_ptr<FailoverTable> table,
                          NewSeqnoCallback newSeqnoCb,
                          Configuration& config,
-                         item_eviction_policy_t evictionPolicy)
-        : EphemeralVBucket(i,
-                           newState,
-                           st,
-                           chkConfig,
-                           kvshard,
-                           lastSeqno,
-                           lastSnapStart,
-                           lastSnapEnd,
-                           std::move(table),
-                           std::move(newSeqnoCb),
-                           config,
-                           evictionPolicy) {
-        /* we want MockBasicLinkedList instead to call certain non-public
-           APIs of BasicLinkedList in ephemeral vbucket */
-        this->seqList = std::make_unique<MockBasicLinkedList>(st);
-        mockLL = dynamic_cast<MockBasicLinkedList*>((this->seqList).get());
-    }
+                         item_eviction_policy_t evictionPolicy);
 
     /* Register fake read range for testing */
     void registerFakeReadRange(seqno_t start, seqno_t end) {

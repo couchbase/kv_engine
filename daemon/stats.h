@@ -23,7 +23,7 @@
 
 #include <cstdint>
 #include <mutex>
-
+#include <vector>
 
 /**
  * Stats stored per-thread.

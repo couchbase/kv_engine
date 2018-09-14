@@ -1,6 +1,10 @@
 #ifndef ASSOC_H
 #define ASSOC_H
 
+#include <memcached/engine_error.h>
+
+#include "items.h"
+
 /* associative array */
 ENGINE_ERROR_CODE assoc_init(struct default_engine *engine);
 void assoc_destroy(void);

@@ -21,6 +21,8 @@
 #include <daemon/cookie.h>
 #include <platform/sized_buffer.h>
 
+class Task;
+
 /**
  * The StatsCommandContext is responsible for implementing all of the
  * various stats commands (including the sub commands).

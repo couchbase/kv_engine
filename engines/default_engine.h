@@ -4,6 +4,9 @@
 
 #include "config.h"
 
+#include <memcached/engine.h>
+#include <memcached/visibility.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

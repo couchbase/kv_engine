@@ -34,6 +34,8 @@ ItemFreqDecayerTask::ItemFreqDecayerTask(EventuallyPersistentEngine* e,
       percentage(percentage_) {
 }
 
+ItemFreqDecayerTask::~ItemFreqDecayerTask() = default;
+
 bool ItemFreqDecayerTask::run(void) {
     TRACE_EVENT0("ep-engine/task", "ItemFreqDecayerTask");
 
