@@ -8,6 +8,7 @@ INCLUDE(CTest)
 INCLUDE(GenerateExportHeader)
 INCLUDE_DIRECTORIES(BEFORE ${BOOST_INCLUDE_DIR})
 include(check_unit_test_enabled)
+include(HeaderObjectLibrary)
 
 check_unit_test_enabled(kv_engine COUCHBASE_KV_BUILD_UNIT_TESTS)
 
@@ -205,3 +206,24 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake.h
 # Customize some CTest properties
 CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake.in
                 ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake)
+
+
+# Extra (non-default) target to compile all memcached headers (for
+# build profiling / checking for correct #includes).
+file(GLOB_RECURSE memcached_headers
+  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+  CONFIGURE_DEPENDS
+  *.h)
+# Excluded ep_engine - it requires additional include directories and
+# hence is handled in it's own CMakeLists.txt
+list(FILTER memcached_headers EXCLUDE REGEX "engines\/ep\/")
+
+# List of headers to ignore / not attempt to compile
+list(REMOVE_ITEM memcached_headers
+  config.cmake.h  # Not directly compilable.
+  engines/default_engine/slabs.h  # Has circular dependancies with
+                                  # default_engine_internal.h, not directly
+                                  # compilable.
+  include/memcached/collections.h  # Not directly compilable; used via engine.h
+)
+add_header_object_library(NAME memcached_headers_obj HEADERS ${memcached_headers})

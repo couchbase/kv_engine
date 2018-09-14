@@ -672,3 +672,22 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
 
     ENABLE_CODE_COVERAGE_REPORT()
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+
+
+# Extra (non-default) target to compile all ep-engine headers (for
+# build profiling / checking for correct #includes).
+file(GLOB_RECURSE ep_headers
+  RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+  CONFIGURE_DEPENDS
+  *.h)
+# List of headers to ignore / not attempt to compile
+list(REMOVE_ITEM ep_headers
+  src/config.cmake.h  # XXXX
+  src/tasks.def.h  # X-Macro file; cannot be compiled by itself
+  src/threadlocal_posix.h  # POSIX specific code; included via threadlocal.h
+  src/threadlocal_win32.h  # Win32 specific code; included via threadlocal.h
+)
+
+add_header_object_library(NAME ep_headers_obj HEADERS ${ep_headers})
+target_include_directories(ep_headers_obj PUBLIC
+                           ${benchmark_SOURCE_DIR}/include)
