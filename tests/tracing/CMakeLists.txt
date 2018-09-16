@@ -19,7 +19,9 @@ set(mock_server_SOURCE
 add_executable(tracing_bench
   tracing_bench.cc
   ${mock_server_SOURCE})
-
+target_include_directories(tracing_bench
+    PRIVATE
+    ${benchmark_SOURCE_DIR}/include)
 target_link_libraries(tracing_bench
   PRIVATE
     benchmark

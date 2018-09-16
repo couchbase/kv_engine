@@ -25,5 +25,8 @@ target_compile_options(memcached_mcbp_test PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 
 add_executable(memcached_mcbp_bench
         mcbp_bench.cc)
+target_include_directories(memcached_mcbp_bench
+    PRIVATE
+    ${benchmark_SOURCE_DIR}/include)
 target_link_libraries(memcached_mcbp_bench
                       benchmark memcached_daemon)

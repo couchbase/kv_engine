@@ -8,6 +8,9 @@ add_test(NAME memcached_topkeys_test
 
 if (NOT WIN32)
   add_executable(memcached_topkeys_benchmark topkeys_benchmark.cc)
+  target_include_directories(memcached_topkeys_benchmark
+      PRIVATE
+      ${benchmark_SOURCE_DIR}/include)
   target_link_libraries(memcached_topkeys_benchmark memcached_daemon benchmark)
   add_sanitizers(memcached_topkeys_benchmark)
 endif (NOT WIN32)

@@ -29,5 +29,8 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              COMMAND memcached_logger_test)
 
     add_executable(memcached_logger_benchmark logger_benchmark.cc)
+    target_include_directories(memcached_logger_benchmark
+        PRIVATE
+        ${benchmark_SOURCE_DIR}/include)
     target_link_libraries(memcached_logger_benchmark benchmark memcached_logger)
 endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
