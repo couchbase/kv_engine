@@ -49,6 +49,15 @@ using ManifestUid = uint64_t;
 // Map used in summary stats
 using Summary = std::unordered_map<CollectionID, uint64_t>;
 
+struct ManifestUidNetworkOrder {
+    ManifestUidNetworkOrder(ManifestUid uid) : uid(htonll(uid)) {
+    }
+    ManifestUid to_host() const {
+        return ntohll(uid);
+    }
+    ManifestUid uid;
+};
+
 /**
  * Return a ManifestUid from a C-string.
  * A valid ManifestUid is a C-string where each character satisfies
@@ -121,20 +130,28 @@ static inline ScopeID makeScopeID(const std::string& uid) {
 }
 
 /**
- * All of the data a DCP system event message will carry (for create/delete).
- * This is the layout of such data and the collection name is the key of the
- * event packet.
+ * All of the data a system event needs
+ */
+struct SystemEventData {
+    ManifestUid manifestUid; // The Manifest which created the event
+    CollectionID cid; // The collection the event belongs to
+};
+
+/**
+ * All of the data a DCP system event message will transmit in the value of the
+ * message. This is the layout to be used on the wire and is in the correct
+ * byte order
  */
 struct SystemEventDcpData {
-
-
+    SystemEventDcpData(const SystemEventData& data)
+        : manifestUid(data.manifestUid), cid(data.cid) {
+    }
     /// The manifest uid stored in network byte order ready for sending
-    ManifestUid manifestUid;
+    ManifestUidNetworkOrder manifestUid;
     /// The collection id stored in network byte order ready for sending
     CollectionIDNetworkOrder cid;
     // The size is sizeof(manifestUid) + sizeof(cid) (msvc won't allow that expression)
     constexpr static size_t size{12};
 };
-
 
 } // end namespace Collections

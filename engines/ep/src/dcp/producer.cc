@@ -337,6 +337,10 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
         }
     }
 
+    // Construct the filter before rollback checks so we ensure the client view
+    // of collections is compatible with the vbucket.
+    Collections::VB::Filter filter(json, vb->getManifest());
+
     // If we are a notify stream then we can't use the start_seqno supplied
     // since if it is greater than the current high seqno then it will always
     // trigger a rollback. As a result we should use the current high seqno for
@@ -447,8 +451,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
                                                includeValue,
                                                includeXattrs,
                                                includeDeleteTime,
-                                               json,
-                                               vb->getManifest());
+                                               std::move(filter));
         } catch (const cb::engine_error& e) {
             logger->warn(
                     "({}) Stream request failed because "

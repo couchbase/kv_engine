@@ -1419,17 +1419,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::stream_req(
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->streamRequest(flags,
-                                   opaque,
-                                   vbucket,
-                                   startSeqno,
-                                   endSeqno,
-                                   vbucketUuid,
-                                   snapStartSeqno,
-                                   snapEndSeqno,
-                                   rollbackSeqno,
-                                   callback,
-                                   json);
+        try {
+            return conn->streamRequest(flags,
+                                       opaque,
+                                       vbucket,
+                                       startSeqno,
+                                       endSeqno,
+                                       vbucketUuid,
+                                       snapStartSeqno,
+                                       snapEndSeqno,
+                                       rollbackSeqno,
+                                       callback,
+                                       json);
+        } catch (const cb::engine_error& e) {
+            return ENGINE_ERROR_CODE(e.code().value());
+        } catch (const std::invalid_argument&) {
+            return ENGINE_EINVAL;
+        }
     }
     return ENGINE_DISCONNECT;
 }

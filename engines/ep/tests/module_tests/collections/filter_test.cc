@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include "collections/filter.h"
 #include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
@@ -28,7 +27,7 @@
 
 #include <limits>
 
-class CollectionsFilterTest : public ::testing::Test {
+class CollectionsVBFilterTest : public ::testing::Test {
 public:
     /// Dummy callback to replace the flusher callback so we can create VBuckets
     class DummyCB : public Callback<Vbid> {
@@ -40,7 +39,7 @@ public:
         }
     };
 
-    CollectionsFilterTest()
+    CollectionsVBFilterTest()
         : vb(Vbid(0),
              vbucket_state_active,
              global_stats,
@@ -54,22 +53,24 @@ public:
              /*newSeqnoCb*/ nullptr,
              config,
              VALUE_ONLY) {
+        Collections::Manifest m(cm);
+        vbm.wlock().update(vb, m);
     }
 
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
     Configuration config;
     EPVBucket vb;
+    CollectionsManifest cm;
+    Collections::VB::Manifest vbm{{}};
 };
 
 /**
  * Test invalid JSON formats as an input
  */
-TEST_F(CollectionsFilterTest, junk_in) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m(cm);
-
-    std::vector<std::string> inputs = {"{}",
+TEST_F(CollectionsVBFilterTest, junk_in) {
+    std::vector<std::string> inputs = {"not json",
+                                       "{}",
                                        R"({"collections":1})",
                                        R"({"collections:"this"})",
                                        R"({"collections:{"a":1})",
@@ -79,8 +80,8 @@ TEST_F(CollectionsFilterTest, junk_in) {
     for (const auto& s : inputs) {
         boost::optional<cb::const_char_buffer> json(s);
         try {
-            Collections::Filter f(json, &m);
-            FAIL() << "Should of thrown an exception";
+            Collections::VB::Filter f(json, vbm);
+            FAIL() << "Should of thrown an exception " << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
         } catch (...) {
@@ -92,11 +93,13 @@ TEST_F(CollectionsFilterTest, junk_in) {
 /**
  * Test valid inputs to the filter.
  */
-TEST_F(CollectionsFilterTest, validation1) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m(cm.add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
+TEST_F(CollectionsVBFilterTest, validation1) {
+    cm.add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
+    vbm.wlock().update(vb, m);
 
     std::vector<std::string> inputs = {
             R"({"collections":["0"]})",
@@ -107,7 +110,7 @@ TEST_F(CollectionsFilterTest, validation1) {
         boost::optional<cb::const_char_buffer> json(s);
 
         try {
-            Collections::Filter f(json, &m);
+            Collections::VB::Filter f(json, vbm);
         } catch (...) {
             FAIL() << "Exception thrown with input " << s;
         }
@@ -117,11 +120,13 @@ TEST_F(CollectionsFilterTest, validation1) {
 /**
  * Test valid JSON formats to the filter, but they contain invalid content
  */
-TEST_F(CollectionsFilterTest, validation2) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m(cm.add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
+TEST_F(CollectionsVBFilterTest, validation2) {
+    cm.add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
+    vbm.wlock().update(vb, m);
 
     std::vector<std::string> inputs = {
             // wrong UID inputs
@@ -132,7 +137,7 @@ TEST_F(CollectionsFilterTest, validation2) {
     for (const auto& s : inputs) {
         boost::optional<cb::const_char_buffer> json(s);
         try {
-            Collections::Filter f(json, &m);
+            Collections::VB::Filter f(json, vbm);
             FAIL() << "Should of thrown an exception";
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
@@ -146,17 +151,18 @@ TEST_F(CollectionsFilterTest, validation2) {
  * Test that we cannot create default collection filter when no default
  * collection exists
  */
-TEST_F(CollectionsFilterTest, validation_no_default) {
-    // m does not include $default
-    CollectionsManifest cm(NoDefault{});
-    Collections::Manifest m(cm.add(CollectionEntry::vegetable)
-                                    .add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
+TEST_F(CollectionsVBFilterTest, validation_no_default) {
+    cm.remove(CollectionEntry::defaultC)
+            .add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
+    vbm.wlock().update(vb, m);
 
     boost::optional<cb::const_char_buffer> json;
     try {
-        Collections::Filter f(json, &m);
+        Collections::VB::Filter f(json, vbm);
         FAIL() << "Should of thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
@@ -166,35 +172,20 @@ TEST_F(CollectionsFilterTest, validation_no_default) {
 }
 
 /**
- * Test that we cannot create a filter without a manifest
- */
-TEST_F(CollectionsFilterTest, no_manifest) {
-    std::string jsonFilter = R"({"collections":["$default", "fruit", "meat"]})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-
-    try {
-        Collections::Filter f(json, nullptr);
-        FAIL() << "Should of thrown an exception";
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::no_collections_manifest, e.code());
-    } catch (...) {
-        FAIL() << "Should of thrown cb::engine_error";
-    }
-}
-
-/**
  * Construct a valid Collections::Filter and check its public methods
  * This creates a filter which contains a set of collections
  */
-TEST_F(CollectionsFilterTest, filter_basic1) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m(cm.add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
+TEST_F(CollectionsVBFilterTest, filter_basic1) {
+    cm.add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
+    vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "4", "3"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::Filter f(json, &m);
+    Collections::VB::Filter f(json, vbm);
 
     // This is not a passthrough filter
     EXPECT_FALSE(f.isPassthrough());
@@ -206,27 +197,24 @@ TEST_F(CollectionsFilterTest, filter_basic1) {
 
     // The actual filter "list" only stores fruit and meat though, default is
     // special cased via doesDefaultCollectionExist
-    EXPECT_EQ(2, f.getFilter().size());
-
-    auto list = f.getFilter();
-    // Expect to find collections with CID 4 and 3
-    EXPECT_TRUE(list.count(4) > 0);
-    EXPECT_TRUE(list.count(3) > 0);
+    EXPECT_EQ(2, f.size());
 }
 
 /**
  * Construct a valid Collections::Filter and check its public methods
  * This creates a filter which is passthrough
  */
-TEST_F(CollectionsFilterTest, filter_basic2) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m(cm.add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
+TEST_F(CollectionsVBFilterTest, filter_basic2) {
+    cm.add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
+    vbm.wlock().update(vb, m);
 
     std::string jsonFilter; // empty string creates a pass through
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::Filter f(json, &m);
+    Collections::VB::Filter f(json, vbm);
 
     // This is a passthrough filter
     EXPECT_TRUE(f.isPassthrough());
@@ -238,21 +226,23 @@ TEST_F(CollectionsFilterTest, filter_basic2) {
     EXPECT_TRUE(f.allowSystemEvents());
 
     // The actual filter "list" stores nothing
-    EXPECT_EQ(0, f.getFilter().size());
+    EXPECT_EQ(0, f.size());
 }
 
 /**
  * Construct a valid Collections::Filter as if a legacy DCP producer was created
  */
-TEST_F(CollectionsFilterTest, filter_legacy) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m(cm.add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
+TEST_F(CollectionsVBFilterTest, filter_legacy) {
+    cm.add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
+    vbm.wlock().update(vb, m);
 
     // No string...
     boost::optional<cb::const_char_buffer> json;
-    Collections::Filter f(json, &m);
+    Collections::VB::Filter f(json, vbm);
 
     // Not a pass through
     EXPECT_FALSE(f.isPassthrough());
@@ -264,89 +254,24 @@ TEST_F(CollectionsFilterTest, filter_legacy) {
     EXPECT_FALSE(f.allowSystemEvents());
 
     // The actual filter "list" stores nothing
-    EXPECT_EQ(0, f.getFilter().size());
-}
-
-class CollectionsVBFilterTest : public CollectionsFilterTest {};
-
-/**
- * Try and create filter for collections which exist by name but not with the
- * UID. This represents what could happen if a filtered producer was created
- * successfully, but later when a stream request occurs, the VB's view of
- * collections has shifted.
- */
-TEST_F(CollectionsVBFilterTest, uid_mismatch) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m1(cm.add(CollectionEntry::dairy));
-
-    CollectionsManifest cm2(CollectionEntry::vegetable2);
-    Collections::Manifest m2(cm2.add(CollectionEntry::dairy2));
-
-    // Create the "producer" level filter so that we in theory produce at least
-    // these collections
-    std::string jsonFilter =
-            R"({"collections":["4", "6"]})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-    // At this point the requested collections are valid for m1
-    Collections::Filter f(json, &m1);
-
-    Collections::VB::Manifest vbm({});
-    // push creates
-    vbm.wlock().update(vb, m1);
-    // push deletes, removing both filtered collections
-    vbm.wlock().update(vb, m2);
-
-    // Construction will now fail as the newly calculated filter doesn't match
-    // the collections of vbm
-    Collections::VB::Filter vbf(f, vbm);
-    EXPECT_TRUE(vbf.empty());
-}
-
-/**
- * Try and create filter for collections which exist, but have been deleted
- * i.e. they aren't writable so should never feature in a new VB::Filter
- */
-TEST_F(CollectionsVBFilterTest, deleted_collection) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m1(cm.add(CollectionEntry::meat)
-                                     .add(CollectionEntry::fruit)
-                                     .add(CollectionEntry::dairy));
-    Collections::Manifest m2(cm.remove(CollectionEntry::vegetable)
-                                     .remove(CollectionEntry::fruit));
-
-    // Create the "producer" level filter so that we in theory produce at least
-    // these collections
-    std::string jsonFilter = R"({"collections":["3", "4"]})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::Filter f(json, &m1);
-
-    Collections::VB::Manifest vbm({});
-    // push creates
-    vbm.wlock().update(vb, m1);
-    // push deletes, removing both filtered collections
-    vbm.wlock().update(vb, m2);
-
-    Collections::VB::Filter vbf(f, vbm);
-    EXPECT_TRUE(vbf.empty());
+    EXPECT_EQ(0, f.size());
 }
 
 /**
  * Create a filter with collections and check we allow what should be allowed.
  */
 TEST_F(CollectionsVBFilterTest, basic_allow) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m(cm.add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
+    cm.add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
+    vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "2", "3"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::Filter f(json, &m);
 
-    Collections::VB::Manifest vbm({});
-    vbm.wlock().update(vb, m);
-
-    Collections::VB::Filter vbf(f, vbm);
+    Collections::VB::Filter vbf(json, vbm);
 
     // Yes to these guys
     EXPECT_TRUE(vbf.checkAndUpdate(
@@ -388,16 +313,13 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
  * JSON filter is not initialised (because DCP open does not send a value).
  */
 TEST_F(CollectionsVBFilterTest, legacy_filter) {
-    CollectionsManifest cm(CollectionEntry::meat);
+    cm.add(CollectionEntry::meat);
     Collections::Manifest m(cm);
-
-    boost::optional<cb::const_char_buffer> json;
-    Collections::Filter f(json, &m);
-
-    Collections::VB::Manifest vbm({});
     vbm.wlock().update(vb, m);
 
-    Collections::VB::Filter vbf(f, vbm);
+    boost::optional<cb::const_char_buffer> json;
+
+    Collections::VB::Filter vbf(json, vbm);
     // Legacy would only allow default
     EXPECT_TRUE(vbf.checkAndUpdate(
             {StoredDocKey{"anykey", CollectionEntry::defaultC},
@@ -417,18 +339,15 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
  * Create a passthrough filter and check it allows anything
  */
 TEST_F(CollectionsVBFilterTest, passthrough) {
-    CollectionsManifest cm(CollectionEntry::meat);
+    cm.add(CollectionEntry::meat);
     Collections::Manifest m(cm);
+    vbm.wlock().update(vb, m);
 
     std::string filterJson; // empty string
     boost::optional<cb::const_char_buffer> json(filterJson);
-    Collections::Filter f(json, &m);
-
-    Collections::VB::Manifest vbm({});
-    vbm.wlock().update(vb, m);
 
     // Everything is allowed (even junk, which isn't the filter's job to police)
-    Collections::VB::Filter vbf(f, vbm);
+    Collections::VB::Filter vbf(json, vbm);
     EXPECT_TRUE(vbf.checkAndUpdate(
             {StoredDocKey{"anykey", CollectionEntry::defaultC},
              0,
@@ -465,20 +384,18 @@ TEST_F(CollectionsVBFilterTest, passthrough) {
  * Create a filter which blocks the default collection
  */
 TEST_F(CollectionsVBFilterTest, no_default) {
-    CollectionsManifest cm(CollectionEntry::vegetable);
-    Collections::Manifest m(cm.add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
-
-    Collections::VB::Manifest vbm({});
+    cm.add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["2", "3"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::Filter f(json, &m);
 
     // Now filter!
-    Collections::VB::Filter vbf(f, vbm);
+    Collections::VB::Filter vbf(json, vbm);
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"anykey", CollectionEntry::defaultC},
              0,
@@ -516,20 +433,19 @@ TEST_F(CollectionsVBFilterTest, no_default) {
  * check ::checkAndUpdate works as expected
  */
 TEST_F(CollectionsVBFilterTest, remove1) {
-    CollectionsManifest cm(NoDefault{});
-    Collections::Manifest m(cm.add(CollectionEntry::vegetable)
-                                    .add(CollectionEntry::meat)
-                                    .add(CollectionEntry::fruit)
-                                    .add(CollectionEntry::dairy));
+    cm.remove(CollectionEntry::defaultC)
+            .add(CollectionEntry::vegetable)
+            .add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
 
-    Collections::VB::Manifest vbm({});
+    Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["2", "3"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::Filter f(json, &m);
-    Collections::VB::Filter vbf(f, vbm);
+    Collections::VB::Filter vbf(json, vbm);
     EXPECT_TRUE(vbf.checkAndUpdate(
             {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
              0,
@@ -574,18 +490,17 @@ TEST_F(CollectionsVBFilterTest, remove1) {
  * This test includes checking we can remove $default
  */
 TEST_F(CollectionsVBFilterTest, remove2) {
-    CollectionsManifest cm(CollectionEntry::meat);
-    Collections::Manifest m(
-            cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy));
+    cm.add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
 
-    Collections::VB::Manifest vbm({});
+    Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "2"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::Filter f(json, &m);
-    Collections::VB::Filter vbf(f, vbm);
+    Collections::VB::Filter vbf(json, vbm);
     EXPECT_TRUE(vbf.checkAndUpdate(
             {StoredDocKey{"anykey", CollectionEntry::defaultC},
              0,
@@ -638,17 +553,15 @@ TEST_F(CollectionsVBFilterTest, remove2) {
  * This test creates a passthrough filter so everything is allowed.
  */
 TEST_F(CollectionsVBFilterTest, system_events1) {
-    CollectionsManifest cm(CollectionEntry::meat);
-    Collections::Manifest m(cm.add(CollectionEntry::fruit));
+    cm.add(CollectionEntry::meat).add(CollectionEntry::fruit);
 
-    Collections::VB::Manifest vbm({});
+    Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
     std::string jsonFilter;
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::Filter f(json, &m);
-    Collections::VB::Filter vbf(f, vbm);
+    Collections::VB::Filter vbf(json, vbm);
 
     // meat system event is allowed by the meat filter
     EXPECT_TRUE(vbf.checkAndUpdate(
@@ -670,19 +583,17 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
  * This test creates a filter where only matching events are allowed
  */
 TEST_F(CollectionsVBFilterTest, system_events2) {
-    CollectionsManifest cm(CollectionEntry::meat);
-    Collections::Manifest m(
-            cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy));
-
-    Collections::VB::Manifest vbm({});
+    cm.add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
+    Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
     // only events for default and meat are allowed
     std::string jsonFilter = R"({"collections":["0", "2"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
-    Collections::Filter f(json, &m);
-    Collections::VB::Filter vbf(f, vbm);
+    Collections::VB::Filter vbf(json, vbm);
 
     // meat system event is allowed by the meat filter
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
@@ -703,17 +614,16 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
  * attached to - no system events at all are allowed.
  */
 TEST_F(CollectionsVBFilterTest, system_events3) {
-    CollectionsManifest cm(CollectionEntry::meat);
-    Collections::Manifest m(
-            cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy));
+    cm.add(CollectionEntry::meat)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::dairy);
 
-    Collections::VB::Manifest vbm({});
+    Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
     boost::optional<cb::const_char_buffer> json;
 
-    Collections::Filter f(json, &m);
-    Collections::VB::Filter vbf(f, vbm);
+    Collections::VB::Filter vbf(json, vbm);
 
     // All system events dropped by this empty/legacy filter
     EXPECT_FALSE(vbf.checkAndUpdate(

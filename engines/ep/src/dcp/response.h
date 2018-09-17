@@ -596,9 +596,8 @@ class CollectionsProducerMessage : public SystemEventProducerMessage {
 public:
     CollectionsProducerMessage(uint32_t opaque,
                                const queued_item& itm,
-                               const Collections::SystemEventDcpData& data)
-        : SystemEventProducerMessage(opaque, itm),
-          eventData{htonll(data.manifestUid), data.cid} {
+                               const Collections::SystemEventData& data)
+        : SystemEventProducerMessage(opaque, itm), eventData{data} {
     }
 
     // Collections system event have no key data, all is in the event data
@@ -668,7 +667,7 @@ public:
         const auto* dcpData =
                 reinterpret_cast<const Collections::SystemEventDcpData*>(
                         event.getEventData().data());
-        return ntohll(dcpData->manifestUid);
+        return dcpData->manifestUid.to_host();
     }
 };
 

@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "collections/collections_types.h"
 #include "item.h"
 
 #include <memcached/dockey.h>
@@ -31,25 +32,46 @@
 class SystemEventMessage;
 
 namespace Collections {
-
-class Filter;
-
 namespace VB {
 
 class Manifest;
 
 /**
- * The VB filter is used to decide if keys on a DCP stream should be sent
- * or dropped.
+ * The VB filter object constructs from data that is yielded from DCP stream
+ * request, an optional string. The string is optional because a legacy DCP
+ * user will not set any string data, whilst a collection aware request can.
+ * However the collection aware request may contain an empty string. For
+ * reference here's what the optiona string means.
  *
- * A filter is built from the Collections::Filter that was established when
- * the producer was opened. During the time the producer was opened and a
- * stream is requested, filtered collections may have been deleted, so the
- * ::VB::Filter becomes the intersection of the producer's filter and the
- * open collections within the manifest.
+ * - uninitialized: legacy stream-request. A client that can only ever receive
+ *                  the default collection.
+ * - empty string: A collection aware client that wants *everything* from the
+ *                 epoch. For example KV replication streams.
+ * - non-empty string: A collection aware client wanting to resume a stream or
+ *                     request specific collections (or both). The non-empty
+ *                     string is a JSON document as follows.
  *
- * Note: There is no locking on a VB::Filter as at the moment it is constructed
- * and then is not mutable.
+ * A client can request individual collections or a group by defining an array
+ * of collection-IDs.
+ *
+ * Client wants two collections:
+ *   {"collections":["0", "ac1"]}}
+ *
+ * Client wants to resume a stream that was previously everything, client
+ * specifies the highest manifest UID they've received.
+ *   {"uid":"5"}
+ *
+ * Why not both? Client wants to resume a subset of collections.
+ *    {"collections":["0", "ac1"]}, "uid":"5"}
+ *
+ * The class exposes methods which are for use by the ActiveStream.
+ *
+ * Should a Mutation/Deletion/SystemEvent be included in the DCP stream?
+ *   - checkAndUpdate
+ * checkAndUpdate is non-const because for SystemEvents which represent the
+ * drop of a collection, they will modify the Filter to remove the collection
+ * if the filter was targeting the collection.
+ *
  */
 
 class Filter {
@@ -74,10 +96,11 @@ public:
            const ::Collections::VB::Manifest& manifest);
 
     /**
-     * Check the item and if required, update the filter.
+     * Check the item and if required and maybe update the filter.
+     *
      * If the item represents a collection deletion and this filter matches the
-     * collection, we must update the filter so that no more matching items
-     * would be allowed.
+     * collection, we must update the filter so we can later see that the filter
+     * is empty, and the DCP stream can choose to close.
      *
      * @param item an Item to be processed.
      * @return if the Item is allowed to be sent on the DcpStream
@@ -111,11 +134,44 @@ public:
                   Vbid vb) const;
 
     /**
+     * Was this filter constructed for a non-collection aware client?
+     */
+    bool isLegacyFilter() const {
+        return !systemEventsAllowed;
+    }
+
+    /// @return the size of the filter
+    size_t size() const {
+        return filter.size();
+    }
+
+    /// @return is this filter a passthrough (allows every collection)
+    bool isPassthrough() const {
+        return passthrough;
+    }
+
+    bool allowDefaultCollection() const {
+        return defaultAllowed;
+    }
+
+    bool allowSystemEvents() const {
+        return systemEventsAllowed;
+    }
+
+    std::string getUid() const;
+
+    /**
      * Dump this to std::cerr
      */
     void dump() const;
 
 protected:
+    /**
+     * Constructor helper method for parsing the JSON
+     */
+    void constructFromJson(cb::const_char_buffer json,
+                           const Collections::VB::Manifest& manifest);
+
     /**
      * Private helper to examine the given collection object against the
      * manifest and add to internal container or throw an exception
@@ -145,13 +201,17 @@ protected:
     bool defaultAllowed = false;
     bool passthrough = false;
     bool systemEventsAllowed = false;
-
-    // strings used in JSON parsing
-    static constexpr char const* CollectionsKey = "collections";
-    static constexpr nlohmann::json::value_t CollectionsType =
-            nlohmann::json::value_t::array;
+    boost::optional<Collections::ManifestUid> uid;
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
+
+    // keys and types used in JSON parsing
+    static const char* CollectionsKey;
+    static constexpr nlohmann::json::value_t CollectionsType =
+            nlohmann::json::value_t::array;
+    static const char* UidKey;
+    static constexpr nlohmann::json::value_t UidType =
+            nlohmann::json::value_t::string;
 };
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter);

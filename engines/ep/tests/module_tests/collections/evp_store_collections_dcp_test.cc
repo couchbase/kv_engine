@@ -57,7 +57,7 @@ public:
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
         producers = std::make_unique<MockDcpMessageProducers>(engine.get());
-        createDcpObjects({{nullptr, 0}} /*collections on, but no filter*/);
+        createDcpObjects({{}} /*collections on, but no filter*/);
     }
     std::string getManifest(Vbid vb) const {
         return store->getVBucket(vb)
@@ -217,8 +217,8 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     std::string collection = "meat";
     CollectionID cid = CollectionEntry::meat.getId();
     Collections::ManifestUid manifestUid = 0xcafef00d;
-    Collections::SystemEventDcpData eventData{htonll(manifestUid),
-                                              cid.to_network()};
+    Collections::SystemEventData eventData{manifestUid, cid};
+    Collections::SystemEventDcpData eventDcpData{eventData};
 
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->snapshotMarker(/*opaque*/ 1,
@@ -242,7 +242,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
                       /*seqno*/ 1,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
-                      {reinterpret_cast<const uint8_t*>(&eventData),
+                      {reinterpret_cast<const uint8_t*>(&eventDcpData),
                        Collections::SystemEventDcpData::size}));
 
     // We can now access the collection
@@ -261,7 +261,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
                       /*seqno*/ 2,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
-                      {reinterpret_cast<const uint8_t*>(&eventData),
+                      {reinterpret_cast<const uint8_t*>(&eventDcpData),
                        Collections::SystemEventDcpData::size}));
 
     // It's gone!
@@ -676,6 +676,27 @@ TEST_F(CollectionsDcpTest, MB_26455) {
             store->getVBucket(vbid)->lockCollections().isCollectionOpen(m - 1));
 }
 
+TEST_F(CollectionsDcpTest, collections_manifest_is_ahead) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest({cm});
+
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+    // Patch our local callback into the handlers
+    producers->system_event = &CollectionsDcpTest::sendSystemEvent;
+
+    try {
+        createDcpStream({{R"({"uid":"9"})"}});
+        FAIL() << "Expected stream creation to throw";
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::collections_manifest_is_ahead, e.code());
+    }
+
+    createDcpStream({{R"({"uid":"3"})"}});
+}
+
 class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {
 public:
     CollectionsFilteredDcpErrorTest() : cookieP(create_mock_cookie()) {
@@ -699,31 +720,6 @@ protected:
     std::shared_ptr<MockDcpProducer> producer;
     const void* cookieP;
 };
-
-TEST_F(CollectionsFilteredDcpErrorTest, error1) {
-    // Set some collections
-    CollectionsManifest cm;
-    store->setCollections(
-            {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
-
-    std::string filter = R"({"collections":["8"]})";
-    // Can't create a filter for unknown collections
-    uint64_t rollback_seqno = 0;
-    producer = SingleThreadedKVBucketTest::createDcpProducer(
-            cookieP, IncludeDeleteTime::No);
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-              producer->streamRequest(0,
-                                      0,
-                                      vbid,
-                                      0,
-                                      1,
-                                      0,
-                                      0,
-                                      0,
-                                      &rollback_seqno,
-                                      &CollectionsDcpTest::dcpAddFailoverLog,
-                                      cb::const_char_buffer{filter}));
-}
 
 class CollectionsFilteredDcpTest : public CollectionsDcpTest {
 public:
@@ -941,18 +937,23 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     store->setCollections({cm.remove(CollectionEntry::meat)});
 
     uint64_t rollbackSeqno;
-    EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
-              producer->streamRequest(0, // flags
-                                      1, // opaque
-                                      vbid,
-                                      0, // start_seqno
-                                      ~0ull, // end_seqno
-                                      0, // vbucket_uuid,
-                                      0, // snap_start_seqno,
-                                      0, // snap_end_seqno,
-                                      &rollbackSeqno,
-                                      &CollectionsDcpTest::dcpAddFailoverLog,
-                                      {{R"({"collections":["2"]})"}}));
+    try {
+        producer->streamRequest(0, // flags
+                                1, // opaque
+                                vbid,
+                                0, // start_seqno
+                                ~0ull, // end_seqno
+                                0, // vbucket_uuid,
+                                0, // snap_start_seqno,
+                                0, // snap_end_seqno,
+                                &rollbackSeqno,
+                                &CollectionsDcpTest::dcpAddFailoverLog,
+                                {{R"({"collections":["2"]})"}});
+        FAIL() << "Expected an exception";
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
+                  ENGINE_ERROR_CODE(e.code().value()));
+    }
 }
 
 

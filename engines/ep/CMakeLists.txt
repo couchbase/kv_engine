@@ -311,6 +311,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/collections/evp_store_collections_dcp_test.cc
                    tests/module_tests/collections/evp_store_collections_eraser_test.cc
                    tests/module_tests/collections/evp_store_collections_test.cc
+                   tests/module_tests/collections/filter_test.cc
                    tests/module_tests/collections/manifest_test.cc
                    tests/module_tests/collections/test_manifest.cc
                    tests/module_tests/collections/vbucket_manifest_test.cc

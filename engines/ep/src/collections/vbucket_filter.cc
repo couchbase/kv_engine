@@ -27,9 +27,11 @@
 #include <platform/checked_snprintf.h>
 #include <memory>
 
-Collections::VB::Filter::Filter(
-        boost::optional<cb::const_char_buffer> jsonFilter,
-        const Collections::VB::Manifest& manifest) {
+namespace Collections {
+namespace VB {
+
+Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
+               const Collections::VB::Manifest& manifest) {
     // If the jsonFilter is not initialised we are building a filter for a
     // legacy DCP stream, one which could only ever support _default
     if (!jsonFilter.is_initialized()) {
@@ -46,73 +48,107 @@ Collections::VB::Filter::Filter(
 
     auto json = jsonFilter.get();
 
-    // If the filter is initialised, collections are enabled - system events are
-    // allowed
+    // If the filter is initialised that means collections are enabled so system
+    // events are allowed
     systemEventsAllowed = true;
 
-    // If the filter is empty, then everything is allowed on DCP
-    if (json.size() == 0) {
+    if (json.empty()) {
+        // No collection/scopes defined, everything is allowed from the epoch
         passthrough = true;
         defaultAllowed = true;
-        return;
+    } else {
+        try {
+            constructFromJson(json, manifest);
+        } catch (const std::invalid_argument& e) {
+            // json utilities may throw invalid_argument
+            throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                                   e.what());
+        }
     }
+}
 
-    // Filter is non-zero, it should contain JSON filter data, so let's parse it
-    if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(json.data()),
-                       json.size())) {
-        throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                               "Filter::Filter input not valid jsonFilter:" +
-                                       cb::to_string(json));
-    }
-
+void Filter::constructFromJson(cb::const_char_buffer json,
+                               const Collections::VB::Manifest& manifest) {
     nlohmann::json parsed;
     try {
         parsed = nlohmann::json::parse(json);
     } catch (const nlohmann::json::exception& e) {
-        throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                               "Filter::Filter cannot parse jsonFilter:" +
-                                       cb::to_string(json) +
-                                       " json::exception:" + e.what());
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Filter::constructFromJson cannot parse jsonFilter:" +
+                        cb::to_string(json) + " json::exception:" + e.what());
     }
 
-    auto jsonCollections = cb::getJsonObject(
-            parsed, CollectionsKey, CollectionsType, "Filter::Filter");
+    const auto uidObject = parsed.find(UidKey);
+    // Check if a uid is specified and parse it
+    if (uidObject != parsed.end()) {
+        auto jsonUid = cb::getJsonObject(
+                parsed, UidKey, UidType, "Filter::constructFromJson");
+        uid = makeUid(jsonUid.get<std::string>());
 
-    for (const auto& entry : jsonCollections) {
-        cb::throwIfWrongType(std::string(CollectionsKey),
-                             entry,
-                             nlohmann::json::value_t::string);
-        addCollection(entry, manifest);
-    }
-}
-
-void Collections::VB::Filter::addCollection(
-        const nlohmann::json& object,
-        const Collections::VB::Manifest& manifest) {
-    // Require that the requested collection exists in the manifest.
-    // DCP cannot filter an unknown collection.
-    auto uid = makeCollectionID(object.get<std::string>());
-    {
-        auto rh = manifest.lock();
-        if (!rh.isCollectionOpen(uid)) {
-            // Error time
+        // Critical - if the client has a uid ahead of the vbucket, tempfail
+        // we expect ns_server to update us to the latest manifest.
+        auto vbUid = manifest.lock().getManifestUid();
+        if (*uid > vbUid) {
             throw cb::engine_error(
-                    cb::engine_errc::unknown_collection,
-                    "Filter::Filter unknown collection:" + uid.to_string());
+                    cb::engine_errc::collections_manifest_is_ahead,
+                    "Filter::constructFromJson client is ahead client:uid:" +
+                            std::to_string(*uid) +
+                            ", vb:uid:" + std::to_string(vbUid));
         }
     }
 
-    if (uid.isDefaultCollection()) {
-        defaultAllowed = true;
-    } else {
-        this->filter.insert(uid);
+    const auto collectionsObject = parsed.find(CollectionsKey);
+    if (collectionsObject != parsed.end()) {
+        auto jsonCollections = cb::getJsonObject(parsed,
+                                                 CollectionsKey,
+                                                 CollectionsType,
+                                                 "Filter::constructFromJson");
+
+        for (const auto& entry : jsonCollections) {
+            cb::throwIfWrongType(std::string(CollectionsKey),
+                                 entry,
+                                 nlohmann::json::value_t::string);
+            addCollection(entry, manifest);
+        }
+    }
+
+    // The input JSON must of contained at least a UID or at least a collection
+    //  * {} is valid JSON but is invalid for this class
+    //  * {uid:4} is OK - client wants everything (non-zero start)
+    //  * {collections:[...]} - is OK - client wants some collections from epoch
+    //  * {uid:4, collections:[...]} - is OK
+    if (collectionsObject == parsed.end() && uidObject == parsed.end()) {
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Filter::constructFromJson no uid or collections found");
     }
 }
 
-bool Collections::VB::Filter::checkAndUpdateSlow(CollectionID cid,
-                                                 const Item& item) {
-    bool allowed = false;
+void Filter::addCollection(const nlohmann::json& object,
+                           const Collections::VB::Manifest& manifest) {
+    // Require that the requested collection exists in the manifest.
+    // DCP cannot filter an unknown collection.
+    auto cid = makeCollectionID(object.get<std::string>());
+    {
+        auto rh = manifest.lock();
+        if (!rh.isCollectionOpen(cid)) {
+            // Error time
+            throw cb::engine_error(cb::engine_errc::unknown_collection,
+                                   "Filter::addCollection unknown collection:" +
+                                           cid.to_string());
+        }
+    }
 
+    if (cid.isDefaultCollection()) {
+        defaultAllowed = true;
+    } else {
+        this->filter.insert(cid);
+    }
+}
+
+bool Filter::checkAndUpdateSlow(CollectionID cid, const Item& item) {
+    bool allowed = false;
     if (cid == DocNamespace::System) {
         allowed = allowSystemEvent(item);
 
@@ -126,7 +162,7 @@ bool Collections::VB::Filter::checkAndUpdateSlow(CollectionID cid,
     return allowed;
 }
 
-void Collections::VB::Filter::remove(const Item& item) {
+void Filter::remove(const Item& item) {
     if (passthrough) {
         return;
     }
@@ -140,11 +176,11 @@ void Collections::VB::Filter::remove(const Item& item) {
     }
 }
 
-bool Collections::VB::Filter::empty() const {
+bool Filter::empty() const {
     return filter.empty() && !defaultAllowed;
 }
 
-bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
+bool Filter::allowSystemEvent(const Item& item) const {
     if (!systemEventsAllowed) {
         return false;
     }
@@ -152,30 +188,35 @@ bool Collections::VB::Filter::allowSystemEvent(const Item& item) const {
     case SystemEvent::Collection: {
         CollectionID collection =
                 VB::Manifest::getCollectionIDFromKey(item.getKey());
-        if ((collection == CollectionID::Default && defaultAllowed) ||
-            passthrough) {
-            return true;
-        } else {
-            // These events are sent only if they relate to a collection in the
-            // filter
-            return filter.count(collection) > 0;
+        auto dcpData = VB::Manifest::getSystemEventData(
+                {item.getData(), item.getNBytes()});
+        // Only consider this if it is an event the client hasn't observed
+        if (!uid || (dcpData.manifestUid > *uid)) {
+            if ((collection.isDefaultCollection() && defaultAllowed) ||
+                passthrough) {
+                return true;
+            } else {
+                // When filtered allow only if there is a match
+                return filter.count(collection) > 0;
+            }
         }
+        return false;
     }
     case SystemEvent::DeleteCollectionHard: {
         return false;
     }
     default: {
         throw std::invalid_argument(
-                "VB::Filter::allowSystemEvent:: event unknown:" +
+                "Filter::allowSystemEvent:: event unknown:" +
                 std::to_string(int(item.getFlags())));
     }
     }
 }
 
-void Collections::VB::Filter::addStats(ADD_STAT add_stat,
-                                       const void* c,
-                                       const std::string& prefix,
-                                       Vbid vb) const {
+void Filter::addStats(ADD_STAT add_stat,
+                      const void* c,
+                      const std::string& prefix,
+                      Vbid vb) const {
     try {
         const int bsize = 1024;
         char buffer[bsize];
@@ -201,11 +242,15 @@ void Collections::VB::Filter::addStats(ADD_STAT add_stat,
         add_casted_stat(buffer, systemEventsAllowed, add_stat, c);
 
         checked_snprintf(
+                buffer, bsize, "%s:filter_%d_uid", prefix.c_str(), vb.get());
+        add_casted_stat(buffer, getUid(), add_stat, c);
+
+        checked_snprintf(
                 buffer, bsize, "%s:filter_%d_size", prefix.c_str(), vb.get());
         add_casted_stat(buffer, filter.size(), add_stat, c);
     } catch (std::exception& error) {
         EP_LOG_WARN(
-                "Collections::VB::Filter::addStats: {}:{}"
+                "Filter::addStats: {}:{}"
                 " exception.what:{}",
                 prefix,
                 vb,
@@ -213,20 +258,36 @@ void Collections::VB::Filter::addStats(ADD_STAT add_stat,
     }
 }
 
-void Collections::VB::Filter::dump() const {
+std::string Filter::getUid() const {
+    if (uid) {
+        return std::to_string(*uid);
+    }
+    return "none";
+}
+
+void Filter::dump() const {
     std::cerr << *this << std::endl;
 }
 
-std::ostream& Collections::VB::operator<<(
-        std::ostream& os, const Collections::VB::Filter& filter) {
+// To use the keys in json::find, they need to be statically allocated
+const char* Filter::CollectionsKey = "collections";
+const char* Filter::UidKey = "uid";
+
+std::ostream& operator<<(std::ostream& os, const Filter& filter) {
     os << "VBucket::Filter"
        << ": defaultAllowed:" << filter.defaultAllowed
        << ", passthrough:" << filter.passthrough
        << ", systemEventsAllowed:" << filter.systemEventsAllowed;
+    if (filter.uid) {
+        os << ", uid:" << *filter.uid;
+    }
 
     os << ", filter.size:" << filter.filter.size() << std::endl;
     for (auto& cid : filter.filter) {
-        os << std::hex << cid << "," << std::endl;
+        os << "filter:entry:0x" << std::hex << cid << std::endl;
     }
     return os;
 }
+
+} // end namespace VB
+} // end namespace Collections

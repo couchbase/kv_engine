@@ -39,8 +39,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            IncludeValue includeVal,
                            IncludeXattrs includeXattrs,
                            IncludeDeleteTime includeDeleteTime,
-                           boost::optional<cb::const_char_buffer> json,
-                           const Collections::VB::Manifest& manifest)
+                           Collections::VB::Filter filter)
     : Stream(n,
              flags,
              opaque,
@@ -69,15 +68,15 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
-      includeCollectionID(json.is_initialized()
-                                  ? DocKeyEncodesCollectionId::Yes
-                                  : DocKeyEncodesCollectionId::No),
+      includeCollectionID(filter.isLegacyFilter()
+                                  ? DocKeyEncodesCollectionId::No
+                                  : DocKeyEncodesCollectionId::Yes),
       snappyEnabled(p->isSnappyEnabled() ? SnappyEnabled::Yes
                                          : SnappyEnabled::No),
       forceValueCompression(p->isForceValueCompressionEnabled()
                                     ? ForceValueCompression::Yes
                                     : ForceValueCompression::No),
-      filter(json, manifest) {
+      filter(std::move(filter)) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
@@ -95,12 +94,13 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     p->getLogger().log(
             spdlog::level::info,
             "({}) Creating {}stream with start seqno {} and end seqno {}; "
-            "requested end seqno was {}",
+            "requested end seqno was {}, collections-manifest uid:{}",
             vbucket.getId(),
             type,
             st_seqno,
             end_seqno_,
-            en_seqno);
+            en_seqno,
+            filter.getUid());
 
     backfillItems.memory = 0;
     backfillItems.disk = 0;

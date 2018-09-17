@@ -458,8 +458,7 @@ public:
 
     /**
      * Get the system event collection create/delete data from a SystemEvent
-     * Item's value. This returns the information that DCP needs to create a
-     * DCPSystemEvent packet for the create/delete.
+     * Item's value.
      *
      * @param serialisedManifest Serialised manifest data created by
      *        ::populateWithSerialisedData
@@ -468,7 +467,7 @@ public:
      *          object maybe sized_buffer objects which point into
      *          serialisedManifest.
      */
-    static SystemEventDcpData getSystemEventDcpData(
+    static SystemEventData getSystemEventData(
             cb::const_char_buffer serialisedManifest);
 
     /**

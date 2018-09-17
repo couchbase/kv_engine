@@ -59,8 +59,7 @@ public:
                        includeValue,
                        includeXattrs,
                        IncludeDeleteTime::No,
-                       {},
-                       vb.getManifest()) {
+                       {{}, vb.getManifest()}) {
     }
 
     // Expose underlying protected ActiveStream methods as public

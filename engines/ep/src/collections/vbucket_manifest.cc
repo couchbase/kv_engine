@@ -572,7 +572,7 @@ void Manifest::trackEndSeqno(int64_t seqno) {
     }
 }
 
-SystemEventDcpData Manifest::getSystemEventDcpData(
+SystemEventData Manifest::getSystemEventData(
         cb::const_char_buffer serialisedManifest) {
     const auto* sm = SerialisedManifest::make(serialisedManifest);
     const auto* sme = sm->getFinalManifestEntry();
