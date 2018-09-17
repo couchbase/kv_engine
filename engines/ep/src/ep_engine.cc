@@ -5360,7 +5360,13 @@ public:
 
     void callback(const DocKey& key) {
         DocKey outKey = key;
-        if (!encodeCollectionID) {
+        if (key.getCollectionID() == CollectionID::System) {
+            // Skip system collection keys
+            return;
+        } else if (!encodeCollectionID &&
+                   key.getCollectionID().isDefaultCollection()) {
+            // Only default collection key can be sent back if
+            // encodeCollectionID is false
             outKey = key.makeDocKeyWithoutCollectionID();
         }
 
