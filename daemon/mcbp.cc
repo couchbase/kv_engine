@@ -227,6 +227,14 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 }
 
 void mcbp_collect_timings(Cookie& cookie) {
+    // The state machinery cause this method to be called for all kinds
+    // of packets, but the header musts be a client request for the timings
+    // to make sense (and not when we handled a ServerResponse message etc ;)
+    const auto& header = cookie.getHeader();
+    if (header.getMagic() != uint8_t(cb::mcbp::Magic::ClientRequest)) {
+        return;
+    }
+
     auto* c = &cookie.getConnection();
     if (c->isDCP()) {
         // The state machinery works differently for the DCP connections
@@ -236,7 +244,7 @@ void mcbp_collect_timings(Cookie& cookie) {
         // correct
         return;
     }
-    const auto opcode = cookie.getHeader().getOpcode();
+    const auto opcode = header.getOpcode();
     const auto endTime = ProcessClock::now();
     const auto elapsed = endTime - cookie.getStart();
     cookie.getTracer().end(cb::tracing::TraceCode::REQUEST, endTime);
