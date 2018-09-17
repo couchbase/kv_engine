@@ -35,9 +35,10 @@ enum class Error {
     NO_MECH,
     NO_USER,
     PASSWORD_ERROR,
-    NO_RBAC_PROFILE
+    NO_RBAC_PROFILE,
+    AUTH_PROVIDER_DIED
 };
-}
+} // namespace sasl
 } // namespace cb
 
 CBSASL_PUBLIC_API

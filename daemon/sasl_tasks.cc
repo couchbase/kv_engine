@@ -116,6 +116,10 @@ void SaslAuthTask::notifyExecutionComplete() {
                 cb::UserDataView(connection.getUsername()),
                 cookie.getEventId());
         break;
+    case cb::sasl::Error::AUTH_PROVIDER_DIED:
+        LOG_WARNING("{}: Auth provider closed the connection. UUID:[{}]",
+                    connection.getId(),
+                    cookie.getEventId());
     }
 
     notify_io_complete(static_cast<void*>(&cookie), ENGINE_SUCCESS);

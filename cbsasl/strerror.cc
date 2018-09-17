@@ -39,6 +39,8 @@ std::string to_string(cb::sasl::Error error) {
         return "Invalid password";
     case Error::NO_RBAC_PROFILE:
         return "User not defined in Couchbase";
+    case Error::AUTH_PROVIDER_DIED:
+        return "Auth provider died";
     }
 
     throw std::invalid_argument(

@@ -82,6 +82,7 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::parseAuthTaskResult() {
     case cb::sasl::Error::NO_USER:
     case cb::sasl::Error::PASSWORD_ERROR:
     case cb::sasl::Error::NO_RBAC_PROFILE:
+    case cb::sasl::Error::AUTH_PROVIDER_DIED:
         state = State::AuthFailure;
         return ENGINE_SUCCESS;
     }
@@ -166,7 +167,12 @@ ENGINE_ERROR_CODE SaslAuthCommandContext::authFailure() {
                                    ? "Unknown user"
                                    : "Incorrect password");
     }
-    cookie.sendResponse(cb::mcbp::Status::AuthError);
+
+    if (auth_task->getError() == cb::sasl::Error::AUTH_PROVIDER_DIED) {
+        cookie.sendResponse(cb::mcbp::Status::Etmpfail);
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::AuthError);
+    }
 
     auto* ts = get_thread_stats(&connection);
     ts->auth_cmds++;
