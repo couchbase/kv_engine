@@ -11,9 +11,11 @@ import mc_bin_client
 def main():
     parser = optparse.OptionParser(
              usage="usage: %prog ip1:memcachedport1,ip2:memcachedport2",
-             version="%prog 1.0")
+             version="%prog 1.1")
     parser.add_option('-b', "--bucketName", dest="bucketName",
                         help="name of bucket. default, if unspecified")
+    parser.add_option('-u', "--user", dest="user",
+                        help="Username for authentication")
     parser.add_option('-p', "--bucketPassword", dest="bucketPassword",
                         help="password to authenticate to bucket")
     stat_cmd = "vbucket-details"
@@ -41,11 +43,12 @@ def main():
             if options.bucketPassword:
                 password = options.bucketPassword
             try:
-                mc.sasl_auth_plain(options.bucketName, password)
+                mc.sasl_auth_plain(options.user, password)
             except mc_bin_client.MemcachedError:
                 print "Authentication error for %s" % options.bucketName
                 sys.exit(2)
         # ----- run cbstats to get the stats as a map ----
+        mc.bucket_select(options.bucketName)
         try:
             stats = mc.stats(stat_cmd)
         except Exception, e:
