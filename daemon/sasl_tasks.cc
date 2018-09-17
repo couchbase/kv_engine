@@ -91,10 +91,12 @@ void SaslAuthTask::notifyExecutionComplete() {
     case cb::sasl::Error::FAIL:
     case cb::sasl::Error::BAD_PARAM:
     case cb::sasl::Error::NO_MEM:
-    case cb::sasl::Error::NO_MECH:
         // Should already have been logged
         break;
-
+    case cb::sasl::Error::NO_MECH:
+        cookie.setErrorContext("Requested mechanism \"" + mechanism +
+            "\" is not supported");
+        break;
     case cb::sasl::Error::NO_USER:
         LOG_WARNING("{}: User [{}] not found. UUID:[{}]",
                     connection.getId(),
