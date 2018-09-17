@@ -49,6 +49,13 @@ public:
         return response.second;
     }
 
+    const std::string& getMechanism() const {
+        return mechanism;
+    }
+
+    const std::string& getChallenge() const {
+        return challenge;
+    }
 protected:
     Cookie& cookie;
     Connection& connection;

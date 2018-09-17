@@ -88,8 +88,16 @@ public:
             cb::const_char_buffer input) = 0;
     virtual std::string getName() const = 0;
 
+    void setUsername(std::string username) {
+        MechanismBackend::username = std::move(username);
+    }
+
     const std::string& getUsername() const {
         return username;
+    }
+
+    void setDomain(Domain domain) {
+        MechanismBackend::domain = domain;
     }
 
     Domain getDomain() const {
@@ -111,6 +119,11 @@ public:
     const std::string& getUsername() const {
         return backend->getUsername();
     }
+
+    void setDomain(Domain domain) {
+        backend->setDomain(domain);
+    }
+
     Domain getDomain() const {
         return backend->getDomain();
     }
