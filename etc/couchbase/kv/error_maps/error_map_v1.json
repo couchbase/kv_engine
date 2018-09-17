@@ -186,9 +186,30 @@
         },
         "88": {
             "name": "UNKNOWN_COLLECTION",
-            "desc": "Unknown collection (or no collection) in the key.",
+            "desc": "Operation specified an unknown collection.",
             "attrs": [
                 "invalid-input"
+            ]
+        },
+        "89": {
+            "name": "NO_COLLECTIONS_MANIFEST",
+            "desc": "No collections manifest has been set.",
+            "attrs": [
+                "retry-later"
+            ]
+        },
+        "8a": {
+            "name": "CANNOT_APPLY_COLLECTIONS_MANIFEST",
+            "desc": "The manifest cannot applied to the bucket's vbuckets.",
+            "attrs": [
+                "invalid-input"
+            ]
+        },
+         "8b": {
+            "name": "COLLECTIONS_MANIFEST_IS_AHEAD",
+            "desc": "The specified collection's manifest uid is greater than the requested vbucket's.",
+            "attrs": [
+                "retry-later"
             ]
         },
         "c0": {

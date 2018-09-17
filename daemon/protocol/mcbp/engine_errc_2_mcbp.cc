@@ -73,6 +73,8 @@ protocol_binary_response_status mcbp::to_status(cb::engine_errc code) {
         return PROTOCOL_BINARY_RESPONSE_NO_COLLECTIONS_MANIFEST;
     case engine_errc::cannot_apply_collections_manifest:
         return PROTOCOL_BINARY_RESPONSE_CANNOT_APPLY_COLLECTIONS_MANIFEST;
+    case engine_errc::collections_manifest_is_ahead:
+        return PROTOCOL_BINARY_RESPONSE_COLLECTIONS_MANIFEST_IS_AHEAD;
     case engine_errc::predicate_failed:
         throw std::logic_error(
                 "mcbp::to_status: predicate_failed is not a legal error code "
@@ -149,6 +151,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
                 "to send to the user");
     case engine_errc::cannot_apply_collections_manifest:
         return Status::CannotApplyCollectionsManifest;
+    case engine_errc::collections_manifest_is_ahead:
+        return Status::CollectionsManifestIsAhead;
     case engine_errc::failed:
         return Status::Einternal;
     }

@@ -129,6 +129,8 @@ const uint16_t PROTOCOL_BINARY_RESPONSE_NO_COLLECTIONS_MANIFEST =
         uint16_t(cb::mcbp::Status::NoCollectionsManifest);
 const uint16_t PROTOCOL_BINARY_RESPONSE_CANNOT_APPLY_COLLECTIONS_MANIFEST =
         uint16_t(cb::mcbp::Status::CannotApplyCollectionsManifest);
+const uint16_t PROTOCOL_BINARY_RESPONSE_COLLECTIONS_MANIFEST_IS_AHEAD =
+        uint16_t(cb::mcbp::Status::CollectionsManifestIsAhead);
 const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT =
         uint16_t(cb::mcbp::Status::SubdocPathEnoent);
 const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH =

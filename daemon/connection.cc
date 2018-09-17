@@ -406,6 +406,7 @@ ENGINE_ERROR_CODE Connection::remapErrorCode(ENGINE_ERROR_CODE code) const {
     case ENGINE_LOCKED_TMPFAIL:
         return ENGINE_TMPFAIL;
     case ENGINE_UNKNOWN_COLLECTION:
+    case ENGINE_COLLECTIONS_MANIFEST_IS_AHEAD:
         return isCollectionsSupported() ? code : ENGINE_EINVAL;
 
     case ENGINE_EACCESS:break;

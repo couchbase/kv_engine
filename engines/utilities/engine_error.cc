@@ -98,6 +98,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "no_collections_manifest";
     case cb::engine_errc::cannot_apply_collections_manifest:
         return "cannot_apply_collections_manifest";
+    case cb::engine_errc::collections_manifest_is_ahead:
+        return "collections_manifest_is_ahead";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "
@@ -137,6 +139,8 @@ cb::engine_errc cb::to_engine_errc(ENGINE_ERROR_CODE eec) {
         case ENGINE_LOCKED: return cb::engine_errc::locked;
         case ENGINE_LOCKED_TMPFAIL: return cb::engine_errc::locked_tmpfail;
         case ENGINE_UNKNOWN_COLLECTION: return cb::engine_errc::unknown_collection;
+        case ENGINE_COLLECTIONS_MANIFEST_IS_AHEAD:
+            return cb::engine_errc::collections_manifest_is_ahead;
         case ENGINE_FAILED: return cb::engine_errc::failed;
         case ENGINE_PREDICATE_FAILED: return cb::engine_errc::predicate_failed;
     }

@@ -120,6 +120,12 @@ enum class Status : uint16_t {
      */
     CannotApplyCollectionsManifest = 0x8a,
 
+    /**
+     * Client has a collection's manifest which is from the future. This means
+     * they have a uid that is greater than ours.
+     */
+    CollectionsManifestIsAhead = 0x8b,
+
     /*
      * Sub-document specific responses.
      */

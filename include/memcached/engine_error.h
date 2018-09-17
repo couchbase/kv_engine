@@ -110,6 +110,12 @@ enum class engine_errc {
      */
     cannot_apply_collections_manifest = 0x19,
 
+    /**
+     * The client is from the future, i.e. they have a collections manifest
+     * which is ahead of the vbuckets.
+     */
+    collections_manifest_is_ahead = 0x1a,
+
     /** Generic failue. */
     failed = 0xff
 };
@@ -174,6 +180,8 @@ typedef enum {
     ENGINE_LOCKED = int(cb::engine_errc::locked),
     ENGINE_LOCKED_TMPFAIL = int(cb::engine_errc::locked_tmpfail),
     ENGINE_UNKNOWN_COLLECTION = int(cb::engine_errc::unknown_collection),
+    ENGINE_COLLECTIONS_MANIFEST_IS_AHEAD =
+            int(cb::engine_errc::collections_manifest_is_ahead),
     ENGINE_FAILED = int(cb::engine_errc::failed),
     ENGINE_PREDICATE_FAILED = int(cb::engine_errc::predicate_failed)
 } ENGINE_ERROR_CODE;
