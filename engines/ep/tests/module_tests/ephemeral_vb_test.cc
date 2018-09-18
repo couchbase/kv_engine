@@ -390,6 +390,29 @@ protected:
     std::vector<StoredDocKey> keys;
 };
 
+/**
+ * MB-31175. We should not be able to delete a tombstone that has been deleted
+ * after the HTTombstonePurger starts running as this could cause int underflow
+ * and the subsequent deletion of the tombstone before the purgeAge
+ */
+TEST_F(EphTombstoneTest, DeleteAfterPurgeStarts) {
+    // Delete an item after the task starts but before the purgeArge
+    {
+        TimeTraveller toTheFuture(1985);
+        softDeleteOne(keys.at(0), MutationStatus::WasDirty);
+    }
+
+    // Check the delete went through
+    ASSERT_EQ(2, vbucket->getNumItems());
+    ASSERT_EQ(1, vbucket->getNumInMemoryDeletes());
+
+    // The item has been deleted in the future, run the tombstone purger
+    // purgeAge is > delete time so we should only mark one item as stale
+    EXPECT_EQ(0, mockEpheVB->markOldTombstonesStale(86400));
+    EXPECT_EQ(0, mockEpheVB->public_getNumStaleItems());
+    EXPECT_TRUE(findValue(keys.at(0)));
+}
+
 // Check an empty seqList is handled correctly.
 TEST_F(EphTombstoneTest, ZeroElementPurge) {
     // Create a new empty VB (using parent class SetUp).
