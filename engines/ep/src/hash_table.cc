@@ -308,6 +308,7 @@ MutationStatus HashTable::unlocked_updateStoredValue(
 
     /* setValue() will mark v as undeleted if required */
     v.setValue(itm);
+    updateFreqCounter(v);
 
     valueStats.epilogue(preProps, &v);
 
@@ -481,20 +482,7 @@ StoredValue* HashTable::unlocked_find(const DocKey& key,
             v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
             if (trackReference == TrackReference::Yes && !v->isDeleted()) {
-                // Attempt to increment the storedValue frequency counter
-                // value.  Because a probabilistic counter is used the new
-                // value will either be the same or an increment of the
-                // current value.
-                auto updatedFreqCounterValue =
-                        generateFreqValue(v->getFreqCounterValue());
-                v->setFreqCounterValue(updatedFreqCounterValue);
-
-                if (updatedFreqCounterValue ==
-                    std::numeric_limits<uint8_t>::max()) {
-                    // Invoke the registered callback function which
-                    // wakeups the ItemFreqDecayer task.
-                    frequencyCounterSaturated();
-                }
+                updateFreqCounter(*v);
 
                 // @todo remove the referenced call when eviction algorithm is
                 // updated to use the frequency counter value.
@@ -883,6 +871,21 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
 
 uint8_t HashTable::generateFreqValue(uint8_t counter) {
     return probabilisticCounter.generateValue(counter);
+}
+
+void HashTable::updateFreqCounter(StoredValue& v) {
+    // Attempt to increment the storedValue frequency counter
+    // value.  Because a probabilistic counter is used the new
+    // value will either be the same or an increment of the
+    // current value.
+    auto updatedFreqCounterValue = generateFreqValue(v.getFreqCounterValue());
+    v.setFreqCounterValue(updatedFreqCounterValue);
+
+    if (updatedFreqCounterValue == std::numeric_limits<uint8_t>::max()) {
+        // Invoke the registered callback function which
+        // wakeups the ItemFreqDecayer task.
+        frequencyCounterSaturated();
+    }
 }
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht) {

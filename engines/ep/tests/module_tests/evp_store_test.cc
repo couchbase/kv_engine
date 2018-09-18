@@ -278,6 +278,45 @@ TEST_P(EPStoreEvictionTest, FreqCountTest) {
     EXPECT_NE(initialFreqCount, result.item->getFreqCounterValue());
 }
 
+// Check that performing mutations increases an item's frequency count
+TEST_P(EPStoreEvictionTest, FreqCountOnlyMutationsTest) {
+    StoredDocKey k = makeStoredDocKey("key");
+    auto freqCount = Item::initialFreqCount;
+    GetValue result;
+
+    // We cannot guarantee the counter will increase after performing a single
+    // update, therefore iterate multiple times until the counter changes.
+    // A limit of 1000000 times is applied.
+    int ii = 0;
+    const int limit = 1000000;
+    do {
+        std::string str = "value" + std::to_string(ii);
+        store_item(vbid, k, str);
+
+        // Do an internal get (does not increment frequency count)
+        result = store->get(k, vbid, nullptr, {});
+        ++ii;
+    } while (freqCount == result.item->getFreqCounterValue() && ii < limit);
+
+    // Check that the frequency counter of the document has increased
+    EXPECT_LT(freqCount, result.item->getFreqCounterValue());
+    freqCount = result.item->getFreqCounterValue();
+
+    ii = 0;
+    do {
+        std::string str = "value" + std::to_string(ii);
+        auto item = make_item(vbid, k, str);
+        store->replace(item, cookie);
+
+        // Do an internal get (does not increment frequency count)
+        result = store->get(k, vbid, nullptr, {});
+        ++ii;
+    } while (freqCount == result.item->getFreqCounterValue() && ii < limit);
+
+    // Check that the frequency counter of the document has increased
+    EXPECT_LT(freqCount, result.item->getFreqCounterValue());
+}
+
 // Add tests //////////////////////////////////////////////////////////////////
 
 // Test add against an ejected key.

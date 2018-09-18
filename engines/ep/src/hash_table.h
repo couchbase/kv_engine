@@ -936,6 +936,13 @@ private:
      */
     uint8_t generateFreqValue(uint8_t value);
 
+    /**
+     * Update the frequency counter of a given stored value.
+     * @param v  reference to a value in the hash table whose frequency counter
+     *           is to be updated.
+     */
+    void updateFreqCounter(StoredValue& v);
+
     DISALLOW_COPY_AND_ASSIGN(HashTable);
 };
 
