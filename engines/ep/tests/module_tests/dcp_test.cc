@@ -1119,6 +1119,23 @@ TEST_P(StreamTest, backfillGetsNoItems) {
     }
 }
 
+TEST_P(StreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
+    if (engine->getConfiguration().getBucketType() == "ephemeral") {
+        setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+        auto evb = std::shared_ptr<EphemeralVBucket>(
+                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+
+        // Force the purgeSeqno because it's easier than creating and
+        // deleting items
+        evb->setPurgeSeqno(3);
+
+        // Backfill with start != 1 and start != end and start < purge
+        DCPBackfillMemoryBuffered dcpbfm (evb, stream, 2, 4);
+        dcpbfm.run();
+        EXPECT_TRUE(stream->isDead());
+    }
+}
+
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing
  * queued items to be sent out via a DCP consumer, that nextCheckpointItem()
  * doesn't incorrectly return false (meaning that there are no more checkpoint

@@ -26,6 +26,7 @@
 #include "bgfetcher.h"
 #include "checkpoint.h"
 #include "dcp/dcpconnmap.h"
+#include "ephemeral_tombstone_purger.h"
 #include "ep_time.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
@@ -42,6 +43,7 @@
 #include <xattr/utils.h>
 
 #include <thread>
+#include <engines/ep/src/ephemeral_vb.h>
 
 ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(
         TaskQueue& taskQ, const std::string& expectedTaskName) {
@@ -288,6 +290,111 @@ void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeTime,
     // run the compaction task
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
                 "Compact DB file 0");
+}
+
+/*
+ * MB-31175
+ * The following test checks to see that when we call handleSlowStream in an
+ * in memory state and drop the cursor/schedule a backfill as a result, the
+ * resulting backfill checks the purgeSeqno and tells the stream to rollback
+ * if purgeSeqno > startSeqno.
+ */
+TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_TRUE(vb.get());
+
+    // Store two items
+    std::array<std::string, 2> initialKeys = {{"k1", "k2"}};
+    for (const auto& key : initialKeys) {
+        store_item(vbid, makeStoredDocKey(key), key);
+    }
+    flushVBucketToDiskIfPersistent(vbid, initialKeys.size());
+
+    // Delete the items so that we can advance the purgeSeqno using
+    // compaction later
+    for (const auto& key : initialKeys) {
+        delete_item(vbid, makeStoredDocKey(key));
+    }
+    flushVBucketToDiskIfPersistent(vbid, initialKeys.size());
+
+    auto& ckpt_mgr = *vb->checkpointManager;
+
+    // Create a Mock Dcp producer
+    // Create the Mock Active Stream with a startSeqno of 1
+    // as a startSeqno is always valid
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer",
+            /*notifyOnly*/ false,
+            cb::const_byte_buffer() /*no json*/);
+            // Create a Mock Active Stream
+            auto mock_stream = std::make_shared<MockActiveStream>(
+            static_cast<EventuallyPersistentEngine*>(engine.get()),
+            producer,
+            /*flags*/ 0,
+            /*opaque*/ 0,
+            *vb,
+            /*st_seqno*/ 1,
+            /*en_seqno*/ ~0,
+            /*vb_uuid*/ 0xabcd,
+            /*snap_start_seqno*/ 0,
+            /*snap_end_seqno*/ ~0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes);
+
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    mock_stream->transitionStateToBackfilling();
+    ASSERT_TRUE(mock_stream->isInMemory())
+    << "stream state should have transitioned to InMemory";
+
+    // Check number of expected cursors (might not have persistence cursor)
+    int expectedCursors = persistent() ? 2 : 1;
+    EXPECT_EQ(expectedCursors, ckpt_mgr.getNumOfCursors());
+
+    EXPECT_TRUE(mock_stream->handleSlowStream());
+    EXPECT_TRUE(mock_stream->public_getPendingBackfill());
+
+    // Might not have persistence cursor
+    expectedCursors = persistent() ? 1 : 0;
+    EXPECT_EQ(expectedCursors, ckpt_mgr.getNumOfCursors())
+    << "stream cursor should have been dropped";
+
+    // This will schedule the backfill
+    mock_stream->transitionStateToBackfilling();
+    ASSERT_TRUE(mock_stream->isBackfilling());
+
+    // Advance the purgeSeqno
+    if (persistent()) {
+        runCompaction(~0, 3);
+    } else {
+        EphemeralVBucket::HTTombstonePurger purger(0);
+        auto vbptr = store->getVBucket(vbid);
+        EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
+        purger.setCurrentVBucket(*evb);
+        evb->ht.visit(purger);
+        evb->purgeStaleItems();
+    }
+
+    ASSERT_EQ(3, vb->getPurgeSeqno());
+
+    // Run the backfill we scheduled when we transitioned to the backfilling
+    // state
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+
+    // The backfill should have set the stream state to dead because
+    // purgeSeqno > startSeqno
+    EXPECT_TRUE(mock_stream->isDead());
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
+
+    cancelAndPurgeTasks();
 }
 
 /*
@@ -3380,3 +3487,13 @@ INSTANTIATE_TEST_CASE_P(XattrCompressedTest,
                         XattrCompressedTest,
                         ::testing::Combine(::testing::Bool(),
                                            ::testing::Bool()), );
+
+static auto allConfigValues = ::testing::Values(
+        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
+        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
+        std::make_tuple(std::string("persistent"), std::string{}));
+
+// Test cases which run for persistent and ephemeral buckets
+INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
+                        STParameterizedBucketTest,
+                        allConfigValues, );

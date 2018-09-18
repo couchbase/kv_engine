@@ -158,6 +158,8 @@ public:
 
     /// A callback to allow tests to inject code before we access the checkpoint
     std::function<void()> preGetOutstandingItemsCallback = [] { return; };
+
+    bool isDead() { return ActiveStream::getState() == StreamState::Dead; };
 };
 
 /**

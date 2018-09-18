@@ -204,6 +204,22 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         return backfill_snooze;
     }
 
+    /* Check startSeqno against the purge-seqno of the vb.
+     * If the startSeqno != 1 (a 0 to n request) then startSeqno must be
+     * greater than purgeSeqno. */
+    if (startSeqno != 1 && (startSeqno <= evb->getPurgeSeqno())) {
+        LOG(EXTENSION_LOG_WARNING,
+            "DCPBackfillMemoryBuffered::create(): "
+            "(vb:%" PRIu16
+            ") running backfill failed because the startSeqno:%" PRIu64
+            " is < purgeSeqno:%" PRIu64,
+            getVBucketId(),
+            startSeqno,
+            evb->getPurgeSeqno());
+        stream->setDead(END_STREAM_ROLLBACK);
+        return backfill_finished;
+    }
+
     /* Advance the cursor till start, mark snapshot and update backfill
        remaining count */
     while (rangeItr.curr() != rangeItr.end()) {

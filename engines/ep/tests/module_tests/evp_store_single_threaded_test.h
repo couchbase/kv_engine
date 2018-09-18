@@ -160,3 +160,34 @@ protected:
         return dynamic_cast<EPBucket&>(*store);
     }
 };
+
+/**
+ * Test fixture for KVBucket tests running in single-threaded mode.
+ *
+ * Parameterised on a pair of:
+ * - bucket_type (ephemeral of persistent)
+ * - ephemeral_full_policy (for specifying ephemeral auto-delete & fail_new_data
+ *   eviction modes). If empty then unused (persistent buckets).
+ */
+class STParameterizedBucketTest
+        : public SingleThreadedEPBucketTest,
+          public ::testing::WithParamInterface<
+                  std::tuple<std::string, std::string>> {
+public:
+    bool persistent() {
+        return std::get<0>(GetParam()) == "persistent";
+    }
+
+protected:
+    void SetUp() {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "bucket_type=" + std::get<0>(GetParam());
+        auto ephFullPolicy = std::get<1>(GetParam());
+        if (!ephFullPolicy.empty()) {
+            config_string += ";ephemeral_full_policy=" + ephFullPolicy;
+        }
+        SingleThreadedEPBucketTest::SetUp();
+    }
+};
