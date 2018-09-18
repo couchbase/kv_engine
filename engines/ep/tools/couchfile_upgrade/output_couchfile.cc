@@ -93,8 +93,12 @@ void OutputCouchFile::writeDocuments() {
     bufferedOutput.reset();
 }
 
-void OutputCouchFile::setVBState(const std::string& inputVBS) {
-    writeLocalDocument("_local/vbstate", inputVBS);
+void OutputCouchFile::setItemCount(CollectionID cid, uint64_t count) const {
+    std::string docName = "|" + cid.to_string() + "|";
+    cb::mcbp::unsigned_leb128<uint64_t> leb128(count);
+    std::string value(reinterpret_cast<const char*>(leb128.data()),
+                      leb128.size());
+    writeLocalDocument(docName, value);
 }
 
 void OutputCouchFile::writeLocalDocument(const std::string& documentName,
@@ -122,6 +126,17 @@ void OutputCouchFile::writeUpgradeBegin(const InputCouchFile& input) const {
 }
 
 void OutputCouchFile::writeUpgradeComplete(const InputCouchFile& input) const {
+    // Update the item count of the collection
+    DbInfo info;
+    auto errcode = couchstore_db_info(db, &info);
+    if (errcode) {
+        throw std::runtime_error(
+                "OutputCouchFile::writeUpgradeComplete failed "
+                "couchstore_db_info errcode:" +
+                std::to_string(errcode));
+    }
+    setItemCount(collection, info.doc_count);
+
     writeSupportsCollections(input.getLocalDocument("_local/vbstate"), true);
 }
 

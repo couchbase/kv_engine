@@ -438,7 +438,10 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     // Test setup, create a new file
     auto kvstore = setup_kv_store(config1);
     kvstore->begin(std::make_unique<TransactionContext>());
-    const int keys = 5;
+
+    // The key count is large enough to ensure the count uses more than 1 byte
+    // of leb storage so we validate that leb encode/decode works on this path
+    const int keys = 129;
     WriteCallback wc;
     for (int i = 0; i < keys; i++) {
         std::string key("key" + std::to_string(i));
@@ -458,16 +461,18 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     // Use the upgrade tool's objects to run an upgrade
     // setup_kv_store will have progressed the rev to .2
     Collections::InputCouchFile input({}, data_dir + "/0.couch.2");
+    CollectionID cid = 500;
     Collections::OutputCouchFile output({},
                                         data_dir + "/0.couch.3",
-                                        500 /*collection-id*/,
+                                        cid /*collection-id*/,
                                         1024 * 1024 /*buffersize*/);
     input.upgrade(output);
+    output.writeUpgradeComplete(input);
     output.commit();
 
     auto kvstore2 = KVStoreFactory::create(config2);
     auto cb = std::make_shared<GetCallback>(true /*expectcompressed*/);
-    auto cl = std::make_shared<CollectionsOfflineUpgadeCallback>(500);
+    auto cl = std::make_shared<CollectionsOfflineUpgadeCallback>(cid);
     ScanContext* scanCtx;
     scanCtx = kvstore2.rw->initScanContext(cb,
                                            cl,
@@ -480,6 +485,10 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
     EXPECT_EQ(scan_success, kvstore2.rw->scan(scanCtx));
     kvstore2.rw->destroyScanContext(scanCtx);
     EXPECT_EQ(keys, cl->callbacks);
+
+    // Check item count
+    auto kvstoreContext = kvstore2.rw->makeFileHandle(0);
+    EXPECT_EQ(keys, kvstore2.rw->getCollectionItemCount(*kvstoreContext, cid));
 }
 
 /**

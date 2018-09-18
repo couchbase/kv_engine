@@ -39,8 +39,6 @@ public:
 
     void processDocument(const Doc* doc, const DocInfo* docinfo);
 
-    void setVBState(const std::string& inputVBS);
-
     /**
      * Write to the output file that an upgrade has begun
      * adds "collections_supported:false" to the _local vbstate
@@ -68,6 +66,11 @@ protected:
                             const std::string& value) const;
 
     void writeSupportsCollections(const std::string& vbs, bool value) const;
+
+    /**
+     * Update item of the new file, this creates the _local counter doc
+     */
+    void setItemCount(CollectionID cid, uint64_t count) const;
 
     /// The destination collection to use in the upgrade
     CollectionID collection;
