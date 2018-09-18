@@ -99,6 +99,8 @@ public:
         return internal;
     }
 
+    nlohmann::json to_json() const;
+
 protected:
     /**
      * Parse a JSON array containing a set of privileges.
@@ -110,6 +112,8 @@ protected:
      * @return A vector of all of the privileges found in the specified JSON
      */
     PrivilegeMask parsePrivileges(const nlohmann::json& privs, bool buckets);
+
+    std::vector<std::string> mask2string(const PrivilegeMask& mask) const;
 
     std::unordered_map<std::string, PrivilegeMask> buckets;
     PrivilegeMask privileges;
@@ -332,6 +336,8 @@ public:
      */
     const uint32_t generation;
 
+    nlohmann::json to_json() const;
+
 protected:
     std::unordered_map<std::string, UserEntry> userdb;
 };
@@ -396,5 +402,13 @@ void initialize();
  * Destroy the RBAC module
  */
 void destroy();
+
+/**
+ * Dump the user database to JSON
+ *
+ * This should only be used for testing as it holds a read lock for the
+ * database while generating the dump.
+ */
+nlohmann::json to_json();
 }
 }

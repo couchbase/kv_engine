@@ -81,6 +81,35 @@ UserEntry::UserEntry(const std::string& username, const nlohmann::json& json) {
     }
 }
 
+nlohmann::json UserEntry::to_json() const {
+    nlohmann::json ret;
+    ret["domain"] = ::to_string(domain);
+    ret["privileges"] = mask2string(privileges);
+    for (const auto b : buckets) {
+        ret["buckets"][b.first] = mask2string(b.second);
+    }
+
+    return ret;
+}
+
+std::vector<std::string> UserEntry::mask2string(
+        const PrivilegeMask& mask) const {
+    std::vector<std::string> ret;
+
+    if (mask.all()) {
+        ret.emplace_back("all");
+        return ret;
+    }
+
+    for (std::size_t ii = 0; ii < mask.size(); ++ii) {
+        if (mask.test(ii)) {
+            ret.emplace_back(cb::rbac::to_string(Privilege(ii)));
+        }
+    }
+
+    return ret;
+}
+
 PrivilegeMask UserEntry::parsePrivileges(const nlohmann::json& privs,
                                          bool buckets) {
     PrivilegeMask ret;
@@ -190,6 +219,15 @@ std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
         throw NoSuchUserException(user.c_str());
     }
     return {PrivilegeContext(generation, ue.getPrivileges()), ue.isInternal()};
+}
+
+nlohmann::json PrivilegeDatabase::to_json() const {
+    nlohmann::json ret;
+    for (const auto& entry : userdb) {
+        ret[entry.first] = entry.second.to_json();
+    }
+
+    return ret;
 }
 
 PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
@@ -332,6 +370,11 @@ void updateUser(const std::string& user, const std::string& descr) {
         // I changed the database.. swap
         db.swap(next);
     }
+}
+
+nlohmann::json to_json() {
+    std::lock_guard<cb::ReaderLock> guard(rwlock.reader());
+    return db->to_json();
 }
 
 } // namespace rbac

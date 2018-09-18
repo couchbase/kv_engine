@@ -106,12 +106,30 @@ ENGINE_ERROR_CODE ioctlGetMcbpSla(Cookie& cookie,
     return ENGINE_SUCCESS;
 }
 
+ENGINE_ERROR_CODE ioctlRbacDbDump(Cookie& cookie,
+                                  const StrToStrMap& arguments,
+                                  std::string& value) {
+    if (!arguments.empty() || !value.empty()) {
+        return ENGINE_EINVAL;
+    }
+
+    if (cookie.getConnection().checkPrivilege(
+                cb::rbac::Privilege::SecurityManagement, cookie) !=
+        cb::rbac::PrivilegeAccess::Ok) {
+        return ENGINE_EACCESS;
+    }
+
+    value = cb::rbac::to_json().dump();
+    return ENGINE_SUCCESS;
+}
+
 static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map{
         {"trace.config", ioctlGetTracingConfig},
         {"trace.status", ioctlGetTracingStatus},
         {"trace.dump.begin", ioctlGetTracingBeginDump},
         {"trace.dump.chunk", ioctlGetTracingDumpChunk},
-        {"sla", ioctlGetMcbpSla}};
+        {"sla", ioctlGetMcbpSla},
+        {"rbac.db.dump", ioctlRbacDbDump}};
 
 ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
                                      const std::string& key,

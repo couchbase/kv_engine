@@ -129,3 +129,13 @@ TEST(PrivilegeDatabaseTest, GenerationCounter) {
     cb::rbac::PrivilegeDatabase db2(nullptr);
     EXPECT_GT(db2.generation, db1.generation);
 }
+
+TEST(PrivilegeDatabaseTest, to_json) {
+    nlohmann::json json;
+    json["trond"]["privileges"] = {"BucketManagement", "Audit"};
+    json["trond"]["buckets"]["mybucket"] = {"Read", "Upsert"};
+    json["trond"]["buckets"]["app"] = {"Delete"};
+    json["trond"]["domain"] = "external";
+    cb::rbac::PrivilegeDatabase db(json);
+    EXPECT_EQ(json.dump(2), db.to_json().dump(2));
+}

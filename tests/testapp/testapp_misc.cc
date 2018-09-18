@@ -135,3 +135,22 @@ TEST_P(MiscTest, UpdateUserPermissionsInvalidPayload) {
     EXPECT_FALSE(resp.isSuccess());
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, resp.getStatus());
 }
+
+/**
+ * Create a basic test to verify that the ioctl to fetch the database
+ * works. Once we add support for modifying the RBAC database we'll
+ * add tests to verify the content
+ */
+TEST_P(MiscTest, GetRbacDatabase) {
+    auto& conn = getAdminConnection();
+    auto response = conn.execute(BinprotGenericCommand{
+            PROTOCOL_BINARY_CMD_IOCTL_GET, "rbac.db.dump"});
+    ASSERT_TRUE(response.isSuccess());
+    ASSERT_FALSE(response.getDataString().empty());
+
+    conn = getConnection();
+    response = conn.execute(BinprotGenericCommand{PROTOCOL_BINARY_CMD_IOCTL_GET,
+                                                  "rbac.db.dump"});
+    ASSERT_FALSE(response.isSuccess());
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, response.getStatus());
+}

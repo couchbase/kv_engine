@@ -182,7 +182,6 @@ Privilege to_privilege(const std::string& str);
 /**
  * Get the textual representation of a privilege
  */
-std::string to_string(const Privilege& privilege);
-
+std::string to_string(Privilege privilege);
 }
 }

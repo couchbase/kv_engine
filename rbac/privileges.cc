@@ -48,7 +48,7 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"SecurityManagement", Privilege::SecurityManagement},
         {"Impersonate", Privilege::Impersonate}};
 
-std::string to_string(const Privilege& privilege) {
+std::string to_string(Privilege privilege) {
     for (const auto& entry : privilegemap) {
         if (entry.second == privilege) {
             return entry.first;
