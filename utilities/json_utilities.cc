@@ -17,7 +17,33 @@
 
 #include "json_utilities.h"
 
+#include <boost/optional.hpp>
+
 namespace cb {
+boost::optional<nlohmann::json> getOptionalJsonObject(
+        const nlohmann::json& object, const std::string& key) {
+    try {
+        return object.at(key);
+    } catch (const nlohmann::json::exception&) {
+        return {};
+    }
+}
+
+boost::optional<nlohmann::json> getOptionalJsonObject(
+        const nlohmann::json& object,
+        const std::string& key,
+        nlohmann::json::value_t expectedType) {
+    try {
+        auto rv = object.at(key);
+        if (rv.type() != expectedType) {
+            return {};
+        }
+        return rv;
+    } catch (const nlohmann::json::exception&) {
+        return {};
+    }
+}
+
 nlohmann::json getJsonObject(const nlohmann::json& object,
                              const std::string& key,
                              nlohmann::json::value_t expectedType,

@@ -19,9 +19,37 @@
 
 #include <memcached/mcd_util-visibility.h>
 
+#include <boost/optional/optional_fwd.hpp>
 #include <nlohmann/json.hpp>
 
 namespace cb {
+/**
+ *  Helper function that returns a boost optional json object using the given
+ *  object and key.
+ *
+ * @param object - root json object
+ * @param key - the key for the wanted object
+ * @return - json object if it exists, otherwise uninitialized
+ */
+MCD_UTIL_PUBLIC_API
+boost::optional<nlohmann::json> getOptionalJsonObject(
+        const nlohmann::json& object, const std::string& key);
+
+/**
+ *  Helper function that returns a boost optional json object using the given
+ *  object and key. The object must be of the expectedType.
+ *
+ * @param object - root json object
+ * @param key - the key for the wanted object
+ * @param expectedType - the objects expected type
+ * @return - json object if it exists, otherwise uninitialized
+ */
+MCD_UTIL_PUBLIC_API
+boost::optional<nlohmann::json> getOptionalJsonObject(
+        const nlohmann::json& object,
+        const std::string& key,
+        nlohmann::json::value_t expectedType);
+
 /**
  *  Helper function that returns an (nlohmann) json object using the given
  *  object and key. The object must be of the expectedType. Optionally, the
