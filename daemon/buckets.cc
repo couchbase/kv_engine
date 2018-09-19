@@ -107,3 +107,19 @@ namespace BucketValidator {
         return true;
     }
 }
+
+std::string to_string(BucketType type) {
+    switch (type) {
+    case BucketType::Memcached:
+        return "Memcached";
+    case BucketType::Couchstore:
+        return "Couchstore";
+    case BucketType::EWouldBlock:
+        return "EWouldBlock";
+    case BucketType::NoBucket:
+        return "No Bucket";
+    case BucketType::Unknown:
+        return "Uknown";
+    }
+    throw std::logic_error("Invalid bucket type: " + std::to_string(int(type)));
+}
