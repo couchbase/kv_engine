@@ -222,8 +222,6 @@ nlohmann::json get_bucket_details(size_t idx);
  * @return true if it is dying, false otherwise
  */
 bool is_bucket_dying(Connection& c);
-bucket_id_t get_bucket_id(const void *cookie);
-
 
 namespace BucketValidator {
     class InvalidBucketName : public std::invalid_argument {
