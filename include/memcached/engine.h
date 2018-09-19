@@ -12,7 +12,7 @@
 #include <string>
 #include <utility>
 
-#include <boost/optional/optional.hpp>
+#include <boost/optional/optional_fwd.hpp>
 #include <spdlog/common.h>
 #include <gsl/gsl>
 

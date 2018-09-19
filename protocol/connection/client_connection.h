@@ -18,7 +18,7 @@
 
 #include "config.h"
 
-#include <boost/optional/optional.hpp>
+#include <boost/optional/optional_fwd.hpp>
 #include <cJSON.h>
 #include <cJSON_utils.h>
 #include <daemon/settings.h>
