@@ -79,14 +79,14 @@ public:
     }
 
 protected:
-    protocol_binary_response_status validateExtendedExtlen(uint8_t version) {
+    cb::mcbp::Status validateExtendedExtlen(uint8_t version) {
         bodylen = htonl(ntohl(bodylen) + 1);
         request.message.header.request.extlen = 1;
         blob[sizeof(protocol_binary_request_gat)] = version;
         return validate();
     }
 
-    protocol_binary_response_status validate() {
+    cb::mcbp::Status validate() {
         auto opcode = (protocol_binary_command)std::get<0>(GetParam());
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
@@ -95,34 +95,34 @@ protected:
 };
 
 TEST_P(GATValidatorTest, CorrectMessage) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidMagic) {
     request.message.header.request.magic = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidExtlen) {
     bodylen = htonl(15);
     request.message.header.request.extlen = 5;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, NoKey) {
     request.message.header.request.keylen = 0;
     bodylen = ntohl(4);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidDatatype) {
     request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidCas) {
     request.message.header.request.cas = 1;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 INSTANTIATE_TEST_CASE_P(GATOpcodes,

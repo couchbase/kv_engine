@@ -67,7 +67,7 @@ public:
     }
 
 protected:
-    int validate() {
+    cb::mcbp::Status validate() {
         auto opcode = (protocol_binary_command)std::get<0>(GetParam());
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
@@ -76,21 +76,21 @@ protected:
 TEST_P(MutationWithMetaTest, CorrectMessage) {
     // There are 4 legal extralength (we can just change the length as the
     // body will just get smaller (but we don't test that anyway)
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     request.message.header.request.extlen = 26;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     request.message.header.request.extlen = 28;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     request.message.header.request.extlen = 30;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(MutationWithMetaTest, InvalidMagic) {
     request.message.header.request.magic = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(MutationWithMetaTest, InvalidExtlen) {
@@ -102,23 +102,22 @@ TEST_P(MutationWithMetaTest, InvalidExtlen) {
         case 26:
         case 28:
         case 30:
-            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+            EXPECT_EQ(cb::mcbp::Status::Success, validate());
             break;
         default:
-            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate()) << "Extlen: "
-                                                                   << ii;
+            EXPECT_EQ(cb::mcbp::Status::Einval, validate()) << "Extlen: " << ii;
         }
     }
 }
 
 TEST_P(MutationWithMetaTest, NoKey) {
     request.message.header.request.keylen = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(MutationWithMetaTest, InvalidDatatype) {
     request.message.header.request.datatype = 0xff;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 INSTANTIATE_TEST_CASE_P(

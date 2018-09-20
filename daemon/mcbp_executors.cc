@@ -802,7 +802,7 @@ void execute_client_request_packet(Cookie& cookie,
         // Verify that the actual command is legal
         auto& bucket = cookie.getConnection().getBucket();
         auto result = bucket.validatorChains.invoke(opcode, cookie);
-        if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (result != cb::mcbp::Status::Success) {
             std::string command;
             try {
                 command = to_string(request.getClientOpcode());
@@ -814,7 +814,7 @@ void execute_client_request_packet(Cookie& cookie,
                     R"({}: Invalid format specified for "{}" - Status: "{}" - Closing connection. Raw Extras:[{}] Reason:"{}")",
                     c->getId(),
                     command,
-                    to_string(cb::mcbp::Status(result)),
+                    to_string(result),
                     cb::to_hex(request.getExtdata()),
                     cookie.getErrorContext());
             audit_invalid_packet(cookie);

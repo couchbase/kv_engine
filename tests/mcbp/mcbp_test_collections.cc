@@ -36,7 +36,7 @@ public:
     }
 
 protected:
-    protocol_binary_response_status validate() {
+    cb::mcbp::Status validate() {
         return ValidatorTest::validate(
             PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
             static_cast<void*>(&request));
@@ -46,42 +46,42 @@ protected:
 TEST_F(SetCollectionsValidator, CorrectMessage) {
     // We expect success because the validator will check all the packet members
     // then find the collections interface doesn't define a handler
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, validate());
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidMagic) {
     request.message.header.request.magic = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidKeylen) {
     request.message.header.request.keylen = 1;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidExtlen) {
     request.message.header.request.extlen = 1;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidCas) {
     request.message.header.request.cas = 1;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidDatatype) {
     request.message.header.request.datatype = 1;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidVbucket) {
     request.message.header.request.vbucket = 1;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_F(SetCollectionsValidator, InvalidBodylen) {
     request.message.header.request.bodylen = 0;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 } // namespace test

@@ -59,20 +59,20 @@ const size_t SUBDOC_MULTI_ALL_EXTRAS_LEN =
         SUBDOC_MULTI_EXPIRY_EXTRAS_LEN + SUBDOC_MULTI_DOC_FLAG_EXTRAS_LEN;
 
 /* Subdocument validator functions. Returns 0 if valid, else -1. */
-protocol_binary_response_status subdoc_get_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_exists_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_dict_add_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_dict_upsert_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_delete_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_replace_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_array_push_last_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_array_push_first_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_array_insert_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_array_add_unique_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_counter_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_get_count_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_multi_lookup_validator(Cookie& cookie);
-protocol_binary_response_status subdoc_multi_mutation_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_get_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_exists_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_dict_add_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_dict_upsert_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_delete_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_replace_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_array_push_last_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_array_push_first_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_array_insert_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_array_add_unique_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_counter_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_get_count_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_multi_lookup_validator(Cookie& cookie);
+cb::mcbp::Status subdoc_multi_mutation_validator(Cookie& cookie);
 
 /* Decode the doc flags from a packet */
 mcbp::subdoc::doc_flag subdoc_decode_doc_flags(

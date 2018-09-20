@@ -39,8 +39,7 @@ public:
     /*
      * Invoke the chain for the command
      */
-    protocol_binary_response_status invoke(protocol_binary_command command,
-                                           Cookie& cookie) {
+    cb::mcbp::Status invoke(protocol_binary_command command, Cookie& cookie) {
         return commandChains[command].invoke(cookie);
     }
 
@@ -48,10 +47,11 @@ public:
      * Silently ignores any attempt to push the same function onto the chain.
      */
     void push_unique(protocol_binary_command command,
-                     protocol_binary_response_status(*f)(Cookie&)) {
-        commandChains[command].push_unique(makeFunction<protocol_binary_response_status,
-                                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                           Cookie&>(f));
+                     cb::mcbp::Status (*f)(Cookie&)) {
+        commandChains[command].push_unique(
+                makeFunction<cb::mcbp::Status,
+                             cb::mcbp::Status::Success,
+                             Cookie&>(f));
     }
 
     /*
@@ -60,10 +60,10 @@ public:
     static void initializeMcbpValidatorChains(McbpValidatorChains& chain);
 
 private:
-
-    std::array<FunctionChain<protocol_binary_response_status,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                             Cookie&>, 0x100> commandChains;
+    std::array<
+            FunctionChain<cb::mcbp::Status, cb::mcbp::Status::Success, Cookie&>,
+            0x100>
+            commandChains;
 };
 
 /// @return true if the keylen represents a valid key for the connection
