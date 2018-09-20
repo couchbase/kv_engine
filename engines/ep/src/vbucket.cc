@@ -1081,6 +1081,12 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
     case MutationStatus::NotFound:
     // FALLTHROUGH
     case MutationStatus::WasClean: {
+        if (v == nullptr) {
+            // Scan build thinks v could be nullptr - check to suppress warning
+            throw std::logic_error(
+                    "VBucket::addBackfillItem: "
+                    "StoredValue should not be null if status WasClean");
+        }
         setMaxCas(v->getCas());
         // we unlock ht lock here because we want to avoid potential lock
         // inversions arising from notifyNewSeqno() call
@@ -1204,6 +1210,12 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         break;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
+        if (v == nullptr) {
+            // Scan build thinks v could be nullptr - check to suppress warning
+            throw std::logic_error(
+                    "VBucket::setWithMeta: "
+                    "StoredValue should not be null if status WasClean");
+        }
         if (seqno) {
             *seqno = static_cast<uint64_t>(v->getBySeqno());
         }
@@ -1511,6 +1523,12 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         return ENGINE_KEY_ENOENT;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
+        if (v == nullptr) {
+            // Scan build thinks v could be nullptr - check to suppress warning
+            throw std::logic_error(
+                    "VBucket::addBackfillItem: "
+                    "StoredValue should not be null if status WasClean");
+        }
         if (seqno) {
             *seqno = static_cast<uint64_t>(v->getBySeqno());
         }
