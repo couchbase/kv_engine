@@ -21,7 +21,7 @@
 #include "memcached.h"
 #include "utilities/logtags.h"
 #include "xattr/utils.h"
-
+#include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>

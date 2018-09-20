@@ -27,6 +27,7 @@
 #include "runtime.h"
 #include "server_event.h"
 
+#include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>

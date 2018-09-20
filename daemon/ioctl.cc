@@ -25,7 +25,7 @@
 #include "cookie.h"
 #include "tracing.h"
 #include "utilities/string_utilities.h"
-
+#include <logger/logger.h>
 #include <mcbp/mcbp.h>
 
 /*

@@ -20,7 +20,7 @@
 #include "connection.h"
 #include "cookie.h"
 #include "memcached.h"
-
+#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 
 StatsTaskConnectionStats::StatsTaskConnectionStats(Connection& connection_,

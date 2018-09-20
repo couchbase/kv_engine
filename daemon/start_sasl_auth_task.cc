@@ -20,6 +20,7 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include <cbsasl/mechanism.h>
+#include <logger/logger.h>
 
 StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
                                      Connection& connection_,

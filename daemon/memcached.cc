@@ -29,6 +29,7 @@
 #include "front_end_thread.h"
 #include "ioctl.h"
 #include "libevent_locking.h"
+#include "log_macros.h"
 #include "logger/logger.h"
 #include "mc_time.h"
 #include "mcaudit.h"

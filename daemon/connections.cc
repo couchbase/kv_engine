@@ -25,6 +25,7 @@
 #include "utilities/protocol2text.h"
 
 #include <cJSON.h>
+#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <algorithm>

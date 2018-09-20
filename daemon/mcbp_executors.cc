@@ -53,7 +53,7 @@
 #include "sasl_tasks.h"
 #include "session_cas.h"
 #include "subdocument.h"
-
+#include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
 #include <platform/string.h>

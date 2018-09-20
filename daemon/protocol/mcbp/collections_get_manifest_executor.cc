@@ -19,6 +19,7 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
+#include <logger/logger.h>
 
 void collections_get_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();

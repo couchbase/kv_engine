@@ -25,6 +25,7 @@
 #include <daemon/start_sasl_auth_task.h>
 #include <daemon/stats.h>
 #include <daemon/step_sasl_auth_task.h>
+#include <logger/logger.h>
 
 ENGINE_ERROR_CODE SaslAuthCommandContext::initial() {
     if (!connection.isSaslAuthEnabled()) {

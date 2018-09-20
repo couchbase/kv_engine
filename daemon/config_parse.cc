@@ -20,6 +20,7 @@
 #include "settings.h"
 
 #include <JSON_checker.h>
+#include <logger/logger.h>
 #include <platform/dirutils.h>
 
 /**

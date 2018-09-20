@@ -20,6 +20,7 @@
 #include <daemon/cookie.h>
 #include <daemon/executorpool.h>
 #include <daemon/memcached.h>
+#include <logger/logger.h>
 
 /**
  * A small task used to reload the RBAC configuration data (it cannot run

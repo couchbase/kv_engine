@@ -21,6 +21,7 @@
 #include "mcbp.h"
 #include "mcbp_executors.h"
 
+#include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <nlohmann/json.hpp>

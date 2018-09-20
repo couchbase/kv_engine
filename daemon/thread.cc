@@ -7,6 +7,7 @@
 #include "connections.h"
 #include "cookie.h"
 #include "front_end_thread.h"
+#include "log_macros.h"
 #include "memcached.h"
 #include "stats.h"
 #include "timing_histogram.h"

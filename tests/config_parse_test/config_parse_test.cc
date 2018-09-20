@@ -19,6 +19,7 @@
 #include <daemon/settings.h>
 #include <getopt.h>
 #include <gtest/gtest.h>
+#include <logger/logger.h>
 #include <platform/dirutils.h>
 #include <platform/platform.h>
 #include <system_error>

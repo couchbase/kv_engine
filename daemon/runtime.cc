@@ -20,13 +20,11 @@
 #include "memcached.h"
 #include "settings.h"
 #include "ssl_utils.h"
-
-#include <atomic>
-#include <string>
-#include <mutex>
-
+#include <logger/logger.h>
 #include <memcached/openssl.h>
-
+#include <atomic>
+#include <mutex>
+#include <string>
 
 static std::string ssl_cipher_list;
 static std::mutex ssl_cipher_list_mutex;

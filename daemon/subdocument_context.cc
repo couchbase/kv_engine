@@ -22,12 +22,12 @@
 #include "protocol/mcbp/engine_wrapper.h"
 #include "subdocument.h"
 
+#include <logger/logger.h>
 #include <platform/crc32c.h>
 #include <platform/string.h>
 #include <utilities/logtags.h>
-#include <xattr/blob.h>
-
 #include <utilities/string_utilities.h>
+#include <xattr/blob.h>
 #include <gsl/gsl>
 #include <iomanip>
 #include <random>

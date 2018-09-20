@@ -27,7 +27,7 @@
 #include "mcbp_executors.h"
 #include "protocol/mcbp/ship_dcp_log.h"
 #include "sasl_tasks.h"
-
+#include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <platform/strerror.h>
 #include <gsl/gsl>

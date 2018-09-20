@@ -35,6 +35,7 @@
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
 
+#include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <platform/histogram.h>

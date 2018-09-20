@@ -21,6 +21,7 @@
 #include <daemon/front_end_thread.h>
 #include <daemon/memcached.h>
 #include <daemon/stats.h>
+#include <logger/logger.h>
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
     : cookie(cookie_), connection(cookie.getConnection()) {

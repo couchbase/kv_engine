@@ -20,6 +20,7 @@
 #include <daemon/buckets.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
+#include <logger/logger.h>
 
 ENGINE_ERROR_CODE select_bucket(Connection& connection,
                                 const std::string& bucketname) {

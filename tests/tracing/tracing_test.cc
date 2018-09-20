@@ -20,13 +20,13 @@
 #include "tests/mcbp/mock_connection.h"
 #include "tracing/trace_helpers.h"
 
+#include <gtest/gtest.h>
+#include <tracing/tracer.h>
 #include <unistd.h>
 #include <algorithm>
 #include <iostream>
 #include <string>
-
-#include <gtest/gtest.h>
-#include <tracing/tracer.h>
+#include <thread>
 
 class TracingTest : public ::testing::Test {
 public:

@@ -1,6 +1,7 @@
 add_library(memcached_logger SHARED
             logger.h
             logger.cc
+            logger_config.h
             spdlogger.cc
             custom_rotating_file_sink.cc
             custom_rotating_file_sink.h

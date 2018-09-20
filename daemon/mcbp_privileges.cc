@@ -14,10 +14,12 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "config.h"
 #include "mcbp_privileges.h"
-#include <memcached/protocol_binary.h>
+
+#include "config.h"
 #include "connection.h"
+#include <logger/logger.h>
+#include <memcached/protocol_binary.h>
 
 using namespace cb::rbac;
 

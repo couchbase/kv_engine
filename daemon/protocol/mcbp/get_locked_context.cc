@@ -22,6 +22,7 @@
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/stats.h>
+#include <logger/logger.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>
 

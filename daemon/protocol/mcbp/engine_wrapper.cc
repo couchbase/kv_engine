@@ -20,6 +20,7 @@
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
+#include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <tracing/trace_helpers.h>
 #include <utilities/protocol2text.h>

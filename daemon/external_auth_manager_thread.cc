@@ -21,6 +21,7 @@
 #include "server_event.h"
 #include "start_sasl_auth_task.h"
 
+#include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/base64.h>
 #include <algorithm>

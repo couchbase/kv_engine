@@ -20,7 +20,6 @@
 
 #include "datatype.h"
 #include "dynamic_buffer.h"
-#include "log_macros.h"
 #include "settings.h"
 #include "ssl_context.h"
 #include "statemachine.h"

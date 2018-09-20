@@ -21,6 +21,7 @@
 #include "memcached.h"
 #include "stats.h"
 
+#include <logger/logger.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <exception>

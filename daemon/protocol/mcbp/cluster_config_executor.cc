@@ -15,14 +15,14 @@
  *   limitations under the License.
  */
 
+#include "executors.h"
 #include <daemon/buckets.h>
 #include <daemon/cccp_notification_task.h>
 #include <daemon/executorpool.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/session_cas.h>
-
-#include "executors.h"
+#include <logger/logger.h>
 
 void get_cluster_config_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();

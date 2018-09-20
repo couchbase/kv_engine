@@ -17,17 +17,17 @@
 
 #include "config.h"
 
+#include "buckets.h"
 #include "connection.h"
 #include "mcbp_validators.h"
+#include "memcached.h"
+#include "subdocument_validators.h"
+#include "xattr/utils.h"
+#include <logger/logger.h>
 #include <memcached/dcp.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
 #include <platform/string.h>
-
-#include "buckets.h"
-#include "memcached.h"
-#include "subdocument_validators.h"
-#include "xattr/utils.h"
 
 using Status = cb::mcbp::Status;
 

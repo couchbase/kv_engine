@@ -19,7 +19,7 @@
 #include "memcached.h"
 #include "runtime.h"
 #include "settings.h"
-
+#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/socket.h>
 #include <platform/strerror.h>

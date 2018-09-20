@@ -17,6 +17,8 @@
 
 #include "logger_test_fixture.h"
 
+#include "logger_config.h"
+
 void SpdloggerTest::SetUp() {
     setUpLogger(spdlog::level::level_enum::debug);
 }

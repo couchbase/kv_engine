@@ -16,7 +16,7 @@
  */
 
 #include "logger.h"
-
+#include "logger_config.h"
 #include <cJSON.h>
 
 namespace cb {

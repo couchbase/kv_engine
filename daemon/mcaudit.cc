@@ -19,13 +19,14 @@
 #include "buckets.h"
 #include "connection.h"
 #include "debug_helpers.h"
+#include "log_macros.h"
 #include "logger/logger.h"
 #include "memcached.h"
 #include "memcached_audit_events.h"
 #include "runtime.h"
-
-#include <memcached/audit_interface.h>
 #include <cJSON.h>
+#include <logger/logger.h>
+#include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
 
 static cb::audit::UniqueAuditPtr auditHandle;

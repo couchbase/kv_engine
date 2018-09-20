@@ -40,12 +40,7 @@ public:
         Done
     };
 
-    explicit FlushCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie), state(State::Flushing) {
-        LOG_INFO("{}: flush b:{}",
-                 connection.getId(),
-                 connection.getBucket().name);
-    }
+    explicit FlushCommandContext(Cookie& cookie);
 
 protected:
     ENGINE_ERROR_CODE step() override {

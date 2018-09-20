@@ -42,6 +42,7 @@
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <thread>
 
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
 

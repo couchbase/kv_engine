@@ -19,10 +19,10 @@
 
 #include "config.h"
 
-#include <utilities/breakpad_settings.h>
 #include "client_cert_config.h"
-#include "logger/logger.h"
+#include "logger/logger_config.h"
 #include "network_interface.h"
+#include <utilities/breakpad_settings.h>
 
 #include <cJSON_utils.h>
 #include <memcached/engine.h>

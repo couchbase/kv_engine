@@ -21,6 +21,7 @@
 #include <daemon/buckets.h>
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
+#include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <xattr/utils.h>
 #include <gsl/gsl>

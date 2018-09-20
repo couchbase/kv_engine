@@ -16,9 +16,9 @@
  */
 #include "flush_command_context.h"
 #include "engine_wrapper.h"
-
-#include <daemon/mcbp.h>
 #include <daemon/mcaudit.h>
+#include <daemon/mcbp.h>
+#include <logger/logger.h>
 
 ENGINE_ERROR_CODE FlushCommandContext::flushing() {
     state = State::Done;
@@ -31,4 +31,9 @@ void FlushCommandContext::done() {
     }
     get_thread_stats(&connection)->cmd_flush++;
     cookie.sendResponse(cb::mcbp::Status::Success);
+}
+
+FlushCommandContext::FlushCommandContext(Cookie& cookie)
+    : SteppableCommandContext(cookie), state(State::Flushing) {
+    LOG_INFO("{}: flush b:{}", connection.getId(), connection.getBucket().name);
 }

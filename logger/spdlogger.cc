@@ -20,6 +20,7 @@
 #include "custom_rotating_file_sink.h"
 
 #include "logger.h"
+#include "logger_config.h"
 
 #include <memcached/engine.h>
 #include <spdlog/sinks/dist_sink.h>

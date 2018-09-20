@@ -21,6 +21,7 @@
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/runtime.h>
+#include <logger/logger.h>
 
 static void cbsasl_refresh_main(void* cookie) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;

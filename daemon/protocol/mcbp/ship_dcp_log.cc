@@ -20,6 +20,7 @@
 #include "daemon/buckets.h"
 #include "daemon/connection.h"
 #include "daemon/cookie.h"
+#include <logger/logger.h>
 
 void ship_dcp_log(Cookie& cookie) {
     auto& c = cookie.getConnection();

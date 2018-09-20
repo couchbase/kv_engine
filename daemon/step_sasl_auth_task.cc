@@ -19,6 +19,8 @@
 #include "connection.h"
 #include "cookie.h"
 
+#include <logger/logger.h>
+
 StepSaslAuthTask::StepSaslAuthTask(Cookie& cookie_,
                                    Connection& connection_,
                                    const std::string& mechanism_,
