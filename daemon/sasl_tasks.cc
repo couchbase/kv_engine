@@ -38,7 +38,10 @@ SaslAuthTask::SaslAuthTask(Cookie& cookie_,
 
 void SaslAuthTask::notifyExecutionComplete() {
     connection.setAuthenticated(false);
-    std::pair<cb::rbac::PrivilegeContext, bool> context;
+    using PrivilegeContext = cb::rbac::PrivilegeContext;
+    using Domain = cb::sasl::Domain;
+    std::pair<PrivilegeContext, bool> context{PrivilegeContext{Domain::Local},
+                                              false};
 
     // If CBSASL generated a UUID, we should continue to use that UUID
     if (connection.getSaslConn().containsUuid()) {
@@ -76,7 +79,9 @@ void SaslAuthTask::notifyExecutionComplete() {
                 username.resize(idx);
             }
 
-            if (cb::rbac::mayAccessBucket(connection.getUsername(), username)) {
+            if (cb::rbac::mayAccessBucket(connection.getUsername(),
+                                          connection.getDomain(),
+                                          username)) {
                 associate_bucket(connection, username.c_str());
             } else {
                 // the user don't have access to that bucket, move the

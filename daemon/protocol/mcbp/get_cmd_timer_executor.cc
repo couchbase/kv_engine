@@ -49,6 +49,7 @@ static std::pair<ENGINE_ERROR_CODE, TimingHistogram> get_timings(
         bool access = false;
         try {
             auto context = cb::rbac::createContext(connection.getUsername(),
+                                                   connection.getDomain(),
                                                    bucket.name);
             const auto check = context.check(cb::rbac::Privilege::SimpleStats);
             if (check == cb::rbac::PrivilegeAccess::Ok) {

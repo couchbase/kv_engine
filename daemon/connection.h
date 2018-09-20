@@ -190,16 +190,7 @@ public:
         return authenticated;
     }
 
-    void setAuthenticated(bool authenticated) {
-        Connection::authenticated = authenticated;
-        if (authenticated) {
-            updateDescription();
-            privilegeContext = cb::rbac::createContext(username, "");
-        } else {
-            resetUsernameCache();
-            privilegeContext = cb::rbac::PrivilegeContext{};
-        }
-    }
+    void setAuthenticated(bool authenticated);
 
     Priority getPriority() const {
         return priority;
@@ -1056,7 +1047,7 @@ protected:
     /**
      * The current privilege context
      */
-    cb::rbac::PrivilegeContext privilegeContext;
+    cb::rbac::PrivilegeContext privilegeContext{cb::sasl::Domain::Local};
 
     /**
      * The SASL object used to do sasl authentication

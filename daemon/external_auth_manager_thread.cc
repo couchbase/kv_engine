@@ -114,7 +114,7 @@ void ExternalAuthManagerThread::responseReceived(
                 reinterpret_cast<const char*>(value.data()), value.size()};
         auto decoded = nlohmann::json::parse(payload);
         const auto username = decoded["rbac"].begin().key();
-        cb::rbac::updateUser(username, decoded["rbac"].dump());
+        cb::rbac::updateExternalUser(username, decoded["rbac"].dump());
     }
 
     // Enqueue the respnse and let the auth thread deal with it

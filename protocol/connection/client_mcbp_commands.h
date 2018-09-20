@@ -1442,3 +1442,7 @@ protected:
 using BinprotAuthProviderCommand =
         BinprotCommandT<BinprotGenericCommand,
                         uint8_t(cb::mcbp::ClientOpcode::AuthProvider)>;
+
+using BinprotRbacRefreshCommand =
+        BinprotCommandT<BinprotGenericCommand,
+                        uint8_t(cb::mcbp::ClientOpcode::RbacRefresh)>;

@@ -103,9 +103,6 @@
     ],
     "domain": "local"
   },
-  "superman": {
-    "domain": "external"
-  },
   "legacy;legacy": {
     "buckets": {
       "default": [

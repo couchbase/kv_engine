@@ -27,9 +27,7 @@ TEST(UserEntryTest, ParseLegalConfig) {
     json["trond"]["buckets"]["bucket2"] = {"Read"};
     json["trond"]["domain"] = "external";
 
-    cb::rbac::UserEntry ue("trond", *json.begin());
-    EXPECT_EQ(cb::sasl::Domain::External, ue.getDomain());
-
+    cb::rbac::UserEntry ue("trond", *json.begin(), cb::rbac::Domain::External);
     {
         cb::rbac::PrivilegeMask privs{};
         privs[int(cb::rbac::Privilege::Audit)] = true;
@@ -68,7 +66,8 @@ TEST(UserEntryTest, DomainMustBeString) {
     json["trond"]["buckets"]["bucket2"] = {"Read"};
     json["trond"]["domain"] = 5;
     try {
-        cb::rbac::UserEntry ue("trond", *json.begin());
+        cb::rbac::UserEntry ue(
+                "trond", *json.begin(), cb::rbac::Domain::External);
         FAIL() << "The entry must be a string";
     } catch (nlohmann::json::exception&) {
     }
@@ -79,29 +78,36 @@ TEST(UserEntryTest, PrivilegesIsOptional) {
     json["trond"]["buckets"]["bucket1"] = {"Read", "Insert"};
     json["trond"]["buckets"]["bucket2"] = {"Read"};
     json["trond"]["domain"] = "local";
-    cb::rbac::UserEntry ue("trond", *json.begin());
+    cb::rbac::UserEntry ue("trond", *json.begin(), cb::rbac::Domain::Local);
 }
 
 TEST(UserEntryTest, BucketsIsOptional) {
     nlohmann::json json;
     json["trond"]["privileges"] = {"Audit", "BucketManagement"};
-    json["trond"]["domain"] = "local";
-    cb::rbac::UserEntry ue("trond", *json.begin());
+    cb::rbac::UserEntry ue("trond", *json.begin(), cb::rbac::Domain::Local);
 }
 
-TEST(UserEntryTest, OnlyDomainIsMandatory) {
+TEST(UserEntryTest, DomainMustMatchExpected) {
     nlohmann::json json;
     json["trond"]["domain"] = "local";
-    cb::rbac::UserEntry ue("trond", *json.begin());
+    try {
+        cb::rbac::UserEntry ue(
+                "trond", *json.begin(), cb::rbac::Domain::External);
+        FAIL() << "Should detect domain mismatch";
+    } catch (const std::runtime_error& error) {
+        EXPECT_STREQ("UserEntry::UserEntry: Invalid domain in this context",
+                     error.what());
+    }
 }
 
 TEST(UserEntryTest, InternalUsersMustBeLocal) {
     nlohmann::json json;
     json["@kv"]["domain"] = "local";
-    cb::rbac::UserEntry local("@kv", *json.begin());
+    cb::rbac::UserEntry local("@kv", *json.begin(), cb::rbac::Domain::Local);
     json["@kv"]["domain"] = "external";
     try {
-        cb::rbac::UserEntry external("@kv", *json.begin());
+        cb::rbac::UserEntry external(
+                "@kv", *json.begin(), cb::rbac::Domain::External);
         FAIL() << "Internal users must be locally defined";
     } catch (const std::runtime_error&) {
     }
@@ -112,7 +118,7 @@ TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
     json["trond"]["privileges"] = {"Audit"};
     json["trond"]["buckets"]["mybucket"] = {"Read"};
     json["trond"]["domain"] = "external";
-    cb::rbac::PrivilegeDatabase db(json);
+    cb::rbac::PrivilegeDatabase db(json, cb::rbac::Domain::External);
 
     // Looking up an existing user should not throw an exception
     db.lookup("trond");
@@ -125,8 +131,8 @@ TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
 }
 
 TEST(PrivilegeDatabaseTest, GenerationCounter) {
-    cb::rbac::PrivilegeDatabase db1(nullptr);
-    cb::rbac::PrivilegeDatabase db2(nullptr);
+    cb::rbac::PrivilegeDatabase db1(nullptr, cb::rbac::Domain::Local);
+    cb::rbac::PrivilegeDatabase db2(nullptr, cb::rbac::Domain::Local);
     EXPECT_GT(db2.generation, db1.generation);
 }
 
@@ -136,6 +142,6 @@ TEST(PrivilegeDatabaseTest, to_json) {
     json["trond"]["buckets"]["mybucket"] = {"Read", "Upsert"};
     json["trond"]["buckets"]["app"] = {"Delete"};
     json["trond"]["domain"] = "external";
-    cb::rbac::PrivilegeDatabase db(json);
-    EXPECT_EQ(json.dump(2), db.to_json().dump(2));
+    cb::rbac::PrivilegeDatabase db(json, cb::rbac::Domain::External);
+    EXPECT_EQ(json.dump(2), db.to_json(cb::rbac::Domain::External).dump(2));
 }

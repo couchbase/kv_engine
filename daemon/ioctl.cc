@@ -109,17 +109,32 @@ ENGINE_ERROR_CODE ioctlGetMcbpSla(Cookie& cookie,
 ENGINE_ERROR_CODE ioctlRbacDbDump(Cookie& cookie,
                                   const StrToStrMap& arguments,
                                   std::string& value) {
-    if (!arguments.empty() || !value.empty()) {
-        return ENGINE_EINVAL;
-    }
-
     if (cookie.getConnection().checkPrivilege(
                 cb::rbac::Privilege::SecurityManagement, cookie) !=
         cb::rbac::PrivilegeAccess::Ok) {
         return ENGINE_EACCESS;
     }
 
-    value = cb::rbac::to_json().dump();
+    if (!value.empty()) {
+        return ENGINE_EINVAL;
+    }
+
+    cb::sasl::Domain domain = cb::sasl::Domain::Local;
+    if (!arguments.empty()) {
+        for (auto& arg : arguments) {
+            if (arg.first == "domain") {
+                try {
+                    domain = cb::sasl::to_domain(arg.second);
+                } catch (const std::exception&) {
+                    return ENGINE_EINVAL;
+                }
+            } else {
+                return ENGINE_EINVAL;
+            }
+        }
+    }
+
+    value = cb::rbac::to_json(domain).dump();
     return ENGINE_SUCCESS;
 }
 

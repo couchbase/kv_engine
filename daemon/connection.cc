@@ -272,11 +272,12 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
         // but let the client deal with whatever happens after
         // a single update.
         try {
-            privilegeContext = cb::rbac::createContext(getUsername(),
-                                                       all_buckets[bucketIndex].name);
+            privilegeContext = cb::rbac::createContext(
+                    getUsername(), getDomain(), all_buckets[bucketIndex].name);
         } catch (const cb::rbac::NoSuchBucketException&) {
             // Remove all access to the bucket
-            privilegeContext = cb::rbac::createContext(getUsername(), "");
+            privilegeContext =
+                    cb::rbac::createContext(getUsername(), getDomain(), "");
             LOG_INFO(
                     "{}: RBAC: Connection::checkPrivilege({}) {} No access "
                     "to "
@@ -475,8 +476,8 @@ void Connection::setBucketIndex(int bucketIndex) {
         if (authenticated) {
             // The user have logged in, so we should create a context
             // representing the users context in the desired bucket.
-            privilegeContext = cb::rbac::createContext(username,
-                                                       all_buckets[bucketIndex].name);
+            privilegeContext = cb::rbac::createContext(
+                    username, getDomain(), all_buckets[bucketIndex].name);
         } else if (is_default_bucket_enabled() &&
                    strcmp("default", all_buckets[bucketIndex].name) == 0) {
             // We've just connected to the _default_ bucket, _AND_ the client
@@ -486,16 +487,16 @@ void Connection::setBucketIndex(int bucketIndex) {
             // a while... lets look up a profile named "default" and
             // assign that. It should only contain access to the default
             // bucket.
-            privilegeContext = cb::rbac::createContext("default",
-                                                       all_buckets[bucketIndex].name);
+            privilegeContext = cb::rbac::createContext(
+                    "default", getDomain(), all_buckets[bucketIndex].name);
         } else {
             // The user has not authenticated, and this isn't for the
             // "default bucket". Assign an empty profile which won't give
             // you any privileges.
-            privilegeContext = cb::rbac::PrivilegeContext{};
+            privilegeContext = cb::rbac::PrivilegeContext{getDomain()};
         }
     } catch (const cb::rbac::Exception&) {
-        privilegeContext = cb::rbac::PrivilegeContext{};
+        privilegeContext = cb::rbac::PrivilegeContext{getDomain()};
     }
 
     if (bucketIndex == 0) {
@@ -656,6 +657,17 @@ void Connection::shrinkBuffers() {
                         getId(),
                         IOV_LIST_INITIAL);
         }
+    }
+}
+
+void Connection::setAuthenticated(bool authenticated) {
+    Connection::authenticated = authenticated;
+    if (authenticated) {
+        updateDescription();
+        privilegeContext = cb::rbac::createContext(username, getDomain(), "");
+    } else {
+        resetUsernameCache();
+        privilegeContext = cb::rbac::PrivilegeContext{getDomain()};
     }
 }
 

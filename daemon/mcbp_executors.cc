@@ -510,7 +510,7 @@ static void update_user_permissions_executor(Cookie& cookie) {
     auto status = cb::mcbp::Status::Success;
 
     try {
-        cb::rbac::updateUser(
+        cb::rbac::updateExternalUser(
                 std::string{reinterpret_cast<const char*>(key.data()),
                             key.size()},
                 std::string{reinterpret_cast<const char*>(value.data()),

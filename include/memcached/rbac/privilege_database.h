@@ -35,6 +35,8 @@
 namespace cb {
 namespace rbac {
 
+using Domain = cb::sasl::Domain;
+
 /**
  * An array containing all of the possible privileges we've got. It is
  * tightly coupled with the Privilege enum class, and when entries is
@@ -58,11 +60,16 @@ public:
      *
      * @param username The name of the user we're currently parse
      * @param json A JSON representation of the user.
+     * @param domain The expected domain for this user
      * @throws std::invalid_argument if the provided JSON isn't according
      *         to the specification.
      * @throws std::bad_alloc if we run out of memory
+     * @throws std::runtime_error if the domain found for the entry isn't
+     *         the expected tomain
      */
-    UserEntry(const std::string& username, const nlohmann::json& json);
+    UserEntry(const std::string& username,
+              const nlohmann::json& json,
+              Domain domain);
 
     /**
      * Get a map containing all of the buckets and the privileges in those
@@ -81,17 +88,6 @@ public:
     }
 
     /**
-     * Get the domain where the user is defined.
-     */
-    cb::sasl::Domain getDomain() const {
-        return domain;
-    }
-
-    void setDomain(cb::sasl::Domain domain) {
-        UserEntry::domain = domain;
-    }
-
-    /**
      * Is this a system internal user or not? A system internal user is a
      * user one of the system components use.
      */
@@ -99,7 +95,7 @@ public:
         return internal;
     }
 
-    nlohmann::json to_json() const;
+    nlohmann::json to_json(Domain domain) const;
 
 protected:
     /**
@@ -117,7 +113,6 @@ protected:
 
     std::unordered_map<std::string, PrivilegeMask> buckets;
     PrivilegeMask privileges;
-    cb::sasl::Domain domain = cb::sasl::Domain::Local;
     bool internal;
 };
 
@@ -129,6 +124,8 @@ protected:
  */
 class PrivilegeContext {
 public:
+    PrivilegeContext() = delete;
+
     /**
      * Create a new (empty) instance of the privilege context.
      *
@@ -136,8 +133,10 @@ public:
      * check to return stale if being used. This is the initial
      * context being used.
      */
-    PrivilegeContext()
-        : generation(std::numeric_limits<uint32_t>::max()), mask() {
+    explicit PrivilegeContext(Domain domain)
+        : generation(std::numeric_limits<uint32_t>::max()),
+          domain(domain),
+          mask() {
     }
 
     /**
@@ -147,8 +146,8 @@ public:
      * @param gen the generation of the privilege database
      * @param m the mask to set it to.
      */
-    PrivilegeContext(uint32_t gen, const PrivilegeMask& m)
-        : generation(gen), mask(m) {
+    PrivilegeContext(uint32_t gen, Domain domain, const PrivilegeMask& m)
+        : generation(gen), domain(domain), mask(m) {
         // empty
     }
 
@@ -203,7 +202,11 @@ public:
 protected:
     void setBucketPrivilegeBits(bool value);
 
+    /// The Database version this mask belongs to
     uint32_t generation;
+    /// The Domain the mask belongs to
+    Domain domain;
+    /// The mask of effective privileges
     PrivilegeMask mask;
 };
 
@@ -252,7 +255,7 @@ public:
      * @throws std::invalid_argument for invalid syntax
      * @throws std::bad_alloc if we run out of memory
      */
-    explicit PrivilegeDatabase(const nlohmann::json& json);
+    PrivilegeDatabase(const nlohmann::json& json, Domain domain);
 
     /**
      * Try to look up a user in the privilege database
@@ -262,14 +265,7 @@ public:
      * @return The user entry for that user
      * @throws cb::rbac::NoSuchUserException if the user doesn't exist
      */
-    const UserEntry& lookup(const std::string& user) const {
-        auto iter = userdb.find(user);
-        if (iter == userdb.cend()) {
-            throw NoSuchUserException(user.c_str());
-        }
-
-        return iter->second;
-    }
+    const UserEntry& lookup(const std::string& user) const;
 
     /**
      * Check if the provided context contains the requested privilege
@@ -282,13 +278,7 @@ public:
      *         PrivilegeAccess::Fail If the context lacks the privilege
      */
     PrivilegeAccess check(const PrivilegeContext& context,
-                          Privilege privilege) const {
-        if (context.getGeneration() != generation) {
-            return PrivilegeAccess::Stale;
-        }
-
-        return context.check(privilege);
-    }
+                          Privilege privilege) const;
 
     /**
      * Create a new PrivilegeContext for the specified user in the specified
@@ -303,40 +293,32 @@ public:
      *                                         to that bucket.
      */
     PrivilegeContext createContext(const std::string& user,
+                                   Domain domain,
                                    const std::string& bucket) const;
 
     /**
      * Create the initial context for a given user
      *
      * @param user The username to look up
-     * @param domain The domain where the user exists
      * @return A pair with a privilege context as the first element, and
      *         a boolean indicating if this is a system user as the second
      *         element.
      * @throws cb::rbac::NoSuchUserException if the user doesn't exist
      */
     std::pair<PrivilegeContext, bool> createInitialContext(
-            const std::string& user, cb::sasl::Domain domain) const;
-
-    /**
-     * Remove the specified user from the database
-     *
-     * @param user The user to remove
-     * @return A newly created database without that user
-     */
-    std::unique_ptr<PrivilegeDatabase> removeUser(
-            const std::string& user) const;
+            const std::string& user, Domain domain) const;
 
     std::unique_ptr<PrivilegeDatabase> updateUser(const std::string& user,
+                                                  Domain domain,
                                                   UserEntry& entry) const;
+
+    nlohmann::json to_json(Domain domain) const;
 
     /**
      * The generation for this PrivilegeDatabase (a privilege context must
      * match this generation in order to be valid)
      */
     const uint32_t generation;
-
-    nlohmann::json to_json() const;
 
 protected:
     std::unordered_map<std::string, UserEntry> userdb;
@@ -357,6 +339,7 @@ protected:
  *                                         to that bucket.
  */
 PrivilegeContext createContext(const std::string& user,
+                               Domain domain,
                                const std::string& bucket);
 
 /**
@@ -370,7 +353,7 @@ PrivilegeContext createContext(const std::string& user,
  * @throws cb::rbac::NoSuchUserException if the user doesn't exist
  */
 std::pair<PrivilegeContext, bool> createInitialContext(const std::string& user,
-                                                       cb::sasl::Domain domain);
+                                                       Domain domain);
 
 /**
  * Load the named file and install it as the current privilege database
@@ -383,7 +366,9 @@ void loadPrivilegeDatabase(const std::string& filename);
 /**
  * Check if the specified user have access to the specified bucket
  */
-bool mayAccessBucket(const std::string& user, const std::string& bucket);
+bool mayAccessBucket(const std::string& user,
+                     Domain domain,
+                     const std::string& bucket);
 
 /**
  * Update the user entry with the supplied new configuration
@@ -391,7 +376,7 @@ bool mayAccessBucket(const std::string& user, const std::string& bucket);
  * @param user The user to update
  * @param json the new definition for the user (empty == remove)
  */
-void updateUser(const std::string& user, const std::string& json);
+void updateExternalUser(const std::string& user, const std::string& json);
 
 /**
  * Initialize the RBAC module
@@ -409,6 +394,6 @@ void destroy();
  * This should only be used for testing as it holds a read lock for the
  * database while generating the dump.
  */
-nlohmann::json to_json();
+nlohmann::json to_json(Domain domain);
 }
 }

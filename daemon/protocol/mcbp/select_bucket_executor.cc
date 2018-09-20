@@ -41,7 +41,8 @@ ENGINE_ERROR_CODE select_bucket(Connection& connection,
     auto oldIndex = connection.getBucketIndex();
 
     try {
-        cb::rbac::createContext(connection.getUsername(), bucketname);
+        cb::rbac::createContext(
+                connection.getUsername(), connection.getDomain(), bucketname);
         if (associate_bucket(connection, bucketname.c_str())) {
             return ENGINE_SUCCESS;
         } else {

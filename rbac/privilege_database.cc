@@ -31,31 +31,56 @@
 namespace cb {
 namespace rbac {
 
-// Every time we create a new PrivilegeDatabase we bump the generation.
-// The PrivilegeContext contains the generation number it was generated
-// from so that we can easily detect if the PrivilegeContext is stale.
-static std::atomic<uint32_t> generation{0};
+struct DatabaseContext {
+    // Every time we create a new PrivilegeDatabase we bump the generation.
+    // The PrivilegeContext contains the generation number it was generated
+    // from so that we can easily detect if the PrivilegeContext is stale.
+    std::atomic<uint32_t> generation{0};
 
-// The read write lock needed when you want to build a context
-cb::RWLock rwlock;
-std::unique_ptr<PrivilegeDatabase> db;
+    // The read write lock needed when you want to build a context
+    cb::RWLock rwlock;
+    std::unique_ptr<PrivilegeDatabase> db;
+};
 
-bool UserEntry::operator==(const UserEntry& other) const {
-    return (internal == other.internal && domain == other.domain &&
-            privileges == other.privileges && buckets == other.buckets);
+/// We keep one context for the local scope, and one for the external
+DatabaseContext contexts[2];
+
+/// Convert the Domain into the correct index to use into the contexts
+/// array.
+static int to_index(Domain domain) {
+    switch (domain) {
+    case Domain::Local:
+        return 0;
+    case Domain::External:
+        return 1;
+    }
+
+    throw std::invalid_argument("to_index(): Invalid domain provided");
 }
 
-UserEntry::UserEntry(const std::string& username, const nlohmann::json& json) {
+bool UserEntry::operator==(const UserEntry& other) const {
+    return (internal == other.internal && privileges == other.privileges &&
+            buckets == other.buckets);
+}
+
+UserEntry::UserEntry(const std::string& username,
+                     const nlohmann::json& json,
+                     Domain expectedDomain) {
     // All system internal users is prefixed with @
     internal = username.front() == '@';
 
     // Domain must be present so that we know where it comes from
     auto iter = json.find("domain");
     if (iter != json.end()) {
-        domain = cb::sasl::to_domain(iter->get<std::string>());
-        if (internal && domain == cb::sasl::Domain::External) {
+        const auto domain = cb::sasl::to_domain(iter->get<std::string>());
+        if (domain != expectedDomain) {
             throw std::runtime_error(
-                    R"(UserEntry::UserEntry: internal users must be locally defined)");
+                    R"(UserEntry::UserEntry: Invalid domain in this context)");
+        }
+
+        if (internal && domain != Domain::Local) {
+            throw std::runtime_error(
+                    R"(UserEntry::UserEntry: Internal users should be local)");
         }
     }
 
@@ -81,7 +106,7 @@ UserEntry::UserEntry(const std::string& username, const nlohmann::json& json) {
     }
 }
 
-nlohmann::json UserEntry::to_json() const {
+nlohmann::json UserEntry::to_json(Domain domain) const {
     nlohmann::json ret;
     ret["domain"] = ::to_string(domain);
     ret["privileges"] = mask2string(privileges);
@@ -148,27 +173,16 @@ PrivilegeMask UserEntry::parsePrivileges(const nlohmann::json& privs,
     return ret;
 }
 
-PrivilegeDatabase::PrivilegeDatabase(const nlohmann::json& json)
-    : generation(cb::rbac::generation.operator++()) {
+PrivilegeDatabase::PrivilegeDatabase(const nlohmann::json& json, Domain domain)
+    : generation(contexts[to_index(domain)].generation.operator++()) {
     for (auto it = json.begin(); it != json.end(); ++it) {
         const std::string username = it.key();
-        userdb.emplace(username, UserEntry(username, it.value()));
+        userdb.emplace(username, UserEntry(username, it.value(), domain));
     }
-}
-
-std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::removeUser(
-        const std::string& user) const {
-    auto ret = std::make_unique<PrivilegeDatabase>(nullptr);
-    ret->userdb = userdb;
-    auto iter = ret->userdb.find(user);
-    if (iter != ret->userdb.end()) {
-        ret->userdb.erase(iter);
-    }
-    return ret;
 }
 
 std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::updateUser(
-        const std::string& user, UserEntry& entry) const {
+        const std::string& user, Domain domain, UserEntry& entry) const {
     // Check if they differ
     auto iter = userdb.find(user);
     if (iter != userdb.end() && entry == iter->second) {
@@ -177,7 +191,7 @@ std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::updateUser(
     }
 
     // They differ, I need to change the entry!
-    auto ret = std::make_unique<PrivilegeDatabase>(nullptr);
+    auto ret = std::make_unique<PrivilegeDatabase>(nullptr, domain);
     ret->userdb = userdb;
     iter = ret->userdb.find(user);
     if (iter != ret->userdb.end()) {
@@ -188,7 +202,9 @@ std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::updateUser(
 }
 
 PrivilegeContext PrivilegeDatabase::createContext(
-        const std::string& user, const std::string& bucket) const {
+        const std::string& user,
+        Domain domain,
+        const std::string& bucket) const {
     PrivilegeMask mask;
 
     const auto& ue = lookup(user);
@@ -209,29 +225,45 @@ PrivilegeContext PrivilegeDatabase::createContext(
 
     // Add the rest of the privileges
     mask |= ue.getPrivileges();
-    return PrivilegeContext(generation, mask);
+    return PrivilegeContext(generation, domain, mask);
 }
 
 std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
-        const std::string& user, cb::sasl::Domain domain) const {
+        const std::string& user, Domain domain) const {
     const auto& ue = lookup(user);
-    if (ue.getDomain() != domain) {
-        throw NoSuchUserException(user.c_str());
-    }
-    return {PrivilegeContext(generation, ue.getPrivileges()), ue.isInternal()};
+    return {PrivilegeContext(generation, domain, ue.getPrivileges()),
+            ue.isInternal()};
 }
 
-nlohmann::json PrivilegeDatabase::to_json() const {
+nlohmann::json PrivilegeDatabase::to_json(Domain domain) const {
     nlohmann::json ret;
     for (const auto& entry : userdb) {
-        ret[entry.first] = entry.second.to_json();
+        ret[entry.first] = entry.second.to_json(domain);
     }
 
     return ret;
 }
 
+const UserEntry& PrivilegeDatabase::lookup(const std::string& user) const {
+    auto iter = userdb.find(user);
+    if (iter == userdb.cend()) {
+        throw NoSuchUserException(user.c_str());
+    }
+
+    return iter->second;
+}
+
+PrivilegeAccess PrivilegeDatabase::check(const PrivilegeContext& context,
+                                         Privilege privilege) const {
+    if (context.getGeneration() != generation) {
+        return PrivilegeAccess::Stale;
+    }
+
+    return context.check(privilege);
+}
+
 PrivilegeAccess PrivilegeContext::check(Privilege privilege) const {
-    if (generation != cb::rbac::generation) {
+    if (generation != contexts[to_index(domain)].generation) {
         return PrivilegeAccess::Stale;
     }
 
@@ -304,41 +336,53 @@ void PrivilegeContext::setBucketPrivilegeBits(bool value) {
 }
 
 PrivilegeContext createContext(const std::string& user,
+                               Domain domain,
                                const std::string& bucket) {
-    std::lock_guard<cb::ReaderLock> guard(rwlock.reader());
-    return db->createContext(user, bucket);
+    auto& ctx = contexts[to_index(domain)];
+    std::lock_guard<cb::ReaderLock> guard(ctx.rwlock.reader());
+    return ctx.db->createContext(user, domain, bucket);
 }
 
-std::pair<PrivilegeContext, bool> createInitialContext(
-        const std::string& user, cb::sasl::Domain domain) {
-    std::lock_guard<cb::ReaderLock> guard(rwlock.reader());
-    return db->createInitialContext(user, domain);
+std::pair<PrivilegeContext, bool> createInitialContext(const std::string& user,
+                                                       Domain domain) {
+    auto& ctx = contexts[to_index(domain)];
+    std::lock_guard<cb::ReaderLock> guard(ctx.rwlock.reader());
+    return ctx.db->createInitialContext(user, domain);
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {
     const auto content = cb::io::loadFile(filename);
     auto json = nlohmann::json::parse(content);
-    auto database = std::make_unique<PrivilegeDatabase>(json);
-    std::lock_guard<cb::WriterLock> guard(rwlock.writer());
+    auto database = std::make_unique<PrivilegeDatabase>(json, Domain::Local);
+
+    auto& ctx = contexts[to_index(Domain::Local)];
+    std::lock_guard<cb::WriterLock> guard(ctx.rwlock.writer());
     // Handle race conditions
-    if (db->generation < database->generation) {
-        db.swap(database);
+    if (ctx.db->generation < database->generation) {
+        ctx.db.swap(database);
     }
 }
 
 void initialize() {
     // Create an empty database to avoid having to add checks
     // if it exists or not...
-    db = std::make_unique<PrivilegeDatabase>(nlohmann::json{});
+    contexts[to_index(Domain::Local)].db = std::make_unique<PrivilegeDatabase>(
+            nlohmann::json{}, Domain::Local);
+    contexts[to_index(Domain::External)].db =
+            std::make_unique<PrivilegeDatabase>(nlohmann::json{},
+                                                Domain::External);
 }
 
 void destroy() {
-    db.reset();
+    contexts[to_index(Domain::Local)].db.reset();
+    contexts[to_index(Domain::External)].db.reset();
 }
 
-bool mayAccessBucket(const std::string& user, const std::string& bucket) {
+bool mayAccessBucket(const std::string& user,
+                     Domain domain,
+                     const std::string& bucket) {
     try {
-        cb::rbac::createContext(user, bucket);
+        createContext(user, domain, bucket);
         return true;
     } catch (const Exception&) {
         // The user do not have access to the bucket
@@ -347,34 +391,31 @@ bool mayAccessBucket(const std::string& user, const std::string& bucket) {
     return false;
 }
 
-void removeUser(const std::string& user) {
-    std::lock_guard<cb::WriterLock> guard(rwlock.writer());
-    auto next = db->removeUser(user);
-    db.swap(next);
-}
-
-void updateUser(const std::string& user, const std::string& descr) {
+void updateExternalUser(const std::string& user, const std::string& descr) {
     if (descr.empty()) {
-        removeUser(user);
-        return;
+        throw std::runtime_error("Not implemented");
     }
 
     // Parse the JSON and create the UserEntry object before grabbing
     // the write lock!
     auto json = nlohmann::json::parse(descr);
     const std::string username = json.begin().key();
-    UserEntry entry(username, json[username]);
-    std::lock_guard<cb::WriterLock> guard(rwlock.writer());
-    auto next = db->updateUser(user, entry);
+    UserEntry entry(username, json[username], Domain::External);
+
+    auto& ctx = contexts[to_index(Domain::External)];
+
+    std::lock_guard<cb::WriterLock> guard(ctx.rwlock.writer());
+    auto next = ctx.db->updateUser(user, Domain::External, entry);
     if (next) {
         // I changed the database.. swap
-        db.swap(next);
+        ctx.db.swap(next);
     }
 }
 
-nlohmann::json to_json() {
-    std::lock_guard<cb::ReaderLock> guard(rwlock.reader());
-    return db->to_json();
+nlohmann::json to_json(Domain domain) {
+    auto& ctx = contexts[to_index(domain)];
+    std::lock_guard<cb::ReaderLock> guard(ctx.rwlock.reader());
+    return ctx.db->to_json(domain);
 }
 
 } // namespace rbac

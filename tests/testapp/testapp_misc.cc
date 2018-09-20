@@ -115,7 +115,7 @@ TEST_P(MiscTest, UpdateUserPermissionsSuccess) {
  * Unfortunately there isn't a way to verify that the user was actually
  * updated as we can't fetch the updated entry.
  */
-TEST_P(MiscTest, UpdateUserPermissionsRemoveUser) {
+TEST_P(MiscTest, DISABLED_UpdateUserPermissionsRemoveUser) {
     auto& conn = getAdminConnection();
     auto resp =
             conn.execute(BinprotUpdateUserPermissionsCommand{"johndoe", ""});
@@ -144,13 +144,13 @@ TEST_P(MiscTest, UpdateUserPermissionsInvalidPayload) {
 TEST_P(MiscTest, GetRbacDatabase) {
     auto& conn = getAdminConnection();
     auto response = conn.execute(BinprotGenericCommand{
-            PROTOCOL_BINARY_CMD_IOCTL_GET, "rbac.db.dump"});
+            PROTOCOL_BINARY_CMD_IOCTL_GET, "rbac.db.dump?domain=external"});
     ASSERT_TRUE(response.isSuccess());
     ASSERT_FALSE(response.getDataString().empty());
 
     conn = getConnection();
-    response = conn.execute(BinprotGenericCommand{PROTOCOL_BINARY_CMD_IOCTL_GET,
-                                                  "rbac.db.dump"});
+    response = conn.execute(BinprotGenericCommand{
+            PROTOCOL_BINARY_CMD_IOCTL_GET, "rbac.db.dump?domain=external"});
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, response.getStatus());
 }
