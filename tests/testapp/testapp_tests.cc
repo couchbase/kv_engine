@@ -2466,7 +2466,7 @@ static void test_set_topkeys(const std::string& key, const int operations) {
     }
 
     EXPECT_EQ(initial_count + operations, get_topkeys_legacy_value(key));
-    int json_value;
+    int json_value = 0;
     EXPECT_TRUE(get_topkeys_json_value(key, json_value));
     EXPECT_EQ(initial_count + operations, json_value);
 }
@@ -2477,7 +2477,7 @@ static void test_set_topkeys(const std::string& key, const int operations) {
  * change after the number of get operations.
  */
 static void test_get_topkeys(const std::string& key, int operations) {
-    int initial_count;
+    int initial_count = 0;
     ASSERT_TRUE(get_topkeys_json_value(key, initial_count));
 
     int ii;
@@ -2504,7 +2504,7 @@ static void test_get_topkeys(const std::string& key, int operations) {
     const int expected_count = initial_count + operations;
     EXPECT_EQ(expected_count, get_topkeys_legacy_value(key))
         << "Unexpected topkeys legacy count for key:" << key;
-    int json_value;
+    int json_value = 0;
     EXPECT_TRUE(get_topkeys_json_value(key, json_value));
     EXPECT_EQ(expected_count, json_value);
 }
@@ -2514,7 +2514,7 @@ static void test_get_topkeys(const std::string& key, int operations) {
  * after the delete operation.
  */
 static void test_delete_topkeys(const std::string& key) {
-    int initial_count;
+    int initial_count = 0;
     ASSERT_TRUE(get_topkeys_json_value(key, initial_count));
 
     size_t len;
@@ -2537,7 +2537,7 @@ static void test_delete_topkeys(const std::string& key) {
 
     EXPECT_EQ(initial_count + 1, get_topkeys_legacy_value(key))
         << "Unexpected topkeys legacy count for key:" << key;
-    int json_value;
+    int json_value = 0;
     EXPECT_TRUE(get_topkeys_json_value(key, json_value));
     EXPECT_EQ(initial_count + 1, json_value);
 }
