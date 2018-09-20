@@ -773,11 +773,11 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY] = adjust_timeofday_executor;
 }
 
-void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
+void execute_client_request_packet(Cookie& cookie,
+                                   const cb::mcbp::Request& request) {
     auto* c = &cookie.getConnection();
 
     static McbpPrivilegeChains privilegeChains;
-    protocol_binary_response_status result;
 
     const auto opcode = request.opcode;
     const auto res = privilegeChains.invoke(opcode, cookie);
@@ -797,45 +797,26 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
         }
 
         return;
-    case cb::rbac::PrivilegeAccess::Ok:
-        if (request.isValid()) {
-            // The framing of the packet is valid...
-            // Verify that the actual command is legal
-            auto& bucket = cookie.getConnection().getBucket();
-            result = bucket.validatorChains.invoke(opcode, cookie);
-        } else {
-            result = PROTOCOL_BINARY_RESPONSE_EINVAL;
-        }
-
+    case cb::rbac::PrivilegeAccess::Ok: {
+        // The framing of the packet is valid...
+        // Verify that the actual command is legal
+        auto& bucket = cookie.getConnection().getBucket();
+        auto result = bucket.validatorChains.invoke(opcode, cookie);
         if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            // Log the mcbp header and extras
-            const auto& header = cookie.getHeader();
-            std::stringstream ss;
-            ss << header;
-
-            // If extras, do a raw dump (a corrupt extlen could mean 255 bytes)
-            if (header.getExtlen()) {
-                auto packet = cookie.getPacket();
-                ss << ", rawextras:";
-                for (uint8_t index = 0; index < header.getExtlen(); index++) {
-                    const auto* byte =
-                            packet.data() + sizeof(cb::mcbp::Header) + index;
-                    // don't exceed the packet buffer
-                    if (byte < packet.data() + packet.size()) {
-                        ss << std::hex << int(*byte);
-                    } else {
-                        break;
-                    }
-                }
+            std::string command;
+            try {
+                command = to_string(request.getClientOpcode());
+            } catch (const std::exception&) {
+                command = "unknown 0x" + cb::to_hex(request.opcode);
             }
 
             LOG_WARNING(
-                    "{}: Invalid format specified for {} - {} - "
-                    "closing connection packet:{} ",
+                    R"({}: Invalid format specified for "{}" - Status: "{}" - Closing connection. Raw Extras:[{}] Reason:"{}")",
                     c->getId(),
-                    memcached_opcode_2_text(opcode),
-                    result,
-                    ss.str());
+                    command,
+                    to_string(cb::mcbp::Status(result)),
+                    cb::to_hex(request.getExtdata()),
+                    cookie.getErrorContext());
             audit_invalid_packet(cookie);
             cookie.sendResponse(cb::mcbp::Status(result));
             c->setWriteAndGo(StateMachine::State::closing);
@@ -843,6 +824,7 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
         }
 
         handlers[opcode](cookie);
+    }
         return;
     case cb::rbac::PrivilegeAccess::Stale:
         if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
@@ -859,6 +841,27 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
             c->getId(),
             uint32_t(res));
     c->setState(StateMachine::State::closing);
+}
+
+void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
+    switch (request.getMagic()) {
+    case cb::mcbp::Magic::ClientRequest:
+        execute_client_request_packet(cookie, request);
+        return;
+    case cb::mcbp::Magic::ServerRequest:
+        throw std::runtime_error(
+                "execute_request_packet: processing server requests is not "
+                "(yet) supported");
+    case cb::mcbp::Magic::AltClientResponse:
+        break;
+    case cb::mcbp::Magic::ClientResponse:
+        break;
+    case cb::mcbp::Magic::ServerResponse:
+        break;
+    }
+
+    throw std::logic_error(
+            "execute_request_packet: provided packet is not a request");
 }
 
 static void execute_client_response_packet(Cookie& cookie,
