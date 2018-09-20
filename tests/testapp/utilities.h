@@ -59,16 +59,6 @@ extern "C" {
     // Frees all resources allocated by initialize_openssl().
     void shutdown_openssl(void);
 
-    int create_ssl_connection(SSL_CTX** ctx,
-                              BIO** bio,
-                              const char* host,
-                              const char* port,
-                              const char* user,
-                              const char* pass,
-                              int secure);
-
-    bool enable_tcp_nodelay(BIO *bio);
-
 #ifdef __cplusplus
 }
 #endif

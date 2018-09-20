@@ -198,40 +198,6 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
     return 0;
 }
 
-
-bool enable_tcp_nodelay(BIO *bio)
-{
-    protocol_binary_request_hello request;
-    uint16_t feature = htons(uint16_t(cb::mcbp::Feature::TCPNODELAY));
-    const char useragent[] = "mctools";
-    memset(&request, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_HELLO;
-    request.message.header.request.keylen = htons(sizeof(useragent) - 1);
-    request.message.header.request.bodylen = htonl(2 + sizeof(useragent) - 1);
-
-    ensure_send(bio, &request, sizeof(request));
-    ensure_send(bio, &useragent, sizeof(useragent) - 1);
-    ensure_send(bio, &feature, sizeof(feature));
-
-    protocol_binary_response_hello response;
-    ensure_recv(bio, &response, sizeof(response.bytes));
-
-    uint32_t vallen = response.message.header.response.getBodylen();
-    std::vector<char> buffer(vallen);
-    ensure_recv(bio, buffer.data(), vallen);
-
-    uint16_t status = ntohs(response.message.header.response.status);
-    bool ret = true;
-
-    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        fprintf(stderr, "Failed to enable TCP NODELAY: %s\n", buffer.data());
-        ret = false;
-    }
-
-    return ret;
-}
-
 void initialize_openssl(void) {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
     CRYPTO_malloc_init();
@@ -263,76 +229,4 @@ void shutdown_openssl() {
     // however we arn't that new...
     sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
 #endif
-}
-
-int create_ssl_connection(SSL_CTX** ctx,
-                          BIO** bio,
-                          const char* host,
-                          const char* port,
-                          const char* user,
-                          const char* pass,
-                          int secure)
-{
-    char uri[1024];
-
-    if (*ctx == nullptr) {
-        initialize_openssl();
-        if ((*ctx = SSL_CTX_new(SSLv23_client_method())) == NULL) {
-            fprintf(stderr, "Failed to create openssl client contex\n");
-            return 1;
-        }
-    }
-
-    snprintf(uri, sizeof(uri), "%s:%s", host, port);
-
-    if (secure) {
-        /* Create a secure connection */
-        *bio = BIO_new_ssl_connect(*ctx);
-        if (*bio == NULL) {
-            fprintf(stderr, "Error creating openssl BIO object!\n");
-            ERR_print_errors_fp(stderr);
-            SSL_CTX_free(*ctx);
-            return 1;
-        }
-
-        BIO_set_conn_hostname(*bio, uri);
-    } else {
-        /* create an unsecure */
-        *bio = BIO_new_connect(uri);
-        if (*bio == NULL) {
-            fprintf(stderr, "Error creating openssl BIO object!\n");
-            ERR_print_errors_fp(stderr);
-            return 1;
-        }
-    }
-
-    if (BIO_do_connect(*bio) <= 0) {
-        char error[65535];
-        fprintf(stderr, "Failed to connect to %s\n", uri);
-        ERR_error_string_n(ERR_get_error(), error, 65535);
-        printf("Error: %s\n", error);
-        ERR_print_errors(*bio);
-        BIO_free_all(*bio);
-        if (secure) {
-            SSL_CTX_free(*ctx);
-        }
-        return 1;
-    }
-
-    /* we're connected */
-    if (secure && BIO_do_handshake(*bio) <= 0) {
-        fprintf(stderr, "Failed to do SSL handshake!");
-        BIO_free_all(*bio);
-        SSL_CTX_free(*ctx);
-        return 1;
-    }
-
-    /* Do we need to do SASL auth? */
-    if (user && do_sasl_auth(*bio, user, pass) == -1) {
-        BIO_free_all(*bio);
-        SSL_CTX_free(*ctx);
-        return 1;
-    }
-
-    return 0;
 }
