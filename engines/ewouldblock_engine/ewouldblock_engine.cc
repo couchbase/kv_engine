@@ -934,6 +934,8 @@ private:
 
     // Base class for all fault injection modes.
     struct FaultInjectMode {
+        virtual ~FaultInjectMode() = default;
+
         FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
           : injected_error(injected_error_) {}
 
