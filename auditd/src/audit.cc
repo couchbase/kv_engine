@@ -22,13 +22,14 @@
 #include "event.h"
 #include "eventdescriptor.h"
 
-#include <cJSON.h>
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -113,16 +114,9 @@ void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
             "Audit::create_audit_event: Invalid event identifier specified");
 }
 
-bool AuditImpl::add_event_descriptor(cJSON* event_ptr) {
-    if (event_ptr == nullptr) {
-        LOG_WARNING(
-                "Audit::add_event_descriptor: No JSON data "
-                "provided");
-        return false;
-    }
-
+bool AuditImpl::add_event_descriptor(const nlohmann::json& json) {
     try {
-        auto entry = std::make_unique<EventDescriptor>(event_ptr);
+        auto entry = std::make_unique<EventDescriptor>(json);
         events.insert(std::pair<uint32_t, std::unique_ptr<EventDescriptor>>(
                 entry->getId(), std::move(entry)));
         return true;
@@ -130,71 +124,56 @@ bool AuditImpl::add_event_descriptor(cJSON* event_ptr) {
         LOG_WARNING(
                 "Audit::add_event_descriptor: Failed to allocate "
                 "memory");
-    } catch (const std::logic_error& le) {
-        LOG_WARNING(R"(Audit::add_event_descriptor: JSON key "{}" error)",
-                    le.what());
+    } catch (const nlohmann::json::exception& e) {
+        LOG_WARNING(
+                "Audit::add_event_descriptor: JSON parsing exception {}"
+                " for event {}",
+                cb::UserDataView(e.what()),
+                cb::UserDataView(json.dump()));
+    } catch (const std::invalid_argument& e) {
+        LOG_WARNING(
+                "Audit::add_event_descriptor: parsing exception {}"
+                " for event {}",
+                cb::UserDataView(e.what()),
+                cb::UserDataView(json.dump()));
     }
 
     return false;
 }
 
-bool AuditImpl::process_module_data_structures(cJSON* module) {
-    if (module == NULL) {
-        LOG_WARNING(
-                "Audit::process_module_data_structures: No JSON data provided "
-                "for module");
-        return false;
-    }
-    while (module != NULL) {
-        cJSON *mod_ptr = module->child;
-        if (mod_ptr == NULL) {
-            LOG_WARNING(
-                    "Audit::process_module_data_structures: No JSON data "
-                    "provided for child node");
+bool AuditImpl::process_module_data_structures(const nlohmann::json& json) {
+    for (const auto& event : json) {
+        if (!add_event_descriptor(event)) {
             return false;
         }
-        while (mod_ptr != NULL) {
-            cJSON *event_ptr;
-            switch (mod_ptr->type) {
-                case cJSON_Number:
-                case cJSON_String:
-                    break;
-                case cJSON_Array:
-                    event_ptr = mod_ptr->child;
-                    while (event_ptr != NULL) {
-                        if (!add_event_descriptor(event_ptr)) {
-                            return false;
-                        }
-                        event_ptr = event_ptr->next;
-                    }
-                    break;
-                default:
-                    LOG_WARNING("Audit: JSON unknown field error");
-                    return false;
-            }
-            mod_ptr = mod_ptr->next;
-        }
-        module = module->next;
     }
     return true;
 }
 
-bool AuditImpl::process_module_descriptor(cJSON* module_descriptor) {
+bool AuditImpl::process_module_descriptor(const nlohmann::json& json) {
     events.clear();
-    while(module_descriptor != NULL) {
-        switch (module_descriptor->type) {
-            case cJSON_Number:
-                break;
-            case cJSON_Array:
-                if (!process_module_data_structures(module_descriptor->child)) {
-                    return false;
-                }
-                break;
-            default:
-                LOG_WARNING("Audit: JSON unknown field error");
-                return false;
+    for (const auto& module_descriptor : json) {
+        auto events = cb::getOptionalJsonObject(module_descriptor, "events");
+        if (!events.is_initialized()) {
+            LOG_WARNING(
+                    "Audit::process_module_descriptor: \"events\""
+                    " field missing");
+            return false;
         }
-        module_descriptor = module_descriptor->next;
+        switch (events->type()) {
+        case nlohmann::json::value_t::number_integer:
+            break;
+        case nlohmann::json::value_t::array:
+            if (!process_module_data_structures(*events)) {
+                return false;
+            }
+            break;
+        default:
+            LOG_WARNING(
+                    "Audit:process_module_descriptor \"events\" field is not"
+                    " integer or array");
+            return false;
+        }
     }
     return true;
 }
@@ -253,20 +232,25 @@ bool AuditImpl::configure() {
     if (str.empty()) {
         return false;
     }
-    cJSON *json_ptr = cJSON_Parse(str.c_str());
-    if (json_ptr == NULL) {
-        LOG_WARNING(
-                R"(Audit::configure: JSON parsing error of "{}" with the content: "{}")",
-                audit_events_file,
-                cb::UserDataView(str));
-        return false;
-    }
-    if (!process_module_descriptor(json_ptr->child)) {
-        cJSON_Delete(json_ptr);
-        return false;
-    }
-    cJSON_Delete(json_ptr);
 
+    nlohmann::json events_json;
+    try {
+        events_json = nlohmann::json::parse(str);
+    } catch (const nlohmann::json::exception& e) {
+        LOG_WARNING(
+                R"(Audit::configure: JSON parsing error of "{}" with the
+                   content: "{}", e.what(): {})",
+                audit_events_file,
+                cb::UserDataView(str),
+                cb::UserDataView(e.what()));
+        return false;
+    }
+
+    auto modules = cb::getOptionalJsonObject(
+            events_json, "modules", nlohmann::json::value_t::array);
+    if (!modules.is_initialized() || !process_module_descriptor(*modules)) {
+        return false;
+    }
     auditfile.reconfigure(config);
 
     // iterate through the events map and update the sync and enabled flags

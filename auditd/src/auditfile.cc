@@ -17,7 +17,7 @@
 #include "auditfile.h"
 #include "audit.h"
 #include <JSON_checker.h>
-#include <cJSON.h>
+#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>

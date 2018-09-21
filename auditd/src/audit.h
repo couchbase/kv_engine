@@ -90,10 +90,10 @@ protected:
      * @param event_ptr the definition of the descriptor in JSON
      * @return true if the descriptor was successfully added
      */
-    bool add_event_descriptor(cJSON* event_ptr);
+    bool add_event_descriptor(const nlohmann::json& json);
 
-    bool process_module_data_structures(cJSON* module);
-    bool process_module_descriptor(cJSON* module_descriptor);
+    bool process_module_data_structures(const nlohmann::json& json);
+    bool process_module_descriptor(const nlohmann::json& json);
 
     /**
      * Create an internal audit event structure

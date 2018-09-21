@@ -15,75 +15,54 @@
  *   limitations under the License.
  */
 #include "eventdescriptor.h"
+
+#include <utilities/json_utilities.h>
+
+#include <boost/optional.hpp>
 #include <stdexcept>
 
-EventDescriptor::EventDescriptor(const cJSON* root)
-    : id(uint32_t(locate(root, "id", cJSON_Number)->valueint)),
-      name(locate(root, "name", cJSON_String)->valuestring),
-      description(locate(root, "description", cJSON_String)->valuestring),
-      sync(locate(root, "sync", cJSON_True)->type == cJSON_True),
-      enabled(locate(root, "enabled", cJSON_True)->type == cJSON_True),
+EventDescriptor::EventDescriptor(const nlohmann::json& root)
+    : id(root.at("id").get<uint32_t>()),
+      name(root.at("name").get<std::string>()),
+      description(root.at("description").get<std::string>()),
+      sync(root.at("sync").get<bool>()),
+      enabled(root.at("enabled").get<bool>()),
       filteringPermitted(false) {
+    size_t expected = 5;
 
-    int expected = 5;
     // Look for the optional parameter filtering_permitted
-    cJSON* obj = cJSON_GetObjectItem(const_cast<cJSON*>(root), "filtering_permitted");
-    // If filter_permitted parameter is defined then set to appropriate value.
-    if (obj != nullptr) {
-        filteringPermitted = (obj->type == cJSON_True);
-        expected++;
-    }
+    filteringPermitted = root.value("filtering_permitted", false);
+    expected += root.count("filtering_permitted");
 
-    if ((obj = cJSON_GetObjectItem(const_cast<cJSON*>(root),
-                                   "mandatory_fields")) != nullptr) {
-        if (obj->type != cJSON_Array && obj->type != cJSON_Object) {
-            throw std::logic_error(
-                "EventDescriptor::EventDescriptor: Invalid type for mandatory_fields");
-        }
-        ++expected;
-    }
-    if ((obj = cJSON_GetObjectItem(const_cast<cJSON*>(root),
-                                   "optional_fields")) != nullptr) {
-        if (obj->type != cJSON_Array && obj->type != cJSON_Object) {
-            throw std::logic_error(
-                "EventDescriptor::EventDescriptor: Invalid type for optional_fields");
-        }
-        ++expected;
-    }
-
-    if (expected != cJSON_GetArraySize(const_cast<cJSON*>(root))) {
-        throw std::logic_error(
-            "EventDescriptor::EventDescriptor: Unknown elements specified");
-
-    }
-}
-
-const cJSON* EventDescriptor::locate(const cJSON* root,
-                                     const char* field,
-                                     int type) {
-    const cJSON* ret = cJSON_GetObjectItem(const_cast<cJSON*>(root), field);
-    if (ret == nullptr) {
-        std::string msg("EventDescriptor::locate: Element \"");
-        msg.append(field);
-        msg.append("\" not found");
-        throw std::logic_error(msg);
-    }
-
-    if (type == cJSON_True) {
-        if (ret->type != cJSON_True && ret->type != cJSON_False) {
-            std::string msg("EventDescriptor::locate: Element \"");
-            msg.append(field);
-            msg.append("\" is not of the expected type");
-            throw std::logic_error(msg);
-        }
-    } else {
-        if (ret->type != type) {
-            std::string msg("EventDescriptor::locate: Element \"");
-            msg.append(field);
-            msg.append("\" is not of the expected type");
-            throw std::logic_error(msg);
+    auto obj = cb::getOptionalJsonObject(root, "mandatory_fields");
+    if (obj.is_initialized()) {
+        if ((*obj).type() != nlohmann::json::value_t::array &&
+            (*obj).type() != nlohmann::json::value_t::object) {
+            throw std::invalid_argument(
+                    "EventDescriptor::EventDescriptor: "
+                    "Invalid type for mandatory_fields");
+        } else {
+            expected++;
         }
     }
 
-    return ret;
+    obj = cb::getOptionalJsonObject(root, "optional_fields");
+    if (obj.is_initialized()) {
+        if ((*obj).type() != nlohmann::json::value_t::array &&
+            (*obj).type() != nlohmann::json::value_t::object) {
+            throw std::invalid_argument(
+                    "EventDescriptor::EventDescriptor: "
+                    "Invalid type for optional_fields");
+        } else {
+            expected++;
+        }
+    }
+
+    if (expected != root.size()) {
+        throw std::invalid_argument(
+                "EventDescriptor::EventDescriptor: "
+                "Unknown elements specified. Number expected:" +
+                std::to_string(expected) +
+                " actual:" + std::to_string(root.size()));
+    }
 }

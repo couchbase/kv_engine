@@ -16,8 +16,8 @@
  */
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <string>
-#include <cJSON_utils.h>
 
 /**
  * The EventDescriptor class represents a single event descriptor and
@@ -32,10 +32,10 @@ public:
      * descriptor.
      *
      * @param root pointer to the json represenatation
-     * @throws std::logic_error if called with a JSON representation which
+     * @throws std::invalid_argument if called with a JSON representation which
      *         isn't what we expect
      */
-    EventDescriptor(const cJSON* root);
+    EventDescriptor(const nlohmann::json& root);
 
     const uint32_t getId() const {
         return id;
@@ -70,20 +70,6 @@ public:
     }
 
 protected:
-    /**
-     * Locate the given field in the JSON
-     *
-     * @param root pointer to the first entry
-     * @param field the name of the field to locate
-     * @param type the expected type of the object (Note: there is no
-     *             cJSON_Bool #define, so you have to pass in cJSON_True
-     *             for that).
-     * @return the cJSON element for the object
-     * @throws std::logic_error if the field is missing or is of an
-     *         incorrect type
-     */
-    const cJSON* locate(const cJSON* root, const char* field, int type);
-
     const uint32_t id;
     const std::string name;
     const std::string description;

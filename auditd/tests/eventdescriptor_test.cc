@@ -15,33 +15,34 @@
  *   limitations under the License.
  */
 
-#include <gtest/gtest.h>
-#include <cJSON_utils.h>
-#include <stdexcept>
 #include "eventdescriptor.h"
+
+#include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
+#include <stdexcept>
 
 class EventDescriptorTest : public ::testing::Test {
 protected:
     virtual void SetUp() {
-        json.reset(cJSON_CreateObject());
-        ASSERT_NE(nullptr, json.get());
-        cJSON* root = json.get();
-        cJSON_AddNumberToObject(root, "id", 1);
-        cJSON_AddStringToObject(root, "name", "name");
-        cJSON_AddStringToObject(root, "description", "description");
-        cJSON_AddFalseToObject(root, "sync");
-        cJSON_AddTrueToObject(root, "enabled");
+        // We normally expect this to be an unsigned integer so we need to
+        // explicitly pass a unsigned int to json[].
+        size_t id = 1;
+        json["id"] = id;
+        json["name"] = "name";
+        json["description"] = "description";
+        json["sync"] = false;
+        json["enabled"] = true;
     }
 
-    unique_cJSON_ptr json;
+    nlohmann::json json;
 };
 
 TEST_F(EventDescriptorTest, ParseOk) {
-    EXPECT_NO_THROW(EventDescriptor(json.get()));
+    EXPECT_NO_THROW(EventDescriptor ptr(json));
 }
 
 TEST_F(EventDescriptorTest, VerifyGetters) {
-    EventDescriptor ptr(json.get());
+    EventDescriptor ptr(json);
     EXPECT_EQ(1, ptr.getId());
     EXPECT_EQ("name", ptr.getName());
     EXPECT_EQ("description", ptr.getDescription());
@@ -50,79 +51,64 @@ TEST_F(EventDescriptorTest, VerifyGetters) {
 }
 
 TEST_F(EventDescriptorTest, UnknownTag) {
-    cJSON_AddStringToObject(json.get(), "foo", "foo");
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json["foo"] = "foo";
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 }
 
 TEST_F(EventDescriptorTest, MissingId) {
-    cJSON_DeleteItemFromObject(json.get(), "id");
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json.erase(json.find("id"));
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, InvalidId) {
-    cJSON_DeleteItemFromObject(json.get(), "id");
-    cJSON_AddStringToObject(json.get(), "id", "foo");
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json["id"] = "foo";
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, MissingName) {
-    cJSON_DeleteItemFromObject(json.get(), "name");
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json.erase(json.find("name"));
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, InvalidName) {
-    cJSON_DeleteItemFromObject(json.get(), "name");
-    cJSON_AddNumberToObject(json.get(), "name", 5);
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json["name"] = 5;
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, MissingDescription) {
-    cJSON_DeleteItemFromObject(json.get(), "description");
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json.erase(json.find("description"));
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, InvalidDescription) {
-    cJSON_DeleteItemFromObject(json.get(), "description");
-    cJSON_AddNumberToObject(json.get(), "description", 5);
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json["description"] = 5;
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, MissingSync) {
-    cJSON_DeleteItemFromObject(json.get(), "sync");
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json.erase(json.find("sync"));
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, InvalidSync) {
-    cJSON_DeleteItemFromObject(json.get(), "sync");
-    cJSON_AddNumberToObject(json.get(), "sync", 5);
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json["sync"] = 5;
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, SyncTrue) {
-    cJSON_DeleteItemFromObject(json.get(), "sync");
-    cJSON_AddTrueToObject(json.get(), "sync");
-    EventDescriptor ptr(json.get());
+    json["sync"] = true;
+    EventDescriptor ptr(json);
     EXPECT_TRUE(ptr.isSync());
 }
 
 TEST_F(EventDescriptorTest, SyncFalse) {
-    cJSON_DeleteItemFromObject(json.get(), "sync");
-    cJSON_AddFalseToObject(json.get(), "sync");
-    EventDescriptor ptr(json.get());
+    json["sync"] = false;
+    EventDescriptor ptr(json);
     EXPECT_FALSE(ptr.isSync());
 }
 
 TEST_F(EventDescriptorTest, SyncSetter) {
-    EventDescriptor ptr(json.get());
+    EventDescriptor ptr(json);
     ptr.setSync(true);
     EXPECT_TRUE(ptr.isSync());
     ptr.setSync(false);
@@ -130,34 +116,29 @@ TEST_F(EventDescriptorTest, SyncSetter) {
 }
 
 TEST_F(EventDescriptorTest, MissingEnabled) {
-    cJSON_DeleteItemFromObject(json.get(), "enabled");
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json.erase(json.find("enabled"));
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, InvalidEnabled) {
-    cJSON_DeleteItemFromObject(json.get(), "enabled");
-    cJSON_AddNumberToObject(json.get(), "enabled", 5);
-    EXPECT_THROW(EventDescriptor ptr(json.get()),
-                 std::logic_error);
+    json["enabled"] = 5;
+    EXPECT_THROW(EventDescriptor ptr(json), nlohmann::json::exception);
 }
 
 TEST_F(EventDescriptorTest, EnabledTrue) {
-    cJSON_DeleteItemFromObject(json.get(), "enabled");
-    cJSON_AddTrueToObject(json.get(), "enabled");
-    EventDescriptor ptr(json.get());
+    json["enabled"] = true;
+    EventDescriptor ptr(json);
     EXPECT_TRUE(ptr.isEnabled());
 }
 
 TEST_F(EventDescriptorTest, EnabledFalse) {
-    cJSON_DeleteItemFromObject(json.get(), "enabled");
-    cJSON_AddFalseToObject(json.get(), "enabled");
-    EventDescriptor ptr(json.get());
+    json["enabled"] = false;
+    EventDescriptor ptr(json);
     EXPECT_FALSE(ptr.isEnabled());
 }
 
 TEST_F(EventDescriptorTest, EnabledSetter) {
-    EventDescriptor ptr(json.get());
+    EventDescriptor ptr(json);
     ptr.setEnabled(true);
     EXPECT_TRUE(ptr.isEnabled());
     ptr.setEnabled(false);
@@ -165,81 +146,69 @@ TEST_F(EventDescriptorTest, EnabledSetter) {
 }
 
 TEST_F(EventDescriptorTest, HandleMandatoryFieldsObject) {
-    cJSON_AddItemToObject(json.get(), "mandatory_fields", cJSON_CreateObject());
-    EXPECT_NO_THROW(EventDescriptor(json.get()));
+    json["mandatory_fields"] = nlohmann::json::object();
+    EXPECT_NO_THROW(EventDescriptor ptr(json));
 }
 
 TEST_F(EventDescriptorTest, HandleMandatoryFieldsArray) {
-    cJSON_AddItemToObject(json.get(), "mandatory_fields", cJSON_CreateObject());
-    EXPECT_NO_THROW(EventDescriptor(json.get()));
+    json["mandatory_fields"] = nlohmann::json::array();
+    EXPECT_NO_THROW(EventDescriptor ptr(json));
 }
 
 TEST_F(EventDescriptorTest, HandleMandatoryFieldsInvalidType) {
-    cJSON_AddItemToObject(json.get(), "mandatory_fields", cJSON_CreateTrue());
-    EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
+    json["mandatory_fields"] = true;
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 
-    cJSON_DeleteItemFromObject(json.get(), "mandatory_fields");
-    cJSON_AddItemToObject(json.get(), "mandatory_fields", cJSON_CreateFalse());
-    EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
+    json["mandatory_fields"] = false;
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 
-    cJSON_DeleteItemFromObject(json.get(), "mandatory_fields");
-    cJSON_AddItemToObject(json.get(), "mandatory_fields",
-                          cJSON_CreateNumber(5));
-    EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
+    json["mandatory_fields"] = 5;
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 
-    cJSON_DeleteItemFromObject(json.get(), "mandatory_fields");
-    cJSON_AddItemToObject(json.get(), "mandatory_fields",
-                          cJSON_CreateString("5"));
-    EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
+    json["mandatory_fields"] = "5";
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 }
 
 TEST_F(EventDescriptorTest, HandleOptionalFieldsObject) {
-    cJSON_AddItemToObject(json.get(), "optional_fields", cJSON_CreateObject());
-    EXPECT_NO_THROW(EventDescriptor(json.get()));
+    json["optional_fields"] = nlohmann::json::object();
+    EXPECT_NO_THROW(EventDescriptor ptr(json));
 }
 
 TEST_F(EventDescriptorTest, HandleOptionalFieldsArray) {
-    cJSON_AddItemToObject(json.get(), "optional_fields", cJSON_CreateArray());
-    EXPECT_NO_THROW(EventDescriptor(json.get()));
+    json["optional_fields"] = nlohmann::json::array();
+    EXPECT_NO_THROW(EventDescriptor ptr(json));
 }
 
 TEST_F(EventDescriptorTest, HandleOptionalFieldsInvalidType) {
-    cJSON_AddItemToObject(json.get(), "optional_fields", cJSON_CreateTrue());
-    EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
+    json["optional_fields"] = true;
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 
-    cJSON_DeleteItemFromObject(json.get(), "optional_fields");
-    cJSON_AddItemToObject(json.get(), "optional_fields", cJSON_CreateFalse());
-    EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
+    json["optional_fields"] = false;
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 
-    cJSON_DeleteItemFromObject(json.get(), "optional_fields");
-    cJSON_AddItemToObject(json.get(), "optional_fields",
-                          cJSON_CreateNumber(5));
-    EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
+    json["optional_fields"] = 5;
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 
-    cJSON_DeleteItemFromObject(json.get(), "optional_fields");
-    cJSON_AddItemToObject(json.get(), "optional_fields",
-                          cJSON_CreateString("5"));
-    EXPECT_THROW(EventDescriptor(json.get()), std::logic_error);
+    json["optional_fields"] = "5";
+    EXPECT_THROW(EventDescriptor ptr(json), std::invalid_argument);
 }
 
 /// filtering_permitted is an optional parameter.  If it is not defined then
 /// enquiring whether filtering is permitted should return false.
 TEST_F(EventDescriptorTest, filterPermittedNotExist) {
-    cJSON_DeleteItemFromObject(json.get(), "filtering_permitted");
-    EventDescriptor ptr(json.get());
+    // It is not defined by default
+    EventDescriptor ptr(json);
     EXPECT_FALSE(ptr.isFilteringPermitted());
 }
 
 TEST_F(EventDescriptorTest, filterPermittedFalse) {
-    cJSON_DeleteItemFromObject(json.get(), "filtering_permitted");
-    cJSON_AddFalseToObject(json.get(), "filtering_permitted");
-    EventDescriptor ptr(json.get());
+    json["filtering_permitted"] = false;
+    EventDescriptor ptr(json);
     EXPECT_FALSE(ptr.isFilteringPermitted());
 }
 
 TEST_F(EventDescriptorTest, filterPermittedTrue) {
-    cJSON_DeleteItemFromObject(json.get(), "filtering_permitted");
-    cJSON_AddTrueToObject(json.get(), "filtering_permitted");
-    EventDescriptor ptr(json.get());
+    json["filtering_permitted"] = true;
+    EventDescriptor ptr(json);
     EXPECT_TRUE(ptr.isFilteringPermitted());
 }

@@ -283,19 +283,17 @@ protected:
     // @param filteringPermitted  indicates whether the event being added can
     //                            be filtered or not
     void addEvent(bool filteringPermitted) {
-        unique_cJSON_ptr root(cJSON_CreateObject());
-        cJSON_AddNumberToObject(root.get(), "id", 1234);
-        cJSON_AddStringToObject(root.get(), "name", "newEvent");
-        cJSON_AddStringToObject(root.get(), "description", "description");
-        cJSON_AddFalseToObject(root.get(), "sync");
-        cJSON_AddTrueToObject(root.get(), "enabled");
-        if (filteringPermitted) {
-            cJSON_AddTrueToObject(root.get(), "filtering_permitted");
-        } else {
-            cJSON_AddFalseToObject(root.get(), "filtering_permitted");
-        }
-        dynamic_cast<AuditImpl*>(auditHandle.get())
-                ->add_event_descriptor(root.get());
+        nlohmann::json json;
+        // We normally expect this to be an unsigned integer so we need to
+        // explicitly pass a unsigned int to json[].
+        size_t id = 1234;
+        json["id"] = id;
+        json["name"] = "newEvent";
+        json["description"] = "description";
+        json["sync"] = false;
+        json["enabled"] = true;
+        json["filtering_permitted"] = filteringPermitted;
+        dynamic_cast<AuditImpl*>(auditHandle.get())->add_event_descriptor(json);
     }
 };
 
