@@ -226,3 +226,8 @@ std::string to_string(cb::mcbp::Status status) {
             "to_string(cb::mcbp::Status): Invalid status code: " +
             std::to_string(int(status)));
 }
+
+std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status) {
+    out << ::to_string(status);
+    return out;
+}

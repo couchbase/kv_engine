@@ -19,6 +19,7 @@
 #include <platform/dynamic.h>
 
 #include <cstdint>
+#include <ostream>
 #include <system_error>
 #include <string>
 
@@ -279,6 +280,8 @@ bool isStatusSuccess(Status status);
  * Get a textual representation of the given error code
  */
 std::string to_string(cb::mcbp::Status status);
+
+std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status);
 
 namespace std {
 

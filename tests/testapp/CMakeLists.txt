@@ -9,7 +9,7 @@ TARGET_LINK_LIBRARIES(generate_test_cbsaslpw cbsasl cJSON platform
 add_library(testapp_auth_provider OBJECT auth_provider.h auth_provider.cc)
 add_executable(testapp_auth_provider_test auth_provider_test.cc
                $<TARGET_OBJECTS:testapp_auth_provider>)
-target_link_libraries(testapp_auth_provider_test cbsasl platform gtest gtest_main)
+target_link_libraries(testapp_auth_provider_test mcbp cbsasl platform gtest gtest_main)
 add_test(NAME testapp_auth_provider_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND testapp_auth_provider_test)
