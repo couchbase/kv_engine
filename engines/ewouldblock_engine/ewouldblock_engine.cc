@@ -572,9 +572,16 @@ public:
 
                 case EWBEngineMode::IncrementClusterMapRevno:
                     clustermap_revno++;
-                    response(nullptr, 0, nullptr, 0, nullptr, 0,
+                    response(nullptr,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             0,
                              PROTOCOL_BINARY_RAW_BYTES,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                             cb::mcbp::Status::Success,
+                             0,
+                             cookie);
                     return ENGINE_SUCCESS;
 
                 case EWBEngineMode::BlockMonitorFile:
@@ -595,9 +602,16 @@ public:
                         "EWB_Engine::unknown_command(): "
                         "Got unexpected mode={} for EWOULDBLOCK_CTL, ",
                         (unsigned int)mode);
-                response(nullptr, 0, nullptr, 0, nullptr, 0,
+                response(nullptr,
+                         0,
+                         nullptr,
+                         0,
+                         nullptr,
+                         0,
                          PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_EINVAL, /*cas*/0, cookie);
+                         cb::mcbp::Status::Einval,
+                         /*cas*/ 0,
+                         cookie);
                 return ENGINE_FAILED;
             } else {
                 try {
@@ -617,9 +631,16 @@ public:
                                 id, std::make_pair(cookie, new_mode));
                     }
 
-                    response(nullptr, 0, nullptr, 0, nullptr, 0,
+                    response(nullptr,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             0,
                              PROTOCOL_BINARY_RAW_BYTES,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+                             cb::mcbp::Status::Success,
+                             /*cas*/ 0,
+                             cookie);
                     return ENGINE_SUCCESS;
                 } catch (std::bad_alloc&) {
                     return ENGINE_ENOMEM;
@@ -1750,9 +1771,16 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
             id,
             file.c_str());
 
-    response(nullptr, 0, nullptr, 0, nullptr, 0,
+    response(nullptr,
+             0,
+             nullptr,
+             0,
+             nullptr,
+             0,
              PROTOCOL_BINARY_RAW_BYTES,
-             PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+             cb::mcbp::Status::Success,
+             /*cas*/ 0,
+             cookie);
     return ENGINE_SUCCESS;
 }
 
@@ -1761,9 +1789,16 @@ ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
                                             ADD_RESPONSE response) {
     if (suspend(cookie, id)) {
         LOG_DEBUG("Registered connection {} as {} to be suspended", cookie, id);
-        response(nullptr, 0, nullptr, 0, nullptr, 0,
+        response(nullptr,
+                 0,
+                 nullptr,
+                 0,
+                 nullptr,
+                 0,
                  PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+                 cb::mcbp::Status::Success,
+                 /*cas*/ 0,
+                 cookie);
         return ENGINE_SUCCESS;
     } else {
         LOG_WARNING("EWB_Engine::handleSuspend(): Id {} already registered",
@@ -1776,9 +1811,16 @@ ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie, uint32_t id,
                                            ADD_RESPONSE response) {
     if (resume(id)) {
         LOG_DEBUG("Connection with id {} will be resumed", id);
-        response(nullptr, 0, nullptr, 0, nullptr, 0,
+        response(nullptr,
+                 0,
+                 nullptr,
+                 0,
+                 nullptr,
+                 0,
                  PROTOCOL_BINARY_RAW_BYTES,
-                 PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+                 cb::mcbp::Status::Success,
+                 /*cas*/ 0,
+                 cookie);
         return ENGINE_SUCCESS;
     } else {
         LOG_WARNING(
@@ -1808,9 +1850,16 @@ ENGINE_ERROR_CODE EWB_Engine::setItemCas(const void *cookie,
 
     // item_set_cas has no return value!
     real_engine->item_set_cas(rv.second.get(), cas64);
-    response(nullptr, 0, nullptr, 0, nullptr, 0,
+    response(nullptr,
+             0,
+             nullptr,
+             0,
+             nullptr,
+             0,
              PROTOCOL_BINARY_RAW_BYTES,
-             PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+             cb::mcbp::Status::Success,
+             0,
+             cookie);
     return ENGINE_SUCCESS;
 }
 

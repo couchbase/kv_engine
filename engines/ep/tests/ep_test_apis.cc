@@ -154,10 +154,16 @@ ENGINE_ERROR_CODE vb_map_response(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-bool add_response(const void *key, uint16_t keylen, const void *ext,
-                  uint8_t extlen, const void *body, uint32_t bodylen,
-                  uint8_t datatype, uint16_t status, uint64_t cas,
-                  const void *cookie) {
+bool add_response(const void* key,
+                  uint16_t keylen,
+                  const void* ext,
+                  uint8_t extlen,
+                  const void* body,
+                  uint32_t bodylen,
+                  uint8_t datatype,
+                  cb::mcbp::Status status,
+                  uint64_t cas,
+                  const void* cookie) {
     (void)cookie;
     static std::mutex m;
     std::lock_guard<std::mutex> lg(m);
@@ -170,10 +176,16 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
     return true;
 }
 
-bool add_response_set_del_meta(const void *key, uint16_t keylen, const void *ext,
-                               uint8_t extlen, const void *body, uint32_t bodylen,
-                               uint8_t datatype, uint16_t status, uint64_t cas,
-                               const void *cookie) {
+bool add_response_set_del_meta(const void* key,
+                               uint16_t keylen,
+                               const void* ext,
+                               uint8_t extlen,
+                               const void* body,
+                               uint32_t bodylen,
+                               uint8_t datatype,
+                               cb::mcbp::Status status,
+                               uint64_t cas,
+                               const void* cookie) {
     (void)cookie;
     const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
     if (ext && extlen > 0) {
@@ -189,10 +201,16 @@ bool add_response_set_del_meta(const void *key, uint16_t keylen, const void *ext
                         status, cas, cookie);
 }
 
-bool add_response_ret_meta(const void *key, uint16_t keylen, const void *ext,
-                           uint8_t extlen, const void *body, uint32_t bodylen,
-                           uint8_t datatype, uint16_t status, uint64_t cas,
-                           const void *cookie) {
+bool add_response_ret_meta(const void* key,
+                           uint16_t keylen,
+                           const void* ext,
+                           uint8_t extlen,
+                           const void* body,
+                           uint32_t bodylen,
+                           uint8_t datatype,
+                           cb::mcbp::Status status,
+                           uint64_t cas,
+                           const void* cookie) {
     (void)cookie;
     const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
     if (ext && extlen == 16) {

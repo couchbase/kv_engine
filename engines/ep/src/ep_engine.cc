@@ -107,13 +107,17 @@ static inline EPHandle acquireEngine(EngineIface* handle) {
  * Call the response callback and return the appropriate value so that
  * the core knows what to do..
  */
-static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response, const void *key,
+static ENGINE_ERROR_CODE sendResponse(ADD_RESPONSE response,
+                                      const void* key,
                                       uint16_t keylen,
-                                      const void *ext, uint8_t extlen,
-                                      const void *body, uint32_t bodylen,
-                                      uint8_t datatype, uint16_t status,
-                                      uint64_t cas, const void *cookie)
-{
+                                      const void* ext,
+                                      uint8_t extlen,
+                                      const void* body,
+                                      uint32_t bodylen,
+                                      uint8_t datatype,
+                                      cb::mcbp::Status status,
+                                      uint64_t cas,
+                                      const void* cookie) {
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
     NonBucketAllocationGuard guard;
     if (response(key, keylen, ext, extlen, body, bodylen, datatype,
@@ -813,10 +817,17 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
         return ENGINE_NOT_MY_VBUCKET;
     } else {
         vbucket_state_t state = (vbucket_state_t)ntohl(vb->getState());
-        return sendResponse(response, NULL, 0, NULL, 0, &state,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            &state,
                             sizeof(state),
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                            cb::mcbp::Status::Success,
+                            0,
+                            cookie);
     }
 }
 
@@ -834,10 +845,17 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
                      - ntohs(req->message.header.request.keylen);
     if (bodylen != sizeof(vbucket_state_t)) {
         e->setErrorContext(cookie, "Body too short");
-        return sendResponse(response, NULL, 0, NULL, 0, NULL,
-                            0, PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL,
-                            cas, cookie);
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cb::mcbp::Status::Einval,
+                            cas,
+                            cookie);
     }
 
     vbucket_state_t state;
@@ -846,10 +864,17 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
 
     if (!is_valid_vbucket_state_t(state)) {
         e->setErrorContext(cookie, "Invalid vbucket state");
-        return sendResponse(response, NULL, 0, NULL, 0, NULL,
-                            0, PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL,
-                            cas, cookie);
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cb::mcbp::Status::Einval,
+                            cas,
+                            cookie);
     }
 
     Vbid vb = req->message.header.request.vbucket.ntoh();
@@ -868,10 +893,17 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
 
     if (ntohs(req->request.keylen) > 0 || req->request.extlen > 0) {
         e->setErrorContext(cookie, "Key and extras required");
-        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
                             0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, cas, cookie);
+                            cb::mcbp::Status::Einval,
+                            cas,
+                            cookie);
     }
 
     bool sync = false;
@@ -944,7 +976,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        res,
+                        cb::mcbp::Status(res),
                         cas,
                         cookie);
 }
@@ -1007,10 +1039,17 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                     req->message.header.request.extlen,
                     ntohs(req->message.header.request.keylen));
         e->setErrorContext(cookie, "Key and correct extras required");
-        return sendResponse(response, NULL, 0, NULL, 0, NULL,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
                             0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, cas, cookie);
+                            cb::mcbp::Status::Einval,
+                            cas,
+                            cookie);
     }
     EPStats& stats = e->getEpStats();
     compactionConfig.purge_before_ts =
@@ -1089,7 +1128,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        res,
+                        cb::mcbp::Status(res),
                         cas,
                         cookie);
 }
@@ -1122,11 +1161,17 @@ static ENGINE_ERROR_CODE processUnknownCommand(
             uint64_t cas = ntohll(request->request.cas);
             if (!h->validateSessionCas(cas)) {
                 h->setErrorContext(cookie, "Invalid session token");
-                return sendResponse(response, NULL, 0, NULL, 0,
-                                    NULL, 0,
+                return sendResponse(response,
+                                    NULL,
+                                    0,
+                                    NULL,
+                                    0,
+                                    NULL,
+                                    0,
                                     PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-                                    cas, cookie);
+                                    cb::mcbp::Status::KeyEexists,
+                                    cas,
+                                    cookie);
             }
         }
         break;
@@ -1254,9 +1299,16 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         // MB-21143: Remove adjusted time/drift API, but return NOT_SUPPORTED
     case PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME:
     case PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE: {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0,
+                            cb::mcbp::Status::NotSupported,
+                            0,
                             cookie);
     }
     }
@@ -1266,21 +1318,30 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         rv = sendResponse(response,
                           static_cast<const void*>(itm->getKey().data()),
                           itm->getKey().size(),
-                          (const void*)&flags, sizeof(uint32_t),
+                          (const void*)&flags,
+                          sizeof(uint32_t),
                           static_cast<const void*>(itm->getData()),
-                          itm->getNBytes(), itm->getDataType(),
-                          static_cast<uint16_t>(res), itm->getCas(),
+                          itm->getNBytes(),
+                          itm->getDataType(),
+                          cb::mcbp::Status(res),
+                          itm->getCas(),
                           cookie);
         delete itm;
     } else if (rv == ENGINE_NOT_MY_VBUCKET) {
         return rv;
     } else {
         msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
-        rv = sendResponse(response, NULL, 0, NULL, 0,
-                          msg, static_cast<uint16_t>(msg_size),
+        rv = sendResponse(response,
+                          NULL,
+                          0,
+                          NULL,
+                          0,
+                          msg,
+                          static_cast<uint16_t>(msg_size),
                           PROTOCOL_BINARY_RAW_BYTES,
-                          static_cast<uint16_t>(res), 0, cookie);
-
+                          cb::mcbp::Status(res),
+                          0,
+                          cookie);
     }
     return rv;
 }
@@ -4197,9 +4258,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         // Parse a key
         if (data_len - offset < 4) {
             setErrorContext(cookie, "Requires vbid and keylen.");
-            return sendResponse(response, NULL, 0, 0, 0, NULL, 0,
+            return sendResponse(response,
+                                NULL,
+                                0,
+                                0,
+                                0,
+                                NULL,
+                                0,
                                 PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                                cb::mcbp::Status::Einval,
+                                0,
                                 cookie);
         }
 
@@ -4213,9 +4281,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 
         if (data_len - offset < keylen) {
             setErrorContext(cookie, "Incorrect keylen");
-            return sendResponse(response, NULL, 0, 0, 0, NULL, 0,
+            return sendResponse(response,
+                                NULL,
+                                0,
+                                0,
+                                0,
+                                NULL,
+                                0,
                                 PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                                cb::mcbp::Status::Einval,
+                                0,
                                 cookie);
         }
 
@@ -4246,9 +4321,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         } else if (rv == ENGINE_EWOULDBLOCK) {
             return rv;
         } else {
-            return sendResponse(response, NULL, 0, 0, 0, NULL, 0,
+            return sendResponse(response,
+                                NULL,
+                                0,
+                                0,
+                                0,
+                                NULL,
+                                0,
                                 PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINTERNAL, 0,
+                                cb::mcbp::Status::Einternal,
+                                0,
                                 cookie);
         }
 
@@ -4272,10 +4354,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
     }
     persist_time = persist_time << 32;
 
-    return sendResponse(response, NULL, 0, 0, 0, result.str().data(),
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        0,
+                        0,
+                        result.str().data(),
                         result.str().length(),
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, persist_time,
+                        cb::mcbp::Status::Success,
+                        persist_time,
                         cookie);
 }
 
@@ -4320,9 +4408,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        uint64_t latest_uuid;
        bool found = vb->failovers->getLastSeqnoForUUID(vb_uuid, &failover_highseqno);
        if (!found) {
-           return sendResponse(response, NULL, 0, 0, 0, 0, 0,
+           return sendResponse(response,
+                               NULL,
+                               0,
+                               0,
+                               0,
+                               0,
+                               0,
                                PROTOCOL_BINARY_RAW_BYTES,
-                               PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, 0,
+                               cb::mcbp::Status::KeyEnoent,
+                               0,
                                cookie);
        }
 
@@ -4355,10 +4450,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
         result.write((char*) &current_seqno, sizeof(uint64_t));
     }
 
-    return sendResponse(response, NULL, 0, 0, 0, result.str().data(),
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        0,
+                        0,
+                        result.str().data(),
                         result.str().length(),
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                        cb::mcbp::Status::Success,
+                        0,
                         cookie);
 }
 
@@ -4394,7 +4495,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                             &checkpointId,
                             sizeof(checkpointId),
                             PROTOCOL_BINARY_RAW_BYTES,
-                            status,
+                            cb::mcbp::Status(status),
                             0,
                             cookie);
         }
@@ -4427,7 +4528,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                     val,
                                     sizeof(val),
                                     PROTOCOL_BINARY_RAW_BYTES,
-                                    status,
+                                    cb::mcbp::Status(status),
                                     0,
                                     cookie);
             }
@@ -4500,10 +4601,17 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         }
     }
 
-    return sendResponse(response, NULL, 0, NULL, 0,
-                        NULL, 0,
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        status, 0, cookie);
+                        cb::mcbp::Status(status),
+                        0,
+                        cookie);
 }
 
 ENGINE_ERROR_CODE
@@ -4570,10 +4678,17 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         }
     }
 
-    return sendResponse(response, NULL, 0, NULL, 0,
-                        NULL, 0,
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        status, 0, cookie);
+                        cb::mcbp::Status(status),
+                        0,
+                        cookie);
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
@@ -4733,8 +4848,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
                                        permittedVBStates,
                                        keyOffset)) !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES, error, 0, cookie);
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cb::mcbp::Status(error),
+                            0,
+                            cookie);
     }
 
     cb::const_byte_buffer emd;
@@ -4953,16 +5077,31 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     // so 27, 25 etc... are illegal
     if ((extlen != 24 && extlen != 26 && extlen != 28  && extlen != 30)
         || nkey == 0) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                            cb::mcbp::Status::Einval,
+                            0,
+                            cookie);
     }
 
     if (isDegradedMode()) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
-                            0, cookie);
+                            cb::mcbp::Status::Etmpfail,
+                            0,
+                            cookie);
     }
 
     uint8_t opcode = request->message.header.request.opcode;
@@ -4988,8 +5127,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                        permittedVBStates,
                                        keyOffset)) !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES, error, 0, cookie);
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cb::mcbp::Status(error),
+                            0,
+                            cookie);
     }
 
     cb::const_byte_buffer emd;
@@ -5163,10 +5311,17 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
                                 std::to_string(request->request.opcode));
     }
 
-    return sendResponse(response, NULL, 0, NULL, 0,
-                        NULL, 0,
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        status, 0, cookie);
+                        cb::mcbp::Status(status),
+                        0,
+                        cookie);
 }
 
 bool EventuallyPersistentEngine::isDegradedMode() const {
@@ -5242,16 +5397,31 @@ EventuallyPersistentEngine::returnMeta(
     uint8_t extlen = request->message.header.request.extlen;
     uint16_t keylen = ntohs(request->message.header.request.keylen);
     if (extlen != 12 || request->message.header.request.keylen == 0) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                            cb::mcbp::Status::Einval,
+                            0,
+                            cookie);
     }
 
     if (isDegradedMode()) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
-                            0, cookie);
+                            cb::mcbp::Status::Etmpfail,
+                            0,
+                            cookie);
     }
 
     uint8_t* keyPtr = request->bytes + sizeof(request->bytes);
@@ -5283,9 +5453,17 @@ EventuallyPersistentEngine::returnMeta(
                              vbucket);
 
         if (!itm) {
-            return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+            return sendResponse(response,
+                                NULL,
+                                0,
+                                NULL,
+                                0,
+                                NULL,
+                                0,
                                 PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_ENOMEM, 0, cookie);
+                                cb::mcbp::Status::Enomem,
+                                0,
+                                cookie);
         }
 
         if (mutate_type == SET_RET_META) {
@@ -5316,17 +5494,34 @@ EventuallyPersistentEngine::returnMeta(
         cas = itm_meta.cas;
         seqno = htonll(itm_meta.revSeqno);
     } else {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                            cb::mcbp::Status::Einval,
+                            0,
+                            cookie);
     }
 
     if (ret == ENGINE_NOT_MY_VBUCKET || ret == ENGINE_EWOULDBLOCK) {
         return ret;
     } else if (ret != ENGINE_SUCCESS) {
         auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES, rc, 0, cookie);
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cb::mcbp::Status(rc),
+                            0,
+                            cookie);
     }
 
     uint8_t meta[16];
@@ -5335,8 +5530,16 @@ EventuallyPersistentEngine::returnMeta(
     memcpy(meta + 4, &exp, 4);
     memcpy(meta + 8, &seqno, 8);
 
-    return sendResponse(response, NULL, 0, (const void *)meta, 16, NULL, 0,
-                        datatype, PROTOCOL_BINARY_RESPONSE_SUCCESS, cas,
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        (const void*)meta,
+                        16,
+                        NULL,
+                        0,
+                        datatype,
+                        cb::mcbp::Status::Success,
+                        cas,
                         cookie);
 }
 
@@ -5435,21 +5638,34 @@ public:
                 getBucket(vbid)->isBucketCreation()) {
             // Returning an empty packet with a SUCCESS response as
             // there aren't any keys during the vbucket file creation.
-            err = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+            err = sendResponse(response,
+                               NULL,
+                               0,
+                               NULL,
+                               0,
+                               NULL,
+                               0,
                                PROTOCOL_BINARY_RAW_BYTES,
-                               PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                               cb::mcbp::Status::Success,
+                               0,
                                cookie);
         } else {
             auto cb = std::make_shared<AllKeysCallback>(encodeCollectionID);
             err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                                                     vbid, start_key, count, cb);
             if (err == ENGINE_SUCCESS) {
-                err =  sendResponse(response, NULL, 0, NULL, 0,
-                                    ((AllKeysCallback*)cb.get())->getAllKeysPtr(),
-                                    ((AllKeysCallback*)cb.get())->getAllKeysLen(),
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                                    cookie);
+                err = sendResponse(
+                        response,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        ((AllKeysCallback*)cb.get())->getAllKeysPtr(),
+                        ((AllKeysCallback*)cb.get())->getAllKeysLen(),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        cb::mcbp::Status::Success,
+                        0,
+                        cookie);
             }
         }
         engine->addLookupAllKeys(cookie, err);
@@ -5563,12 +5779,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
     if (ret == ENGINE_SUCCESS) {
         Item* it = gv.item.get();
         uint32_t flags = it->getFlags();
-        ret = sendResponse(response, static_cast<const void *>(it->getKey().data()),
+        ret = sendResponse(response,
+                           static_cast<const void*>(it->getKey().data()),
                            it->getKey().size(),
-                           (const void *)&flags, sizeof(uint32_t),
-                           static_cast<const void *>(it->getData()),
-                           it->getNBytes(), it->getDataType(),
-                           PROTOCOL_BINARY_RESPONSE_SUCCESS, it->getCas(),
+                           (const void*)&flags,
+                           sizeof(uint32_t),
+                           static_cast<const void*>(it->getData()),
+                           it->getNBytes(),
+                           it->getDataType(),
+                           cb::mcbp::Status::Success,
+                           it->getCas(),
                            cookie);
     }
 
@@ -5737,9 +5957,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     try {
         payload.reserve(vbuckets.size() * (sizeof(uint16_t) + sizeof(uint64_t)));
     } catch (std::bad_alloc) {
-        return sendResponse(response, 0, 0, 0, 0, 0, 0,
+        return sendResponse(response,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_ENOMEM, 0,
+                            cb::mcbp::Status::Enomem,
+                            0,
                             cookie);
     }
 
@@ -5775,11 +6002,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     }
 
     return sendResponse(response,
-                        0, 0, /* key */
-                        0, 0, /* ext field */
-                        payload.data(), payload.size(), /* value */
+                        0,
+                        0, /* key */
+                        0,
+                        0, /* ext field */
+                        payload.data(),
+                        payload.size(), /* value */
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                        cb::mcbp::Status::Success,
+                        0,
                         cookie);
 }
 
@@ -5807,7 +6038,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendErrorResponse(
                         nullptr,
                         0,
                         0,
-                        status,
+                        cb::mcbp::Status(status),
                         cas,
                         cookie);
 }
@@ -5837,7 +6068,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendMutationExtras(
                         nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        status,
+                        cb::mcbp::Status(status),
                         cas,
                         cookie);
 }
@@ -5879,7 +6110,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        serverApi->cookie->engine_error2mcbp(cookie, status),
+                        cb::mcbp::Status(serverApi->cookie->engine_error2mcbp(
+                                cookie, status)),
                         cas,
                         cookie);
 }

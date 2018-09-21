@@ -319,7 +319,7 @@ bool KVBucketTest::addResponse(const void* k,
                                const void* body,
                                uint32_t bodylen,
                                uint8_t datatype,
-                               uint16_t status,
+                               cb::mcbp::Status status,
                                uint64_t pcas,
                                const void* cookie) {
     addResponseStatus = protocol_binary_response_status(status);

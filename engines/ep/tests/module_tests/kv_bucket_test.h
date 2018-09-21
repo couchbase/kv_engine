@@ -180,7 +180,7 @@ public:
                             const void* body,
                             uint32_t bodylen,
                             uint8_t datatype,
-                            uint16_t status,
+                            cb::mcbp::Status status,
                             uint64_t pcas,
                             const void* cookie);
 

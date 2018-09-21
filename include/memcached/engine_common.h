@@ -1,6 +1,7 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #pragma once
 
+#include <mcbp/protocol/status.h>
 #include <stdint.h>
 #include <gsl/gsl>
 
@@ -44,6 +45,6 @@ typedef bool (*ADD_RESPONSE)(const void* key,
                              const void* body,
                              uint32_t bodylen,
                              uint8_t datatype,
-                             uint16_t status,
+                             cb::mcbp::Status status,
                              uint64_t cas,
                              const void* cookie);

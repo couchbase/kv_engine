@@ -134,12 +134,16 @@ void mcbp_add_header(Cookie& cookie,
     connection.addIov(wbuf.data(), wbuf.size());
 }
 
-bool mcbp_response_handler(const void* key, uint16_t keylen,
-                           const void* ext, uint8_t extlen,
-                           const void* body, uint32_t bodylen,
-                           protocol_binary_datatype_t datatype, uint16_t status,
-                           uint64_t cas, const void* void_cookie)
-{
+bool mcbp_response_handler(const void* key,
+                           uint16_t keylen,
+                           const void* ext,
+                           uint8_t extlen,
+                           const void* body,
+                           uint32_t bodylen,
+                           protocol_binary_datatype_t datatype,
+                           cb::mcbp::Status status,
+                           uint64_t cas,
+                           const void* void_cookie) {
     auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie);
     auto* cookie = const_cast<Cookie*>(ccookie);
 
@@ -178,12 +182,12 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     auto& error_json = cookie->getErrorJson();
 
     switch (status) {
-    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
-    case PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED:
-    case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE:
-    case PROTOCOL_BINARY_RESPONSE_ROLLBACK:
+    case cb::mcbp::Status::Success:
+    case cb::mcbp::Status::SubdocSuccessDeleted:
+    case cb::mcbp::Status::SubdocMultiPathFailure:
+    case cb::mcbp::Status::Rollback:
         break;
-    case PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET:
+    case cb::mcbp::Status::NotMyVbucket:
         cookie->sendNotMyVBucket();
         return true;
     default:
@@ -212,7 +216,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     builder.setMagic(cb::mcbp::Magic::ClientResponse);
     builder.setOpcode(header.getRequest().getClientOpcode());
     builder.setDatatype(cb::mcbp::Datatype(datatype));
-    builder.setStatus(cb::mcbp::Status(status));
+    builder.setStatus(status);
     builder.setExtras({static_cast<const uint8_t*>(ext), extlen});
     builder.setKey({static_cast<const uint8_t*>(key), keylen});
     builder.setValue(
@@ -221,7 +225,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     builder.setCas(cas);
     builder.validate();
 
-    ++c->getBucket().responseCounters[status];
+    ++c->getBucket().responseCounters[uint16_t(status)];
     dbuf.moveOffset(needed);
     return true;
 }

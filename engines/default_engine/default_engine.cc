@@ -696,24 +696,45 @@ static bool set_vbucket(struct default_engine *e,
         - ntohs(req->message.header.request.keylen);
     if (bodylen != sizeof(vbucket_state_t)) {
         const char *msg = "Incorrect packet format";
-        return response(NULL, 0, NULL, 0, msg, (uint32_t)strlen(msg),
+        return response(NULL,
+                        0,
+                        NULL,
+                        0,
+                        msg,
+                        (uint32_t)strlen(msg),
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                        cb::mcbp::Status::Einval,
+                        0,
+                        cookie);
     }
     memcpy(&state, &req->message.body.state, sizeof(state));
     state = vbucket_state_t(ntohl(state));
 
     if (!is_valid_vbucket_state_t(state)) {
         const char *msg = "Invalid vbucket state";
-        return response(NULL, 0, NULL, 0, msg, (uint32_t)strlen(msg),
+        return response(NULL,
+                        0,
+                        NULL,
+                        0,
+                        msg,
+                        (uint32_t)strlen(msg),
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie);
+                        cb::mcbp::Status::Einval,
+                        0,
+                        cookie);
     }
 
     set_vbucket_state(e, req->message.header.request.vbucket.ntoh(), state);
-    return response(NULL, 0, NULL, 0, &state, sizeof(state),
+    return response(NULL,
+                    0,
+                    NULL,
+                    0,
+                    &state,
+                    sizeof(state),
                     PROTOCOL_BINARY_RAW_BYTES,
-                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                    cb::mcbp::Status::Success,
+                    0,
+                    cookie);
 }
 
 static bool get_vbucket(struct default_engine *e,
@@ -724,9 +745,16 @@ static bool get_vbucket(struct default_engine *e,
     state = get_vbucket_state(e, req->message.header.request.vbucket.ntoh());
     state = vbucket_state_t(ntohl(state));
 
-    return response(NULL, 0, NULL, 0, &state, sizeof(state),
+    return response(NULL,
+                    0,
+                    NULL,
+                    0,
+                    &state,
+                    sizeof(state),
                     PROTOCOL_BINARY_RAW_BYTES,
-                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                    cb::mcbp::Status::Success,
+                    0,
+                    cookie);
 }
 
 static bool rm_vbucket(struct default_engine *e,
@@ -734,8 +762,16 @@ static bool rm_vbucket(struct default_engine *e,
                        protocol_binary_request_header *req,
                        ADD_RESPONSE response) {
     set_vbucket_state(e, req->request.vbucket.ntoh(), vbucket_state_dead);
-    return response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+    return response(NULL,
+                    0,
+                    NULL,
+                    0,
+                    NULL,
+                    0,
+                    PROTOCOL_BINARY_RAW_BYTES,
+                    cb::mcbp::Status::Success,
+                    0,
+                    cookie);
 }
 
 static bool scrub_cmd(struct default_engine *e,
@@ -748,8 +784,16 @@ static bool scrub_cmd(struct default_engine *e,
         res = PROTOCOL_BINARY_RESPONSE_EBUSY;
     }
 
-    return response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                    res, 0, cookie);
+    return response(NULL,
+                    0,
+                    NULL,
+                    0,
+                    NULL,
+                    0,
+                    PROTOCOL_BINARY_RAW_BYTES,
+                    cb::mcbp::Status(res),
+                    0,
+                    cookie);
 }
 
 /**
@@ -812,7 +856,7 @@ static bool set_param(struct default_engine* e,
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                        cb::mcbp::Status::Success,
                         0,
                         cookie);
     }
@@ -856,8 +900,16 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
                          response);
         break;
     default:
-        sent = response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND, 0, cookie);
+        sent = response(NULL,
+                        0,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        cb::mcbp::Status::UnknownCommand,
+                        0,
+                        cookie);
         break;
     }
 

@@ -45,10 +45,16 @@ void abort_msg(const char* expr, const char* msg, const char* file, int line);
 extern "C" {
 #endif
 
-bool add_response(const void *key, uint16_t keylen, const void *ext,
-                  uint8_t extlen, const void *body, uint32_t bodylen,
-                  uint8_t datatype, uint16_t status, uint64_t cas,
-                  const void *cookie);
+bool add_response(const void* key,
+                  uint16_t keylen,
+                  const void* ext,
+                  uint8_t extlen,
+                  const void* body,
+                  uint32_t bodylen,
+                  uint8_t datatype,
+                  cb::mcbp::Status status,
+                  uint64_t cas,
+                  const void* cookie);
 
 void add_stats(const char* key,
                const uint16_t klen,

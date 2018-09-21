@@ -37,7 +37,7 @@ ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
                               entries,
                               (uint32_t)(nentries * sizeof(vbucket_failover_t)),
                               PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              cb::mcbp::Status::Success,
                               0,
                               (void*)cookie.get())) {
         ret = ENGINE_SUCCESS;
