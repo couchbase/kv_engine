@@ -105,23 +105,21 @@
 #include <mutex>
 #include <unordered_map>
 
-template<class Key,
-         class T,
-         class Hash = std::hash<Key>,
-         class KeyEqual = std::equal_to<Key>,
-         class Allocator = std::allocator< std::pair<const Key, T> > >
+template <class Key,
+          class T,
+          class Hash = std::hash<Key>,
+          class KeyEqual = std::equal_to<Key>,
+          class Allocator = std::allocator<std::pair<const Key, T> > >
 class AtomicUnorderedMap;
 
-template<class Key, class T, class Hash, class KeyEqual,
-         class Allocator>
+template <class Key, class T, class Hash, class KeyEqual, class Allocator>
 class AtomicUnorderedMap {
 public:
-
     using map_type = AtomicUnorderedMap<Key, T, Hash, KeyEqual, Allocator>;
 
     // Alias to simplify all the other defs
-    using base_map_type = typename std::unordered_map<Key, T, Hash,
-                                                      KeyEqual, Allocator>;
+    using base_map_type =
+            typename std::unordered_map<Key, T, Hash, KeyEqual, Allocator>;
 
     // Map to the type aliases in the underlying map.
     using key_type = typename base_map_type::key_type;
@@ -162,11 +160,12 @@ public:
 
     /** Searches for first element which matches the given predicate.
      *  Returns a pair consisting of:
-     *  - the first found element (or a default-constructed element if not found)
+     *  - the first found element (or a default-constructed element if not
+     * found)
      *  - and bool denoting if a matching element was found.
      */
-    template<class UnaryPredicate>
-    std::pair<T, bool>  find_if(UnaryPredicate p) {
+    template <class UnaryPredicate>
+    std::pair<T, bool> find_if(UnaryPredicate p) {
         std::lock_guard<map_type> guard(*this); // internally locked
         auto iter = std::find_if(map.begin(), map.end(), p);
         if (iter != map.end()) {
@@ -189,13 +188,13 @@ public:
 
     /** Applies the given function object to every element in the map.
      */
-    template<class UnaryFunction>
+    template <class UnaryFunction>
     void for_each(UnaryFunction f, std::lock_guard<map_type>&) {
         // Externally locked
         std::for_each(map.begin(), map.end(), f);
     }
 
-    template<class UnaryFunction>
+    template <class UnaryFunction>
     void for_each(UnaryFunction f) {
         std::lock_guard<map_type> guard(*this); // internally locked
         for_each(f, guard);
