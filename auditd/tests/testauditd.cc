@@ -16,7 +16,6 @@
  */
 #include "config.h"
 
-#include <cJSON.h>
 #include <getopt.h>
 #include <gtest/gtest.h>
 #include <logger/logger.h>

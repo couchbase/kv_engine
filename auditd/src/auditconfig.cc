@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 
-#include <cJSON.h>
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>

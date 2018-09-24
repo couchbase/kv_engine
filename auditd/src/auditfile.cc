@@ -16,8 +16,6 @@
  */
 #include "auditfile.h"
 #include "audit.h"
-#include <JSON_checker.h>
-#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
@@ -176,42 +174,32 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
             str.erase(found+1, std::string::npos);
         }
 
-        // check that it is valid json (cJSON doesn't validate
-        // and may run outside the buffers...)
-        if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(str.data()), str.size())) {
+        nlohmann::json json;
+        try {
+            json = nlohmann::json::parse(str);
+        } catch (const nlohmann::json::exception&) {
             throw std::runtime_error(
-                    "AuditFile::cleanup_old_logfile(): Failed to parse data in "
-                    "audit file (invalid JSON) \"" +
-                    filename + "\"");
+                    "AuditFile::cleanup_old_logfile(): "
+                    "Failed to parse data in audit file "
+                    "(invalid JSON) " +
+                    filename);
         }
 
-        unique_cJSON_ptr json_ptr(cJSON_Parse(str.c_str()));
-        if (!json_ptr) {
+        std::string ts;
+        try {
+            ts = json.at("timestamp").get<std::string>();
+        } catch (const nlohmann::json::exception& e) {
             throw std::runtime_error(
-                    "AuditFile::cleanup_old_logfile(): Failed to parse data in "
-                    "audit file (invalid JSON) \"" +
-                    filename + "\"");
+                    "AuditFile::cleanup_old_logfile(): "
+                    "Could not parse timestamp for auditfile: " +
+                    filename + ". Exception thrown: " + e.what());
         }
 
-        // Find the timestamp
-        cJSON* timestamp = cJSON_GetObjectItem(json_ptr.get(), "timestamp");
-        if (timestamp == nullptr) {
-            throw std::runtime_error(
-                    R"(AuditFile::cleanup_old_logfile(): Failed to locate "timestamp" in first entry in audit file ")" +
-                    filename + "\": " + str);
-        }
-
-        if (timestamp->type != cJSON_String) {
-            throw std::runtime_error(
-                    R"(AuditFile::cleanup_old_logfile(): Incorrect format for "timestamp" in first entry in audit file ")" +
-                    filename + "\" (expected string): " + str);
-        }
-
-        std::string ts(timestamp->valuestring);
         if (!is_timestamp_format_correct(ts)) {
             throw std::runtime_error(
-                    R"(AuditFile::cleanup_old_logfile(): Incorrect format for "timestamp" in first entry in audit file ")" +
-                    filename + "\": " + str);
+                    R"(AuditFile::cleanup_old_logfile(): Incorrect format for
+                    "timestamp" in audit file ")" +
+                    filename);
         }
 
         ts = ts.substr(0, 19);

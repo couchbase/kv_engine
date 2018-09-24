@@ -55,6 +55,8 @@ public:
      * used during startup for "crash recovery".
      *
      * @param log_path the directory to search
+     * @throws std::system_error for file errors
+     * @throws std::runtime_error for json parsing exceptions
      */
     void cleanup_old_logfile(const std::string& log_path);
 

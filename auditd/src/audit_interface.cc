@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include <cJSON.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
