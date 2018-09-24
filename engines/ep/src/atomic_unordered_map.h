@@ -101,8 +101,9 @@
 
 #include "atomic.h"
 
+#include <platform/rwlock.h>
+
 #include <algorithm>
-#include <mutex>
 #include <unordered_map>
 
 template <class Key,
@@ -128,12 +129,12 @@ public:
     using size_type = typename base_map_type::size_type;
 
     bool empty() const {
-        std::lock_guard<std::mutex> guard(this->mutex); // internally locked
+        std::lock_guard<cb::RWLock> guard(this->rwlock); // internally locked
         return map.empty();
     }
 
     size_type size() const {
-        std::lock_guard<std::mutex> guard(this->mutex); // internally locked
+        std::lock_guard<cb::RWLock> guard(this->rwlock); // internally locked
         return map.size();
     }
 
@@ -243,14 +244,14 @@ public:
 
     /* Explicitly locks the container. */
     void lock() {
-        mutex.lock();
+        rwlock.lock();
     }
 
     void unlock() {
-        mutex.unlock();
+        rwlock.unlock();
     }
 
 private:
     std::unordered_map<Key, T, Hash, KeyEqual, Allocator> map;
-    mutable std::mutex mutex;
+    mutable cb::RWLock rwlock;
 };
