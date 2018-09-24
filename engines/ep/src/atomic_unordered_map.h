@@ -104,6 +104,7 @@
 #include <platform/rwlock.h>
 
 #include <algorithm>
+#include <shared_mutex>
 #include <unordered_map>
 
 template <class Key,
@@ -129,33 +130,50 @@ public:
     using size_type = typename base_map_type::size_type;
 
     bool empty() const {
-        std::lock_guard<cb::RWLock> guard(this->rwlock); // internally locked
+        std::shared_lock<cb::RWLock> guard(this->rwlock); // internally locked
         return map.empty();
     }
 
     size_type size() const {
-        std::lock_guard<cb::RWLock> guard(this->rwlock); // internally locked
+        std::shared_lock<cb::RWLock> guard(this->rwlock); // internally locked
         return map.size();
     }
 
     /* Lookup */
 
-    /** Searches for the given key in the map.
-     *  Returns a pair consisting of:
+    /**
+     * Searches for the given key in the map using external shared locking
+     * @param key Reference to the key to find
+     * @param shared_lock reference to the shared_lock
+     * @returns a pair consisting of:
+     *  - the found element (or a default-constructed element if not found)
+     *  - and bool denoting if the given key was found.
+     */
+    std::pair<T, bool> find(const Key& key, std::shared_lock<map_type>&) {
+        return find_UNLOCKED(key);
+    }
+
+    /**
+     * Searches for the given key in the map using external exclusive locking
+     * @param key Reference to the key to find
+     * @param lock_guard reference to the lock_guard
+     * @returns a pair consisting of:
      *  - the found element (or a default-constructed element if not found)
      *  - and bool denoting if the given key was found.
      */
     std::pair<T, bool> find(const Key& key, std::lock_guard<map_type>&) {
-        // Externally locked)
-        auto iter = map.find(key);
-        if (iter != map.end()) {
-            return {iter->second, true};
-        } else {
-            return std::make_pair(T(), false);
-        }
+        return find_UNLOCKED(key);
     }
+
+    /**
+     * Searches for the given key in the map, internally locked
+     * @param key Reference to the key to find
+     * @returns a pair consisting of:
+     *  - the found element (or a default-constructed element if not found)
+     *  - and bool denoting if the given key was found.
+     */
     std::pair<T, bool> find(const Key& key) {
-        std::lock_guard<map_type> guard(*this); // internally locked
+        std::shared_lock<map_type> guard(*this); // internally locked
         return find(key, guard);
     }
 
@@ -167,7 +185,7 @@ public:
      */
     template <class UnaryPredicate>
     std::pair<T, bool> find_if(UnaryPredicate p) {
-        std::lock_guard<map_type> guard(*this); // internally locked
+        std::shared_lock<map_type> guard(*this); // internally locked
         auto iter = std::find_if(map.begin(), map.end(), p);
         if (iter != map.end()) {
             return {iter->second, true};
@@ -187,18 +205,39 @@ public:
         clear(guard);
     }
 
-    /** Applies the given function object to every element in the map.
+    /**
+     * Applies the given function object to every element in the map using
+     * exclusive locking
+     *
+     * @param f Function object to be applied to every element in the map
+     * @param lock_guard externally held lock
      */
     template <class UnaryFunction>
     void for_each(UnaryFunction f, std::lock_guard<map_type>&) {
-        // Externally locked
         std::for_each(map.begin(), map.end(), f);
     }
 
+    /**
+     * Applies the given function object to every element in the map
+     *
+     * @param f Function object to be applied to every element in the map
+     */
     template <class UnaryFunction>
     void for_each(UnaryFunction f) {
-        std::lock_guard<map_type> guard(*this); // internally locked
+        std::shared_lock<map_type> guard(*this); // internally locked
         for_each(f, guard);
+    }
+
+    /**
+     * Applies the given function object to every element in the map using
+     * shared_lock locking
+     *
+     * @param f Function object to be applied to every element in the map
+     * @param lock_guard externally held lock
+     */
+    template <class UnaryFunction>
+    void for_each(UnaryFunction f, std::shared_lock<map_type>&) {
+        std::for_each(map.begin(), map.end(), f);
     }
 
     /**
@@ -251,7 +290,24 @@ public:
         rwlock.unlock();
     }
 
+    void lock_shared() {
+        rwlock.lock_shared();
+    }
+
+    void unlock_shared() {
+        rwlock.unlock_shared();
+    }
+
 private:
+    std::pair<T, bool> find_UNLOCKED(const Key& key) {
+        auto iter = map.find(key);
+        if (iter != map.end()) {
+            return {iter->second, true};
+        } else {
+            return std::make_pair(T(), false);
+        }
+    }
+
     std::unordered_map<Key, T, Hash, KeyEqual, Allocator> map;
     mutable cb::RWLock rwlock;
 };
