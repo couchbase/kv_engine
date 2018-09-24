@@ -60,73 +60,82 @@ Manifest::Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections)
         auto uid = getJsonObject(scope, UidKey, UidType);
 
         auto nameValue = name.get<std::string>();
-        ScopeID uidValue = makeScopeID(uid.get<std::string>());
-        if (validCollection(nameValue) && validUid(uidValue)) {
-            if (this->scopes.count(uidValue) > 0) {
-                throw std::invalid_argument(
-                        "Manifest::Manifest duplicate scope uid:" +
-                        uidValue.to_string() + ", name:" + nameValue);
-            }
-
-            std::vector<CollectionID> scopeCollections = {};
-
-            // Read the collections within this scope
-            auto collections =
-                    getJsonObject(scope, CollectionsKey, CollectionsType);
-
-            // Check that the number of collections in this scope + the
-            // number of already stored collections is not greater thatn
-            if (collections.size() + this->collections.size() >
-                maxNumberOfCollections) {
-                throw std::invalid_argument(
-                        "Manifest::Manifest too many collections count:" +
-                        std::to_string(collections.size()));
-            }
-
-            for (const auto& collection : collections) {
-                throwIfWrongType(std::string(CollectionsKey),
-                                 collection,
-                                 nlohmann::json::value_t::object);
-
-                auto cname = getJsonObject(collection, NameKey, NameType);
-                auto cuid = getJsonObject(collection, UidKey, UidType);
-
-                auto cnameValue = cname.get<std::string>();
-                CollectionID cuidValue =
-                        makeCollectionID(cuid.get<std::string>());
-                if (validCollection(cnameValue) && validUid(cuidValue)) {
-                    if (this->collections.count(cuidValue) > 0) {
-                        throw std::invalid_argument(
-                                "Manifest::Manifest duplicate collection uid:" +
-                                cuidValue.to_string() +
-                                ", name: " + cnameValue);
-                    }
-
-                    // The default collection must be within the default scope
-                    if (cuidValue.isDefaultCollection() &&
-                        !uidValue.isDefaultCollection()) {
-                        throw std::invalid_argument(
-                                "Manifest::Manifest the default collection is"
-                                " not in the default scope");
-                    }
-
-                    enableDefaultCollection(cuidValue);
-                    this->collections.emplace(cuidValue, cnameValue);
-                    scopeCollections.push_back(cuidValue);
-                } else {
-                    throw std::invalid_argument(
-                            "Manifest::Manifest invalid collection entry:" +
-                            cnameValue + ", uid: " + cuidValue.to_string());
-                }
-            }
-
-            this->scopes.emplace(uidValue,
-                                 Scope{nameValue, std::move(scopeCollections)});
-        } else {
-            throw std::invalid_argument(
-                    "Manifest::Manifest duplicate scope entry:" + nameValue +
-                    ", uid:" + uidValue.to_string());
+        if (!validName(nameValue)) {
+            throw std::invalid_argument("Manifest::Manifest scope name: " +
+                                        nameValue + " is not valid.");
         }
+
+        ScopeID uidValue = makeScopeID(uid.get<std::string>());
+        if (!validUid(uidValue)) {
+            throw std::invalid_argument(
+                    "Manifest::Manifest scope uid: " + uidValue.to_string() +
+                    " is not valid.");
+        }
+
+        if (this->scopes.count(uidValue) > 0) {
+            throw std::invalid_argument(
+                    "Manifest::Manifest duplicate scope uid:" +
+                    uidValue.to_string() + ", name:" + nameValue);
+        }
+
+        std::vector<CollectionID> scopeCollections = {};
+
+        // Read the collections within this scope
+        auto collections =
+                getJsonObject(scope, CollectionsKey, CollectionsType);
+
+        // Check that the number of collections in this scope + the
+        // number of already stored collections is not greater thatn
+        if (collections.size() + this->collections.size() >
+            maxNumberOfCollections) {
+            throw std::invalid_argument(
+                    "Manifest::Manifest too many collections count:" +
+                    std::to_string(collections.size()));
+        }
+
+        for (const auto& collection : collections) {
+            throwIfWrongType(std::string(CollectionsKey),
+                             collection,
+                             nlohmann::json::value_t::object);
+
+            auto cname = getJsonObject(collection, NameKey, NameType);
+            auto cuid = getJsonObject(collection, UidKey, UidType);
+
+            auto cnameValue = cname.get<std::string>();
+            if (!validName(cnameValue)) {
+                throw std::invalid_argument(
+                        "Manifest::Manifest collection name:" + cnameValue +
+                        " is not valid");
+            }
+
+            CollectionID cuidValue = makeCollectionID(cuid.get<std::string>());
+            if (!validUid(cuidValue)) {
+                throw std::invalid_argument(
+                        "Manifest::Manifest collection uid: " +
+                        cuidValue.to_string() + " is not valid.");
+            }
+
+            if (this->collections.count(cuidValue) > 0) {
+                throw std::invalid_argument(
+                        "Manifest::Manifest duplicate collection uid:" +
+                        cuidValue.to_string() + ", name: " + cnameValue);
+            }
+
+            // The default collection must be within the default scope
+            if (cuidValue.isDefaultCollection() &&
+                !uidValue.isDefaultCollection()) {
+                throw std::invalid_argument(
+                        "Manifest::Manifest the default collection is"
+                        " not in the default scope");
+            }
+
+            enableDefaultCollection(cuidValue);
+            this->collections.emplace(cuidValue, cnameValue);
+            scopeCollections.push_back(cuidValue);
+        }
+
+        this->scopes.emplace(uidValue,
+                             Scope{nameValue, std::move(scopeCollections)});
     }
 
     if (this->scopes.empty()) {
@@ -157,20 +166,19 @@ void Manifest::enableDefaultCollection(CollectionID identifier) {
     }
 }
 
-bool Manifest::validCollection(const std::string& collection) {
+bool Manifest::validName(const std::string& name) {
     // $ prefix is currently reserved for future use
     // Name cannot be empty
-    if (collection.empty() || collection.size() > MaxCollectionNameSize ||
-        collection[0] == '$') {
+    if (name.empty() || name.size() > MaxCollectionNameSize || name[0] == '$') {
         return false;
     }
     // Check rest of the characters for validity
-    for (const auto& c : collection) {
+    for (const auto& c : name) {
         // Collection names are allowed to contain
-        // A-Z, a-z, 0-9 and . _ - % $
+        // A-Z, a-z, 0-9 and _ - % $
         // system collections are _ prefixed, but not enforced here
-        if (!(std::isdigit(c) || std::isalpha(c) || c == '.' || c == '_' ||
-              c == '-' || c == '%' || c == '$')) {
+        if (!(std::isdigit(c) || std::isalpha(c) || c == '_' || c == '-' ||
+              c == '%' || c == '$')) {
             return false;
         }
     }

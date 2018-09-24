@@ -200,6 +200,10 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":_default", "uid":"0",
                 "collections":[{"name":"name_is_far_too_long_for_collections",
                 "uid":"2"}]}]})",
+            R"({"uid" : "0",
+                "scopes":[{"name":_default", "uid":"0",
+                "collections":[{"name":"collection.name",
+                "uid":"2"}]}]})",
 
             // Invalid scope names, no $ prefix allowed yet and empty denies
             R"({"uid" : "0",
@@ -215,6 +219,9 @@ TEST(ManifestTest, validation) {
                     {"name":"_default", "uid":"0", "collections":[]},
                     {"name":"name_is_far_too_long_for_collections", "uid":"2",
                         "collections":[]}]})",
+            R"({"uid" : "0",
+                "scopes":[
+                    {"name":"scope.name", "uid":"2", "collections":[]}]})",
     };
 
     std::vector<std::string> validManifests = {
@@ -437,8 +444,8 @@ TEST(ManifestTest, badNames) {
         std::string name(1, c);
         CollectionsManifest cm({name, 2});
 
-        if (!(std::isdigit(c) || std::isalpha(c) || c == '.' || c == '_' ||
-              c == '-' || c == '%')) {
+        if (!(std::isdigit(c) || std::isalpha(c) || c == '_' || c == '-' ||
+              c == '%')) {
             try {
                 Collections::Manifest m(cm);
                 EXPECT_TRUE(false)

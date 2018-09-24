@@ -188,9 +188,9 @@ private:
      * Current validation is to ensure we block creation of _ prefixed
      * collections and only accept $default for $ prefixed names.
      *
-     * @param collection a std::string representing a collection name.
+     * @param name a std::string representing a collection or scope name.
      */
-    static bool validCollection(const std::string& collection);
+    static bool validName(const std::string& name);
 
     /**
      * Check if the identifier is valid
