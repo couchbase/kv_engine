@@ -16,14 +16,13 @@
  */
 
 #include "item_compressor.h"
-
-#include <phosphor/phosphor.h>
-
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "executorpool.h"
 #include "item_compressor_visitor.h"
 #include "kv_bucket.h"
 #include "stored-value.h"
+#include <phosphor/phosphor.h>
 
 ItemCompressorTask::ItemCompressorTask(EventuallyPersistentEngine* e,
                                        EPStats& stats_)

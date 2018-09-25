@@ -17,12 +17,12 @@
 
 #include "config.h"
 #include "configuration.h"
-
+#include "bucket_logger.h"
 #include "configuration_impl.h"
+#include "locks.h"
 
 #include <platform/cb_malloc.h>
 
-#include "locks.h"
 
 #ifdef AUTOCONF_BUILD
 #include "generated_configuration.cc"
@@ -47,6 +47,67 @@ TYPENAME(ssize_t)
 TYPENAME(float)
 TYPENAME(std::string)
 #undef TYPENAME
+
+void ValueChangedListener::booleanValueChanged(const std::string& key, bool) {
+    EP_LOG_DEBUG("Configuration error.. {} does not expect a boolean value",
+                 key);
+}
+
+void ValueChangedListener::sizeValueChanged(const std::string& key, size_t) {
+    EP_LOG_DEBUG("Configuration error.. {} does not expect a size value", key);
+}
+
+void ValueChangedListener::ssizeValueChanged(const std::string& key, ssize_t) {
+    EP_LOG_DEBUG("Configuration error.. {} does not expect a size value", key);
+}
+
+void ValueChangedListener::floatValueChanged(const std::string& key, float) {
+    EP_LOG_DEBUG(
+            "Configuration error.. {} does not expect a floating point"
+            "value",
+            key);
+}
+
+void ValueChangedListener::stringValueChanged(const std::string& key,
+                                              const char*) {
+    EP_LOG_DEBUG("Configuration error.. {} does not expect a string value",
+                 key);
+}
+void ValueChangedValidator::validateBool(const std::string& key, bool) {
+    std::string error = "Configuration error.. " + key +
+                        " does not take a boolean parameter";
+    EP_LOG_DEBUG(error);
+    throw std::runtime_error(error);
+}
+
+void ValueChangedValidator::validateSize(const std::string& key, size_t) {
+    std::string error = "Configuration error.. " + key +
+                        " does not take a size_t parameter";
+    EP_LOG_DEBUG(error);
+    throw std::runtime_error(error);
+}
+
+void ValueChangedValidator::validateSSize(const std::string& key, ssize_t) {
+    std::string error = "Configuration error.. " + key +
+                        " does not take a ssize_t parameter";
+    EP_LOG_DEBUG(error);
+    throw std::runtime_error(error);
+}
+
+void ValueChangedValidator::validateFloat(const std::string& key, float) {
+    std::string error =
+            "Configuration error.. " + key + " does not take a float parameter";
+    EP_LOG_DEBUG(error);
+    throw std::runtime_error(error);
+}
+
+void ValueChangedValidator::validateString(const std::string& key,
+                                           const char*) {
+    std::string error = "Configuration error.. " + key +
+                        " does not take a string parameter";
+    EP_LOG_DEBUG(error);
+    throw std::runtime_error(error);
+}
 
 Configuration::Configuration() {
     initialize();

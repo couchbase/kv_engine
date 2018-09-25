@@ -16,23 +16,32 @@
  */
 
 #include "config.h"
-
 #include "bgfetcher.h"
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "executorthread.h"
 #include "kv_bucket.h"
 #include "kvshard.h"
 #include "tasks.h"
 #include "vbucket_bgfetch_item.h"
-
 #include <phosphor/phosphor.h>
-
 #include <algorithm>
 #include <climits>
 #include <vector>
 
 BgFetcher::BgFetcher(KVBucket& s, KVShard& k)
     : BgFetcher(&s, &k, s.getEPEngine().getEpStats()) {
+}
+
+BgFetcher::~BgFetcher() {
+    LockHolder lh(queueMutex);
+    if (!pendingVbs.empty()) {
+        EP_LOG_DEBUG(
+                "Terminating database reader without completing "
+                "background fetches for {} vbuckets.",
+                pendingVbs.size());
+        pendingVbs.clear();
+    }
 }
 
 void BgFetcher::start() {

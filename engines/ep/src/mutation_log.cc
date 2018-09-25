@@ -28,6 +28,7 @@
 extern "C" {
 #include "crc32.h"
 }
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "mutation_log.h"

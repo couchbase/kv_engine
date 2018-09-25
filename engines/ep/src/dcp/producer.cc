@@ -18,6 +18,7 @@
 #include "dcp/producer.h"
 
 #include "backfill.h"
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "collections/vbucket_filter.h"

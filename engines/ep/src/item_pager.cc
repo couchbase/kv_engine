@@ -17,6 +17,7 @@
 
 #include "item_pager.h"
 
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"

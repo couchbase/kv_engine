@@ -17,6 +17,7 @@
 
 #include "warmup.h"
 
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_callbacks.h"
 #include "common.h"

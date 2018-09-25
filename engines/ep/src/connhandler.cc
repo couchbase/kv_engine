@@ -16,12 +16,11 @@
  */
 
 #include "config.h"
-
-#include <phosphor/phosphor.h>
-
 #include "connhandler.h"
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include <phosphor/phosphor.h>
 
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
                          const void* c,
@@ -255,4 +254,12 @@ void ConnHandler::addStats(ADD_STAT add_stat, const void* c) {
         break;
     }
     addStat("priority", priString, add_stat, c);
+}
+
+void ConnHandler::setLogHeader(const std::string& header) {
+    logger->prefix = header;
+}
+
+const char* ConnHandler::logHeader() {
+    return logger->prefix.c_str();
 }

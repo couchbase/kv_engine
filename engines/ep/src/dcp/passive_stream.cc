@@ -17,6 +17,7 @@
 
 #include "passive_stream.h"
 
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "dcp/consumer.h"
 #include "dcp/response.h"

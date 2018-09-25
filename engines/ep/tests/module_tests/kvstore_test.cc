@@ -19,6 +19,7 @@
 
 #include <platform/dirutils.h>
 
+#include "bucket_logger.h"
 #include "collections/vbucket_manifest.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "kvstore.h"

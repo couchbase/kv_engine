@@ -17,8 +17,8 @@
 
 #include "checkpoint_config.h"
 
+#include "bucket_logger.h"
 #include "checkpoint.h"
-
 #include "configuration.h"
 #include "ep_engine.h"
 

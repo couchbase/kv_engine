@@ -33,6 +33,7 @@
 #include <utilities/logtags.h>
 
 #include "access_scanner.h"
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "collections/manager.h"

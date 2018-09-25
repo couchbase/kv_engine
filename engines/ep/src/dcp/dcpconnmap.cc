@@ -16,16 +16,16 @@
  */
 
 #include "config.h"
+#include "dcpconnmap.h"
+#include "bucket_logger.h"
+#include "configuration.h"
+#include "dcp/consumer.h"
+#include "dcp/producer.h"
+#include "ep_engine.h"
 #include <daemon/tracing.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/vbucket.h>
 #include <phosphor/phosphor.h>
-
-#include "configuration.h"
-#include "dcp/consumer.h"
-#include "dcp/producer.h"
-#include "dcpconnmap.h"
-#include "ep_engine.h"
 
 const uint32_t DcpConnMap::dbFileMem = 10 * 1024;
 const uint16_t DcpConnMap::numBackfillsThreshold = 4096;

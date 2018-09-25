@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include "bucket_logger.h"
 #include "statwriter.h"
 #include "utility.h"
 
@@ -32,6 +31,7 @@
 #include <string>
 
 // forward decl
+class BucketLogger;
 struct DocKey;
 class EPStats;
 class EventuallyPersistentEngine;
@@ -192,13 +192,9 @@ public:
                                           cb::const_byte_buffer key,
                                           cb::const_byte_buffer eventData);
 
-    const char* logHeader() {
-        return logger->prefix.c_str();
-    }
+    const char* logHeader();
 
-    void setLogHeader(const std::string &header) {
-        logger->prefix = header;
-    }
+    void setLogHeader(const std::string& header);
 
     BucketLogger& getLogger();
 

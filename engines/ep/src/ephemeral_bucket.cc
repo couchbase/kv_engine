@@ -17,6 +17,7 @@
 
 #include "ephemeral_bucket.h"
 
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "ep_types.h"
 #include "ephemeral_tombstone_purger.h"

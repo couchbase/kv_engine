@@ -24,7 +24,6 @@
 #include <set>
 #include <string>
 
-#include "bucket_logger.h"
 #include "item.h"
 #include "stats.h"
 #include "vbucket.h"
@@ -61,16 +60,7 @@ public:
      */
     BgFetcher(KVBucket& s, KVShard& k);
 
-    ~BgFetcher() {
-        LockHolder lh(queueMutex);
-        if (!pendingVbs.empty()) {
-            EP_LOG_DEBUG(
-                    "Terminating database reader without completing "
-                    "background fetches for {} vbuckets.",
-                    pendingVbs.size());
-            pendingVbs.clear();
-        }
-    }
+    ~BgFetcher();
 
     void start(void);
     void stop(void);

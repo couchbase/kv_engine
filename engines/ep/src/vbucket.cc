@@ -19,6 +19,7 @@
 
 #include "atomic.h"
 #include "bgfetcher.h"
+#include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "conflict_resolution.h"

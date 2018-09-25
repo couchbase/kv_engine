@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "connmap.h"

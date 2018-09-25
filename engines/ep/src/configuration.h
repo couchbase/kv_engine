@@ -26,8 +26,6 @@
 #include <mutex>
 #include <string>
 
-#include "bucket_logger.h"
-
 /**
  * The value changed listeners runs _without_ the global mutex for
  * the configuration class, so you may access other configuration
@@ -67,51 +65,34 @@ public:
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void booleanValueChanged(const std::string &key, bool) {
-        EP_LOG_DEBUG("Configuration error.. {} does not expect a boolean value",
-                     key);
-    }
+    virtual void booleanValueChanged(const std::string& key, bool);
 
     /**
      * Callback if when a numeric configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void sizeValueChanged(const std::string &key, size_t) {
-        EP_LOG_DEBUG("Configuration error.. {} does not expect a size value",
-                     key);
-    }
+    virtual void sizeValueChanged(const std::string& key, size_t);
 
     /**
      * Callback if when a numeric configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void ssizeValueChanged(const std::string &key, ssize_t) {
-        EP_LOG_DEBUG("Configuration error.. {} does not expect a size value",
-                     key);
-    }
+    virtual void ssizeValueChanged(const std::string& key, ssize_t);
 
     /**
      * Callback if when a floatingpoint configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void floatValueChanged(const std::string &key, float) {
-        EP_LOG_DEBUG(
-                "Configuration error.. {} does not expect a floating point"
-                "value",
-                key);
-    }
+    virtual void floatValueChanged(const std::string& key, float);
     /**
      * Callback if when a string configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void stringValueChanged(const std::string &key, const char *) {
-        EP_LOG_DEBUG("Configuration error.. {} does not expect a string value",
-                     key);
-    }
+    virtual void stringValueChanged(const std::string& key, const char*);
 
     virtual ~ValueChangedListener() { /* EMPTY */}
 };
@@ -152,12 +133,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateBool(const std::string& key, bool) {
-        std::string error = "Configuration error.. " + key +
-                            " does not take a boolean parameter";
-        EP_LOG_DEBUG(error);
-        throw std::runtime_error(error);
-    }
+    virtual void validateBool(const std::string& key, bool);
 
     /**
      * Validator for a numeric value
@@ -165,12 +141,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateSize(const std::string& key, size_t) {
-        std::string error = "Configuration error.. " + key +
-                            " does not take a size_t parameter";
-        EP_LOG_DEBUG(error);
-        throw std::runtime_error(error);
-    }
+    virtual void validateSize(const std::string& key, size_t);
 
     /**
      * Validator for a signed numeric value
@@ -178,12 +149,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateSSize(const std::string& key, ssize_t) {
-        std::string error = "Configuration error.. " + key +
-                            " does not take a ssize_t parameter";
-        EP_LOG_DEBUG(error);
-        throw std::runtime_error(error);
-    }
+    virtual void validateSSize(const std::string& key, ssize_t);
 
     /**
      * Validator for a floating point
@@ -191,12 +157,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateFloat(const std::string& key, float) {
-        std::string error = "Configuration error.. " + key +
-                            " does not take a float parameter";
-        EP_LOG_DEBUG(error);
-        throw std::runtime_error(error);
-    }
+    virtual void validateFloat(const std::string& key, float);
 
     /**
      * Validator for a character string
@@ -204,12 +165,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateString(const std::string& key, const char*) {
-        std::string error = "Configuration error.. " + key +
-                            " does not take a string parameter";
-        EP_LOG_DEBUG(error);
-        throw std::runtime_error(error);
-    }
+    virtual void validateString(const std::string& key, const char*);
 
     virtual ~ValueChangedValidator() { }
 };

@@ -16,13 +16,12 @@
  */
 
 #include "config.h"
-
-#include <memory>
-#include <vector>
-
+#include "vbucketmap.h"
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
-#include "vbucketmap.h"
+#include <memory>
+#include <vector>
 
 VBucketMap::VBucketMap(Configuration& config, KVBucket& store)
     : size(config.getMaxVbuckets()) {

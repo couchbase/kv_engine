@@ -16,6 +16,7 @@
  */
 
 #include "collections/manager.h"
+#include "bucket_logger.h"
 #include "collections/manifest.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"

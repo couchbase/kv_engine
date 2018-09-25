@@ -17,6 +17,7 @@
 
 #include "notifier_stream.h"
 
+#include "bucket_logger.h"
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "ep_engine.h"

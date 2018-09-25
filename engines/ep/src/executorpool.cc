@@ -16,10 +16,10 @@
  */
 
 #include "config.h"
-
+#include "executorpool.h"
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "ep_time.h"
-#include "executorpool.h"
 #include "executorthread.h"
 #include "statwriter.h"
 #include "taskqueue.h"

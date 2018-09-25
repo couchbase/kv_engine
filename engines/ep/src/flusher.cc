@@ -17,6 +17,7 @@
 
 #include "flusher.h"
 
+#include "bucket_logger.h"
 #include "common.h"
 #include "ep_bucket.h"
 #include "tasks.h"

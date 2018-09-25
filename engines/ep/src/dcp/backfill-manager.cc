@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include "bucket_logger.h"
 #include "connmap.h"
 #include "dcp/active_stream.h"
 #include "dcp/backfill-manager.h"

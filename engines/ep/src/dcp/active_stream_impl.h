@@ -18,6 +18,7 @@
 #pragma once
 
 #include "active_stream.h"
+#include "bucket_logger.h"
 #include "producer.h"
 
 /**

@@ -18,6 +18,7 @@
 #include "ep_vb.h"
 
 #include "bgfetcher.h"
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "ep_engine.h"
 #include "executorpool.h"

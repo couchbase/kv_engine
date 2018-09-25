@@ -15,12 +15,12 @@
  *   limitations under the License.
  */
 
-#include "config.h"
-
-#include "ep_engine.h"
-
 #include "flow-control-manager.h"
+
+#include "config.h"
+#include "bucket_logger.h"
 #include "dcp/consumer.h"
+#include "ep_engine.h"
 
 DcpFlowControlManager::DcpFlowControlManager(EventuallyPersistentEngine &engine)
     : engine_(engine)

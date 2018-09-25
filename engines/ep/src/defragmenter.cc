@@ -17,6 +17,7 @@
 
 #include "defragmenter.h"
 
+#include "bucket_logger.h"
 #include "defragmenter_visitor.h"
 #include "ep_engine.h"
 #include "executorpool.h"

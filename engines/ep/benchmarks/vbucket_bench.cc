@@ -33,6 +33,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <thread>
 
 enum class Store { Couchstore = 0, RocksDB = 1 };
 

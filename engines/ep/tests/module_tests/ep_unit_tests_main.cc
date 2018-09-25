@@ -21,13 +21,14 @@
 
 #include "programs/engine_testapp/mock_server.h"
 
-#include <getopt.h>
-#include <gmock/gmock.h>
-#include <logger/logger.h>
-
+#include "bucket_logger.h"
 #include "configuration.h"
 #include "ep_time.h"
 #include "hash_table.h"
+#include <getopt.h>
+#include <gmock/gmock.h>
+#include <logger/logger.h>
+#include <memcached/server_log_iface.h>
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";

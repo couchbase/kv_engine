@@ -18,6 +18,7 @@
 #include "ep_bucket.h"
 
 #include "bgfetcher.h"
+#include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "ep_engine.h"
 #include "ep_time.h"
