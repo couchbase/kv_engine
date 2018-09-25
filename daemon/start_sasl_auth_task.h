@@ -41,12 +41,16 @@ public:
     void externalAuthResponse(cb::mcbp::Status status,
                               const std::string& payload);
 
+    /**
+     * Do we just need to perform authentication
+     */
+    bool onlyRequestExternalAuthentication();
+
 protected:
     Status internal_auth();
     Status external_auth();
 
-    void successfull_external_auth(cb::mcbp::Status status,
-                                   const std::string& payload);
+    void successfull_external_auth();
     void unsuccessfull_external_auth(cb::mcbp::Status status,
                                      const std::string& payload);
 

@@ -39,6 +39,7 @@ public:
         nlohmann::json json;
         json["mechanism"] = req.getMechanism();
         json["challenge"] = cb::base64::encode(req.getChallenge(), false);
+        json["authentication-only"] = req.onlyRequestExternalAuthentication();
         payload = json.dump();
     }
 
@@ -113,11 +114,14 @@ void ExternalAuthManagerThread::responseReceived(
         const auto payload = std::string{
                 reinterpret_cast<const char*>(value.data()), value.size()};
         auto decoded = nlohmann::json::parse(payload);
-        const auto username = decoded["rbac"].begin().key();
-        cb::rbac::updateExternalUser(username, decoded["rbac"].dump());
+        auto rbac = decoded.find("rbac");
+        if (rbac != decoded.end()) {
+            const auto username = rbac->begin().key();
+            cb::rbac::updateExternalUser(username, rbac->dump());
+        }
     }
 
-    // Enqueue the respnse and let the auth thread deal with it
+    // Enqueue the response and let the auth thread deal with it
     std::lock_guard<std::mutex> guard(mutex);
     incommingResponse.emplace(std::make_unique<AuthResponse>(
             response.getOpaque(), response.getStatus(), response.getValue()));

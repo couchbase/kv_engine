@@ -88,12 +88,22 @@ Task::Status StartSaslAuthTask::external_auth() {
     return Status::Finished;
 }
 
+bool StartSaslAuthTask::onlyRequestExternalAuthentication() {
+    try {
+        cb::rbac::createInitialContext(connection.getSaslConn().getUsername(),
+                                       cb::rbac::Domain::External);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
 void StartSaslAuthTask::externalAuthResponse(cb::mcbp::Status status,
                                              const std::string& payload) {
     std::lock_guard<std::mutex> guard(getMutex());
 
     if (status == cb::mcbp::Status::Success) {
-        successfull_external_auth(status, payload);
+        successfull_external_auth();
     } else {
         unsuccessfull_external_auth(status, payload);
     }
@@ -101,8 +111,7 @@ void StartSaslAuthTask::externalAuthResponse(cb::mcbp::Status status,
     makeRunnable();
 }
 
-void StartSaslAuthTask::successfull_external_auth(cb::mcbp::Status status,
-                                                  const std::string& payload) {
+void StartSaslAuthTask::successfull_external_auth() {
     try {
         response.first = cb::sasl::Error::OK;
         connection.getSaslConn().setDomain(cb::sasl::Domain::External);

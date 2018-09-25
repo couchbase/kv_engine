@@ -51,9 +51,10 @@ protected:
     virtual std::pair<cb::sasl::Error, nlohmann::json> validatePassword(
             const std::string& username, const std::string& password) = 0;
 
-    std::pair<cb::mcbp::Status, std::string> start(
-            const std::string& mechanism, const std::string& challenge);
+    std::pair<cb::mcbp::Status, std::string> start(const std::string& mechanism,
+                                                   const std::string& challenge,
+                                                   bool authOnly);
 
     std::pair<cb::mcbp::Status, std::string> plain_auth(
-            cb::const_char_buffer input);
+            cb::const_char_buffer input, bool authOnly);
 };

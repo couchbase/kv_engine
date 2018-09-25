@@ -22,12 +22,15 @@
 std::pair<cb::mcbp::Status, std::string> AuthProvider::process(
         const std::string& request) {
     const auto json = nlohmann::json::parse(request);
-    // @todo add error handling
-    return start(json.at("mechanism"), json.at("challenge"));
+    return start(json.at("mechanism").get<std::string>(),
+                 json.at("challenge").get<std::string>(),
+                 json.at("authentication-only").get<bool>());
 }
 
 std::pair<cb::mcbp::Status, std::string> AuthProvider::start(
-        const std::string& mechanism, const std::string& challenge) {
+        const std::string& mechanism,
+        const std::string& challenge,
+        bool authOnly) {
     if (mechanism != "PLAIN") {
         return std::make_pair<cb::mcbp::Status, std::string>(
                 cb::mcbp::Status::NotSupported,
@@ -35,12 +38,12 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::start(
     }
 
     const auto ch = cb::base64::decode(challenge);
-
-    return plain_auth({reinterpret_cast<const char*>(ch.data()), ch.size()});
+    return plain_auth({reinterpret_cast<const char*>(ch.data()), ch.size()},
+                      authOnly);
 }
 
 std::pair<cb::mcbp::Status, std::string> AuthProvider::plain_auth(
-        cb::const_char_buffer input) {
+        cb::const_char_buffer input, bool authOnly) {
     // The syntax for the payload for plain auth is a string looking like:
     // \0username\0password
     if (input.empty()) {
@@ -114,7 +117,9 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::plain_auth(
     }
 
     nlohmann::json payload;
-    payload["rbac"] = ret.second;
+    if (!authOnly) {
+        payload["rbac"] = ret.second;
+    }
 
     return std::pair<cb::mcbp::Status, std::string>(cb::mcbp::Status::Success,
                                                     payload.dump());
