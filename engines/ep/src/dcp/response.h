@@ -188,17 +188,21 @@ private:
 
 class AddStreamResponse : public DcpResponse {
 public:
-    AddStreamResponse(uint32_t opaque, uint32_t streamOpaque, uint16_t status)
-        : DcpResponse(Event::AddStream, opaque), streamOpaque_(streamOpaque),
-          status_(status) {}
+    AddStreamResponse(uint32_t opaque,
+                      uint32_t streamOpaque,
+                      cb::mcbp::Status status)
+        : DcpResponse(Event::AddStream, opaque),
+          streamOpaque_(streamOpaque),
+          status_(status) {
+    }
 
-    ~AddStreamResponse() {}
+    ~AddStreamResponse() = default;
 
     uint32_t getStreamOpaque() {
         return streamOpaque_;
     }
 
-    uint16_t getStatus() {
+    cb::mcbp::Status getStatus() const {
         return status_;
     }
 
@@ -209,16 +213,17 @@ public:
     static const uint32_t baseMsgBytes;
 
 private:
-    uint32_t streamOpaque_;
-    uint16_t status_;
+    const uint32_t streamOpaque_;
+    const cb::mcbp::Status status_;
 };
 
 class SnapshotMarkerResponse : public DcpResponse {
 public:
-    SnapshotMarkerResponse(uint32_t opaque, uint16_t status)
-        : DcpResponse(Event::SnapshotMarker, opaque), status_(status) {}
+    SnapshotMarkerResponse(uint32_t opaque, cb::mcbp::Status status)
+        : DcpResponse(Event::SnapshotMarker, opaque), status_(status) {
+    }
 
-    uint16_t getStatus() {
+    cb::mcbp::Status getStatus() const {
         return status_;
     }
 
@@ -229,15 +234,16 @@ public:
     static const uint32_t baseMsgBytes;
 
 private:
-    uint32_t status_;
+    const cb::mcbp::Status status_;
 };
 
 class SetVBucketStateResponse : public DcpResponse {
 public:
-    SetVBucketStateResponse(uint32_t opaque, uint16_t status)
-        : DcpResponse(Event::SetVbucket, opaque), status_(status) {}
+    SetVBucketStateResponse(uint32_t opaque, cb::mcbp::Status status)
+        : DcpResponse(Event::SetVbucket, opaque), status_(status) {
+    }
 
-    uint16_t getStatus() {
+    cb::mcbp::Status getStatus() const {
         return status_;
     }
 
@@ -248,7 +254,7 @@ public:
     static const uint32_t baseMsgBytes;
 
 private:
-    uint32_t status_;
+    const cb::mcbp::Status status_;
 };
 
 class StreamEndResponse : public DcpResponse {

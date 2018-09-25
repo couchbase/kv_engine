@@ -27,7 +27,7 @@
 #include <memcached/protocol_binary.h>
 
 uint8_t dcp_last_op;
-uint8_t dcp_last_status;
+cb::mcbp::Status dcp_last_status;
 uint8_t dcp_last_nru;
 Vbid dcp_last_vbucket;
 uint32_t dcp_last_opaque;
@@ -103,7 +103,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::stream_req(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::add_stream_rsp(
-        uint32_t opaque, uint32_t stream_opaque, uint8_t status) {
+        uint32_t opaque, uint32_t stream_opaque, cb::mcbp::Status status) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_ADD_STREAM;
     dcp_last_opaque = opaque;
@@ -114,7 +114,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::add_stream_rsp(
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::marker_rsp(uint32_t opaque,
-                                                      uint8_t status) {
+                                                      cb::mcbp::Status status) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     dcp_last_opaque = opaque;
@@ -124,7 +124,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker_rsp(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state_rsp(
-        uint32_t opaque, uint8_t status) {
+        uint32_t opaque, cb::mcbp::Status status) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
     dcp_last_opaque = opaque;
@@ -355,7 +355,7 @@ void MockDcpMessageProducers::setMutationStatus(ENGINE_ERROR_CODE code) {
 
 void clear_dcp_data() {
     dcp_last_op = 0;
-    dcp_last_status = 0;
+    dcp_last_status = cb::mcbp::Status::Success;
     dcp_last_nru = 0;
     dcp_last_vbucket = Vbid(0);
     dcp_last_opaque = 0;

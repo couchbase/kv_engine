@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <mcbp/protocol/status.h>
 #include <memcached/engine_error.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
@@ -58,12 +59,13 @@ struct dcp_message_producers {
 
     virtual ENGINE_ERROR_CODE add_stream_rsp(uint32_t opaque,
                                              uint32_t stream_opaque,
-                                             uint8_t status) = 0;
+                                             cb::mcbp::Status status) = 0;
 
-    virtual ENGINE_ERROR_CODE marker_rsp(uint32_t opaque, uint8_t status) = 0;
+    virtual ENGINE_ERROR_CODE marker_rsp(uint32_t opaque,
+                                         cb::mcbp::Status status) = 0;
 
-    virtual ENGINE_ERROR_CODE set_vbucket_state_rsp(uint32_t opaque,
-                                                    uint8_t status) = 0;
+    virtual ENGINE_ERROR_CODE set_vbucket_state_rsp(
+            uint32_t opaque, cb::mcbp::Status status) = 0;
 
     /**
      * Send a Stream End message

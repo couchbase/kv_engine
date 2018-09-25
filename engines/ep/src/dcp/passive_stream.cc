@@ -151,10 +151,10 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
     return unackedBytes;
 }
 
-void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
+void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
     std::unique_lock<std::mutex> lh(streamMutex);
     if (isPending()) {
-        if (status == ENGINE_SUCCESS) {
+        if (status == cb::mcbp::Status::Success) {
             transitionState(StreamState::Reading);
         } else {
             transitionState(StreamState::Dead);
@@ -688,8 +688,8 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     engine->getKVBucket()->setVBucketState(vb_, state->getState(), true);
     {
         LockHolder lh(streamMutex);
-        pushToReadyQ(std::make_unique<SetVBucketStateResponse>(opaque_,
-                                                               ENGINE_SUCCESS));
+        pushToReadyQ(std::make_unique<SetVBucketStateResponse>(
+                opaque_, cb::mcbp::Status::Success));
     }
     notifyStreamReady();
 }
@@ -727,7 +727,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
             {
                 LockHolder lh(streamMutex);
                 pushToReadyQ(std::make_unique<SnapshotMarkerResponse>(
-                        opaque_, ENGINE_SUCCESS));
+                        opaque_, cb::mcbp::Status::Success));
             }
             notifyStreamReady();
             cur_snapshot_ack = false;

@@ -47,12 +47,13 @@ public:
 
     ENGINE_ERROR_CODE add_stream_rsp(uint32_t opaque,
                                      uint32_t stream_opaque,
-                                     uint8_t status) override;
+                                     cb::mcbp::Status status) override;
 
-    ENGINE_ERROR_CODE marker_rsp(uint32_t opaque, uint8_t status) override;
+    ENGINE_ERROR_CODE marker_rsp(uint32_t opaque,
+                                 cb::mcbp::Status status) override;
 
     ENGINE_ERROR_CODE set_vbucket_state_rsp(uint32_t opaque,
-                                            uint8_t status) override;
+                                            cb::mcbp::Status status) override;
 
     ENGINE_ERROR_CODE stream_end(uint32_t opaque,
                                  Vbid vbucket,

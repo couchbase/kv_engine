@@ -63,7 +63,7 @@ public:
      */
     void streamRequest(uint64_t vb_uuid);
 
-    void acceptStream(uint16_t status, uint32_t add_opaque);
+    void acceptStream(cb::mcbp::Status status, uint32_t add_opaque);
 
     void reconnectStream(VBucketPtr& vb,
                          uint32_t new_opaque,

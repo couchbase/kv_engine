@@ -92,7 +92,7 @@ extern std::atomic<uint8_t> last_conflict_resolution_mode;
 extern ItemMetaData last_meta;
 
 extern uint8_t dcp_last_op;
-extern uint8_t dcp_last_status;
+extern cb::mcbp::Status dcp_last_status;
 extern uint8_t dcp_last_nru;
 extern Vbid dcp_last_vbucket;
 extern uint32_t dcp_last_opaque;

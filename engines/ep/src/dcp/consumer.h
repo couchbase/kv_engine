@@ -271,7 +271,7 @@ protected:
     bool isValidOpaque(uint32_t opaque, Vbid vbucket);
 
     void streamAccepted(uint32_t opaque,
-                        uint16_t status,
+                        cb::mcbp::Status status,
                         const uint8_t* body,
                         uint32_t bodylen);
 

@@ -1574,13 +1574,13 @@ ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
                                              uint32_t dialogopaque,
-                                             uint8_t status) {
+                                             cb::mcbp::Status status) {
     protocol_binary_response_dcp_add_stream packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode =
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_ADD_STREAM;
     packet.message.header.response.extlen = 4;
-    packet.message.header.response.status = htons(status);
+    packet.message.header.response.setStatus(status);
     packet.message.header.response.setBodylen(4);
     packet.message.header.response.opaque = opaque;
     packet.message.body.opaque = ntohl(dialogopaque);
@@ -1588,13 +1588,14 @@ ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
 }
 
-ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque, uint8_t status) {
+ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque,
+                                         cb::mcbp::Status status) {
     protocol_binary_response_dcp_snapshot_marker packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode =
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
     packet.message.header.response.extlen = 0;
-    packet.message.header.response.status = htons(status);
+    packet.message.header.response.setStatus(status);
     packet.message.header.response.bodylen = 0;
     packet.message.header.response.opaque = opaque;
 
@@ -1602,13 +1603,13 @@ ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque, uint8_t status) {
 }
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
-                                                    uint8_t status) {
+                                                    cb::mcbp::Status status) {
     protocol_binary_response_dcp_set_vbucket_state packet = {};
     packet.message.header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     packet.message.header.response.opcode =
             (uint8_t)PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
     packet.message.header.response.extlen = 0;
-    packet.message.header.response.status = htons(status);
+    packet.message.header.response.setStatus(status);
     packet.message.header.response.bodylen = 0;
     packet.message.header.response.opaque = opaque;
 

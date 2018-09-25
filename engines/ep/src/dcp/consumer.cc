@@ -836,12 +836,12 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
                 const protocol_binary_response_dcp_stream_req*>(resp);
 
         Vbid vbid = oitr->second.second;
-        uint16_t status = ntohs(pkt->message.header.response.status);
+        auto status = pkt->message.header.response.getStatus();
         uint64_t bodylen = pkt->message.header.response.getBodylen();
         const uint8_t* body =
                 pkt->bytes + sizeof(protocol_binary_response_header);
 
-        if (status == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
+        if (status == cb::mcbp::Status::Rollback) {
             if (bodylen != sizeof(uint64_t)) {
                 logger->warn(
                         "({}) Received rollback "
@@ -856,7 +856,8 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
             return handleRollbackResponse(vbid, opaque, rollbackSeqno);
         }
 
-        if (((bodylen % 16) != 0 || bodylen == 0) && status == ENGINE_SUCCESS) {
+        if (((bodylen % 16) != 0 || bodylen == 0) &&
+            status == cb::mcbp::Status::Success) {
             logger->warn(
                     "({})Got a stream response with a "
                     "bad failover log (length {}), disconnecting",
@@ -1155,7 +1156,7 @@ void DcpConsumer::notifyStreamReady(Vbid vbucket) {
 }
 
 void DcpConsumer::streamAccepted(uint32_t opaque,
-                                 uint16_t status,
+                                 cb::mcbp::Status status,
                                  const uint8_t* body,
                                  uint32_t bodylen) {
     opaque_map::iterator oitr = opaqueMap_.find(opaque);
@@ -1165,17 +1166,17 @@ void DcpConsumer::streamAccepted(uint32_t opaque,
 
         auto stream = findStream(vbucket);
         if (stream && stream->getOpaque() == opaque && stream->isPending()) {
-            if (status == ENGINE_SUCCESS) {
+            if (status == cb::mcbp::Status::Success) {
                 VBucketPtr vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);
                 KVBucketIface* kvBucket = engine_.getKVBucket();
                 kvBucket->scheduleVBStatePersist(vbucket);
             }
-            logger->debug("({}) Add stream for opaque  with error code {}",
+            logger->debug("({}) Add stream for opaque {} with error code {}",
                           vbucket,
                           opaque,
-                          status == ENGINE_SUCCESS ? "succeeded" : "failed",
-                          status);
+                          status == cb::mcbp::Status::Success ? "succeeded"
+                                                              : "failed");
             stream->acceptStream(status, add_opaque);
         } else {
             logger->warn(
