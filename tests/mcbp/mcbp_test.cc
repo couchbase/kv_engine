@@ -18,6 +18,7 @@
 #include "mcbp_test.h"
 #include "utilities/protocol2text.h"
 
+#include <daemon/settings.h>
 #include <event2/event.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>

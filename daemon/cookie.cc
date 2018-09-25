@@ -20,6 +20,7 @@
 #include "connection.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
+#include "settings.h"
 
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>

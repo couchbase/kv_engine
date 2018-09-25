@@ -24,6 +24,7 @@
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "protocol/mcbp/engine_wrapper.h"
+#include "settings.h"
 #include "subdoc/util.h"
 #include "subdocument_context.h"
 #include "subdocument_traits.h"

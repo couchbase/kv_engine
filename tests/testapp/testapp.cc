@@ -19,6 +19,7 @@
 #include <platform/compress.h>
 #include <fstream>
 
+#include <atomic>
 #include <csignal>
 #include <thread>
 

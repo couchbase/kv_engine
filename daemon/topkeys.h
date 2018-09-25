@@ -16,8 +16,6 @@
  */
 #pragma once
 
-#include "settings.h"
-
 #include <cJSON.h>
 #include <memcached/engine.h>
 #include <nlohmann/json_fwd.hpp>
@@ -57,21 +55,11 @@ public:
     explicit TopKeys(int mkeys);
     ~TopKeys();
 
-    void updateKey(const void* key, size_t nkey, rel_time_t operation_time) {
-        if (settings.isTopkeysEnabled()) {
-            doUpdateKey(key, nkey, operation_time);
-        }
-    }
+    void updateKey(const void* key, size_t nkey, rel_time_t operation_time);
 
     ENGINE_ERROR_CODE stats(const void* cookie,
                             rel_time_t current_time,
-                            ADD_STAT add_stat) {
-        if (settings.isTopkeysEnabled()) {
-            return doStats(cookie, current_time, add_stat);
-        }
-
-        return ENGINE_SUCCESS;
-    }
+                            ADD_STAT add_stat);
 
     /**
      * Passing a set of topkeys, and relevant context data will
@@ -88,13 +76,7 @@ public:
      * }
      */
     ENGINE_ERROR_CODE json_stats(nlohmann::json& object,
-                                 rel_time_t current_time) {
-        if (settings.isTopkeysEnabled()) {
-            return do_json_stats(object, current_time);
-        }
-
-        return ENGINE_SUCCESS;
-    }
+                                 rel_time_t current_time);
 
 protected:
     void doUpdateKey(const void* key, size_t nkey, rel_time_t operation_time);

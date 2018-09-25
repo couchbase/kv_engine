@@ -16,7 +16,8 @@
  */
 
 #include "config.h"
-
+#include "topkeys.h"
+#include "settings.h"
 #include <inttypes.h>
 #include <nlohmann/json.hpp>
 #include <platform/platform.h>
@@ -26,8 +27,6 @@
 #include <cstring>
 #include <gsl/gsl>
 #include <stdexcept>
-
-#include "topkeys.h"
 
 /*
  * Implementation Details
@@ -98,6 +97,33 @@ TopKeys::TopKeys(int mkeys) {
 }
 
 TopKeys::~TopKeys() {
+}
+
+void TopKeys::updateKey(const void* key,
+                        size_t nkey,
+                        rel_time_t operation_time) {
+    if (settings.isTopkeysEnabled()) {
+        doUpdateKey(key, nkey, operation_time);
+    }
+}
+
+ENGINE_ERROR_CODE TopKeys::stats(const void* cookie,
+                                 rel_time_t current_time,
+                                 ADD_STAT add_stat) {
+    if (settings.isTopkeysEnabled()) {
+        return doStats(cookie, current_time, add_stat);
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE TopKeys::json_stats(nlohmann::json& object,
+                                      rel_time_t current_time) {
+    if (settings.isTopkeysEnabled()) {
+        return do_json_stats(object, current_time);
+    }
+
+    return ENGINE_SUCCESS;
 }
 
 TopKeys::Shard& TopKeys::getShard(size_t key_hash) {

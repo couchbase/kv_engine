@@ -25,6 +25,7 @@
 #include "xattr/utils.h"
 #include <logger/logger.h>
 #include <memcached/dcp.h>
+#include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
 #include <platform/string.h>

@@ -30,6 +30,7 @@
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <daemon/runtime.h>
+#include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
 #include <daemon/topkeys.h>

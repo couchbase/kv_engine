@@ -21,8 +21,8 @@
 #include <boost/optional/optional_fwd.hpp>
 #include <cJSON.h>
 #include <cJSON_utils.h>
-#include <daemon/settings.h>
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
+#include <memcached/engine_error.h>
 #include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/rbac.h>

@@ -19,6 +19,8 @@
 
 #include "connections.h"
 #include "memcached.h"
+#include "network_interface.h"
+#include "settings.h"
 #include "stats.h"
 
 #include <logger/logger.h>

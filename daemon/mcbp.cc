@@ -19,6 +19,7 @@
 #include "buckets.h"
 #include "debug_helpers.h"
 #include "memcached.h"
+#include "settings.h"
 #include "utilities/logtags.h"
 #include "xattr/utils.h"
 #include <logger/logger.h>

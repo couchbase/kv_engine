@@ -32,6 +32,7 @@
 
 #include <daemon/connection.h>
 #include <memcached/dcp.h>
+#include <memcached/engine.h>
 #include <memcached/engine_error.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie, ADD_RESPONSE response);

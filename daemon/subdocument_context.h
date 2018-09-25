@@ -24,12 +24,12 @@
 #include "subdocument_traits.h"
 #include "xattr/utils.h"
 
+#include <memcached/engine.h>
+#include <platform/compress.h>
+#include <platform/sized_buffer.h>
 #include <cstddef>
 #include <iomanip>
 #include <memory>
-#include <platform/compress.h>
-#include <platform/sized_buffer.h>
-
 #include <unordered_map>
 
 enum class MutationSemantics : uint8_t { Add, Replace, Set };

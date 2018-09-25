@@ -21,6 +21,8 @@
 #include <cJSON_utils.h>
 #include <memory>
 
+class NetworkInterface;
+
 /**
  * The ServerSocket represents the socket used to accept new clients.
  */

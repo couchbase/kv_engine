@@ -26,6 +26,7 @@
 #include "protocol/mcbp/ship_dcp_log.h"
 #include "runtime.h"
 #include "server_event.h"
+#include "settings.h"
 
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
@@ -1214,12 +1215,26 @@ void Connection::ensureIovSpace() {
     }
 }
 
+bool Connection::enableSSL(const std::string& cert, const std::string& pkey) {
+    if (ssl.enable(cert, pkey)) {
+        if (settings.getVerbose() > 1) {
+            ssl.dumpCipherList(getId());
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 Connection::Connection()
     : socketDescriptor(INVALID_SOCKET),
       base(nullptr),
       peername("unknown"),
       sockname("unknown"),
-      stateMachine(*this) {
+      stateMachine(*this),
+      max_reqs_per_event(settings.getRequestsPerEventNotification(
+              EventPriority::Default)) {
     updateDescription();
     cookies.emplace_back(std::unique_ptr<Cookie>{new Cookie(*this)});
     setConnectionId(peername.c_str());
@@ -1231,7 +1246,9 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
       parent_port(ifc.port),
       peername(cb::net::getpeername(socketDescriptor)),
       sockname(cb::net::getsockname(socketDescriptor)),
-      stateMachine(*this) {
+      stateMachine(*this),
+      max_reqs_per_event(settings.getRequestsPerEventNotification(
+              EventPriority::Default)) {
     // TEMP: Once all of these functions are converted to virtual methods
     // these assignments will not be necesary.
     dcp_message_producers::system_event = dcp_message_system_event;

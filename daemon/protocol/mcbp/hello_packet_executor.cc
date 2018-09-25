@@ -18,6 +18,7 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
+#include <daemon/settings.h>
 #include <logger/logger.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>

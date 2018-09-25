@@ -20,7 +20,6 @@
 
 #include "datatype.h"
 #include "dynamic_buffer.h"
-#include "settings.h"
 #include "ssl_context.h"
 #include "statemachine.h"
 #include "stats.h"
@@ -46,11 +45,12 @@
 #include <string>
 #include <vector>
 
-struct FrontEndThread;
+class Bucket;
 class Cookie;
 class ListeningPort;
-class Bucket;
 class ServerEvent;
+struct EngineIface;
+struct FrontEndThread;
 
 /**
  * Adjust a message header structure by "consuming" nbytes of data.
@@ -983,17 +983,7 @@ protected:
      * @param pkey the SSL private key to use
      * @return true if successful, false otherwise
      */
-    bool enableSSL(const std::string& cert, const std::string& pkey) {
-        if (ssl.enable(cert, pkey)) {
-            if (settings.getVerbose() > 1) {
-                ssl.dumpCipherList(getId());
-            }
-
-            return true;
-        }
-
-        return false;
-    }
+    bool enableSSL(const std::string& cert, const std::string& pkey);
 
     /**
      * Read data over the SSL connection
@@ -1183,8 +1173,7 @@ protected:
     bool dcpDeleteTimeEnabled = false;
 
     /** The maximum requests we can process in a worker thread timeslice */
-    int max_reqs_per_event =
-            settings.getRequestsPerEventNotification(EventPriority::Default);
+    int max_reqs_per_event;
 
     /**
      * number of events this connection can process in a single worker

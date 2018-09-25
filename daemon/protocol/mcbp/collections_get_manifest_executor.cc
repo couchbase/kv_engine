@@ -20,6 +20,7 @@
 
 #include <daemon/cookie.h>
 #include <logger/logger.h>
+#include <memcached/engine.h>
 
 void collections_get_manifest_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();

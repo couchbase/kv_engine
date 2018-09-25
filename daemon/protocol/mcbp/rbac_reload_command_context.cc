@@ -20,6 +20,7 @@
 #include <daemon/cookie.h>
 #include <daemon/executorpool.h>
 #include <daemon/memcached.h>
+#include <daemon/settings.h>
 #include <logger/logger.h>
 
 /**

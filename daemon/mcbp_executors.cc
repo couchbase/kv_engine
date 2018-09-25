@@ -52,6 +52,7 @@
 #include "protocol/mcbp/unlock_context.h"
 #include "sasl_tasks.h"
 #include "session_cas.h"
+#include "settings.h"
 #include "subdocument.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>

@@ -16,8 +16,8 @@
  */
 
 #include <benchmark/benchmark.h>
+#include <daemon/settings.h>
 #include <daemon/topkeys.h>
-
 #include <algorithm>
 #include <iostream>
 #include <memory>

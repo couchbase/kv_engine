@@ -19,6 +19,7 @@
 #include "connection.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
+#include "settings.h"
 #include <cbsasl/mechanism.h>
 #include <logger/logger.h>
 
