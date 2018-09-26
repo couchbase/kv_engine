@@ -255,7 +255,7 @@ void Cookie::sendNotMyVBucket() {
         // We don't have a vbucket map, or we've already sent it to the
         // client
         mcbp_add_header(*this,
-                        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+                        cb::mcbp::Status::NotMyVbucket,
                         0,
                         0,
                         0,
@@ -300,8 +300,7 @@ void Cookie::sendResponse(cb::mcbp::Status status) {
             return;
         }
 
-        mcbp_add_header(
-                *this, uint16_t(status), 0, 0, 0, PROTOCOL_BINARY_RAW_BYTES);
+        mcbp_add_header(*this, status, 0, 0, 0, PROTOCOL_BINARY_RAW_BYTES);
         connection.setState(StateMachine::State::send_data);
         connection.setWriteAndGo(StateMachine::State::new_cmd);
         return;
@@ -365,13 +364,12 @@ void Cookie::sendResponse(cb::mcbp::Status status,
     connection.write->ensureCapacity(needed);
 
     mcbp_add_header(*this,
-                    uint16_t(status),
+                    status,
                     uint8_t(extras.size()),
                     uint16_t(key.size()),
                     uint32_t(value.size() + key.size() + extras.size()),
                     connection.getEnabledDatatypes(
                             protocol_binary_datatype_t(datatype)));
-
 
     if (!extras.empty()) {
         auto wdata = connection.write->wdata();

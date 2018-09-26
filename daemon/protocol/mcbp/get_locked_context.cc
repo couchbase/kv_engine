@@ -95,7 +95,7 @@ ENGINE_ERROR_CODE GetLockedCommandContext::sendResponse() {
     // Set the CAS to add into the header
     cookie.setCas(info.cas);
     mcbp_add_header(cookie,
-                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                    cb::mcbp::Status::Success,
                     sizeof(info.flags),
                     0 /* keylength */,
                     bodylength,

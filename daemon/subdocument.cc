@@ -1547,7 +1547,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     // Allocated required resource - build the header.
     mcbp_add_header(
             cookie,
-            status_code,
+            cb::mcbp::Status(status_code),
             gsl::narrow<uint8_t>(extlen),
             /*keylen*/ 0,
             gsl::narrow<uint32_t>(extlen + response_buf_needed + iov_len),
@@ -1650,7 +1650,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
     }
 
     mcbp_add_header(cookie,
-                    status_code,
+                    cb::mcbp::Status(status_code),
                     /*extlen*/ 0, /*keylen*/
                     0,
                     gsl::narrow<uint32_t>(context.response_val_len),

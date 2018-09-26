@@ -29,7 +29,7 @@
  * Add a header to the current memcached connection
  *
  * @param cookie the command context to add the header for
- * @param err The error code to use
+ * @param status The error code to use
  * @param ext_len The length of the ext field
  * @param key_len The length of the key field
  * @param body_len THe length of the body field
@@ -37,7 +37,7 @@
  * @throws std::bad_alloc
  */
 void mcbp_add_header(Cookie& cookie,
-                     uint16_t err,
+                     cb::mcbp::Status status,
                      uint8_t ext_len,
                      uint16_t key_len,
                      uint32_t body_len,

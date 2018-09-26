@@ -29,7 +29,7 @@
 static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
                                              cb::Pipe& pipe,
                                              uint8_t opcode,
-                                             uint16_t err,
+                                             cb::mcbp::Status status,
                                              uint8_t ext_len,
                                              uint16_t key_len,
                                              uint32_t body_len,
@@ -42,7 +42,7 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
     header->response.opcode = opcode;
     header->response.extlen = ext_len;
     header->response.datatype = datatype;
-    header->response.status = (uint16_t)htons(err);
+    header->response.setStatus(status);
     header->response.opaque = opaque;
     header->response.cas = htonll(cas);
 
@@ -88,7 +88,7 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
 }
 
 void mcbp_add_header(Cookie& cookie,
-                     uint16_t err,
+                     cb::mcbp::Status status,
                      uint8_t ext_len,
                      uint16_t key_len,
                      uint32_t body_len,
@@ -100,7 +100,7 @@ void mcbp_add_header(Cookie& cookie,
     const auto wbuf = mcbp_add_header(cookie,
                                       *connection.write,
                                       header.getOpcode(),
-                                      err,
+                                      status,
                                       ext_len,
                                       key_len,
                                       body_len,
@@ -130,7 +130,7 @@ void mcbp_add_header(Cookie& cookie,
         }
     }
 
-    ++connection.getBucket().responseCounters[err];
+    ++connection.getBucket().responseCounters[uint16_t(status)];
     connection.addIov(wbuf.data(), wbuf.size());
 }
 
