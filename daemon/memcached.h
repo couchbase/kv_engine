@@ -81,8 +81,6 @@ void dispatch_conn_new(SOCKET sfd, int parent_port);
 /* Lock wrappers for cache functions that are called from main loop. */
 int is_listen_thread(void);
 
-void STATS_LOCK(void);
-void STATS_UNLOCK(void);
 void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 
 void notify_io_complete(gsl::not_null<const void*> cookie,
