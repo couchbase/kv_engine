@@ -577,10 +577,10 @@ static bool subdoc_fetch(Cookie& cookie,
         // uncompress it so subjson can parse it.
         auto status = ctx.get_document_for_searching(cas);
 
-        if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (status != cb::mcbp::Status::Success) {
             // Failed. Note c.item and c.commandContext will both be freed for
             // us as part of preparing for the next command.
-            cookie.sendResponse(cb::mcbp::Status(status));
+            cookie.sendResponse(status);
             return false;
         }
     }
@@ -592,10 +592,10 @@ static bool subdoc_fetch(Cookie& cookie,
  * Perform the subjson operation specified by {spec} to one path in the
  * document.
  */
-static protocol_binary_response_status
-subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSpec& spec,
-                        const cb::const_char_buffer& in_doc) {
-
+static cb::mcbp::Status subdoc_operate_one_path(
+        SubdocCmdContext& context,
+        SubdocCmdContext::OperationSpec& spec,
+        const cb::const_char_buffer& in_doc) {
     // Prepare the specified sub-document command.
     auto& op = context.connection.getThread()->subdoc_op;
     op.clear();
@@ -629,57 +629,57 @@ subdoc_operate_one_path(SubdocCmdContext& context, SubdocCmdContext::OperationSp
 
     switch (subdoc_res) {
     case Subdoc::Error::SUCCESS:
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        return cb::mcbp::Status::Success;
 
     case Subdoc::Error::PATH_ENOENT:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT;
+        return cb::mcbp::Status::SubdocPathEnoent;
 
     case Subdoc::Error::PATH_MISMATCH:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH;
+        return cb::mcbp::Status::SubdocPathMismatch;
 
     case Subdoc::Error::DOC_ETOODEEP:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_E2DEEP;
+        return cb::mcbp::Status::SubdocDocE2deep;
 
     case Subdoc::Error::PATH_EINVAL:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL;
+        return cb::mcbp::Status::SubdocPathEinval;
 
     case Subdoc::Error::DOC_NOTJSON:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON;
+        return cb::mcbp::Status::SubdocDocNotJson;
 
     case Subdoc::Error::DOC_EEXISTS:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS;
+        return cb::mcbp::Status::SubdocPathEexists;
 
     case Subdoc::Error::PATH_E2BIG:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG;
+        return cb::mcbp::Status::SubdocPathE2big;
 
     case Subdoc::Error::NUM_E2BIG:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE;
+        return cb::mcbp::Status::SubdocNumErange;
 
     case Subdoc::Error::DELTA_EINVAL:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL;
+        return cb::mcbp::Status::SubdocDeltaEinval;
 
     case Subdoc::Error::VALUE_CANTINSERT:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT;
+        return cb::mcbp::Status::SubdocValueCantinsert;
 
     case Subdoc::Error::DELTA_OVERFLOW:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT;
+        return cb::mcbp::Status::SubdocValueCantinsert;
 
     case Subdoc::Error::VALUE_ETOODEEP:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP;
+        return cb::mcbp::Status::SubdocValueEtoodeep;
 
     default:
         // TODO: handle remaining errors.
         LOG_DEBUG("Unexpected response from subdoc: {} ({:x})",
                   subdoc_res,
                   subdoc_res);
-        return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        return cb::mcbp::Status::Einternal;
     }
 }
 
 /**
  * Perform the wholedoc (mcbp) operation defined by spec
  */
-static protocol_binary_response_status subdoc_operate_wholedoc(
+static cb::mcbp::Status subdoc_operate_wholedoc(
         SubdocCmdContext& context,
         SubdocCmdContext::OperationSpec& spec,
         cb::const_char_buffer& doc) {
@@ -687,22 +687,22 @@ static protocol_binary_response_status subdoc_operate_wholedoc(
     case PROTOCOL_BINARY_CMD_GET:
         if (doc.size() == 0) {
             // Size of zero indicates the document body ("path") doesn't exist.
-            return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT;
+            return cb::mcbp::Status::SubdocPathEnoent;
         }
         spec.result.set_matchloc({doc.buf, doc.len});
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        return cb::mcbp::Status::Success;
 
     case PROTOCOL_BINARY_CMD_SET:
         spec.result.push_newdoc({spec.value.buf, spec.value.len});
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        return cb::mcbp::Status::Success;
 
     case PROTOCOL_BINARY_CMD_DELETE:
         context.in_datatype &= ~BODY_ONLY_DATATYPE_MASK;
         spec.result.push_newdoc({nullptr, 0});
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        return cb::mcbp::Status::Success;
 
     default:
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        return cb::mcbp::Status::Einval;
     }
 }
 
@@ -740,7 +740,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
                 op->status = subdoc_operate_one_path(context, *op, doc);
             } else {
                 // No good; need to have JSON.
-                op->status = PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON;
+                op->status = cb::mcbp::Status::SubdocDocNotJson;
             }
             break;
 
@@ -748,7 +748,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
             op->status = subdoc_operate_wholedoc(context, *op, doc);
         }
 
-        if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (op->status == cb::mcbp::Status::Success) {
             if (context.traits.is_mutator) {
                 modified = true;
 
@@ -793,12 +793,12 @@ static bool operate_single_doc(SubdocCmdContext& context,
             case SubdocPath::SINGLE:
                 // Failure of a (the only) op stops execution and returns an
                 // error to the client.
-                context.cookie.sendResponse(cb::mcbp::Status(op->status));
+                context.cookie.sendResponse(op->status);
                 return false;
 
             case SubdocPath::MULTI:
-                context.overall_status
-                    = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
+                context.overall_status =
+                        cb::mcbp::Status::SubdocMultiPathFailure;
                 if (context.traits.is_mutator) {
                     // For mutations, this stops the operation - however as
                     // we need to respond with a body indicating the index
@@ -1007,14 +1007,12 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
             return false;
 
         case SubdocPath::MULTI:
-            context.overall_status
-                = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
-
+            context.overall_status = cb::mcbp::Status::SubdocMultiPathFailure;
             {
                 // Mark all of them as failed..
                 auto& operations = context.getOperations();
                 for (auto op = operations.begin(); op != operations.end(); op++) {
-                    op->status = engine_error_2_mcbp_protocol_error(access);
+                    op->status = cb::mcbp::to_status(cb::engine_errc(access));
                 }
             }
             return true;
@@ -1077,7 +1075,7 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         return false;
     }
 
-    if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (context.overall_status != cb::mcbp::Status::Success) {
         return true;
     }
 
@@ -1178,7 +1176,7 @@ static bool subdoc_operate(SubdocCmdContext& context) {
     GenericBlockTimer<TimingHistogram, 0> bt(
             &all_buckets[context.connection.getBucketIndex()].subjson_operation_times);
 
-    context.overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    context.overall_status = cb::mcbp::Status::Success;
 
     try {
         if (do_xattr_phase(context) && do_xattr_delete_phase(context) &&
@@ -1226,7 +1224,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     // paths succeeded - otherwise the document is unchanged (and we continue
     // to subdoc_response() to send information back to the client on what
     // succeeded/failed.
-    if (context.overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (context.overall_status != cb::mcbp::Status::Success) {
         return ENGINE_SUCCESS;
     }
 
@@ -1410,11 +1408,11 @@ static size_t encode_multi_mutation_result_spec(uint8_t index,
     // Always encode the index and status.
     *reinterpret_cast<uint8_t*>(cursor) = index;
     cursor += sizeof(uint8_t);
-    *reinterpret_cast<uint16_t*>(cursor) = htons(op.status);
+    *reinterpret_cast<uint16_t*>(cursor) = htons(uint16_t(op.status));
     cursor += sizeof(uint16_t);
 
     // Also encode resultlen if status is success.
-    if (op.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (op.status == cb::mcbp::Status::Success) {
         const auto& mloc = op.result.matchloc();
         *reinterpret_cast<uint32_t*>(cursor) =
                 htonl(gsl::narrow<uint32_t>(mloc.length));
@@ -1463,7 +1461,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
         status_code = cb::mcbp::Status::SubdocSuccessDeleted;
     }
 
-    cookie.sendResponse(cb::mcbp::Status(status_code),
+    cookie.sendResponse(status_code,
                         extras,
                         {},
                         value,
@@ -1488,8 +1486,8 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     char* extras_ptr = nullptr;
 
     // Encode mutation extras into buffer if success & they were requested.
-    if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS &&
-            connection.isSupportsMutationExtras()) {
+    if (context.overall_status == cb::mcbp::Status::Success &&
+        connection.isSupportsMutationExtras()) {
         extlen = sizeof(mutation_descr_t);
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
@@ -1505,7 +1503,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     // size to encode into the header.
     size_t response_buf_needed;
     size_t iov_len = 0;
-    if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (context.overall_status == cb::mcbp::Status::Success) {
         cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Modify);
 
@@ -1539,15 +1537,15 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
     }
 
     auto status_code = context.overall_status;
-    if ((status_code == PROTOCOL_BINARY_RESPONSE_SUCCESS) &&
+    if ((status_code == cb::mcbp::Status::Success) &&
         (context.in_document_state == DocumentState::Deleted)) {
-        status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
+        status_code = cb::mcbp::Status::SubdocSuccessDeleted;
     }
 
     // Allocated required resource - build the header.
     mcbp_add_header(
             cookie,
-            cb::mcbp::Status(status_code),
+            status_code,
             gsl::narrow<uint8_t>(extlen),
             /*keylen*/ 0,
             gsl::narrow<uint32_t>(extlen + response_buf_needed + iov_len),
@@ -1564,7 +1562,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
         for (size_t ii = 0; ii < context.getOperations(phase).size(); ii++, index++) {
             const auto& op = context.getOperations(phase)[ii];
             // Successful - encode all non-zero length results.
-            if (context.overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            if (context.overall_status == cb::mcbp::Status::Success) {
                 const auto mloc = op.result.matchloc();
                 if (op.traits.responseHasValue() && mloc.length > 0) {
                     char* header = response_buf.getCurrent();
@@ -1579,7 +1577,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
                 }
             } else {
                 // Failure - encode first unsuccessful path index and status.
-                if (op.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                if (op.status != cb::mcbp::Status::Success) {
                     char* header = response_buf.getCurrent();
                     size_t header_sz =
                             encode_multi_mutation_result_spec(index, op, header);
@@ -1633,24 +1631,24 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
 
     // Allocated required resource - build the header.
     auto status_code = context.overall_status;
-    if (status_code == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (status_code == cb::mcbp::Status::Success) {
         cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
         if (context.in_document_state == DocumentState::Deleted) {
-            status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED;
+            status_code = cb::mcbp::Status::SubdocSuccessDeleted;
         }
     }
 
     // Lookups to a deleted document which (partially) succeeded need
     // to be mapped MULTI_PATH_FAILURE_DELETED, so the client knows the found
     // document was in Deleted state.
-    if (status_code == PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE &&
-            (context.in_document_state == DocumentState::Deleted) &&
-            !context.traits.is_mutator) {
-        status_code = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED;
+    if (status_code == cb::mcbp::Status::SubdocMultiPathFailure &&
+        (context.in_document_state == DocumentState::Deleted) &&
+        !context.traits.is_mutator) {
+        status_code = cb::mcbp::Status::SubdocMultiPathFailureDeleted;
     }
 
     mcbp_add_header(cookie,
-                    cb::mcbp::Status(status_code),
+                    status_code,
                     /*extlen*/ 0, /*keylen*/
                     0,
                     gsl::narrow<uint32_t>(context.response_val_len),
@@ -1665,7 +1663,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
             // this command has a value (e.g. not for EXISTS).
             char* header = response_buf.getCurrent();
             const size_t header_sz = sizeof(uint16_t) + sizeof(uint32_t);
-            *reinterpret_cast<uint16_t*>(header) = htons(op.status);
+            *reinterpret_cast<uint16_t*>(header) = htons(uint16_t(op.status));
             uint32_t result_len = 0;
             if (op.traits.responseHasValue()) {
                 result_len = htonl(uint32_t(mloc.length));

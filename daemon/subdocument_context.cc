@@ -40,15 +40,16 @@ SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
                                                      {nullptr, 0}) {
 }
 
-SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
-                                               protocol_binary_subdoc_flag flags_,
-                                               cb::const_char_buffer path_,
-                                               cb::const_char_buffer value_)
+SubdocCmdContext::OperationSpec::OperationSpec(
+        SubdocCmdTraits traits_,
+        protocol_binary_subdoc_flag flags_,
+        cb::const_char_buffer path_,
+        cb::const_char_buffer value_)
     : traits(traits_),
       flags(flags_),
       path(path_),
       value(value_),
-      status(PROTOCOL_BINARY_RESPONSE_EINTERNAL) {
+      status(cb::mcbp::Status::Einternal) {
     if (flags & SUBDOC_FLAG_MKDIR_P) {
         traits.subdocCommand = Subdoc::Command(traits.subdocCommand |
                                                Subdoc::Command::FLAG_MKDIR_P);
@@ -329,23 +330,23 @@ cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
     return cb::const_char_buffer(xtoc_vattr.data(), xtoc_vattr.size());
 }
 
-protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
+cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
         uint64_t client_cas) {
     item_info& info = getInputItemInfo();
     auto& c = connection;
 
     if (!bucket_get_item_info(cookie, fetchedItem.get(), &info)) {
         LOG_WARNING("{}: Failed to get item info", c.getId());
-        return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        return cb::mcbp::Status::Einternal;
     }
     if (info.cas == LOCKED_CAS) {
         // Check that item is not locked:
         if (client_cas == 0 || client_cas == LOCKED_CAS) {
             if (c.remapErrorCode(ENGINE_LOCKED_TMPFAIL) ==
                 ENGINE_LOCKED_TMPFAIL) {
-                return PROTOCOL_BINARY_RESPONSE_LOCKED;
+                return cb::mcbp::Status::Locked;
             } else {
-                return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+                return cb::mcbp::Status::Etmpfail;
             }
         }
         // If the user *did* supply the CAS, we will validate it later on
@@ -353,7 +354,7 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
         // run the following branch on locked documents.
     } else if ((client_cas != 0) && client_cas != info.cas) {
         // Check CAS matches (if specified by the user).
-        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+        return cb::mcbp::Status::KeyEexists;
     }
 
     in_flags = info.flags;
@@ -384,10 +385,10 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
                             cb::UserDataView(clean_key));
                 }
 
-                return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+                return cb::mcbp::Status::Einternal;
             }
         } catch (const std::bad_alloc&) {
-            return PROTOCOL_BINARY_RESPONSE_ENOMEM;
+            return cb::mcbp::Status::Enomem;
         }
 
         // Update document to point to the uncompressed version in the buffer.
@@ -395,7 +396,7 @@ protocol_binary_response_status SubdocCmdContext::get_document_for_searching(
         in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return cb::mcbp::Status::Success;
 }
 
 uint32_t SubdocCmdContext::computeValueCRC32C() {

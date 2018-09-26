@@ -201,8 +201,7 @@ public:
     // Overall status of the entire command.
     // For single-path commands this is simply the same as the first (and only)
     // opetation, for multi-path it's an aggregate status.
-    protocol_binary_response_status overall_status =
-            PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    cb::mcbp::Status overall_status = cb::mcbp::Status::Success;
 
     // [Mutations only] Mutation sequence number and vBucket UUID. Only set
     // if the calling connection has the MUTATION_SEQNO feature enabled; to be
@@ -267,7 +266,7 @@ public:
         cb::const_char_buffer value;
 
         // Status code of the operation.
-        protocol_binary_response_status status;
+        cb::mcbp::Status status;
 
         // Result of this operation, to be returned back to the client (for
         // operations which return a result).
@@ -329,8 +328,7 @@ public:
      *         error code which should be returned to the client immediately
      *         (and stop executing of the command)
      */
-    protocol_binary_response_status get_document_for_searching(
-            uint64_t client_cas);
+    cb::mcbp::Status get_document_for_searching(uint64_t client_cas);
 
     /**
      * The result of subdoc_fetch.
