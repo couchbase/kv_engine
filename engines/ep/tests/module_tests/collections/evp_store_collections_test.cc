@@ -50,6 +50,30 @@ public:
     }
 };
 
+TEST_F(CollectionsTest, uid_increment) {
+    CollectionsManifest cm{CollectionEntry::meat};
+    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+    cm.add(CollectionEntry::vegetable);
+    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+}
+
+TEST_F(CollectionsTest, uid_decrement) {
+    CollectionsManifest cm{CollectionEntry::meat};
+    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+    CollectionsManifest newCm{};
+    EXPECT_EQ(store->setCollections({newCm}).code(),
+              cb::engine_errc::out_of_range);
+}
+
+TEST_F(CollectionsTest, uid_equal) {
+    CollectionsManifest cm{CollectionEntry::meat};
+    EXPECT_EQ(store->setCollections({cm}).code(), cb::engine_errc::success);
+
+    // Test we return out_of_range if manifest uid is same
+    EXPECT_EQ(store->setCollections({cm}).code(),
+              cb::engine_errc::out_of_range);
+}
+
 // This test stores a key which matches what collections internally uses, but
 // in a different namespace.
 TEST_F(CollectionsTest, namespace_separation) {

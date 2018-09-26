@@ -47,7 +47,7 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                                                    .getConfiguration()
                                                    .getCollectionsMaxSize());
     } catch (std::exception& e) {
-        EP_LOG_INFO(
+        EP_LOG_WARN(
                 "Collections::Manager::update can't construct manifest "
                 "e.what:{}",
                 e.what());
@@ -55,6 +55,23 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
                 cb::engine_errc::invalid_arguments,
                 "Collections::Manager::update manifest json invalid:" +
                         cb::to_string(manifest));
+    }
+
+    // Check the new manifest UID
+    if (current) {
+        if (newManifest->getUid() <= current->getUid()) {
+            // Bad - newManifest has a lower UID
+            EP_LOG_WARN(
+                    "Collections::Manager::update the new manifest has "
+                    "UID < current manifest UID. Current UID:{}, New "
+                    "Manifest:{}",
+                    current->getUid(),
+                    cb::to_string(manifest));
+            return cb::engine_error(
+                    cb::engine_errc::out_of_range,
+                    "Collections::Manager::update new UID cannot "
+                    "be lower than existing UID");
+        }
     }
 
     auto updated = updateAllVBuckets(bucket, *newManifest);

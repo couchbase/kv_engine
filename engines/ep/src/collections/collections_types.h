@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include "monotonic.h"
+
 #include <memcached/dockey.h>
 #include <platform/sized_buffer.h>
 #include <gsl/gsl>
@@ -44,7 +46,7 @@ const char CouchstoreManifest[] = "_local/collections_manifest";
 // Length of the string excluding the zero terminator (i.e. strlen)
 const size_t CouchstoreManifestLen = sizeof(CouchstoreManifest) - 1;
 
-using ManifestUid = uint64_t;
+using ManifestUid = WeaklyMonotonic<uint64_t>;
 
 // Map used in summary stats
 using Summary = std::unordered_map<CollectionID, uint64_t>;
