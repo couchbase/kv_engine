@@ -14,10 +14,10 @@
  *   limitations under the License.
  */
 
-#include <gtest/gtest.h>
-
 #include "storeddockey.h"
 
+#include <gtest/gtest.h>
+#include <mcbp/protocol/unsigned_leb128.h>
 #include <map>
 
 class StoredDocKeyTest : public ::testing::TestWithParam<DocNamespace> {};

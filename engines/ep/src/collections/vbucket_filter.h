@@ -20,7 +20,6 @@
 #include "collections/collections_types.h"
 #include "item.h"
 
-#include <memcached/dockey.h>
 #include <memcached/engine_common.h>
 #include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>

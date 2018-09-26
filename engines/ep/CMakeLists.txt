@@ -284,7 +284,8 @@ add_sanitizers(mock_dcp)
 ADD_LIBRARY(ep_testsuite_objs OBJECT
             tests/ep_testsuite_common.cc
             tests/ep_test_apis.cc
-            src/ext_meta_parser.cc)
+            src/ext_meta_parser.cc
+            src/storeddockey.cc)
 SET_PROPERTY(TARGET ep_testsuite_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_testsuite_objs)
 
@@ -481,9 +482,15 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 $<TARGET_OBJECTS:mock_dcp>
                 )
     SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_basic engine_utilities JSON_checker dirutils
-                          cbcompress platform ${LIBEVENT_LIBRARIES}
-                          ${SNAPPY_LIBRARIES})
+    TARGET_LINK_LIBRARIES(ep_testsuite_basic
+            cbcompress
+            dirutils
+            engine_utilities
+            JSON_checker
+            mcd_util
+            platform
+            ${LIBEVENT_LIBRARIES}
+            ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_dcp SHARED
@@ -492,16 +499,30 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 $<TARGET_OBJECTS:mock_dcp>
                 )
     SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_dcp engine_utilities cbcompress JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+    TARGET_LINK_LIBRARIES(ep_testsuite_dcp
+            cbcompress
+            dirutils
+            engine_utilities
+            JSON_checker
+            mcd_util
+            platform
+            ${LIBEVENT_LIBRARIES}
+            ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_checkpoint SHARED
                 tests/ep_testsuite_checkpoint.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>)
     SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint engine_utilities JSON_checker
-                          cbcompress dirutils platform ${LIBEVENT_LIBRARIES}
-                          ${SNAPPY_LIBRARIES})
+    TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint
+            cbcompress
+            dirutils
+            engine_utilities
+            JSON_checker
+            mcd_util
+            platform
+            ${LIBEVENT_LIBRARIES}
+            ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
     ADD_LIBRARY(ep_testsuite_xdcr SHARED
@@ -517,7 +538,12 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 $<TARGET_OBJECTS:ep_testsuite_objs>
                 $<TARGET_OBJECTS:mock_dcp>)
     SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_perfsuite engine_utilities cbcompress dirutils platform)
+    TARGET_LINK_LIBRARIES(ep_perfsuite
+            cbcompress
+            dirutils
+            engine_utilities
+            mcd_util
+            platform)
     ADD_DEPENDENCIES(ep_perfsuite engine_testapp)
 
     #ADD_CUSTOM_COMMAND(OUTPUT

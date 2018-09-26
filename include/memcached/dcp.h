@@ -21,6 +21,7 @@
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
 #include <memcached/visibility.h>
+#include <gsl/gsl>
 
 struct DocKey;
 union protocol_binary_request_header;

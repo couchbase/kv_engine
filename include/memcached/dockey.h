@@ -19,9 +19,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iomanip>
-#include <sstream>
 
-#include <mcbp/protocol/unsigned_leb128.h>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 
@@ -78,11 +76,7 @@ public:
     /// Get network byte order of the value
     CollectionIDNetworkOrder to_network() const;
 
-    std::string to_string() const {
-        std::stringstream sstream;
-        sstream << "0x" << std::hex << value;
-        return sstream.str();
-    }
+    std::string to_string() const;
 
 private:
     CollectionIDType value;
@@ -233,13 +227,7 @@ struct DocKey : DocKeyInterface<DocKey> {
         return getCollectionID();
     }
 
-    CollectionID getCollectionID() const {
-        if (encoding == DocKeyEncodesCollectionId::Yes) {
-            return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer)
-                    .first;
-        }
-        return CollectionID::Default;
-    }
+    CollectionID getCollectionID() const;
 
     DocKeyEncodesCollectionId getEncoding() const {
         return encoding;
@@ -251,28 +239,14 @@ struct DocKey : DocKeyInterface<DocKey> {
      * hashed/compared to the same value as the same logical key which doesn't
      * encode the collection-ID.
      */
-    std::pair<CollectionID, cb::const_byte_buffer> getIdAndKey() const {
-        if (encoding == DocKeyEncodesCollectionId::Yes) {
-            return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer);
-        }
-        return {CollectionID::Default, {data(), size()}};
-    }
+    std::pair<CollectionID, cb::const_byte_buffer> getIdAndKey() const;
 
     /**
      * @return a DocKey that views this DocKey but without any collection-ID
      * prefix. If this was already viewing a key without any encoded
      * collection-ID, then this is returned.
      */
-    DocKey makeDocKeyWithoutCollectionID() const {
-        if (getEncoding() == DocKeyEncodesCollectionId::Yes) {
-            auto decoded =
-                    cb::mcbp::skip_unsigned_leb128<CollectionIDType>(buffer);
-            return {decoded.data(),
-                    decoded.size(),
-                    DocKeyEncodesCollectionId::No};
-        }
-        return *this;
-    }
+    DocKey makeDocKeyWithoutCollectionID() const;
 
 private:
     cb::const_byte_buffer buffer;

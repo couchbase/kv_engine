@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#include <memcached/dockey.h>
+struct DocKey;
 
 enum bfilter_status_t {
     BFILTER_DISABLED,

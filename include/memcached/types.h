@@ -1,6 +1,6 @@
 #pragma once
 
-#include <boost/optional/optional_fwd.hpp>
+#include <boost/optional/optional.hpp>
 #include <memcached/dockey.h>
 #include <stdint.h>
 #include <sys/types.h>

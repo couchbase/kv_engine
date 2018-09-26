@@ -16,14 +16,12 @@
 
 #pragma once
 
+#include <memcached/dockey.h>
+#include <gsl/gsl>
 #include <limits>
 #include <memory>
 #include <string>
 #include <type_traits>
-
-#include <memcached/dockey.h>
-
-#include <gsl/gsl>
 
 #include "ep_types.h"
 
@@ -70,13 +68,7 @@ public:
      * @param cid the CollectionID that the key applies to (and will be encoded
      *        into the stored data)
      */
-    StoredDocKey(const std::string& key, CollectionID cid) {
-        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
-        keydata.resize(key.size() + leb128.size());
-        std::copy(key.begin(),
-                  key.end(),
-                  std::copy(leb128.begin(), leb128.end(), keydata.begin()));
-    }
+    StoredDocKey(const std::string& key, CollectionID cid);
 
     const uint8_t* data() const {
         return reinterpret_cast<const uint8_t*>(keydata.data());
@@ -90,11 +82,7 @@ public:
         return getCollectionID();
     }
 
-    CollectionID getCollectionID() const {
-        return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-                       {data(), size()})
-                .first;
-    }
+    CollectionID getCollectionID() const;
 
     DocKeyEncodesCollectionId getEncoding() const {
         return DocKeyEncodesCollectionId::Yes;
@@ -104,13 +92,7 @@ public:
      * @return a DocKey that views this StoredDocKey but without any
      * collection-ID prefix.
      */
-    DocKey makeDocKeyWithoutCollectionID() const {
-        auto decoded = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-                {data(), size()});
-        return {decoded.second.data(),
-                decoded.second.size(),
-                DocKeyEncodesCollectionId::No};
-    }
+    DocKey makeDocKeyWithoutCollectionID() const;
 
     /**
      * Intended for debug use only
@@ -122,17 +104,7 @@ public:
      * For tests only
      * @returns the 'key' part of the StoredDocKey
      */
-    const char* c_str() const {
-        // Locate the leb128 stop byte, and return pointer after that
-        auto key = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
-                {reinterpret_cast<const uint8_t*>(keydata.data()),
-                 keydata.size()});
-
-        if (key.size()) {
-            return &keydata.c_str()[keydata.size() - key.size()];
-        }
-        return nullptr;
-    }
+    const char* c_str() const;
 
     int compare(const StoredDocKey& rhs) const {
         return keydata.compare(rhs.keydata);
@@ -209,26 +181,13 @@ public:
         return getCollectionID();
     }
 
-    CollectionID getCollectionID() const {
-        return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-                       {bytes, length})
-                .first;
-    }
+    CollectionID getCollectionID() const;
 
     DocKeyEncodesCollectionId getEncoding() const {
         return DocKeyEncodesCollectionId::Yes;
     }
 
-    bool operator==(const DocKey& rhs) const {
-        auto rhsIdAndData = rhs.getIdAndKey();
-        auto lhsIdAndData = cb::mcbp::decode_unsigned_leb128<CollectionIDType>(
-                {data(), size()});
-        return lhsIdAndData.first == rhsIdAndData.first &&
-               lhsIdAndData.second.size() == rhsIdAndData.second.size() &&
-               std::equal(lhsIdAndData.second.begin(),
-                          lhsIdAndData.second.end(),
-                          rhsIdAndData.second.begin());
-    }
+    bool operator==(const DocKey& rhs) const;
 
     /**
      * Return how many bytes are (or need to be) allocated to this object
@@ -309,13 +268,7 @@ protected:
      * and requires the caller to state the collection-ID
      * This is used by MutationLogEntryV1/V2 to V3 upgrades
      */
-    SerialisedDocKey(cb::const_byte_buffer key, CollectionID cid) {
-        cb::mcbp::unsigned_leb128<CollectionIDType> leb128(cid);
-        length = gsl::narrow_cast<uint8_t>(key.size() + leb128.size());
-        std::copy(key.begin(),
-                  key.end(),
-                  std::copy(leb128.begin(), leb128.end(), bytes));
-    }
+    SerialisedDocKey(cb::const_byte_buffer key, CollectionID cid);
 
     /**
      * Create a SerialisedDocKey from a byte_buffer that has collection data

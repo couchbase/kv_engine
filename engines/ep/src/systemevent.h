@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include <memcached/dockey.h>
-
 #include "atomic.h"
 #include "collections/flush.h"
 #include "ep_types.h"

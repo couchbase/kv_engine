@@ -15,6 +15,7 @@ add_library(mcd_util STATIC
             breakpad_settings.cc
             breakpad_settings.h
             config_parser.cc
+            dockey.cc
             engine_loader.cc
             engine_loader.h
             json_utilities.cc

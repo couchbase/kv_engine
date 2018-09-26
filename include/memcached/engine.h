@@ -21,7 +21,6 @@
 
 #include "memcached/collections.h"
 #include "memcached/config_parser.h"
-#include "memcached/dockey.h"
 #include "memcached/engine_common.h"
 #include "memcached/types.h"
 #include "memcached/vbucket.h"
@@ -53,6 +52,7 @@
  * engine.
  */
 
+struct DocKey;
 struct ServerAllocatorIface;
 struct ServerCoreIface;
 struct ServerCallbackIface;
