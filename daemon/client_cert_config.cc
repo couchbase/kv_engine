@@ -15,7 +15,9 @@
  *   limitations under the License.
  */
 #include "client_cert_config.h"
+
 #include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 #include <memory>
@@ -202,6 +204,12 @@ std::unique_ptr<cb::x509::ClientCertConfig> ClientCertConfig::create(
 
     throw std::invalid_argument(
             "ClientCertConfig::create: Invalid value for state");
+}
+
+std::unique_ptr<cb::x509::ClientCertConfig> ClientCertConfig::create(
+        const nlohmann::json& config) {
+    unique_cJSON_ptr json(cJSON_Parse(config.dump().data()));
+    return ClientCertConfig::create(*json);
 }
 
 ClientCertConfig::ClientCertConfig(Mode mode_, cJSON* config) : mode(mode_) {

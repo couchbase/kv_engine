@@ -18,68 +18,54 @@
 #include "config.h"
 #include "client_cert_config.h"
 
-#include <cJSON_utils.h>
-#include <gtest/gtest.h>
 #include <memcached/openssl.h>
+
+#include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
 #include <platform/dirutils.h>
 #include <gsl/gsl>
 
-#include <string>
-
 using namespace cb::x509;
 
 TEST(X509, ValidateStateDisabled) {
     // When the state is disabled we don't need any more parameters set
-    unique_cJSON_ptr json(cJSON_Parse(R"({"state": "disable"})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+    auto config = ClientCertConfig::create(R"({"state": "disable"})"_json);
     EXPECT_TRUE(config);
     EXPECT_EQ(Mode::Disabled, config->getMode());
 }
 
 TEST(X509, ValidateStateEnable) {
-    unique_cJSON_ptr json(
-            cJSON_Parse(R"({"state": "enable", "path": "subject.cn"})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+    auto config = ClientCertConfig::create(R"({"state": "enable", "path":
+                                            "subject.cn"})"_json);
     EXPECT_TRUE(config);
     EXPECT_EQ(Mode::Enabled, config->getMode());
 }
 
 TEST(X509, ValidateStateMandatory) {
-    unique_cJSON_ptr json(
-            cJSON_Parse(R"({"state": "mandatory", "path": "subject.cn"})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+    auto config = ClientCertConfig::create(R"({"state": "mandatory", "path":
+"subject.cn"})"_json);
     EXPECT_TRUE(config);
     EXPECT_EQ(Mode::Mandatory, config->getMode());
 }
 
 TEST(X509, ValidateInvalidStateValue) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({"state": 5})"));
-    EXPECT_TRUE(json);
-    EXPECT_THROW(ClientCertConfig::create(*json), std::invalid_argument);
+    EXPECT_THROW(ClientCertConfig::create(R"({"state": 5})"_json),
+                 std::invalid_argument);
 }
 
 TEST(X509, ValidateMissingState) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({})"));
-    EXPECT_TRUE(json);
-    EXPECT_THROW(ClientCertConfig::create(*json), std::invalid_argument);
+    EXPECT_THROW(ClientCertConfig::create(R"({})"_json), std::invalid_argument);
 }
 
 TEST(X509, ParseValidSingleEntryFormat) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "path": "san.dnsname",
     "prefix": "www.",
      "delimiter": ".,;"
-})"));
-
-    EXPECT_TRUE(json);
-
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
     EXPECT_EQ(1, config->getNumMappings());
     const auto& entry = config->getMapping(0);
@@ -89,7 +75,7 @@ TEST(X509, ParseValidSingleEntryFormat) {
 }
 
 TEST(X509, ParseValidMultipleEntryFormat) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -103,11 +89,7 @@ TEST(X509, ParseValidMultipleEntryFormat) {
             "delimiter": ""
         }
     ]
-})"));
-
-    EXPECT_TRUE(json);
-
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
     EXPECT_EQ(2, config->getNumMappings());
 
@@ -189,7 +171,7 @@ cb::openssl::unique_x509_ptr SslParseCertTest::cert;
  */
 
 TEST_F(SslParseCertTest, TestCN_EntireField) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -198,9 +180,7 @@ TEST_F(SslParseCertTest, TestCN_EntireField) {
             "delimiter": ""
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
     auto statusPair = config->lookupUser(cert.get());
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
@@ -208,7 +188,7 @@ TEST_F(SslParseCertTest, TestCN_EntireField) {
 }
 
 TEST_F(SslParseCertTest, TestCN_WithPrefix) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -217,9 +197,7 @@ TEST_F(SslParseCertTest, TestCN_WithPrefix) {
             "delimiter": ""
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -228,7 +206,7 @@ TEST_F(SslParseCertTest, TestCN_WithPrefix) {
 }
 
 TEST_F(SslParseCertTest, TestCN_WithPrefixAndDelimiter) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -237,9 +215,7 @@ TEST_F(SslParseCertTest, TestCN_WithPrefixAndDelimiter) {
             "delimiter": "n"
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -248,7 +224,7 @@ TEST_F(SslParseCertTest, TestCN_WithPrefixAndDelimiter) {
 }
 
 TEST_F(SslParseCertTest, TestCN_PrefixAndMultipleDelimiters) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -257,9 +233,7 @@ TEST_F(SslParseCertTest, TestCN_PrefixAndMultipleDelimiters) {
             "delimiter": "np"
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -268,7 +242,7 @@ TEST_F(SslParseCertTest, TestCN_PrefixAndMultipleDelimiters) {
 }
 
 TEST_F(SslParseCertTest, TestCN_PrefixAndUnknownDelimiters) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -277,9 +251,7 @@ TEST_F(SslParseCertTest, TestCN_PrefixAndUnknownDelimiters) {
             "delimiter": "x"
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -288,7 +260,7 @@ TEST_F(SslParseCertTest, TestCN_PrefixAndUnknownDelimiters) {
 }
 
 TEST_F(SslParseCertTest, TestCN_PrefixMissing) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -297,9 +269,7 @@ TEST_F(SslParseCertTest, TestCN_PrefixMissing) {
             "delimiter": "n"
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -317,7 +287,7 @@ TEST_F(SslParseCertTest, TestCN_PrefixMissing) {
  */
 
 TEST_F(SslParseCertTest, TestSAN_URI_EntireField) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -326,9 +296,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_EntireField) {
             "delimiter": ""
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -338,7 +306,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_EntireField) {
 }
 
 TEST_F(SslParseCertTest, TestSAN_URI_UrnWithoutDelimiter) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -347,9 +315,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_UrnWithoutDelimiter) {
             "delimiter": "_"
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -358,7 +324,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_UrnWithoutDelimiter) {
 }
 
 TEST_F(SslParseCertTest, TestSAN_URI_UrnWithDelimiter) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -367,9 +333,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_UrnWithDelimiter) {
             "delimiter": ":"
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -379,7 +343,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_UrnWithDelimiter) {
 }
 
 TEST_F(SslParseCertTest, TestSAN_URI_MissingPrefix) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -388,9 +352,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_MissingPrefix) {
             "delimiter": ":-_"
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -398,7 +360,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_MissingPrefix) {
 }
 
 TEST_F(SslParseCertTest, TestSAN_URI_Email) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -407,9 +369,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_Email) {
             "delimiter": "@"
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -419,7 +379,7 @@ TEST_F(SslParseCertTest, TestSAN_URI_Email) {
 }
 
 TEST_F(SslParseCertTest, TestSAN_DNS_EntireField) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
     "state": "enable",
     "prefixes": [
         {
@@ -428,9 +388,7 @@ TEST_F(SslParseCertTest, TestSAN_DNS_EntireField) {
             "delimiter": ""
         }
     ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());
@@ -440,7 +398,7 @@ TEST_F(SslParseCertTest, TestSAN_DNS_EntireField) {
 }
 
 TEST_F(SslParseCertTest, TestMatchForMultipleRules) {
-    unique_cJSON_ptr json(cJSON_Parse(R"({
+    auto config = ClientCertConfig::create(R"({
   "state": "enable",
   "prefixes": [
     {
@@ -504,9 +462,7 @@ TEST_F(SslParseCertTest, TestMatchForMultipleRules) {
       "delimiter": ""
     }
   ]
-})"));
-    EXPECT_TRUE(json);
-    auto config = ClientCertConfig::create(*json);
+})"_json);
     EXPECT_TRUE(config);
 
     auto statusPair = config->lookupUser(cert.get());

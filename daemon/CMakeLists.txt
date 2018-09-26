@@ -248,6 +248,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
             gtest
             gtest_main
             platform
+            mcd_util
             ${OPENSSL_LIBRARIES})
     add_test(NAME client_cert_config_test
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

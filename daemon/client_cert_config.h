@@ -20,6 +20,7 @@
 
 #include <stdexcept>
 
+#include <nlohmann/json_fwd.hpp>
 #include <openssl/ossl_typ.h>
 #include <memory>
 #include <mutex>
@@ -85,6 +86,20 @@ public:
      *         to the specification.
      */
     static std::unique_ptr<ClientCertConfig> create(const cJSON& config);
+
+    /**
+     * Factory method to create an instance of the ClientCertificateConfig
+     * by parsing the provided JSON.
+     *
+     * @param config the JSON providing the configuration
+     * @return the newly created configuration
+     * @throws nlohmann::json::exception for json parsing/missing attribute
+     *         errors
+     * @throws std::invalid_argument if the provided JSON isn't according
+     *         to the specification.
+     */
+    static std::unique_ptr<ClientCertConfig> create(
+            const nlohmann::json& config);
 
     /**
      * Try to look up a username by using the defined mappings
