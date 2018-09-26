@@ -210,13 +210,41 @@ CONFIGURE_FILE (${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake.in
 
 # Extra (non-default) target to compile all memcached headers (for
 # build profiling / checking for correct #includes).
+#
+# Note this is all kv_engine headers /apart/ from ep_engine (which
+# requires additional include directories and hence is handled in it's
+# own CMakeLists.txt)
+#
+# TODO: When we upgrade to CMake 3.6+, remove the explicit whitelist
+# and instead GLOB all *.h, then use list(FILTER) to exclude
+# engines/ep - see previous version of this code).
 file(GLOB_RECURSE memcached_headers
   RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
   CONFIGURE_DEPENDS
-  *.h)
-# Excluded ep_engine - it requires additional include directories and
-# hence is handled in it's own CMakeLists.txt
-list(FILTER memcached_headers EXCLUDE REGEX "engines\/ep\/")
+  auditd/*.h
+  cbcrypto/*.h
+  cbsasl/*.h
+  daemon/*.h
+  engines/default/*.h
+  engines/crash_engine/*.h
+  engines/default_engine.h
+  engines/default_engine/*.h
+  engines/crash_engine/*.h
+  engines/ewouldblock_engine/*.h
+  engines/nobucket/*.h
+  engines/utilities/*.h
+  include/*.h
+  logger/*.h
+  programs/*.h
+  protocol/*.h
+  rbac/*.h
+  tests/*.h
+  testsuite/*.h
+  time/*.h
+  tracing/*.h
+  utilities/*.h
+  xattr/*.h
+  )
 
 # List of headers to ignore / not attempt to compile
 list(REMOVE_ITEM memcached_headers
