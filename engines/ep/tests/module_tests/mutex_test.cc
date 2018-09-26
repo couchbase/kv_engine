@@ -16,14 +16,12 @@
  */
 
 #include "config.h"
-
+#include "common.h"
+#include "lock_timer.h"
+#include "locks.h"
+#include <gtest/gtest.h>
 #include <iostream>
 #include <thread>
-
-#include "common.h"
-#include "locks.h"
-
-#include <gtest/gtest.h>
 
 TEST(LockTimerTest, LockHolder) {
     std::mutex m;

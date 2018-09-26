@@ -17,14 +17,14 @@
 
 #include "defragmenter.h"
 
-#include <memcached/server_allocator_iface.h>
-#include <phosphor/phosphor.h>
-
 #include "defragmenter_visitor.h"
 #include "ep_engine.h"
 #include "executorpool.h"
 #include "kv_bucket.h"
 #include "stored-value.h"
+#include <memcached/server_allocator_iface.h>
+#include <phosphor/phosphor.h>
+#include <cinttypes>
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
                                    EPStats& stats_)

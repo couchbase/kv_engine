@@ -19,12 +19,11 @@
 #define SRC_ATOMIC_H_ 1
 
 #include "config.h"
-
-#include <atomic>
-#include <memory>
-
 #include "locks.h"
 #include "utility.h"
+#include <atomic>
+#include <iostream>
+#include <memory>
 
 template <typename T>
 void atomic_setIfBigger(std::atomic<T> &obj, const T &newValue) {
