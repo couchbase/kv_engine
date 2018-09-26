@@ -299,7 +299,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         BinprotResponse resp;
         conn.recvResponse(resp);
         ASSERT_TRUE(resp.isSuccess())
-                        << memcached_status_2_text(resp.getStatus());
+                << to_string(cb::mcbp::Status(resp.getStatus()));
     }
 
     // Perform the normal operation
@@ -317,7 +317,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         BinprotSubdocResponse resp;
         conn.recvResponse(resp);
         ASSERT_TRUE(resp.isSuccess())
-                        << memcached_status_2_text(resp.getStatus());
+                << to_string(cb::mcbp::Status(resp.getStatus()));
         EXPECT_EQ("\"Trond Norbye\"", resp.getValue());
     }
 }

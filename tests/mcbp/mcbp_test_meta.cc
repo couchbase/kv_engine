@@ -20,7 +20,6 @@
 #include <daemon/connection.h>
 #include <event2/event.h>
 #include <memcached/protocol_binary.h>
-#include <utilities/protocol2text.h>
 
 namespace mcbp {
 namespace test {
@@ -44,7 +43,7 @@ std::string to_string(const Opcodes& opcode) {
     // See https://youtrack.jetbrains.com/issue/CPP-6039
     return std::to_string(static_cast<int>(opcode));
 #else
-    return memcached_opcode_2_text(uint8_t(opcode));
+    return ::to_string(cb::mcbp::ClientOpcode(opcode));
 #endif
 }
 

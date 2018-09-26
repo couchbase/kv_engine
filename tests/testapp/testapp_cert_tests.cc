@@ -35,7 +35,6 @@
 #include "memcached/openssl.h"
 #include "testapp.h"
 #include "utilities.h"
-#include "utilities/protocol2text.h"
 
 /**
  * This test suite tests the various settings for authenticating over SSL

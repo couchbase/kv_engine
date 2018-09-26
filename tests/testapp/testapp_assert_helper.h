@@ -21,7 +21,6 @@
 #include <sstream>
 #include <type_traits>
 
-#include <utilities/protocol2text.h>
 #include <include/memcached/util.h>
 
 /**
@@ -164,14 +163,15 @@ template<>
 inline std::string AssertHelper::formatArg(const protocol_binary_response_status& arg) const {
     // We want a hex representation
     std::stringstream ss;
-    ss << memcached_status_2_text(arg) << " (0x" << std::hex << arg << ")";
+    ss << to_string(cb::mcbp::Status(arg)) << " (0x" << std::hex << arg << ")";
     return ss.str();
 }
 
 template<>
 inline std::string AssertHelper::formatArg(const protocol_binary_command& cmd) const {
     std::stringstream ss;
-    ss << memcached_opcode_2_text(cmd) << "(0x" << std::hex << cmd << ")";
+    ss << to_string(cb::mcbp::ClientOpcode(cmd)) << "(0x" << std::hex << cmd
+       << ")";
     return ss.str();
 }
 

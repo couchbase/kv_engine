@@ -371,7 +371,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS} cJSON
                           dirutils engine_utilities gtest gmock hdr_histogram_static
-                          JSON_checker memcached_logger mcd_util mcd_tracing platform
+                          JSON_checker memcached_logger mcbp mcd_util mcd_tracing platform
                           phosphor xattr cbcompress ${MALLOC_LIBRARIES})
     add_sanitizers(ep-engine_ep_unit_tests)
 

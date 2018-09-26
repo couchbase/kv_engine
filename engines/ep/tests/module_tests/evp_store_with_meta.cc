@@ -22,7 +22,6 @@
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
-#include "utilities/protocol2text.h"
 
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
@@ -1381,7 +1380,8 @@ struct PrintToStringCombinedName {
     std::string
     operator()(const ::testing::TestParamInfo<
                ::testing::tuple<bool, protocol_binary_command>>& info) const {
-        std::string rv = memcached_opcode_2_text(::testing::get<1>(info.param));
+        std::string rv = to_string(
+                cb::mcbp::ClientOpcode(::testing::get<1>(info.param)));
         if (::testing::get<0>(info.param)) {
             rv += "_with_value";
         }
@@ -1393,7 +1393,8 @@ struct PrintToStringCombinedNameSnappyOnOff {
     std::string
     operator()(const ::testing::TestParamInfo<
                ::testing::tuple<bool, protocol_binary_command>>& info) const {
-        std::string rv = memcached_opcode_2_text(::testing::get<1>(info.param));
+        std::string rv = to_string(
+                cb::mcbp::ClientOpcode(::testing::get<1>(info.param)));
         if (::testing::get<0>(info.param)) {
             rv += "_snappy";
         }
@@ -1405,7 +1406,7 @@ struct PrintOpcode {
     std::string operator()(
             const ::testing::TestParamInfo<protocol_binary_command>& info)
             const {
-        return memcached_opcode_2_text(info.param);
+        return to_string(cb::mcbp::ClientOpcode(info.param));
     }
 };
 

@@ -50,7 +50,6 @@
 #include "daemon/topkeys.h"
 #include "memcached/openssl.h"
 #include "utilities.h"
-#include "utilities/protocol2text.h"
 
 using Testapp::MAX_CONNECTIONS;
 using Testapp::BACKLOG;

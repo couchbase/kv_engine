@@ -19,7 +19,6 @@
 #include <mcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <utilities/logtags.h>
-#include <utilities/protocol2text.h>
 
 #include <cctype>
 #include <cstring>
@@ -449,8 +448,6 @@ protected:
         out << std::endl << std::endl;
         out.flags(std::ios::hex);
         out << std::setfill('0');
-        auto status = (protocol_binary_response_status)ntohs(
-                response.response.status);
 
         out << "    Field        (offset) (value)" << std::endl;
         out << "    Magic        (0)    : 0x"
@@ -473,7 +470,7 @@ protected:
             << (uint32_t(response.bytes[5]) & 0xff) << std::endl;
         out << "    Status       (6,7)  : 0x" << std::setw(4)
             << (ntohs(response.response.status) & 0xffff) << " ("
-            << memcached_status_2_text(status) << ")" << std::endl;
+            << to_string(response.response.getStatus()) << ")" << std::endl;
         out << "    Total body   (8-11) : 0x" << std::setw(8)
             << (uint64_t(response.response.getBodylen()) & 0xffff) << std::endl;
         out << "    Opaque       (12-15): 0x" << std::setw(8)

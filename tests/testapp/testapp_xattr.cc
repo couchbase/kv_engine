@@ -770,7 +770,7 @@ TEST_P(XattrTest, MB_22691) {
                   name, "integer", "2",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus())
-                << memcached_status_2_text(resp.getStatus());
+            << to_string(cb::mcbp::Status(resp.getStatus()));
 }
 
 /**

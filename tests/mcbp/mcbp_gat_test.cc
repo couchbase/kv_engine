@@ -17,7 +17,6 @@
 
 #include "config.h"
 #include "mcbp_test.h"
-#include "utilities/protocol2text.h"
 
 #include <daemon/connection.h>
 #include <event2/event.h>

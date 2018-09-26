@@ -23,8 +23,6 @@
 #include <map>
 #include <stdexcept>
 
-#include "utilities/protocol2text.h"
-
 const std::map<cb::mcbp::Magic, std::string> blueprint = {
         {{cb::mcbp::Magic::ClientRequest, "ClientRequest"},
          {cb::mcbp::Magic::ClientResponse, "ClientResponse"},
@@ -34,7 +32,7 @@ const std::map<cb::mcbp::Magic, std::string> blueprint = {
 
 TEST(Magic, to_string) {
     for (int ii = 0; ii < 0x100; ++ii) {
-        cb::mcbp::Magic magic = cb::mcbp::Magic(ii);
+        auto magic = cb::mcbp::Magic(ii);
         auto entry = blueprint.find(magic);
         if (entry == blueprint.end()) {
             EXPECT_THROW(to_string(magic), std::invalid_argument);
@@ -46,7 +44,7 @@ TEST(Magic, to_string) {
 
 TEST(Magic, is_legal) {
     for (int ii = 0; ii < 0x100; ++ii) {
-        cb::mcbp::Magic magic = cb::mcbp::Magic(ii);
+        auto magic = cb::mcbp::Magic(ii);
         // If it isn't in the map it shouldn't be legal
         EXPECT_NE(blueprint.find(magic) == blueprint.end(),
                   cb::mcbp::is_legal(magic));

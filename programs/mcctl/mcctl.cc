@@ -30,7 +30,6 @@
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <utilities/protocol2text.h>
 #include <utilities/terminate_handler.h>
 
 #include <iostream>
@@ -116,8 +115,7 @@ static int set_verbosity(MemcachedConnection& connection,
         return EXIT_SUCCESS;
     } else {
         std::cerr << "Command failed: "
-                  << memcached_status_2_text(resp.getStatus())
-                  << std::endl;
+                  << to_string(cb::mcbp::Status(resp.getStatus())) << std::endl;
         return EXIT_FAILURE;
     }
 }

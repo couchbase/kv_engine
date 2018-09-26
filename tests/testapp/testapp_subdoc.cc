@@ -29,8 +29,6 @@
 #include <platform/cb_malloc.h>
 #include <platform/socket.h>
 
-#include "../utilities/protocol2text.h"
-
 /*
  * testapp testcases for sub-document API - single path.
  */

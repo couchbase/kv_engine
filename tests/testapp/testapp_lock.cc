@@ -263,7 +263,7 @@ TEST_P(LockTest, MB_22778) {
     BinprotResponse response;
     conn.recvResponse(response);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus())
-                << memcached_status_2_text(response.getStatus());
+            << to_string(cb::mcbp::Status(response.getStatus()));
 
     std::array<uint8_t, 27> lock = {{0x80, // magic
                                          0x94, // opcode
@@ -282,7 +282,7 @@ TEST_P(LockTest, MB_22778) {
     conn.sendFrame(command);
     conn.recvResponse(response);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus())
-                << memcached_status_2_text(response.getStatus());
+            << to_string(cb::mcbp::Status(response.getStatus()));
 
     conn.remove("NET", Vbid(0), response.getCas());
 }

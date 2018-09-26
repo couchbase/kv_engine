@@ -58,7 +58,6 @@
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
 #include <platform/string.h>
-#include <utilities/protocol2text.h>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 
@@ -787,7 +786,7 @@ void execute_client_request_packet(Cookie& cookie,
         LOG_WARNING("{} {}: no access to command {}",
                     c->getId(),
                     c->getDescription(),
-                    memcached_opcode_2_text(opcode));
+                    to_string(cb::mcbp::ClientOpcode(opcode)));
         audit_command_access_failed(cookie);
 
         if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {

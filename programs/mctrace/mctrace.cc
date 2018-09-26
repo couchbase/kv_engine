@@ -34,7 +34,6 @@
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
-#include <utilities/protocol2text.h>
 
 #include <chrono>
 #include <cstdio>

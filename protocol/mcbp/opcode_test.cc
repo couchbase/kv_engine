@@ -23,8 +23,6 @@
 #include <map>
 #include <stdexcept>
 
-#include "utilities/protocol2text.h"
-
 using namespace cb::mcbp;
 
 const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
@@ -197,26 +195,6 @@ TEST(ClientOpcode_to_string, InvalidValues) {
         if (client_blueprint.find(opcode) == client_blueprint.end()) {
             EXPECT_THROW(to_string(opcode), std::invalid_argument);
         }
-    }
-}
-
-TEST(ClientOpcode_to_string, CompatWithOldCode) {
-    // verify that we return the same strings as earlier
-    for (auto& entry : client_blueprint) {
-        if (entry.first == ClientOpcode::AdjustTimeofday ||
-            entry.first == ClientOpcode::EwouldblockCtl ||
-            entry.first == ClientOpcode::ChangeVbFilter ||
-            entry.first == ClientOpcode::DeregisterTapClient ||
-            entry.first == ClientOpcode::ResetReplicationChain ||
-            entry.first == ClientOpcode::UpdateUserPermissions ||
-            entry.first == ClientOpcode::AuthProvider ||
-            entry.first == ClientOpcode::GetActiveExternalUsers) {
-            // Entries we didn't have in the old code..
-            continue;
-        }
-        auto* val = memcached_opcode_2_text(uint16_t(entry.first));
-        ASSERT_NE(nullptr, val) << to_string(entry.first);
-        EXPECT_EQ(entry.second, val);
     }
 }
 

@@ -32,7 +32,6 @@
 #include "timings.h"
 #include "topkeys.h"
 #include "utilities/logtags.h"
-#include "utilities/protocol2text.h"
 #include "xattr/key_validator.h"
 #include "xattr/utils.h"
 
@@ -85,11 +84,15 @@ static void subdoc_print_command(Connection& c,
     char clean_key[KEY_MAX_LENGTH + 32];
     char clean_path[SUBDOC_PATH_MAX_LENGTH];
     char clean_value[80]; // only print the first few characters of the value.
-    if ((key_to_printable_buffer(clean_key, sizeof(clean_key), c.getId(), true,
-                                 memcached_opcode_2_text(cmd), key, keylen)
-                    != -1)
-                    && (buf_to_printable_buffer(clean_path, sizeof(clean_path),
-                                                path, pathlen) != -1)) {
+    if ((key_to_printable_buffer(clean_key,
+                                 sizeof(clean_key),
+                                 c.getId(),
+                                 true,
+                                 to_string(cb::mcbp::ClientOpcode(cmd)).c_str(),
+                                 key,
+                                 keylen) != -1) &&
+        (buf_to_printable_buffer(
+                 clean_path, sizeof(clean_path), path, pathlen) != -1)) {
         // print key, path & value if there is a value.
         if ((vallen > 0)
                         && (buf_to_printable_buffer(clean_value,
@@ -483,7 +486,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 
     // Hit maximum attempts - this theoretically could happen but shouldn't
     // in reality.
-    const auto mcbp_cmd = protocol_binary_command(header->request.opcode);
+    const auto mcbp_cmd = cb::mcbp::ClientOpcode(header->request.opcode);
 
     auto& c = cookie.getConnection();
     LOG_WARNING(
@@ -491,7 +494,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
             "attempting to perform op {} for client {} - returning TMPFAIL",
             c.getId(),
             MAXIMUM_ATTEMPTS,
-            memcached_opcode_2_text(mcbp_cmd),
+            to_string(mcbp_cmd),
             c.getDescription());
     cookie.sendResponse(cb::mcbp::Status::Etmpfail);
 }

@@ -23,7 +23,6 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <tracing/trace_helpers.h>
-#include <utilities/protocol2text.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,
                                          ADD_RESPONSE response) {

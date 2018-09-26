@@ -157,10 +157,8 @@ TEST_P(RemoveTest, RemoveWithXattr) {
             FAIL() << "The user xattr should be gone!";
         }
     } catch (const ConnectionError& exp) {
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
-                  exp.getReason())
-                    << memcached_status_2_text(
-                        protocol_binary_response_status(exp.getReason()));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, exp.getReason())
+                << to_string(cb::mcbp::Status(exp.getReason()));
     }
 }
 

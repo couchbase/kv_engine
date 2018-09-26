@@ -258,14 +258,13 @@ private:
 };
 
 std::string opcode2string(uint8_t opcode) {
-    char opcode_buffer[8];
-    const char *cmd = memcached_opcode_2_text(opcode);
-    if (cmd == NULL) {
+    try {
+        return to_string(cb::mcbp::ClientOpcode(opcode));
+    } catch (const std::exception&) {
+        char opcode_buffer[8];
         snprintf(opcode_buffer, sizeof(opcode_buffer), "0x%02x", opcode);
-        cmd = opcode_buffer;
+        return std::string{opcode_buffer};
     }
-
-    return std::string(cmd);
 }
 
 static void request_cmd_timings(MemcachedConnection& connection,
@@ -302,7 +301,7 @@ static void request_cmd_timings(MemcachedConnection& connection,
             break;
         default:
             std::cerr << "Command failed: "
-                      << memcached_status_2_text(resp.getStatus())
+                      << to_string(cb::mcbp::Status(resp.getStatus()))
                       << std::endl;
         }
         exit(EXIT_FAILURE);
@@ -551,7 +550,7 @@ int main(int argc, char** argv) {
             }
         } else {
             for (; optind < argc; ++optind) {
-                const uint8_t opcode = memcached_text_2_opcode(argv[optind]);
+                const uint8_t opcode = uint8_t(to_opcode(argv[optind]));
                 if (opcode != PROTOCOL_BINARY_CMD_INVALID) {
                     request_cmd_timings(
                             connection, bucket, opcode, verbose, false, json);

@@ -22,7 +22,6 @@
 #include "runtime.h"
 #include "settings.h"
 #include "stats.h"
-#include "utilities/protocol2text.h"
 
 #include <cJSON.h>
 #include <logger/logger.h>

@@ -17,10 +17,8 @@
 #include "config.h"
 
 #include "mcbp_test.h"
-#include "utilities/protocol2text.h"
 #include "protocol/connection/client_mcbp_commands.h"
 
-#include <include/memcached/protocol_binary.h>
 #include <memcached/protocol_binary.h>
 #include <algorithm>
 #include <gsl/gsl>
@@ -56,7 +54,7 @@ std::string to_string(const SubdocOpcodes& opcode) {
     // See https://youtrack.jetbrains.com/issue/CPP-6039
     return std::to_string(static_cast<int>(opcode));
 #else
-    return memcached_opcode_2_text(uint8_t(opcode));
+    return ::to_string(cb::mcbp::ClientOpcode(opcode));
 #endif
 }
 
@@ -204,19 +202,19 @@ TEST_P(SubdocXattrSingleTest, PathTest) {
     path = "superduperlongpath";
     flags = SUBDOC_FLAG_NONE;
     EXPECT_EQ(cb::mcbp::Status::Success, validate())
-            << memcached_opcode_2_text(uint8_t(std::get<0>(GetParam())));
+            << ::to_string(cb::mcbp::ClientOpcode(std::get<0>(GetParam())));
 
     // XATTR keys must be < 16 characters (we've got standalone tests
     // to validate all of the checks for the xattr keys, this is just
     // to make sure that our validator calls it ;-)
     flags = SUBDOC_FLAG_XATTR_PATH;
     EXPECT_EQ(cb::mcbp::Status::XattrEinval, validate())
-            << memcached_opcode_2_text(uint8_t(std::get<0>(GetParam())));
+            << ::to_string(cb::mcbp::ClientOpcode(std::get<0>(GetParam())));
 
     // Truncate it to a shorter one, and this time it should pass
     path = "_sync.cas";
     EXPECT_EQ(cb::mcbp::Status::Success, validate())
-            << memcached_opcode_2_text(uint8_t(std::get<0>(GetParam())));
+            << ::to_string(cb::mcbp::ClientOpcode(std::get<0>(GetParam())));
 }
 
 TEST_P(SubdocXattrSingleTest, ValidateFlags) {

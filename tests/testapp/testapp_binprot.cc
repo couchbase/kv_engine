@@ -18,7 +18,6 @@
 #include "testapp.h"
 #include "testapp_assert_helper.h"
 
-#include <utilities/protocol2text.h>
 #include <include/memcached/util.h>
 
 /*

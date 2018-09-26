@@ -1,7 +1,5 @@
 #include "config.h"
 
-#include "utilities/protocol2text.h"
-
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
@@ -23,11 +21,13 @@ static long calc_conn_size(void) {
    return ret;
 }
 
-static unsigned int count_used_opcodes(void) {
+static unsigned int count_used_opcodes() {
     unsigned int used_opcodes = 0;
     for (uint8_t opcode = 0; opcode < 255; opcode++) {
-        if (memcached_opcode_2_text(opcode) != NULL) {
+        try {
+            to_string(cb::mcbp::Status(opcode));
             used_opcodes++;
+        } catch (const std::exception&) {
         }
     }
     return used_opcodes;
@@ -40,9 +40,10 @@ static void display_used_opcodes(void) {
         if (opcode % 16 == 0) {
             printf("\n%02x ", opcode & ~0xf);
         }
-        if (memcached_opcode_2_text(opcode) != NULL) {
+        try {
+            to_string(cb::mcbp::Status(opcode));
             putchar('X');
-        } else {
+        } catch (const std::exception&) {
             putchar('.');
         }
     }

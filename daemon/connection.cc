@@ -39,7 +39,6 @@
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
-#include <utilities/protocol2text.h>
 #include <gsl/gsl>
 
 #include <cctype>
@@ -265,8 +264,9 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
                    cb::rbac::PrivilegeAccess::Stale &&
            retries < max_retries) {
         ++retries;
-        const auto opcode = cookie.getHeader().getOpcode();
-        const std::string command(memcached_opcode_2_text(opcode));
+        const auto opcode = cookie.getRequest(Cookie::PacketContent::Header)
+                                    .getClientOpcode();
+        const std::string command(to_string(opcode));
 
         // The privilege context we had could have been a dummy entry
         // (created when the client connected, and used until the
@@ -324,8 +324,9 @@ cb::rbac::PrivilegeAccess Connection::checkPrivilege(
     }
 
     if (ret == cb::rbac::PrivilegeAccess::Fail) {
-        const auto opcode = cookie.getHeader().getOpcode();
-        const std::string command(memcached_opcode_2_text(opcode));
+        const auto opcode = cookie.getRequest(Cookie::PacketContent::Header)
+                                    .getClientOpcode();
+        const std::string command(to_string(opcode));
         const std::string privilege_string = cb::rbac::to_string(privilege);
         const std::string context = privilegeContext.to_string();
 

@@ -23,7 +23,6 @@
 #include <gsl/gsl>
 #include <iostream>
 #include <vector>
-#include "utilities/protocol2text.h"
 
 #include "utilities.h"
 
@@ -122,8 +121,8 @@ static std::string sasl_listmech(BIO* bio) {
 
     std::stringstream ss;
 
-    auto status = (protocol_binary_response_status)r->response.status;
-    ss << "SASL LIST MECHS failed: " << memcached_status_2_text(status);
+    auto status = cb::mcbp::Status(r->response.status);
+    ss << "SASL LIST MECHS failed: " << to_string(status);
     throw std::runtime_error(ss.str());
 }
 
@@ -188,9 +187,8 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
     }
 
     if (rsp->response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        auto status = (protocol_binary_response_status)rsp->response.status;
-        std::cerr << "Authentication failure: "
-                  << memcached_status_2_text(status)
+        auto status = cb::mcbp::Status(rsp->response.status);
+        std::cerr << "Authentication failure: " << to_string(status)
                   << std::endl;
         return -1;
     }

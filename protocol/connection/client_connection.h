@@ -30,7 +30,6 @@
 #include <platform/dynamic.h>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
-#include <utilities/protocol2text.h>
 
 #include <chrono>
 #include <cstdlib>

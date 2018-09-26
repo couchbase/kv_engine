@@ -52,7 +52,6 @@
 #include "topkeys.h"
 #include "tracing.h"
 #include "utilities/engine_loader.h"
-#include "utilities/protocol2text.h"
 #include "utilities/terminate_handler.h"
 
 #include <JSON_checker.h>
@@ -1889,7 +1888,7 @@ void DestroyBucketThread::destroy() {
         LOG_INFO("{} Delete bucket [{}]: {}",
                  connection_id,
                  name,
-                 memcached_status_2_text(code));
+                 to_string(cb::mcbp::Status(code)));
         result = ret;
         return;
     }

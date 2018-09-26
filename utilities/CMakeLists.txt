@@ -21,8 +21,6 @@ add_library(mcd_util STATIC
             json_utilities.h
             logtags.cc
             logtags.h
-            protocol2text.cc
-            protocol2text.h
             string_utilities.cc
             string_utilities.h
             terminate_handler.cc

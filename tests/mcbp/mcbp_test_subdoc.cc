@@ -17,7 +17,6 @@
 #include "config.h"
 
 #include "mcbp_test.h"
-#include "utilities/protocol2text.h"
 #include "protocol/connection/client_mcbp_commands.h"
 
 #include <memcached/protocol_binary.h>
@@ -284,7 +283,7 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationOpcodes) {
         }
         request.at(0) = {cmd, SUBDOC_FLAG_NONE, "[0]"};
         EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request))
-                << "Failed for cmd:" << memcached_opcode_2_text(ii);
+                << "Failed for cmd:" << to_string(cb::mcbp::ClientOpcode(ii));
     }
 }
 
@@ -908,7 +907,7 @@ TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
 
         request.at(0) = {cmd, protocol_binary_subdoc_flag(0), "[0]"};
         EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request))
-                << "Failed for cmd:" << memcached_opcode_2_text(ii);
+                << "Failed for cmd:" << to_string(cb::mcbp::ClientOpcode(ii));
     }
 }
 

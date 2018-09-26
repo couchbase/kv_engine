@@ -1407,8 +1407,7 @@ static std::string formatMcbpExceptionMsg(const std::string& prefix,
         errormessage.append("', ");
     }
 
-    auto err = static_cast<protocol_binary_response_status>(reason);
-    errormessage.append(memcached_status_2_text(err));
+    errormessage.append(to_string(cb::mcbp::Status(reason)));
     errormessage.append(" (");
     errormessage.append(std::to_string(reason));
     errormessage.append(")");
