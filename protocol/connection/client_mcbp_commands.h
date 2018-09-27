@@ -17,6 +17,8 @@
 #pragma once
 #include "client_connection.h"
 #include <boost/optional/optional_fwd.hpp>
+#include <mcbp/protocol/header.h>
+#include <mcbp/protocol/response.h>
 #include <platform/sized_buffer.h>
 #include <unordered_set>
 /**
@@ -272,7 +274,7 @@ public:
 
     /** Get the status code for the response */
     cb::mcbp::Status getStatus() const {
-        return getHeader().response.getStatus();
+        return getResponse().getStatus();
     }
 
     size_t getExtlen() const {
@@ -316,13 +318,13 @@ public:
      * Use #getKeyLen() to determine this.
      */
     cb::const_char_buffer getKey() const {
-        return cb::const_char_buffer(reinterpret_cast<const char*>(begin()) +
-                                             getResponse().getKeyOffset(),
-                                     getResponse().getKeylen());
+        const auto buf = getResponse().getKey();
+        return {reinterpret_cast<const char*>(buf.data()), buf.size()};
     }
 
     std::string getKeyString() const {
-        return std::string(getKey().data(), getKey().size());
+        const auto buf = getKey();
+        return {buf.data(), buf.size()};
     }
 
     /**
@@ -330,30 +332,16 @@ public:
      * any payload content _after_ the key and extras (if present
      */
     cb::const_byte_buffer getData() const {
-        return cb::const_byte_buffer(begin() + getResponse().getValueOffset(),
-                                     getResponse().getValuelen());
+        return getResponse().getValue();
     }
 
     std::string getDataString() const {
-        return std::string(reinterpret_cast<const char*>(getData().data()),
-                           getData().size());
-    }
-
-    /**
-     * Get the entire packet, beginning at the header
-     * Note that all fields in the header is in the host local byte order
-     */
-    const std::vector<uint8_t>& getRawPacket() const {
-        return payload;
-    }
-
-    const protocol_binary_response_header& getHeader() const {
-        return *reinterpret_cast<const protocol_binary_response_header*>(
-                payload.data());
+        const auto buf = getData();
+        return {reinterpret_cast<const char*>(buf.data()), buf.size()};
     }
 
     const cb::mcbp::Response& getResponse() const {
-        return getHeader().response;
+        return getHeader().getResponse();
     }
 
     /**
@@ -377,6 +365,10 @@ public:
     virtual ~BinprotResponse() = default;
 
 protected:
+    const cb::mcbp::Header& getHeader() const {
+        return *reinterpret_cast<const cb::mcbp::Header*>(payload.data());
+    }
+
     const uint8_t* begin() const {
         return payload.data();
     }
