@@ -502,11 +502,8 @@ public:
      * Receive the next frame on the connection
      *
      * @param frame the frame object to populate with the next frame
-     * @param make_length_fields_host_local set to true if bodylen and keylen
-     *                                      should be moved to host-local
-     *                                      byte order
      */
-    void recvFrame(Frame& frame, bool make_length_fields_host_local = true);
+    void recvFrame(Frame& frame);
 
     void sendCommand(const BinprotCommand& command);
 

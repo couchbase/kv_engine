@@ -638,8 +638,7 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone() {
     return std::unique_ptr<MemcachedConnection>{result};
 }
 
-void MemcachedConnection::recvFrame(Frame& frame,
-                                    bool make_length_fields_host_local) {
+void MemcachedConnection::recvFrame(Frame& frame) {
     frame.reset();
     // A memcached packet starts with a 24 byte fixed header
     MemcachedConnection::read(frame, 24);
@@ -664,18 +663,6 @@ void MemcachedConnection::recvFrame(Frame& frame,
     MemcachedConnection::read(frame, bodylen);
     if (packet_dump) {
         cb::mcbp::dump(frame.payload.data(), std::cerr);
-    }
-
-    if (make_length_fields_host_local) {
-        // fixup the length bits in the header to be in host local order:
-        if (magic == cb::mcbp::Magic::ClientRequest ||
-            magic == cb::mcbp::Magic::ServerRequest) {
-            // The underlying buffer may hage been reallocated as part of read
-            req = reinterpret_cast<protocol_binary_request_header*>(
-                    frame.payload.data());
-            req->request.keylen = ntohs(req->request.keylen);
-            req->request.bodylen = bodylen;
-        }
     }
 }
 

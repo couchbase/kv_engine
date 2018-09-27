@@ -84,7 +84,7 @@ protected:
 
     void stepAuthProvider() {
         Frame frame;
-        provider->recvFrame(frame, false);
+        provider->recvFrame(frame);
 
         // Perform the authentication
 

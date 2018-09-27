@@ -187,7 +187,7 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
 
     // Setting a new config should cause the server to push a new config
     // to me!
-    second->recvFrame(frame, false);
+    second->recvFrame(frame);
     EXPECT_EQ(cb::mcbp::Magic::ServerRequest, frame.getMagic());
 
     auto* request = frame.getRequest();
