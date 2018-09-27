@@ -17,48 +17,5 @@
 #pragma once
 #include <memcached/openssl.h>
 
-#ifdef __cplusplus
-#include <cstdint>
-#include <vector>
-
-/**
- * Send a command to the server connected via the bio
- *
- * This is the preferred way to send commands to the memcached server
- * from our command line tools as this method creates a packet dump to
- * stderr if the environment variable COUCHBASE_PACKET_DUMP is set to
- * a non-null value.
- *
- * @param bio the connection used to send the data
- * @param buffer the buffer containing the _entire_ MCBP encoded packet.
- */
-void sendCommand(BIO* bio, const std::vector<uint8_t>& buffer);
-
-/**
- * read a single MCBP-encoded packet from the server
- *
- * This is the preferred way to read responses from the memcached server
- * from our command line tools as this method creates a packet dump to
- * stderr if the environment variable COUCHBASE_PACKET_DUMP is set to
- * a non-null value.
- *
- * @param bio the connection used to read the data from
- * @param buffer the buffer containing the _entire_ MCBP encoded packet.
- *               (the buffer will be resized to fit the entire response)
- */
-void readResponse(BIO* bio, std::vector<uint8_t>& buffer);
-
-extern "C" {
-#endif
-
-    void ensure_send(BIO *bio, const void *data, int nbytes);
-    void ensure_recv(BIO *bio, void *data, int nbytes);
-    int do_sasl_auth(BIO *bio, const char *user, const char *pass);
-    void initialize_openssl(void);
-
-    // Frees all resources allocated by initialize_openssl().
-    void shutdown_openssl(void);
-
-#ifdef __cplusplus
-}
-#endif
+void initialize_openssl();
+void shutdown_openssl();
