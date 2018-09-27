@@ -28,7 +28,7 @@
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
-#include <platform/string.h>
+#include <platform/string_hex.h>
 
 using Status = cb::mcbp::Status;
 

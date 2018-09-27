@@ -27,7 +27,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <platform/processclock.h>
-#include <platform/string.h>
+#include <platform/string_hex.h>
 #include <platform/sysinfo.h>
 #include <algorithm>
 #include <chrono>

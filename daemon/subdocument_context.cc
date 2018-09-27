@@ -24,7 +24,7 @@
 
 #include <logger/logger.h>
 #include <platform/crc32c.h>
-#include <platform/string.h>
+#include <platform/string_hex.h>
 #include <utilities/logtags.h>
 #include <utilities/string_utilities.h>
 #include <xattr/blob.h>

@@ -28,7 +28,7 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/checked_snprintf.h>
-#include <platform/string.h>
+#include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <platform/uuid.h>
 #include <utilities/logtags.h>

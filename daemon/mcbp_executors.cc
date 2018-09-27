@@ -57,7 +57,7 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
-#include <platform/string.h>
+#include <platform/string_hex.h>
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 

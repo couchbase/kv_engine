@@ -17,7 +17,7 @@
 #include "testapp_xattr.h"
 
 #include <platform/crc32c.h>
-#include <platform/string.h>
+#include <platform/string_hex.h>
 
 #include <array>
 

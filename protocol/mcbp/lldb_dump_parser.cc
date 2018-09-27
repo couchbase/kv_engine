@@ -18,7 +18,7 @@
 #include <mcbp/mcbp.h>
 
 #include <platform/sized_buffer.h>
-#include <platform/string.h>
+#include <platform/string_hex.h>
 #include <algorithm>
 #include <vector>
 
