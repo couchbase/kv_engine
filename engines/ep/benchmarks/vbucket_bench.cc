@@ -476,7 +476,8 @@ static void FlushArguments(benchmark::internal::Benchmark* b) {
 BENCHMARK_REGISTER_F(MemTrackingVBucketBench, FlushVBucket)
         ->Apply(FlushArguments);
 
+// Note: In this benchmark we need to set the number of iterations manually.
+//     Details in comments in the test body.
 BENCHMARK_REGISTER_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
         ->Args({100})
-        ->Iterations(5)
-        ->Repetitions(10);
+        ->Iterations(50);
