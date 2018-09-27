@@ -195,14 +195,14 @@ void SubdocCmdContext::generate_macro_padding(cb::const_char_buffer payload,
         }
 
         for (auto& op : getOperations(Phase::XATTR)) {
-            if (cb::strnstr(op.value.buf, candidate.c_str(), op.value.len)) {
+            if (op.value.find(candidate, 0) != cb::const_char_buffer::npos) {
                 unique = false;
                 break;
             }
         }
 
         if (unique) {
-            if (cb::strnstr(payload.buf, candidate.c_str(), payload.len)) {
+            if (payload.find(candidate, 0) != cb::const_char_buffer::npos) {
                 unique = false;
             } else {
                 paddedMacros.push_back(
