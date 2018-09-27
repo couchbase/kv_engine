@@ -41,7 +41,7 @@ TEST_P(RegressionTest, MB_26196) {
     BinprotResponse response;
     conn.executeCommand(cmd, response);
     EXPECT_FALSE(response.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NO_BUCKET, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::NoBucket, response.getStatus());
 
     // Disable xerror
     conn.setXerrorSupport(false);
@@ -90,7 +90,7 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
     // _ADD_ the doc if it isn't there
     conn.executeCommand(cmd, resp);
     EXPECT_FALSE(resp.isSuccess()) << "Add should fail when it isn't there";
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, resp.getStatus());
 }
 
 /**
@@ -165,8 +165,8 @@ TEST_P(RegressionTest, MB_31070) {
 
     auto& results = multiResp.getResults();
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
     const auto exptime = std::stol(results[0].value);
     EXPECT_LT(0, exptime);
 
@@ -176,8 +176,8 @@ TEST_P(RegressionTest, MB_31070) {
 
     conn.executeCommand(cmd, multiResp);
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
     EXPECT_EQ(exptime, std::stol(results[0].value));
 }
 

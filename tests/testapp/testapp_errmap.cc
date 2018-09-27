@@ -63,7 +63,7 @@ TEST_P(ErrmapTest, GetErrmapOk) {
 
     getConnection().executeCommand(cmd, resp);
 
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     ASSERT_GT(resp.getBodylen(), 0);
     EXPECT_TRUE(validateJson(reinterpret_cast<const char *>(resp.getPayload()),
                              resp.getBodylen(), version));
@@ -77,7 +77,7 @@ TEST_P(ErrmapTest, GetErrmapAnyVersion) {
     cmd.setVersion(version);
     getConnection().executeCommand(cmd, resp);
 
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     ASSERT_GT(resp.getBodylen(), 0);
 
     std::string raw_json(reinterpret_cast<const char *>(resp.getPayload()),
@@ -94,5 +94,5 @@ TEST_P(ErrmapTest, GetErrmapBadversion) {
     BinprotResponse resp;
     cmd.setVersion(0);
     getConnection().executeCommand(cmd, resp);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 }

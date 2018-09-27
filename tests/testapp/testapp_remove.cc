@@ -63,7 +63,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
 
     // It should not be accessible over subdoc.
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_GET, name, "verbosity");
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus())
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus())
             << "MB-22553: doc with xattr is still accessible";
 }
 
@@ -146,7 +146,7 @@ TEST_P(RemoveTest, RemoveWithXattr) {
 
     // The system xattr should have been preserved
     const auto status = getXattr("_rbac.attribute", true);
-    if (status.getStatus() == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (status.getStatus() == cb::mcbp::Status::Success) {
         EXPECT_EQ("\"read-only\"", status.getValue());
     }
 
@@ -157,7 +157,7 @@ TEST_P(RemoveTest, RemoveWithXattr) {
             FAIL() << "The user xattr should be gone!";
         }
     } catch (const ConnectionError& exp) {
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, exp.getReason())
+        EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, exp.getReason())
                 << to_string(cb::mcbp::Status(exp.getReason()));
     }
 }

@@ -43,20 +43,20 @@ protected:
         auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                            name, path, "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                       name, path + "[0]", "\"Bart\"",
                       SUBDOC_FLAG_XATTR_PATH);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                       name, path + "[1]", "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Bart\",\"Jones\",\"Smith\"]", resp.getValue());
     }
 
@@ -64,20 +64,20 @@ protected:
         auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                            name, path, "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
         // Add a second one so we know it was added last ;-)
         resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                       name, path, "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
     }
 
@@ -85,20 +85,20 @@ protected:
         auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                            name, path, "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
         // Add a second one so we know it was added first ;-)
         resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
                       name, path, "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Jones\",\"Smith\"]", resp.getValue());
     }
 
@@ -106,28 +106,28 @@ protected:
         auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                            name, path, "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
         resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                       name, path, "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
 
         resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
                       name, path, "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
 
     }
@@ -136,19 +136,19 @@ protected:
         auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                            name, path, "1",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("1", resp.getValue());
 
         resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                       name, path, "1",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("2", resp.getValue());
 
     }
@@ -200,7 +200,7 @@ protected:
 
         BinprotSubdocMultiMutationResponse multiResp;
         conn.recvResponse(multiResp);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
         // Check the body was set correctly
         auto doc = getConnection().get(name, Vbid(0));
@@ -230,9 +230,8 @@ protected:
 
         BinprotSubdocMultiLookupResponse multiResp;
         conn.recvResponse(multiResp);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                  multiResp.getResults()[0].status);
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
         EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
         EXPECT_EQ(value, multiResp.getResults()[1].value);
 
@@ -240,9 +239,8 @@ protected:
         conn.sendCommand(cmd);
         multiResp.clear();
         conn.recvResponse(multiResp);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                  multiResp.getResults()[0].status);
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
         EXPECT_EQ(R"(["_sync","userXattr"])", multiResp.getResults()[0].value);
     }
 

@@ -48,7 +48,7 @@ TEST_P(StatsTest, TestGetMeta) {
     // Send 10 GET_META, this should not increase the `cmd_get` and `get_hits` stats
     for (int i = 0; i < 10; i++) {
         auto meta = conn.getMeta(doc.info.id, Vbid(0), GetMetaVersion::V1);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+        EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     }
     auto stats = conn.stats("");
     cJSON* cmd_get = cJSON_GetObjectItem(stats.get(), "cmd_get");
@@ -61,7 +61,7 @@ TEST_P(StatsTest, TestGetMeta) {
     // stat
     for (int i = 0; i < 10; i++) {
         auto meta = conn.getMeta("no_key", Vbid(0), GetMetaVersion::V1);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, meta.first);
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, meta.first);
     }
     stats = conn.stats("");
     cmd_get = cJSON_GetObjectItem(stats.get(), "cmd_get");
@@ -524,12 +524,12 @@ TEST_P(StatsTest, TestSubdocExecute) {
 }
 
 TEST_P(StatsTest, TestResponseStats) {
-    int successCount = getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    int successCount = getResponseCount(cb::mcbp::Status::Success);
     // 2 successes expected:
     // 1. The previous stats call sending the JSON
     // 2. The previous stats call sending a null packet to mark end of stats
     EXPECT_EQ(successCount + statResps(),
-              getResponseCount(PROTOCOL_BINARY_RESPONSE_SUCCESS));
+              getResponseCount(cb::mcbp::Status::Success));
 }
 
 TEST_P(StatsTest, TracingStatsIsPrivileged) {

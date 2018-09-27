@@ -150,60 +150,60 @@ class BinprotCommand;
 
 class ConnectionError : public std::runtime_error {
 public:
-    ConnectionError(const std::string& prefix, uint16_t reason_);
+    ConnectionError(const std::string& prefix, cb::mcbp::Status reason_);
 
     ConnectionError(const std::string& prefix, const BinprotResponse& response);
 
-    uint16_t getReason() const {
+    cb::mcbp::Status getReason() const {
         return reason;
     }
 
     bool isInvalidArguments() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_EINVAL;
+        return reason == cb::mcbp::Status::Einval;
     }
 
     bool isAlreadyExists() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+        return reason == cb::mcbp::Status::KeyEexists;
     }
 
     bool isNotFound() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+        return reason == cb::mcbp::Status::KeyEnoent;
     }
 
     bool isNotMyVbucket() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+        return reason == cb::mcbp::Status::NotMyVbucket;
     }
 
     bool isNotStored() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
+        return reason == cb::mcbp::Status::NotStored;
     }
 
     bool isAccessDenied() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
+        return reason == cb::mcbp::Status::Eaccess;
     }
 
     bool isDeltaBadval() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL;
+        return reason == cb::mcbp::Status::DeltaBadval;
     }
 
     bool isAuthError() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_AUTH_ERROR;
+        return reason == cb::mcbp::Status::AuthError;
     }
 
     bool isNotSupported() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+        return reason == cb::mcbp::Status::NotSupported;
     }
 
     bool isLocked() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_LOCKED;
+        return reason == cb::mcbp::Status::Locked;
     }
 
     bool isTemporaryFailure() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+        return reason == cb::mcbp::Status::Etmpfail;
     }
 
     bool isTooBig() const {
-        return reason == PROTOCOL_BINARY_RESPONSE_E2BIG;
+        return reason == cb::mcbp::Status::E2big;
     }
 
     std::string getErrorReference() const;
@@ -213,7 +213,7 @@ public:
     std::string getPayload() const;
 
 private:
-    const uint16_t reason;
+    const cb::mcbp::Status reason;
     const std::string payload;
 };
 
@@ -680,7 +680,7 @@ public:
                                 uint32_t metaOption,
                                 std::vector<uint8_t> metaExtras = {});
 
-    std::pair<protocol_binary_response_status, GetMetaResponse> getMeta(
+    std::pair<cb::mcbp::Status, GetMetaResponse> getMeta(
             const std::string& key, Vbid vbucket, GetMetaVersion version);
 
     /**

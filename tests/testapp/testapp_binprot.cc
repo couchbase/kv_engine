@@ -205,12 +205,12 @@ size_t mcbp_storage_command(char* buf,
 /* Validate the specified response header against the expected cmd and status.
  */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
-                                   uint8_t cmd, uint16_t status) {
-
+                                   uint8_t cmd,
+                                   cb::mcbp::Status status) {
     auto* header = &response->message.header;
-    if (status == PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND) {
-        if (header->response.status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED) {
-            header->response.status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+    if (status == cb::mcbp::Status::UnknownCommand) {
+        if (header->response.getStatus() == cb::mcbp::Status::NotSupported) {
+            header->response.setStatus(cb::mcbp::Status::UnknownCommand);
         }
     }
     bool mutation_seqno_enabled =
@@ -236,21 +236,20 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
     }
 }
 
-::testing::AssertionResult mcbp_validate_response_header(const protocol_binary_response_header* header,
-                                                         protocol_binary_command cmd, uint16_t status,
-                                                         bool mutation_seqno_enabled) {
+::testing::AssertionResult mcbp_validate_response_header(
+        const protocol_binary_response_header* header,
+        protocol_binary_command cmd,
+        cb::mcbp::Status status,
+        bool mutation_seqno_enabled) {
     AssertHelper result;
 
     TESTAPP_EXPECT_EQ(result, PROTOCOL_BINARY_RES, header->response.magic);
     TESTAPP_EXPECT_EQ(result, static_cast<protocol_binary_command>(cmd),
                       header->response.opcode);
-    TESTAPP_EXPECT_EQ(result,
-                      static_cast<protocol_binary_response_status>(status),
-                      header->response.status);
+    TESTAPP_EXPECT_EQ(result, status, header->response.getStatus());
     TESTAPP_EXPECT_EQ(result, 0xdeadbeef, header->response.opaque);
 
-    //TODO: Shouldn't this be header->response.status?
-    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (status == cb::mcbp::Status::Success) {
         switch (cmd) {
         case PROTOCOL_BINARY_CMD_ADDQ:
         case PROTOCOL_BINARY_CMD_APPENDQ:
@@ -457,10 +456,10 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             /* Undefined command code */
             break;
         }
-    } else if (status == PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE) {
+    } else if (status == cb::mcbp::Status::SubdocMultiPathFailure) {
         // Subdoc: Even though the some paths may have failed; actual document
         // was successfully accessed so CAS may be valid.
-    } else if (status == PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED) {
+    } else if (status == cb::mcbp::Status::SubdocSuccessDeleted) {
         TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
     } else {
         TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);

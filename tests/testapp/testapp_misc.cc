@@ -42,7 +42,7 @@ TEST_P(MiscTest, GetFailoverLog) {
     EXPECT_EQ(header.keylen, 0);
     EXPECT_EQ(header.extlen, 0);
     EXPECT_EQ(header.datatype, 0);
-    EXPECT_EQ(header.status, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    EXPECT_EQ(header.getStatus(), cb::mcbp::Status::Success);
     // Note: We expect 1 entry in the failover log, which is the entry created
     // at VBucket creation (8 bytes for UUID + 8 bytes for SEQNO)
     EXPECT_EQ(ntohl(header.bodylen), 0x10);
@@ -57,7 +57,7 @@ TEST_P(MiscTest, GetFailoverLog) {
     EXPECT_EQ(header.keylen, 0);
     EXPECT_EQ(header.extlen, 0);
     EXPECT_EQ(header.datatype, 0);
-    EXPECT_EQ(header.status, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+    EXPECT_EQ(header.getStatus(), cb::mcbp::Status::NotMyVbucket);
     EXPECT_EQ(ntohl(header.bodylen), 0);
     EXPECT_EQ(header.cas, 0);
 }
@@ -133,7 +133,7 @@ TEST_P(MiscTest, UpdateUserPermissionsInvalidPayload) {
     auto resp = conn.execute(
             BinprotUpdateUserPermissionsCommand{"johndoe", "bogus"});
     EXPECT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
 
 /**
@@ -152,5 +152,5 @@ TEST_P(MiscTest, GetRbacDatabase) {
     response = conn.execute(BinprotGenericCommand{
             PROTOCOL_BINARY_CMD_IOCTL_GET, "rbac.db.dump?domain=external"});
     ASSERT_FALSE(response.isSuccess());
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, response.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
 }

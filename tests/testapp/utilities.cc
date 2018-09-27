@@ -113,7 +113,7 @@ static std::string sasl_listmech(BIO* bio) {
     std::vector<uint8_t> response;
     readResponse(bio, response);
     auto* r = reinterpret_cast<protocol_binary_response_header*>(response.data());
-    if (r->response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (r->response.getStatus() == cb::mcbp::Status::Success) {
         auto value = r->response.getValue();
         return std::string{reinterpret_cast<const char*>(value.data()),
                            value.size()};
@@ -158,8 +158,7 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
 
     auto* rsp = reinterpret_cast<protocol_binary_response_header*>(response.data());
 
-    while (rsp->response.status ==
-           PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
+    while (rsp->response.getStatus() == cb::mcbp::Status::AuthContinue) {
         size_t datalen = rsp->response.getBodylen() -
                          rsp->response.getKeylen() - rsp->response.extlen;
 
@@ -186,8 +185,8 @@ int do_sasl_auth(BIO* bio, const char* user, const char* pass) {
         rsp = reinterpret_cast<protocol_binary_response_header*>(response.data());
     }
 
-    if (rsp->response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        auto status = cb::mcbp::Status(rsp->response.status);
+    if (rsp->response.getStatus() != cb::mcbp::Status::Success) {
+        const auto status = rsp->response.getStatus();
         std::cerr << "Authentication failure: " << to_string(status)
                   << std::endl;
         return -1;

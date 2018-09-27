@@ -47,7 +47,7 @@ public:
 
         BinprotSubdocResponse resp;
         conn.recvResponse(resp);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         unique_cJSON_ptr vattr(cJSON_Parse(resp.getValue().c_str()));
 
         EXPECT_STREQ(testCasStr,

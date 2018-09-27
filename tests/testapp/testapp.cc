@@ -234,7 +234,7 @@ std::string get_sasl_mechs(void) {
     safe_recv_packet(&buffer, sizeof(buffer));
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_SASL_LIST_MECHS,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+                                  cb::mcbp::Status::Success);
 
     std::string ret;
     ret.assign(buffer.bytes + sizeof(buffer.response.bytes),
@@ -242,7 +242,8 @@ std::string get_sasl_mechs(void) {
     return ret;
 }
 
-uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
+cb::mcbp::Status TestappTest::sasl_auth(const char* username,
+                                        const char* password) {
     cb::sasl::client::ClientContext client(
             [username]() -> std::string { return username; },
             [password]() -> std::string { return password; },
@@ -252,7 +253,7 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
     EXPECT_EQ(cb::sasl::Error::OK, client_data.first);
     if (::testing::Test::HasFailure()) {
         // Can't continue if we didn't suceed in starting SASL auth.
-        return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        return cb::mcbp::Status::Einternal;
     }
 
     union {
@@ -274,7 +275,8 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
 
     bool stepped = false;
 
-    while (buffer.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
+    while (buffer.response.message.header.response.getStatus() ==
+           cb::mcbp::Status::AuthContinue) {
         stepped = true;
         size_t datalen = buffer.response.message.header.response.getBodylen() -
                          buffer.response.message.header.response.getKeylen() -
@@ -303,16 +305,18 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
     }
 
     if (stepped) {
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_SASL_STEP,
-                                      buffer.response.message.header.response.status);
+        mcbp_validate_response_header(
+                &buffer.response,
+                PROTOCOL_BINARY_CMD_SASL_STEP,
+                buffer.response.message.header.response.getStatus());
     } else {
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_SASL_AUTH,
-                                      buffer.response.message.header.response.status);
+        mcbp_validate_response_header(
+                &buffer.response,
+                PROTOCOL_BINARY_CMD_SASL_AUTH,
+                buffer.response.message.header.response.getStatus());
     }
 
-    return buffer.response.message.header.response.status;
+    return buffer.response.message.header.response.getStatus();
 }
 
 bool TestappTest::isJSON(cb::const_char_buffer value) {
@@ -851,8 +855,7 @@ void set_datatype_feature(bool enable) {
     set_feature(cb::mcbp::Feature::SNAPPY, enable);
 }
 
-std::pair<protocol_binary_response_status, std::string>
-fetch_value(const std::string& key) {
+std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -864,13 +867,12 @@ fetch_value(const std::string& key) {
     safe_send(send.bytes, len, false);
     EXPECT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
 
-    protocol_binary_response_status status =
-            protocol_binary_response_status(receive.response.message.header.response.status);
-    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    const auto status = receive.response.message.header.response.getStatus();
+    if (status == cb::mcbp::Status::Success) {
         const char* ptr = receive.bytes + sizeof(receive.response) + 4;
         const size_t vallen =
                 receive.response.message.header.response.getBodylen() - 4;
-        return std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+        return std::make_pair(cb::mcbp::Status::Success,
                               std::string(ptr, vallen));
     } else {
         return std::make_pair(status, "");
@@ -891,8 +893,8 @@ void validate_object(const char *key, const std::string& expected_value) {
     safe_recv_packet(receive);
 
     auto* response = reinterpret_cast<protocol_binary_response_no_extras*>(receive.data());
-    mcbp_validate_response_header(response, PROTOCOL_BINARY_CMD_GET,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    mcbp_validate_response_header(
+            response, PROTOCOL_BINARY_CMD_GET, cb::mcbp::Status::Success);
     char* ptr = receive.data() + sizeof(*response) + 4;
     if (response->message.header.response.getStatus() ==
         cb::mcbp::Status::Success) {
@@ -916,8 +918,8 @@ void validate_flags(const char *key, uint32_t expected_flags) {
     safe_recv_packet(receive.data(), receive.size());
 
     auto* response = reinterpret_cast<protocol_binary_response_no_extras*>(receive.data());
-    mcbp_validate_response_header(response, PROTOCOL_BINARY_CMD_GET,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    mcbp_validate_response_header(
+            response, PROTOCOL_BINARY_CMD_GET, cb::mcbp::Status::Success);
     const auto* get_response =
             reinterpret_cast<protocol_binary_response_get*>(receive.data());
     const uint32_t actual_flags = ntohl(get_response->message.body.flags);
@@ -935,13 +937,15 @@ void delete_object(const char* key, bool ignore_missing) {
                                   NULL, 0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    if (ignore_missing && receive.response.message.header.response.status ==
-            PROTOCOL_BINARY_RESPONSE_KEY_ENOENT) {
+    if (ignore_missing &&
+        receive.response.message.header.response.getStatus() ==
+                cb::mcbp::Status::KeyEnoent) {
         /* Ignore. Just using this for cleanup then */
         return;
     }
-    mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_DELETE,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    mcbp_validate_response_header(&receive.response,
+                                  PROTOCOL_BINARY_CMD_DELETE,
+                                  cb::mcbp::Status::Success);
 }
 
 void TestappTest::start_memcached_server(cJSON* config) {
@@ -986,8 +990,9 @@ void store_object_w_datatype(const std::string& key,
     } receive;
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    mcbp_validate_response_header(&receive.response,
+                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::Status::Success);
 }
 
 void store_document(const std::string& key,
@@ -1246,7 +1251,6 @@ bool safe_recv_packetT(T& info) {
         }
     }
 
-    header->response.status = ntohs(header->response.status);
     auto bodylen = header->response.getBodylen();
 
     // Set response to NULL, because the underlying buffer may change.
@@ -1324,7 +1328,7 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+                                  cb::mcbp::Status::Success);
 }
 
 void TestappTest::ewouldblock_engine_disable() {
@@ -1343,11 +1347,10 @@ void TestappTest::reconfigure() {
     conn.reconnect();
 }
 
-void TestappTest::runCreateXattr(
-        const std::string& path,
-        const std::string& value,
-        bool macro,
-        protocol_binary_response_status expectedStatus) {
+void TestappTest::runCreateXattr(const std::string& path,
+                                 const std::string& value,
+                                 bool macro,
+                                 cb::mcbp::Status expectedStatus) {
     auto& connection = getConnection();
 
     BinprotSubdocCommand cmd;
@@ -1372,13 +1375,13 @@ void TestappTest::runCreateXattr(
 void TestappTest::createXattr(const std::string& path,
                               const std::string& value,
                               bool macro) {
-    runCreateXattr(path, value, macro, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    runCreateXattr(path, value, macro, cb::mcbp::Status::Success);
 }
 
 BinprotSubdocResponse TestappTest::runGetXattr(
         const std::string& path,
         bool deleted,
-        protocol_binary_response_status expectedStatus) {
+        cb::mcbp::Status expectedStatus) {
     auto& connection = getConnection();
 
     BinprotSubdocCommand cmd;
@@ -1396,8 +1399,8 @@ BinprotSubdocResponse TestappTest::runGetXattr(
     BinprotSubdocResponse resp;
     connection.recvResponse(resp);
     auto status = resp.getStatus();
-    if (deleted && status == PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED) {
-        status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    if (deleted && status == cb::mcbp::Status::SubdocSuccessDeleted) {
+        status = cb::mcbp::Status::Success;
     }
 
     if (status != expectedStatus) {
@@ -1408,17 +1411,17 @@ BinprotSubdocResponse TestappTest::runGetXattr(
 
 BinprotSubdocResponse TestappTest::getXattr(const std::string& path,
                                             bool deleted) {
-    return runGetXattr(path, deleted, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    return runGetXattr(path, deleted, cb::mcbp::Status::Success);
 }
 
-int TestappTest::getResponseCount(protocol_binary_response_status statusCode) {
+int TestappTest::getResponseCount(cb::mcbp::Status statusCode) {
     unique_cJSON_ptr stats(cJSON_Parse(
             cJSON_GetObjectItem(
                     getConnection().stats("responses detailed").get(),
                     "responses")
                     ->valuestring));
     std::stringstream stream;
-    stream << std::hex << statusCode;
+    stream << std::hex << uint16_t(statusCode);
     const auto *obj = cJSON_GetObjectItem(stats.get(), stream.str().c_str());
     if (obj == nullptr) {
         return 0;
@@ -1591,7 +1594,7 @@ stats_response_t request_stats() {
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
                                       PROTOCOL_BINARY_CMD_STAT,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+                                      cb::mcbp::Status::Success);
 
         const char* key_ptr(buffer.bytes + sizeof(buffer.response) +
                             buffer.response.message.header.response.extlen);
@@ -1654,5 +1657,5 @@ void adjust_memcached_clock(int64_t clock_shift, TimeType timeType) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+                                  cb::mcbp::Status::Success);
 }

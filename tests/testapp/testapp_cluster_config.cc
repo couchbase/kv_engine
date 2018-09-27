@@ -69,14 +69,14 @@ void ClusterConfigTest::test_MB_17506(bool dedupe) {
     conn.executeCommand(command, response);
 
     ASSERT_FALSE(response.isSuccess());
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, response.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::NotMyVbucket, response.getStatus());
     EXPECT_EQ(clustermap, response.getDataString());
 
     // Execute it one more time..
     conn.executeCommand(command, response);
 
     ASSERT_FALSE(response.isSuccess());
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, response.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::NotMyVbucket, response.getStatus());
 
     if (dedupe) {
         EXPECT_TRUE(response.getDataString().empty())
@@ -104,14 +104,14 @@ TEST_P(ClusterConfigTest, SetClusterConfigWithIncorrectSessionToken) {
     EXPECT_FALSE(response.isSuccess()) << "Should not be allowed to set "
                                           "cluster config with invalid session "
                                           "token";
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, response.getStatus());
 }
 
 TEST_P(ClusterConfigTest, SetClusterConfigWithCorrectTokenInvalidPayload) {
     auto response = setClusterConfig(token, R"({"foo":"bar"})");
     EXPECT_FALSE(response.isSuccess())
             << "Should not be allowed to set cluster config invalid payload";
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Einval, response.getStatus());
 }
 
 TEST_P(ClusterConfigTest, SetClusterConfigWithCorrectToken) {

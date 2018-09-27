@@ -134,7 +134,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
         FAIL() << "Should not be associated with a bucket";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied())
-                << "Received: 0x" << std::hex << error.getReason();
+                << "Received: " << to_string(error.getReason());
     }
 
     connection.selectBucket("default");
@@ -143,7 +143,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
         FAIL() << "document should not exists";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())
-                << "Received: 0x" << std::hex << error.getReason();
+                << "Received: " << to_string(error.getReason());
     }
 }
 
@@ -180,7 +180,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
         FAIL() << "Should not be associated with a bucket";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied())
-                << "Received: 0x" << std::hex << error.getReason();
+                << "Received: " << to_string(error.getReason());
     }
 
     connection.selectBucket("default");
@@ -189,7 +189,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
         FAIL() << "document should not exists";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound())
-                << "Received: 0x" << std::hex << error.getReason();
+                << "Received: " << to_string(error.getReason());
     }
 }
 
@@ -233,6 +233,6 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
         FAIL() << "SASL Auth should be disabled for cert auth'd connections";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotSupported())
-                    << "Received: 0x" << std::hex << error.getReason();
+                << "Received: " << to_string(error.getReason());
     }
 }

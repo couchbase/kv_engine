@@ -38,7 +38,7 @@ void send_subdoc_cmd(const BinprotSubdocCommand& cmd) {
 }
 
 static void recv_subdoc_response(const BinprotSubdocCommand& cmd,
-                                 protocol_binary_response_status err,
+                                 cb::mcbp::Status err,
                                  BinprotSubdocResponse& resp) {
     std::vector<uint8_t> buf;
     if (!safe_recv_packet(buf)) {
@@ -54,7 +54,7 @@ static void recv_subdoc_response(const BinprotSubdocCommand& cmd,
 }
 
 uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
-                              protocol_binary_response_status expected_status,
+                              cb::mcbp::Status expected_status,
                               const std::string& expected_value) {
     union {
         protocol_binary_response_subdocument response;
@@ -86,7 +86,7 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     } else {
         // Expect zero length on success (on error the error message string is
         // returned).
-        if (header->response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (header->response.getStatus() == cb::mcbp::Status::Success) {
             EXPECT_EQ(0u, vallen);
         }
     }
@@ -96,7 +96,7 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
 // Overload for multi-lookup responses
 uint64_t recv_subdoc_response(
         protocol_binary_command expected_cmd,
-        protocol_binary_response_status expected_status,
+        cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiLookupResult>& expected_results) {
     union {
         protocol_binary_response_subdocument response;
@@ -129,7 +129,7 @@ uint64_t recv_subdoc_response(
         const char* result_header = val_ptr + offset;
         uint16_t status =
                 ntohs(*reinterpret_cast<const uint16_t*>(result_header));
-        EXPECT_EQ(exp_result.first, protocol_binary_response_status(status))
+        EXPECT_EQ(exp_result.first, cb::mcbp::Status(status))
                 << "Lookup result[" << ii << "]: status different";
 
         uint32_t result_len = ntohl(*reinterpret_cast<const uint32_t*>(
@@ -181,7 +181,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<uint8_t>& v) {
 // Overload for multi-mutation responses
 uint64_t recv_subdoc_response(
         protocol_binary_command expected_cmd,
-        protocol_binary_response_status expected_status,
+        cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiMutationResult>& expected_results) {
     union {
         protocol_binary_response_subdocument response;
@@ -204,7 +204,7 @@ uint64_t recv_subdoc_response(
     const size_t vallen = header.response.getBodylen() - header.response.extlen;
     std::string value(val_ptr, val_ptr + vallen);
 
-    if (expected_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (expected_status == cb::mcbp::Status::Success) {
         if (enabled_hello_features.count(cb::mcbp::Feature::MUTATION_SEQNO) >
             0) {
             EXPECT_EQ(16, header.response.extlen);
@@ -223,8 +223,8 @@ uint64_t recv_subdoc_response(
             value.erase(value.begin());
             EXPECT_EQ(result.index, actual_index);
 
-            uint16_t actual_status =
-                    ntohs(*reinterpret_cast<uint16_t*>(&value[0]));
+            auto actual_status = cb::mcbp::Status(
+                    ntohs(*reinterpret_cast<uint16_t*>(&value[0])));
             value.erase(value.begin(), value.begin() + 2);
             EXPECT_EQ(result.status, actual_status);
 
@@ -240,16 +240,15 @@ uint64_t recv_subdoc_response(
         // Should have consumed all of the value.
         EXPECT_EQ(0u, value.size());
 
-    } else if (expected_status ==
-               PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE) {
+    } else if (expected_status == cb::mcbp::Status::SubdocMultiPathFailure) {
         // Specific path failed - should have a 3-byte body containing
         // specific status and index of first failing spec.
         EXPECT_EQ(3, vallen) << "Incorrect value:'"
                              << std::string(val_ptr, vallen) << '"';
         uint8_t actual_fail_index = *val_ptr;
-        uint16_t actual_fail_spec_status =
-                ntohs(*reinterpret_cast<const uint16_t*>(
-                        val_ptr + sizeof(actual_fail_index)));
+        auto actual_fail_spec_status =
+                cb::mcbp::Status(ntohs(*reinterpret_cast<const uint16_t*>(
+                        val_ptr + sizeof(actual_fail_index))));
         EXPECT_EQ(1, expected_results.size());
         EXPECT_EQ(expected_results[0].index, actual_fail_index);
         EXPECT_EQ(expected_results[0].status, actual_fail_spec_status);
@@ -270,7 +269,7 @@ uint64_t recv_subdoc_response(
 
 ::testing::AssertionResult SubdocTestappTest::subdoc_verify_cmd(
         const BinprotSubdocCommand& cmd,
-        protocol_binary_response_status err,
+        cb::mcbp::Status err,
         const std::string& value,
         BinprotSubdocResponse& resp) {
     using ::testing::AssertionSuccess;
@@ -326,7 +325,7 @@ uint64_t recv_subdoc_response(
 // Overload for multi-lookup commands.
 uint64_t expect_subdoc_cmd(
         const SubdocMultiLookupCmd& cmd,
-        protocol_binary_response_status expected_status,
+        cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiLookupResult>& expected_results) {
     std::vector<char> payload = cmd.encode();
     safe_send(payload.data(), payload.size(), false);
@@ -339,7 +338,7 @@ uint64_t expect_subdoc_cmd(
 // Overload for multi-mutation commands.
 uint64_t expect_subdoc_cmd(
         const SubdocMultiMutationCmd& cmd,
-        protocol_binary_response_status expected_status,
+        cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiMutationResult>& expected_results) {
     std::vector<char> payload = cmd.encode();
     safe_send(payload.data(), payload.size(), false);

@@ -119,7 +119,7 @@ void TouchTest::testMiss(bool quiet) {
         // this should be a ENOENT
         EXPECT_EQ(PROTOCOL_BINARY_CMD_GAT, rsp.getOp());
         EXPECT_FALSE(rsp.isSuccess());
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, rsp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     }
 
     const auto after = get_cmd_counter("get_misses", conn);
@@ -177,5 +177,5 @@ TEST_P(TouchTest, Touch_Miss) {
     BinprotTouchResponse rsp;
     conn.recvResponse(rsp);
     EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
 }

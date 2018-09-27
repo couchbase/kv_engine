@@ -262,7 +262,7 @@ protected:
 class BinprotResponse {
 public:
     bool isSuccess() const {
-        return getStatus() == PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        return getStatus() == cb::mcbp::Status::Success;
     }
 
     /** Get the opcode for the response */
@@ -271,8 +271,8 @@ public:
     }
 
     /** Get the status code for the response */
-    protocol_binary_response_status getStatus() const {
-        return protocol_binary_response_status(getHeader().response.status);
+    cb::mcbp::Status getStatus() const {
+        return getHeader().response.getStatus();
     }
 
     size_t getExtlen() const {
@@ -374,8 +374,7 @@ public:
         payload.clear();
     }
 
-    virtual ~BinprotResponse() {
-    }
+    virtual ~BinprotResponse() = default;
 
 protected:
     const uint8_t* begin() const {
@@ -488,7 +487,7 @@ public:
     bool operator==(const BinprotSubdocResponse& other) const {
         bool rv = getStatus() == other.getStatus();
 
-        if (getStatus() == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (getStatus() == cb::mcbp::Status::Success) {
             rv = getValue() == other.getValue();
         }
         return rv;
@@ -707,7 +706,7 @@ protected:
 class BinprotSubdocMultiLookupResponse : public BinprotResponse {
 public:
     struct LookupResult {
-        protocol_binary_response_status status;
+        cb::mcbp::Status status;
         std::string value;
     };
 

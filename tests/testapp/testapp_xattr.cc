@@ -61,7 +61,7 @@ TEST_P(XattrTest, GetXattrAndBody) {
 
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
@@ -108,7 +108,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
 
     BinprotSubdocMultiLookupResponse getResp;
     conn.recvResponse(getResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, getResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getResp.getStatus());
 
     // Restore time.
     adjust_memcached_clock(0, TimeType::Uptime);
@@ -147,7 +147,7 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
 
         BinprotSubdocMultiMutationResponse multiResp;
         conn.recvResponse(multiResp);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, multiResp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Einval, multiResp.getStatus());
     }
 
     // Now test the invalid doc flags
@@ -164,7 +164,7 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Einval, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, SetBodyInMultiLookup) {
@@ -178,8 +178,7 @@ TEST_P(XattrTest, SetBodyInMultiLookup) {
 
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-              multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, GetBodyInMultiMutation) {
@@ -194,8 +193,7 @@ TEST_P(XattrTest, GetBodyInMultiMutation) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-              multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, AddBodyAndXattr) {
@@ -218,7 +216,7 @@ TEST_P(XattrTest, AddBodyAndXattr) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
@@ -242,7 +240,7 @@ TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
@@ -269,7 +267,7 @@ TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Einval, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, TestSeqnoMacroExpansion) {
@@ -279,9 +277,9 @@ TEST_P(XattrTest, TestSeqnoMacroExpansion) {
                        "_sync.seqno",
                        "\"${Mutation.seqno}\"",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc_get("_sync.seqno", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("\"${Mutation.seqno}\"", resp.getValue());
 
     // Verify that we expand the macro to something that isn't the macro
@@ -294,10 +292,10 @@ TEST_P(XattrTest, TestSeqnoMacroExpansion) {
                   "_sync.seqno",
                   "\"${Mutation.seqno}\"",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc_get("_sync.seqno", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_NE("\"${Mutation.seqno}\"", resp.getValue());
 }
 
@@ -312,7 +310,7 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name, "_sync.cas", "\"${Mutation.CAS}\"",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
@@ -320,7 +318,7 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     // Let's update the body version..
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, name, "_sync.cas",
            "\"If you don't know me by now\"", SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // The xattr version should have been unchanged...
     resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
@@ -334,12 +332,12 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                   name, "_sync.cas", "\"${Mutation.CAS}\"",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     /// Fetch the field and verify that it expanded the cas!
     std::string cas_string;
     resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     auto first_cas = resp.getCas();
     std::stringstream ss;
     ss << std::hex << std::setfill('0');
@@ -350,10 +348,10 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     // Let's update the body version..
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, name, "_sync.cas",
                   "\"Hell ain't such a bad place to be\"");
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // The macro should not have been expanded again...
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(cas_string, resp.getValue());
     EXPECT_NE(first_cas, resp.getCas());
@@ -382,27 +380,25 @@ TEST_P(XattrTest, OperateOnDeletedItem) {
                        "true",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
                        mcbp::subdoc::doc_flag::AccessDeleted);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
-              resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get("_sync.deleted",
                       SUBDOC_FLAG_XATTR_PATH,
                       mcbp::subdoc::doc_flag::AccessDeleted);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
-              resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("true", resp.getValue());
 }
 
 TEST_P(XattrTest, MB_22318) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    EXPECT_EQ(cb::mcbp::Status::Success,
               xattr_upsert("doc", "{\"author\": \"Bart\"}"));
 }
 
 TEST_P(XattrTest, MB_22319) {
     // This is listed as working in the bug report
-    EXPECT_EQ(uint8_t(PROTOCOL_BINARY_RESPONSE_SUCCESS),
+    EXPECT_EQ(uint8_t(cb::mcbp::Status::Success),
               uint8_t(xattr_upsert("doc.readcount", "0")));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    EXPECT_EQ(cb::mcbp::Status::Success,
               xattr_upsert("doc.author", "\"jack\""));
 
     // The failing bits is:
@@ -420,7 +416,7 @@ TEST_P(XattrTest, MB_22319) {
 
     BinprotResponse resp;
     conn.recvResponse(resp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 
@@ -433,11 +429,11 @@ TEST_P(XattrTest, MB_22319) {
  * Reads the value of the given XATTR.
  */
 TEST_P(XattrTest, Get_FullXattrSpec) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    EXPECT_EQ(cb::mcbp::Status::Success,
               xattr_upsert("doc", "{\"author\": \"Bart\",\"rev\":0}"));
 
     auto response = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
     EXPECT_EQ("{\"author\": \"Bart\",\"rev\":0}", response.getValue());
 }
 
@@ -445,11 +441,11 @@ TEST_P(XattrTest, Get_FullXattrSpec) {
  * Reads the sub-part of the given XATTR.
  */
 TEST_P(XattrTest, Get_PartialXattrSpec) {
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    EXPECT_EQ(cb::mcbp::Status::Success,
               xattr_upsert("doc", "{\"author\": \"Bart\",\"rev\":0}"));
 
     auto response = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
     EXPECT_EQ("\"Bart\"", response.getValue());
 }
 
@@ -460,16 +456,16 @@ TEST_P(XattrTest, Exists_FullXattrSpec) {
     // The document exists, but we should not have any xattr's
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                        name, "doc", {}, SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     // Create the xattr
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    EXPECT_EQ(cb::mcbp::Status::Success,
               xattr_upsert("doc", "{\"author\": \"Bart\",\"rev\":0}"));
 
     // Now it should exist
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                   name, "doc", {}, SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 /**
@@ -480,21 +476,21 @@ TEST_P(XattrTest, Exists_PartialXattrSpec) {
     // The document exists, but we should not have any xattr's
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                        name, "doc", {}, SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     // Create the xattr
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    EXPECT_EQ(cb::mcbp::Status::Success,
               xattr_upsert("doc", "{\"author\": \"Bart\",\"rev\":0}"));
 
     // Now it should exist
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                   name, "doc.author", {}, SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // But we don't have one named _sync
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                   name, "_sync.cas", {}, SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 }
 
 /**
@@ -507,13 +503,13 @@ TEST_P(XattrTest, DictAdd_FullXattrSpec) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                        name, "doc", "{\"author\": \"Bart\"}",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // Adding it the first time should work, second time we should get EEXISTS
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                   name, "doc", "{\"author\": \"Bart\"}",
                   SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 }
 
 /**
@@ -524,13 +520,13 @@ TEST_P(XattrTest, DictAdd_PartialXattrSpec) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                        name, "doc.author", "\"Bart\"",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // Adding it the first time should work, second time we should get EEXISTS
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                   name, "doc.author", "\"Bart\"",
                   SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 }
 
 /**
@@ -542,16 +538,16 @@ TEST_P(XattrTest, DictUpsert_FullXattrSpec) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name, "doc", "{\"author\": \"Bart\"}",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // We should be able to update it...
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                   name, "doc", "{\"author\": \"Jones\"}",
                   SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("\"Jones\"", resp.getValue());
 }
 
@@ -563,16 +559,16 @@ TEST_P(XattrTest, DictUpsert_PartialXattrSpec) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name, "doc", "{\"author\": \"Bart\"}",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // We should be able to update it...
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                   name, "doc.author", "\"Jones\"",
                   SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("\"Jones\"", resp.getValue());
 }
 
@@ -583,14 +579,14 @@ TEST_P(XattrTest, Delete_FullXattrSpec) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name, "doc", "{\"author\": \"Bart\"}",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
                  name, "doc", {}, SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // THe entire stuff should be gone
     resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 }
 
 /**
@@ -600,14 +596,14 @@ TEST_P(XattrTest, Delete_PartialXattrSpec) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name, "doc", "{\"author\":\"Bart\",\"ref\":0}",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
                   name, "doc.ref", {}, SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // THe entire stuff should be gone
     resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"author\":\"Bart\"}", resp.getValue());
 }
 
@@ -619,20 +615,20 @@ TEST_P(XattrTest, Replace_FullXattrSpec) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                        name, "doc", "{\"author\":\"Bart\",\"ref\":0}",
                        SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                   name, "doc", "{\"author\": \"Bart\"}",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                   name, "doc", "{\"author\":\"Bart\",\"ref\":0}",
                   SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"author\":\"Bart\",\"ref\":0}", resp.getValue());
 }
 
@@ -643,19 +639,19 @@ TEST_P(XattrTest, Replace_PartialXattrSpec) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                        name, "doc.author", "\"Bart\"",
                        SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                   name, "doc", "{\"author\":\"Bart\",\"rev\":0}",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                   name, "doc.author", "\"Jones\"",
                   SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"author\":\"Jones\",\"rev\":0}", resp.getValue());
 }
 
@@ -756,20 +752,19 @@ TEST_P(XattrDisabledTest, VerifyNotEnabled) {
     BinprotSubdocResponse resp;
     conn.recvResponse(resp);
 
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
-              resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
 }
 
 TEST_P(XattrTest, MB_22691) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                   name, "integer_extra", "1",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                   name, "integer", "2",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus())
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus())
             << to_string(cb::mcbp::Status(resp.getStatus()));
 }
 
@@ -808,9 +803,8 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
 
     auto& results = multiResp.getResults();
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
-              multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
 
     // Ensure that we found all we expected and they're of the correct type:
     unique_cJSON_ptr meta(cJSON_Parse(results[0].value.c_str()));
@@ -859,7 +853,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     EXPECT_TRUE(found_xattr);
 
     // Verify that we got a partial from the second one
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[1].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
     const std::string cas{std::string{"\""} +
                           cJSON_GetObjectItem(meta.get(), "CAS")->valuestring +
                           "\""};
@@ -867,10 +861,10 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     EXPECT_EQ(cas, to_string(meta));
 
     // The third one didn't exist
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, results[2].status);
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, results[2].status);
 
     // Expect that we could find _sync.eg
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[3].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, results[3].status);
     EXPECT_EQ("99", results[3].value);
 }
 
@@ -891,7 +885,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_GetXattrAndBody) {
 
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ("false", multiResp.getResults()[0].value);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
@@ -909,7 +903,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_IsReadOnly) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR,
+    EXPECT_EQ(cb::mcbp::Status::SubdocXattrCantModifyVattr,
               multiResp.getStatus());
 }
 
@@ -923,8 +917,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR,
-              multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocXattrUnknownVattr, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, MB_25786_XTOC_VattrAndBody) {
@@ -940,10 +933,8 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrAndBody) {
     cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
     conn.sendCommand(cmd);
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
-              multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS,
-              multiResp.getResults()[0].status);
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, multiResp.getResults()[0].status);
     EXPECT_EQ("", multiResp.getResults()[0].value);
 }
 
@@ -961,9 +952,8 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrReadPrivOnly) {
     multiResp.clear();
     conn.sendCommand(cmd);
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getResults()[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(R"(["userXattr"])", multiResp.getResults()[0].value);
 }
 
@@ -981,9 +971,8 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPrivOnly) {
     multiResp.clear();
     conn.sendCommand(cmd);
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getResults()[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
 }
 
@@ -1000,7 +989,7 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
     EXPECT_EQ(doc.value, document.value);
 
     auto resp = subdoc_get("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("[]", resp.getValue());
 }
 
@@ -1029,7 +1018,7 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
                        "userXattr",
                        R"({"a":1})",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ(R"({"a":1})", resp.getValue());
 
@@ -1046,9 +1035,8 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
     cmd.addGet("$document.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
     BinprotSubdocMultiLookupResponse multiResp;
     connection.executeCommand(cmd, multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getResults()[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(expectedValueCrc32c, multiResp.getResults()[0].value);
 }
 
@@ -1066,7 +1054,7 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
                        "_sync.value_crc32c",
                        "\"${Mutation.value_crc32c}\"",
                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc_get("_sync.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
     EXPECT_EQ("\"${Mutation.value_crc32c}\"", resp.getValue());
 
@@ -1076,7 +1064,7 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
                   "_sync.value_crc32c",
                   "\"${Mutation.value_crc32c}\"",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // Compute the expected value_crc32c
     auto value = getConnection().get(name, Vbid(0)).value;
@@ -1088,13 +1076,13 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
     // Fetch the xattr and verify that the macro expanded to the
     // expected body checksum
     resp = subdoc_get("_sync.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ(expectedValueCrc32c, resp.getValue());
 
     // Repeat the check fetching the entire '_sync' path. Differently from the
     // check above, this check exposed issues in macro padding.
     resp = subdoc_get("_sync", SUBDOC_FLAG_XATTR_PATH);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"value_crc32c\":" + expectedValueCrc32c + "}",
               resp.getValue());
 }
@@ -1114,7 +1102,7 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
 
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
@@ -1138,15 +1126,13 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
 
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
-              multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
               multiResp.getResults()[0].status);
     EXPECT_EQ("", multiResp.getResults()[0].value);
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getResults()[1].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[1].status);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
 
@@ -1169,13 +1155,12 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
 
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED,
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getResults()[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
               multiResp.getResults()[1].status);
     EXPECT_EQ("", multiResp.getResults()[1].value);
 }
@@ -1198,14 +1183,11 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
 
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getResults()[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getResults()[1].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[1].status);
     EXPECT_EQ(value, multiResp.getResults()[1].value);
 }
 
@@ -1230,13 +1212,12 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
     // the second.
     BinprotSubdocMultiLookupResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED,
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              multiResp.getResults()[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
               multiResp.getResults()[1].status);
 }
 
@@ -1254,11 +1235,11 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
     // Should now only be XATTR datatype
     auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.second.deleted);
@@ -1266,13 +1247,12 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     auto resp = subdoc_get(sysXattr,
                            SUBDOC_FLAG_XATTR_PATH,
                            mcbp::subdoc::doc_flag::AccessDeleted);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
-              resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ(xattrVal, resp.getValue());
 
     // Check we can't access the deleted document
     resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 
     BinprotSubdocMultiLookupCommand getCmd;
     getCmd.setKey(name);
@@ -1281,15 +1261,15 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
 
     BinprotSubdocMultiLookupResponse getResp;
     conn.recvResponse(getResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, getResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getResp.getStatus());
 
     // Worth noting the difference in the way it fails if AccessDeleted is set.
     getCmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
     conn.sendCommand(getCmd);
     conn.recvResponse(getResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED,
+    EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               getResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
               getResp.getResults().at(0).status);
 }
 
@@ -1307,31 +1287,30 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
     // Should now only be XATTR datatype
     auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.second.deleted);
 
     auto resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 
     // The delete should delete user Xattrs as well as the body, leaving only
     // system Xattrs
     resp = subdoc_get("userXattr",
                       SUBDOC_FLAG_XATTR_PATH,
                       mcbp::subdoc::doc_flag::AccessDeleted);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     // System Xattr should still be there so lets check it
     resp = subdoc_get(sysXattr,
                       SUBDOC_FLAG_XATTR_PATH,
                       mcbp::subdoc::doc_flag::AccessDeleted);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED,
-              resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ(xattrVal, resp.getValue());
 }
 
@@ -1349,13 +1328,13 @@ TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
     cmd.clearMutations();
     cmd.addMutation(PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", "");
     conn.sendCommand(cmd);
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 }
 
 TEST_P(XattrTest, TestXattrDeleteDatatypes) {
@@ -1374,11 +1353,11 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
 
     BinprotSubdocMultiMutationResponse multiResp;
     conn.recvResponse(multiResp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
     // Should now only be XATTR datatype
     auto meta = conn.getMeta(name, Vbid(0), GetMetaVersion::V2);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, meta.first);
+    EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, meta.second.datatype);
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.second.deleted);
@@ -1415,7 +1394,7 @@ TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
 
     conn.executeCommand(cmd, resp);
     EXPECT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_E2BIG, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::E2big, resp.getStatus());
 }
 
 /**
@@ -1485,8 +1464,8 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
 
     conn.executeCommand(cmd, resp);
     EXPECT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_E2BIG, resp.getStatus())
-                << "The system space is max 1M";
+    EXPECT_EQ(cb::mcbp::Status::E2big, resp.getStatus())
+            << "The system space is max 1M";
 }
 
 // Test replacing a compressed/uncompressed value with an uncompressed

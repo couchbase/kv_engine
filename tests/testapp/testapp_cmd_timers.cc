@@ -134,7 +134,7 @@ TEST_P(CmdTimerTest, NoAccess) {
                 BinprotGetCmdTimerCommand{bucket, PROTOCOL_BINARY_CMD_SCRUB},
                 response);
         EXPECT_FALSE(response.isSuccess());
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, response.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
     }
 
     // Make sure it doesn't work for the "current selected bucket"
@@ -143,7 +143,7 @@ TEST_P(CmdTimerTest, NoAccess) {
     c.executeCommand(BinprotGetCmdTimerCommand{"", PROTOCOL_BINARY_CMD_SCRUB},
                      response);
     EXPECT_FALSE(response.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
     c.reconnect();
 }
 
@@ -172,7 +172,7 @@ TEST_P(CmdTimerTest, NonexistentBucket) {
                                                PROTOCOL_BINARY_CMD_SCRUB},
                      response);
     EXPECT_FALSE(response.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
 }
 
 /**

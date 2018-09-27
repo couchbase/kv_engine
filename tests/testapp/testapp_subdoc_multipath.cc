@@ -29,21 +29,22 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetSingle) {
     lookup.key = "dict";
     lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_NONE,
                             "key1"});
-    std::vector<SubdocMultiLookupResult> expected{{PROTOCOL_BINARY_RESPONSE_SUCCESS, "1"}};
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUCCESS, expected);
+    std::vector<SubdocMultiLookupResult> expected{
+            {cb::mcbp::Status::Success, "1"}};
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::Success, expected);
 
     // Attempt to access non-existent key.
     lookup.key = "dictXXX";
     expected.clear();
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, expected);
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::KeyEnoent, expected);
 
     // Attempt to access non-existent path.
     lookup.key = "dict";
     lookup.specs.at(0) = {PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_NONE,
                           "keyXX"};
-    expected.push_back({PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, ""});
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
-                      expected);
+    expected.push_back({cb::mcbp::Status::SubdocPathEnoent, ""});
+    expect_subdoc_cmd(
+            lookup, cb::mcbp::Status::SubdocMultiPathFailure, expected);
 
     delete_object("dict");
 }
@@ -56,8 +57,9 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsSingle) {
     lookup.key = "dict";
     lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                             SUBDOC_FLAG_NONE, "key1"});
-    std::vector<SubdocMultiLookupResult> expected{{PROTOCOL_BINARY_RESPONSE_SUCCESS, ""}};
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUCCESS, expected);
+    std::vector<SubdocMultiLookupResult> expected{
+            {cb::mcbp::Status::Success, ""}};
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::Success, expected);
 
     delete_object("dict");
 }
@@ -91,17 +93,15 @@ static void test_subdoc_multi_lookup_getmulti() {
         lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_GET,
                                 SUBDOC_FLAG_NONE, key});
 
-        expected.push_back({PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                            value});
+        expected.push_back({cb::mcbp::Status::Success, value});
     }
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUCCESS, expected);
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::Success, expected);
 
     // Add one more - should fail.
     lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_NONE,
                             "key_" + std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS)});
     expected.clear();
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-                      expected);
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::SubdocInvalidCombo, expected);
     reconnect_to_server();
 
     delete_object("dict");
@@ -116,9 +116,9 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMultiInvalid) {
     store_document("dict", "{\"key1\":1,\"key2\":\"two\",\"key3\":[0,1,2]}");
 
     // Build a multi-path LOOKUP with a variety of invalid paths
-    std::vector<std::pair<std::string, protocol_binary_response_status > > bad_paths({
-            {"[0]", PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH},
-            {"key3[3]", PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT},
+    std::vector<std::pair<std::string, cb::mcbp::Status> > bad_paths({
+            {"[0]", cb::mcbp::Status::SubdocPathMismatch},
+            {"key3[3]", cb::mcbp::Status::SubdocPathEnoent},
     });
 
     SubdocMultiLookupCmd lookup;
@@ -129,9 +129,8 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_GetMultiInvalid) {
                                 SUBDOC_FLAG_NONE, path.first});
         expected.push_back({path.second, ""});
     }
-    expect_subdoc_cmd(lookup,
-                      PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
-                      expected);
+    expect_subdoc_cmd(
+            lookup, cb::mcbp::Status::SubdocMultiPathFailure, expected);
 
     delete_object("dict");
 }
@@ -150,17 +149,16 @@ TEST_P(SubdocTestappTest, SubdocMultiLookup_ExistsMulti) {
 
         lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                                 SUBDOC_FLAG_NONE, key });
-        expected.push_back({PROTOCOL_BINARY_RESPONSE_SUCCESS, ""});
+        expected.push_back({cb::mcbp::Status::Success, ""});
     }
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUCCESS, expected);
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::Success, expected);
 
     // Add one more - should fail.
     lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                             SUBDOC_FLAG_NONE,
                             "key_" + std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS)});
     expected.clear();
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-                      expected);
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::SubdocInvalidCombo, expected);
     reconnect_to_server();
 
     delete_object("dict");
@@ -176,7 +174,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddSingle) {
     mutation.key = "dict";
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                               SUBDOC_FLAG_NONE, "key", "\"value\""});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
     validate_object("dict", "{\"key\":\"value\"}");
@@ -196,7 +194,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddMulti) {
                               SUBDOC_FLAG_NONE, "key2", "2"});
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                               SUBDOC_FLAG_NONE, "key3", "3"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
     validate_object("dict", "{\"key1\":1,\"key2\":2,\"key3\":3}");
@@ -218,7 +216,7 @@ static void test_subdoc_multi_mutation_dict_add_max() {
         mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                                   SUBDOC_FLAG_NONE, path, value});
     }
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
@@ -234,8 +232,7 @@ static void test_subdoc_multi_mutation_dict_add_max() {
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                               SUBDOC_FLAG_NONE, "key_" + max_id,
                               "\"value_" + max_id + '"'});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
-                      {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::SubdocInvalidCombo, {});
 
     reconnect_to_server();
 
@@ -260,8 +257,8 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddInvalidDuplicate) {
                               SUBDOC_FLAG_NONE, "key", "\"value2\""});
     // Should return failure, with the index of the failing op (1).
     expect_subdoc_cmd(mutation,
-                      PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
-                      {{1, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS}});
+                      cb::mcbp::Status::SubdocMultiPathFailure,
+                      {{1, cb::mcbp::Status::SubdocPathEexists}});
 
     // Document should be unmodified.
     validate_object("dict", "{}");
@@ -281,8 +278,9 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCounter) {
                               SUBDOC_FLAG_NONE, "items.bar", "2"});
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               SUBDOC_FLAG_NONE, "count", "2"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                      {{2, PROTOCOL_BINARY_RESPONSE_SUCCESS, "2"}});
+    expect_subdoc_cmd(mutation,
+                      cb::mcbp::Status::Success,
+                      {{2, cb::mcbp::Status::Success, "2"}});
 
     // Check the update actually occurred.
     validate_object("dict",
@@ -299,7 +297,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
     BinprotSubdocResponse resp;
     BinprotSubdocCommand request(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
     request.setPath("int").setKey("dict");
-    subdoc_verify_cmd(request, PROTOCOL_BINARY_RESPONSE_SUCCESS, "", resp);
+    subdoc_verify_cmd(request, cb::mcbp::Status::Success, "", resp);
     auto cas = resp.getCas();
 
     // 1. Attempt to mutate with an incorrect CAS - should fail.
@@ -310,14 +308,14 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_DictAddCAS) {
                               SUBDOC_FLAG_NONE, "float", "2.0"});
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                               SUBDOC_FLAG_NONE, "string", "\"value\""});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::KeyEexists, {});
     // Document should be unmodified.
     validate_object("dict", "{\"int\":1}");
 
     // 2. Attempt to mutate with correct CAS.
     mutation.cas = cas;
-    uint64_t new_cas = expect_subdoc_cmd(mutation,
-                                         PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    uint64_t new_cas =
+            expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // CAS should have changed.
     EXPECT_NE(cas, new_cas);
@@ -350,9 +348,10 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                               SUBDOC_FLAG_NONE, "items.3"});
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               SUBDOC_FLAG_NONE, "count", "-2"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                      {{3, PROTOCOL_BINARY_RESPONSE_SUCCESS, "3"},
-                       {6, PROTOCOL_BINARY_RESPONSE_SUCCESS, "1"}});
+    expect_subdoc_cmd(mutation,
+                      cb::mcbp::Status::Success,
+                      {{3, cb::mcbp::Status::Success, "3"},
+                       {6, cb::mcbp::Status::Success, "1"}});
 
     // Document should have been updated.
     validate_object("dict", "{\"count\":1,\"items\":{\"2\":2}}");
@@ -369,8 +368,9 @@ void test_subdoc_multi_mutation_dictadd_delete() {
                               SUBDOC_FLAG_NONE, "items.5", "5"});
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                               SUBDOC_FLAG_NONE, "count", "2"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                      {{4, PROTOCOL_BINARY_RESPONSE_SUCCESS, "2"}});
+    expect_subdoc_cmd(mutation,
+                      cb::mcbp::Status::Success,
+                      {{4, cb::mcbp::Status::Success, "2"}});
 
     validate_object("dict", "{\"count\":2,\"items\":{\"4\":4,\"5\":5}}");
 
@@ -400,7 +400,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Expiry) {
     lookup.expiry = 666;
     lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                             SUBDOC_FLAG_NONE, "[0]" });
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_EINVAL, {});
+    expect_subdoc_cmd(lookup, cb::mcbp::Status::Einval, {});
     reconnect_to_server();
 
     // Perform a MULTI_REPLACE operation, setting a expiry of 1s.
@@ -409,22 +409,22 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Expiry) {
     mutation.expiry = 1;
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
                               SUBDOC_FLAG_NONE, "[0]", "\"b\""});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Try to read the document immediately - should exist.
     auto result = fetch_value("ephemeral");
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
 
     // Perform a REPLACE on permanent, explicitly encoding an expiry of 0s.
     mutation.key = "permanent";
     mutation.expiry = 0;
     mutation.encode_zero_expiry_on_wire = true;
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Try to read the second document immediately - should exist.
     result = fetch_value("permanent");
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
 
     // Sleep for 2s seconds.
@@ -434,11 +434,11 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Expiry) {
 
     // Try to read the ephemeral document - shouldn't exist.
     result = fetch_value("ephemeral");
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, result.first);
+    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, result.first);
 
     // Try to read the permanent document - should still exist.
     result = fetch_value("permanent");
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ(cb::mcbp::Status::Success, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
 }
 
@@ -514,12 +514,11 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
             SUBDOC_FLAG_NONE, value,
             std::to_string(ii + 1)});
 
-        expected_results.push_back({ii, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-            std::to_string(ii + 1)});
+        expected_results.push_back(
+                {ii, cb::mcbp::Status::Success, std::to_string(ii + 1)});
     }
 
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                      expected_results);
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, expected_results);
 
     validate_object("array", expected_json);
 
@@ -536,7 +535,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Flags) {
     mutation.key = "array";
     mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                               SUBDOC_FLAG_NONE, "", "0"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     // Check the update actually occurred.
     validate_object("array", "[0]");
@@ -554,7 +553,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlag) {
                               SUBDOC_FLAG_NONE,
                               "test",
                               "56"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
     validate_object("AddDocTest", "{\"test\":56}");
 
     delete_object("AddDocTest");
@@ -571,12 +570,12 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagEEXists) {
                               SUBDOC_FLAG_NONE,
                               "test",
                               "56"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::KeyEexists, {});
 
     delete_object("AddDocExistsTest");
 
     // Now the doc is deleted, we should be able to Add successfully
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
     validate_object("AddDocExistsTest", "{\"test\":56}");
 
     delete_object("AddDocExistsTest");
@@ -592,7 +591,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
                               SUBDOC_FLAG_NONE,
                               "test",
                               "56"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_EINVAL, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Einval, {});
 }
 
 // MB-30278: Perform a multi-mutation with two paths with backticks in them.
@@ -613,7 +612,7 @@ TEST_P(SubdocTestappTest, MB_30278_SubdocBacktickMultiMutation) {
                               SUBDOC_FLAG_NONE,
                               "key3``",
                               "3"});
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+    expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
 
     validate_object("dict", R"({"key1`":1,"key2`":2,"key3`":3})");
 

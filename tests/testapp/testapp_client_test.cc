@@ -138,7 +138,7 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
     return resp;
 }
 
-protocol_binary_response_status TestappXattrClientTest::xattr_upsert(
+cb::mcbp::Status TestappXattrClientTest::xattr_upsert(
         const std::string& path, const std::string& value) {
     auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
                        name,
@@ -157,7 +157,7 @@ void TestappXattrClientTest::SetUp() {
             bucketName,
             ::testing::get<1>(GetParam()) == XattrSupport::Yes);
     if (::testing::get<1>(GetParam()) == XattrSupport::No) {
-        xattrOperationStatus = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+        xattrOperationStatus = cb::mcbp::Status::NotSupported;
     }
 
     document.info.cas = mcbp::cas::Wildcard;

@@ -187,8 +187,9 @@ TEST_P(AuditTest, AuditIllegalPacket) {
     request.setExtlen(uint8_t(0));
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
-                                  PROTOCOL_BINARY_RESPONSE_EINVAL);
+    mcbp_validate_response_header(&receive.response,
+                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::Status::Einval);
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_INVALID_PACKET));
 }
@@ -221,8 +222,9 @@ TEST_P(AuditTest, AuditFailedAuth) {
 
     safe_send(buffer.bytes, plen, false);
     safe_recv_packet(&buffer, sizeof(buffer));
-    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_SASL_AUTH,
-                                  PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
+    mcbp_validate_response_header(&buffer.response,
+                                  PROTOCOL_BINARY_CMD_SASL_AUTH,
+                                  cb::mcbp::Status::AuthError);
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                                     "nouser"));

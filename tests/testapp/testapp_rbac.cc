@@ -71,7 +71,7 @@ TEST_P(RbacTest, ReloadRbacData_NoAccess) {
 
     BinprotResponse resp;
     conn.recvResponse(resp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 }
 
 TEST_P(RbacTest, ReloadSasl_HaveAccess) {
@@ -91,7 +91,7 @@ TEST_P(RbacTest, ReloadSasl_NoAccess) {
     conn.sendCommand(cmd);
     BinprotResponse resp;
     conn.recvResponse(resp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 }
 
 TEST_P(RbacTest, ScrubNoAccess) {
@@ -103,7 +103,7 @@ TEST_P(RbacTest, ScrubNoAccess) {
 
     c.sendCommand(command);
     c.recvResponse(response);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
 }
 
 TEST_P(RbacTest, Scrub) {
@@ -118,7 +118,7 @@ TEST_P(RbacTest, Scrub) {
         // Retry if scrubber is already running.
         c.sendCommand(command);
         c.recvResponse(response);
-    } while (response.getStatus() == PROTOCOL_BINARY_RESPONSE_EBUSY);
+    } while (response.getStatus() == cb::mcbp::Status::Ebusy);
 
     EXPECT_TRUE(response.isSuccess());
 }
@@ -144,7 +144,7 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
 
     BinprotResponse resp;
     conn.recvResponse(resp);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
     unique_cJSON_ptr json(cJSON_Parse(resp.getDataString().c_str()));
     ASSERT_TRUE(json);
 
@@ -459,7 +459,7 @@ TEST_P(RbacRoleTest, NoAccessToUserXattrs) {
     // The read only user should not have access to create a user xattr
     auto resp = createXattr(getROConnection(), "meta.author", "\"larry\"");
     ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 
     // The write only user should have access to create a user xattr
     resp = createXattr(getWOConnection(), "meta.author", "\"larry\"");
@@ -472,17 +472,17 @@ TEST_P(RbacRoleTest, NoAccessToUserXattrs) {
     // The write only user should NOT be able to read it
     resp = getXattr(getWOConnection(), "meta.author");
     ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 
     // The rw user only have access to the system xattrs. Read and write
     // user xattrs should fail!
     resp = createXattr(getRWConnection(), "meta.author", "\"larry\"");
     ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 
     resp = getXattr(getRWConnection(), "meta.author");
     ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 }
 
 TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
@@ -492,12 +492,12 @@ TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
     // The read only user should not have access to create a system xattr
     auto resp = createXattr(getROConnection(), "_meta.author", "\"larry\"");
     ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 
     // The write only user should not have access to create a system xattr
     resp = createXattr(getROConnection(), "_meta.author", "\"larry\"");
     ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 
     // The read-write user should have access to create a system xattr
     resp = createXattr(getRWConnection(), "_meta.author", "\"larry\"");
@@ -506,12 +506,12 @@ TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
     // The read only user should not be able to read it
     resp = getXattr(getROConnection(), "_meta.author");
     ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 
     // The write only user should not be able to read it
     resp = getXattr(getWOConnection(), "_meta.author");
     ASSERT_FALSE(resp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
 
     // The read write user should be able to read it
     resp = getXattr(getRWConnection(), "_meta.author");
@@ -534,7 +534,7 @@ TEST_P(RbacRoleTest, DontAutoselectBucket) {
 
     BinprotResponse resp;
     conn.recvResponse(resp);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NO_BUCKET, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::NoBucket, resp.getStatus());
 
     conn = getAdminConnection();
     conn.deleteBucket("larry");

@@ -344,8 +344,8 @@ TEST_P(ArithmeticXattrOnTest, MB25402) {
 
     auto& results = multiResp.getResults();
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, multiResp.getStatus());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, results[0].status);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
 
     // Ensure that we found all we expected and they're of the correct type:
     unique_cJSON_ptr meta(cJSON_Parse(results[0].value.c_str()));

@@ -27,8 +27,7 @@
 
 #include <memory>
 
-typedef std::pair<protocol_binary_response_status, std::string>
-        SubdocMultiLookupResult;
+typedef std::pair<cb::mcbp::Status, std::string> SubdocMultiLookupResult;
 
 /**
  * Subclass of McdTestappTest - adds helpers for various generic testcases,
@@ -93,15 +92,14 @@ protected:
      */
     ::testing::AssertionResult subdoc_verify_cmd(
             const BinprotSubdocCommand& cmd,
-            protocol_binary_response_status expected_status,
+            cb::mcbp::Status expected_status,
             const std::string& expected_value,
             BinprotSubdocResponse& resp);
 
     /// Overload which creates a temporary response object
     ::testing::AssertionResult subdoc_verify_cmd(
             const BinprotSubdocCommand& cmd,
-            protocol_binary_response_status err =
-                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            cb::mcbp::Status err = cb::mcbp::Status::Success,
             const std::string& value = "") {
         BinprotSubdocResponse resp;
         return subdoc_verify_cmd(cmd, err, value, resp);
@@ -119,43 +117,40 @@ protected:
                                                  const char*,
                                                  const T& cmd,
                                                  const std::string& value) {
-        return subdoc_verify_cmd(cmd, PROTOCOL_BINARY_RESPONSE_SUCCESS, value);
+        return subdoc_verify_cmd(cmd, cb::mcbp::Status::Success, value);
     }
 
     // Gtest helper, used by subdoc tests
     template <typename T>
-    ::testing::AssertionResult subdoc_pred_errcode(
-            const char*,
-            const char*,
-            const T& cmd,
-            protocol_binary_response_status expected) {
+    ::testing::AssertionResult subdoc_pred_errcode(const char*,
+                                                   const char*,
+                                                   const T& cmd,
+                                                   cb::mcbp::Status expected) {
         BinprotSubdocResponse resp;
         return subdoc_verify_cmd(cmd, expected, {}, resp);
     }
 
     // Gtest helper
     template <typename T>
-    ::testing::AssertionResult subdoc_pred_compat(
-            const char*,
-            const char*,
-            const char*,
-            const T& cmd,
-            protocol_binary_response_status err,
-            const std::string& value) {
+    ::testing::AssertionResult subdoc_pred_compat(const char*,
+                                                  const char*,
+                                                  const char*,
+                                                  const T& cmd,
+                                                  cb::mcbp::Status err,
+                                                  const std::string& value) {
         return subdoc_verify_cmd(cmd, err, value);
     }
 
     // Gtest helper
     template <typename Tc, typename Tr>
-    ::testing::AssertionResult subdoc_pred_full(
-            const char*,
-            const char*,
-            const char*,
-            const char*,
-            const Tc& cmd,
-            protocol_binary_response_status err,
-            const std::string& value,
-            Tr& resp) {
+    ::testing::AssertionResult subdoc_pred_full(const char*,
+                                                const char*,
+                                                const char*,
+                                                const char*,
+                                                const Tc& cmd,
+                                                cb::mcbp::Status err,
+                                                const std::string& value,
+                                                Tr& resp) {
         return subdoc_verify_cmd(cmd, err, value, resp);
     }
 };
@@ -164,32 +159,31 @@ protected:
  * multi-mutation.
  */
 struct SubdocMultiMutationResult {
-    SubdocMultiMutationResult(uint8_t index_,
-                              protocol_binary_response_status status_)
+    SubdocMultiMutationResult(uint8_t index_, cb::mcbp::Status status_)
         : index(index_), status(status_), result() {
     }
 
     SubdocMultiMutationResult(uint8_t index_,
-                              protocol_binary_response_status status_,
+                              cb::mcbp::Status status_,
                               const std::string& result_)
         : index(index_), status(status_), result(result_) {
     }
 
     uint8_t index;
-    protocol_binary_response_status status;
+    cb::mcbp::Status status;
     std::string result;
 };
 
 uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
-                              protocol_binary_response_status expected_status,
+                              cb::mcbp::Status expected_status,
                               const std::string& expected_value);
 
 uint64_t expect_subdoc_cmd(
         const SubdocMultiLookupCmd& cmd,
-        protocol_binary_response_status expected_status,
+        cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiLookupResult>& expected_results);
 
 uint64_t expect_subdoc_cmd(
         const SubdocMultiMutationCmd& cmd,
-        protocol_binary_response_status expected_status,
+        cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiMutationResult>& expected_results);

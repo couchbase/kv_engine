@@ -159,8 +159,8 @@ private:
     bool has_failure = false;
 };
 
-template<>
-inline std::string AssertHelper::formatArg(const protocol_binary_response_status& arg) const {
+template <>
+inline std::string AssertHelper::formatArg(const cb::mcbp::Status& arg) const {
     // We want a hex representation
     std::stringstream ss;
     ss << to_string(cb::mcbp::Status(arg)) << " (0x" << std::hex << arg << ")";

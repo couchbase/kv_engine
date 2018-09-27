@@ -50,8 +50,7 @@ class TestappXattrClientTest : public TestappTest,
                                                         ClientJSONSupport,
                                                         ClientSnappySupport>> {
 protected:
-    TestappXattrClientTest()
-        : xattrOperationStatus(PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    TestappXattrClientTest() : xattrOperationStatus(cb::mcbp::Status::Success) {
     }
 
     void SetUp() override;
@@ -141,12 +140,12 @@ protected:
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None);
 
-    protocol_binary_response_status xattr_upsert(const std::string& path,
-                                                 const std::string& value);
+    cb::mcbp::Status xattr_upsert(const std::string& path,
+                                  const std::string& value);
 
 protected:
     Document document;
-    protocol_binary_response_status xattrOperationStatus;
+    cb::mcbp::Status xattrOperationStatus;
 };
 
 struct PrintToStringCombinedName {

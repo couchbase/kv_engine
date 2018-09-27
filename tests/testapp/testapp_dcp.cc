@@ -46,7 +46,7 @@ TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
     BinprotResponse rsp;
     conn.recvResponse(rsp);
     EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
 
 TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
@@ -59,7 +59,7 @@ TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
     BinprotResponse rsp;
     conn.recvResponse(rsp);
     EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
 
 TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
@@ -72,7 +72,7 @@ TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
     BinprotResponse rsp;
     conn.recvResponse(rsp);
     EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
 
 /**
@@ -120,5 +120,5 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
     BinprotResponse rsp;
     conn.recvResponse(rsp);
     EXPECT_FALSE(rsp.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
 }

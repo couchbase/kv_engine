@@ -284,10 +284,10 @@ static void request_cmd_timings(MemcachedConnection& connection,
 
     if (!resp.isSuccess()) {
         switch (resp.getStatus()) {
-        case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
+        case cb::mcbp::Status::KeyEnoent:
             std::cerr << "Cannot find bucket: " << bucket << std::endl;
             break;
-        case PROTOCOL_BINARY_RESPONSE_EACCESS:
+        case cb::mcbp::Status::Eaccess:
             if (bucket == "/all/") {
                 std::cerr << "Not authorized to access aggregated timings data."
                           << std::endl
@@ -300,8 +300,7 @@ static void request_cmd_timings(MemcachedConnection& connection,
             }
             break;
         default:
-            std::cerr << "Command failed: "
-                      << to_string(cb::mcbp::Status(resp.getStatus()))
+            std::cerr << "Command failed: " << to_string(resp.getStatus())
                       << std::endl;
         }
         exit(EXIT_FAILURE);

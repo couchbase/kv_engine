@@ -522,8 +522,8 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
 void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
     switch (getStatus()) {
-    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
-    case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE:
+    case cb::mcbp::Status::Success:
+    case cb::mcbp::Status::SubdocMultiPathFailure:
         break;
     default:
         return;
@@ -613,9 +613,9 @@ void BinprotSubdocMultiLookupResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
     // Check if this is a success - either full or partial.
     switch (getStatus()) {
-    case PROTOCOL_BINARY_RESPONSE_SUCCESS:
-    case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE:
-    case PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED:
+    case cb::mcbp::Status::Success:
+    case cb::mcbp::Status::SubdocMultiPathFailure:
+    case cb::mcbp::Status::SubdocMultiPathFailureDeleted:
         break;
     default:
         return;
@@ -637,7 +637,7 @@ void BinprotSubdocMultiLookupResponse::assign(std::vector<uint8_t>&& buf) {
         bufcur += 4;
 
         results.emplace_back(LookupResult{
-                protocol_binary_response_status(cur_status),
+                cb::mcbp::Status(cur_status),
                 std::string(reinterpret_cast<const char*>(bufcur), cur_len)});
         bufcur += cur_len;
     }

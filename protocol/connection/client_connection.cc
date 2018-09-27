@@ -675,11 +675,6 @@ void MemcachedConnection::recvFrame(Frame& frame,
                     frame.payload.data());
             req->request.keylen = ntohs(req->request.keylen);
             req->request.bodylen = bodylen;
-        } else {
-            // The underlying buffer may hage been reallocated as part of read
-            auto* res = reinterpret_cast<protocol_binary_response_header*>(
-                    frame.payload.data());
-            res->response.status = ntohs(res->response.status);
         }
     }
 }
@@ -750,7 +745,7 @@ void MemcachedConnection::authenticate(const std::string& username,
     BinprotResponse response;
     recvResponse(response);
 
-    while (response.getStatus() == PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
+    while (response.getStatus() == cb::mcbp::Status::AuthContinue) {
         auto respdata = response.getData();
         client_data =
                 client.step({reinterpret_cast<const char*>(respdata.data()),
@@ -989,9 +984,9 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
     auto* bytes = frame.payload.data();
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
     auto& header = rsp->message.header.response;
-    if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (header.getStatus() != cb::mcbp::Status::Success) {
         throw ConnectionError("Failed to configure ewouldblock engine",
-                              header.status);
+                              header.getStatus());
     }
 }
 
@@ -1335,10 +1330,8 @@ void MemcachedConnection::disablePersistence() {
     }
 }
 
-std::pair<protocol_binary_response_status, GetMetaResponse>
-MemcachedConnection::getMeta(const std::string& key,
-                             Vbid vbucket,
-                             GetMetaVersion version) {
+std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
+        const std::string& key, Vbid vbucket, GetMetaVersion version) {
     BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_META, key};
     const std::vector<uint8_t> extras = {uint8_t(version)};
     cmd.setExtras(extras);
@@ -1395,7 +1388,7 @@ BinprotResponse MemcachedConnection::execute(const BinprotCommand &command) {
 
 // Generates error msgs like ``<prefix>: ["<context>", ]<reason> (#<reason>)``
 static std::string formatMcbpExceptionMsg(const std::string& prefix,
-                                          uint16_t reason,
+                                          cb::mcbp::Status reason,
                                           const std::string& context = "") {
     // Format the error message
     std::string errormessage(prefix);
@@ -1407,9 +1400,9 @@ static std::string formatMcbpExceptionMsg(const std::string& prefix,
         errormessage.append("', ");
     }
 
-    errormessage.append(to_string(cb::mcbp::Status(reason)));
+    errormessage.append(to_string(reason));
     errormessage.append(" (");
-    errormessage.append(std::to_string(reason));
+    errormessage.append(std::to_string(uint16_t(reason)));
     errormessage.append(")");
     return errormessage;
 }
@@ -1436,7 +1429,8 @@ static std::string formatMcbpExceptionMsg(const std::string& prefix,
     return formatMcbpExceptionMsg(prefix, response.getStatus(), context);
 }
 
-ConnectionError::ConnectionError(const std::string& prefix, uint16_t reason)
+ConnectionError::ConnectionError(const std::string& prefix,
+                                 cb::mcbp::Status reason)
     : std::runtime_error(formatMcbpExceptionMsg(prefix, reason).c_str()),
       reason(reason) {
 }

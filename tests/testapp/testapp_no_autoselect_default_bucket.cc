@@ -84,7 +84,7 @@ TEST_P(NoAutoselectDefaultBucketTest, NoAutoselect) {
     EXPECT_FALSE(rsp.isSuccess());
     // You would have expected NO BUCKET, but we don't have access
     // to this bucket ;)
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EACCESS, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 
     conn = getAdminConnection();
     conn.deleteBucket("default");

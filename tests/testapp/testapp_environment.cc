@@ -58,7 +58,7 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
     }
 
     conn.executeCommand(cmd, resp);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
@@ -75,7 +75,7 @@ void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
     cmd.setValue(value);
 
     conn.executeCommand(cmd, resp);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
@@ -92,7 +92,7 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
     cmd.setValue(value);
 
     conn.executeCommand(cmd, resp);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 class DefaultBucketImpl : public TestBucketImpl {
@@ -209,7 +209,7 @@ public:
         cmd.setOp(PROTOCOL_BINARY_CMD_SELECT_BUCKET);
         cmd.setKey(name);
         conn.executeCommand(cmd, resp);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         cmd.clear();
         resp.clear();
@@ -218,7 +218,7 @@ public:
         cmd.setExtrasValue<uint32_t>(htonl(1));
 
         conn.executeCommand(cmd, resp);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         do {
             cmd.clear();
@@ -226,9 +226,9 @@ public:
             cmd.setOp(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
             // Enable traffic
             conn.executeCommand(cmd, resp);
-        } while (resp.getStatus() == PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
+        } while (resp.getStatus() == cb::mcbp::Status::Etmpfail);
 
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, resp.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     }
 
     std::string getName() const override {

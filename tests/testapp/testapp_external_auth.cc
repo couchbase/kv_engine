@@ -166,7 +166,7 @@ TEST_P(ExternalAuthTest, TestExternalAuthUnknownUser) {
         BinprotResponse response;
         conn.recvResponse(response);
         EXPECT_FALSE(response.isSuccess());
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, response.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::AuthError, response.getStatus());
     }
 }
 
@@ -185,7 +185,7 @@ TEST_P(ExternalAuthTest, TestExternalAuthIncorrectPasword) {
         BinprotResponse response;
         conn.recvResponse(response);
         EXPECT_FALSE(response.isSuccess());
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, response.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::AuthError, response.getStatus());
     }
 }
 
@@ -204,7 +204,7 @@ TEST_P(ExternalAuthTest, TestExternalAuthNoRbacUser) {
         BinprotResponse response;
         conn.recvResponse(response);
         EXPECT_FALSE(response.isSuccess());
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_AUTH_ERROR, response.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::AuthError, response.getStatus());
     }
 }
 
@@ -223,7 +223,7 @@ TEST_P(ExternalAuthTest, TestExternalAuthServiceDying) {
     BinprotResponse response;
     conn.recvResponse(response);
     EXPECT_FALSE(response.isSuccess());
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Etmpfail, response.getStatus());
 }
 
 TEST_P(ExternalAuthTest, TestReloadRbacDbDontNukeExternalUsers) {

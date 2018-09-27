@@ -107,7 +107,8 @@ public:
     // Called after the last test in this test case.
     static void TearDownTestCase();
 
-    static uint16_t sasl_auth(const char *username, const char *password);
+    static cb::mcbp::Status sasl_auth(const char* username,
+                                      const char* password);
 
     /// Helper which which returns true if the specified value is correctly
     /// encoded as JSON.
@@ -264,7 +265,7 @@ protected:
     void runCreateXattr(const std::string& path,
                         const std::string& value,
                         bool macro,
-                        protocol_binary_response_status expectedStatus);
+                        cb::mcbp::Status expectedStatus);
 
     /**
      * Get an extended attribute
@@ -277,12 +278,11 @@ protected:
     BinprotSubdocResponse getXattr(const std::string& path,
                                    bool deleted = false);
 
-    BinprotSubdocResponse runGetXattr(
-            const std::string& path,
-            bool deleted,
-            protocol_binary_response_status expectedStatus);
+    BinprotSubdocResponse runGetXattr(const std::string& path,
+                                      bool deleted,
+                                      cb::mcbp::Status expectedStatus);
 
-    int getResponseCount(protocol_binary_response_status statusCode);
+    int getResponseCount(cb::mcbp::Status statusCode);
 
     static int statResps() {
         // Each stats call gets a new connection prepared for it, resulting in
@@ -355,8 +355,12 @@ protected:
     ClientJSONSupport hasJSONSupport() const override;
 
     /* Helpers for individual testcases */
-    void test_set_huge_impl(const char *key, uint8_t cmd, int result,
-                            bool pipeline, int iterations, int message_size);
+    void test_set_huge_impl(const char* key,
+                            uint8_t cmd,
+                            cb::mcbp::Status result,
+                            bool pipeline,
+                            int iterations,
+                            int message_size);
 };
 
 SOCKET connect_to_server_plain(in_port_t port);
@@ -368,8 +372,7 @@ void set_datatype_feature(bool enable);
 // Attempts to fetch the document with the given key.
 // Returns a pair of {status, value}; where status is the response code from
 // the server and value is the documents value (if status == SUCCESS).
-std::pair<protocol_binary_response_status, std::string>
-fetch_value(const std::string& key);
+std::pair<cb::mcbp::Status, std::string> fetch_value(const std::string& key);
 
 /* Attempts to get the given key and checks if it's value matches
  * {expected_value}.

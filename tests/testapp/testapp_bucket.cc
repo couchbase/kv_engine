@@ -637,7 +637,7 @@ TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
     conn.sendCommand(cmd);
     BinprotResponse response;
     conn.recvResponse(response);
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NO_BUCKET, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::NoBucket, response.getStatus());
 
     conn = getAdminConnection();
     conn.deleteBucket("rbac_test");

@@ -49,7 +49,7 @@ protected:
         TestappClientTest::TearDown();
     }
 
-    protocol_binary_response_status get(BinprotResponse& resp) {
+    cb::mcbp::Status get(BinprotResponse& resp) {
         resp.clear();
         BinprotGetCommand cmd;
         cmd.setKey(key);
@@ -74,8 +74,8 @@ TEST_P(FlushTest, Flush) {
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSH);
     BinprotResponse response;
     conn->executeCommand(command, response);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus());
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, get(response));
+    ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(response));
 }
 
 TEST_P(FlushTest, FlushQ) {
@@ -83,7 +83,7 @@ TEST_P(FlushTest, FlushQ) {
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSHQ);
     BinprotResponse response;
     conn->sendCommand(command);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, get(response));
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(response));
 }
 
 TEST_P(FlushTest, FlushWithExtlen) {
@@ -94,8 +94,8 @@ TEST_P(FlushTest, FlushWithExtlen) {
     // Ensure it still works
     BinprotResponse response;
     conn->executeCommand(command, response);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus());
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, get(response));
+    ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(response));
 }
 
 TEST_P(FlushTest, FlushQWithExtlen) {
@@ -105,7 +105,7 @@ TEST_P(FlushTest, FlushQWithExtlen) {
     command.setExtrasValue(static_cast<uint32_t>(htonl(0)));
     conn->sendCommand(command);
 
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, get(response));
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(response));
 }
 
 TEST_P(FlushTest, DISABLED_DelayedFlushNotSupported) {
@@ -120,9 +120,9 @@ TEST_P(FlushTest, DISABLED_DelayedFlushNotSupported) {
     }};
     for (auto op : commands) {
         conn->executeCommand(command.setOp(op), response);
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, response.getStatus());
+        ASSERT_EQ(cb::mcbp::Status::NotSupported, response.getStatus());
 
         conn->reconnect();
-        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, get(response));
+        ASSERT_EQ(cb::mcbp::Status::Success, get(response));
     }
 }

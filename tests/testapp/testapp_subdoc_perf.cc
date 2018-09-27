@@ -235,9 +235,10 @@ void SubdocPerfTest::subdoc_perf_test_dict(protocol_binary_command cmd,
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
-        subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
-                                    key),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, value);
+        subdoc_verify_cmd(BinprotSubdocCommand(
+                                  PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", key),
+                          cb::mcbp::Status::Success,
+                          value);
     }
     delete_object("dict");
 }
@@ -272,14 +273,14 @@ TEST_P(SubdocPerfTest, Array_PushFirst_Multipath) {
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+            expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+        expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
     }
 
     delete_object("list");
@@ -299,14 +300,14 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst_Multipath) {
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+            expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+        expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
     }
 
     delete_object("list");
@@ -324,14 +325,14 @@ TEST_P(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
                                   SUBDOC_FLAG_NONE, "[0]", "1"});
 
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+            expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+        expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
     }
 
     delete_object("list");
@@ -350,14 +351,14 @@ TEST_P(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
                                   SUBDOC_FLAG_NONE, path, "1"});
 
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+            expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+        expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
     }
 
     delete_object("list");
@@ -378,14 +379,14 @@ TEST_P(SubdocPerfTest, Dict_Add_Multipath) {
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+            expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
+        expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
     }
 
     delete_object("dict");
