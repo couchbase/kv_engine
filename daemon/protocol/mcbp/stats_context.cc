@@ -993,7 +993,7 @@ ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
 
         // We just want to record this once rather than for each packet sent
         ++connection.getBucket()
-                  .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
+                  .responseCounters[int(cb::mcbp::Status::Success)];
         cookie.sendDynamicBuffer();
         break;
     case ENGINE_EWOULDBLOCK:
@@ -1006,9 +1006,8 @@ ENGINE_ERROR_CODE StatsCommandContext::commandComplete() {
         // stats for these.
         break;
     default:
-        ++connection.getBucket()
-                  .responseCounters[engine_error_2_mcbp_protocol_error(
-                          command_exit_code)];
+        ++connection.getBucket().responseCounters[int(
+                cb::mcbp::to_status(cb::engine_errc(command_exit_code)))];
         break;
     }
     state = State::Done;

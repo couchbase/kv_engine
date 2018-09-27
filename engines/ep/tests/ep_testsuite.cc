@@ -252,7 +252,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "CMD_STOP_PERSISTENCE failed!");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Failed to stop persistence!");
     cb_free(pkt);
@@ -282,7 +282,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "CMD_START_PERSISTENCE failed!");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Failed to start persistence!");
     cb_free(pkt);
 
@@ -1295,8 +1295,8 @@ static enum test_result test_get_replica(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "Get Replica Failed");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-            "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
+            "Expected cb::mcbp::Status::Success response.");
     checkeq(std::string("replicadata"), last_body,
             "Should have returned identical value");
     checkeq(1, get_int_stat(h, "vb_replica_ops_get"), "Expected 1 get");
@@ -1317,7 +1317,7 @@ static enum test_result test_get_replica_non_resident(EngineIface* h) {
           "Failed to set vbucket to replica");
 
     get_replica(h, "key", Vbid(0));
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success");
     checkeq(1, get_int_stat(h, "vb_replica_ops_get"), "Expected 1 get");
 
@@ -1659,7 +1659,7 @@ static enum test_result vbucket_destroy(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             vbucketDelete(h, Vbid(1), value),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, Vbid(1)),
@@ -1707,7 +1707,7 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h) {
 
     int vbucketDel = get_int_stat(h, "ep_vbucket_del");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
@@ -1766,7 +1766,7 @@ static enum test_result vbucket_destroy_restart(EngineIface* h,
     checkeq(ENGINE_SUCCESS,
             vbucketDelete(h, Vbid(1), value),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, Vbid(1)),
@@ -2289,7 +2289,7 @@ static enum test_result test_bg_meta_stats(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     add_with_meta(h, "k3", keylen, NULL, 0, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Set meta failed");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Set meta failed");
 
     check(get_meta(h, "k2"), "Get meta failed");
     checkeq(1, get_int_stat(h, "ep_bg_fetched"), "Expected bg_fetched to be 1");
@@ -3012,7 +3012,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
                          datatype,
                          cookie),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected set returing meta to succeed");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             last_datatype.load(), "Invalid datatype, when set_return_meta");
@@ -3036,7 +3036,7 @@ static enum test_result test_session_cas_validation(EngineIface* h) {
             h->unknown_command(NULL, pkt, add_response),
             "SET_VBUCKET command failed");
     cb_free(pkt);
-    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    cb_assert(last_status == cb::mcbp::Status::KeyEexists);
 
     cas = 0x0102030405060708;
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, Vbid(0), cas, ext, 4);
@@ -3044,7 +3044,7 @@ static enum test_result test_session_cas_validation(EngineIface* h) {
             h->unknown_command(NULL, pkt, add_response),
             "SET_VBUCKET command failed");
     cb_free(pkt);
-    cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    cb_assert(last_status == cb::mcbp::Status::Success);
 
     return SUCCESS;
 }
@@ -3284,7 +3284,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
 static enum test_result test_set_param_message(EngineIface* h) {
     set_param(h, protocol_binary_engine_param_flush, "alog_task_time", "50");
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
         "Expected an invalid value error for an out of bounds alog_task_time");
     check(std::string("Validation Error").compare(last_body), "Expected a "
             "validation error in the response body");
@@ -3523,7 +3523,7 @@ static enum test_result test_warmup_oom(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "Failed to send data traffic command to the services");
-    checkeq(PROTOCOL_BINARY_RESPONSE_ENOMEM, last_status.load(),
+    checkeq(cb::mcbp::Status::Enomem, last_status.load(),
             "Data traffic command should have failed with enomem");
     cb_free(pkt);
 
@@ -3821,7 +3821,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
 
     start_persistence(h);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Unexpected response status");
 
     return SUCCESS;
@@ -3906,7 +3906,7 @@ static enum test_result test_curr_items_dead(EngineIface* h) {
             "ep_queue_size is not zero after setting to dead (2)");
 
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(0)), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success deleting vbucket.");
     verify_curr_items(h, 0, "del vbucket");
     checkeq(0,
@@ -3976,12 +3976,12 @@ static enum test_result test_value_eviction(EngineIface* h) {
             "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     if (eviction_policy == "value_only") {
-        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+        checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
                 "expected the key to be missing...");
     } else {
         // Note that we simply return SUCCESS when EVICT_KEY is issued to
         // a non-resident or non-existent key with full eviction to avoid a disk lookup.
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
             "expected the success for evicting a non-existent key with full eviction");
     }
     cb_free(pkt);
@@ -4041,7 +4041,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
     // done as part of the vbucketDelete. See KVBucket::deleteVBucket
     int vb_del_num = get_int_stat(h, "ep_vbucket_del");
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, Vbid(1)),
           "vbucket 1 was not missing after deleting it.");
@@ -4400,7 +4400,7 @@ static enum test_result test_mb3466(EngineIface* h) {
 static enum test_result test_observe_no_data(EngineIface* h) {
     std::map<std::string, Vbid> obskeys;
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     return SUCCESS;
 }
 
@@ -4416,7 +4416,7 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
             observe_seqno(h, Vbid(1), vb_uuid),
             "Expected success");
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Expected success");
 
@@ -4610,7 +4610,7 @@ static enum test_result test_observe_seqno_error(EngineIface* h) {
     h->unknown_command(NULL, request, add_response);
 
     cb_free(request);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
           "Expected vb uuid not found");
 
     return SUCCESS;
@@ -4637,7 +4637,7 @@ static enum test_result test_observe_single_key(EngineIface* h) {
     std::map<std::string, Vbid> obskeys;
     obskeys["key"] = Vbid(0);
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that the key is not persisted
     Vbid vb;
@@ -4691,7 +4691,7 @@ static enum test_result test_observe_temp_item(EngineIface* h) {
     std::map<std::string, Vbid> obskeys;
     obskeys["key"] = Vbid(0);
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that the key is not found
     Vbid vb;
@@ -4775,7 +4775,7 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     obskeys["key2"] = Vbid(1);
     obskeys["key3"] = Vbid(1);
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check the result
     Vbid vb;
@@ -4864,7 +4864,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     std::map<std::string, Vbid> obskeys;
     obskeys["key1"] = Vbid(0);
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     const int expected_persisted = isPersistentBucket(h)
                                            ? OBS_STATE_PERSISTED
@@ -4886,7 +4886,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     obskeys.clear();
     obskeys["key2"] = Vbid(0);
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     memcpy(&vb, last_body.data(), sizeof(Vbid));
     check(vb.ntoh() == Vbid(0), "Wrong vbucket in result");
@@ -4946,7 +4946,7 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
     obskeys["key2"] = Vbid(0);
     obskeys["key3"] = Vbid(1);
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check the result
     Vbid vb;
@@ -5007,7 +5007,7 @@ static enum test_result test_observe_errors(EngineIface* h) {
             PROTOCOL_BINARY_CMD_OBSERVE, Vbid(0), 0, NULL, 0, NULL, 0, "0", 1);
     check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
+    checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected invalid");
     cb_free(pkt);
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE,
@@ -5022,7 +5022,7 @@ static enum test_result test_observe_errors(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "Observe failed.");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
+    checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected invalid");
     cb_free(pkt);
 
     return SUCCESS;
@@ -5037,7 +5037,7 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "Failed to send data traffic command to the server");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Faile to disable data traffic");
     cb_free(pkt);
 
@@ -5049,7 +5049,7 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "Failed to send data traffic command to the server");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Faile to enable data traffic");
     cb_free(pkt);
 
@@ -5276,7 +5276,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
@@ -5299,7 +5299,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
                          10,
                          1735689600),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
@@ -5314,7 +5314,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 5, 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
@@ -5330,7 +5330,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
             set_ret_meta(
                     h, "key", 3, "value", 5, Vbid(0), last_meta.cas + 1, 5, 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
           "Expected set returing meta to fail");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
@@ -5344,7 +5344,7 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h, "", 0, "value", 5, Vbid(0)),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
           "Expected set returing meta to succeed");
 
     protocol_binary_request_header *pkt;
@@ -5361,7 +5361,7 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
             h->unknown_command(NULL, pkt, add_response),
             "Expected to be able to store ret meta");
     cb_free(pkt);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
           "Expected set returing meta to succeed");
 
     // Check tmp fail errors
@@ -5369,7 +5369,7 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(0)),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+    checkeq(cb::mcbp::Status::Etmpfail, last_status.load(),
           "Expected set returing meta to fail");
     enable_traffic(h);
 
@@ -5400,14 +5400,14 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 10, 0, 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_STORED, last_status.load(),
+    checkeq(cb::mcbp::Status::NotStored, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that add without cas succeeds.
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
@@ -5422,14 +5422,14 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_STORED, last_status.load(),
+    checkeq(cb::mcbp::Status::NotStored, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that adding a key with flags and exptime returns the correct values
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "key2", 4, "value", 5, Vbid(0), 0, 10, 1735689600),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
@@ -5448,7 +5448,7 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "", 0, "value", 5, Vbid(0)),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
           "Expected add returing meta to succeed");
 
     protocol_binary_request_header *pkt;
@@ -5465,7 +5465,7 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
             h->unknown_command(NULL, pkt, add_response),
             "Expected to be able to add ret meta");
     cb_free(pkt);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
           "Expected add returing meta to succeed");
 
     // Check tmp fail errors
@@ -5473,7 +5473,7 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0)),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+    checkeq(cb::mcbp::Status::Etmpfail, last_status.load(),
           "Expected add returing meta to fail");
     enable_traffic(h);
 
@@ -5504,21 +5504,21 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0), 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that deleting a non-existent key with a cas fails
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0), 10),
             "Expeced success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that deleting a key with no cas succeeds
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
 
     check(last_meta.flags == 0, "Invalid result for flags");
@@ -5529,7 +5529,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0), 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_del_ret_meta"),
@@ -5544,7 +5544,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 10, 1735689600),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
 
     check(last_meta.flags == 10, "Invalid result for flags");
@@ -5555,7 +5555,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_del_ret_meta"),
@@ -5570,7 +5570,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
 
     check(last_meta.flags == 0, "Invalid result for flags");
@@ -5581,7 +5581,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas + 1),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
           "Expected set returing meta to fail");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_del_ret_meta"),
@@ -5595,7 +5595,7 @@ static enum test_result test_del_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "", 0, Vbid(0)),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
           "Expected add returing meta to succeed");
 
     protocol_binary_request_header *pkt;
@@ -5605,7 +5605,7 @@ static enum test_result test_del_ret_meta_error(EngineIface* h) {
             h->unknown_command(NULL, pkt, add_response),
             "Expected to be able to del ret meta");
     cb_free(pkt);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
           "Expected add returing meta to succeed");
 
     // Check tmp fail errors
@@ -5613,7 +5613,7 @@ static enum test_result test_del_ret_meta_error(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0)),
             "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+    checkeq(cb::mcbp::Status::Etmpfail, last_status.load(),
           "Expected add returing meta to fail");
     enable_traffic(h);
 
@@ -5678,7 +5678,7 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
     // set with meta for a non-resident item should pass.
     set_with_meta(
             h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, cas_for_set);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     return SUCCESS;
 }
@@ -5846,7 +5846,7 @@ static enum test_result test_gat_with_item_eviction(EngineIface* h) {
     evict_key(h, "mykey", Vbid(0), "Ejected.");
 
     gat(h, "mykey", Vbid(0), 10); // 10 sec as expiration time
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "gat mykey");
     check(last_body == "somevalue", "Invalid data returned");
 
     // time-travel 9 secs..
@@ -5908,7 +5908,7 @@ static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h) {
 
     // delete an item with meta data
     del_with_meta(h, key, keylen, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     return SUCCESS;
 }
@@ -5991,7 +5991,7 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
     obskeys["key2"] = Vbid(1);
     obskeys["key3"] = Vbid(1);
     checkeq(ENGINE_SUCCESS, observe(h, obskeys), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check the result
     Vbid vb;
@@ -6041,7 +6041,7 @@ static enum test_result test_expired_item_with_item_eviction(EngineIface* h) {
     check(store(h, NULL, OPERATION_SET, "mykey", "somevalue") == ENGINE_SUCCESS,
           "Failed set.");
     gat(h, "mykey", Vbid(0), 10); // 10 sec as expiration time
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "gat mykey");
     check(last_body == "somevalue", "Invalid data returned");
 
     // Store a dummy item since we do not purge the item with highest seqno
@@ -6196,7 +6196,7 @@ static enum test_result test_get_random_key(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(cookie, &pkt, add_response),
             "get random should work");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             last_datatype.load(),
             "Expected datatype to be JSON");

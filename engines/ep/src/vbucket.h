@@ -960,8 +960,7 @@ public:
      *                 evicted), or the reason why the request failed.
      *
      */
-    virtual protocol_binary_response_status evictKey(const DocKey& key,
-                                                     const char** msg) = 0;
+    virtual cb::mcbp::Status evictKey(const DocKey& key, const char** msg) = 0;
 
     /**
      * Page out a StoredValue from memory.

@@ -297,7 +297,7 @@ void Cookie::sendResponse(cb::mcbp::Status status) {
             // code hence mcbp_add_header will not be called (which is what
             // normally updates the responseCounters).
             auto& bucket = connection.getBucket();
-            ++bucket.responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
+            ++bucket.responseCounters[int(cb::mcbp::Status::Success)];
             connection.setState(StateMachine::State::new_cmd);
             return;
         }

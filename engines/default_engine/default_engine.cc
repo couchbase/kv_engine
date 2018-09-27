@@ -779,9 +779,9 @@ static bool scrub_cmd(struct default_engine *e,
                       protocol_binary_request_header *request,
                       ADD_RESPONSE response) {
 
-    protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    cb::mcbp::Status res = cb::mcbp::Status::Success;
     if (!item_start_scrub(e)) {
-        res = PROTOCOL_BINARY_RESPONSE_EBUSY;
+        res = cb::mcbp::Status::Ebusy;
     }
 
     return response(NULL,

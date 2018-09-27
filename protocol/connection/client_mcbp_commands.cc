@@ -542,10 +542,10 @@ void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
         uint8_t index = *bufcur;
         bufcur += 1;
 
-        uint16_t cur_status = ntohs(*reinterpret_cast<const uint16_t*>(bufcur));
+        auto cur_status = cb::mcbp::Status(ntohs(*reinterpret_cast<const uint16_t*>(bufcur)));
         bufcur += 2;
 
-        if (cur_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        if (cur_status == cb::mcbp::Status::Success) {
             uint32_t cur_len =
                     ntohl(*reinterpret_cast<const uint32_t*>(bufcur));
             bufcur += 4;
@@ -556,13 +556,12 @@ void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
             }
             results.emplace_back(MutationResult{
                     index,
-                    protocol_binary_response_status(cur_status),
+                    cur_status,
                     std::string(reinterpret_cast<const char*>(bufcur),
                                 cur_len)});
             bufcur += cur_len;
         } else {
-            results.emplace_back(MutationResult{
-                    index, protocol_binary_response_status(cur_status)});
+            results.emplace_back(MutationResult{index, cur_status});
         }
     }
 }

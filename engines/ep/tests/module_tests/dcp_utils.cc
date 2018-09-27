@@ -33,7 +33,7 @@ void handleProducerResponseIfStepBlocked(DcpConsumer& consumer) {
     if (dcp_last_op == PROTOCOL_BINARY_CMD_GET_ERROR_MAP) {
         protocol_binary_response_header resp{};
         resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
-        resp.response.status = ntohs(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        resp.response.setStatus(cb::mcbp::Status::Success);
         consumer.handleResponse(&resp);
     }
 }

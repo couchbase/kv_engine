@@ -410,8 +410,7 @@ public:
                 msg.get());
 
         p->message.header.response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-        p->message.header.response.status =
-                htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
+        p->message.header.response.setStatus(cb::mcbp::Status::Rollback);
         p->message.header.response.opaque = opaque;
         p->message.header.response.setBodylen(sizeof(uint64_t));
 

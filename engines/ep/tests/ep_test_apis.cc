@@ -61,8 +61,7 @@ struct {
 } get_stat_context;
 
 bool dump_stats = false;
-std::atomic<protocol_binary_response_status> last_status(
-    static_cast<protocol_binary_response_status>(0));
+std::atomic<cb::mcbp::Status> last_status(cb::mcbp::Status::Success);
 std::string last_key;
 std::string last_body;
 std::string last_ext;
@@ -167,7 +166,7 @@ bool add_response(const void* key,
     (void)cookie;
     static std::mutex m;
     std::lock_guard<std::mutex> lg(m);
-    last_status.store(static_cast<protocol_binary_response_status>(status));
+    last_status.store(status);
     last_body.assign(static_cast<const char*>(body), bodylen);
     last_ext.assign(static_cast<const char*>(ext), extlen);
     last_key.assign(static_cast<const char*>(key), keylen);
@@ -539,14 +538,14 @@ void evict_key(EngineIface* h,
 
     cb_free(pkt);
     if (expectError) {
-        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+        checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
                 "evict_key: expected KEY_EEXISTS when evicting key");
     } else {
         if (last_body != "Already ejected.") {
             nonResidentItems++;
             numEjectedItems++;
         }
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "evict_key: expected SUCCESS when evicting key.");
     }
 
@@ -764,7 +763,7 @@ bool set_param(EngineIface* h,
     }
 
     cb_free(pkt);
-    return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return last_status == cb::mcbp::Status::Success;
 }
 
 bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state) {
@@ -778,7 +777,7 @@ bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state) {
     }
 
     cb_free(pkt);
-    return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return last_status == cb::mcbp::Status::Success;
 }
 
 bool get_all_vb_seqnos(EngineIface* h,
@@ -801,7 +800,7 @@ bool get_all_vb_seqnos(EngineIface* h,
           "Error in getting all vb info");
 
     cb_free(pkt);
-    return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return last_status == cb::mcbp::Status::Success;
 }
 
 void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end) {
@@ -1027,7 +1026,7 @@ void disable_traffic(EngineIface* h) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
     check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    check(last_status == cb::mcbp::Status::Success,
           "Failed to disable data traffic");
     cb_free(pkt);
 }
@@ -1036,7 +1035,7 @@ void enable_traffic(EngineIface* h) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to send data traffic command to the server");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    check(last_status == cb::mcbp::Status::Success,
           "Failed to enable data traffic");
     cb_free(pkt);
 }
@@ -1050,7 +1049,7 @@ void start_persistence(EngineIface* h) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
     check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    check(last_status == cb::mcbp::Status::Success,
           "Error starting persistence.");
     cb_free(pkt);
 }
@@ -1072,7 +1071,7 @@ void stop_persistence(EngineIface* h) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
     check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to stop persistence.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    check(last_status == cb::mcbp::Status::Success,
           "Error stopping persistence.");
     cb_free(pkt);
 }
@@ -1326,10 +1325,10 @@ bool verify_vbucket_state(EngineIface* h,
         return false;
     }
 
-    if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if (last_status != cb::mcbp::Status::Success) {
         if (!mute) {
-            fprintf(stderr, "Last protocol status was %d (%s)\n",
-                    last_status.load(),
+            fprintf(stderr, "Last protocol status was %s (%s)\n",
+                    to_string(last_status.load()).c_str(),
                     last_body.size() > 0 ? last_body.c_str() : "unknown");
         }
         return false;
@@ -1344,12 +1343,12 @@ bool verify_vbucket_state(EngineIface* h,
 void sendDcpAck(EngineIface* h,
                 const void* cookie,
                 protocol_binary_command opcode,
-                protocol_binary_response_status status,
+                cb::mcbp::Status status,
                 uint32_t opaque) {
     protocol_binary_response_header pkt;
     pkt.response.magic = PROTOCOL_BINARY_RES;
     pkt.response.opcode = opcode;
-    pkt.response.status = htons(status);
+    pkt.response.setStatus(status);
     pkt.response.opaque = opaque;
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);

@@ -38,7 +38,7 @@ bool abort_msg(const char *expr, const char *msg, int line);
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
 
-protocol_binary_response_status last_status(static_cast<protocol_binary_response_status>(0));
+cb::mcbp::Status last_status(cb::mcbp::Status::Success);
 char *last_key = NULL;
 char *last_body = NULL;
 std::map<std::string, std::string> vals;

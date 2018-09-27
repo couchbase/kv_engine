@@ -74,7 +74,7 @@ const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;
 const uint8_t dcp_mutation_base_msg_bytes = 55;
 const uint8_t dcp_deletion_base_msg_bytes = 42;
 
-extern std::atomic<protocol_binary_response_status> last_status;
+extern std::atomic<cb::mcbp::Status> last_status;
 extern std::string last_key;
 extern std::string last_body;
 extern std::string last_ext;
@@ -364,7 +364,7 @@ bool verify_vbucket_state(EngineIface* h,
 void sendDcpAck(EngineIface* h,
                 const void* cookie,
                 protocol_binary_command opcode,
-                protocol_binary_response_status status,
+                cb::mcbp::Status status,
                 uint32_t opaque);
 
 // Checkpoint Operations

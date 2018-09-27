@@ -17,10 +17,11 @@
 
 #include "executors.h"
 
-#include <daemon/mcbp.h>
-#include <mcbp/protocol/header.h>
 #include "engine_wrapper.h"
 #include "utilities.h"
+#include <daemon/mcbp.h>
+#include <mcbp/protocol/header.h>
+#include <memcached/protocol_binary.h>
 
 void dcp_control_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);

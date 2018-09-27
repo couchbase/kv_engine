@@ -20,11 +20,12 @@
 #include "utilities.h"
 #include "../../mcbp.h"
 
+#include <memcached/protocol_binary.h>
 #include <platform/compress.h>
-#include <limits>
-#include <stdexcept>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+#include <limits>
+#include <stdexcept>
 
 static inline ENGINE_ERROR_CODE do_dcp_mutation(Cookie& cookie) {
     auto packet = cookie.getPacket(Cookie::PacketContent::Full);

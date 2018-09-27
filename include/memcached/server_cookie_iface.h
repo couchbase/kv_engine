@@ -198,7 +198,7 @@ struct ServerCookieIface {
      *         std::logic_error if the error code doesn't make sense
      *         std::invalid_argument if the code doesn't exist
      */
-    virtual protocol_binary_response_status engine_error2mcbp(
+    virtual cb::mcbp::Status engine_error2mcbp(
             gsl::not_null<const void*> cookie, ENGINE_ERROR_CODE code) = 0;
 
     /**

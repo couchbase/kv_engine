@@ -163,7 +163,7 @@ template <>
 inline std::string AssertHelper::formatArg(const cb::mcbp::Status& arg) const {
     // We want a hex representation
     std::stringstream ss;
-    ss << to_string(cb::mcbp::Status(arg)) << " (0x" << std::hex << arg << ")";
+    ss << to_string(arg) << " (0x" << std::hex << arg << ")";
     return ss.str();
 }
 

@@ -765,7 +765,7 @@ TEST_P(XattrTest, MB_22691) {
                   name, "integer", "2",
                   SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus())
-            << to_string(cb::mcbp::Status(resp.getStatus()));
+            << to_string(resp.getStatus());
 }
 
 /**

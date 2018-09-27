@@ -15,9 +15,10 @@
  *   limitations under the License.
  */
 #include "dcp_deletion.h"
+#include "../../mcbp.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
-#include "../../mcbp.h"
+#include <memcached/protocol_binary.h>
 
 static ENGINE_ERROR_CODE dcp_deletion_v1_executor(
         Cookie& cookie, const protocol_binary_request_dcp_deletion& request) {

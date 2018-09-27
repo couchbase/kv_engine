@@ -1599,21 +1599,20 @@ struct ServerCookieApi : public ServerCookieIface {
                 privilege, const_cast<Cookie&>(*cookie));
     }
 
-    protocol_binary_response_status engine_error2mcbp(
-            gsl::not_null<const void*> void_cookie,
-            ENGINE_ERROR_CODE code) override {
+    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> void_cookie,
+                                       ENGINE_ERROR_CODE code) override {
         const auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
         auto& connection = cookie->getConnection();
 
-        ENGINE_ERROR_CODE status = connection.remapErrorCode(code);
-        if (status == ENGINE_DISCONNECT) {
+        code = connection.remapErrorCode(code);
+        if (code == ENGINE_DISCONNECT) {
             throw cb::engine_error(
                     cb::engine_errc::disconnect,
                     "engine_error2mcbp: " + std::to_string(connection.getId()) +
                             ": Disconnect client");
         }
 
-        return engine_error_2_mcbp_protocol_error(status);
+        return cb::mcbp::to_status(cb::engine_errc(code));
     }
 
     std::pair<uint32_t, std::string> get_log_info(
@@ -1884,11 +1883,11 @@ void DestroyBucketThread::destroy() {
     all_bucket_lock.unlock();
 
     if (ret != ENGINE_SUCCESS) {
-        auto code = engine_error_2_mcbp_protocol_error(ret);
+        auto code = cb::mcbp::to_status(cb::engine_errc(ret));
         LOG_INFO("{} Delete bucket [{}]: {}",
                  connection_id,
                  name,
-                 to_string(cb::mcbp::Status(code)));
+                 to_string(code));
         result = ret;
         return;
     }

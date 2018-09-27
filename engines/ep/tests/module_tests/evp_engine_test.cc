@@ -125,12 +125,12 @@ TEST_P(SetParamTest, requirements_bucket_type) {
     for (auto v : values) {
         auto ret = engine->setFlushParam(v.param.c_str(), v.value.c_str(), msg);
         if (bucketType == v.bucketType) {
-            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, ret)
+            EXPECT_EQ(cb::mcbp::Status::Success, ret)
                     << "Parameter " << v.param
                     << "could not be set on bucket type \"" << bucketType
                     << "\"";
         } else {
-            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, ret)
+            EXPECT_EQ(cb::mcbp::Status::Einval, ret)
                     << "Setting parameter " << v.param
                     << "should be invalid for bucket type \"" << bucketType
                     << "\"";
@@ -159,19 +159,19 @@ TEST_P(SetParamTest, compressionModeConfigTest) {
     EXPECT_EQ(BucketCompressionMode::Active, engine->getCompressionMode());
 
     std::string msg;
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    ASSERT_EQ(cb::mcbp::Status::Success,
               engine->setFlushParam("compression_mode", "off", msg));
     EXPECT_EQ(BucketCompressionMode::Off, engine->getCompressionMode());
 
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    ASSERT_EQ(cb::mcbp::Status::Success,
               engine->setFlushParam("compression_mode", "passive", msg));
     EXPECT_EQ(BucketCompressionMode::Passive, engine->getCompressionMode());
 
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    ASSERT_EQ(cb::mcbp::Status::Success,
               engine->setFlushParam("compression_mode", "active", msg));
     EXPECT_EQ(BucketCompressionMode::Active, engine->getCompressionMode());
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+    EXPECT_EQ(cb::mcbp::Status::Einval,
               engine->setFlushParam("compression_mode", "invalid", msg));
 }
 
@@ -194,15 +194,15 @@ TEST_P(SetParamTest, minCompressionRatioConfigTest) {
     EXPECT_THROW(config.setMinCompressionRatio(-1), std::range_error);
 
     std::string msg;
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    ASSERT_EQ(cb::mcbp::Status::Success,
               engine->setFlushParam("min_compression_ratio", "1.8", msg));
     EXPECT_FLOAT_EQ(1.8f, engine->getMinCompressionRatio());
 
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    ASSERT_EQ(cb::mcbp::Status::Success,
               engine->setFlushParam("min_compression_ratio", "0.5", msg));
     EXPECT_FLOAT_EQ(0.5f, engine->getMinCompressionRatio());
 
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+    EXPECT_EQ(cb::mcbp::Status::Einval,
               engine->setFlushParam("min_compression_ratio", "-1", msg));
 }
 

@@ -184,11 +184,10 @@ public:
                             uint64_t pcas,
                             const void* cookie);
 
-    static protocol_binary_response_status getAddResponseStatus(
-            protocol_binary_response_status newval =
-                    PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    static cb::mcbp::Status getAddResponseStatus(
+            cb::mcbp::Status newval = cb::mcbp::Status::Success);
 
-    static protocol_binary_response_status addResponseStatus;
+    static cb::mcbp::Status addResponseStatus;
 
     static const char test_dbname[];
 

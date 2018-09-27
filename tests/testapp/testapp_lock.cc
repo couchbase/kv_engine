@@ -263,7 +263,7 @@ TEST_P(LockTest, MB_22778) {
     BinprotResponse response;
     conn.recvResponse(response);
     EXPECT_EQ(cb::mcbp::Status::Success, response.getStatus())
-            << to_string(cb::mcbp::Status(response.getStatus()));
+            << to_string(response.getStatus());
 
     std::array<uint8_t, 27> lock = {{0x80, // magic
                                          0x94, // opcode

@@ -577,7 +577,7 @@ class BinprotSubdocMultiMutationResponse : public BinprotResponse {
 public:
     struct MutationResult {
         uint8_t index;
-        protocol_binary_response_status status;
+        cb::mcbp::Status status;
         std::string value;
     };
 

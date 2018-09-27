@@ -90,11 +90,10 @@ public:
         return false;
     }
 
-    protocol_binary_response_status evictKey(const DocKey& key,
-                                             const char** msg) override {
+    cb::mcbp::Status evictKey(const DocKey& key, const char** msg) override {
         /* There is nothing (no disk) to evictKey to. Later on if we decide to
            use this as a deletion, then we can handle it differently */
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+        return cb::mcbp::Status::NotSupported;
     }
 
     bool pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) override;

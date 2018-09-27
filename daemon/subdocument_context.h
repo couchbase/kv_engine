@@ -324,7 +324,7 @@ public:
      * @param client_cas The CAS provided by the client (which should be
      *                   used for updates to the document
      *
-     * @return PROTOCOL_BINARY_RESPONSE_SUCCESS for success, otherwise an
+     * @return cb::mcbp::Status::Success for success, otherwise an
      *         error code which should be returned to the client immediately
      *         (and stop executing of the command)
      */

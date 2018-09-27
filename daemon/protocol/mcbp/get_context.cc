@@ -133,7 +133,7 @@ ENGINE_ERROR_CODE GetCommandContext::noSuchItem() {
 
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
-                  .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
+                  .responseCounters[int(cb::mcbp::Status::KeyEnoent)];
         connection.setState(StateMachine::State::new_cmd);
     } else {
         if (shouldSendKey()) {

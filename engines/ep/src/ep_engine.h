@@ -500,11 +500,9 @@ public:
     void handleDisconnect(const void *cookie);
     void handleDeleteBucket(const void *cookie);
 
-    protocol_binary_response_status stopFlusher(const char** msg,
-                                                size_t* msg_size);
+    cb::mcbp::Status stopFlusher(const char** msg, size_t* msg_size);
 
-    protocol_binary_response_status startFlusher(const char** msg,
-                                                 size_t* msg_size);
+    cb::mcbp::Status startFlusher(const char** msg, size_t* msg_size);
 
     ENGINE_ERROR_CODE deleteVBucket(Vbid vbid, const void* c = NULL);
 
@@ -514,11 +512,10 @@ public:
 
     bool resetVBucket(Vbid vbid);
 
-    protocol_binary_response_status evictKey(
-            const void* cookie,
-            protocol_binary_request_header* request,
-            const char** msg,
-            size_t* msg_size);
+    cb::mcbp::Status evictKey(const void* cookie,
+                              protocol_binary_request_header* request,
+                              const char** msg,
+                              size_t* msg_size);
 
     ENGINE_ERROR_CODE observe(const void* cookie,
                               protocol_binary_request_header* request,
@@ -537,35 +534,35 @@ public:
                                       bool transfer,
                                       uint64_t cas);
 
-    protocol_binary_response_status setParam(
-            protocol_binary_request_set_param* req, std::string& msg);
+    cb::mcbp::Status setParam(protocol_binary_request_set_param* req,
+                              std::string& msg);
 
-    protocol_binary_response_status setFlushParam(const char* keyz,
-                                                  const char* valz,
-                                                  std::string& msg);
+    cb::mcbp::Status setFlushParam(const char* keyz,
+                                   const char* valz,
+                                   std::string& msg);
 
-    protocol_binary_response_status setReplicationParam(const char* keyz,
-                                                        const char* valz,
-                                                        std::string& msg);
+    cb::mcbp::Status setReplicationParam(const char* keyz,
+                                         const char* valz,
+                                         std::string& msg);
 
-    protocol_binary_response_status setCheckpointParam(const char* keyz,
-                                                       const char* valz,
-                                                       std::string& msg);
+    cb::mcbp::Status setCheckpointParam(const char* keyz,
+                                        const char* valz,
+                                        std::string& msg);
 
-    protocol_binary_response_status setDcpParam(const char* keyz,
-                                                const char* valz,
-                                                std::string& msg);
+    cb::mcbp::Status setDcpParam(const char* keyz,
+                                 const char* valz,
+                                 std::string& msg);
 
-    protocol_binary_response_status setVbucketParam(Vbid vbucket,
-                                                    const char* keyz,
-                                                    const char* valz,
-                                                    std::string& msg);
+    cb::mcbp::Status setVbucketParam(Vbid vbucket,
+                                     const char* keyz,
+                                     const char* valz,
+                                     std::string& msg);
 
     ENGINE_ERROR_CODE getReplicaCmd(protocol_binary_request_header* request,
                                     const void* cookie,
                                     Item** it,
                                     const char** msg,
-                                    protocol_binary_response_status* res);
+                                    cb::mcbp::Status* res);
 
     ~EventuallyPersistentEngine();
 
@@ -855,13 +852,12 @@ protected:
      * @param keyOffset set to the number of bytes which are to be skipped to
      *        locate the key.
      */
-    protocol_binary_response_status decodeWithMetaOptions(
-            cb::const_byte_buffer request,
-            uint8_t extlen,
-            GenerateCas& generateCas,
-            CheckConflicts& checkConflicts,
-            PermittedVBStates& permittedVBStates,
-            int& keyOffset);
+    cb::mcbp::Status decodeWithMetaOptions(cb::const_byte_buffer request,
+                                           uint8_t extlen,
+                                           GenerateCas& generateCas,
+                                           CheckConflicts& checkConflicts,
+                                           PermittedVBStates& permittedVBStates,
+                                           int& keyOffset);
 
     /**
      * Sends error response, using the specified error and response callback
@@ -875,7 +871,7 @@ protected:
      * @return status of sending response
      */
     ENGINE_ERROR_CODE sendErrorResponse(ADD_RESPONSE response,
-                                        protocol_binary_response_status status,
+                                        cb::mcbp::Status status,
                                         uint64_t cas,
                                         const void* cookie);
 
@@ -894,7 +890,7 @@ protected:
     ENGINE_ERROR_CODE sendMutationExtras(ADD_RESPONSE response,
                                          Vbid vbucket,
                                          uint64_t bySeqno,
-                                         protocol_binary_response_status status,
+                                         cb::mcbp::Status status,
                                          uint64_t cas,
                                          const void* cookie);
 

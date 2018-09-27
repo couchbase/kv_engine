@@ -259,7 +259,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                  GenerateCas::No));
 
     const char* msg = nullptr;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION,
+    EXPECT_EQ(cb::mcbp::Status::UnknownCollection,
               store->evictKey(item2.getKey(), vbid, &msg));
 }
 

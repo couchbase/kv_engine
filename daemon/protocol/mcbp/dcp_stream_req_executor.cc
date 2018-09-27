@@ -23,6 +23,7 @@
 #include <daemon/cookie.h>
 #include <daemon/mcbp.h>
 #include <logger/logger.h>
+#include <memcached/protocol_binary.h>
 
 void dcp_stream_req_executor(Cookie& cookie) {
     uint64_t rollback_seqno = 0;

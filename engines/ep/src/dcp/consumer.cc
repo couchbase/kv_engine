@@ -873,11 +873,10 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
                opcode == PROTOCOL_BINARY_CMD_DCP_CONTROL) {
         return true;
     } else if (opcode == PROTOCOL_BINARY_CMD_GET_ERROR_MAP) {
-        uint16_t status = ntohs(resp->response.status);
+        auto status = resp->response.getStatus();
         // GetErrorMap is supported on versions >= 5.0.0.
         // "Unknown Command" is returned on pre-5.0.0 versions.
-        producerIsVersion5orHigher =
-                status != PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        producerIsVersion5orHigher = status != cb::mcbp::Status::UnknownCommand;
         getErrorMapState = GetErrorMapState::Skip;
         return true;
     }

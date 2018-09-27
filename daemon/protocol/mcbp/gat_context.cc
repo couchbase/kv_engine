@@ -140,7 +140,7 @@ ENGINE_ERROR_CODE GatCommandContext::noSuchItem() {
     STATS_MISS(&connection, get);
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
-                    .responseCounters[PROTOCOL_BINARY_RESPONSE_KEY_ENOENT];
+                    .responseCounters[int(cb::mcbp::Status::KeyEnoent)];
         connection.setState(StateMachine::State::new_cmd);
     } else {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);

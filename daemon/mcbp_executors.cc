@@ -135,7 +135,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
             // We assume that if the underlying engine returns a success then
             // it is sending a success to the client.
             ++connection.getBucket()
-                      .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
+                      .responseCounters[int(cb::mcbp::Status::Success)];
             cookie.sendDynamicBuffer();
         } else {
             connection.setState(StateMachine::State::new_cmd);
@@ -819,7 +819,7 @@ void execute_client_request_packet(Cookie& cookie,
                     cb::to_hex(request.getExtdata()),
                     cookie.getErrorContext());
             audit_invalid_packet(cookie);
-            cookie.sendResponse(cb::mcbp::Status(result));
+            cookie.sendResponse(result);
             c->setWriteAndGo(StateMachine::State::closing);
             return;
         }

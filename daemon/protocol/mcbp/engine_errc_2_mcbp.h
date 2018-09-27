@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,37 +15,11 @@
  *   limitations under the License.
  */
 
+#include <mcbp/protocol/status.h>
 #include <memcached/engine_error.h>
-#include <memcached/protocol_binary.h>
-#include <memcached/types.h>
-
-namespace mcbp {
-/**
- * Convert an engine error code to a status code as used in the memcached
- * binary protocol.
- *
- * @param code The engine error code specified
- * @return the response message for that engine error code
- * @throws std::logic_error for error codes it doesn't make any sense to
- *                          try to convert
- *         std::invalid_argument for unknown error codes
- */
-protocol_binary_response_status to_status(cb::engine_errc code);
-}
 
 namespace cb {
 namespace mcbp {
 Status to_status(cb::engine_errc code);
-}
+} // namespace mcbp
 } // namespace cb
-
-/**
- * Convert an error code generated from the storage engine to the corresponding
- * error code used by the protocol layer.
- * @param e the error code as used in the engine
- * @return the error code as used by the protocol layer
- */
-static inline protocol_binary_response_status engine_error_2_mcbp_protocol_error(
-    ENGINE_ERROR_CODE e) {
-    return mcbp::to_status(cb::engine_errc(e));
-}

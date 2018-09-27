@@ -395,7 +395,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform)
 
     ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
-    TARGET_LINK_LIBRARIES(ep-engine_misc_test platform)
+    TARGET_LINK_LIBRARIES(ep-engine_misc_test mcbp platform)
 
     ADD_EXECUTABLE(ep-engine_string_utils_test
                    tests/module_tests/string_utils_test.cc
@@ -456,7 +456,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
 
     ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
     SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(timing_tests platform)
+    TARGET_LINK_LIBRARIES(timing_tests mcbp platform)
 
     ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
@@ -470,7 +470,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 $<TARGET_OBJECTS:ep_testsuite_objs>
                 $<TARGET_OBJECTS:mock_dcp>)
     SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcd_util
+    TARGET_LINK_LIBRARIES(ep_testsuite engine_utilities mcbp mcd_util
                           ${EP_STORAGE_LIBS} cbcompress dirutils JSON_checker
                           platform xattr
                           ${LIBEVENT_LIBRARIES})
@@ -487,6 +487,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
             dirutils
             engine_utilities
             JSON_checker
+            mcbp
             mcd_util
             platform
             ${LIBEVENT_LIBRARIES}
@@ -504,6 +505,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
             dirutils
             engine_utilities
             JSON_checker
+            mcbp
             mcd_util
             platform
             ${LIBEVENT_LIBRARIES}
@@ -519,6 +521,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
             dirutils
             engine_utilities
             JSON_checker
+            mcbp
             mcd_util
             platform
             ${LIBEVENT_LIBRARIES}
@@ -529,7 +532,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                 tests/ep_testsuite_xdcr.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>)
     SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities JSON_checker dirutils platform xattr
+    TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities mcbp JSON_checker dirutils platform xattr
                           ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 
@@ -542,6 +545,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
             cbcompress
             dirutils
             engine_utilities
+            mcbp
             mcd_util
             platform)
     ADD_DEPENDENCIES(ep_perfsuite engine_testapp)

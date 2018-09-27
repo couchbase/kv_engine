@@ -145,7 +145,7 @@ public:
     void oneOp(protocol_binary_command op,
                ItemMetaData itemMeta,
                int options,
-               protocol_binary_response_status expectedResponseStatus,
+               cb::mcbp::Status expectedResponseStatus,
                const std::string& key,
                const std::string& value) {
         auto swm = buildWithMetaPacket(op,
@@ -158,7 +158,7 @@ public:
                                        value,
                                        {},
                                        options);
-        if (expectedResponseStatus == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
+        if (expectedResponseStatus == cb::mcbp::Status::NotMyVbucket) {
             EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(op, swm));
         } else {
             EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
@@ -173,7 +173,7 @@ public:
                        ItemMetaData itemMeta,
                        int options,
                        bool withValue,
-                       protocol_binary_response_status expectedResponseStatus,
+                       cb::mcbp::Status expectedResponseStatus,
                        ENGINE_ERROR_CODE expectedGetReturnValue) {
         std::string key = "mykey";
         std::string value;
@@ -192,7 +192,7 @@ public:
     // *_with_meta with winning mutations
     struct TestData {
         ItemMetaData meta;
-        protocol_binary_response_status expectedStatus;
+        cb::mcbp::Status expectedStatus;
     };
 
     /**
@@ -306,7 +306,7 @@ TEST_P(AddSetWithMetaTest, basic) {
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  cb::mcbp::Status::Success,
                   ENGINE_SUCCESS);
 }
 
@@ -316,14 +316,14 @@ TEST_F(WithMetaTest, basicAdd) {
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  cb::mcbp::Status::Success,
                   ENGINE_SUCCESS);
 
     oneOpAndCheck(PROTOCOL_BINARY_CMD_ADD_WITH_META,
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, // can't do a second add
+                  cb::mcbp::Status::KeyEexists, // can't do a second add
                   ENGINE_SUCCESS); // can still get the key
 }
 
@@ -335,7 +335,7 @@ TEST_P(DelWithMetaTest, basic) {
                   itemMeta,
                   0, // no-options
                   withValue,
-                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  cb::mcbp::Status::Success,
                   withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
 }
 
@@ -346,7 +346,7 @@ TEST_P(AllWithMetaTest, invalidCas) {
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+                  cb::mcbp::Status::KeyEexists,
                   ENGINE_KEY_ENOENT);
 
     // -1 CAS in the item meta is invalid
@@ -355,7 +355,7 @@ TEST_P(AllWithMetaTest, invalidCas) {
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+                  cb::mcbp::Status::KeyEexists,
                   ENGINE_KEY_ENOENT);
 }
 
@@ -366,7 +366,7 @@ TEST_P(DelWithMetaTest, invalidCas) {
                   itemMeta,
                   0, // no-options
                   withValue /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+                  cb::mcbp::Status::KeyEexists,
                   ENGINE_KEY_ENOENT);
 
     // -1 CAS in the item meta is invalid
@@ -375,7 +375,7 @@ TEST_P(DelWithMetaTest, invalidCas) {
                   itemMeta,
                   0, // no-options
                   withValue /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+                  cb::mcbp::Status::KeyEexists,
                   ENGINE_KEY_ENOENT);
 }
 
@@ -386,7 +386,7 @@ TEST_P(AllWithMetaTest, failForceAccept) {
                   itemMeta,
                   FORCE_ACCEPT_WITH_META_OPS,
                   true /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_EINVAL,
+                  cb::mcbp::Status::Einval,
                   ENGINE_KEY_ENOENT);
 }
 
@@ -397,7 +397,7 @@ TEST_P(AddSetWithMetaLwwTest, allowForceAccept) {
                   itemMeta,
                   FORCE_ACCEPT_WITH_META_OPS,
                   true /*set a value*/,
-                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  cb::mcbp::Status::Success,
                   ENGINE_SUCCESS);
 }
 
@@ -408,7 +408,7 @@ TEST_P(DelWithMetaLwwTest, allowForceAccept) {
                   itemMeta,
                   FORCE_ACCEPT_WITH_META_OPS,
                   withValue,
-                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  cb::mcbp::Status::Success,
                   withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
 }
 
@@ -419,7 +419,7 @@ TEST_P(AllWithMetaTest, regenerateCASInvalid) {
                   itemMeta,
                   REGENERATE_CAS,
                   true,
-                  PROTOCOL_BINARY_RESPONSE_EINVAL,
+                  cb::mcbp::Status::Einval,
                   ENGINE_KEY_ENOENT);
 }
 
@@ -430,7 +430,7 @@ TEST_P(AllWithMetaTest, forceFail) {
                   itemMeta,
                   0 /*no options*/,
                   true,
-                  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+                  cb::mcbp::Status::NotMyVbucket,
                   ENGINE_KEY_ENOENT);
 }
 
@@ -441,7 +441,7 @@ TEST_P(AllWithMetaTest, forceSuccessReplica) {
                   itemMeta,
                   FORCE_WITH_META_OP,
                   true,
-                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  cb::mcbp::Status::Success,
                   ENGINE_SUCCESS);
 }
 
@@ -452,7 +452,7 @@ TEST_P(AllWithMetaTest, forceSuccessPending) {
                   itemMeta,
                   FORCE_WITH_META_OP,
                   true,
-                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  cb::mcbp::Status::Success,
                   ENGINE_SUCCESS);
 }
 
@@ -472,7 +472,7 @@ TEST_P(AllWithMetaTest, regenerateCAS) {
                                 SKIP_CONFLICT_RESOLUTION_FLAG | REGENERATE_CAS);
 
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
     auto result = store->get({"mykey", DocKeyEncodesCollectionId::No},
                              vbid,
                              cookie,
@@ -506,7 +506,7 @@ TEST_P(AllWithMetaTest, invalid_extlen) {
         }
         packet->message.header.request.extlen = e;
         EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, getAddResponseStatus());
+        EXPECT_EQ(cb::mcbp::Status::Einval, getAddResponseStatus());
         checkGetItem(key, value, itemMeta, ENGINE_KEY_ENOENT);
     }
 }
@@ -581,7 +581,7 @@ TEST_P(AllWithMetaTest, nmvb) {
               store->setVBucketState(
                       Vbid(vbid.get() + 2), vbucket_state_pending, false));
     EXPECT_EQ(ENGINE_EWOULDBLOCK, callEngine(GetParam(), swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // Re-run the op now active, else we have a memory leak
     EXPECT_EQ(ENGINE_SUCCESS,
@@ -606,7 +606,7 @@ TEST_P(AllWithMetaTest, takeoverBackedup) {
                   itemMeta,
                   0,
                   true,
-                  PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                  cb::mcbp::Status::Etmpfail,
                   ENGINE_KEY_ENOENT);
 }
 
@@ -626,7 +626,7 @@ TEST_P(AllWithMetaTest, degraded) {
                   itemMeta,
                   0,
                   true,
-                  PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                  cb::mcbp::Status::Etmpfail,
                   ENGINE_KEY_ENOENT);
 }
 
@@ -654,7 +654,7 @@ void WithMetaTest::conflict_lose(protocol_binary_command op,
 
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_ADD_WITH_META, swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     for (const auto& td : testData) {
         oneOp(op, td.meta, options, td.expectedStatus, key, value);
@@ -686,7 +686,7 @@ void WithMetaTest::conflict_del_lose_xattr(protocol_binary_command op,
 
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_ADD_WITH_META, swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // revSeqno/cas/exp/flags equal, xattr on, conflict (a set would win)
     swm = buildWithMetaPacket(op,
@@ -700,7 +700,7 @@ void WithMetaTest::conflict_del_lose_xattr(protocol_binary_command op,
                               {},
                               options);
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, getAddResponseStatus());
 }
 
 void WithMetaTest::conflict_lose_xattr(protocol_binary_command op,
@@ -727,7 +727,7 @@ void WithMetaTest::conflict_lose_xattr(protocol_binary_command op,
 
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_ADD_WITH_META, swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // revSeqno/cas/exp/flags equal, xattr off, conflict (a set would win)
     swm = buildWithMetaPacket(op,
@@ -741,7 +741,7 @@ void WithMetaTest::conflict_lose_xattr(protocol_binary_command op,
                               {},
                               options);
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, getAddResponseStatus());
 }
 
 TEST_P(DelWithMetaTest, conflict_lose) {
@@ -754,16 +754,13 @@ TEST_P(DelWithMetaTest, conflict_lose) {
     std::array<TestData, 4> data;
 
     // 1) revSeqno is less and everything else larger. Expect conflict
-    data[0] = {{101, 99, 101, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[0] = {{101, 99, 101, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 2. revSeqno is equal, cas is less, others are larger. Expect conflict
-    data[1] = {{99, 100, 101, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[1] = {{99, 100, 101, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 3. revSeqno/cas/flags equal, exp larger. Conflict as exp not checked
-    data[2] = {{100, 100, 100, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[2] = {{100, 100, 100, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 4. revSeqno/cas/exp equal, flags larger. Conflict as exp not checked
-    data[3] = {{100, 100, 200, expiry}, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[3] = {{100, 100, 200, expiry}, cb::mcbp::Status::KeyEexists};
 
     conflict_lose(op, 0, withValue, data, itemMeta);
 }
@@ -777,16 +774,13 @@ TEST_P(DelWithMetaLwwTest, conflict_lose) {
 
     std::array<TestData, 4> data;
     // 1) cas is less and everything else larger. Expect conflict
-    data[0] = {{99, 101, 101, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[0] = {{99, 101, 101, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 2. cas is equal, revSeqno is less, others are larger. Expect conflict
-    data[1] = {{100, 99, 101, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[1] = {{100, 99, 101, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 3. revSeqno/cas/flags equal, exp larger. Conflict as exp not checked
-    data[2] = {{100, 100, 100, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[2] = {{100, 100, 100, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 4. revSeqno/cas/exp equal, flags larger. Conflict as exp not checked
-    data[3] = {{100, 100, 200, expiry}, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[3] = {{100, 100, 200, expiry}, cb::mcbp::Status::KeyEexists};
 
     conflict_lose(op, FORCE_ACCEPT_WITH_META_OPS, withValue, data, itemMeta);
 }
@@ -806,16 +800,13 @@ TEST_P(AddSetWithMetaTest, conflict_lose) {
     // Conflict test order: 1) seqno 2) cas 3) expiry 4) flags 5) xattr
     std::array<TestData, 4> data;
     // 1) revSeqno is less and everything else larger. Expect conflict
-    data[0] = {{101, 99, 101, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[0] = {{101, 99, 101, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 2. revSeqno is equal, cas is less, others are larger. Expect conflict
-    data[1] = {{99, 100, 101, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[1] = {{99, 100, 101, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 3. revSeqno/cas equal, flags larger, exp less, conflict
-    data[2] = {{100, 100, 101, expiry - 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[2] = {{100, 100, 101, expiry - 1}, cb::mcbp::Status::KeyEexists};
     // 4. revSeqno/cas/exp equal, flags less, conflict
-    data[3] = {{100, 100, 99, expiry}, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[3] = {{100, 100, 99, expiry}, cb::mcbp::Status::KeyEexists};
 
     conflict_lose(
             GetParam(), 0 /*options*/, true /*withValue*/, data, itemMeta);
@@ -828,16 +819,13 @@ TEST_P(AddSetWithMetaLwwTest, conflict_lose) {
     // Conflict test order: 1) cas 2) seqno 3) expiry 4) flags 5) xattr
     std::array<TestData, 4> data;
     // 1) cas is less and everything else larger. Expect conflict
-    data[0] = {{99, 101, 101, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[0] = {{99, 101, 101, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 2. cas is equal, revSeq is less, others are larger. Expect conflict
-    data[1] = {{100, 99, 101, expiry + 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[1] = {{100, 99, 101, expiry + 1}, cb::mcbp::Status::KeyEexists};
     // 3. revSeqno/cas equal, flags larger, exp less, conflict
-    data[2] = {{100, 100, 101, expiry - 1},
-               PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[2] = {{100, 100, 101, expiry - 1}, cb::mcbp::Status::KeyEexists};
     // 4. revSeqno/cas/exp equal, flags less, conflict
-    data[3] = {{100, 100, 99, expiry}, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS};
+    data[3] = {{100, 100, 99, expiry}, cb::mcbp::Status::KeyEexists};
 
     conflict_lose(GetParam(), FORCE_ACCEPT_WITH_META_OPS, true, data, itemMeta);
 }
@@ -883,7 +871,7 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
 
         EXPECT_EQ(ENGINE_SUCCESS,
                   callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus())
+        EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus())
                 << "Failed to set the target key:" << key;
 
         // Next the test packet (always with a value).
@@ -905,7 +893,7 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
         if (isDelete) {
             EXPECT_EQ(td.expectedStatus, status)
                     << "Failed deleteWithMeta for iteration " << counter;
-            if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            if (status == cb::mcbp::Status::Success) {
                 checkGetItem(key, value, td.meta);
             }
         } else {
@@ -933,7 +921,7 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
 
     EXPECT_EQ(ENGINE_SUCCESS,
               callEngine(PROTOCOL_BINARY_CMD_ADD_WITH_META, swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // And test same cas/seq/exp/flags but marked with xattr
     auto xattrValue = createXattrValue("xattr_value");
@@ -950,14 +938,13 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
 
     if (isSet) {
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
         checkGetItem(key, xattrValue, itemMeta);
     } else {
         EXPECT_TRUE(isDelete);
-        protocol_binary_response_status expected =
-                (options & SKIP_CONFLICT_RESOLUTION_FLAG) != 0
-                        ? PROTOCOL_BINARY_RESPONSE_SUCCESS
-                        : PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+        auto expected = (options & SKIP_CONFLICT_RESOLUTION_FLAG) != 0
+                                ? cb::mcbp::Status::Success
+                                : cb::mcbp::Status::KeyEexists;
         // del fails as conflict resolution won't get to the XATTR test
         EXPECT_EQ(expected, getAddResponseStatus());
     }
@@ -972,13 +959,13 @@ TEST_F(WithMetaLwwTest, mutate_conflict_resolve_skipped) {
     // Conflict test order: 1) cas 2) seqno 3) expiry 4) flags 5) xattr
     std::array<TestData, 4> data;
     // 1) cas is less and everything else larger. Expect conflict
-    data[0] = {{99, 101, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[0] = {{99, 101, 101, expiry + 1}, cb::mcbp::Status::Success};
     // 2. cas is equal, revSeq is less, others are larger. Expect conflict
-    data[1] = {{100, 99, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[1] = {{100, 99, 101, expiry + 1}, cb::mcbp::Status::Success};
     // 3. revSeqno/cas equal, flags larger, exp less, conflict
-    data[2] = {{100, 100, 101, expiry - 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[2] = {{100, 100, 101, expiry - 1}, cb::mcbp::Status::Success};
     // 4. revSeqno/cas/exp equal, flags less, conflict
-    data[3] = {{100, 100, 99, expiry}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[3] = {{100, 100, 99, expiry}, cb::mcbp::Status::Success};
 
     // Run with SKIP_CONFLICT_RESOLUTION_FLAG
     conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META,
@@ -1000,13 +987,13 @@ TEST_F(WithMetaTest, mutate_conflict_resolve_skipped) {
     // Conflict test order: 1) cas 2) seqno 3) expiry 4) flags 5) xattr
     std::array<TestData, 4> data;
     // 1) cas is less and everything else larger. Expect conflict
-    data[0] = {{99, 101, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[0] = {{99, 101, 101, expiry + 1}, cb::mcbp::Status::Success};
     // 2. cas is equal, revSeq is less, others are larger. Expect conflict
-    data[1] = {{100, 99, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[1] = {{100, 99, 101, expiry + 1}, cb::mcbp::Status::Success};
     // 3. revSeqno/cas equal, flags larger, exp less, conflict
-    data[2] = {{100, 100, 101, expiry - 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[2] = {{100, 100, 101, expiry - 1}, cb::mcbp::Status::Success};
     // 4. revSeqno/cas/exp equal, flags less, conflict
-    data[3] = {{100, 100, 99, expiry}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[3] = {{100, 100, 99, expiry}, cb::mcbp::Status::Success};
 
     // Run with SKIP_CONFLICT_RESOLUTION_FLAG
     conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META,
@@ -1030,13 +1017,13 @@ TEST_F(WithMetaLwwTest, del_conflict_resolve_skipped) {
 
     std::array<TestData, 4> data;
     // 1) cas is less and everything else larger. Expect conflict
-    data[0] = {{99, 101, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[0] = {{99, 101, 101, expiry + 1}, cb::mcbp::Status::Success};
     // 2. cas is equal, revSeqno is less, others are larger. Expect conflict
-    data[1] = {{100, 99, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[1] = {{100, 99, 101, expiry + 1}, cb::mcbp::Status::Success};
     // 3. revSeqno/cas/flags equal, exp larger. Conflict as exp not checked
-    data[2] = {{100, 100, 100, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[2] = {{100, 100, 100, expiry + 1}, cb::mcbp::Status::Success};
     // 4. revSeqno/cas/exp equal, flags larger. Conflict as exp not checked
-    data[3] = {{100, 100, 200, expiry}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[3] = {{100, 100, 200, expiry}, cb::mcbp::Status::Success};
 
     // Run with SKIP_CONFLICT_RESOLUTION_FLAG
     conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META,
@@ -1060,13 +1047,13 @@ TEST_F(WithMetaTest, del_conflict_resolve_skipped) {
 
     std::array<TestData, 4> data;
     // 1) cas is less and everything else larger. Expect conflict
-    data[0] = {{99, 101, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[0] = {{99, 101, 101, expiry + 1}, cb::mcbp::Status::Success};
     // 2. cas is equal, revSeqno is less, others are larger. Expect conflict
-    data[1] = {{100, 99, 101, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[1] = {{100, 99, 101, expiry + 1}, cb::mcbp::Status::Success};
     // 3. revSeqno/cas/flags equal, exp larger. Conflict as exp not checked
-    data[2] = {{100, 100, 100, expiry + 1}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[2] = {{100, 100, 100, expiry + 1}, cb::mcbp::Status::Success};
     // 4. revSeqno/cas/exp equal, flags larger. Conflict as exp not checked
-    data[3] = {{100, 100, 200, expiry}, PROTOCOL_BINARY_RESPONSE_SUCCESS};
+    data[3] = {{100, 100, 200, expiry}, cb::mcbp::Status::Success};
 
     // Run with SKIP_CONFLICT_RESOLUTION_FLAG
     conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META,
@@ -1084,16 +1071,14 @@ TEST_F(WithMetaTest, set_conflict_win) {
             100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
     std::array<TestData, 4> data = {
             {{{100, 101, 100, expiry}, // ... mutate with higher seq
-              PROTOCOL_BINARY_RESPONSE_SUCCESS},
+              cb::mcbp::Status::Success},
              {{101, 100, 100, expiry}, // ... mutate with same but higher cas
-              PROTOCOL_BINARY_RESPONSE_SUCCESS},
-             {{100,
-               100,
-               100,
-               expiry + 1}, // ... mutate with same but higher exp
-              PROTOCOL_BINARY_RESPONSE_SUCCESS},
+              cb::mcbp::Status::Success},
+             {{100, 100, 100, expiry + 1}, // ... mutate with same but higher
+                                           // exp
+              cb::mcbp::Status::Success},
              {{100, 100, 101, expiry}, // ... mutate with same but higher flags
-              PROTOCOL_BINARY_RESPONSE_SUCCESS}}};
+              cb::mcbp::Status::Success}}};
 
     conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META, 0, data, itemMeta);
     conflict_win(PROTOCOL_BINARY_CMD_SETQ_WITH_META, 0, data, itemMeta);
@@ -1104,13 +1089,13 @@ TEST_F(WithMetaTest, del_conflict_win) {
             100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
     std::array<TestData, 4> data = {{
             {{100, 101, 100, expiry}, // ... mutate with higher seq
-             PROTOCOL_BINARY_RESPONSE_SUCCESS},
+             cb::mcbp::Status::Success},
             {{101, 100, 100, expiry}, // ... mutate with same but higher cas
-             PROTOCOL_BINARY_RESPONSE_SUCCESS},
+             cb::mcbp::Status::Success},
             {{100, 100, 100, expiry + 1}, // ... mutate with same but higher exp
-             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS}, // delete ignores expiry
+             cb::mcbp::Status::KeyEexists}, // delete ignores expiry
             {{100, 100, 101, expiry}, // ... mutate with same but higher flags
-             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS} // delete ignores flags
+             cb::mcbp::Status::KeyEexists} // delete ignores flags
     }};
 
     conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META, 0, data, itemMeta);
@@ -1122,16 +1107,14 @@ TEST_F(WithMetaLwwTest, set_conflict_win) {
             100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
     std::array<TestData, 4> data = {
             {{{101, 100, 100, expiry}, // ... mutate with higher cas
-              PROTOCOL_BINARY_RESPONSE_SUCCESS},
+              cb::mcbp::Status::Success},
              {{100, 101, 100, expiry}, // ... mutate with same but higher seq
-              PROTOCOL_BINARY_RESPONSE_SUCCESS},
-             {{100,
-               100,
-               100,
-               expiry + 1}, // ... mutate with same but higher exp
-              PROTOCOL_BINARY_RESPONSE_SUCCESS},
+              cb::mcbp::Status::Success},
+             {{100, 100, 100, expiry + 1}, // ... mutate with same but higher
+                                           // exp
+              cb::mcbp::Status::Success},
              {{100, 100, 101, expiry}, // ... mutate with same but higher flags
-              PROTOCOL_BINARY_RESPONSE_SUCCESS}}};
+              cb::mcbp::Status::Success}}};
 
     conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META,
                  FORCE_ACCEPT_WITH_META_OPS,
@@ -1148,13 +1131,13 @@ TEST_F(WithMetaLwwTest, del_conflict_win) {
             100 /*cas*/, 100 /*revSeq*/, 100 /*flags*/, expiry /*expiry*/};
     std::array<TestData, 4> data = {{
             {{101, 100, 100, expiry}, // ... mutate with higher cas
-             PROTOCOL_BINARY_RESPONSE_SUCCESS},
+             cb::mcbp::Status::Success},
             {{100, 101, 100, expiry}, // ... mutate with same but higher seq
-             PROTOCOL_BINARY_RESPONSE_SUCCESS},
+             cb::mcbp::Status::Success},
             {{100, 100, 100, expiry + 1}, // ... mutate with same but higher exp
-             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS}, // delete ignores expiry
+             cb::mcbp::Status::KeyEexists}, // delete ignores expiry
             {{100, 100, 101, expiry}, // ... mutate with same but higher flags
-             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS} // delete ignores flags
+             cb::mcbp::Status::KeyEexists} // delete ignores flags
     }};
 
     conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META,
@@ -1180,7 +1163,7 @@ TEST_P(AllWithMetaTest, markJSON) {
                                    "json",
                                    value);
     EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, getAddResponseStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     auto result = store->get({"json", DocKeyEncodesCollectionId::No},
                              vbid,
@@ -1321,7 +1304,7 @@ TEST_P(AllWithMetaTest, skipConflicts) {
                   itemMeta,
                   0,
                   true,
-                  PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+                  cb::mcbp::Status::Etmpfail,
                   ENGINE_KEY_ENOENT);
 }
 
@@ -1333,7 +1316,7 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
                   itemMeta,
                   0, // no-options
                   withValue,
-                  PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                  cb::mcbp::Status::Success,
                   withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK);
 
     EXPECT_EQ(std::make_pair(false, size_t(1)),

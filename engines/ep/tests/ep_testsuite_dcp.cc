@@ -350,7 +350,7 @@ void TestDcpConsumer::run(bool openConn) {
                         sendDcpAck(h,
                                    cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                   cb::mcbp::Status::Success,
                                    dcp_last_opaque);
                     }
 
@@ -377,7 +377,7 @@ void TestDcpConsumer::run(bool openConn) {
                         sendDcpAck(h,
                                    cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                   cb::mcbp::Status::Success,
                                    dcp_last_opaque);
                     }
 
@@ -436,7 +436,7 @@ void TestDcpConsumer::run(bool openConn) {
                     sendDcpAck(h,
                                cookie,
                                PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
-                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                               cb::mcbp::Status::Success,
                                dcp_last_opaque);
                     break;
                 case 0:
@@ -907,7 +907,7 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
                         sendDcpAck(h,
                                    cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                   cb::mcbp::Status::Success,
                                    dcp_last_opaque);
                     }
                     num_mutations++;
@@ -1146,7 +1146,7 @@ static void dcp_waiting_step(EngineIface* h,
                         sendDcpAck(h,
                                    cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                   cb::mcbp::Status::Success,
                                    dcp_last_opaque);
                     }
                     ++num_mutations;
@@ -1749,7 +1749,7 @@ static enum test_result test_dcp_noop(EngineIface* h) {
             sendDcpAck(h,
                        cookie,
                        PROTOCOL_BINARY_CMD_DCP_NOOP,
-                       PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                       cb::mcbp::Status::Success,
                        dcp_last_opaque);
             checkeq(0,
                     get_int_stat(h, stat_name.c_str(), "dcp"),
@@ -3124,7 +3124,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
                     sendDcpAck(h,
                                cookie,
                                PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
-                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                               cb::mcbp::Status::Success,
                                dcp_last_opaque);
                     break;
                 case 0:
@@ -3172,7 +3172,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         // DcpControl/set_noop_interval call.
         protocol_binary_response_header resp{};
         resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
-        resp.response.status = ntohs(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        resp.response.setStatus(cb::mcbp::Status::Success);
         dcpHandleResponse(h, cookie, &resp);
 
         // Check that the enable noop message is sent
@@ -3876,7 +3876,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     memset(pkt->bytes, '\0', 32);
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-    pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
+    pkt->response.setStatus(cb::mcbp::Status::Rollback);
     pkt->response.opaque = stream_opaque;
     pkt->response.setBodylen(8);
     memcpy(pkt->bytes + 24, &rollbackSeqno, sizeof(uint64_t));
@@ -3901,7 +3901,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     memset(pkt->bytes, '\0', 40);
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-    pkt->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    pkt->response.setStatus(cb::mcbp::Status::Success);
     pkt->response.opaque = stream_opaque;
     pkt->response.setBodylen(16);
     memcpy(pkt->bytes + 24, &vb_uuid, sizeof(uint64_t));
@@ -3973,7 +3973,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     memset(pkt1->bytes, '\0', headerlen + bodylen);
     pkt1->response.magic = PROTOCOL_BINARY_RES;
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-    pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
+    pkt1->response.setStatus(cb::mcbp::Status::Rollback);
     pkt1->response.setBodylen(bodylen);
     pkt1->response.opaque = dcp_last_opaque;
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
@@ -3994,7 +3994,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     memset(pkt2->bytes, '\0', headerlen + bodylen);
     pkt2->response.magic = PROTOCOL_BINARY_RES;
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-    pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    pkt2->response.setStatus(cb::mcbp::Status::Success);
     pkt2->response.opaque = dcp_last_opaque;
     pkt2->response.setBodylen(bodylen);
     uint64_t vb_uuid = htonll(123456789);
@@ -4092,7 +4092,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     memset(pkt1->bytes, '\0', headerlen + bodylen);
     pkt1->response.magic = PROTOCOL_BINARY_RES;
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-    pkt1->response.status = htons(PROTOCOL_BINARY_RESPONSE_ROLLBACK);
+    pkt1->response.setStatus(cb::mcbp::Status::Rollback);
     pkt1->response.setBodylen(bodylen);
     pkt1->response.opaque = dcp_last_opaque;
     uint64_t rollbackPt = htonll(rollbackSeqno);
@@ -4111,7 +4111,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     memset(pkt2->bytes, '\0', headerlen + bodylen);
     pkt2->response.magic = PROTOCOL_BINARY_RES;
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-    pkt2->response.status = htons(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    pkt2->response.setStatus(cb::mcbp::Status::Success);
     pkt2->response.opaque = dcp_last_opaque;
     pkt2->response.setBodylen(bodylen);
     uint64_t vb_uuid = htonll(123456789);

@@ -504,11 +504,11 @@ static enum test_result test_add_with_meta(EngineIface* h) {
 
     // store an item with meta data
     add_with_meta(h, key, keylen, NULL, 0, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // store the item again, expect key exists
     add_with_meta(h, key, keylen, NULL, 0, Vbid(0), &itemMeta, true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
             "Expected add to fail when the item exists already");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
@@ -565,7 +565,7 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
     check(temp == 1, "Expect more setMeta ops");
@@ -584,14 +584,14 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
 
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // delete an item with meta data
     del_with_meta(h, key3, keylen, Vbid(0), &itemMeta);
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -635,7 +635,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
 
     // do delete with meta with an incorrect cas value. should fail.
     del_with_meta(h, key, keylen, Vbid(0), &itm_meta, invalid_cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
             "Expected invalid cas error");
     checkeq(0,
             get_int_stat(h, "ep_num_ops_del_meta"),
@@ -647,7 +647,7 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
     del_with_meta(h, key, keylen, Vbid(0), &itm_meta, valid_cas);
     wait_for_flusher_to_settle(h);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(1, get_int_stat(h, "ep_num_ops_del_meta"), "Expect some ops");
     wait_for_stat_to_be(h, "curr_items", 0);
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
@@ -698,7 +698,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
 
     // do delete with meta with an incorrect cas value. should fail.
     del_with_meta(h, key, keylen, Vbid(0), &itm_meta, invalid_cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
             "Expected invalid cas error");
     // check the stat
     checkeq(0,
@@ -709,7 +709,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, key, keylen, Vbid(0), &itm_meta, valid_cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
     // check the stat
@@ -755,7 +755,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     // do delete with meta with the correct cas value.
     // skipConflictResolution false
     del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta1, 0, false);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
     checkeq(1, get_int_stat(h, "ep_num_ops_del_meta"), "Expect one op");
@@ -775,7 +775,7 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(
     itm_meta2.flags = 0xdeadbeef;
 
     del_with_meta(h, key2, keylen2, Vbid(0), &itm_meta2, 0, true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
     checkeq(2, get_int_stat(h, "ep_num_ops_del_meta"), "Expect one op");
@@ -820,7 +820,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
     // attempt delete_with_meta. should fail since cas is no longer valid.
     del_with_meta(
             h, key1, keylen1, Vbid(0), &itm_meta, errorMetaPair.second.cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
@@ -845,7 +845,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
 
     del_with_meta(
             h, key1, keylen1, Vbid(0), &itm_meta, errorMetaPair.second.cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
@@ -896,7 +896,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
     del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta, cas_from_store);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
@@ -918,7 +918,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
 
     // attempt delete_with_meta. should pass.
     del_with_meta(h, key1, keylen1, Vbid(0), &itm_meta, last_cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
@@ -942,7 +942,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
     // attempt delete_with_meta. should pass.
     del_with_meta(
             h, key2, keylen2, Vbid(0), &itm_meta, errorMetaPair.second.cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
@@ -995,13 +995,13 @@ static enum test_result test_set_with_meta(EngineIface* h) {
                   Vbid(0),
                   &itm_meta,
                   cas_for_set);
-    checkeq(PROTOCOL_BINARY_RESPONSE_E2BIG, last_status.load(),
+    checkeq(cb::mcbp::Status::E2big, last_status.load(),
           "Expected the max value size exceeding error");
     delete []bigValue;
 
     // do set with meta with an incorrect cas value. should fail.
     set_with_meta(h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, 1229);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     checkeq(0,
@@ -1027,7 +1027,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
                   0,
                   0,
                   cookie);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
 
@@ -1063,7 +1063,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
                   false,
                   0,
                   cookie);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
 
@@ -1071,7 +1071,7 @@ static enum test_result test_set_with_meta(EngineIface* h) {
     cas_for_set = last_meta.cas;
     set_with_meta(
             h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, cas_for_set);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
 
@@ -1095,7 +1095,7 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h) {
     // Pass true to force SetWithMeta.
     set_with_meta(
             h, key, keylen, val, strlen(val), Vbid(0), &itm_meta, 0, true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
     // get metadata again to verify that the warmup loads an item correctly.
@@ -1153,7 +1153,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
 
     // do set_with_meta with an incorrect cas for a deleted item. should fail.
     set_with_meta(h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, 1229);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
           "Expected key_not_found error");
     // check the stat
     checkeq(0,
@@ -1165,7 +1165,7 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
     // do set with meta with the correct cas value. should pass.
     set_with_meta(
             h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, cas_for_set);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
     // check the stat
@@ -1213,7 +1213,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h) {
 
     // do set_with_meta with an incorrect cas for a non-existent item. should fail.
     set_with_meta(h, key, keylen, val, valLen, Vbid(0), &itm_meta, 1229);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
           "Expected key_not_found error");
     // check the stat
     checkeq(0,
@@ -1223,7 +1223,7 @@ static enum test_result test_set_with_meta_nonexistent(EngineIface* h) {
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, key, keylen, val, valLen, Vbid(0), &itm_meta, cas_for_set);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
 
     // check the stat
@@ -1278,7 +1278,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
                   Vbid(0),
                   &meta,
                   errorMetaPair.second.cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
@@ -1313,7 +1313,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
                   Vbid(0),
                   &meta,
                   errorMetaPair.second.cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
@@ -1361,10 +1361,12 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
                   errorMetaPair.second.cas,
                   true);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+    checkeq(cb::mcbp::Status::KeyEnoent,
+            last_status.load(),
             (std::string{"Expected invalid cas error (KEY_EXISTS or"
                          " KEY_ENOENT), got: "} +
-             std::to_string(last_status.load())).c_str());
+             ::to_string(last_status.load()))
+                    .c_str());
 
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
@@ -1398,7 +1400,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
                   &meta,
                   errorMetaPair.second.cas,
                   true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 1, "Expect some op");
@@ -1421,7 +1423,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     // Attempt set_with_meta. This should pass as we set a new key passing 0 as
     // command CAS.
     set_with_meta(h, key2, keylen2, NULL, 0, Vbid(0), &meta, 0, true);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
     check(temp == 2, "Expect some ops");
@@ -1475,7 +1477,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
                   PROTOCOL_BINARY_DATATYPE_XATTR,
                   cookie);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected the set_with_meta to be successful");
 
     // set_with_meta will mark JSON input as JSON
@@ -1504,7 +1506,7 @@ static enum test_result test_set_with_meta_xattr(EngineIface* h) {
                       PROTOCOL_BINARY_RAW_BYTES,
                       cookie);
 
-        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+        checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
 		"Expected return code to be EEXISTS");
     }
 
@@ -1583,7 +1585,7 @@ static enum test_result test_delete_with_meta_xattr(EngineIface* h) {
             "Failed to store key1.");
     */
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Expected delete_with_meta(key1) to succeed");
 
@@ -1751,7 +1753,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(0,
             get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
@@ -1764,7 +1766,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     itemMeta.revSeqno++;
     itemMeta.cas++;
     add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(isPersistentBucket(h) ? 1 : 0,
             get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected bg meta fetches");
@@ -1775,7 +1777,7 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
@@ -1783,14 +1785,14 @@ static enum test_result test_add_meta_conflict_resolution(EngineIface* h) {
     // Check testing with old seqno
     itemMeta.revSeqno--;
     add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     add_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
@@ -1811,14 +1813,14 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
             "Expect zero setMeta ops");
 
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(0,
             get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
 
     // Check all meta data is the same
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
@@ -1826,7 +1828,7 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
@@ -1834,17 +1836,17 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
     // Check has newer flags passes
     itemMeta.flags = 0xdeadbeff;
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that newer exptime wins
     itemMeta.exptime = time(NULL) + 10;
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
@@ -1852,14 +1854,14 @@ static enum test_result test_set_meta_conflict_resolution(EngineIface* h) {
     // Check testing with old seqno
     itemMeta.revSeqno--;
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(4,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(4,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
@@ -1892,7 +1894,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
                   &itemMeta,
                   0,
                   FORCE_ACCEPT_WITH_META_OPS);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(0,
             get_int_stat(h, "ep_bg_meta_fetched"),
             "Expected no bg meta fetchs, thanks to bloom filters");
@@ -1907,7 +1909,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
                   &itemMeta,
                   0,
                   FORCE_ACCEPT_WITH_META_OPS);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
@@ -1923,7 +1925,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
                   &itemMeta,
                   0,
                   FORCE_ACCEPT_WITH_META_OPS);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_set_meta_res_fail"),
             "Expected set meta conflict resolution failure");
@@ -1939,12 +1941,12 @@ static enum test_result test_set_meta_lww_conflict_resolution(EngineIface* h) {
                   &itemMeta,
                   0,
                   FORCE_ACCEPT_WITH_META_OPS);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // Check that we fail requests if the force flag is not set
     itemMeta.cas = 0xdeadbeff + 1;
     set_with_meta(h, "key", 3, NULL, 0, Vbid(0), &itemMeta, 0, 0 /*options*/);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
+    checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected EINVAL");
 
     return SUCCESS;
 }
@@ -1963,13 +1965,13 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
             "Expected delete meta conflict resolution failure");
@@ -1977,7 +1979,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
             "Expected delete meta conflict resolution failure");
@@ -1985,7 +1987,7 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
             "Expected delete meta conflict resolution failure");
@@ -1993,13 +1995,13 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     // Check testing with old seqno
     itemMeta.revSeqno--;
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     check(get_int_stat(h, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected delete meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     check(get_int_stat(h, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected delete meta conflict resolution failure");
 
@@ -2027,18 +2029,18 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
 
     // first check the command fails if no force is set
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta, 0, 0 /*options*/);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
+    checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected EINVAL");
 
     del_with_meta(
             h, "key", 3, Vbid(0), &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "curr_items", 0);
 
     // Check all meta data is the same
     del_with_meta(
             h, "key", 3, Vbid(0), &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(1,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
             "Expected delete meta conflict resolution failure");
@@ -2048,7 +2050,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     itemMeta.revSeqno = 11;
     del_with_meta(
             h, "key", 3, Vbid(0), &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
             "Expected delete meta conflict resolution failure");
@@ -2058,7 +2060,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
     itemMeta.revSeqno = 9;
     del_with_meta(
             h, "key", 3, Vbid(0), &itemMeta, 0, FORCE_ACCEPT_WITH_META_OPS);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected sucess");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected sucess");
 
     return SUCCESS;
 }
@@ -2132,7 +2134,7 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
                           &itm_meta,
                           0,
                           FORCE_ACCEPT_WITH_META_OPS);
-            checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            checkeq(cb::mcbp::Status::Success, last_status.load(),
                     "Expected success");
         }
     }
@@ -2233,7 +2235,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
                           &itm_meta,
                           0,
                           FORCE_ACCEPT_WITH_META_OPS);
-            checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            checkeq(cb::mcbp::Status::Success, last_status.load(),
                     "Expected success");
         }
     }
@@ -2268,7 +2270,7 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
                           &itm_meta,
                           1,
                           FORCE_ACCEPT_WITH_META_OPS);
-            checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            checkeq(cb::mcbp::Status::Success, last_status.load(),
                     "Expected success");
         }
     }
@@ -2390,7 +2392,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
 
     // Set the key with a low CAS value
     set_with_meta(h, "key", 3, nullptr, 0, Vbid(0), &itemMeta, 0, force);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -2413,7 +2415,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
                   &itemMeta,
                   0,
                   REGENERATE_CAS /*but no skip*/);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
             "Expected EINVAL");
 
     set_with_meta(h,
@@ -2426,7 +2428,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
                   0,
                   REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success");
 
     check(get_meta(h, "key", errorMetaPair), "Failed to get_meta");
@@ -2447,7 +2449,7 @@ static enum test_result test_cas_regeneration(EngineIface* h) {
                   0,
                   REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG | force);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success");
 
     check(get_meta(h, "key", errorMetaPair), "Failed to get_meta");
@@ -2485,7 +2487,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
                   &itemMeta,
                   0,
                   force);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Expected success");
 
@@ -2506,7 +2508,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
                   &itemMeta,
                   0,
                   REGENERATE_CAS /*but no skip*/);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
+    checkeq(cb::mcbp::Status::Einval,
             last_status.load(),
             "Expected EINVAL");
 
@@ -2517,7 +2519,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
                   &itemMeta,
                   0,
                   REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Expected success");
 
@@ -2535,7 +2537,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
                   &itemMeta,
                   0,
                   REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG | force);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Expected success");
 
@@ -2581,7 +2583,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                   PROTOCOL_BINARY_RAW_BYTES,
                   nullptr,
                   junkMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
+    checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected EINVAL");
 
     // Set the key and junk nmeta that's quite large
     junkMeta.resize(std::numeric_limits<uint16_t>::max());
@@ -2597,7 +2599,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                   PROTOCOL_BINARY_RAW_BYTES,
                   nullptr,
                   junkMeta);
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected EINVAL");
+    checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected EINVAL");
 
     // Test that valid meta can be sent. It should be ignored and success
     // returned
@@ -2654,7 +2656,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       PROTOCOL_BINARY_RAW_BYTES,
                       nullptr,
                       validMetaVector);
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
 
         itemMeta.cas++;
@@ -2667,7 +2669,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       force,
                       nullptr,
                       validMetaVector);
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
     }
 
@@ -2692,7 +2694,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       PROTOCOL_BINARY_RAW_BYTES,
                       nullptr,
                       validMetaVector);
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
 
         itemMeta.cas++;
@@ -2705,7 +2707,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       force,
                       nullptr,
                       validMetaVector);
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
     }
 
@@ -2732,7 +2734,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       PROTOCOL_BINARY_RAW_BYTES,
                       nullptr,
                       validMetaVector);
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
 
         itemMeta.cas++;
@@ -2745,7 +2747,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       force,
                       nullptr,
                       validMetaVector);
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
     }
 
@@ -2772,7 +2774,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       PROTOCOL_BINARY_RAW_BYTES,
                       nullptr,
                       validMetaVector);
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
 
         itemMeta.cas++;
@@ -2785,7 +2787,7 @@ static enum test_result test_cas_options_and_nmeta(EngineIface* h) {
                       force,
                       nullptr,
                       validMetaVector);
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+        checkeq(cb::mcbp::Status::Success, last_status.load(),
                 "Expected success");
     }
 
@@ -2817,7 +2819,7 @@ static enum test_result test_MB29119(EngineIface* h) {
                   0 /*options*/,
                   cookie);
 
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(cb::mcbp::Status::Success,
             last_status.load(),
             "Expected success");
 
@@ -2836,7 +2838,7 @@ static enum test_result test_MB29119(EngineIface* h) {
                   cookie);
 
     // Conflict resolution must stop the second delete
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(cb::mcbp::Status::KeyEexists,
             last_status.load(),
             "Expected EEXISTS");
 

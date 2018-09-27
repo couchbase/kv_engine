@@ -114,8 +114,8 @@ static int set_verbosity(MemcachedConnection& connection,
     if (resp.isSuccess()) {
         return EXIT_SUCCESS;
     } else {
-        std::cerr << "Command failed: "
-                  << to_string(cb::mcbp::Status(resp.getStatus())) << std::endl;
+        std::cerr << "Command failed: " << to_string(resp.getStatus())
+                  << std::endl;
         return EXIT_FAILURE;
     }
 }

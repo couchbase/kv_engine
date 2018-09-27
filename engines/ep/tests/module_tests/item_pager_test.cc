@@ -452,7 +452,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
     // Now set max_size to be 10MiB
     std::string msg;
     EXPECT_EQ(
-            PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            cb::mcbp::Status::Success,
             engine->setFlushParam(
                     "max_size", std::to_string(10 * 1024 * 1204).c_str(), msg));
 
@@ -486,7 +486,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
 
     // Now set max_size to be mem_used + 10% (we need some headroom)
     auto& stats = engine->getEpStats();
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    EXPECT_EQ(cb::mcbp::Status::Success,
               engine->setFlushParam(
                       "max_size",
                       std::to_string(stats.getEstimatedTotalMemoryUsed() * 1.10)
@@ -1059,7 +1059,7 @@ TEST_P(STPersistentExpiryPagerTest, MB_25931) {
               getEPBucket().flushVBucket(vbid));
 
     const char* msg;
-    EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg));
+    EXPECT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 
     // Manually run the bgfetch task.

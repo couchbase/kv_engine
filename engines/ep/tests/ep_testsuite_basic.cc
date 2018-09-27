@@ -439,12 +439,12 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
                   Vbid(0),
                   &itm_meta,
                   errorMetaPair.second.cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_LOCKED, last_status.load(),
+    checkeq(cb::mcbp::Status::Locked, last_status.load(),
           "Expected item to be locked");
 
     //do a del with meta
     del_with_meta(h, key, strlen(key), Vbid(0), &itm_meta, last_cas);
-    checkeq(PROTOCOL_BINARY_RESPONSE_LOCKED, last_status.load(),
+    checkeq(cb::mcbp::Status::Locked, last_status.load(),
           "Expected item to be locked");
     return SUCCESS;
 }
@@ -1654,7 +1654,7 @@ static enum test_result test_bug7023(EngineIface* h) {
         check(set_vbucket_state(h, Vbid(0), vbucket_state_dead),
               "Failed set set vbucket 0 dead.");
         checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(0)), "expected success");
-        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+        checkeq(cb::mcbp::Status::Success,
                 last_status.load(),
                 "Expected vbucket deletion to work.");
         check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
@@ -1780,7 +1780,7 @@ static enum test_result set_max_cas_mb21190(EngineIface* h) {
               "max_cas",
               max_cas_str.data(),
               Vbid(0));
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failed to set_param max_cas");
     checkeq(max_cas + 1,
             get_ull_stat(h, "vb_0:max_cas", "vbucket-details 0"),
@@ -1790,14 +1790,14 @@ static enum test_result set_max_cas_mb21190(EngineIface* h) {
               "max_cas",
               max_cas_str.data(),
               Vbid(1));
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+    checkeq(cb::mcbp::Status::NotMyVbucket, last_status.load(),
             "Expected not my vbucket for vb 1");
     set_param(h,
               protocol_binary_engine_param_vbucket,
               "max_cas",
               "JUNK",
               Vbid(0));
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
             "Expected EINVAL");
     return SUCCESS;
 }

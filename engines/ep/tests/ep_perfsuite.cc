@@ -990,7 +990,7 @@ static void perf_dcp_client(EngineIface* h,
                         sendDcpAck(h,
                                    cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                   cb::mcbp::Status::Success,
                                    dcp_last_opaque);
                     }
 

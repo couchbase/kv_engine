@@ -506,18 +506,18 @@ void KVBucket::wakeUpFlusher() {
     // Nothing do to - no flusher in this class
 }
 
-protocol_binary_response_status KVBucket::evictKey(const DocKey& key,
-                                                   Vbid vbucket,
-                                                   const char** msg) {
+cb::mcbp::Status KVBucket::evictKey(const DocKey& key,
+                                    Vbid vbucket,
+                                    const char** msg) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb || (vb->getState() != vbucket_state_active)) {
-        return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+        return cb::mcbp::Status::NotMyVbucket;
     }
 
     { // collections read-lock scope
         auto collectionsRHandle = vb->lockCollections(key);
         if (!collectionsRHandle.valid()) {
-            return PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION;
+            return cb::mcbp::Status::UnknownCollection;
         } // now hold collections read access for the duration of the evict
 
         return vb->evictKey(key, msg);

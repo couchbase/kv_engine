@@ -131,7 +131,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* End VBucket commands */
 
     /* TAP commands */
-    /* We want to return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED */
+    /* We want to return cb::mcbp::Status::NotSupported */
     setup(PROTOCOL_BINARY_CMD_TAP_CONNECT, empty);
     setup(PROTOCOL_BINARY_CMD_TAP_MUTATION, empty);
     setup(PROTOCOL_BINARY_CMD_TAP_DELETE, empty);

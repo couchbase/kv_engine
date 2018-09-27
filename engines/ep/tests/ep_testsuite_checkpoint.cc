@@ -50,7 +50,7 @@ static enum test_result test_create_new_checkpoint(EngineIface* h) {
             "storing 51 items");
 
     createCheckpoint(h);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected success response from creating a new checkpoint");
 
     checkeq(3,
@@ -65,25 +65,25 @@ static enum test_result test_validate_checkpoint_params(EngineIface* h) {
               protocol_binary_engine_param_checkpoint,
               "chk_max_items",
               "1000");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failed to set checkpoint_max_item param");
     set_param(h, protocol_binary_engine_param_checkpoint, "chk_period", "100");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failed to set checkpoint_period param");
     set_param(
             h, protocol_binary_engine_param_checkpoint, "max_checkpoints", "2");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failed to set max_checkpoints param");
 
     set_param(h, protocol_binary_engine_param_checkpoint, "chk_max_items", "5");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
             "Expected to have an invalid value error for checkpoint_max_items param");
     set_param(h, protocol_binary_engine_param_checkpoint, "chk_period", "0");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
             "Expected to have an invalid value error for checkpoint_period param");
     set_param(
             h, protocol_binary_engine_param_checkpoint, "max_checkpoints", "6");
-    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+    checkeq(cb::mcbp::Status::Einval, last_status.load(),
             "Expected to have an invalid value error for max_checkpoints param");
 
     return SUCCESS;
@@ -165,7 +165,7 @@ static enum test_result test_checkpoint_persistence(EngineIface* h) {
                 checkpointPersistence(h, 0, Vbid(0)),
                 "Failed to request checkpoint persistence");
         checkeq(last_status.load(),
-                PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+                cb::mcbp::Status::NotSupported,
                 "Expected checkpoint persistence not be supported");
         return SUCCESS;
     }
@@ -214,7 +214,7 @@ static enum test_result test_wait_for_persist_vb_del(EngineIface* h) {
     wait_for_stat_to_be(h, "ep_chk_persistence_remains", 1);
 
     checkeq(ENGINE_SUCCESS, vbucketDelete(h, Vbid(1)), "Expected success");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+    checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, Vbid(1)),
           "vbucket 1 was not missing after deleting it.");

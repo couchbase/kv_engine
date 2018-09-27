@@ -15,9 +15,10 @@
  *   limitations under the License.
  */
 #include "dcp_expiration.h"
+#include "../../mcbp.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
-#include "../../mcbp.h"
+#include <memcached/protocol_binary.h>
 
 void dcp_expiration_executor(Cookie& cookie) {
     auto packet = cookie.getPacket(Cookie::PacketContent::Full);

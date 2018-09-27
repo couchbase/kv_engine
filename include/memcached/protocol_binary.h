@@ -73,106 +73,6 @@
 const uint8_t PROTOCOL_BINARY_REQ = uint8_t(cb::mcbp::Magic::ClientRequest);
 const uint8_t PROTOCOL_BINARY_RES = uint8_t(cb::mcbp::Magic::ClientResponse);
 
-// Status codes
-using protocol_binary_response_status = uint16_t;
-
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUCCESS =
-        uint16_t(cb::mcbp::Status::Success);
-const uint16_t PROTOCOL_BINARY_RESPONSE_KEY_ENOENT =
-        uint16_t(cb::mcbp::Status::KeyEnoent);
-const uint16_t PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS =
-        uint16_t(cb::mcbp::Status::KeyEexists);
-const uint16_t PROTOCOL_BINARY_RESPONSE_E2BIG = uint16_t(cb::mcbp::Status::E2big);
-const uint16_t PROTOCOL_BINARY_RESPONSE_EINVAL =
-        uint16_t(cb::mcbp::Status::Einval);
-const uint16_t PROTOCOL_BINARY_RESPONSE_NOT_STORED =
-        uint16_t(cb::mcbp::Status::NotStored);
-const uint16_t PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL =
-        uint16_t(cb::mcbp::Status::DeltaBadval);
-const uint16_t PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET =
-        uint16_t(cb::mcbp::Status::NotMyVbucket);
-const uint16_t PROTOCOL_BINARY_RESPONSE_NO_BUCKET =
-        uint16_t(cb::mcbp::Status::NoBucket);
-const uint16_t PROTOCOL_BINARY_RESPONSE_LOCKED =
-        uint16_t(cb::mcbp::Status::Locked);
-const uint16_t PROTOCOL_BINARY_RESPONSE_AUTH_STALE =
-        uint16_t(cb::mcbp::Status::AuthStale);
-const uint16_t PROTOCOL_BINARY_RESPONSE_AUTH_ERROR =
-        uint16_t(cb::mcbp::Status::AuthError);
-const uint16_t PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE =
-        uint16_t(cb::mcbp::Status::AuthContinue);
-const uint16_t PROTOCOL_BINARY_RESPONSE_ERANGE =
-        uint16_t(cb::mcbp::Status::Erange);
-const uint16_t PROTOCOL_BINARY_RESPONSE_ROLLBACK =
-        uint16_t(cb::mcbp::Status::Rollback);
-const uint16_t PROTOCOL_BINARY_RESPONSE_EACCESS =
-        uint16_t(cb::mcbp::Status::Eaccess);
-const uint16_t PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED =
-        uint16_t(cb::mcbp::Status::NotInitialized);
-const uint16_t PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND =
-        uint16_t(cb::mcbp::Status::UnknownCommand);
-const uint16_t PROTOCOL_BINARY_RESPONSE_ENOMEM =
-        uint16_t(cb::mcbp::Status::Enomem);
-const uint16_t PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED =
-        uint16_t(cb::mcbp::Status::NotSupported);
-const uint16_t PROTOCOL_BINARY_RESPONSE_EINTERNAL =
-        uint16_t(cb::mcbp::Status::Einternal);
-const uint16_t PROTOCOL_BINARY_RESPONSE_EBUSY = uint16_t(cb::mcbp::Status::Ebusy);
-const uint16_t PROTOCOL_BINARY_RESPONSE_ETMPFAIL =
-        uint16_t(cb::mcbp::Status::Etmpfail);
-const uint16_t PROTOCOL_BINARY_RESPONSE_XATTR_EINVAL =
-        uint16_t(cb::mcbp::Status::XattrEinval);
-const uint16_t PROTOCOL_BINARY_RESPONSE_UNKNOWN_COLLECTION =
-        uint16_t(cb::mcbp::Status::UnknownCollection);
-const uint16_t PROTOCOL_BINARY_RESPONSE_NO_COLLECTIONS_MANIFEST =
-        uint16_t(cb::mcbp::Status::NoCollectionsManifest);
-const uint16_t PROTOCOL_BINARY_RESPONSE_CANNOT_APPLY_COLLECTIONS_MANIFEST =
-        uint16_t(cb::mcbp::Status::CannotApplyCollectionsManifest);
-const uint16_t PROTOCOL_BINARY_RESPONSE_COLLECTIONS_MANIFEST_IS_AHEAD =
-        uint16_t(cb::mcbp::Status::CollectionsManifestIsAhead);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT =
-        uint16_t(cb::mcbp::Status::SubdocPathEnoent);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH =
-        uint16_t(cb::mcbp::Status::SubdocPathMismatch);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL =
-        uint16_t(cb::mcbp::Status::SubdocPathEinval);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG =
-        uint16_t(cb::mcbp::Status::SubdocPathE2big);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_E2DEEP =
-        uint16_t(cb::mcbp::Status::SubdocDocE2deep);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT =
-        uint16_t(cb::mcbp::Status::SubdocValueCantinsert);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON =
-        uint16_t(cb::mcbp::Status::SubdocDocNotJson);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE =
-        uint16_t(cb::mcbp::Status::SubdocNumErange);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL =
-        uint16_t(cb::mcbp::Status::SubdocDeltaEinval);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS =
-        uint16_t(cb::mcbp::Status::SubdocPathEexists);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP =
-        uint16_t(cb::mcbp::Status::SubdocValueEtoodeep);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO =
-        uint16_t(cb::mcbp::Status::SubdocInvalidCombo);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE =
-        uint16_t(cb::mcbp::Status::SubdocMultiPathFailure);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_SUCCESS_DELETED =
-        uint16_t(cb::mcbp::Status::SubdocSuccessDeleted);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_FLAG_COMBO =
-        uint16_t(cb::mcbp::Status::SubdocXattrInvalidFlagCombo);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_INVALID_KEY_COMBO =
-        uint16_t(cb::mcbp::Status::SubdocXattrInvalidKeyCombo);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_MACRO =
-        uint16_t(cb::mcbp::Status::SubdocXattrUnknownMacro);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_UNKNOWN_VATTR =
-        uint16_t(cb::mcbp::Status::SubdocXattrUnknownVattr);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_XATTR_CANT_MODIFY_VATTR =
-        uint16_t(cb::mcbp::Status::SubdocXattrCantModifyVattr);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE_DELETED =
-        uint16_t(cb::mcbp::Status::SubdocMultiPathFailureDeleted);
-const uint16_t PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_XATTR_ORDER =
-        uint16_t(cb::mcbp::Status::SubdocInvalidXattrOrder);
-
 using protocol_binary_command = uint8_t;
 
 const uint8_t PROTOCOL_BINARY_CMD_GET = uint8_t(cb::mcbp::ClientOpcode::Get);
@@ -1483,7 +1383,7 @@ typedef union {
         protocol_binary_response_header header;
     } message;
     /*
-    ** In case of PROTOCOL_BINARY_RESPONSE_ROLLBACK the body contains
+    ** In case of cb::mcbp::Status::Rollback the body contains
     ** the rollback sequence number (uint64_t)
     */
     uint8_t bytes[sizeof(protocol_binary_request_header)];

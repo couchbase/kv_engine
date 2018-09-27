@@ -341,14 +341,13 @@ struct MockServerCookieApi : public ServerCookieIface {
         return cb::rbac::PrivilegeAccess::Ok;
     }
 
-    protocol_binary_response_status engine_error2mcbp(
-            gsl::not_null<const void*> cookie,
-            ENGINE_ERROR_CODE code) override {
+    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
+                                       ENGINE_ERROR_CODE code) override {
         if (code == ENGINE_DISCONNECT) {
-            return protocol_binary_response_status(-1);
+            return cb::mcbp::Status(cb::engine_errc(-1));
         }
 
-        return engine_error_2_mcbp_protocol_error(code);
+        return cb::mcbp::to_status(cb::engine_errc(code));
     }
 
     std::pair<uint32_t, std::string> get_log_info(

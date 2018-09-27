@@ -108,9 +108,8 @@ public:
             cb::rbac::Privilege privilege) override {
         throw std::runtime_error("Not implemented");
     }
-    protocol_binary_response_status engine_error2mcbp(
-            gsl::not_null<const void*> cookie,
-            ENGINE_ERROR_CODE code) override {
+    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
+                                       ENGINE_ERROR_CODE code) override {
         throw std::runtime_error("Not implemented");
     }
     std::pair<uint32_t, std::string> get_log_info(

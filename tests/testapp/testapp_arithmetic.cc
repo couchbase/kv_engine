@@ -298,8 +298,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
 
         BinprotResponse resp;
         conn.recvResponse(resp);
-        ASSERT_TRUE(resp.isSuccess())
-                << to_string(cb::mcbp::Status(resp.getStatus()));
+        ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
     }
 
     // Perform the normal operation
@@ -316,8 +315,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
 
         BinprotSubdocResponse resp;
         conn.recvResponse(resp);
-        ASSERT_TRUE(resp.isSuccess())
-                << to_string(cb::mcbp::Status(resp.getStatus()));
+        ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
         EXPECT_EQ("\"Trond Norbye\"", resp.getValue());
     }
 }

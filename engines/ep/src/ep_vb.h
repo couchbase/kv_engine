@@ -88,8 +88,7 @@ public:
 
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
 
-    protocol_binary_response_status evictKey(const DocKey& key,
-                                             const char** msg) override;
+    cb::mcbp::Status evictKey(const DocKey& key, const char** msg) override;
 
     bool pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) override;
 

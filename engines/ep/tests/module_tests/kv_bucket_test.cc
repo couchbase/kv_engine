@@ -202,8 +202,7 @@ void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
 
 void KVBucketTest::evict_key(Vbid vbid, const DocKey& key) {
     const char* msg;
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              store->evictKey(key, vbid, &msg));
+    EXPECT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 }
 
@@ -322,20 +321,17 @@ bool KVBucketTest::addResponse(const void* k,
                                cb::mcbp::Status status,
                                uint64_t pcas,
                                const void* cookie) {
-    addResponseStatus = protocol_binary_response_status(status);
+    addResponseStatus = status;
     return true;
 }
 
-protocol_binary_response_status KVBucketTest::getAddResponseStatus(
-        protocol_binary_response_status newval) {
-    protocol_binary_response_status rv = addResponseStatus;
+cb::mcbp::Status KVBucketTest::getAddResponseStatus(cb::mcbp::Status newval) {
+    auto rv = addResponseStatus;
     addResponseStatus = newval;
     return rv;
 }
 
-protocol_binary_response_status KVBucketTest::addResponseStatus =
-        PROTOCOL_BINARY_RESPONSE_SUCCESS;
-
+cb::mcbp::Status KVBucketTest::addResponseStatus = cb::mcbp::Status::Success;
 
 // getKeyStats tests //////////////////////////////////////////////////////////
 

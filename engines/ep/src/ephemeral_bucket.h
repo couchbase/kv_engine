@@ -42,10 +42,10 @@ public:
 
     /// Eviction not supported for Ephemeral buckets - without some backing
     /// storage, there is nowhere to evict /to/.
-    protocol_binary_response_status evictKey(const DocKey& key,
-                                             Vbid vbucket,
-                                             const char** msg) override {
-        return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+    cb::mcbp::Status evictKey(const DocKey& key,
+                              Vbid vbucket,
+                              const char** msg) override {
+        return cb::mcbp::Status::NotSupported;
     }
 
     /// File stats not supported for Ephemeral buckets.

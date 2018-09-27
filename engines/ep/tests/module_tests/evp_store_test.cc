@@ -100,12 +100,14 @@ TEST_F(EPBucketTest, testRetainErroneousTombstonesConfig) {
     EXPECT_FALSE(store.isRetainErroneousTombstones());
 
     std::string msg;
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              engine->setFlushParam("retain_erroneous_tombstones", "true", msg));
+    ASSERT_EQ(
+            cb::mcbp::Status::Success,
+            engine->setFlushParam("retain_erroneous_tombstones", "true", msg));
     EXPECT_TRUE(store.isRetainErroneousTombstones());
 
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              engine->setFlushParam("retain_erroneous_tombstones", "false", msg));
+    ASSERT_EQ(
+            cb::mcbp::Status::Success,
+            engine->setFlushParam("retain_erroneous_tombstones", "false", msg));
     EXPECT_FALSE(store.isRetainErroneousTombstones());
 }
 

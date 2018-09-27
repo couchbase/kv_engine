@@ -404,8 +404,7 @@ void EPVBucket::addStats(bool details, ADD_STAT add_stat, const void* c) {
     }
 }
 
-protocol_binary_response_status EPVBucket::evictKey(const DocKey& key,
-                                                    const char** msg) {
+cb::mcbp::Status EPVBucket::evictKey(const DocKey& key, const char** msg) {
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = fetchValidValue(
             hbl, key, WantsDeleted::No, TrackReference::No, QueueExpired::Yes);
@@ -413,10 +412,10 @@ protocol_binary_response_status EPVBucket::evictKey(const DocKey& key,
     if (!v) {
         if (eviction == VALUE_ONLY) {
             *msg = "Not found.";
-            return PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            return cb::mcbp::Status::KeyEnoent;
         }
         *msg = "Already ejected.";
-        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        return cb::mcbp::Status::Success;
     }
 
     if (v->isResident()) {
@@ -427,14 +426,14 @@ protocol_binary_response_status EPVBucket::evictKey(const DocKey& key,
             if (eviction == FULL_EVICTION) {
                 addToFilter(key);
             }
-            return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+            return cb::mcbp::Status::Success;
         }
         *msg = "Can't eject: Dirty object.";
-        return PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+        return cb::mcbp::Status::KeyEexists;
     }
 
     *msg = "Already ejected.";
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return cb::mcbp::Status::Success;
 }
 
 bool EPVBucket::pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) {

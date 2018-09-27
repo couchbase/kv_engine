@@ -555,9 +555,9 @@ public:
         return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
-    protocol_binary_response_status evictKey(const DocKey& key,
-                                             Vbid vbucket,
-                                             const char** msg);
+    cb::mcbp::Status evictKey(const DocKey& key,
+                              Vbid vbucket,
+                              const char** msg);
 
     /**
      * Run the server-api pre-expiry hook against the Item - the function

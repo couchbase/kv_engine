@@ -23,7 +23,7 @@ add_library(mcbp STATIC
             )
 
 target_link_libraries(mcbp mcd_util dirutils cJSON)
-
+set_property(TARGET mcbp PROPERTY POSITION_INDEPENDENT_CODE 1)
 
 add_executable(mcbp_packet_printer mcbp_packet_printer.cc)
 target_link_libraries(mcbp_packet_printer mcbp dirutils)

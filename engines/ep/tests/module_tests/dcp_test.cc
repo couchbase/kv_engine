@@ -132,9 +132,8 @@ public:
             cb::rbac::Privilege privilege) override {
         return wrapped->check_privilege(cookie, privilege);
     }
-    protocol_binary_response_status engine_error2mcbp(
-            gsl::not_null<const void*> cookie,
-            ENGINE_ERROR_CODE code) override {
+    cb::mcbp::Status engine_error2mcbp(gsl::not_null<const void*> cookie,
+                                       ENGINE_ERROR_CODE code) override {
         return wrapped->engine_error2mcbp(cookie, code);
     }
     std::pair<uint32_t, std::string> get_log_info(
@@ -2581,10 +2580,10 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         // handleResponse()
         protocol_binary_response_header resp{};
         resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
-        resp.response.status =
+        resp.response.setStatus(
                 prodIsV5orHigher
-                        ? htons(PROTOCOL_BINARY_RESPONSE_SUCCESS)
-                        : htons(PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND);
+                        ? cb::mcbp::Status::Success
+                        : cb::mcbp::Status::UnknownCommand);
         ASSERT_TRUE(consumer.handleResponse(&resp));
         ASSERT_EQ(0 /*Skip*/,
                   static_cast<uint8_t>(consumer.getGetErrorMapState()));

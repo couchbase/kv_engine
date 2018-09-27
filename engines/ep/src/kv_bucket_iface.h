@@ -248,9 +248,9 @@ public:
                                    Vbid vbid,
                                    uint64_t bySeqNum) = 0;
 
-    virtual protocol_binary_response_status evictKey(const DocKey& key,
-                                                     Vbid vbucket,
-                                                     const char** msg) = 0;
+    virtual cb::mcbp::Status evictKey(const DocKey& key,
+                                      Vbid vbucket,
+                                      const char** msg) = 0;
 
     /**
      * delete an item in the store

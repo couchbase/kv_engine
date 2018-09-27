@@ -337,9 +337,9 @@ void EventuallyPersistentEngine::reset_stats(
     acquireEngine(this)->resetStats();
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::setReplicationParam(
+cb::mcbp::Status EventuallyPersistentEngine::setReplicationParam(
         const char* keyz, const char* valz, std::string& msg) {
-    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto rv = cb::mcbp::Status::Success;
 
     try {
         if (strcmp(keyz, "replication_throttle_threshold") == 0) {
@@ -351,33 +351,33 @@ protocol_binary_response_status EventuallyPersistentEngine::setReplicationParam(
             getConfiguration().setReplicationThrottleCapPcnt(std::stoull(valz));
         } else {
             msg = "Unknown config param";
-            rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            rv = cb::mcbp::Status::KeyEnoent;
         }
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
     } catch (std::invalid_argument&) {
         msg = "Argument was not numeric";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
     } catch (std::out_of_range&) {
         msg = "Argument was out of range";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
 
         // Handles any miscellaenous exceptions in addition to the range_error
         // exceptions thrown by the configuration::set<param>() methods
     } catch (std::exception& error) {
         msg = error.what();
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
     }
 
     return rv;
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::setCheckpointParam(
+cb::mcbp::Status EventuallyPersistentEngine::setCheckpointParam(
         const char* keyz, const char* valz, std::string& msg) {
-    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto rv = cb::mcbp::Status::Success;
 
     try {
         if (strcmp(keyz, "chk_max_items") == 0) {
@@ -414,39 +414,40 @@ protocol_binary_response_status EventuallyPersistentEngine::setCheckpointParam(
             getConfiguration().setCursorDroppingCheckpointMemLowerMark(v);
         } else {
             msg = "Unknown config param";
-            rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            rv = cb::mcbp::Status::KeyEnoent;
         }
 
         // Handles exceptions thrown by the cb_stob function
     } catch (invalid_argument_bool& error) {
         msg = error.what();
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
 
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
     } catch (std::invalid_argument&) {
         msg = "Argument was not numeric";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
     } catch (std::out_of_range&) {
         msg = "Argument was out of range";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
 
         // Handles any miscellaenous exceptions in addition to the range_error
         // exceptions thrown by the configuration::set<param>() methods
     } catch (std::exception& error) {
         msg = error.what();
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
     }
 
     return rv;
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
-        const char* keyz, const char* valz, std::string& msg) {
-    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(const char* keyz,
+                                                           const char* valz,
+                                                           std::string& msg) {
+    auto rv = cb::mcbp::Status::Success;
 
     // Handle the actual mutation.
     try {
@@ -577,7 +578,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setDcpNoopMandatoryForV5Features(cb_stob(valz));
         } else if (strcmp(keyz, "access_scanner_run") == 0) {
             if (!(runAccessScannerTask())) {
-                rv = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+                rv = cb::mcbp::Status::Etmpfail;
             }
         } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
             runVbStatePersistTask(Vbid(std::stoi(valz)));
@@ -604,7 +605,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             if (safe_strtof(valz, min_comp_ratio)) {
                 getConfiguration().setMinCompressionRatio(min_comp_ratio);
             } else {
-                rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+                rv = cb::mcbp::Status::Einval;
             }
         } else if (strcmp(keyz, "max_ttl") == 0) {
             getConfiguration().setMaxTtl(std::stoull(valz));
@@ -614,38 +615,39 @@ protocol_binary_response_status EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setRetainErroneousTombstones(cb_stob(valz));
         } else {
             msg = "Unknown config param";
-            rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            rv = cb::mcbp::Status::KeyEnoent;
         }
         // Handles exceptions thrown by the cb_stob function
     } catch (invalid_argument_bool& error) {
         msg = error.what();
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
 
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
     } catch (std::invalid_argument&) {
         msg = "Argument was not numeric";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
     } catch (std::out_of_range&) {
         msg = "Argument was out of range";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
 
         // Handles any miscellaneous exceptions in addition to the range_error
         // exceptions thrown by the configuration::set<param>() methods
     } catch (std::exception& error) {
         msg = error.what();
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
     }
 
     return rv;
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::setDcpParam(
-        const char* keyz, const char* valz, std::string& msg) {
-    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const char* keyz,
+                                                         const char* valz,
+                                                         std::string& msg) {
+    auto rv = cb::mcbp::Status::Success;
     try {
 
         if (strcmp(keyz,
@@ -670,19 +672,21 @@ protocol_binary_response_status EventuallyPersistentEngine::setDcpParam(
             getConfiguration().setDcpIdleTimeout(v);
         } else {
             msg = "Unknown config param";
-            rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            rv = cb::mcbp::Status::KeyEnoent;
         }
     } catch (std::runtime_error&) {
         msg = "Value out of range.";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
     }
 
     return rv;
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::setVbucketParam(
-        Vbid vbucket, const char* keyz, const char* valz, std::string& msg) {
-    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+cb::mcbp::Status EventuallyPersistentEngine::setVbucketParam(Vbid vbucket,
+                                                             const char* keyz,
+                                                             const char* valz,
+                                                             std::string& msg) {
+    auto rv = cb::mcbp::Status::Success;
     try {
         if (strcmp(keyz, "hlc_drift_ahead_threshold_us") == 0) {
             uint64_t v = std::strtoull(valz, nullptr, 10);
@@ -697,21 +701,21 @@ protocol_binary_response_status EventuallyPersistentEngine::setVbucketParam(
             checkNumeric(valz);
             EP_LOG_WARN("setVbucketParam: max_cas:{} {}", v, vbucket);
             if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
-                rv = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+                rv = cb::mcbp::Status::NotMyVbucket;
                 msg = "Not my vbucket";
             }
         } else {
             msg = "Unknown config param";
-            rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            rv = cb::mcbp::Status::KeyEnoent;
         }
     } catch (std::runtime_error&) {
         msg = "Value out of range.";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
     }
     return rv;
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::evictKey(
+cb::mcbp::Status EventuallyPersistentEngine::evictKey(
         const void* cookie,
         protocol_binary_request_header* request,
         const char** msg,
@@ -728,16 +732,16 @@ protocol_binary_response_status EventuallyPersistentEngine::evictKey(
     msg_size = 0;
     auto rv = kvBucket->evictKey(
             makeDocKey(cookie, {keyPtr, keylen}), vbucket, msg);
-    if (rv == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET ||
-        rv == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT) {
+    if (rv == cb::mcbp::Status::NotMyVbucket ||
+        rv == cb::mcbp::Status::KeyEnoent) {
         if (isDegradedMode()) {
-            return PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            return cb::mcbp::Status::Etmpfail;
         }
     }
     return rv;
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::setParam(
+cb::mcbp::Status EventuallyPersistentEngine::setParam(
         protocol_binary_request_set_param* req, std::string& msg) {
     size_t keylen = ntohs(req->message.header.request.keylen);
     uint8_t extlen = req->message.header.request.extlen;
@@ -748,7 +752,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setParam(
             req->message.body.param_type));
 
     if (keylen == 0 || (vallen - keylen - extlen) == 0) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        return cb::mcbp::Status::Einval;
     }
 
     const char* keyp = reinterpret_cast<const char*>(req->bytes)
@@ -762,7 +766,7 @@ protocol_binary_response_status EventuallyPersistentEngine::setParam(
     // Read the key.
     if (keylen >= sizeof(keyz)) {
         msg = "Key is too large.";
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        return cb::mcbp::Status::Einval;
     }
     memcpy(keyz, keyp, keylen);
     keyz[keylen] = 0x00;
@@ -770,34 +774,25 @@ protocol_binary_response_status EventuallyPersistentEngine::setParam(
     // Read the value.
     if (vallen >= sizeof(valz)) {
         msg = "Value is too large.";
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        return cb::mcbp::Status::Einval;
     }
     memcpy(valz, valuep, vallen);
     valz[vallen] = 0x00;
 
-    protocol_binary_response_status rv;
-
     switch (paramtype) {
     case protocol_binary_engine_param_flush:
-        rv = setFlushParam(keyz, valz, msg);
-        break;
+        return setFlushParam(keyz, valz, msg);
     case protocol_binary_engine_param_replication:
-        rv = setReplicationParam(keyz, valz, msg);
-        break;
+        return setReplicationParam(keyz, valz, msg);
     case protocol_binary_engine_param_checkpoint:
-        rv = setCheckpointParam(keyz, valz, msg);
-        break;
+        return setCheckpointParam(keyz, valz, msg);
     case protocol_binary_engine_param_dcp:
-        rv = setDcpParam(keyz, valz, msg);
-        break;
+        return setDcpParam(keyz, valz, msg);
     case protocol_binary_engine_param_vbucket:
-        rv = setVbucketParam(vbucket, keyz, valz, msg);
-        break;
-    default:
-        rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        return setVbucketParam(vbucket, keyz, valz, msg);
     }
 
-    return rv;
+    return cb::mcbp::Status::UnknownCommand;
 }
 
 static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
@@ -888,7 +883,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
 
     uint64_t cas = ntohll(req->request.cas);
 
-    protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto res = cb::mcbp::Status::Success;
     Vbid vbucket = req->request.vbucket.ntoh();
 
     if (ntohs(req->request.keylen) > 0 || req->request.extlen > 0) {
@@ -938,7 +933,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         EP_LOG_WARN(
                 "Deletion of {} failed because the vbucket doesn't exist!!!",
                 vbucket);
-        res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+        res = cb::mcbp::Status::NotMyVbucket;
         break;
     case ENGINE_EINVAL:
         EP_LOG_WARN(
@@ -948,7 +943,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         e->setErrorContext(
                 cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
-        res = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        res = cb::mcbp::Status::Einval;
         break;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
@@ -961,7 +956,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         EP_LOG_WARN("Deletion of {} failed because of unknown reasons",
                     vbucket);
         e->setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
-        res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        res = cb::mcbp::Status::Einternal;
     }
 
     if (err == ENGINE_NOT_MY_VBUCKET) {
@@ -976,7 +971,7 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status(res),
+                        res,
                         cas,
                         cookie);
 }
@@ -986,7 +981,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
         const void* cookie,
         Item** it,
         const char** msg,
-        protocol_binary_response_status* res) {
+        cb::mcbp::Status* res) {
     protocol_binary_request_no_extras* req =
         (protocol_binary_request_no_extras*)request;
     size_t keylen = ntohs(req->message.header.request.keylen);
@@ -1008,17 +1003,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
 
     if ((error_code = rv.getStatus()) != ENGINE_SUCCESS) {
         if (error_code == ENGINE_NOT_MY_VBUCKET) {
-            *res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+            *res = cb::mcbp::Status::NotMyVbucket;
             return error_code;
         } else if (error_code == ENGINE_TMPFAIL) {
             *msg = "NOT_FOUND";
-            *res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            *res = cb::mcbp::Status::KeyEnoent;
         } else {
             return error_code;
         }
     } else {
         *it = rv.item.release();
-        *res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        *res = cb::mcbp::Status::Success;
     }
     ++(getEpStats().numOpsGet);
     return ENGINE_SUCCESS;
@@ -1028,8 +1023,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                                    const void* cookie,
                                    protocol_binary_request_compact_db* req,
                                    ADD_RESPONSE response) {
-
-    protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto res = cb::mcbp::Status::Success;
     CompactionConfig compactionConfig;
     uint64_t cas = ntohll(req->message.header.request.cas);
 
@@ -1080,7 +1074,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                 "Compaction of db file id: {} failed "
                 "because the db file doesn't exist!!!",
                 compactionConfig.db_file_id.get());
-        res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+        res = cb::mcbp::Status::NotMyVbucket;
         break;
     case ENGINE_EINVAL:
         --stats.pendingCompactions;
@@ -1088,7 +1082,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                 "Compaction of db file id: {} failed "
                 "because of an invalid argument",
                 compactionConfig.db_file_id.get());
-        res = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        res = cb::mcbp::Status::Einval;
         break;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
@@ -1103,7 +1097,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                 " a temporary failure and may need to be retried",
                 compactionConfig.db_file_id.get());
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
-        res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+        res = cb::mcbp::Status::Etmpfail;
         break;
     default:
         --stats.pendingCompactions;
@@ -1112,7 +1106,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                 "because of unknown reasons",
                 compactionConfig.db_file_id.get());
         e->setErrorContext(cookie, "Failed to compact db file.  Unknown reason.");
-        res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+        res = cb::mcbp::Status::Einternal;
         break;
     }
 
@@ -1128,7 +1122,7 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status(res),
+                        res,
                         cas,
                         cookie);
 }
@@ -1138,8 +1132,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         const void* cookie,
         protocol_binary_request_header* request,
         ADD_RESPONSE response) {
-    protocol_binary_response_status res =
-        PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+    auto res = cb::mcbp::Status::UnknownCommand;
     std::string dynamic_msg;
     const char* msg = NULL;
     size_t msg_size = 0;
@@ -1323,7 +1316,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                           static_cast<const void*>(itm->getData()),
                           itm->getNBytes(),
                           itm->getDataType(),
-                          cb::mcbp::Status(res),
+                          res,
                           itm->getCas(),
                           cookie);
         delete itm;
@@ -1339,7 +1332,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                           msg,
                           static_cast<uint16_t>(msg_size),
                           PROTOCOL_BINARY_RAW_BYTES,
-                          cb::mcbp::Status(res),
+                          res,
                           0,
                           cookie);
     }
@@ -4485,7 +4478,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto status = cb::mcbp::Status::Success;
 
     switch (req->request.opcode) {
     case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
@@ -4501,7 +4494,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                             &checkpointId,
                             sizeof(checkpointId),
                             PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status(status),
+                            cb::mcbp::Status::Success,
                             0,
                             cookie);
         }
@@ -4534,7 +4527,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                                     val,
                                     sizeof(val),
                                     PROTOCOL_BINARY_RAW_BYTES,
-                                    cb::mcbp::Status(status),
+                                    cb::mcbp::Status::Success,
                                     0,
                                     cookie);
             }
@@ -4545,7 +4538,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         uint16_t keylen = ntohs(req->request.keylen);
         uint32_t bodylen = ntohl(req->request.bodylen);
         if ((bodylen - keylen) == 0) {
-            status = PROTOCOL_BINARY_RESPONSE_EINVAL;
+            status = cb::mcbp::Status::Einval;
             setErrorContext(cookie,
                             "No checkpoint id is given for "
                             "CMD_CHECKPOINT_PERSISTENCE!!!");
@@ -4569,7 +4562,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                         return ENGINE_EWOULDBLOCK;
 
                     case HighPriorityVBReqStatus::NotSupported:
-                        status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+                        status = cb::mcbp::Status::NotSupported;
                         EP_LOG_WARN(
                                 "EventuallyPersistentEngine::"
                                 "handleCheckpointCmds(): "
@@ -4600,10 +4593,10 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         break;
     default:
         {
-            status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
-            setErrorContext(cookie,
-                            "Unknown checkpoint command opcode: " +
-                                    std::to_string(req->request.opcode));
+        status = cb::mcbp::Status::UnknownCommand;
+        setErrorContext(cookie,
+                        "Unknown checkpoint command opcode: " +
+                                std::to_string(req->request.opcode));
         }
     }
 
@@ -4615,7 +4608,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status(status),
+                        status,
                         0,
                         cookie);
 }
@@ -4632,12 +4625,12 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto status = cb::mcbp::Status::Success;
 
     uint16_t extlen = req->request.extlen;
     uint32_t bodylen = ntohl(req->request.bodylen);
     if ((bodylen - extlen) != 0) {
-        status = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        status = cb::mcbp::Status::Einval;
         setErrorContext(cookie, "Body should be all extras.");
     } else {
         uint64_t seqno;
@@ -4656,7 +4649,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                     return ENGINE_EWOULDBLOCK;
 
                 case HighPriorityVBReqStatus::NotSupported:
-                    status = PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+                    status = cb::mcbp::Status::NotSupported;
                     EP_LOG_WARN(
                             "EventuallyPersistentEngine::handleSeqnoCmds(): "
                             "High priority async seqno request "
@@ -4692,7 +4685,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status(status),
+                        status,
                         0,
                         cookie);
 }
@@ -4718,8 +4711,7 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
     return std::make_pair(cb::engine_errc(ret), metadata);
 }
 
-protocol_binary_response_status
-EventuallyPersistentEngine::decodeWithMetaOptions(
+cb::mcbp::Status EventuallyPersistentEngine::decodeWithMetaOptions(
         cb::const_byte_buffer request,
         uint8_t extlen,
         GenerateCas& generateCas,
@@ -4768,11 +4760,10 @@ EventuallyPersistentEngine::decodeWithMetaOptions(
 
     // So if either check1/2/3 is true, return EINVAL
     if (check1 || check2 || check3) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        return cb::mcbp::Status::Einval;
     }
 
-
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    return cb::mcbp::Status::Success;
 }
 
 protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
@@ -4817,17 +4808,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     // so 27, 25 etc... are illegal
     if ((extlen != 24 && extlen != 26 && extlen != 28  && extlen != 30)
         || keylen == 0) {
-        return sendErrorResponse(response,
-                                 PROTOCOL_BINARY_RESPONSE_EINVAL,
-                                 0,
-                                 cookie);
+        return sendErrorResponse(response, cb::mcbp::Status::Einval, 0, cookie);
     }
 
     if (isDegradedMode()) {
-        return sendErrorResponse(response,
-                                 PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
-                                 0,
-                                 cookie);
+        return sendErrorResponse(
+                response, cb::mcbp::Status::Etmpfail, 0, cookie);
     }
 
     uint8_t opcode = request->message.header.request.opcode;
@@ -4846,14 +4832,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
     int keyOffset = 0;
-    protocol_binary_response_status error = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto error = cb::mcbp::Status::Success;
     if ((error = decodeWithMetaOptions({request->bytes, sizeof(request->bytes)},
                                        request->message.header.request.extlen,
                                        generateCas,
                                        checkConflicts,
                                        permittedVBStates,
                                        keyOffset)) !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        cb::mcbp::Status::Success) {
         return sendResponse(response,
                             NULL,
                             0,
@@ -4862,7 +4848,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
                             NULL,
                             0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status(error),
+                            error,
                             0,
                             cookie);
     }
@@ -4887,10 +4873,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
                 "than the max size {} allowed!!!",
                 vallen,
                 maxItemSize);
-        return sendErrorResponse(response,
-                                 PROTOCOL_BINARY_RESPONSE_E2BIG,
-                                 0,
-                                 cookie);
+        return sendErrorResponse(response, cb::mcbp::Status::E2big, 0, cookie);
     }
 
 
@@ -4929,10 +4912,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
                           generateCas,
                           emd);
     } catch (const std::bad_alloc&) {
-        return sendErrorResponse(response,
-                                 PROTOCOL_BINARY_RESPONSE_ENOMEM,
-                                 0,
-                                 cookie);
+        return sendErrorResponse(response, cb::mcbp::Status::Enomem, 0, cookie);
     }
 
     cas = 0;
@@ -4965,8 +4945,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         storeEngineSpecific(cookie, startTimeC);
     }
 
-    if ((opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META || opcode == PROTOCOL_BINARY_CMD_ADDQ_WITH_META) &&
-        rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+    if ((opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META ||
+         opcode == PROTOCOL_BINARY_CMD_ADDQ_WITH_META) &&
+        rc == cb::mcbp::Status::Success) {
         return ENGINE_SUCCESS;
     }
 
@@ -5125,14 +5106,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
     int keyOffset = 0;
-    protocol_binary_response_status error = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto error = cb::mcbp::Status::Success;
     if ((error = decodeWithMetaOptions({request->bytes, sizeof(request->bytes)},
                                        extlen,
                                        generateCas,
                                        checkConflicts,
                                        permittedVBStates,
                                        keyOffset)) !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        cb::mcbp::Status::Success) {
         return sendResponse(response,
                             NULL,
                             0,
@@ -5141,7 +5122,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                             NULL,
                             0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status(error),
+                            error,
                             0,
                             cookie);
     }
@@ -5197,10 +5178,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                  emd);
         }
     } catch (const std::bad_alloc&) {
-        return sendErrorResponse(response,
-                                 PROTOCOL_BINARY_RESPONSE_ENOMEM,
-                                 0,
-                                 cookie);
+        return sendErrorResponse(response, cb::mcbp::Status::Enomem, 0, cookie);
     }
 
     if (ret == ENGINE_SUCCESS) {
@@ -5214,7 +5192,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
 
     if (opcode == PROTOCOL_BINARY_CMD_DELQ_WITH_META &&
-        rc == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        rc == cb::mcbp::Status::Success) {
         return ENGINE_SUCCESS;
     }
 
@@ -5271,19 +5249,19 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
                                        protocol_binary_request_header *request,
                                        ADD_RESPONSE response)
 {
-    int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto status = cb::mcbp::Status::Success;
 
     switch (request->request.opcode) {
     case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
         if (kvBucket->isWarmingUp()) {
             // engine is still warming up, do not turn on data traffic yet
-            status = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            status = cb::mcbp::Status::Etmpfail;
             setErrorContext(cookie, "Persistent engine is still warming up!");
         } else if (configuration.isFailpartialwarmup() &&
                    kvBucket->isWarmupOOMFailure()) {
             // engine has completed warm up, but data traffic cannot be
             // turned on due to an OOM failure
-            status = PROTOCOL_BINARY_RESPONSE_ENOMEM;
+            status = cb::mcbp::Status::Enomem;
             setErrorContext(
                     cookie,
                     "Data traffic to persistent engine cannot be enabled"
@@ -5311,7 +5289,7 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
         }
         break;
     default:
-        status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        status = cb::mcbp::Status::UnknownCommand;
         setErrorContext(cookie,
                         "Unknown traffic control opcode: " +
                                 std::to_string(request->request.opcode));
@@ -5325,7 +5303,7 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status(status),
+                        status,
                         0,
                         cookie);
 }
@@ -5525,7 +5503,7 @@ EventuallyPersistentEngine::returnMeta(
                             NULL,
                             0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status(rc),
+                            rc,
                             0,
                             cookie);
     }
@@ -5896,28 +5874,28 @@ void EventuallyPersistentEngine::handleDeleteBucket(const void *cookie) {
     dcpConnMap_->shutdownAllConnections();
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::stopFlusher(
-        const char** msg, size_t* msg_size) {
+cb::mcbp::Status EventuallyPersistentEngine::stopFlusher(const char** msg,
+                                                         size_t* msg_size) {
     (void)msg_size;
-    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto rv = cb::mcbp::Status::Success;
     *msg = NULL;
     if (!kvBucket->pauseFlusher()) {
         EP_LOG_DEBUG("Unable to stop flusher");
         *msg = "Flusher not running.";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
     }
     return rv;
 }
 
-protocol_binary_response_status EventuallyPersistentEngine::startFlusher(
-        const char** msg, size_t* msg_size) {
+cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
+                                                          size_t* msg_size) {
     (void)msg_size;
-    protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    auto rv = cb::mcbp::Status::Success;
     *msg = NULL;
     if (!kvBucket->resumeFlusher()) {
         EP_LOG_DEBUG("Unable to start flusher");
         *msg = "Flusher not shut down.";
-        rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        rv = cb::mcbp::Status::Einval;
     }
     return rv;
 }
@@ -6032,7 +6010,7 @@ void EventuallyPersistentEngine::updateDcpMinCompressionRatio(float value) {
  */
 ENGINE_ERROR_CODE EventuallyPersistentEngine::sendErrorResponse(
         ADD_RESPONSE response,
-        protocol_binary_response_status status,
+        cb::mcbp::Status status,
         uint64_t cas,
         const void* cookie) {
     // no body/ext data for the error
@@ -6044,7 +6022,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendErrorResponse(
                         nullptr,
                         0,
                         0,
-                        cb::mcbp::Status(status),
+                        status,
                         cas,
                         cookie);
 }
@@ -6053,13 +6031,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendMutationExtras(
         ADD_RESPONSE response,
         Vbid vbucket,
         uint64_t bySeqno,
-        protocol_binary_response_status status,
+        cb::mcbp::Status status,
         uint64_t cas,
         const void* cookie) {
     VBucketPtr vb = kvBucket->getVBucket(vbucket);
     if (!vb) {
         return sendErrorResponse(
-                response, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas, cookie);
+                response, cb::mcbp::Status::NotMyVbucket, cas, cookie);
     }
     const uint64_t uuid = htonll(vb->failovers->getLatestUUID());
     bySeqno = htonll(bySeqno);
@@ -6074,7 +6052,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::sendMutationExtras(
                         nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status(status),
+                        status,
                         cas,
                         cookie);
 }
@@ -6116,8 +6094,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setVBucketState(
                         NULL,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status(serverApi->cookie->engine_error2mcbp(
-                                cookie, status)),
+                        serverApi->cookie->engine_error2mcbp(cookie, status),
                         cas,
                         cookie);
 }

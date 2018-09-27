@@ -325,7 +325,7 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
 
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
-                  .responseCounters[PROTOCOL_BINARY_RESPONSE_SUCCESS];
+                  .responseCounters[int(cb::mcbp::Status::Success)];
         connection.setState(StateMachine::State::new_cmd);
         return ENGINE_SUCCESS;
     }
