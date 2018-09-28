@@ -10,6 +10,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 #include <boost/optional/optional_fwd.hpp>
@@ -145,6 +146,29 @@ static const float default_min_compression_ratio = 1.2f;
 
 /* The default maximum size for a value */
 static const size_t default_max_item_size = 20 * 1024 * 1024;
+
+namespace cb {
+namespace engine {
+/**
+ * Definition of the features that an engine can support
+ */
+enum class Feature : uint16_t {
+    Collections = 1,
+};
+
+typedef std::unordered_set<Feature> FeatureSet;
+} // namespace engine
+} // namespace cb
+
+namespace std {
+template <>
+struct hash<cb::engine::Feature> {
+public:
+    size_t operator()(const cb::engine::Feature& f) const {
+        return static_cast<size_t>(f);
+    }
+};
+} // namespace std
 
 /**
  * Definition of the first version of the engine interface
@@ -515,7 +539,16 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual bool get_item_info(gsl::not_null<const item*> item,
                                gsl::not_null<item_info*> item_info) = 0;
 
+    /**
+     * The set of collections related functions. May be defined optionally by
+     * the engine(s) that support them.
+     */
     collections_interface collections;
+
+    /**
+     * Ask the engine what features it supports.
+     */
+    virtual cb::engine::FeatureSet getFeatures() = 0;
 
     /**
      * @returns if XATTRs are enabled for this bucket

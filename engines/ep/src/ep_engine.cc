@@ -1754,6 +1754,16 @@ static cb::EngineErrorGetCollectionIDResult EvpCollectionsGetCollectionID(
     return rv;
 }
 
+cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
+    // This function doesn't track memory against the engine, but create a
+    // guard regardless to make this explicit because we only call this once per
+    // bucket creation
+    NonBucketAllocationGuard guard;
+    cb::engine::FeatureSet ret;
+    ret.emplace(cb::engine::Feature::Collections);
+    return ret;
+}
+
 bool EventuallyPersistentEngine::isXattrEnabled() {
     return getKVBucket()->isXattrEnabled();
 }

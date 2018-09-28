@@ -11,6 +11,7 @@
 #include <memory>
 #include <regex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "utilities/engine_loader.h"
@@ -131,6 +132,10 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     float getMinCompressionRatio() override {
         return the_engine->getMinCompressionRatio();
+    }
+
+    cb::engine::FeatureSet getFeatures() override {
+        return the_engine->getFeatures();
     }
 
     // DcpIface implementation ////////////////////////////////////////////////

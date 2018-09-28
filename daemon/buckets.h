@@ -21,6 +21,7 @@
 #include "mcbp_validators.h"
 #include "timings.h"
 
+#include <memcached/engine.h>
 #include <memcached/server_callback_iface.h>
 #include <memcached/types.h>
 #include <nlohmann/json_fwd.hpp>
@@ -173,6 +174,17 @@ public:
      * The maximum document size for this bucket
      */
     size_t max_document_size;
+
+    /**
+     * The set of features that the bucket supports
+     */
+    cb::engine::FeatureSet supportedFeatures;
+
+    /**
+     * Convenience function to check if the bucket supports the feature by
+     * searching for it in the supportedFeatures set.
+     */
+    bool supports(cb::engine::Feature feature);
 
 private:
     EngineIface* engine;

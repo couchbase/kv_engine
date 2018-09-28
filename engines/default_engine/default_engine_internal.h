@@ -188,6 +188,8 @@ struct default_engine : public EngineIface {
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
 
+    cb::engine::FeatureSet getFeatures() override;
+
     bool isXattrEnabled() override;
 
     BucketCompressionMode getCompressionMode() override;

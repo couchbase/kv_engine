@@ -767,6 +767,8 @@ public:
      */
     static void operator delete(void* ptr);
 
+    cb::engine::FeatureSet getFeatures() override;
+
 protected:
     friend class EpEngineValueChangeListener;
 

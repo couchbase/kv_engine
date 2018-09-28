@@ -711,6 +711,10 @@ public:
         }
     }
 
+    cb::engine::FeatureSet getFeatures() override {
+        return real_engine->getFeatures();
+    }
+
     bool isXattrEnabled() override {
         return real_engine->isXattrEnabled();
     }

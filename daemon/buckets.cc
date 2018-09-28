@@ -25,7 +25,8 @@ Bucket::Bucket()
       state(BucketState::None),
       type(BucketType::Unknown),
       topkeys(nullptr),
-      max_document_size(default_max_item_size) {
+      max_document_size(default_max_item_size),
+      supportedFeatures({}) {
     std::memset(name, 0, sizeof(name));
 }
 
@@ -44,6 +45,11 @@ Bucket::Bucket(const Bucket& other)
     subjson_operation_times = other.subjson_operation_times;
     topkeys = other.topkeys;
     responseCounters = other.responseCounters;
+    supportedFeatures = other.supportedFeatures;
+}
+
+bool Bucket::supports(cb::engine::Feature feature) {
+    return supportedFeatures.find(feature) != supportedFeatures.end();
 }
 
 DcpIface* Bucket::getDcpIface() const {

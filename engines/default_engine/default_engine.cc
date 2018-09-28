@@ -966,6 +966,10 @@ bool default_engine::get_item_info(gsl::not_null<const item*> item,
     return true;
 }
 
+cb::engine::FeatureSet default_engine::getFeatures() {
+    return cb::engine::FeatureSet();
+}
+
 bool default_engine::isXattrEnabled() {
     return config.xattr_enabled;
 }

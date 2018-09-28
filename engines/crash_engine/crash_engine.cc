@@ -124,6 +124,8 @@ public:
 
     bool get_item_info(gsl::not_null<const item*> item,
                        gsl::not_null<item_info*> item_info) override;
+
+    cb::engine::FeatureSet getFeatures() override;
 };
 
 // How do I crash thee? Let me count the ways.
@@ -294,6 +296,10 @@ void CrashEngine::item_set_datatype(gsl::not_null<item*> item,
 bool CrashEngine::get_item_info(gsl::not_null<const item*> item,
                                 gsl::not_null<item_info*> item_info) {
     return false;
+}
+
+cb::engine::FeatureSet CrashEngine::getFeatures() {
+    return cb::engine::FeatureSet();
 }
 
 ENGINE_ERROR_CODE create_instance(GET_SERVER_API gsa, EngineIface** handle) {

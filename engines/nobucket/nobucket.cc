@@ -409,6 +409,14 @@ public:
         return ENGINE_EINVAL;
     }
 
+    cb::engine::FeatureSet getFeatures() override {
+        cb::engine::FeatureSet ret;
+        // To allow us to put collection connections in the NoBucket, we need to
+        // pretend that it's supported.
+        ret.emplace(cb::engine::Feature::Collections);
+        return ret;
+    }
+
 private:
     static cb::engine_errc collections_set_manifest(
             gsl::not_null<EngineIface*> handle,
