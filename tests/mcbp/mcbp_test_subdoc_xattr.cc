@@ -89,7 +89,7 @@ public:
 
 protected:
     cb::mcbp::Status validate() {
-        auto opcode = (protocol_binary_command)std::get<0>(GetParam());
+        auto opcode = cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
         protocol_binary_request_subdocument* req;
         const size_t extlen = !isNone(docFlags) ? 1 : 0;
         std::vector<uint8_t> blob(sizeof(req->bytes) + doc.length() +
@@ -270,8 +270,9 @@ protected:
     cb::mcbp::Status validate() {
         std::vector<uint8_t> packet;
         request.encode(packet);
-        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP,
-                                       static_cast<void*>(packet.data()));
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::SubdocMultiLookup,
+                static_cast<void*>(packet.data()));
     }
 
     BinprotSubdocMultiLookupCommand request;
@@ -379,8 +380,8 @@ protected:
         std::vector<uint8_t> packet;
         request.encode(packet);
         return ValidatorTest::validate(
-            PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION,
-            static_cast<void*>(packet.data()));
+                cb::mcbp::ClientOpcode::SubdocMultiMutation,
+                static_cast<void*>(packet.data()));
     }
 
     BinprotSubdocMultiMutationCommand request;

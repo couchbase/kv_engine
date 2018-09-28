@@ -67,7 +67,7 @@ public:
 
 protected:
     cb::mcbp::Status validate() {
-        auto opcode = (protocol_binary_command)std::get<0>(GetParam());
+        auto opcode = cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 };

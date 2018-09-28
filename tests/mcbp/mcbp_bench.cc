@@ -26,7 +26,6 @@
 class McbpValidatorBench : public ::benchmark::Fixture {
 public:
     void SetUp(benchmark::State& st) override {
-        McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
         memset(request.bytes, 0, sizeof(request));
         request.message.header.request.magic = PROTOCOL_BINARY_REQ;
         request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
@@ -56,7 +55,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
     while (state.KeepRunning()) {
         cookie.reset();
         cookie.setPacket(Cookie::PacketContent::Full, buffer);
-        validatorChains.invoke(PROTOCOL_BINARY_CMD_GET, cookie);
+        validatorChains.invoke(cb::mcbp::ClientOpcode::Get, cookie);
     }
 }
 
@@ -74,7 +73,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
     while (state.KeepRunning()) {
         cookie.reset();
         cookie.setPacket(Cookie::PacketContent::Full, buffer);
-        validatorChains.invoke(PROTOCOL_BINARY_CMD_SET, cookie);
+        validatorChains.invoke(cb::mcbp::ClientOpcode::Set, cookie);
     }
 }
 
@@ -92,7 +91,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
     while (state.KeepRunning()) {
         cookie.reset();
         cookie.setPacket(Cookie::PacketContent::Full, buffer);
-        validatorChains.invoke(PROTOCOL_BINARY_CMD_ADD, cookie);
+        validatorChains.invoke(cb::mcbp::ClientOpcode::Add, cookie);
     }
 }
 

@@ -30,16 +30,16 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.opcode =
-            PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST;
+        request.message.header.request.setOpcode(
+                cb::mcbp::ClientOpcode::CollectionsSetManifest);
         request.message.header.request.bodylen = htonl(10);
     }
 
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(
-            PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
-            static_cast<void*>(&request));
+                cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                static_cast<void*>(&request));
     }
 };
 

@@ -1396,123 +1396,163 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
     return Status::Success;
 }
 
-void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& chains) {
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_OPEN, dcp_open_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM, dcp_add_stream_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM, dcp_close_stream_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_snapshot_marker_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_deletion_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_EXPIRATION, dcp_expiration_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG, dcp_get_failover_log_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_mutation_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_set_vbucket_state_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_NOOP, dcp_noop_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT, dcp_buffer_acknowledgement_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_control_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_stream_end_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, dcp_stream_req_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT, dcp_system_event_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_ISASL_REFRESH, configuration_refresh_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH, configuration_refresh_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_VERBOSITY, verbosity_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_HELLO, hello_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_VERSION, version_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_QUIT, quit_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_QUITQ, quit_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS, sasl_list_mech_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SASL_AUTH, sasl_auth_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SASL_STEP, sasl_auth_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_NOOP, noop_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_FLUSH, flush_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_FLUSHQ, flush_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET, get_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GETQ, get_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GETK, get_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GETKQ, get_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GAT, gat_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GATQ, gat_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_TOUCH, gat_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DELETE, delete_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DELETEQ, delete_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_STAT, stat_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_INCREMENT, arithmetic_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_INCREMENTQ, arithmetic_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DECREMENT, arithmetic_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DECREMENTQ, arithmetic_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_CMD_TIMER, get_cmd_timer_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN, set_ctrl_token_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN, get_ctrl_token_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_IOCTL_GET, ioctl_get_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_IOCTL_SET, ioctl_set_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_AUDIT_PUT, audit_put_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD, audit_config_reload_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
-                       config_reload_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
-                       config_validate_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SHUTDOWN, shutdown_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, observe_seqno_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, get_adjusted_time_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE, set_drift_counter_state_validator);
+Status McbpValidatorChains::invoke(ClientOpcode command, Cookie& cookie) {
+    return commandChains[std::underlying_type<ClientOpcode>::type(command)]
+            .invoke(cookie);
+}
 
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_GET, subdoc_get_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, subdoc_exists_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, subdoc_dict_add_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, subdoc_dict_upsert_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, subdoc_delete_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, subdoc_replace_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, subdoc_array_push_last_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, subdoc_array_push_first_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT, subdoc_array_insert_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE, subdoc_array_add_unique_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER, subdoc_counter_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP, subdoc_multi_lookup_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, subdoc_multi_mutation_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, subdoc_get_count_validator);
+void McbpValidatorChains::push_unique(ClientOpcode command,
+                                      Status (*f)(Cookie&)) {
+    commandChains[std::underlying_type<ClientOpcode>::type(command)]
+            .push_unique(makeFunction<Status, Status::Success, Cookie&>(f));
+}
 
-    chains.push_unique(PROTOCOL_BINARY_CMD_SETQ, set_replace_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SET, set_replace_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_ADDQ, add_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_ADD, add_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_REPLACEQ, set_replace_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_REPLACE, set_replace_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_APPENDQ, append_prepend_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_APPEND, append_prepend_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_PREPENDQ, append_prepend_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_PREPEND, append_prepend_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_CREATE_BUCKET, create_bucket_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_LIST_BUCKETS, list_bucket_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DELETE_BUCKET, delete_bucket_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SELECT_BUCKET, select_bucket_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, get_all_vb_seqnos_validator);
+McbpValidatorChains::McbpValidatorChains() {
+    push_unique(cb::mcbp::ClientOpcode::DcpOpen, dcp_open_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpAddStream, dcp_add_stream_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpCloseStream,
+                dcp_close_stream_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                dcp_snapshot_marker_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpDeletion, dcp_deletion_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpExpiration,
+                dcp_expiration_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpGetFailoverLog,
+                dcp_get_failover_log_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpMutation, dcp_mutation_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpSetVbucketState,
+                dcp_set_vbucket_state_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpNoop, dcp_noop_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                dcp_buffer_acknowledgement_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpControl, dcp_control_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_stream_end_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpStreamReq, dcp_stream_req_validator);
+    push_unique(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                dcp_system_event_validator);
+    push_unique(cb::mcbp::ClientOpcode::IsaslRefresh,
+                configuration_refresh_validator);
+    push_unique(cb::mcbp::ClientOpcode::SslCertsRefresh,
+                configuration_refresh_validator);
+    push_unique(cb::mcbp::ClientOpcode::Verbosity, verbosity_validator);
+    push_unique(cb::mcbp::ClientOpcode::Hello, hello_validator);
+    push_unique(cb::mcbp::ClientOpcode::Version, version_validator);
+    push_unique(cb::mcbp::ClientOpcode::Quit, quit_validator);
+    push_unique(cb::mcbp::ClientOpcode::Quitq, quit_validator);
+    push_unique(cb::mcbp::ClientOpcode::SaslListMechs,
+                sasl_list_mech_validator);
+    push_unique(cb::mcbp::ClientOpcode::SaslAuth, sasl_auth_validator);
+    push_unique(cb::mcbp::ClientOpcode::SaslStep, sasl_auth_validator);
+    push_unique(cb::mcbp::ClientOpcode::Noop, noop_validator);
+    push_unique(cb::mcbp::ClientOpcode::Flush, flush_validator);
+    push_unique(cb::mcbp::ClientOpcode::Flushq, flush_validator);
+    push_unique(cb::mcbp::ClientOpcode::Get, get_validator);
+    push_unique(cb::mcbp::ClientOpcode::Getq, get_validator);
+    push_unique(cb::mcbp::ClientOpcode::Getk, get_validator);
+    push_unique(cb::mcbp::ClientOpcode::Getkq, get_validator);
+    push_unique(cb::mcbp::ClientOpcode::Gat, gat_validator);
+    push_unique(cb::mcbp::ClientOpcode::Gatq, gat_validator);
+    push_unique(cb::mcbp::ClientOpcode::Touch, gat_validator);
+    push_unique(cb::mcbp::ClientOpcode::Delete, delete_validator);
+    push_unique(cb::mcbp::ClientOpcode::Deleteq, delete_validator);
+    push_unique(cb::mcbp::ClientOpcode::Stat, stat_validator);
+    push_unique(cb::mcbp::ClientOpcode::Increment, arithmetic_validator);
+    push_unique(cb::mcbp::ClientOpcode::Incrementq, arithmetic_validator);
+    push_unique(cb::mcbp::ClientOpcode::Decrement, arithmetic_validator);
+    push_unique(cb::mcbp::ClientOpcode::Decrementq, arithmetic_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetCmdTimer, get_cmd_timer_validator);
+    push_unique(cb::mcbp::ClientOpcode::SetCtrlToken, set_ctrl_token_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetCtrlToken, get_ctrl_token_validator);
+    push_unique(cb::mcbp::ClientOpcode::IoctlGet, ioctl_get_validator);
+    push_unique(cb::mcbp::ClientOpcode::IoctlSet, ioctl_set_validator);
+    push_unique(cb::mcbp::ClientOpcode::AuditPut, audit_put_validator);
+    push_unique(cb::mcbp::ClientOpcode::AuditConfigReload,
+                audit_config_reload_validator);
+    push_unique(cb::mcbp::ClientOpcode::ConfigReload, config_reload_validator);
+    push_unique(cb::mcbp::ClientOpcode::ConfigValidate,
+                config_validate_validator);
+    push_unique(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
+    push_unique(cb::mcbp::ClientOpcode::ObserveSeqno, observe_seqno_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetAdjustedTime,
+                get_adjusted_time_validator);
+    push_unique(cb::mcbp::ClientOpcode::SetDriftCounterState,
+                set_drift_counter_state_validator);
 
-    chains.push_unique(PROTOCOL_BINARY_CMD_EVICT_KEY, evict_key_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocGet, subdoc_get_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocExists, subdoc_exists_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocDictAdd,
+                subdoc_dict_add_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                subdoc_dict_upsert_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocDelete, subdoc_delete_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocReplace,
+                subdoc_replace_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                subdoc_array_push_last_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                subdoc_array_push_first_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                subdoc_array_insert_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                subdoc_array_add_unique_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocCounter,
+                subdoc_counter_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocMultiLookup,
+                subdoc_multi_lookup_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocMultiMutation,
+                subdoc_multi_mutation_validator);
+    push_unique(cb::mcbp::ClientOpcode::SubdocGetCount,
+                subdoc_get_count_validator);
 
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_META, get_meta_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GETQ_META, get_meta_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SET_WITH_META, mutate_with_meta_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_SETQ_WITH_META, mutate_with_meta_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_ADD_WITH_META, mutate_with_meta_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_ADDQ_WITH_META, mutate_with_meta_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DEL_WITH_META, mutate_with_meta_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_DELQ_WITH_META, mutate_with_meta_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_ERROR_MAP, get_errmap_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_LOCKED, get_locked_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_UNLOCK_KEY, unlock_validator);
-    chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::UpdateUserPermissions),
-                       update_user_permissions_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_RBAC_REFRESH, configuration_refresh_validator);
-    chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::AuthProvider),
-                       auth_provider_validator);
-    chains.push_unique(uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers),
-                       get_active_external_users_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG,
-                       dcp_get_failover_log_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
-                       collections_set_manifest_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST,
-                       collections_get_manifest_validator);
+    push_unique(cb::mcbp::ClientOpcode::Setq, set_replace_validator);
+    push_unique(cb::mcbp::ClientOpcode::Set, set_replace_validator);
+    push_unique(cb::mcbp::ClientOpcode::Addq, add_validator);
+    push_unique(cb::mcbp::ClientOpcode::Add, add_validator);
+    push_unique(cb::mcbp::ClientOpcode::Replaceq, set_replace_validator);
+    push_unique(cb::mcbp::ClientOpcode::Replace, set_replace_validator);
+    push_unique(cb::mcbp::ClientOpcode::Appendq, append_prepend_validator);
+    push_unique(cb::mcbp::ClientOpcode::Append, append_prepend_validator);
+    push_unique(cb::mcbp::ClientOpcode::Prependq, append_prepend_validator);
+    push_unique(cb::mcbp::ClientOpcode::Prepend, append_prepend_validator);
+    push_unique(cb::mcbp::ClientOpcode::CreateBucket, create_bucket_validator);
+    push_unique(cb::mcbp::ClientOpcode::ListBuckets, list_bucket_validator);
+    push_unique(cb::mcbp::ClientOpcode::DeleteBucket, delete_bucket_validator);
+    push_unique(cb::mcbp::ClientOpcode::SelectBucket, select_bucket_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
+                get_all_vb_seqnos_validator);
 
-    chains.push_unique(PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY,
-                       adjust_timeofday_validator);
+    push_unique(cb::mcbp::ClientOpcode::EvictKey, evict_key_validator);
+
+    push_unique(cb::mcbp::ClientOpcode::GetMeta, get_meta_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetqMeta, get_meta_validator);
+    push_unique(cb::mcbp::ClientOpcode::SetWithMeta,
+                mutate_with_meta_validator);
+    push_unique(cb::mcbp::ClientOpcode::SetqWithMeta,
+                mutate_with_meta_validator);
+    push_unique(cb::mcbp::ClientOpcode::AddWithMeta,
+                mutate_with_meta_validator);
+    push_unique(cb::mcbp::ClientOpcode::AddqWithMeta,
+                mutate_with_meta_validator);
+    push_unique(cb::mcbp::ClientOpcode::DelWithMeta,
+                mutate_with_meta_validator);
+    push_unique(cb::mcbp::ClientOpcode::DelqWithMeta,
+                mutate_with_meta_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetErrorMap, get_errmap_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetLocked, get_locked_validator);
+    push_unique(cb::mcbp::ClientOpcode::UnlockKey, unlock_validator);
+    push_unique(cb::mcbp::ClientOpcode::UpdateUserPermissions,
+                update_user_permissions_validator);
+    push_unique(cb::mcbp::ClientOpcode::RbacRefresh,
+                configuration_refresh_validator);
+    push_unique(cb::mcbp::ClientOpcode::AuthProvider, auth_provider_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetActiveExternalUsers,
+                get_active_external_users_validator);
+    push_unique(cb::mcbp::ClientOpcode::GetFailoverLog,
+                dcp_get_failover_log_validator);
+    push_unique(cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                collections_set_manifest_validator);
+    push_unique(cb::mcbp::ClientOpcode::CollectionsGetManifest,
+                collections_get_manifest_validator);
+    push_unique(cb::mcbp::ClientOpcode::AdjustTimeofday,
+                adjust_timeofday_validator);
 }

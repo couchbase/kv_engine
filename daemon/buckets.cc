@@ -27,8 +27,6 @@ Bucket::Bucket()
       topkeys(nullptr),
       max_document_size(default_max_item_size) {
     std::memset(name, 0, sizeof(name));
-
-    McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
 }
 
 Bucket::Bucket(const Bucket& other)

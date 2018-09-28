@@ -50,11 +50,11 @@ public:
     }
 
 protected:
-    cb::mcbp::Status validate(protocol_binary_command opcode) {
+    cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 
-    std::string validate_error_context(protocol_binary_command opcode) {
+    std::string validate_error_context(cb::mcbp::ClientOpcode opcode) {
         return ValidatorTest::validate_error_context(
                 opcode, static_cast<void*>(&request));
     }
@@ -66,27 +66,27 @@ protected:
 TEST_P(SubdocSingleTest, Get_Baseline) {
     // Ensure that the initial request as formed by SetUp is valid.
     EXPECT_EQ(cb::mcbp::Status::Success,
-              validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+              validate(cb::mcbp::ClientOpcode::SubdocGet));
     // Successful request should have empty error context message
-    EXPECT_EQ("", validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+    EXPECT_EQ("", validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
 }
 
 TEST_P(SubdocSingleTest, Get_InvalidBody) {
     // Need a non-zero body.
     request.message.header.request.bodylen = htonl(0);
     EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+              validate(cb::mcbp::ClientOpcode::SubdocGet));
     EXPECT_EQ("Request must include extra fields",
-              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
 
     // Make sure we detect if it won't fit in the packet (extlen + key + path
     // is bigger than in the full packet
     request.message.header.request.extlen = 7;
     request.message.header.request.bodylen = htonl(10 + 5);
     EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+              validate(cb::mcbp::ClientOpcode::SubdocGet));
     EXPECT_EQ("Value length must not be greater than request body",
-              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
 }
 
 TEST_P(SubdocSingleTest, Get_InvalidPath) {
@@ -96,17 +96,17 @@ TEST_P(SubdocSingleTest, Get_InvalidPath) {
     request.message.extras.pathlen = htons(0);
 
     EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+              validate(cb::mcbp::ClientOpcode::SubdocGet));
     EXPECT_EQ("Request must include path",
-              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
 }
 
 TEST_P(SubdocSingleTest, DictAdd_InvalidValue) {
     // Need a non-zero value.
     EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+              validate(cb::mcbp::ClientOpcode::SubdocDictAdd));
     EXPECT_EQ("Request must include value",
-              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocDictAdd));
 }
 
 TEST_P(SubdocSingleTest, DictAdd_InvalidExtras) {
@@ -114,20 +114,21 @@ TEST_P(SubdocSingleTest, DictAdd_InvalidExtras) {
     request.message.header.request.extlen = 5;
     request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+              validate(cb::mcbp::ClientOpcode::SubdocDictAdd));
     EXPECT_EQ("Request extras invalid",
-              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocDictAdd));
 
     request.message.header.request.extlen = 7;
     EXPECT_EQ(cb::mcbp::Status::Success,
-              validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
-    EXPECT_EQ("", validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+              validate(cb::mcbp::ClientOpcode::SubdocDictAdd));
+    EXPECT_EQ("",
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocDictAdd));
 
     request.message.header.request.bodylen = htonl(10 + 7 + 1);
     EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
+              validate(cb::mcbp::ClientOpcode::SubdocExists));
     EXPECT_EQ("Request extras invalid",
-              validate_error_context(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
+              validate_error_context(cb::mcbp::ClientOpcode::SubdocExists));
 }
 
 class SubdocMultiLookupTest : public ::testing::WithParamInterface<bool>,
@@ -148,8 +149,8 @@ protected:
     cb::mcbp::Status validate(const std::vector<uint8_t> request) {
         void* packet =
             const_cast<void*>(static_cast<const void*>(request.data()));
-        return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP,
-                                       packet);
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::SubdocMultiLookup, packet);
     }
 
     cb::mcbp::Status validate(const BinprotSubdocMultiLookupCommand& cmd) {
@@ -162,7 +163,7 @@ protected:
         void* packet =
                 const_cast<void*>(static_cast<const void*>(request.data()));
         return ValidatorTest::validate_error_context(
-                PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP, packet);
+                cb::mcbp::ClientOpcode::SubdocMultiLookup, packet);
     }
 
     std::string validate_error_context(
@@ -361,7 +362,7 @@ protected:
 
     cb::mcbp::Status validate(std::vector<uint8_t>& packet) {
         return ValidatorTest::validate(
-            PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, packet.data());
+                cb::mcbp::ClientOpcode::SubdocMultiMutation, packet.data());
     }
 
     std::string validate_error_context(
@@ -373,7 +374,7 @@ protected:
 
     std::string validate_error_context(std::vector<uint8_t>& packet) {
         return ValidatorTest::validate_error_context(
-                PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, packet.data());
+                cb::mcbp::ClientOpcode::SubdocMultiMutation, packet.data());
     }
 
     /*

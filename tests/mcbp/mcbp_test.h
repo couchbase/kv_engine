@@ -45,8 +45,8 @@ protected:
      * @param opcode The opcode for the packet
      * @param request The packet to validate
      */
-    cb::mcbp::Status validate(protocol_binary_command opcode, void* request);
-    std::string validate_error_context(protocol_binary_command opcode,
+    cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode, void* request);
+    std::string validate_error_context(cb::mcbp::ClientOpcode opcode,
                                        void* request);
 
     McbpValidatorChains validatorChains;
