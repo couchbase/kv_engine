@@ -16,12 +16,11 @@
  */
 #pragma once
 
-
-#include <array>
-#include <memcached/protocol_binary.h>
-#include <memcached/rbac.h>
 #include "cookie.h"
 #include "function_chain.h"
+#include <mcbp/protocol/opcode.h>
+#include <memcached/rbac.h>
+#include <array>
 
 /**
  * The MCBP privilege chains.
@@ -47,20 +46,15 @@ public:
      *         Fail - the connection does not hold the privileges needed
      *         Stale - the authentication context is out of date
      */
-    cb::rbac::PrivilegeAccess invoke(protocol_binary_command command,
+    cb::rbac::PrivilegeAccess invoke(cb::mcbp::ClientOpcode command,
                                      Cookie& cookie);
 
 protected:
     /*
      * Silently ignores any attempt to push the same function onto the chain.
      */
-    void setup(protocol_binary_command command,
-               cb::rbac::PrivilegeAccess (*f)(Cookie&)) {
-        commandChains[command].push_unique(
-                makeFunction<cb::rbac::PrivilegeAccess,
-                             cb::rbac::PrivilegeAccess::Ok,
-                             Cookie&>(f));
-    }
+    void setup(cb::mcbp::ClientOpcode command,
+               cb::rbac::PrivilegeAccess (*f)(Cookie&));
 
     std::array<FunctionChain<cb::rbac::PrivilegeAccess,
                              cb::rbac::PrivilegeAccess::Ok,

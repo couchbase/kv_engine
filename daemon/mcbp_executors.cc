@@ -779,14 +779,14 @@ void execute_client_request_packet(Cookie& cookie,
 
     static McbpPrivilegeChains privilegeChains;
 
-    const auto opcode = request.opcode;
+    const auto opcode = request.getClientOpcode();
     const auto res = privilegeChains.invoke(opcode, cookie);
     switch (res) {
     case cb::rbac::PrivilegeAccess::Fail:
         LOG_WARNING("{} {}: no access to command {}",
                     c->getId(),
                     c->getDescription(),
-                    to_string(cb::mcbp::ClientOpcode(opcode)));
+                    to_string(opcode));
         audit_command_access_failed(cookie);
 
         if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {
@@ -801,12 +801,11 @@ void execute_client_request_packet(Cookie& cookie,
         // The framing of the packet is valid...
         // Verify that the actual command is legal
         auto& bucket = cookie.getConnection().getBucket();
-        auto result = bucket.validatorChains.invoke(request.getClientOpcode(),
-                                                    cookie);
+        auto result = bucket.validatorChains.invoke(opcode, cookie);
         if (result != cb::mcbp::Status::Success) {
             std::string command;
             try {
-                command = to_string(request.getClientOpcode());
+                command = to_string(opcode);
             } catch (const std::exception&) {
                 command = "unknown 0x" + cb::to_hex(request.opcode);
             }
@@ -824,7 +823,8 @@ void execute_client_request_packet(Cookie& cookie,
             return;
         }
 
-        handlers[opcode](cookie);
+        handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)](
+                cookie);
     }
         return;
     case cb::rbac::PrivilegeAccess::Stale:

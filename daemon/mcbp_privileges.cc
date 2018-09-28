@@ -23,9 +23,19 @@
 
 using namespace cb::rbac;
 
-PrivilegeAccess McbpPrivilegeChains::invoke(protocol_binary_command command,
+void McbpPrivilegeChains::setup(cb::mcbp::ClientOpcode command,
+                                cb::rbac::PrivilegeAccess (*f)(Cookie&)) {
+    commandChains[std::underlying_type<cb::mcbp::ClientOpcode>::type(command)]
+            .push_unique(makeFunction<cb::rbac::PrivilegeAccess,
+                                      cb::rbac::PrivilegeAccess::Ok,
+                                      Cookie&>(f));
+}
+
+PrivilegeAccess McbpPrivilegeChains::invoke(cb::mcbp::ClientOpcode command,
                                             Cookie& cookie) {
-    auto& chain = commandChains[command];
+    auto& chain =
+            commandChains[std::underlying_type<cb::mcbp::ClientOpcode>::type(
+                    command)];
     if (chain.empty()) {
         return cb::rbac::PrivilegeAccess::Fail;
     } else {
@@ -36,7 +46,8 @@ PrivilegeAccess McbpPrivilegeChains::invoke(protocol_binary_command command,
                     "{}: bad_function_call caught while evaluating access "
                     "control for opcode: {:x}",
                     cookie.getConnection().getId(),
-                    command);
+                    std::underlying_type<cb::mcbp::ClientOpcode>::type(
+                            command));
             // Let the connection catch the exception and shut down the
             // connection
             throw;
@@ -63,280 +74,311 @@ static PrivilegeAccess empty(Cookie& cookie) {
 }
 
 McbpPrivilegeChains::McbpPrivilegeChains() {
-
-    setup(PROTOCOL_BINARY_CMD_GET, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_GETQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_GETK, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_GETKQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_SET, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_SETQ, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_ADD, requireInsertOrUpsert);
-    setup(PROTOCOL_BINARY_CMD_ADDQ, requireInsertOrUpsert);
-    setup(PROTOCOL_BINARY_CMD_REPLACE, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_REPLACEQ, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_DELETE, require<Privilege::Delete>);
-    setup(PROTOCOL_BINARY_CMD_DELETEQ, require<Privilege::Delete>);
-    setup(PROTOCOL_BINARY_CMD_APPEND, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_APPENDQ, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_PREPEND, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_PREPENDQ, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_INCREMENT, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_INCREMENT, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_INCREMENTQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_INCREMENTQ, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_DECREMENT, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_DECREMENT, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_DECREMENTQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_DECREMENTQ, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_QUIT, empty);
-    setup(PROTOCOL_BINARY_CMD_QUITQ, empty);
-    setup(PROTOCOL_BINARY_CMD_FLUSH, require<Privilege::BucketManagement>);
-    setup(PROTOCOL_BINARY_CMD_FLUSHQ, require<Privilege::BucketManagement>);
-    setup(PROTOCOL_BINARY_CMD_NOOP, empty);
-    setup(PROTOCOL_BINARY_CMD_VERSION, empty);
-    setup(PROTOCOL_BINARY_CMD_STAT, require<Privilege::SimpleStats>);
-    setup(PROTOCOL_BINARY_CMD_VERBOSITY, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_TOUCH, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_GAT, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_GAT, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_GATQ, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_GATQ, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_HELLO, empty);
-    setup(PROTOCOL_BINARY_CMD_GET_ERROR_MAP, empty);
-    setup(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS, empty);
-    setup(PROTOCOL_BINARY_CMD_SASL_AUTH, empty);
-    setup(PROTOCOL_BINARY_CMD_SASL_STEP, empty);
+    setup(cb::mcbp::ClientOpcode::Get, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Getq, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Getk, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Getkq, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::GetFailoverLog, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Set, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Setq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Add, requireInsertOrUpsert);
+    setup(cb::mcbp::ClientOpcode::Addq, requireInsertOrUpsert);
+    setup(cb::mcbp::ClientOpcode::Replace, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Replaceq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Delete, require<Privilege::Delete>);
+    setup(cb::mcbp::ClientOpcode::Deleteq, require<Privilege::Delete>);
+    setup(cb::mcbp::ClientOpcode::Append, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Appendq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Prepend, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Prependq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Increment, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Increment, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Incrementq, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Incrementq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Decrement, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Decrement, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Decrementq, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Decrementq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Quit, empty);
+    setup(cb::mcbp::ClientOpcode::Quitq, empty);
+    setup(cb::mcbp::ClientOpcode::Flush, require<Privilege::BucketManagement>);
+    setup(cb::mcbp::ClientOpcode::Flushq, require<Privilege::BucketManagement>);
+    setup(cb::mcbp::ClientOpcode::Noop, empty);
+    setup(cb::mcbp::ClientOpcode::Version, empty);
+    setup(cb::mcbp::ClientOpcode::Stat, require<Privilege::SimpleStats>);
+    setup(cb::mcbp::ClientOpcode::Verbosity,
+          require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::Touch, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Gat, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Gat, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Gatq, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Gatq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Hello, empty);
+    setup(cb::mcbp::ClientOpcode::GetErrorMap, empty);
+    setup(cb::mcbp::ClientOpcode::SaslListMechs, empty);
+    setup(cb::mcbp::ClientOpcode::SaslAuth, empty);
+    setup(cb::mcbp::ClientOpcode::SaslStep, empty);
     /* Control */
-    setup(PROTOCOL_BINARY_CMD_IOCTL_GET, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_IOCTL_SET, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::IoctlGet, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::IoctlSet, require<Privilege::NodeManagement>);
 
     /* Config */
-    setup(PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_CONFIG_RELOAD, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::ConfigValidate,
+          require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::ConfigReload,
+          require<Privilege::NodeManagement>);
 
     /* Audit */
-    setup(PROTOCOL_BINARY_CMD_AUDIT_PUT, require<Privilege::Audit>);
-    setup(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
+    setup(cb::mcbp::ClientOpcode::AuditPut, require<Privilege::Audit>);
+    setup(cb::mcbp::ClientOpcode::AuditConfigReload,
           require<Privilege::AuditManagement>);
 
     /* Shutdown the server */
-    setup(PROTOCOL_BINARY_CMD_SHUTDOWN, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::Shutdown, require<Privilege::NodeManagement>);
 
     /* VBucket commands */
-    setup(PROTOCOL_BINARY_CMD_SET_VBUCKET, require<Privilege::BucketManagement>);
+    setup(cb::mcbp::ClientOpcode::SetVbucket,
+          require<Privilege::BucketManagement>);
     // The testrunner client seem to use this command..
-    setup(PROTOCOL_BINARY_CMD_GET_VBUCKET, empty);
-    setup(PROTOCOL_BINARY_CMD_DEL_VBUCKET, require<Privilege::BucketManagement>);
+    setup(cb::mcbp::ClientOpcode::GetVbucket, empty);
+    setup(cb::mcbp::ClientOpcode::DelVbucket,
+          require<Privilege::BucketManagement>);
     /* End VBucket commands */
 
     /* TAP commands */
     /* We want to return cb::mcbp::Status::NotSupported */
-    setup(PROTOCOL_BINARY_CMD_TAP_CONNECT, empty);
-    setup(PROTOCOL_BINARY_CMD_TAP_MUTATION, empty);
-    setup(PROTOCOL_BINARY_CMD_TAP_DELETE, empty);
-    setup(PROTOCOL_BINARY_CMD_TAP_FLUSH, empty);
-    setup(PROTOCOL_BINARY_CMD_TAP_OPAQUE, empty);
-    setup(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, empty);
-    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START, empty);
-    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END, empty);
+    setup(cb::mcbp::ClientOpcode::TapConnect, empty);
+    setup(cb::mcbp::ClientOpcode::TapMutation, empty);
+    setup(cb::mcbp::ClientOpcode::TapDelete, empty);
+    setup(cb::mcbp::ClientOpcode::TapFlush, empty);
+    setup(cb::mcbp::ClientOpcode::TapOpaque, empty);
+    setup(cb::mcbp::ClientOpcode::TapVbucketSet, empty);
+    setup(cb::mcbp::ClientOpcode::TapCheckpointStart, empty);
+    setup(cb::mcbp::ClientOpcode::TapCheckpointEnd, empty);
     /* End TAP */
 
     /* Vbucket command to get the VBUCKET sequence numbers for all
      * vbuckets on the node */
-    setup(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, require<Privilege::MetaRead>);
+    setup(cb::mcbp::ClientOpcode::GetAllVbSeqnos, require<Privilege::MetaRead>);
 
     /* DCP */
-    setup(PROTOCOL_BINARY_CMD_DCP_OPEN, empty);
-    setup(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM, require<Privilege::DcpProducer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM, require<Privilege::DcpProducer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, require<Privilege::DcpProducer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG, require<Privilege::DcpProducer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_STREAM_END, require<Privilege::DcpConsumer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, require<Privilege::DcpConsumer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_MUTATION, require<Privilege::DcpConsumer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_DELETION, require<Privilege::DcpConsumer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_EXPIRATION, require<Privilege::DcpConsumer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, require<Privilege::DcpConsumer>);
-    setup(PROTOCOL_BINARY_CMD_DCP_NOOP, empty);
-    setup(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT, empty);
-    setup(PROTOCOL_BINARY_CMD_DCP_CONTROL, empty);
-    setup(PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT,
+    setup(cb::mcbp::ClientOpcode::DcpOpen, empty);
+    setup(cb::mcbp::ClientOpcode::DcpAddStream,
+          require<Privilege::DcpProducer>);
+    setup(cb::mcbp::ClientOpcode::DcpCloseStream,
+          require<Privilege::DcpProducer>);
+    setup(cb::mcbp::ClientOpcode::DcpStreamReq,
+          require<Privilege::DcpProducer>);
+    setup(cb::mcbp::ClientOpcode::DcpGetFailoverLog,
+          require<Privilege::DcpProducer>);
+    setup(cb::mcbp::ClientOpcode::DcpStreamEnd,
+          require<Privilege::DcpConsumer>);
+    setup(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+          require<Privilege::DcpConsumer>);
+    setup(cb::mcbp::ClientOpcode::DcpMutation, require<Privilege::DcpConsumer>);
+    setup(cb::mcbp::ClientOpcode::DcpDeletion, require<Privilege::DcpConsumer>);
+    setup(cb::mcbp::ClientOpcode::DcpExpiration,
+          require<Privilege::DcpConsumer>);
+    setup(cb::mcbp::ClientOpcode::DcpSetVbucketState,
+          require<Privilege::DcpConsumer>);
+    setup(cb::mcbp::ClientOpcode::DcpNoop, empty);
+    setup(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement, empty);
+    setup(cb::mcbp::ClientOpcode::DcpControl, empty);
+    setup(cb::mcbp::ClientOpcode::DcpSystemEvent,
           require<Privilege::DcpConsumer>);
     /* End DCP */
 
-    setup(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE,
+    setup(cb::mcbp::ClientOpcode::StopPersistence,
           require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_START_PERSISTENCE,
+    setup(cb::mcbp::ClientOpcode::StartPersistence,
           require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_SET_PARAM, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_GET_REPLICA, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SetParam, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::GetReplica, require<Privilege::Read>);
 
     /* Bucket engine */
-    setup(PROTOCOL_BINARY_CMD_CREATE_BUCKET, require<Privilege::BucketManagement>);
-    setup(PROTOCOL_BINARY_CMD_DELETE_BUCKET, require<Privilege::BucketManagement>);
+    setup(cb::mcbp::ClientOpcode::CreateBucket,
+          require<Privilege::BucketManagement>);
+    setup(cb::mcbp::ClientOpcode::DeleteBucket,
+          require<Privilege::BucketManagement>);
     // Everyone should be able to list their own buckets
-    setup(PROTOCOL_BINARY_CMD_LIST_BUCKETS, empty);
+    setup(cb::mcbp::ClientOpcode::ListBuckets, empty);
     // And select the one they have access to
-    setup(PROTOCOL_BINARY_CMD_SELECT_BUCKET, empty);
+    setup(cb::mcbp::ClientOpcode::SelectBucket, empty);
 
-    setup(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, require<Privilege::MetaRead>);
-    setup(PROTOCOL_BINARY_CMD_OBSERVE, require<Privilege::MetaRead>);
+    setup(cb::mcbp::ClientOpcode::ObserveSeqno, require<Privilege::MetaRead>);
+    setup(cb::mcbp::ClientOpcode::Observe, require<Privilege::MetaRead>);
 
-    setup(PROTOCOL_BINARY_CMD_EVICT_KEY, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_GET_LOCKED, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_UNLOCK_KEY, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::EvictKey, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::GetLocked, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::UnlockKey, require<Privilege::Read>);
 
     /**
      * Return the last closed checkpoint Id for a given VBucket.
      */
-    setup(PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT, require<Privilege::MetaRead>);
+    setup(cb::mcbp::ClientOpcode::LastClosedCheckpoint,
+          require<Privilege::MetaRead>);
 
     /**
      * CMD_GET_META is used to retrieve the meta section for an item.
      */
-    setup(PROTOCOL_BINARY_CMD_GET_META, require<Privilege::MetaRead>);
-    setup(PROTOCOL_BINARY_CMD_GETQ_META, require<Privilege::MetaRead>);
-    setup(PROTOCOL_BINARY_CMD_SET_WITH_META, require<Privilege::MetaWrite>);
-    setup(PROTOCOL_BINARY_CMD_SETQ_WITH_META, require<Privilege::MetaWrite>);
-    setup(PROTOCOL_BINARY_CMD_ADD_WITH_META, require<Privilege::MetaWrite>);
-    setup(PROTOCOL_BINARY_CMD_ADDQ_WITH_META, require<Privilege::MetaWrite>);
-    setup(PROTOCOL_BINARY_CMD_SNAPSHOT_VB_STATES, require<Privilege::MetaWrite>);
-    setup(PROTOCOL_BINARY_CMD_VBUCKET_BATCH_COUNT, require<Privilege::MetaWrite>);
-    setup(PROTOCOL_BINARY_CMD_DEL_WITH_META, require<Privilege::MetaWrite>);
-    setup(PROTOCOL_BINARY_CMD_DELQ_WITH_META, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::GetMeta, require<Privilege::MetaRead>);
+    setup(cb::mcbp::ClientOpcode::GetqMeta, require<Privilege::MetaRead>);
+    setup(cb::mcbp::ClientOpcode::SetWithMeta, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::SetqWithMeta, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::AddWithMeta, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::AddqWithMeta, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::SnapshotVbStates,
+          require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::VbucketBatchCount,
+          require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::DelWithMeta, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::DelqWithMeta, require<Privilege::MetaWrite>);
 
     /**
      * Command to create a new checkpoint on a given vbucket by force
      */
-    setup(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_NOTIFY_VBUCKET_UPDATE, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::CreateCheckpoint,
+          require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::NotifyVbucketUpdate,
+          require<Privilege::MetaWrite>);
     /**
      * Command to enable data traffic after completion of warm
      */
-    setup(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC,
+    setup(cb::mcbp::ClientOpcode::EnableTraffic,
           require<Privilege::NodeManagement>);
     /**
      * Command to disable data traffic temporarily
      */
-    setup(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC,
+    setup(cb::mcbp::ClientOpcode::DisableTraffic,
           require<Privilege::NodeManagement>);
     /**
      * Command to wait for the checkpoint persistence
      */
-    setup(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::CheckpointPersistence,
+          require<Privilege::NodeManagement>);
     /**
      * Command that returns meta data for typical memcached ops
      */
-    setup(PROTOCOL_BINARY_CMD_RETURN_META, require<Privilege::MetaRead>);
-    setup(PROTOCOL_BINARY_CMD_RETURN_META, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::ReturnMeta, require<Privilege::MetaRead>);
+    setup(cb::mcbp::ClientOpcode::ReturnMeta, require<Privilege::MetaWrite>);
     /**
      * Command to trigger compaction of a vbucket
      */
-    setup(PROTOCOL_BINARY_CMD_COMPACT_DB, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::CompactDb,
+          require<Privilege::NodeManagement>);
     /**
      * Command to set cluster configuration
      */
-    setup(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, require<Privilege::SecurityManagement>);
+    setup(cb::mcbp::ClientOpcode::SetClusterConfig,
+          require<Privilege::SecurityManagement>);
     /**
      * Command that returns cluster configuration (open to anyone)
      */
-    setup(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, empty);
+    setup(cb::mcbp::ClientOpcode::GetClusterConfig, empty);
 
-    setup(PROTOCOL_BINARY_CMD_GET_RANDOM_KEY, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::GetRandomKey, require<Privilege::Read>);
     /**
      * Command to wait for the dcp sequence number persistence
      */
-    setup(PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::SeqnoPersistence,
+          require<Privilege::NodeManagement>);
     /**
      * Command to get all keys
      */
-    setup(PROTOCOL_BINARY_CMD_GET_KEYS, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::GetKeys, require<Privilege::Read>);
     /**
      * Commands for GO-XDCR
      */
-    setup(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE, require<Privilege::NodeManagement>);
-    setup(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::SetDriftCounterState,
+          require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::GetAdjustedTime,
+          require<Privilege::NodeManagement>);
 
     /**
      * Commands for the Sub-document API.
      */
 
     /* Retrieval commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_GET, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SubdocGet, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SubdocExists, require<Privilege::Read>);
 
     /* Dictionary commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocDictAdd, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocDictUpsert, require<Privilege::Upsert>);
 
     /* Generic modification commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocDelete, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocReplace, require<Privilege::Upsert>);
 
     /* Array commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE, require<Privilege::Upsert>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+          require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+          require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocArrayInsert,
+          require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+          require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocGetCount, require<Privilege::Read>);
 
     /* Arithmetic commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocCounter, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SubdocCounter, require<Privilege::Upsert>);
 
     /* Multi-Path commands */
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, require<Privilege::Read>);
-    setup(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, require<Privilege::Upsert>);
-
+    setup(cb::mcbp::ClientOpcode::SubdocMultiLookup, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SubdocMultiMutation,
+          require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SubdocMultiMutation,
+          require<Privilege::Upsert>);
 
     /* Scrub the data */
-    setup(PROTOCOL_BINARY_CMD_SCRUB, require<Privilege::NodeManagement>);
+    setup(cb::mcbp::ClientOpcode::Scrub, require<Privilege::NodeManagement>);
     /* Refresh the ISASL data */
-    setup(PROTOCOL_BINARY_CMD_ISASL_REFRESH,
+    setup(cb::mcbp::ClientOpcode::IsaslRefresh,
           require<Privilege::SecurityManagement>);
     /* Refresh the SSL certificates */
-    setup(PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH,
+    setup(cb::mcbp::ClientOpcode::SslCertsRefresh,
           require<Privilege::SecurityManagement>);
     /* Internal timer ioctl */
-    setup(PROTOCOL_BINARY_CMD_GET_CMD_TIMER, empty);
+    setup(cb::mcbp::ClientOpcode::GetCmdTimer, empty);
     /* ns_server - memcached session validation */
-    setup(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN, require<Privilege::SessionManagement>);
-    setup(PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN, require<Privilege::SessionManagement>);
+    setup(cb::mcbp::ClientOpcode::SetCtrlToken,
+          require<Privilege::SessionManagement>);
+    setup(cb::mcbp::ClientOpcode::GetCtrlToken,
+          require<Privilege::SessionManagement>);
 
     // Drop a privilege from the effective set
-    setup(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE, empty);
+    setup(cb::mcbp::ClientOpcode::DropPrivilege, empty);
 
-    setup(uint8_t(cb::mcbp::ClientOpcode::UpdateUserPermissions),
+    setup(cb::mcbp::ClientOpcode::UpdateUserPermissions,
           require<Privilege::SecurityManagement>);
 
     /* Refresh the RBAC data */
-    setup(PROTOCOL_BINARY_CMD_RBAC_REFRESH,
+    setup(cb::mcbp::ClientOpcode::RbacRefresh,
           require<Privilege::SecurityManagement>);
 
-    setup(uint8_t(cb::mcbp::ClientOpcode::AuthProvider),
+    setup(cb::mcbp::ClientOpcode::AuthProvider,
           require<Privilege::SecurityManagement>);
 
-    setup(uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers),
+    setup(cb::mcbp::ClientOpcode::GetActiveExternalUsers,
           require<Privilege::SecurityManagement>);
 
     /// @todo change priv to CollectionManagement
-    setup(PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST,
+    setup(cb::mcbp::ClientOpcode::CollectionsSetManifest,
           require<Privilege::BucketManagement>);
 
     /// all clients may need to read the manifest
-    setup(PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST, empty);
+    setup(cb::mcbp::ClientOpcode::CollectionsGetManifest, empty);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension
-        setup(protocol_binary_command(PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY), empty);
+        setup(cb::mcbp::ClientOpcode::AdjustTimeofday, empty);
         // The opcode used by ewouldblock
-        setup(protocol_binary_command(PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL), empty);
+        setup(cb::mcbp::ClientOpcode::EwouldblockCtl, empty);
         // We have a unit tests that tries to fetch this opcode to detect
         // that we don't crash (we used to have an array which was too
         // small ;-)
-        setup(protocol_binary_command(PROTOCOL_BINARY_CMD_INVALID), empty);
+        setup(cb::mcbp::ClientOpcode::Invalid, empty);
     }
-
 }
