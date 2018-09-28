@@ -361,7 +361,11 @@ bool StateMachine::conn_execute() {
         }
         return gsl::narrow<ssize_t>(size);
     });
-
+    // We've cleared the memory for this packet so we need to mark it
+    // as cleared in the cookie to avoid having it dumped in toJSON and
+    // using freed memory. We cannot call reset on the cookie as we
+    // want to preserve the error context and id.
+    cookie.clearPacket();
     return true;
 }
 

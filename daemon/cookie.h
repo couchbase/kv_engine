@@ -209,6 +209,10 @@ public:
     cb::const_byte_buffer getPacket(
             PacketContent content = PacketContent::Full) const;
 
+    void clearPacket() {
+        packet = {};
+    }
+
     /**
      * All of the (current) packet validators expects a void* and I don't
      * want to refactor all of them at this time.. Create a convenience
