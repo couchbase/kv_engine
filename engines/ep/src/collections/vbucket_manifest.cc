@@ -64,6 +64,8 @@ Manifest::Manifest(const PersistedManifest& data)
         addNewCollectionEntry({entry->scopeId(), entry->collectionId()},
                               entry->startSeqno(),
                               entry->endSeqno());
+
+        scopes.emplace(entry->scopeId());
     }
 }
 
@@ -89,8 +91,13 @@ bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
         EP_LOG_WARN("VB::Manifest::update cannot update {}", vb.getId());
         return false;
     } else {
-        std::vector<ScopeCollectionPair>& additions = rv->first;
-        std::vector<ScopeCollectionPair>& deletions = rv->second;
+        for (auto scope : rv->scopesToAdd) {
+            scopes.emplace(scope);
+        }
+
+        for (auto scope : rv->scopesToRemove) {
+            scopes.erase(scope);
+        }
 
         auto finalDeletion =
                 applyChanges(std::bind(&Manifest::beginCollectionDelete,
@@ -99,8 +106,8 @@ bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
                                        std::placeholders::_1,
                                        std::placeholders::_2,
                                        std::placeholders::_3),
-                             deletions);
-        if (additions.empty() && finalDeletion) {
+                             rv->collectionsToRemove);
+        if (rv->collectionsToAdd.empty() && finalDeletion) {
             beginCollectionDelete(
                     vb,
                     manifest.getUid(), // Final update with new UID
@@ -120,7 +127,7 @@ bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
                                                     std::placeholders::_1,
                                                     std::placeholders::_2,
                                                     std::placeholders::_3),
-                                          additions);
+                                          rv->collectionsToAdd);
 
         if (finalAddition) {
             addCollection(vb,
@@ -280,29 +287,41 @@ void Manifest::completeDeletion(::VBucket& vb, CollectionID collectionID) {
                      OptionalSeqno{/*none*/});
 }
 
-Manifest::processResult Manifest::processManifest(
+Manifest::ProcessResult Manifest::processManifest(
         const Collections::Manifest& manifest) const {
-    std::vector<ScopeCollectionPair> additions, deletions;
+    ProcessResult rv = ManifestChanges();
 
     for (const auto& entry : map) {
         // If the entry is open and not found in the new manifest it must be
         // deleted.
         if (entry.second.isOpen() &&
             manifest.findCollection(entry.first) == manifest.end()) {
-            deletions.push_back(
+            rv->collectionsToRemove.push_back(
                     std::make_pair(entry.second.getScopeID(), entry.first));
         }
     }
 
-    // Add collections in Manifest but not in our map
+    for (const auto& scope : scopes) {
+        // Remove the scopes that don't exist in the new manifest
+        if (manifest.findScope(scope) == manifest.endScopes()) {
+            rv->scopesToRemove.push_back(scope);
+        }
+    }
+
+    // Add scopes and collections in Manifest but not in our map
     for (auto scopeItr = manifest.beginScopes();
          scopeItr != manifest.endScopes();
          scopeItr++) {
+        if (scopes.find(scopeItr->first) == scopes.end()) {
+            rv->scopesToAdd.push_back(scopeItr->first);
+        }
+
         for (const auto& m : scopeItr->second.collections) {
             auto mapItr = map.find(m);
 
             if (mapItr == map.end()) {
-                additions.push_back(std::make_pair(scopeItr->first, m));
+                rv->collectionsToAdd.push_back(
+                        std::make_pair(scopeItr->first, m));
             } else if (mapItr->second.isDeleting()) {
                 // trying to add a collection which is deleting, not allowed.
                 EP_LOG_WARN("Attempt to add a deleting collection:{}:{:x}",
@@ -312,7 +331,8 @@ Manifest::processResult Manifest::processManifest(
             }
         }
     }
-    return std::make_pair(additions, deletions);
+
+    return rv;
 }
 
 bool Manifest::doesKeyContainValidCollection(const DocKey& key) const {
@@ -628,6 +648,22 @@ void Manifest::updateSummary(Summary& summary) const {
             s->second += entry.second.getDiskCount();
         }
     }
+}
+
+boost::optional<std::vector<CollectionID>> Manifest::getCollectionsForScope(
+        ScopeID identifier) const {
+    if (scopes.find(identifier) == scopes.end()) {
+        return {};
+    }
+
+    std::vector<CollectionID> rv;
+    for (const auto& collection : map) {
+        if (collection.second.getScopeID() == identifier) {
+            rv.push_back(collection.first);
+        }
+    }
+
+    return rv;
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {

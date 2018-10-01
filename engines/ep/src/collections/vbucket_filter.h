@@ -179,24 +179,39 @@ protected:
                        const ::Collections::VB::Manifest& manifest);
 
     /**
+     * Private helper to examine the given scope object against the manifest and
+     * add the associated collections to the internal container
+     */
+    void addScope(const nlohmann::json& object,
+                  const ::Collections::VB::Manifest& manifest);
+
+    /**
      * Does the filter allow the system event? I.e. a "meat,dairy" filter
      * shouldn't allow delete events for the "fruit" collection.
+     *
+     * May update the filter if we are filtering on scopes and the event is
+     * an add or delete collection.
      *
      * @param item a SystemEventMessage to check
      * @param return true if the filter says this event should be allowed
      */
-    bool allowSystemEvent(const Item& item) const;
+    bool checkAndUpdateSystemEvent(const Item& item);
 
     /// Non-inline, slow path of checkAndUpdate().
     bool checkAndUpdateSlow(CollectionID cid, const Item& item);
 
     /**
      * Remove the collection of the item from the filter
+     *
+     * @param item a SystemEventMessage to check
+     * @return true if a collection was removed from this filter
      */
-    void remove(const Item& item);
+    bool remove(const Item& item);
 
     using Container = ::std::unordered_set<CollectionID>;
     Container filter;
+    boost::optional<ScopeID> scopeID;
+
     bool defaultAllowed = false;
     bool passthrough = false;
     bool systemEventsAllowed = false;
@@ -208,6 +223,9 @@ protected:
     static const char* CollectionsKey;
     static constexpr nlohmann::json::value_t CollectionsType =
             nlohmann::json::value_t::array;
+    static const char* ScopeKey;
+    static constexpr nlohmann::json::value_t ScopeType =
+            nlohmann::json::value_t::string;
     static const char* UidKey;
     static constexpr nlohmann::json::value_t UidType =
             nlohmann::json::value_t::string;

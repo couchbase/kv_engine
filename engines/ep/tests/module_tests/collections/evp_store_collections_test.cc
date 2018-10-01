@@ -677,6 +677,21 @@ TEST_F(CollectionsWarmupTest, warmup) {
     EXPECT_EQ(1,
               store->getVBucket(vbid)->lockCollections().getItemCount(
                       CollectionEntry::meat));
+
+    // validate the internal scope set of the manifest
+    auto collections =
+            store->getVBucket(vbid)->lockCollections().getCollectionsForScope(
+                    ScopeEntry::defaultS);
+    if (collections.is_initialized()) {
+        EXPECT_EQ(2, collections->size());
+        EXPECT_EQ(CollectionEntry::meat.getId(), (*collections)[0]);
+        EXPECT_EQ(CollectionEntry::defaultC.getId(), (*collections)[1]);
+        EXPECT_EQ(CollectionEntry::meat.getId(), *(collections->begin()));
+        EXPECT_EQ(CollectionEntry::defaultC.getId(), *(++collections->begin()));
+    } else {
+        FAIL() << "Manifest scope structure not valid - collections were not "
+                  "returned";
+    }
 }
 
 // When a collection is deleted - an event enters the checkpoint which does not
