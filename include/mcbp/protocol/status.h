@@ -127,6 +127,11 @@ enum class Status : uint16_t {
      */
     CollectionsManifestIsAhead = 0x8b,
 
+    /**
+     * Operation attempted with an unknown scope.
+     */
+    UnknownScope = 0x8c,
+
     /*
      * Sub-document specific responses.
      */

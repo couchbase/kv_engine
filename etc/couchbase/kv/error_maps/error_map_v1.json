@@ -212,6 +212,13 @@
                 "retry-later"
             ]
         },
+        "8c": {
+            "name": "UNKNOWN_SCOPE",
+            "desc": "Operation specified an unknown scope.",
+            "attrs": [
+                "invalid-input"
+            ]
+        },
         "c0": {
             "name": "SUBDOC_PATH_ENOENT",
             "desc": "Subdoc: Path not found in document",

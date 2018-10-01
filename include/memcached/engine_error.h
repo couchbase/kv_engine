@@ -116,6 +116,11 @@ enum class engine_errc {
      */
     collections_manifest_is_ahead = 0x1a,
 
+    /**
+     * The request has no scope or an unknown scope
+     */
+    unknown_scope = 0x1b,
+
     /** Generic failue. */
     failed = 0xff
 };

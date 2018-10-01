@@ -100,6 +100,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "cannot_apply_collections_manifest";
     case cb::engine_errc::collections_manifest_is_ahead:
         return "collections_manifest_is_ahead";
+    case cb::engine_errc::unknown_scope:
+        return "unknown scope";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

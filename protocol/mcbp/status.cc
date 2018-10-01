@@ -55,6 +55,7 @@ bool isStatusSuccess(Status status) {
     case Status::NoCollectionsManifest:
     case Status::CannotApplyCollectionsManifest:
     case Status::CollectionsManifestIsAhead:
+    case Status::UnknownScope:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -165,6 +166,8 @@ std::string to_string(cb::mcbp::Status status) {
         return "Cannot apply collections manifest";
     case Status::CollectionsManifestIsAhead:
         return "Collections manifest is ahead";
+    case Status::UnknownScope:
+        return "Unknown Scope";
     case Status::SubdocPathEnoent:
         return "Subdoc: Path not does not exist";
     case Status::SubdocPathMismatch:
