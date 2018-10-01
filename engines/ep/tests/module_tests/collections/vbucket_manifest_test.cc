@@ -137,6 +137,11 @@ public:
         addCollection(vb, manifestUid, identifiers, optionalSeqno);
     }
 
+    boost::optional<std::vector<CollectionID>> public_getCollectionsForScope(
+            ScopeID identifier) {
+        return getCollectionsForScope(identifier);
+    }
+
 protected:
     bool exists_UNLOCKED(CollectionID identifier) const {
         auto itr = map.find(identifier);
@@ -561,6 +566,109 @@ TEST_F(VBucketManifestTest, add_delete_same_scopes) {
             StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
     EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
     EXPECT_TRUE(manifest.isDeleting(CollectionEntry::dairy));
+}
+
+/**
+ * Test that we can add a collection to a scope that was previously empty
+ */
+TEST_F(VBucketManifestTest, add_to_empty_scope) {
+    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
+
+    // We have no collections, but the scope does exist
+    EXPECT_TRUE(
+            manifest.active.public_getCollectionsForScope(ScopeEntry::shop1));
+    EXPECT_EQ(manifest.active.public_getCollectionsForScope(ScopeEntry::shop1)
+                      ->size(),
+              0);
+
+    // Add meat to the shop 1 scope
+    EXPECT_TRUE(
+            manifest.update(cm.add(CollectionEntry::meat, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"meat:beef", CollectionEntry::meat}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+}
+
+/**
+ * Test that we can drop a scope (simulate this by dropping all the
+ * collections within it) then add it back.
+ */
+TEST_F(VBucketManifestTest, drop_scope_then_add) {
+    // Add meat to the shop 1 scope
+    EXPECT_TRUE(manifest.update(
+            cm.add(ScopeEntry::shop1)
+                    .add(CollectionEntry::meat, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"meat:beef", CollectionEntry::meat}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+
+    // Now remove the meat collection and shop1 scope
+    EXPECT_TRUE(
+            manifest.update(cm.remove(CollectionEntry::meat, ScopeEntry::shop1)
+                                    .remove(ScopeEntry::shop1)));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"meat:beef", CollectionEntry::meat}));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::meat));
+
+    // We have no collections, and the scope does not exist
+    EXPECT_FALSE(
+            manifest.active.public_getCollectionsForScope(ScopeEntry::shop1));
+
+    // And add the meat collection back to the shop 1 scope
+    EXPECT_TRUE(manifest.update(
+            cm.add(ScopeEntry::shop1)
+                    .add(CollectionEntry::meat, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"meat:beef", CollectionEntry::meat}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+
+    // We have only 1 collection
+    EXPECT_TRUE(
+            manifest.active.public_getCollectionsForScope(ScopeEntry::shop1));
+    EXPECT_EQ(manifest.active.public_getCollectionsForScope(ScopeEntry::shop1)
+                      ->size(),
+              1);
+}
+
+/**
+ * Test that we do not drop a scope when one collection is pending complete
+ * deletion
+ */
+TEST_F(VBucketManifestTest, drop_scope_then_add_before_complete_deletion) {
+    // Add meat to the shop 1 scope
+    EXPECT_TRUE(manifest.update(
+            cm.add(ScopeEntry::shop1)
+                    .add(CollectionEntry::meat, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"meat:beef", CollectionEntry::meat}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+
+    // Now remove the meat collection and shop1 scope
+    EXPECT_TRUE(
+            manifest.update(cm.remove(CollectionEntry::meat, ScopeEntry::shop1)
+                                    .remove(ScopeEntry::shop1)));
+    EXPECT_FALSE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"meat:beef", CollectionEntry::meat}));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::meat));
+
+    // And add the dairy collection to the shop 1 scope
+    EXPECT_TRUE(manifest.update(
+            cm.add(ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.doesKeyContainValidCollection(
+            StoredDocKey{"dairy:milk", CollectionEntry::dairy}));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+
+    // Now complete the deletion of meat
+    EXPECT_TRUE(manifest.completeDeletion(CollectionEntry::meat));
+
+    // We have only 1 collection
+    EXPECT_TRUE(
+            manifest.active.public_getCollectionsForScope(ScopeEntry::shop1));
+    EXPECT_EQ(manifest.active.public_getCollectionsForScope(ScopeEntry::shop1)
+                      ->size(),
+              1);
 }
 
 TEST_F(VBucketManifestTest, duplicate_cid_different_scope) {
