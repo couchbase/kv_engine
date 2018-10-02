@@ -676,6 +676,11 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
         if (pendingBackfill) {
             scheduleBackfill_UNLOCKED(true);
             pendingBackfill = false;
+            // After scheduling a backfill we may now have items in readyQ -
+            // so re-check if we didn't already have a response.
+            if (!resp) {
+                resp = nextQueuedItem();
+            }
         } else {
             if (lastReadSeqno.load() >= end_seqno_) {
                 endStream(END_STREAM_OK);
