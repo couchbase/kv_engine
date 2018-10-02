@@ -2369,9 +2369,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* Optional parent monitor */
     char *env = getenv("MEMCACHED_PARENT_MONITOR");
-    if (env != NULL) {
+    if (env != nullptr) {
         LOG_INFO("Starting parent monitor");
-        parent_monitor.reset(new ParentMonitor(std::stoi(env)));
+        parent_monitor = std::make_unique<ParentMonitor>(std::stoi(env));
     }
 
     if (!memcached_shutdown) {
@@ -2385,7 +2385,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     LOG_INFO("Initiating graceful shutdown.");
     delete_all_buckets();
 
-    if (parent_monitor.get() != nullptr) {
+    if (parent_monitor) {
         LOG_INFO("Shutting down parent monitor");
         parent_monitor.reset();
     }
