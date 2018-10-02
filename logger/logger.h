@@ -41,8 +41,6 @@
 
 #include <string>
 
-struct cJSON;
-
 namespace cb {
 namespace logger {
 

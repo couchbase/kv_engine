@@ -624,7 +624,9 @@ static void handle_logger(Settings& s, cJSON* obj) {
     if (obj->type != cJSON_Object) {
         throw std::invalid_argument("\"logger\" must be an object");
     }
-    cb::logger::Config config(*obj);
+    // TODO MB-30041: Remove when we have finished refactoring settings
+    nlohmann::json json = nlohmann::json::parse(to_string(obj));
+    cb::logger::Config config(json);
     s.setLoggerConfig(config);
 }
 

@@ -16,20 +16,19 @@
  */
 #pragma once
 
-#include <spdlog/common.h>
-
 #include "logger/visibility.h"
 
-#include <string>
+#include <nlohmann/json_fwd.hpp>
+#include <spdlog/common.h>
 
-struct cJSON;
+#include <string>
 
 namespace cb {
 namespace logger {
 
 struct LOGGER_PUBLIC_API Config {
     Config() = default;
-    explicit Config(const cJSON& json);
+    explicit Config(const nlohmann::json& json);
 
     bool operator==(const Config& other) const;
     bool operator!=(const Config& other) const;
