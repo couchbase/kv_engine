@@ -15,65 +15,38 @@
  *   limitations under the License.
  */
 #include "breakpad_settings.h"
+#include "json_utilities.h"
 
+#include <cJSON_utils.h>
 #include <platform/dirutils.h>
-#include <cstring>
-#include <system_error>
+
+#include <nlohmann/json.hpp>
 
 namespace cb {
 namespace breakpad {
 
 Settings::Settings(gsl::not_null<const cJSON*> json) {
-    auto* root = const_cast<cJSON*>(json.get());
-    auto* obj = cJSON_GetObjectItem(root, "enabled");
-    if (obj == nullptr) {
-        throw std::invalid_argument(
-                R"("breakpad" settings MUST contain "enabled" attribute)");
-    }
-    if (obj->type == cJSON_True) {
-        enabled = true;
-    } else if (obj->type == cJSON_False) {
-        enabled = false;
-    } else {
-        throw std::invalid_argument(
-                R"("breakpad:enabled" settings must be a boolean value)");
-    }
-
-    obj = cJSON_GetObjectItem(root, "minidump_dir");
-    if (obj == nullptr) {
-        if (enabled) {
-            throw std::invalid_argument(
-                    R"("breakpad" settings MUST contain "minidump_dir" attribute when enabled)");
-        }
-    } else if (obj->type != cJSON_String) {
-        throw std::invalid_argument(
-                R"("breakpad:minidump_dir" settings must be a string)");
-    } else {
-        minidump_dir.assign(obj->valuestring);
-        if (enabled) {
-            if (!cb::io::isDirectory(minidump_dir)) {
-                throw std::system_error(
-                        std::make_error_code(
-                                std::errc::no_such_file_or_directory),
-                        R"("breakpad:minidump_dir":')" + minidump_dir + "'");
-            }
-        }
-    }
-
-    obj = cJSON_GetObjectItem(root, "content");
-    if (obj != nullptr) {
-        if (obj->type != cJSON_String) {
-            throw std::invalid_argument(
-                    R"("breakpad:content" settings must be a string)");
-        }
-        if (strcmp(obj->valuestring, "default") != 0) {
-            throw std::invalid_argument(
-                    R"("breakpad:content" settings must set to "default")");
-        }
-        content = Content::Default;
-    }
+    Settings(nlohmann::json::parse(to_string(json)));
 }
 
+Settings::Settings(const nlohmann::json& json) {
+    enabled = cb::jsonGet<bool>(json, "enabled");
+
+    if (enabled) {
+        minidump_dir = cb::jsonGet<std::string>(json, "minidump_dir");
+        if (!cb::io::isDirectory(minidump_dir)) {
+            throw std::system_error(
+                    std::make_error_code(std::errc::no_such_file_or_directory),
+                    R"("breakpad:minidump_dir":')" + minidump_dir + "'");
+        }
+    }
+
+    auto content = json.value("content", "default");
+    if (content != "default") {
+        throw std::invalid_argument(
+                R"("breakpad:content" settings must set to "default")");
+    }
+}
 } // namespace breakpad
 } // namespace cb
 

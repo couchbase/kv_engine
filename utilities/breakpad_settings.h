@@ -20,7 +20,9 @@
 #include <cJSON.h>
 #include <memcached/mcd_util-visibility.h>
 
+#include <nlohmann/json_fwd.hpp>
 #include <gsl/gsl>
+
 #include <string>
 
 namespace cb {
@@ -58,6 +60,21 @@ struct MCD_UTIL_PUBLIC_API Settings {
      * @throws std::invalid_argument if the json dosn't look as expected
      */
     explicit Settings(gsl::not_null<const cJSON*> json);
+
+    /**
+     * Initialize the Breakpad object from the specified JSON structure
+     * which looks like:
+     *
+     *     {
+     *         "enabled" : true,
+     *         "minidump_dir" : "/var/crash",
+     *         "content" : "default"
+     *     }
+     *
+     * @param json The json to parse
+     * @throws std::invalid_argument if the json dosn't look as expected
+     */
+    explicit Settings(const nlohmann::json& json);
 
     bool enabled{false};
     std::string minidump_dir;

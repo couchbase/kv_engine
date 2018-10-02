@@ -656,7 +656,9 @@ static void handle_breakpad(Settings& s, cJSON* obj) {
         throw std::invalid_argument(R"("breakpad" must be an object)");
     }
 
-    cb::breakpad::Settings breakpad(obj);
+    // TODO MB-30041: Remove when we have finished refactoring settings
+    nlohmann::json json = nlohmann::json::parse(to_string(obj));
+    cb::breakpad::Settings breakpad(json);
     s.setBreakpadSettings(breakpad);
 }
 
