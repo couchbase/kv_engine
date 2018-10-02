@@ -1102,6 +1102,12 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "scopes_max_size" : {
+            "default": "100",
+            "descr": "The maximum number of scopes allowed.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",

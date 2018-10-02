@@ -35,7 +35,9 @@
 
 namespace Collections {
 
-Manifest::Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections)
+Manifest::Manifest(cb::const_char_buffer json,
+                   size_t maxNumberOfScopes,
+                   size_t maxNumberOfCollections)
     : defaultCollectionExists(false), uid(0) {
     nlohmann::json parsed;
     try {
@@ -52,6 +54,14 @@ Manifest::Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections)
 
     // Read the scopes within the Manifest
     auto scopes = getJsonObject(parsed, ScopesKey, ScopesType);
+
+    // Check that we do not have too many before doing any parsing
+    if (scopes.size() > maxNumberOfScopes) {
+        throw std::invalid_argument(
+                "Manifest::Manifest too many scopes count:" +
+                std::to_string(scopes.size()));
+    }
+
     for (const auto& scope : scopes) {
         throwIfWrongType(
                 std::string(ScopesKey), scope, nlohmann::json::value_t::object);
@@ -85,7 +95,7 @@ Manifest::Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections)
                 getJsonObject(scope, CollectionsKey, CollectionsType);
 
         // Check that the number of collections in this scope + the
-        // number of already stored collections is not greater thatn
+        // number of already stored collections is not greater than the max
         if (collections.size() + this->collections.size() >
             maxNumberOfCollections) {
             throw std::invalid_argument(

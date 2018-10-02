@@ -57,18 +57,25 @@ struct Scope {
  */
 class Manifest {
 public:
-
     /*
      * Create a manifest from json.
      * Validates the json as per SET_COLLECTIONS rules.
      * @param json a buffer containing the JSON manifest data
+     * @param maxNumberOfScopes an upper limit on the number of scopes allowed
+     *        defaults to 100.
      * @param maxNumberOfCollections an upper limit on the number of collections
      *        allowed, defaults to 1000.
      */
-    Manifest(cb::const_char_buffer json, size_t maxNumberOfCollections = 1000);
+    Manifest(cb::const_char_buffer json,
+             size_t maxNumberOfScopes = 100,
+             size_t maxNumberOfCollections = 1000);
 
-    Manifest(const std::string& json, size_t maxNumberOfCollections = 1000)
-        : Manifest(cb::const_char_buffer{json}, maxNumberOfCollections) {
+    Manifest(const std::string& json,
+             size_t maxNumberOfScopes = 100,
+             size_t maxNumberOfCollections = 1000)
+        : Manifest(cb::const_char_buffer{json},
+                   maxNumberOfScopes,
+                   maxNumberOfCollections) {
     }
 
     bool doesDefaultCollectionExist() const {
