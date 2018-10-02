@@ -749,7 +749,7 @@ nlohmann::json get_bucket_details(size_t idx) {
  */
 bool is_bucket_dying(Connection& c) {
     bool disconnect = memcached_shutdown;
-    Bucket& b = all_buckets.at(c.getBucketIndex());
+    auto& b = c.getBucket();
 
     if (b.state != BucketState::Ready) {
         disconnect = true;
