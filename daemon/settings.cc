@@ -643,12 +643,14 @@ static void handle_interfaces(Settings& s, cJSON* obj) {
         throw std::invalid_argument("\"interfaces\" must be an array");
     }
 
-    for (auto* child = obj->child; child != nullptr; child = child->next) {
-        if (child->type != cJSON_Object) {
+    // TODO MB-30041: Remove when we have finished refactoring settings
+    auto json = nlohmann::json::parse(to_string(obj, false));
+    for (const auto& obj : json) {
+        if (obj.type() != nlohmann::json::value_t::object) {
             throw std::invalid_argument(
-                "Elements in the \"interfaces\" array myst be objects");
+                    "Elements in the \"interfaces\" array must be objects");
         }
-        NetworkInterface ifc(child);
+        NetworkInterface ifc(obj);
         s.addInterface(ifc);
     }
 }

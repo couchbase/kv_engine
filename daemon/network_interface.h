@@ -19,9 +19,8 @@
 
 #include "config.h"
 
-#include <cJSON.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/socket.h>
-#include <gsl/gsl>
 
 class NetworkInterface {
 public:
@@ -33,7 +32,7 @@ public:
     };
 
     NetworkInterface() = default;
-    explicit NetworkInterface(gsl::not_null<const cJSON*> json);
+    explicit NetworkInterface(const nlohmann::json& json);
 
     std::string host;
     struct {

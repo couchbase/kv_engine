@@ -421,7 +421,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     unique_cJSON_ptr root(cJSON_CreateObject());
     cJSON_AddItemToObject(root.get(), "interfaces", array.release());
 
-    expectFail(root);
+    expectFail<nlohmann::json::exception>(root);
 
     obj.reset(cJSON_CreateObject());
     cJSON_AddNumberToObject(obj.get(), "port", 0);
@@ -441,7 +441,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     cJSON_AddItemToArray(array.get(), obj.release());
     root.reset(cJSON_CreateObject());
     cJSON_AddItemToObject(root.get(), "interfaces", array.release());
-    expectFail(root);
+    expectFail<nlohmann::json::exception>(root);
 
     cb::io::rmrf(pattern);
 }
@@ -513,7 +513,7 @@ TEST_F(SettingsTest, InterfacesInvalidProtocolNumber) {
     unique_cJSON_ptr root(cJSON_CreateObject());
     cJSON_AddItemToObject(root.get(), "interfaces", array.release());
 
-    expectFail(root);
+    expectFail<nlohmann::json::exception>(root);
 }
 
 /// Test that invalid string values for ipv4 & ipv6 protocols are rejected.

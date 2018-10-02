@@ -23,6 +23,18 @@
 #include <nlohmann/json.hpp>
 
 namespace cb {
+
+/// The nlohmann exception code for incorrect types
+const int nlohmannExceptionTypeCode = 302;
+
+/**
+ *  Helper function for throwing nlohmann incorrect type exceptions. Useful
+ *  for when we want to throw exception of a consistent type.
+ *
+ * @param msg the error message to be printed
+ */
+MCD_UTIL_PUBLIC_API[[noreturn]] void throwJsonTypeError(const std::string& msg);
+
 /**
  *  Helper function that will allow us to do an
  *  nlohmann::json.at("foo").get<bar>() and return meaningful error
@@ -49,9 +61,7 @@ T jsonGet(const nlohmann::json& obj, const std::string& key) {
     try {
         return value.get<T>();
     } catch (nlohmann::json::exception& e) {
-        throw nlohmann::detail::type_error::create(
-                302, /* the exception code nlohmann would throw */
-                "value for key \"" + key + "\" - " + e.what());
+        throwJsonTypeError("value for key \"" + key + "\" - " + e.what());
     }
 }
 
@@ -80,9 +90,7 @@ T jsonGet(nlohmann::json::const_iterator it) {
     try {
         return it.value().get<T>();
     } catch (nlohmann::json::exception& e) {
-        throw nlohmann::detail::type_error::create(
-                302, /* the exception code nlohmann would throw */
-                "value for key \"" + it.key() + "\" - " + e.what());
+        throwJsonTypeError("value for key \"" + it.key() + "\" - " + e.what());
     }
 }
 
