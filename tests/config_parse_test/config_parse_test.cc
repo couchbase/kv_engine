@@ -54,7 +54,7 @@ public:
      * array containing single interface object with the given properties.
      */
     nlohmann::json makeInterfacesConfig(const char* protocolMode);
-    template <typename T = nlohmann::json::exception>
+    template <typename T = std::invalid_argument>
     void expectFail(const nlohmann::json& json) {
         // TODO MB-30041 Remove after refactoring settings
         // Make a cJSON ptr from our nlohmann json
@@ -71,169 +71,121 @@ public:
 
 void SettingsTest::nonStringValuesShouldFail(const std::string& tag) {
     // Boolean values should not be accepted
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    nlohmann::json json;
+    json[tag] = true;
+    expectFail(json);
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    json[tag] = false;
+    expectFail(json);
 
     // Numbers should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), tag.c_str(), 5);
-    expectFail(obj);
+    json[tag] = 5;
+    expectFail(json);
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddDoubleToObject(obj.get(), tag.c_str(), 5.0);
-    expectFail(obj);
-
-    // Null should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNullToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    json[tag] = 5.0;
+    expectFail(json);
 
     // An array should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(obj.get(), tag.c_str(), cJSON_CreateArray());
-    expectFail(obj);
+    json[tag] = nlohmann::json::array();
+    expectFail(json);
 
     // An object should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(obj.get(), tag.c_str(), cJSON_CreateObject());
-    expectFail(obj);
+    json[tag] = nlohmann::json::object();
+    expectFail(json);
 }
 
 void SettingsTest::nonBooleanValuesShouldFail(const std::string& tag) {
     // String values should not be accepted
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), tag.c_str(), "foo");
-    expectFail(obj);
+    nlohmann::json json;
+    json[tag] = "foo";
+    expectFail(json);
 
     // Numbers should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), tag.c_str(), 5);
-    expectFail(obj);
+    json[tag] = 5;
+    expectFail(json);
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddDoubleToObject(obj.get(), tag.c_str(), 5.0);
-    expectFail(obj);
-
-    // Null should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNullToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    json[tag] = 5.0;
+    expectFail(json);
 
     // An array should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(obj.get(), tag.c_str(), cJSON_CreateArray());
-    expectFail(obj);
+    json[tag] = nlohmann::json::array();
+    expectFail(json);
 
     // An object should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(obj.get(), tag.c_str(), cJSON_CreateObject());
-    expectFail(obj);
+    json[tag] = nlohmann::json::object();
+    expectFail(json);
 }
 
 void SettingsTest::nonNumericValuesShouldFail(const std::string& tag) {
     // Boolean values should not be accepted
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    nlohmann::json json;
+    json[tag] = true;
+    expectFail(json);
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    json[tag] = false;
+    expectFail(json);
 
-    // Strings should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), tag.c_str(), "foobar");
-    expectFail(obj);
-
-    // Null should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNullToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    // String values should not be accepted
+    json[tag] = "foo";
+    expectFail(json);
 
     // An array should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(obj.get(), tag.c_str(), cJSON_CreateArray());
-    expectFail(obj);
+    json[tag] = nlohmann::json::array();
+    expectFail(json);
 
     // An object should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(obj.get(), tag.c_str(), cJSON_CreateObject());
-    expectFail(obj);
+    json[tag] = nlohmann::json::object();
+    expectFail(json);
 }
 
 void SettingsTest::nonArrayValuesShouldFail(const std::string& tag) {
     // Boolean values should not be accepted
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    nlohmann::json json;
+    json[tag] = true;
+    expectFail(json);
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    json[tag] = false;
+    expectFail(json);
 
     // Numbers should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), tag.c_str(), 5);
-    expectFail(obj);
+    json[tag] = 5;
+    expectFail(json);
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddDoubleToObject(obj.get(), tag.c_str(), 5.0);
-    expectFail(obj);
+    json[tag] = 5.0;
+    expectFail(json);
 
-    // Null should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNullToObject(obj.get(), tag.c_str());
-    expectFail(obj);
-
-    // A String should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), tag.c_str(), "foobar");
-    expectFail(obj);
+    // String values should not be accepted
+    json[tag] = "foo";
+    expectFail(json);
 
     // An object should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(obj.get(), tag.c_str(), cJSON_CreateObject());
-    expectFail(obj);
+    json[tag] = nlohmann::json::object();
+    expectFail(json);
 }
 
 void SettingsTest::nonObjectValuesShouldFail(const std::string& tag) {
     // Boolean values should not be accepted
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    nlohmann::json json;
+    json[tag] = true;
+    expectFail(json);
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), tag.c_str());
-    expectFail(obj);
+    json[tag] = false;
+    expectFail(json);
 
     // Numbers should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), tag.c_str(), 5);
-    expectFail(obj);
+    json[tag] = 5;
+    expectFail(json);
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddDoubleToObject(obj.get(), tag.c_str(), 5.0);
-    expectFail(obj);
+    json[tag] = 5.0;
+    expectFail(json);
 
-    // Null should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNullToObject(obj.get(), tag.c_str());
-    expectFail(obj);
-
-    // A String should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), tag.c_str(), "foobar");
-    expectFail(obj);
+    // String values should not be accepted
+    json[tag] = "foo";
+    expectFail(json);
 
     // An array should not be accepted
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(obj.get(), tag.c_str(), cJSON_CreateArray());
-    expectFail(obj);
+    json[tag] = nlohmann::json::array();
+    expectFail(json);
 }
 
 nlohmann::json SettingsTest::makeInterfacesConfig(const char* protocolMode) {
@@ -429,7 +381,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     nlohmann::json root;
     root["interfaces"] = array;
 
-    expectFail(root);
+    expectFail<nlohmann::json::exception>(root);
 
     ssl.clear();
     ssl["key"] = pattern;
@@ -438,7 +390,7 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     array.push_back(obj);
     root["interfaces"] = array;
 
-    expectFail(root);
+    expectFail<nlohmann::json::exception>(root);
 
     cb::io::rmrf(pattern);
 }
