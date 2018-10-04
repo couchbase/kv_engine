@@ -602,45 +602,9 @@ void HashTable::storeCompressedBuffer(cb::const_char_buffer buf,
 }
 
 void HashTable::visit(HashTableVisitor& visitor) {
-    if ((valueStats.getNumItems() + valueStats.getNumTempItems()) == 0 ||
-        !isActive()) {
-        return;
-    }
-
-    // Acquire one (any) of the mutexes before incrementing {visitors}, this
-    // prevents any race between this visitor and the HashTable resizer.
-    // See comments in pauseResumeVisit() for further details.
-    std::unique_lock<std::mutex> lh(mutexes[0]);
-    VisitorTracker vt(&visitors);
-    lh.unlock();
-
-    size_t visited = 0;
-    for (int l = 0; isActive() && l < static_cast<int>(mutexes.size()); l++) {
-        for (int i = l; i < static_cast<int>(size); i+= mutexes.size()) {
-            // (re)acquire mutex on each HashBucket, to minimise any impact
-            // on front-end threads.
-            HashBucketLock lh(i, mutexes[l]);
-
-            StoredValue* v = values[i].get().get();
-            if (v) {
-                // TODO: Perf: This check seems costly - do we think it's still
-                // worth keeping?
-                auto hashbucket = getBucketForHash(v->getKey().hash());
-                if (i != hashbucket) {
-                    throw std::logic_error("HashTable::visit: inconsistency "
-                            "between StoredValue's calculated hashbucket "
-                            "(which is " + std::to_string(hashbucket) +
-                            ") and bucket is is located in (which is " +
-                            std::to_string(i) + ")");
-                }
-            }
-            while (v) {
-                StoredValue* tmp = v->getNext().get().get();
-                visitor.visit(lh, *v);
-                v = tmp;
-            }
-            ++visited;
-        }
+    HashTable::Position ht_pos;
+    while (ht_pos != endPosition()) {
+        ht_pos = pauseResumeVisit(visitor, ht_pos);
     }
 }
 
