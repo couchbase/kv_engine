@@ -642,6 +642,10 @@ using BinprotIsaslRefreshCommand =
 
 using BinprotIsaslRefreshResponse = BinprotResponse;
 
+using BinprotGetActiveUsersCommand = BinprotCommandT<
+        BinprotGenericCommand,
+        uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers)>;
+
 class BinprotMutationCommand : public BinprotCommandT<BinprotMutationCommand> {
 public:
     BinprotMutationCommand& setMutationType(MutationType);

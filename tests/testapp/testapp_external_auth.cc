@@ -111,6 +111,54 @@ protected:
         provider->sendFrame(frame);
     }
 
+    std::unique_ptr<MemcachedConnection> loginOsbourne() {
+        auto ret = getConnection().clone();
+
+        BinprotSaslAuthCommand saslAuthCommand;
+        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
+        saslAuthCommand.setMechanism("PLAIN");
+        ret->sendCommand(saslAuthCommand);
+
+        stepAuthProvider();
+
+        // Now read out the response from the client
+        BinprotResponse response;
+        ret->recvResponse(response);
+        if (!response.isSuccess()) {
+            return {};
+        }
+
+        return ret;
+    }
+
+    /**
+     * We've got multiple worker threads and if we try to disconnect a user
+     * connected to one thread that thread may not be sheduled to run
+     * immediately, so we may end up serving requests for another worker
+     * thread.
+     *
+     * To work around this (and try to avoid spurious test failures) we'll
+     * try to run the command a few times before we give up.
+     *
+     * @param content what we want the content of the users list to be
+     */
+    void waitForUserList(const std::string& content) {
+        const auto start = std::chrono::steady_clock::now();
+        do {
+            auto& conn = getAdminConnection();
+            auto resp = conn.execute(BinprotGetActiveUsersCommand{});
+            if (resp.isSuccess() && content == resp.getDataString()) {
+                return;
+            }
+        } while ((std::chrono::steady_clock::now() - start) <
+                 std::chrono::seconds(2));
+
+        auto& conn = getAdminConnection();
+        auto resp = conn.execute(BinprotGetActiveUsersCommand{});
+        FAIL() << "Timed out trying to get expected content [" << content
+               << "] Current content is: " << resp.getDataString();
+    }
+
     std::unique_ptr<MemcachedConnection> provider;
 };
 
@@ -254,4 +302,37 @@ TEST_P(ExternalAuthTest, TestReloadRbacDbDontNukeExternalUsers) {
     auto json = nlohmann::json::parse(response.getDataString());
     EXPECT_EQ("external", json["osbourne"]["domain"])
             << response.getDataString();
+}
+
+TEST_P(ExternalAuthTest, GetActiveUsers) {
+    // Log in a few "local" users
+    auto& conn = getConnection();
+    auto clone1 = conn.clone();
+    auto clone2 = conn.clone();
+    auto clone3 = conn.clone();
+    auto clone4 = conn.clone();
+
+    clone1->authenticate("smith", "smithpassword", "PLAIN");
+    clone2->authenticate("smith", "smithpassword", "PLAIN");
+    clone3->authenticate("jones", "jonespassword", "PLAIN");
+    clone4->authenticate("@admin", "password", "PLAIN");
+
+    // Log in 2 external ones
+    auto osbourne1 = loginOsbourne();
+    EXPECT_TRUE(osbourne1);
+
+    auto osbourne2 = loginOsbourne();
+    EXPECT_TRUE(osbourne2);
+
+    waitForUserList(R"(["osbourne"])");
+
+    // Log out one of the external users
+    osbourne1.reset();
+
+    waitForUserList(R"(["osbourne"])");
+
+    // Log out the second external user
+    osbourne2.reset();
+
+    waitForUserList(R"([])");
 }
