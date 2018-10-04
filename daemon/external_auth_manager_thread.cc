@@ -267,3 +267,43 @@ void ExternalAuthManagerThread::purgePendingDeadConnections() {
         mutex.lock();
     }
 }
+
+void ExternalAuthManagerThread::login(const std::string& user) {
+    activeUsers.login(user);
+}
+
+void ExternalAuthManagerThread::logoff(const std::string& user) {
+    activeUsers.logoff(user);
+}
+
+nlohmann::json ExternalAuthManagerThread::getActiveUsers() const {
+    return activeUsers.to_json();
+}
+
+void ExternalAuthManagerThread::ActiveUsers::login(const std::string& user) {
+    std::lock_guard<std::mutex> guard(mutex);
+    users[user]++;
+}
+
+void ExternalAuthManagerThread::ActiveUsers::logoff(const std::string& user) {
+    std::lock_guard<std::mutex> guard(mutex);
+    auto iter = users.find(user);
+    if (iter == users.end()) {
+        throw std::runtime_error("ActiveUsers::logoff: Failed to find user");
+    }
+    iter->second--;
+    if (iter->second == 0) {
+        users.erase(iter);
+    }
+}
+
+nlohmann::json ExternalAuthManagerThread::ActiveUsers::to_json() const {
+    std::lock_guard<std::mutex> guard(mutex);
+    auto ret = nlohmann::json::array();
+
+    for (const auto& entry : users) {
+        ret.push_back(entry.first);
+    }
+
+    return ret;
+}

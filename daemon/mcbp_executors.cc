@@ -39,7 +39,6 @@
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/flush_command_context.h"
 #include "protocol/mcbp/gat_context.h"
-#include "protocol/mcbp/get_active_external_users_command_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/get_meta_context.h"
@@ -560,7 +559,13 @@ static void auth_provider_executor(Cookie& cookie) {
 }
 
 static void get_active_external_users_executor(Cookie& cookie) {
-    cookie.obtainContext<GetActiveExternalUsersCommandContext>(cookie).drive();
+    auto users = externalAuthManager->getActiveUsers().dump();
+    cookie.sendResponse(cb::mcbp::Status::Success,
+                        {},
+                        {},
+                        cb::const_char_buffer{users},
+                        cb::mcbp::Datatype::JSON,
+                        0);
 }
 
 static void no_support_executor(Cookie& cookie) {

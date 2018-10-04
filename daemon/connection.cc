@@ -19,6 +19,7 @@
 
 #include "buckets.h"
 #include "connections.h"
+#include "external_auth_manager_thread.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
@@ -240,6 +241,9 @@ nlohmann::json Connection::toJSON() const {
 }
 
 void Connection::restartAuthentication() {
+    if (authenticated && domain == cb::sasl::Domain::External) {
+        externalAuthManager->logoff(username);
+    }
     sasl_conn.reset();
     internal = false;
     authenticated = false;
@@ -1274,6 +1278,10 @@ Connection::Connection(SOCKET sfd, event_base* b, const ListeningPort& ifc)
 }
 
 Connection::~Connection() {
+    if (authenticated && domain == cb::sasl::Domain::External) {
+        externalAuthManager->logoff(username);
+    }
+
     releaseReservedItems();
     for (auto* ptr : temp_alloc) {
         cb_free(ptr);

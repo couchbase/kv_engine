@@ -18,10 +18,9 @@
 #pragma once
 
 #include <mcbp/protocol/response.h>
-
+#include <mcbp/protocol/status.h>
+#include <nlohmann/json_fwd.hpp>
 #include <platform/thread.h>
-
-#include <include/mcbp/protocol/status.h>
 #include <gsl/gsl>
 #include <mutex>
 #include <queue>
@@ -45,6 +44,21 @@ public:
     ExternalAuthManagerThread() : Couchbase::Thread("mcd:ext_auth") {
     }
     ExternalAuthManagerThread(const ExternalAuthManagerThread&) = delete;
+
+    /**
+     * The named (external) user logged on to the system
+     */
+    void login(const std::string& user);
+
+    /**
+     * The named (external) user logged off the system
+     */
+    void logoff(const std::string& user);
+
+    /**
+     * Get the list of active users defined in the system
+     */
+    nlohmann::json getActiveUsers() const;
 
     /**
      * Add the provided connection to the list of available authentication
@@ -166,6 +180,19 @@ protected:
     std::queue<std::unique_ptr<AuthResponse>> incommingResponse;
 
     std::vector<Connection*> pendingRemoveConnection;
+
+    class ActiveUsers {
+    public:
+        void login(const std::string& user);
+
+        void logoff(const std::string& user);
+
+        nlohmann::json to_json() const;
+
+    private:
+        mutable std::mutex mutex;
+        std::unordered_map<std::string, uint32_t> users;
+    } activeUsers;
 };
 
 extern std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;
