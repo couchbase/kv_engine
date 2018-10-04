@@ -62,9 +62,6 @@ void add_stats(const char* key,
                const uint32_t vlen,
                gsl::not_null<const void*> cookie);
 
-ENGINE_ERROR_CODE vb_map_response(const void *cookie, const void *map,
-                                  size_t mapsize);
-
 #ifdef __cplusplus
 }
 #endif
@@ -87,8 +84,6 @@ extern std::atomic<uint64_t> last_cas;
 extern std::atomic<uint8_t> last_datatype;
 extern std::atomic<uint64_t> last_uuid;
 extern std::atomic<uint64_t> last_seqno;
-extern bool last_deleted_flag;
-extern std::atomic<uint8_t> last_conflict_resolution_mode;
 extern ItemMetaData last_meta;
 
 extern uint8_t dcp_last_op;

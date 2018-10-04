@@ -65,8 +65,6 @@ std::atomic<cb::mcbp::Status> last_status(cb::mcbp::Status::Success);
 std::string last_key;
 std::string last_body;
 std::string last_ext;
-bool last_deleted_flag(false);
-std::atomic<uint8_t> last_conflict_resolution_mode(static_cast<uint8_t>(-1));
 std::atomic<uint64_t> last_cas(0);
 std::atomic<uint8_t> last_datatype(0x00);
 ItemMetaData last_meta;
@@ -143,14 +141,6 @@ void decayingSleep(useconds_t *sleepTime) {
     static const useconds_t maxSleepTime = 500000;
     usleep(*sleepTime);
     *sleepTime = std::min(*sleepTime << 1, maxSleepTime);
-}
-
-ENGINE_ERROR_CODE vb_map_response(const void *cookie,
-                                  const void *map,
-                                  size_t mapsize) {
-    (void)cookie;
-    last_body.assign(static_cast<const char*>(map), mapsize);
-    return ENGINE_SUCCESS;
 }
 
 bool add_response(const void* key,
