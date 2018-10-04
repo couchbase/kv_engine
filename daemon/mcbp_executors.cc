@@ -890,7 +890,7 @@ static void execute_server_response_packet(Cookie& cookie,
         return;
     case cb::mcbp::ServerOpcode::AuthRequest:
         externalAuthManager->responseReceived(response);
-        break;
+        return;
     }
 
     LOG_INFO(
