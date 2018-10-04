@@ -176,7 +176,7 @@ bool add_response_set_del_meta(const void* key,
                                uint64_t cas,
                                const void* cookie) {
     (void)cookie;
-    const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
+    const auto* ext_bytes = reinterpret_cast<const uint8_t*>(ext);
     if (ext && extlen > 0) {
         uint64_t vb_uuid;
         uint64_t seqno;
@@ -201,7 +201,7 @@ bool add_response_ret_meta(const void* key,
                            uint64_t cas,
                            const void* cookie) {
     (void)cookie;
-    const uint8_t* ext_bytes = reinterpret_cast<const uint8_t*> (ext);
+    const auto* ext_bytes = reinterpret_cast<const uint8_t*>(ext);
     if (ext && extlen == 16) {
         memcpy(&last_meta.flags, ext_bytes, 4);
         memcpy(&last_meta.exptime, ext_bytes + 4, 4);
@@ -331,8 +331,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     uint32_t headerlen = sizeof(protocol_binary_request_header);
     pkt_raw = static_cast<char*>(cb_calloc(1, headerlen + extlen + keylen + vallen + nmeta));
     cb_assert(pkt_raw);
-    protocol_binary_request_header *req =
-        (protocol_binary_request_header*)pkt_raw;
+    auto* req = reinterpret_cast<protocol_binary_request_header*>(pkt_raw);
     req->request.opcode = opcode;
     req->request.keylen = htons(keylen);
     req->request.extlen = extlen;
@@ -363,9 +362,10 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 }
 
 void createCheckpoint(EngineIface* h) {
-    protocol_binary_request_header *request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
-    check(h->unknown_command(nullptr, request, add_response) == ENGINE_SUCCESS,
-          "Failed to create a new checkpoint.");
+    auto* request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(nullptr, request, add_response),
+            "Failed to create a new checkpoint.");
     cb_free(request);
 }
 
@@ -499,9 +499,9 @@ void del_with_meta(EngineIface* h,
                        nmeta.data(),
                        nmeta.size());
 
-    check(h->unknown_command(cookie, pkt, add_response_set_del_meta) ==
-                  ENGINE_SUCCESS,
-          "Expected to be able to delete with meta");
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(cookie, pkt, add_response_set_del_meta),
+            "Expected to be able to delete with meta");
     cb_free(pkt);
 }
 
@@ -703,10 +703,16 @@ ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
 }
 
 void get_replica(EngineIface* h, const char* key, Vbid vbid) {
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
-    check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
-          "Get Replica Failed");
+    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA,
+                             vbid,
+                             0,
+                             NULL,
+                             0,
+                             key,
+                             strlen(key));
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(nullptr, pkt, add_response),
+            "Get Replica Failed");
     cb_free(pkt);
 }
 
@@ -715,19 +721,20 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
                                                     bool makeinvalidkey) {
     Vbid id(0);
     const char *key = "k0";
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, id, 0, NULL, 0, key, strlen(key));
+    auto* pkt = createPacket(
+            PROTOCOL_BINARY_CMD_GET_REPLICA, id, 0, NULL, 0, key, strlen(key));
 
     if (!makeinvalidkey) {
-        check(store(h,
-                    nullptr,
-                    OPERATION_SET,
-                    key,
-                    "replicadata",
-                    nullptr,
-                    0,
-                    id) == ENGINE_SUCCESS,
-              "Get Replica Failed");
+        checkeq(ENGINE_SUCCESS,
+                store(h,
+                      nullptr,
+                      OPERATION_SET,
+                      key,
+                      "replicadata",
+                      nullptr,
+                      0,
+                      id),
+                "Get Replica Failed");
 
         check(set_vbucket_state(h, id, state),
               "Failed to set vbucket active state, Get Replica Failed");
@@ -786,8 +793,9 @@ bool get_all_vb_seqnos(EngineIface* h,
         pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS);
     }
 
-    check(h->unknown_command(cookie, pkt, add_response) == ENGINE_SUCCESS,
-          "Error in getting all vb info");
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(cookie, pkt, add_response),
+            "Error in getting all vb info");
 
     cb_free(pkt);
     return last_status == cb::mcbp::Status::Success;
@@ -853,13 +861,22 @@ static void store_with_meta(EngineIface* h,
         blen += sizeof(uint16_t);
     }
 
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(cmd, vb, cas_for_store, ext.get(), blen, key, keylen,
-                       val, vallen, datatype, nmeta.data(), nmeta.size());
+    auto* pkt = createPacket(cmd,
+                             vb,
+                             cas_for_store,
+                             ext.get(),
+                             blen,
+                             key,
+                             keylen,
+                             val,
+                             vallen,
+                             datatype,
+                             nmeta.data(),
+                             nmeta.size());
 
-    check(h->unknown_command(cookie, pkt, add_response_set_del_meta) ==
-                  ENGINE_SUCCESS,
-          "Expected to be able to store with meta");
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(cookie, pkt, add_response_set_del_meta),
+            "Expected to be able to store with meta");
     cb_free(pkt);
 }
 
@@ -1013,20 +1030,24 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
 }
 
 void disable_traffic(EngineIface* h) {
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
-    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to send data traffic command to the server");
-    check(last_status == cb::mcbp::Status::Success,
-          "Failed to disable data traffic");
+    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(NULL, pkt, add_response),
+            "Failed to send data traffic command to the server");
+    checkeq(cb::mcbp::Status::Success,
+            last_status.load(),
+            "Failed to disable data traffic");
     cb_free(pkt);
 }
 
 void enable_traffic(EngineIface* h) {
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
-    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to send data traffic command to the server");
-    check(last_status == cb::mcbp::Status::Success,
-          "Failed to enable data traffic");
+    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(NULL, pkt, add_response),
+            "Failed to send data traffic command to the server");
+    checkeq(cb::mcbp::Status::Success,
+            last_status.load(),
+            "Failed to enable data traffic");
     cb_free(pkt);
 }
 
@@ -1036,11 +1057,13 @@ void start_persistence(EngineIface* h) {
         return;
     }
 
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
-    check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to stop persistence.");
-    check(last_status == cb::mcbp::Status::Success,
-          "Error starting persistence.");
+    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(nullptr, pkt, add_response),
+            "Failed to stop persistence.");
+    checkeq(cb::mcbp::Status::Success,
+            last_status.load(),
+            "Error starting persistence.");
     cb_free(pkt);
 }
 
@@ -1058,11 +1081,13 @@ void stop_persistence(EngineIface* h) {
         decayingSleep(&sleepTime);
     }
 
-    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
-    check(h->unknown_command(nullptr, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to stop persistence.");
-    check(last_status == cb::mcbp::Status::Success,
-          "Error stopping persistence.");
+    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(nullptr, pkt, add_response),
+            "Failed to stop persistence.");
+    checkeq(cb::mcbp::Status::Success,
+            last_status.load(),
+            "Error stopping persistence.");
     cb_free(pkt);
 }
 
@@ -1232,8 +1257,9 @@ void compact_db(EngineIface* h,
                          0,
                          NULL,
                          0);
-    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to request compact vbucket");
+    checkeq(ENGINE_SUCCESS,
+            h->unknown_command(NULL, pkt, add_response),
+            "Failed to request compact vbucket");
     cb_free(pkt);
 }
 
@@ -1283,8 +1309,9 @@ bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
     }
 
     const auto* cookie = testHarness->create_cookie();
-    check(h->get_stats(cookie, {}, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h->get_stats(cookie, {}, add_stats),
+            "Failed to get stats.");
     testHarness->destroy_cookie(cookie);
 
     {
@@ -1519,8 +1546,6 @@ static void get_histo_stat(EngineIface* h,
     if (err != ENGINE_SUCCESS) {
         throw engine_error(err);
     }
-
-    return;
 }
 
 statistic_map get_all_stats(EngineIface* h, const char* statset) {
@@ -1689,15 +1714,9 @@ void wait_for_persisted_value(EngineIface* h,
     if (isPersistentBucket(h)) {
         commitNum = get_int_stat(h, "ep_commit_num");
     }
-    check(ENGINE_SUCCESS == store(h,
-                                  NULL,
-                                  OPERATION_SET,
-                                  key,
-                                  val,
-                                  nullptr,
-                                  0,
-                                  vbucketId),
-          "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, nullptr, OPERATION_SET, key, val, nullptr, 0, vbucketId),
+            "Failed to store an item.");
 
     if (isPersistentBucket(h)) {
         // Wait for persistence...
