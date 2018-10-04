@@ -24,6 +24,14 @@
 class Connection;
 class Cookie;
 
+namespace cb {
+namespace sasl {
+namespace server {
+class ServerContext;
+} // namespace server
+} // namespace sasl
+} // namespace cb
+
 /**
  * The SaslAuthTask is the abstract base class used during SASL
  * authentication (which is being run by the executor service)
@@ -59,6 +67,7 @@ public:
 protected:
     Cookie& cookie;
     Connection& connection;
+    cb::sasl::server::ServerContext& serverContext;
     std::string mechanism;
     std::string challenge;
     std::pair<cb::sasl::Error, cb::const_char_buffer> response{

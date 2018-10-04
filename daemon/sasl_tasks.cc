@@ -21,6 +21,7 @@
 #include "mcaudit.h"
 #include "memcached.h"
 #include <cbsasl/mechanism.h>
+#include <cbsasl/server.h>
 #include <logger/logger.h>
 #include <memcached/rbac.h>
 #include <utilities/logtags.h>
@@ -31,6 +32,7 @@ SaslAuthTask::SaslAuthTask(Cookie& cookie_,
                            const std::string& challenge_)
     : cookie(cookie_),
       connection(connection_),
+      serverContext(connection_.getSaslConn()),
       mechanism(mechanism_),
       challenge(challenge_) {
     // no more init needed
@@ -44,8 +46,8 @@ void SaslAuthTask::notifyExecutionComplete() {
                                               false};
 
     // If CBSASL generated a UUID, we should continue to use that UUID
-    if (connection.getSaslConn().containsUuid()) {
-        cookie.setEventId(connection.getSaslConn().getUuid());
+    if (serverContext.containsUuid()) {
+        cookie.setEventId(serverContext.getUuid());
     }
 
     if (response.first == cb::sasl::Error::OK) {

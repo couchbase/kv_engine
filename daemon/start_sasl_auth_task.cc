@@ -21,6 +21,7 @@
 #include "external_auth_manager_thread.h"
 #include "settings.h"
 #include <cbsasl/mechanism.h>
+#include <cbsasl/server.h>
 #include <logger/logger.h>
 
 StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
@@ -41,7 +42,7 @@ Task::Status StartSaslAuthTask::execute() {
 
 Task::Status StartSaslAuthTask::internal_auth() {
     connection.restartAuthentication();
-    auto& server = connection.getSaslConn();
+    auto& server = serverContext;
 
     try {
         if (connection.isSslEnabled()) {
@@ -92,7 +93,7 @@ Task::Status StartSaslAuthTask::external_auth() {
 
 bool StartSaslAuthTask::onlyRequestExternalAuthentication() {
     try {
-        cb::rbac::createInitialContext(connection.getSaslConn().getUsername(),
+        cb::rbac::createInitialContext(serverContext.getUsername(),
                                        cb::rbac::Domain::External);
         return true;
     } catch (const std::exception&) {
@@ -116,7 +117,7 @@ void StartSaslAuthTask::externalAuthResponse(cb::mcbp::Status status,
 void StartSaslAuthTask::successfull_external_auth() {
     try {
         response.first = cb::sasl::Error::OK;
-        connection.getSaslConn().setDomain(cb::sasl::Domain::External);
+        serverContext.setDomain(cb::sasl::Domain::External);
     } catch (const std::exception& e) {
         LOG_WARNING(R"({} successfull_external_auth() failed. UUID[{}] "{}")",
                     connection.getId(),
