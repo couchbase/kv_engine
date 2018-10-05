@@ -99,7 +99,9 @@
 #define snprintf _snprintf
 #endif
 #define sleep(a) Sleep(a * 1000)
-#define random() (long)rand()
+static inline long random() {
+    return (long)rand();
+}
 
 /* TROND FIXME */
 #define IOV_MAX 1024

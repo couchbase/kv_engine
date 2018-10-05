@@ -188,6 +188,12 @@ public:
         completeWarmup = value;
     }
 
+    /**
+     * set the random function used by KVBucket.
+     * @param randFunction  The random function to be used by the KVBucket.
+     */
+    void setRandomFunction(std::function<long()>& randFunction);
+
 private:
     /**
      * Initialise test objects - e.g. engine/store/cookie
