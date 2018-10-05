@@ -79,9 +79,7 @@ Task::Status StartSaslAuthTask::internal_auth() {
         // We can't hold this lock when we're trying to enqueue the
         // request
         internal = false;
-        getMutex().unlock();
         externalAuthManager->enqueueRequest(*this);
-        getMutex().lock();
     }
 
     return internal ? Status::Finished : Status::Continue;
