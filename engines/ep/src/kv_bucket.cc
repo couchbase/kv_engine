@@ -1413,18 +1413,8 @@ GetValue KVBucket::getRandomKey() {
 
     while (itm == NULL) {
         VBucketPtr vb = getVBucket(Vbid(curr++));
-        while (!vb || vb->getState() != vbucket_state_active) {
-            if (curr == max) {
-                curr = 0;
-            }
-            if (curr == start) {
-                return GetValue(NULL, ENGINE_KEY_ENOENT);
-            }
-
-            vb = getVBucket(Vbid(curr++));
-        }
-
-        if ((itm = vb->ht.getRandomKey(getRandom()))) {
+        if (vb && vb->getState() == vbucket_state_active &&
+                (itm = vb->ht.getRandomKey(getRandom()))) {
             GetValue rv(std::move(itm), ENGINE_SUCCESS);
             return rv;
         }
@@ -1432,9 +1422,8 @@ GetValue KVBucket::getRandomKey() {
         if (curr == max) {
             curr = 0;
         }
-
         if (curr == start) {
-            return GetValue(NULL, ENGINE_KEY_ENOENT);
+            break;
         }
         // Search next vbucket
     }
