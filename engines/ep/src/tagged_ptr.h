@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#if !__x86_64__ && !_M_X64
+#if !__x86_64__ && !_M_X64 && !__s390x__
 #error "TaggedPtr is x64 specific code.  Not tested on other architectures"
 #endif
 
