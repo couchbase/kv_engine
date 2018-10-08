@@ -1546,16 +1546,6 @@ static void EvpHandleDeleteBucket(const void* cookie,
     acquireEngine(static_cast<EngineIface*>(c))->handleDeleteBucket(cookie);
 }
 
-void EventuallyPersistentEngine::set_log_level(
-        spdlog::level::level_enum level) {
-    // Update bucket logger level.
-    // TODO This does not update other bucket loggers created within ep engine
-    // but this is stopgap code to make sure we compile and keep /some/
-    // functionality. This functionality is reintroduced correctly in the
-    // next patch set
-    globalBucketLogger->set_level(level);
-}
-
 /**
  * The only public interface to the eventually persistent engine.
  * Allocate a new instance and initialize it

@@ -496,13 +496,6 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
     virtual bool get_item_info(gsl::not_null<const item*> item,
                                gsl::not_null<item_info*> item_info) = 0;
 
-    /**
-     * Set the current log level
-     *
-     * @param level the current log level
-     */
-    virtual void set_log_level(spdlog::level::level_enum level){};
-
     collections_interface collections;
 
     /**
