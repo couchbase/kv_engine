@@ -171,6 +171,8 @@ public:
     void public_registerCursor(CheckpointManager& manager,
                                const std::string& name,
                                int64_t seqno);
+
+    bool isDead() { return ActiveStream::getState() == StreamState::Dead; };
 };
 
 /**

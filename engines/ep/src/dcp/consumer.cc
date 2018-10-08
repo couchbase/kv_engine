@@ -572,10 +572,16 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
         // MB-29040: Producer may send deleted doc with value that still has
         // the user xattrs and the body. Fix up that mistake by running the
         // expiry hook which will correctly process the document
-        if (mcbp::datatype::is_xattr(datatype) && value.size()) {
-            auto vb = engine_.getVBucket(vbucket);
-            if (vb) {
-                engine_.getKVBucket()->runPreExpiryHook(*vb, *item);
+        if (value.size()) {
+            if (mcbp::datatype::is_xattr(datatype)) {
+                auto vb = engine_.getVBucket(vbucket);
+                if (vb) {
+                    engine_.getKVBucket()->runPreExpiryHook(*vb, *item);
+                }
+            } else {
+                // MB-31141: Deletes cannot have a value
+                item->replaceValue(Blob::New(0));
+                item->setDataType(PROTOCOL_BINARY_RAW_BYTES);
             }
         }
 

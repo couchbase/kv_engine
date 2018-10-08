@@ -1248,6 +1248,23 @@ TEST_P(StreamTest, backfillGetsNoItems) {
     }
 }
 
+TEST_P(StreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
+    if (engine->getConfiguration().getBucketType() == "ephemeral") {
+        setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+        auto evb = std::shared_ptr<EphemeralVBucket>(
+                std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
+
+        // Force the purgeSeqno because it's easier than creating and
+        // deleting items
+        evb->setPurgeSeqno(3);
+
+        // Backfill with start != 1 and start != end and start < purge
+        DCPBackfillMemoryBuffered dcpbfm (evb, stream, 2, 4);
+        dcpbfm.run();
+        EXPECT_TRUE(stream->isDead());
+    }
+}
+
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing
  * queued items to be sent out via a DCP consumer, that nextCheckpointItem()
  * doesn't incorrectly return false (meaning that there are no more checkpoint
@@ -3086,28 +3103,25 @@ TEST_P(ConnectionTest, test_mb24424_deleteResponse) {
     ASSERT_TRUE(stream->isActive());
 
     std::string key = "key";
-    std::string data = R"({"json":"yes"})";
     const DocKey docKey{reinterpret_cast<const uint8_t*>(key.data()),
                         key.size(),
                         DocKeyEncodesCollectionId::No};
-    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
-        data.size()};
     uint8_t extMeta[1] = {uint8_t(PROTOCOL_BINARY_DATATYPE_JSON)};
     cb::const_byte_buffer meta{extMeta, sizeof(uint8_t)};
 
-    consumer->deletion(/*opaque*/1,
-                       /*key*/docKey,
-                       /*values*/value,
-                       /*priv_bytes*/0,
-                       /*datatype*/PROTOCOL_BINARY_DATATYPE_JSON,
-                       /*cas*/0,
-                       /*vbucket*/vbid,
-                       /*bySeqno*/1,
-                       /*revSeqno*/0,
-                       /*meta*/meta);
+    consumer->deletion(/*opaque*/ 1,
+                       /*key*/ docKey,
+                       /*value*/ {},
+                       /*priv_bytes*/ 0,
+                       /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
+                       /*cas*/ 0,
+                       /*vbucket*/ vbid,
+                       /*bySeqno*/ 1,
+                       /*revSeqno*/ 0,
+                       /*meta*/ meta);
 
-    auto messageSize = MutationResponse::deletionBaseMsgBytes +
-            key.size() + data.size() + sizeof(extMeta);
+    auto messageSize = MutationResponse::deletionBaseMsgBytes + key.size() +
+                       sizeof(extMeta);
 
     EXPECT_EQ(messageSize, stream->responseMessageSize);
 

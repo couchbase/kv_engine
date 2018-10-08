@@ -44,7 +44,13 @@ bool EphemeralVBucket::HTTombstonePurger::visit(
         const HashTable::HashBucketLock& hbl, StoredValue& v) {
     auto* osv = v.toOrderedStoredValue();
 
-    if (osv->isDeleted() && (now - osv->getDeletedTime() >= purgeAge)) {
+    // MB-31175: Item must have been deleted before this task starts to ensure
+    // that we do not get a -ve value when we check if the time difference
+    // is >= purgeAge. This is preferable to updating the task start time for
+    // every visit and has little impact as this task runs frequently.
+    if (osv->isDeleted() &&
+        (now >= osv->getDeletedTime()) &&
+        (now - osv->getDeletedTime() >= purgeAge)) {
         // This item should be purged. Remove from the HashTable and move over
         // to being owned by the sequence list.
         auto ownedSV = vbucket->ht.unlocked_release(hbl, v.getKey());

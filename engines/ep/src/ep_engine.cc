@@ -5135,9 +5135,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         keyOffset += 2; // 2 bytes for nmeta
         nmeta = ntohs(nmeta);
         if (nmeta > 0) {
-            emd = cb::const_byte_buffer(
-                    request->bytes + sizeof(request->bytes) + nkey + keyOffset,
-                    nmeta);
+            // Correct the vallen
+            vallen -= nmeta;
+            emd = cb::const_byte_buffer(request->bytes +
+                                                sizeof(request->bytes) + nkey +
+                                                keyOffset + vallen,
+                                        nmeta);
         }
     }
 

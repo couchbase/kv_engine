@@ -420,8 +420,12 @@ static bool valid_dcp_delete_datatype(protocol_binary_datatype_t datatype) {
     // it may send XATTR|JSON (with snappy possible). These are now allowed
     // so rebalance won't be failed and the consumer will sanitise the faulty
     // documents.
-    std::array<const protocol_binary_datatype_t, 5> valid = {
+    // MB-31141: Allowing RAW+Snappy. A bug in delWithMeta has allowed us to
+    // create deletes with a non-zero value tagged as RAW, which when snappy
+    // is enabled gets DCP shipped as RAW+Snappy.
+    std::array<const protocol_binary_datatype_t, 6> valid = {
             {PROTOCOL_BINARY_RAW_BYTES,
+             PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_SNAPPY,
              PROTOCOL_BINARY_DATATYPE_XATTR,
              PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_SNAPPY,
              PROTOCOL_BINARY_DATATYPE_XATTR | PROTOCOL_BINARY_DATATYPE_JSON,

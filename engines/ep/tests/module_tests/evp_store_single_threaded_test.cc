@@ -27,6 +27,7 @@
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "dcp/dcpconnmap.h"
+#include "ephemeral_tombstone_purger.h"
 #include "ep_time.h"
 #include "evp_store_test.h"
 #include "failover-table.h"
@@ -43,6 +44,7 @@
 #include <xattr/utils.h>
 
 #include <thread>
+#include <engines/ep/src/ephemeral_vb.h>
 
 ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(
         TaskQueue& taskQ, const std::string& expectedTaskName) {
@@ -280,6 +282,110 @@ void SingleThreadedKVBucketTest::runCompaction(uint64_t purgeBeforeTime,
     // run the compaction task
     runNextTask(*task_executor->getLpTaskQ()[WRITER_TASK_IDX],
                 "Compact DB file 0");
+}
+
+/*
+ * MB-31175
+ * The following test checks to see that when we call handleSlowStream in an
+ * in memory state and drop the cursor/schedule a backfill as a result, the
+ * resulting backfill checks the purgeSeqno and tells the stream to rollback
+ * if purgeSeqno > startSeqno.
+ */
+TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_TRUE(vb.get());
+
+    // Store two items
+    std::array<std::string, 2> initialKeys = {{"k1", "k2"}};
+    for (const auto& key : initialKeys) {
+        store_item(vbid, makeStoredDocKey(key), key);
+    }
+    flushVBucketToDiskIfPersistent(vbid, initialKeys.size());
+
+    // Delete the items so that we can advance the purgeSeqno using
+    // compaction later
+    for (const auto& key : initialKeys) {
+        delete_item(vbid, makeStoredDocKey(key));
+    }
+    flushVBucketToDiskIfPersistent(vbid, initialKeys.size());
+
+    auto& ckpt_mgr = *vb->checkpointManager;
+
+    // Create a Mock Dcp producer
+    // Create the Mock Active Stream with a startSeqno of 1
+    // as a startSeqno is always valid
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+
+    // Create a Mock Active Stream
+    auto mock_stream = std::make_shared<MockActiveStream>(
+            static_cast<EventuallyPersistentEngine*>(engine.get()),
+            producer,
+            /*flags*/ 0,
+            /*opaque*/ 0,
+            *vb,
+            /*st_seqno*/ 1,
+            /*en_seqno*/ ~0,
+            /*vb_uuid*/ 0xabcd,
+            /*snap_start_seqno*/ 0,
+            /*snap_end_seqno*/ ~0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes);
+
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    mock_stream->transitionStateToBackfilling();
+    ASSERT_TRUE(mock_stream->isInMemory())
+    << "stream state should have transitioned to InMemory";
+
+    // Check number of expected cursors (might not have persistence cursor)
+    int expectedCursors = persistent() ? 2 : 1;
+    EXPECT_EQ(expectedCursors, ckpt_mgr.getNumOfCursors());
+
+    EXPECT_TRUE(mock_stream->handleSlowStream());
+    EXPECT_TRUE(mock_stream->public_getPendingBackfill());
+
+    // Might not have persistence cursor
+    expectedCursors = persistent() ? 1 : 0;
+    EXPECT_EQ(expectedCursors, ckpt_mgr.getNumOfCursors())
+    << "stream cursor should have been dropped";
+
+    // This will schedule the backfill
+    mock_stream->transitionStateToBackfilling();
+    ASSERT_TRUE(mock_stream->isBackfilling());
+
+    // Advance the purgeSeqno
+    if (persistent()) {
+        runCompaction(~0, 3);
+    } else {
+        EphemeralVBucket::HTTombstonePurger purger(0);
+        auto vbptr = store->getVBucket(vbid);
+        EphemeralVBucket* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
+        purger.setCurrentVBucket(*evb);
+        evb->ht.visit(purger);
+        evb->purgeStaleItems();
+    }
+
+    ASSERT_EQ(3, vb->getPurgeSeqno());
+
+    // Run the backfill we scheduled when we transitioned to the backfilling
+    // state
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+
+    // The backfill should have set the stream state to dead because
+    // purgeSeqno > startSeqno
+    EXPECT_TRUE(mock_stream->isDead());
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
+
+    cancelAndPurgeTasks();
 }
 
 /*
@@ -1592,16 +1698,13 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
                              /*startseq*/ 0,
                              /*endseq*/ 2,
                              /*flags*/ MARKER_FLAG_DISK);
-    std::string data = R"({"json":"yes"})";
-    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
-                                data.size()};
 
     // 2. Now add a deletion.
     consumer->deletion(/*opaque*/ 1,
                        {"key1", DocKeyEncodesCollectionId::No},
-                       /*values*/ value,
+                       /*value*/ {},
                        /*priv_bytes*/ 0,
-                       /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                       /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                        /*cas*/ 0,
                        /*vbucket*/ vbid,
                        /*bySeqno*/ 1,
@@ -1638,7 +1741,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29861) {
                                  deleted,
                                  datatype));
     EXPECT_EQ(1, deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
     EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
 }
 
@@ -1663,15 +1766,12 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                              /*startseq*/ 0,
                              /*endseq*/ 2,
                              /*flags*/ 0);
-    std::string data = R"({"json":"yes"})";
-    cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
-                                data.size()};
     // 2. Now add two deletions, one without deleteTime, one with
     consumer->deletionV2(/*opaque*/ 1,
                          {"key1", DocKeyEncodesCollectionId::No},
-                         /*values*/ value,
+                         /*values*/ {},
                          /*priv_bytes*/ 0,
-                         /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                         /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                          /*cas*/ 0,
                          /*vbucket*/ vbid,
                          /*bySeqno*/ 1,
@@ -1681,9 +1781,9 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
     const uint32_t deleteTime = 10;
     consumer->deletionV2(/*opaque*/ 1,
                          {"key2", DocKeyEncodesCollectionId::No},
-                         /*values*/ value,
+                         /*value*/ {},
                          /*priv_bytes*/ 0,
-                         /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
+                         /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                          /*cas*/ 0,
                          /*vbucket*/ vbid,
                          /*bySeqno*/ 2,
@@ -1720,7 +1820,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                                  deleted,
                                  datatype));
     EXPECT_EQ(1, deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
     EXPECT_NE(0, metadata.exptime); // A locally created deleteTime
 
     deleted = 0;
@@ -1741,7 +1841,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_27457) {
                                  deleted,
                                  datatype));
     EXPECT_EQ(1, deleted);
-    EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, datatype);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, datatype);
     EXPECT_EQ(deleteTime, metadata.exptime); // Our replicated deleteTime!
 }
 
@@ -3009,6 +3109,69 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
               gv.item->getDataType());
 }
 
+// Create a replica VB and consumer, then send it an delete with value which
+// should never of been created on the source.
+TEST_F(SingleThreadedEPBucketTest, MB_31141_sanitise_input) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto consumer = std::make_shared<MockDcpConsumer>(
+            *engine, cookie, "MB_31141_sanitise_input");
+    int opaque = 1;
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, vbid, /*flags*/ 0));
+
+    std::string body = "value";
+
+    // Send deletion in a single seqno snapshot
+    int64_t bySeqno = 1;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->snapshotMarker(
+                      opaque, vbid, bySeqno, bySeqno, MARKER_FLAG_CHK));
+
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->deletion(opaque,
+                                 {"key", DocKeyEncodesCollectionId::No},
+                                 {reinterpret_cast<const uint8_t*>(body.data()),
+                                  body.size()},
+                                 /*priv_bytes*/ 0,
+                                 PROTOCOL_BINARY_DATATYPE_SNAPPY |
+                                         PROTOCOL_BINARY_RAW_BYTES,
+                                 /*cas*/ 3,
+                                 vbid,
+                                 bySeqno,
+                                 /*revSeqno*/ 0,
+                                 /*meta*/ {}));
+
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(opaque, vbid));
+
+    // Switch to active
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    get_options_t options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(
+            {"key", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, gv.getStatus());
+
+    // Manually run the bgfetch task.
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+    gv = store->get({"key", DocKeyEncodesCollectionId::No},
+                    vbid,
+                    cookie,
+                    GET_DELETED_VALUE);
+    ASSERT_EQ(ENGINE_SUCCESS, gv.getStatus());
+
+    EXPECT_TRUE(gv.item->isDeleted());
+    EXPECT_EQ(0, gv.item->getFlags());
+    EXPECT_EQ(3, gv.item->getCas());
+    EXPECT_EQ(0, gv.item->getValue()->valueSize());
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, gv.item->getDataType());
+}
+
 // Test highlighting MB_29480 - this is not demonstrating the issue is fixed.
 TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     // Make vbucket active.
@@ -3559,3 +3722,13 @@ INSTANTIATE_TEST_CASE_P(XattrCompressedTest,
                         XattrCompressedTest,
                         ::testing::Combine(::testing::Bool(),
                                            ::testing::Bool()), );
+
+static auto allConfigValues = ::testing::Values(
+        std::make_tuple(std::string("ephemeral"), std::string("auto_delete")),
+        std::make_tuple(std::string("ephemeral"), std::string("fail_new_data")),
+        std::make_tuple(std::string("persistent"), std::string{}));
+
+// Test cases which run for persistent and ephemeral buckets
+INSTANTIATE_TEST_CASE_P(EphemeralOrPersistent,
+                        STParameterizedBucketTest,
+                        allConfigValues, );

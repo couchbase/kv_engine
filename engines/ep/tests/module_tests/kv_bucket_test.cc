@@ -333,6 +333,10 @@ cb::mcbp::Status KVBucketTest::getAddResponseStatus(cb::mcbp::Status newval) {
 
 cb::mcbp::Status KVBucketTest::addResponseStatus = cb::mcbp::Status::Success;
 
+void KVBucketTest::setRandomFunction(std::function<long()>& randFunction) {
+    store->getRandom = randFunction;
+}
+
 // getKeyStats tests //////////////////////////////////////////////////////////
 
 // Check that keystats on resident items works correctly.
@@ -1256,6 +1260,23 @@ TEST_P(KVBucketParamTest, AccessScannerInvalidLogLocation) {
             << "Access Scanner threw unexpected "
                "exception where log location does "
                "not exist";
+}
+
+// Check that getRandomKey works correctly when given a random value of zero
+TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
+    std::function<long()> returnZero = []() { return 0; };
+    setRandomFunction(returnZero);
+
+    // Try with am empty hash table
+    auto gv = store->getRandomKey();
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    Item item = store_item(
+            vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0);
+
+    // Try with a non-empty hash table
+    gv = store->getRandomKey();
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 }
 
 class StoreIfTest : public KVBucketTest {

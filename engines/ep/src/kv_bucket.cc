@@ -1407,24 +1407,24 @@ GetValue KVBucket::getInternal(const DocKey& key,
 GetValue KVBucket::getRandomKey() {
     size_t max = vbMap.getSize();
 
-    const Vbid::id_type start = labs(random()) % max;
+    const Vbid::id_type start = labs(getRandom()) % max;
     Vbid::id_type curr = start;
     std::unique_ptr<Item> itm;
 
     while (itm == NULL) {
         VBucketPtr vb = getVBucket(Vbid(curr++));
         while (!vb || vb->getState() != vbucket_state_active) {
-            if (curr == start) {
-                return GetValue(NULL, ENGINE_KEY_ENOENT);
-            }
             if (curr == max) {
                 curr = 0;
+            }
+            if (curr == start) {
+                return GetValue(NULL, ENGINE_KEY_ENOENT);
             }
 
             vb = getVBucket(Vbid(curr++));
         }
 
-        if ((itm = vb->ht.getRandomKey(random()))) {
+        if ((itm = vb->ht.getRandomKey(getRandom()))) {
             GetValue rv(std::move(itm), ENGINE_SUCCESS);
             return rv;
         }

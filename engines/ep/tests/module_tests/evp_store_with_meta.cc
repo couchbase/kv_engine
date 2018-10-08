@@ -147,7 +147,8 @@ public:
                int options,
                cb::mcbp::Status expectedResponseStatus,
                const std::string& key,
-               const std::string& value) {
+               const std::string& value,
+               const std::vector<char>& emd) {
         auto swm = buildWithMetaPacket(op,
                                        0 /*datatype*/,
                                        vbid,
@@ -156,7 +157,7 @@ public:
                                        itemMeta,
                                        key,
                                        value,
-                                       {},
+                                       emd,
                                        options);
         if (expectedResponseStatus == cb::mcbp::Status::NotMyVbucket) {
             EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(op, swm));
@@ -174,18 +175,14 @@ public:
                        int options,
                        bool withValue,
                        cb::mcbp::Status expectedResponseStatus,
-                       ENGINE_ERROR_CODE expectedGetReturnValue) {
+                       ENGINE_ERROR_CODE expectedGetReturnValue,
+                       const std::vector<char>& emd = {}) {
         std::string key = "mykey";
         std::string value;
         if (withValue) {
             value = createXattrValue("myvalue"); // xattr but stored as raw
         }
-        oneOp(op,
-              itemMeta,
-              options,
-              expectedResponseStatus,
-              key,
-              value);
+        oneOp(op, itemMeta, options, expectedResponseStatus, key, value, emd);
         checkGetItem(key, value, itemMeta, expectedGetReturnValue);
     }
 
@@ -657,7 +654,7 @@ void WithMetaTest::conflict_lose(protocol_binary_command op,
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     for (const auto& td : testData) {
-        oneOp(op, td.meta, options, td.expectedStatus, key, value);
+        oneOp(op, td.meta, options, td.expectedStatus, key, value, {});
     }
 }
 
@@ -1342,6 +1339,63 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
                                  deleted,
                                  datatype));
     EXPECT_EQ(itemMeta.exptime, metadata.exptime);
+}
+
+TEST_P(DelWithMetaTest, MB_31141) {
+    ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
+    // Do a delete with valid extended meta
+    // see - ep-engine/docs/protocol/del_with_meta.md
+    oneOpAndCheck(op,
+                  itemMeta,
+                  0, // no-options
+                  withValue,
+                  cb::mcbp::Status::Success,
+                  withValue ? ENGINE_SUCCESS : ENGINE_EWOULDBLOCK,
+                  {0x01, 0x01, 0x00, 0x01, 0x01});
+
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+
+    auto options = get_options_t(QUEUE_BG_FETCH | GET_DELETED_VALUE);
+    auto result = store->get(
+            {"mykey", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, result.getStatus());
+
+    // Run the BGFetcher task
+    MockGlobalTask mockTask(engine->getTaskable(), TaskId::MultiBGFetcherTask);
+    store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+    result = store->get(
+            {"mykey", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
+    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+
+    // Before the fix 5.0+ could of left the value as 5, the size of the
+    // extended metadata
+    int expectedSize = withValue ? 275 : 0;
+    EXPECT_EQ(expectedSize, result.item->getNBytes());
+}
+
+TEST_P(AddSetWithMetaTest, MB_31141) {
+    ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
+    // Do a set/add with valid extended meta
+    // see - ep-engine/docs/protocol/del_with_meta.md
+    oneOpAndCheck(GetParam(),
+                  itemMeta,
+                  0, // no-options
+                  true,
+                  cb::mcbp::Status::Success,
+                  ENGINE_SUCCESS,
+                  {0x01, 0x01, 0x00, 0x01, 0x01});
+
+    EXPECT_EQ(std::make_pair(false, size_t(1)),
+              getEPBucket().flushVBucket(vbid));
+
+    auto options = get_options_t(QUEUE_BG_FETCH);
+    auto result = store->get(
+            {"mykey", DocKeyEncodesCollectionId::No}, vbid, cookie, options);
+    ASSERT_EQ(ENGINE_SUCCESS, result.getStatus());
+    // Only the value should come back
+    EXPECT_EQ(275, result.item->getNBytes());
 }
 
 auto opcodeValues = ::testing::Values(PROTOCOL_BINARY_CMD_SET_WITH_META,

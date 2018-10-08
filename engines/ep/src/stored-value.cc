@@ -421,6 +421,7 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
 
     // seqno, revid, expiry / purge time
     os << "seq:" << sv.getBySeqno() << " rev:" << sv.getRevSeqno();
+    os << " cas:" << sv.getCas();
     os << " key:\"" << sv.getKey() << "\"";
     if (sv.isOrdered() && sv.isDeleted()) {
         os << " del_time:" << sv.lock_expiry_or_delete_time;
