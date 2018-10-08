@@ -2505,7 +2505,12 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
 
     // Confirm that the item that was consumed over DCP has picked up
     // the correct hotness data value.
-    checkeq(128,
+    // Performing the get may increase the hotness value by 1 and therefore
+    // it is valid for the value to be 128 or 129.
+    checkle(128,
+            int(it->getFreqCounterValue()),
+            "Failed to set the hotness data to the correct value");
+    checkge(129,
             int(it->getFreqCounterValue()),
             "Failed to set the hotness data to the correct value");
 
