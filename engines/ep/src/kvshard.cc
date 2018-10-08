@@ -25,6 +25,9 @@
 #include "ep_engine.h"
 #include "flusher.h"
 #include "kvshard.h"
+#ifdef EP_USE_MAGMA
+#include "magma-kvstore/magma-kvstore_config.h"
+#endif
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
@@ -39,6 +42,13 @@ KVShard::KVShard(uint16_t id, Configuration& config)
         rwStore = std::move(stores.rw);
         roStore = std::move(stores.ro);
     }
+#ifdef EP_USE_MAGMA
+    else if (backend == "magma") {
+        kvConfig = std::make_unique<MagmaKVStoreConfig>(config, id);
+        auto stores = KVStoreFactory::create(*kvConfig);
+        rwStore = std::move(stores.rw);
+    }
+#endif
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
         kvConfig = std::make_unique<RocksDBKVStoreConfig>(config, id);

@@ -93,6 +93,7 @@
             "validator": {
                 "enum": [
                     "couchdb",
+                    "magma",
                     "rocksdb"
                 ]
             }
@@ -1003,6 +1004,48 @@
                     "min": 0.0
                 }
             }
+        },
+        "magma_max_commit_points": {
+            "default": "3",
+            "dynamic": false,
+            "descr": "Maximum commit points to retain for rollback.",
+            "type": "size_t"
+        },
+        "magma_max_write_cache": {
+            "default": "67108864",
+            "dynamic": false,
+            "descr": "Max memory used for write buffering.",
+            "type": "size_t"
+        },
+        "magma_mem_quota_ratio": {
+            "default": "0.1",
+            "descr": "Magma total (i.e., all Shards) memory ratio of the Bucket Quota).",
+            "dynamic": true,
+            "type": "float"
+        },
+        "magma_min_value_size": {
+            "default": "32",
+            "dynamic": false,
+            "descr": "Values smaller than this will not be separated from their keys",
+            "type": "size_t"
+        },
+        "magma_num_flushers": {
+            "default": "4",
+            "dynamic": false,
+            "descr": "Number of threads to write filled memtables to disk.",
+            "type": "size_t"
+        },
+        "magma_num_compactors": {
+            "default": "4",
+            "dynamic": false,
+            "descr": "Number of background compactor threads.",
+            "type": "size_t"
+        },
+        "magma_wal_buffer_size": {
+            "default": "2097152",
+            "dynamic": false,
+            "descr": "Max memory used for the write ahead log.",
+            "type": "size_t"
         },
         "retain_erroneous_tombstones": {
             "default": "true",

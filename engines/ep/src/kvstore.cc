@@ -23,6 +23,10 @@
 
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
+#ifdef EP_USE_MAGMA
+#include "magma-kvstore/magma-kvstore.h"
+#include "magma-kvstore/magma-kvstore_config.h"
+#endif /* EP_USE_MAGMA */
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore.h"
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
@@ -86,6 +90,13 @@ KVStoreRWRO KVStoreFactory::create(KVStoreConfig& config) {
         auto ro = rw->makeReadOnlyStore();
         return {rw.release(), ro.release()};
     }
+#ifdef EP_USE_MAGMA
+    else if (backend == "magma") {
+        auto rw = std::make_unique<MagmaKVStore>(
+                dynamic_cast<MagmaKVStoreConfig&>(config));
+        return {rw.release(), nullptr};
+    }
+#endif
 #ifdef EP_USE_ROCKSDB
     else if (backend == "rocksdb") {
         auto rw = std::make_unique<RocksDBKVStore>(
