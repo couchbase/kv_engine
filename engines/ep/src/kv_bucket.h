@@ -176,6 +176,11 @@ public:
                            options);
     }
 
+    /**
+     * Retrieve a value randomly from the store.
+     *
+     * @return a GetValue representing the value retrieved
+     */
     GetValue getRandomKey(void);
 
     /**
@@ -1016,6 +1021,12 @@ protected:
     std::unique_ptr<ReplicationThrottle> replicationThrottle;
 
     std::atomic<size_t> maxTtl;
+
+    /**
+     * Allows us to override the random function.  This is used for testing
+     * purposes where we want a constant number as opposed to a random one.
+     */
+    std::function<long()> getRandom = random;
 
     friend class KVBucketTest;
 

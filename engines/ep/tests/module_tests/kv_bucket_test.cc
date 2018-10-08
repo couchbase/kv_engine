@@ -334,6 +334,9 @@ protocol_binary_response_status KVBucketTest::getAddResponseStatus(
 protocol_binary_response_status KVBucketTest::addResponseStatus =
         PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
+void KVBucketTest::setRandomFunction(std::function<long()>& randFunction) {
+    store->getRandom = randFunction;
+}
 
 // getKeyStats tests //////////////////////////////////////////////////////////
 
@@ -1230,6 +1233,23 @@ TEST_P(KVBucketParamTest, AccessScannerInvalidLogLocation) {
             << "Access Scanner threw unexpected "
                "exception where log location does "
                "not exist";
+}
+
+// Check that getRandomKey works correctly when given a random value of zero
+TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
+    std::function<long()> returnZero = []() { return 0; };
+    setRandomFunction(returnZero);
+
+    // Try with am empty hash table
+    auto gv = store->getRandomKey();
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    Item item = store_item(
+            vbid, {"key", DocNamespace::DefaultCollection}, "value", 0);
+
+    // Try with a non-empty hash table
+    gv = store->getRandomKey();
+    EXPECT_EQ(ENGINE_SUCCESS, gv.getStatus());
 }
 
 class StoreIfTest : public KVBucketTest {
