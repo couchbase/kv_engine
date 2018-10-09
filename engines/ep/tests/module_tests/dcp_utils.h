@@ -16,6 +16,7 @@
  */
 
 class DcpConsumer;
+class MutationResponse;
 
 /*
  * Calls DcpConsumer::handleResponse() when it is necessary for the
@@ -25,3 +26,8 @@ class DcpConsumer;
  * @param connection The connection
  */
 void handleProducerResponseIfStepBlocked(DcpConsumer& connection);
+
+std::unique_ptr<MutationResponse> makeMutation(uint64_t seqno,
+                                               uint16_t vbid,
+                                               const std::string& value,
+                                               uint64_t opaque);
