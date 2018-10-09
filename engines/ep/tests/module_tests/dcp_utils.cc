@@ -72,3 +72,24 @@ void processMutations(MockPassiveStream& stream,
         ASSERT_EQ(ENGINE_SUCCESS, stream.processMutation(&mutation));
     }
 }
+
+std::unique_ptr<MutationResponse> makeMutation(uint64_t seqno,
+                                               Vbid vbid,
+                                               const std::string& value,
+                                               uint64_t opaque) {
+    queued_item qi(new Item(makeStoredDocKey("key_" + std::to_string(seqno)),
+                            0 /*flags*/,
+                            0 /*expiry*/,
+                            value.c_str(),
+                            value.size(),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            0 /*cas*/,
+                            seqno,
+                            vbid));
+    return std::make_unique<MutationResponse>(std::move(qi),
+                                              opaque,
+                                              IncludeValue::Yes,
+                                              IncludeXattrs::Yes,
+                                              IncludeDeleteTime::No,
+                                              DocKeyEncodesCollectionId::No);
+}

@@ -300,5 +300,14 @@ public:
         return buffer.messages.size();
     }
 
+    auto& getBufferMessages() const {
+        return buffer.messages;
+    }
+
+    void setProcessBufferedMessages_postFront_Hook(
+            std::function<void()>& hook) {
+        processBufferedMessages_postFront_Hook = hook;
+    }
+
     uint32_t responseMessageSize;
 };

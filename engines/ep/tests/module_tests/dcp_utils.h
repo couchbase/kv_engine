@@ -19,6 +19,7 @@
 
 class DcpConsumer;
 class MockPassiveStream;
+class MutationResponse;
 
 /*
  * Calls DcpConsumer::handleResponse() when it is necessary for the
@@ -40,3 +41,8 @@ void handleProducerResponseIfStepBlocked(DcpConsumer& connection);
 void processMutations(MockPassiveStream& stream,
                       const int64_t seqnoStart,
                       const int64_t seqnoEnd);
+
+std::unique_ptr<MutationResponse> makeMutation(uint64_t seqno,
+                                               Vbid vbid,
+                                               const std::string& value,
+                                               uint64_t opaque);
