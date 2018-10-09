@@ -599,8 +599,11 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void* c) {
                          name_.c_str(),
                          vb_.get());
         add_casted_stat(buffer, backfillItems.sent, add_stat, c);
-        checked_snprintf(
-                buffer, bsize, "%s:stream_%d_memory_phase", name_.c_str(), vb_);
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:stream_%d_memory_phase",
+                         name_.c_str(),
+                         vb_.get());
         add_casted_stat(buffer, itemsFromMemoryPhase.load(), add_stat, c);
         checked_snprintf(buffer,
                          bsize,
