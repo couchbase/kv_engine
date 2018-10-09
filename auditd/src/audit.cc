@@ -128,7 +128,7 @@ bool AuditImpl::add_event_descriptor(const nlohmann::json& json) {
         LOG_WARNING(
                 "Audit::add_event_descriptor: JSON parsing exception {}"
                 " for event {}",
-                cb::UserDataView(e.what()),
+                e.what(),
                 cb::UserDataView(json.dump()));
     } catch (const std::invalid_argument& e) {
         LOG_WARNING(

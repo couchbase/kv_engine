@@ -20,6 +20,8 @@
 #include "generator_utilities.h"
 
 #include <nlohmann/json.hpp>
+#include <utilities/json_utilities.h>
+
 #include <fstream>
 #include <gsl/gsl>
 #include <memory>
@@ -56,7 +58,7 @@ Module::Module(const nlohmann::json& object,
 
     file.assign(srcRoot);
     file.append("/");
-    file.append(data.at("file").get<std::string>());
+    file.append(cb::jsonGet<std::string>(data, "file"));
     cb::io::sanitizePath(file);
 
     auto hfile = data.value("header", "");
@@ -131,13 +133,13 @@ void Module::parseEventDescriptorFile() {
     }
 
     json = load_file(file);
-    auto v = json.at("version").get<int32_t>();
+    auto v = cb::jsonGet<int32_t>(json, "version");
     if (v != 1 && v != 2) {
         throw std::runtime_error("Invalid version in " + file + ": " +
                                  std::to_string(v));
     }
 
-    auto n = json.at("module").get<std::string>();
+    auto n = cb::jsonGet<std::string>(json, "module");
     if (n != name) {
         throw std::runtime_error(name + " can't load a module named " + n);
     }

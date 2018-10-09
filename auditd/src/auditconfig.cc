@@ -24,6 +24,7 @@
 
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <utilities/json_utilities.h>
 
 #include "audit.h"
 #include "auditconfig.h"
@@ -274,7 +275,7 @@ void AuditConfig::add_event_states_object(
     eventStates.clear();
     for (auto it = object.begin(); it != object.end(); ++it) {
         std::string event(it.key());
-        std::string state{it.value().get<std::string>()};
+        std::string state{cb::jsonGet<std::string>(it)};
         EventState estate{EventState::undefined};
         if (state == "enabled") {
             estate = EventState::enabled;

@@ -16,11 +16,14 @@
  */
 #include "auditfile.h"
 #include "audit.h"
+
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
+#include <utilities/json_utilities.h>
+
 #include <sys/stat.h>
 #include <algorithm>
 #include <cstring>
@@ -187,7 +190,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
 
         std::string ts;
         try {
-            ts = json.at("timestamp").get<std::string>();
+            ts = cb::jsonGet<std::string>(json, "timestamp");
         } catch (const nlohmann::json::exception& e) {
             throw std::runtime_error(
                     "AuditFile::cleanup_old_logfile(): "

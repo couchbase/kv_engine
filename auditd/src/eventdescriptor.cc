@@ -19,14 +19,13 @@
 #include <utilities/json_utilities.h>
 
 #include <boost/optional.hpp>
-#include <stdexcept>
 
 EventDescriptor::EventDescriptor(const nlohmann::json& root)
-    : id(root.at("id").get<uint32_t>()),
-      name(root.at("name").get<std::string>()),
-      description(root.at("description").get<std::string>()),
-      sync(root.at("sync").get<bool>()),
-      enabled(root.at("enabled").get<bool>()),
+    : id(cb::jsonGet<uint32_t>(root, "id")),
+      name(cb::jsonGet<std::string>(root, "name")),
+      description(cb::jsonGet<std::string>(root, "description")),
+      sync(cb::jsonGet<bool>(root, "sync")),
+      enabled(cb::jsonGet<bool>(root, "enabled")),
       filteringPermitted(false) {
     size_t expected = 5;
 
