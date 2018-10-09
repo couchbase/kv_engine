@@ -6559,7 +6559,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_consumer_hotness_data,
                  test_setup,
                  teardown,
-                 NULL,
+                 // If itemFreqDecayerTask runs ensure it has no effect.
+                 "item_freq_decayer_percent=100",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (latest flag)",
