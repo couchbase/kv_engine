@@ -40,7 +40,7 @@ public:
     void threadUp() {
         std::unique_lock<std::mutex> lh(m);
         if (++thread_count != n_threads) {
-            cv.wait(lh, [this]() { return isComplete(); });
+            cv.wait(lh, [this, &lh]() { return isComplete(lh); });
         } else {
             cv.notify_all(); // all threads accounted for, begin
         }
@@ -49,7 +49,7 @@ public:
     template <typename Rep, typename Period>
     void waitFor(std::chrono::duration<Rep, Period> timeout) {
         std::unique_lock<std::mutex> lh(m);
-        cv.wait_for(lh, timeout, [this]() { return isComplete(); });
+        cv.wait_for(lh, timeout, [this, &lh]() { return isComplete(lh); });
     }
 
     size_t getCount() const {
@@ -57,10 +57,15 @@ public:
     }
 
     bool isComplete() {
-        return thread_count == n_threads;
+        std::unique_lock<std::mutex> lh(m);
+        return isComplete(lh);
     }
 
 private:
+    bool isComplete(const std::unique_lock<std::mutex>&) {
+        return thread_count == n_threads;
+    }
+
     const size_t n_threads;
     size_t thread_count{0};
     std::mutex m;

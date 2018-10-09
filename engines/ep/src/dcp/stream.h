@@ -738,7 +738,7 @@ protected:
 
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 
-    void processMarker(SnapshotMarker* marker);
+    virtual void processMarker(SnapshotMarker* marker);
 
     void processSetVBucketState(SetVBucketState* state);
 
@@ -790,6 +790,14 @@ protected:
         }
 
         /*
+         * Return a reference to the item at the front.
+         * The user must pass a lock to bufMutex.
+         */
+        std::unique_ptr<DcpResponse>& front(std::unique_lock<std::mutex>& lh) {
+            return messages.front();
+        }
+
+        /*
          * Caller must of locked bufMutex and pass as lh (not asserted)
          */
         void push_front(std::unique_ptr<DcpResponse> message,
@@ -804,6 +812,16 @@ protected:
         mutable std::mutex bufMutex;
         std::deque<std::unique_ptr<DcpResponse> > messages;
     } buffer;
+
+    /*
+     * MB-31410: Only used for testing.
+     * This hook is executed in the PassiveStream::processBufferedMessages
+     * function, just after we have got the front message from the buffer.
+     * Used for triggering an error condition where the front-end may process
+     * new incoming messages before the DcpConsumerTask has processed all
+     * messages in the buffer.
+     */
+    std::function<void()> processBufferedMessages_postFront_Hook;
 };
 
 #endif  // SRC_DCP_STREAM_H_

@@ -15,7 +15,10 @@
  *   limitations under the License.
  */
 
+#include "test_helpers.h"
+
 #include "dcp/consumer.h"
+#include "dcp/response.h"
 
 extern uint8_t dcp_last_op;
 
@@ -31,4 +34,23 @@ void handleProducerResponseIfStepBlocked(DcpConsumer& consumer) {
         resp.response.status = ntohs(PROTOCOL_BINARY_RESPONSE_SUCCESS);
         consumer.handleResponse(&resp);
     }
+}
+
+std::unique_ptr<MutationResponse> makeMutation(uint64_t seqno,
+                                               uint16_t vbid,
+                                               const std::string& value,
+                                               uint64_t opaque) {
+    uint8_t ext_meta[EXT_META_LEN] = {PROTOCOL_BINARY_RAW_BYTES};
+    queued_item qi(new Item(makeStoredDocKey("key_" + std::to_string(seqno)),
+                            0 /*flags*/,
+                            0 /*expiry*/,
+                            value.c_str(),
+                            value.size(),
+                            ext_meta,
+                            1 /*ext_len*/,
+                            0 /*cas*/,
+                            seqno,
+                            vbid));
+    return std::make_unique<MutationResponse>(
+            std::move(qi), opaque, IncludeValue::Yes, IncludeXattrs::Yes);
 }

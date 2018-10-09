@@ -2002,11 +2002,23 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
             return all_processed;
         }
 
-        std::unique_ptr<DcpResponse> response = buffer.pop_front(lh);
+        // MB-31410: The front-end thread can process new incoming messages
+        // only /after/ all the buffered ones have been processed.
+        // So, here we get only a reference. We remove the message from the
+        // buffer later, only /after/ we have processed it.
+        // That is because the front-end thread checks if buffer.empty() for
+        // deciding if it's time to start again processing new incoming
+        // mutations. That happens in PassiveStream::messageReceived.
+        auto& response = buffer.front(lh);
 
         // Release bufMutex whilst we attempt to process the message
         // a lock inversion exists with connManager if we hold this.
         lh.unlock();
+
+        // MB-31410: Only used for testing
+        if (processBufferedMessages_postFront_Hook) {
+            processBufferedMessages_postFront_Hook();
+        }
 
         message_bytes = response->getMessageSize();
 
@@ -2052,17 +2064,21 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
             }
         }
 
-        // Re-acquire bufMutex so that
-        // 1) we can update the buffer
-        // 2) safely re-check the while conditional statement
-        lh.lock();
-
-        // If we failed and the stream is not dead, stash the DcpResponse at the
-        // front of the queue and break the loop.
+        // If we failed and the stream is not dead, just break the loop and
+        // return. We will try again with processing the message at the next
+        // run.
+        // Note:
+        //     1) no need to re-acquire bufMutex here
+        //     2) we have not removed the message from the buffer yet
         if (failed && isActive()) {
-            buffer.push_front(std::move(response), lh);
             break;
         }
+
+        // At this point we have processed the message successfully,
+        // then we can remove it from the buffer.
+        // Note: we need to re-acquire bufMutex to update the buffer safely
+        lh.lock();
+        buffer.pop_front(lh);
 
         count++;
         if (ret != ENGINE_ERANGE) {
