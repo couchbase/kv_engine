@@ -3928,29 +3928,36 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
     try {
         char buffer[64];
         failover_entry_t entry = vb->failovers->getLatestEntry();
-        checked_snprintf(buffer, sizeof(buffer), "vb_%d:high_seqno",
-                         vb->getId());
+        checked_snprintf(
+                buffer, sizeof(buffer), "vb_%d:high_seqno", vb->getId().get());
         add_casted_stat(buffer, relHighSeqno, add_stat, cookie);
-        checked_snprintf(buffer, sizeof(buffer), "vb_%d:abs_high_seqno",
-                         vb->getId());
+        checked_snprintf(buffer,
+                         sizeof(buffer),
+                         "vb_%d:abs_high_seqno",
+                         vb->getId().get());
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
-        checked_snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_seqno",
-                         vb->getId());
+        checked_snprintf(buffer,
+                         sizeof(buffer),
+                         "vb_%d:last_persisted_seqno",
+                         vb->getId().get());
         add_casted_stat(
                 buffer, vb->getPublicPersistenceSeqno(), add_stat, cookie);
-        checked_snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
+        checked_snprintf(
+                buffer, sizeof(buffer), "vb_%d:uuid", vb->getId().get());
         add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
-        checked_snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno",
-                         vb->getId());
+        checked_snprintf(
+                buffer, sizeof(buffer), "vb_%d:purge_seqno", vb->getId().get());
         add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
         const snapshot_range_t range = vb->getPersistedSnapshot();
-        checked_snprintf(buffer, sizeof(buffer),
+        checked_snprintf(buffer,
+                         sizeof(buffer),
                          "vb_%d:last_persisted_snap_start",
-                         vb->getId());
+                         vb->getId().get());
         add_casted_stat(buffer, range.start, add_stat, cookie);
-        checked_snprintf(buffer, sizeof(buffer),
+        checked_snprintf(buffer,
+                         sizeof(buffer),
                          "vb_%d:last_persisted_snap_end",
-                         vb->getId());
+                         vb->getId().get());
         add_casted_stat(buffer, range.end, add_stat, cookie);
     } catch (std::exception& error) {
         EP_LOG_WARN("addSeqnoVbStats: error building stats: {}", error.what());
