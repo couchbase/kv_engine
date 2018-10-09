@@ -274,9 +274,22 @@ public:
         return PassiveStream::messageReceived(std::move(dcpResponse));
     }
 
+    void processMarker(SnapshotMarker* marker) override {
+        PassiveStream::processMarker(marker);
+    }
+
     size_t getNumBufferItems() const {
         LockHolder lh(buffer.bufMutex);
         return buffer.messages.size();
+    }
+
+    const std::deque<std::unique_ptr<DcpResponse>>& getBufferMessages() const {
+        return buffer.messages;
+    }
+
+    void setProcessBufferedMessages_postFront_Hook(
+            std::function<void()>& hook) {
+        processBufferedMessages_postFront_Hook = hook;
     }
 
     uint32_t responseMessageSize;
