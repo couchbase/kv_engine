@@ -146,6 +146,10 @@ public:
         return log.getBytesOutstanding();
     }
 
+    DcpReadyQueue& getReadyQueue() {
+        return ready;
+    }
+
     /**
      * Place a mock active stream into the producer
      */

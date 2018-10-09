@@ -3372,6 +3372,113 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     producer->cancelCheckpointCreatorTask();
 }
 
+/* When a backfill is activated along with a slow stream trigger,
+ * the stream end message gets stuck in the readyQ as the stream is
+ * never notified as ready to send it. As the stream transitions state
+ * to InMemory as well as having sent all requested sequence numbers,
+ * the stream is meant to end but Stream::itemsReady can cause this
+ * to never trigger. This means that DCP consumers can hang waiting
+ * for this closure message.
+ * This test checks that the DCP stream actually sends the end stream
+ * message when triggering this problematic sequence.
+ */
+TEST_F(SingleThreadedEPBucketTest, MB_31481) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // 1) First store 2 keys which we will backfill
+    std::array<std::string, 2> keys = {{"k1", "k2"}};
+    store_item(vbid, makeStoredDocKey(keys[0]), keys[0]);
+    store_item(vbid, makeStoredDocKey(keys[1]), keys[1]);
+
+    flush_vbucket_to_disk(vbid, keys.size());
+
+    // Simplest way to ensure DCP has to do a backfill - 'wipe memory'
+    resetEngineAndWarmup();
+
+    // Setup DCP, 1 producer and we will do a takeover of the vbucket
+    auto producer = createDcpProducer(cookie, {}, false, IncludeDeleteTime::No);
+
+    auto producers = get_dcp_producers(
+            reinterpret_cast<ENGINE_HANDLE*>(engine.get()),
+            reinterpret_cast<ENGINE_HANDLE_V1*>(engine.get()));
+
+    ASSERT_TRUE(producer->getReadyQueue().empty());
+
+    uint64_t rollbackSeqno = 0;
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno
+                                      vb->getHighSeqno(), // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      0, // snap_start_seqno
+                                      vb->getHighSeqno(), // snap_end_seqno
+                                      &rollbackSeqno,
+                                      &dcpAddFailoverLog));
+
+    auto vb0Stream =
+            dynamic_cast<ActiveStream*>(producer->findStream(vbid).get());
+    ASSERT_NE(nullptr, vb0Stream);
+
+    // Manually drive the backfill (not using notifyAndStepToCheckpoint)
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    // Trigger slow stream handle
+    ASSERT_TRUE(vb0Stream->handleSlowStream());
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+    // backfill:scan()
+    runNextTask(lpAuxioQ);
+
+    ASSERT_TRUE(producer->getReadyQueue().exists(vbid));
+
+    // Now drain all items before we proceed to complete, which triggers disk
+    // snapshot.
+    ASSERT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    ASSERT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    for (const auto& key : keys) {
+        ASSERT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+        ASSERT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        ASSERT_EQ(key, dcp_last_key);
+    }
+
+    // Another producer step should report SUCCESS (no more data) as all items
+    // have been backfilled.
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    // Also the readyQ should be empty
+    EXPECT_TRUE(producer->getReadyQueue().empty());
+
+    // backfill:complete()
+    runNextTask(lpAuxioQ);
+
+    // Notified to allow stream to transition to in-memory phase.
+    EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
+
+    // Step should cause stream closed message, previously this would
+    // keep the "ENGINE_SUCCESS" response due to the itemsReady flag,
+    // which is not expected with that message already being in the readyQ.
+    EXPECT_EQ(ENGINE_WANT_MORE, producer->step(producers.get()));
+    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
+
+    // Stepping forward should now show that stream end message has been
+    // completed and no more messages are needed to send.
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+
+    // Similarly, the readyQ should be empty again
+    EXPECT_TRUE(producer->getReadyQueue().empty());
+
+    // backfill:finished() - just to cleanup.
+    runNextTask(lpAuxioQ);
+
+    // vb0Stream should be closed
+    EXPECT_FALSE(vb0Stream->isActive());
+
+    // Stop Producer checkpoint processor task
+    producer->cancelCheckpointCreatorTask();
+}
+
 INSTANTIATE_TEST_CASE_P(XattrSystemUserTest,
                         XattrSystemUserTest,
                         ::testing::Bool(), );
