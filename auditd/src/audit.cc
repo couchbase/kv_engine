@@ -153,18 +153,12 @@ bool AuditImpl::process_module_data_structures(const nlohmann::json& json) {
 bool AuditImpl::process_module_descriptor(const nlohmann::json& json) {
     events.clear();
     for (const auto& module_descriptor : json) {
-        auto events = cb::getOptionalJsonObject(module_descriptor, "events");
-        if (!events.is_initialized()) {
-            LOG_WARNING(
-                    "Audit::process_module_descriptor: \"events\""
-                    " field missing");
-            return false;
-        }
-        switch (events->type()) {
+        auto events = module_descriptor.at("events");
+        switch (events.type()) {
         case nlohmann::json::value_t::number_integer:
             break;
         case nlohmann::json::value_t::array:
-            if (!process_module_data_structures(*events)) {
+            if (!process_module_data_structures(events)) {
                 return false;
             }
             break;
@@ -207,6 +201,14 @@ bool AuditImpl::configure() {
     } catch (std::string &msg) {
         LOG_WARNING("Audit::configure: Invalid input: {}", msg);
         failure = true;
+    } catch (const nlohmann::json::exception& e) {
+        LOG_WARNING(
+                R"(Audit::configure:: Configuration error in "{}". Error: {}.)"
+                R"(Content: {})",
+                cb::UserDataView(configfile),
+                cb::UserDataView(e.what()),
+                cb::UserDataView(configuration));
+        failure = true;
     } catch (...) {
         LOG_WARNING("Audit::configure: Invalid input");
         failure = true;
@@ -236,19 +238,18 @@ bool AuditImpl::configure() {
     nlohmann::json events_json;
     try {
         events_json = nlohmann::json::parse(str);
+
+        auto modules = events_json.at("modules");
+        if (!process_module_descriptor(modules)) {
+            return false;
+        }
     } catch (const nlohmann::json::exception& e) {
         LOG_WARNING(
-                R"(Audit::configure: JSON parsing error of "{}" with the
-                   content: "{}", e.what(): {})",
-                audit_events_file,
-                cb::UserDataView(str),
-                cb::UserDataView(e.what()));
-        return false;
-    }
-
-    auto modules = cb::getOptionalJsonObject(
-            events_json, "modules", nlohmann::json::value_t::array);
-    if (!modules.is_initialized() || !process_module_descriptor(*modules)) {
+                R"(Audit::configure: Audit event configuration error in "{}".)"
+                R"(Error: {}. Content: {})",
+                cb::UserDataView(audit_events_file),
+                cb::UserDataView(e.what()),
+                cb::UserDataView(str));
         return false;
     }
     auditfile.reconfigure(config);
