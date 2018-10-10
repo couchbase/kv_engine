@@ -121,3 +121,22 @@ std::string to_string(BucketType type) {
     }
     throw std::logic_error("Invalid bucket type: " + std::to_string(int(type)));
 }
+
+std::string to_string(BucketState state) {
+    switch (state) {
+    case BucketState::None:
+        return "none";
+    case BucketState::Creating:
+        return "creating";
+    case BucketState::Initializing:
+        return "initializing";
+    case BucketState::Ready:
+        return "ready";
+    case BucketState::Stopping:
+        return "stopping";
+    case BucketState::Destroying:
+        return "destroying";
+    }
+    throw std::invalid_argument("Invalid bucket state: " +
+                                std::to_string(int(state)));
+}

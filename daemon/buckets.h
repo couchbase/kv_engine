@@ -47,6 +47,8 @@ enum class BucketState : uint8_t {
     Destroying
 };
 
+std::string to_string(BucketState state);
+
 enum class BucketType : uint8_t {
     Unknown,
     NoBucket,

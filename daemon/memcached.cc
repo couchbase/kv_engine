@@ -684,54 +684,18 @@ void safe_close(SOCKET sfd) {
 
 static nlohmann::json get_bucket_details_UNLOCKED(const Bucket& bucket,
                                                   size_t idx) {
-    if (bucket.state == BucketState::None) {
-        return nlohmann::json();
-    }
-
     nlohmann::json json;
-    json["index"] = idx;
-    switch (bucket.state.load()) {
-    case BucketState::None:
-        json["state"] = "none";
-        break;
-    case BucketState::Creating:
-        json["state"] = "creating";
-        break;
-    case BucketState::Initializing:
-        json["state"] = "initializing";
-        break;
-    case BucketState::Ready:
-        json["state"] = "ready";
-        break;
-    case BucketState::Stopping:
-        json["state"] = "stopping";
-        break;
-    case BucketState::Destroying:
-        json["state"] = "destroying";
-        break;
+    if (bucket.state != BucketState::None) {
+        try {
+            json["index"] = idx;
+            json["state"] = to_string(bucket.state.load());
+            json["clients"] = bucket.clients;
+            json["name"] = bucket.name;
+            json["type"] = to_string(bucket.type);
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to generate bucket details: {}", e.what());
+        }
     }
-
-    json["clients"] = bucket.clients;
-    json["name"] = bucket.name;
-
-    switch (bucket.type) {
-    case BucketType::Unknown:
-        json["type"] = "<<unknown>>";
-        break;
-    case BucketType::NoBucket:
-        json["type"] = "no bucket";
-        break;
-    case BucketType::Memcached:
-        json["type"] = "memcached";
-        break;
-    case BucketType::Couchstore:
-        json["type"] = "couchstore";
-        break;
-    case BucketType::EWouldBlock:
-        json["type"] = "ewouldblock";
-        break;
-    }
-
     return json;
 }
 
