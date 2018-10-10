@@ -194,6 +194,29 @@ public:
         }
     }
 
+    /**
+     * Applies the given function object to every mapped value and returns from
+     * f some other value only if f returns a value that evaluates to true
+     * (bool operator)
+     *
+     * The function should take a value_type reference as a parameter and return
+     * some-type by value. some-type must be a type which supports operator bool
+     * e.g. std::shared_ptr. As each map element is evaluated, the iteration
+     * will stop when f returns a value which 'if (value)' evaluates to true,
+     * the value is then returned.
+     * If every element is visited and nothing evaluated to true, then a default
+     * initialised some-type is returned.
+     *
+     * @param key Key value to lookup
+     * @param f Function object to be applied
+     * @returns The value found by f or a default initialised value
+     */
+    template <class UnaryFunction>
+    auto find_if2(UnaryFunction f) {
+        std::shared_lock<map_type> guard(*this);
+        return find_if2_UNLOCKED(f);
+    }
+
     /* Modifiers */
 
     void clear(std::lock_guard<map_type>&) {
@@ -226,6 +249,25 @@ public:
     void for_each(UnaryFunction f) {
         std::shared_lock<map_type> guard(*this); // internally locked
         for_each(f, guard);
+    }
+
+    /**
+     * Applies the given function object to the key (if mapped)
+     *
+     * The function should take a value_type reference as a parameter
+     *
+     * @param key Key value to lookup
+     * @param f Function object to be applied
+     * @returns true if the key was found and f applied
+     */
+    template <class UnaryFunction>
+    bool apply(const key_type& key, UnaryFunction f) {
+        std::shared_lock<map_type> guard(*this);
+        auto iter = map.find(key);
+        if (iter != map.end()) {
+            f(*iter);
+        }
+        return iter != map.end();
     }
 
     /**
@@ -306,6 +348,18 @@ private:
         } else {
             return std::make_pair(T(), false);
         }
+    }
+
+    template <class UnaryFunction>
+    auto find_if2_UNLOCKED(UnaryFunction f) {
+        using UnaryFunctionRval = decltype(f(*map.find({})));
+        for (auto& kv : map) {
+            auto rv = f(kv);
+            if (rv) {
+                return rv;
+            }
+        }
+        return UnaryFunctionRval{};
     }
 
     std::unordered_map<Key, T, Hash, KeyEqual, Allocator> map;

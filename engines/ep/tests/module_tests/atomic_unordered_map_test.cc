@@ -121,3 +121,26 @@ TEST_F(AtomicUnorderedMapTest, ConcurrentOverlappingInsert) {
 
     EXPECT_EQ(n_elements, map.size());
 }
+
+// Test find_if2 using similar types to how it is to be used in DcpProducer
+// Return a shared_ptr to an object or an empty shared_ptr
+TEST_F(AtomicUnorderedMapTest, find_if2) {
+    size_t value = 20;
+    auto func = [value](TestMap::value_type& vt) {
+        if (vt.second->value == value) {
+            return std::make_shared<std::string>("Found");
+        }
+        return std::shared_ptr<std::string>{};
+    };
+    auto rv = map.find_if2(func);
+
+    EXPECT_FALSE(rv);
+
+    insert_into_map(map, 10, 0);
+    rv = map.find_if2(func);
+    ASSERT_TRUE(rv);
+    EXPECT_EQ("Found", *rv);
+    map.erase(2);
+    rv = map.find_if2(func);
+    EXPECT_FALSE(rv);
+}
