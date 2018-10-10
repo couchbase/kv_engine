@@ -19,6 +19,8 @@
 
 #include "statwriter.h"
 
+#include <cinttypes>
+
 void HLC::addStats(const std::string& prefix, ADD_STAT add_stat, const void *c) const {
     auto maxCas = getMaxHLC();
     add_prefixed_stat(prefix.data(), "max_cas", maxCas, add_stat, c);
@@ -38,8 +40,11 @@ void HLC::addStats(const std::string& prefix, ADD_STAT add_stat, const void *c) 
         char finalString[40];// Needs to store 1970-12-31T23:23:59.999999999
         const char* maxCasStr = finalString;
         try {
-            checked_snprintf(finalString, sizeof(finalString), "%s.%lld",
-                             timeString, nanoseconds.count());
+            checked_snprintf(finalString,
+                             sizeof(finalString),
+                             "%s.%" PRId64,
+                             timeString,
+                             static_cast<int64_t>(nanoseconds.count()));
         } catch (...) {
             // snprint fail, point at timeString which at least has the
             // majority of the time data.
