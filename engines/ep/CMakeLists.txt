@@ -409,6 +409,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/stats_test.cc
                    tests/module_tests/storeddockey_test.cc
                    tests/module_tests/stored_value_test.cc
+                   tests/module_tests/stream_container_test.cc
                    tests/module_tests/systemevent_test.cc
                    tests/module_tests/tagged_ptr_test.cc
                    tests/module_tests/test_helpers.cc
