@@ -325,6 +325,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                    tests/module_tests/checkpoint_test.h
                    tests/module_tests/checkpoint_test.cc
                    tests/module_tests/checkpoint_utils.h
+                   tests/module_tests/collections/collections_dcp_test.cc
                    tests/module_tests/collections/evp_store_collections_dcp_test.cc
                    tests/module_tests/collections/evp_store_collections_eraser_test.cc
                    tests/module_tests/collections/evp_store_collections_test.cc

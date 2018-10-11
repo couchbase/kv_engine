@@ -50,6 +50,7 @@ std::string dcp_last_value;
 std::string dcp_last_key;
 vbucket_state_t dcp_last_vbucket_state;
 protocol_binary_datatype_t dcp_last_datatype;
+mcbp::systemevent::id dcp_last_system_event;
 
 static EngineIface* engine_handle = nullptr;
 static EngineIface* engine_handle_v1 = nullptr;
@@ -332,6 +333,15 @@ static ENGINE_ERROR_CODE mock_system_event(gsl::not_null<const void*> cookie,
                                            cb::const_byte_buffer eventData) {
     (void)cookie;
     clear_dcp_data();
+    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
+    dcp_last_system_event = event;
+    if (event == mcbp::systemevent::id::CreateCollection ||
+        event == mcbp::systemevent::id::DeleteCollection) {
+        dcp_last_collection_id =
+                reinterpret_cast<const Collections::SystemEventDcpData*>(
+                        eventData.data())
+                        ->cid.to_host();
+    }
     return ENGINE_SUCCESS;
 }
 
