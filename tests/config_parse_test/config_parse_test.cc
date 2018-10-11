@@ -53,7 +53,15 @@ public:
      * Convenience method - returns a config JSON object with an "interfaces"
      * array containing single interface object with the given properties.
      */
-    unique_cJSON_ptr makeInterfacesConfig(const char* protocolMode);
+    nlohmann::json makeInterfacesConfig(const char* protocolMode);
+    template <typename T = nlohmann::json::exception>
+    void expectFail(const nlohmann::json& json) {
+        // TODO MB-30041 Remove after refactoring settings
+        // Make a cJSON ptr from our nlohmann json
+        unique_cJSON_ptr ptr{cJSON_Parse(json.dump().c_str())};
+
+        EXPECT_THROW(Settings settings(ptr), T) << to_string(ptr, true);
+    }
 
     template <typename T = std::invalid_argument>
     void expectFail(const unique_cJSON_ptr& ptr) {
@@ -228,16 +236,16 @@ void SettingsTest::nonObjectValuesShouldFail(const std::string& tag) {
     expectFail(obj);
 }
 
-unique_cJSON_ptr SettingsTest::makeInterfacesConfig(const char* protocolMode) {
-    unique_cJSON_ptr array(cJSON_CreateArray());
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "ipv4", protocolMode);
-    cJSON_AddStringToObject(obj.get(), "ipv6", protocolMode);
+nlohmann::json SettingsTest::makeInterfacesConfig(const char* protocolMode) {
+    nlohmann::json obj;
+    obj["ipv4"] = protocolMode;
+    obj["ipv6"] = protocolMode;
 
-    cJSON_AddItemToArray(array.get(), obj.release());
+    nlohmann::json arr;
+    arr.push_back(obj);
 
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    cJSON_AddItemToObject(root.get(), "interfaces", array.release());
+    nlohmann::json root;
+    root["interfaces"] = arr;
     return root;
 }
 
@@ -398,50 +406,39 @@ TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
 TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     nonArrayValuesShouldFail("interfaces");
 
-    unique_cJSON_ptr array(cJSON_CreateArray());
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-
     char pattern[] = {"ssl.XXXXXX"};
     EXPECT_NE(nullptr, cb_mktemp(pattern));
 
-    cJSON_AddNumberToObject(obj.get(), "port", 0);
-    cJSON_AddTrueToObject(obj.get(), "ipv4");
-    cJSON_AddTrueToObject(obj.get(), "ipv6");
-    cJSON_AddNumberToObject(obj.get(), "maxconn", 10);
-    cJSON_AddNumberToObject(obj.get(), "backlog", 10);
-    cJSON_AddStringToObject(obj.get(), "host", "*");
-    cJSON_AddStringToObject(obj.get(), "protocol", "memcached");
-    cJSON_AddTrueToObject(obj.get(), "management");
+    nlohmann::json obj;
+    obj["port"] = 0;
+    obj["ipv4"] = true;
+    obj["ipv6"] = true;
+    obj["maxconn"] = 10;
+    obj["backlog"] = 10;
+    obj["host"] = "*";
+    obj["protocol"] = "memcached";
+    obj["management"] = true;
 
-    unique_cJSON_ptr ssl(cJSON_CreateObject());
-    cJSON_AddStringToObject(ssl.get(), "cert", pattern);
-    cJSON_AddItemToObject(obj.get(), "ssl", ssl.release());
+    nlohmann::json ssl;
+    ssl["cert"] = pattern;
+    obj["ssl"] = ssl;
 
-    cJSON_AddItemToArray(array.get(), obj.release());
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    cJSON_AddItemToObject(root.get(), "interfaces", array.release());
+    nlohmann::json array;
+    array.push_back(obj);
 
-    expectFail<nlohmann::json::exception>(root);
+    nlohmann::json root;
+    root["interfaces"] = array;
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "port", 0);
-    cJSON_AddTrueToObject(obj.get(), "ipv4");
-    cJSON_AddTrueToObject(obj.get(), "ipv6");
-    cJSON_AddNumberToObject(obj.get(), "maxconn", 10);
-    cJSON_AddNumberToObject(obj.get(), "backlog", 10);
-    cJSON_AddStringToObject(obj.get(), "host", "*");
-    cJSON_AddStringToObject(obj.get(), "protocol", "memcached");
-    cJSON_AddTrueToObject(obj.get(), "management");
+    expectFail(root);
 
-    ssl.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(ssl.get(), "key", pattern);
-    cJSON_AddItemToObject(obj.get(), "ssl", ssl.release());
+    ssl.clear();
+    ssl["key"] = pattern;
+    obj["ssl"] = ssl;
+    array.clear();
+    array.push_back(obj);
+    root["interfaces"] = array;
 
-    array.reset(cJSON_CreateArray());
-    cJSON_AddItemToArray(array.get(), obj.release());
-    root.reset(cJSON_CreateObject());
-    cJSON_AddItemToObject(root.get(), "interfaces", array.release());
-    expectFail<nlohmann::json::exception>(root);
+    expectFail(root);
 
     cb::io::rmrf(pattern);
 }
@@ -503,15 +500,15 @@ TEST_F(SettingsTest, InterfacesProtocolRequired) {
 /// Test that invalid numeric values for ipv4 & ipv6 protocols are rejected.
 TEST_F(SettingsTest, InterfacesInvalidProtocolNumber) {
     // Numbers not permitted
-    unique_cJSON_ptr array(cJSON_CreateArray());
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "ipv4", 1);
-    cJSON_AddNumberToObject(obj.get(), "ipv6", 2);
+    nlohmann::json obj;
+    obj["ipv4"] = 1;
+    obj["ipv6"] = 2;
 
-    cJSON_AddItemToArray(array.get(), obj.release());
+    nlohmann::json array;
+    array.push_back(obj);
 
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    cJSON_AddItemToObject(root.get(), "interfaces", array.release());
+    nlohmann::json root;
+    root["interfaces"] = array;
 
     expectFail<nlohmann::json::exception>(root);
 }
@@ -521,7 +518,7 @@ TEST_F(SettingsTest, InterfacesInvalidProtocolString) {
     // Strings not in (off, optional, required) not permitted.
     auto root = makeInterfacesConfig("sometimes");
 
-    expectFail(root);
+    expectFail<std::invalid_argument>(root);
 }
 
 TEST_F(SettingsTest, ParseLoggerSettings) {

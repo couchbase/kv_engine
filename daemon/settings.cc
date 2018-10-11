@@ -73,6 +73,10 @@ Settings::Settings(const unique_cJSON_ptr& json)
     reconfigure(json);
 }
 
+Settings::Settings(const nlohmann::json& json) : Settings() {
+    reconfigure(unique_cJSON_ptr{cJSON_Parse(json.dump().c_str())});
+}
+
 /**
  * Handle deprecated tags in the settings by simply ignoring them
  */

@@ -59,6 +59,8 @@ public:
      */
     explicit Settings(const unique_cJSON_ptr& json);
 
+    explicit Settings(const nlohmann::json& json);
+
     Settings(const Settings&) = delete;
 
 
