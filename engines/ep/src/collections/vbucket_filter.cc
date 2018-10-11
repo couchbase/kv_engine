@@ -80,6 +80,18 @@ void Filter::constructFromJson(cb::const_char_buffer json,
                         cb::to_string(json) + " json::exception:" + e.what());
     }
 
+    const auto streamIdObject = parsed.find(StreamIdKey);
+    if (streamIdObject != parsed.end()) {
+        auto sid = cb::getJsonObject(
+                parsed, StreamIdKey, StreamIdType, "Filter::constructFromJson");
+        streamId = cb::mcbp::DcpStreamId(sid.get<uint16_t>());
+        if (streamId == cb::mcbp::DcpStreamId(0)) {
+            throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                                   "Filter::constructFromJson stream-id 0:" +
+                                           cb::to_string(json));
+        }
+    }
+
     const auto uidObject = parsed.find(UidKey);
     // Check if a uid is specified and parse it
     if (uidObject != parsed.end()) {
@@ -376,6 +388,10 @@ void Filter::addStats(ADD_STAT add_stat,
         add_casted_stat(buffer, getUid(), add_stat, c);
 
         checked_snprintf(
+                buffer, bsize, "%s:filter_%d_sid", prefix.c_str(), vb.get());
+        add_casted_stat(buffer, streamId.to_string(), add_stat, c);
+
+        checked_snprintf(
                 buffer, bsize, "%s:filter_%d_size", prefix.c_str(), vb.get());
         add_casted_stat(buffer, filter.size(), add_stat, c);
     } catch (std::exception& error) {
@@ -403,6 +419,7 @@ void Filter::dump() const {
 const char* Filter::CollectionsKey = "collections";
 const char* Filter::ScopeKey = "scope";
 const char* Filter::UidKey = "uid";
+const char* Filter::StreamIdKey = "sid";
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter) {
     os << "VBucket::Filter"
@@ -414,6 +431,7 @@ std::ostream& operator<<(std::ostream& os, const Filter& filter) {
         os << ", uid:" << *filter.uid;
     }
 
+    os << ", sid:" << filter.streamId;
     os << ", filter.size:" << filter.filter.size() << std::endl;
     for (auto& cid : filter.filter) {
         os << "filter:entry:0x" << std::hex << cid << std::endl;

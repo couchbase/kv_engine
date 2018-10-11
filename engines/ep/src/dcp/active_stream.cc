@@ -36,7 +36,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            IncludeValue includeVal,
                            IncludeXattrs includeXattrs,
                            IncludeDeleteTime includeDeleteTime,
-                           Collections::VB::Filter filter)
+                           Collections::VB::Filter f)
     : Stream(n,
              flags,
              opaque,
@@ -65,9 +65,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeleteTime(includeDeleteTime),
-      includeCollectionID(filter.isLegacyFilter()
-                                  ? DocKeyEncodesCollectionId::No
-                                  : DocKeyEncodesCollectionId::Yes),
+      includeCollectionID(f.isLegacyFilter() ? DocKeyEncodesCollectionId::No
+                                             : DocKeyEncodesCollectionId::Yes),
       enableExpiryOutput(p->isDCPExpiryEnabled() ? EnableExpiryOutput::Yes
                                                  : EnableExpiryOutput::No),
       snappyEnabled(p->isSnappyEnabled() ? SnappyEnabled::Yes
@@ -75,7 +74,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       forceValueCompression(p->isForceValueCompressionEnabled()
                                     ? ForceValueCompression::Yes
                                     : ForceValueCompression::No),
-      filter(std::move(filter)) {
+      filter(std::move(f)),
+      sid(filter.getStreamId()) {
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
@@ -92,13 +92,19 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 
     log(spdlog::level::info,
         "({}) Creating {}stream with start seqno {} and end seqno {}; "
-        "requested end seqno was {}, collections-manifest uid:{}",
+        "requested end seqno was {}, collections-manifest uid:{}, {}",
         vbucket.getId(),
         type,
         st_seqno,
         end_seqno_,
         en_seqno,
-        filter.getUid());
+        filter.getUid(),
+        sid);
+
+    // name must be unique to ensure we get our own cursor
+    if (sid) {
+        name_ += sid.to_string();
+    }
 
     backfillItems.memory = 0;
     backfillItems.disk = 0;

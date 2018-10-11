@@ -1195,6 +1195,11 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
 void DcpProducer::addTakeoverStats(ADD_STAT add_stat,
                                    const void* c,
                                    const VBucket& vb) {
+    // Only do takeover stats on 'traditional' streams
+    if (multipleStreamRequests == MultipleStreamRequests::Yes) {
+        return;
+    }
+
     auto rv = streams.find(vb.getId());
 
     if (rv.second) {
@@ -1592,8 +1597,8 @@ bool DcpProducer::updateStreamsMap(Vbid vbid,
     if (found.second) {
         // vbid is already mapped found.first is a shared_ptr<StreamContainer>
         if (found.first) {
-            for (auto handle = found.first->wlock(); !handle.end();
-                 handle.next()) {
+            auto handle = found.first->wlock();
+            for (; !handle.end(); handle.next()) {
                 auto& sp = handle.get(); // get the shared_ptr<Stream>
                 if (sp->compareStreamId(sid)) {
                     // Error if found and active
@@ -1616,10 +1621,15 @@ bool DcpProducer::updateStreamsMap(Vbid vbid,
                 }
             }
 
-            // No support yet to push a new stream onto the container, so fail
-            throw std::logic_error(
-                    "DcpProducer::updateStreamsMap invalid state to add "
-                    "multiple streams");
+            if (multipleStreamRequests == MultipleStreamRequests::Yes) {
+                // If we're here the vbid is mapped so we must update the
+                // existing container
+                handle.push_front(stream);
+            } else {
+                throw std::logic_error(
+                        "DcpProducer::updateStreamsMap invalid state to add "
+                        "multiple streams");
+            }
         } else {
             throw std::logic_error("DcpProducer::updateStreamsMap " +
                                    vbid.to_string() + " is mapped to null");

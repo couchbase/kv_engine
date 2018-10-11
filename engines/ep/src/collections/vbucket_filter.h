@@ -161,7 +161,7 @@ public:
     std::string getUid() const;
 
     cb::mcbp::DcpStreamId getStreamId() const {
-        return {};
+        return streamId;
     }
 
     /**
@@ -232,6 +232,7 @@ protected:
     bool passthrough = false;
     bool systemEventsAllowed = false;
     boost::optional<Collections::ManifestUid> uid;
+    cb::mcbp::DcpStreamId streamId;
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
 
@@ -245,6 +246,9 @@ protected:
     static const char* UidKey;
     static constexpr nlohmann::json::value_t UidType =
             nlohmann::json::value_t::string;
+    static const char* StreamIdKey;
+    static constexpr nlohmann::json::value_t StreamIdType =
+            nlohmann::json::value_t::number_unsigned;
 };
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter);

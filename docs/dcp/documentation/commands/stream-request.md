@@ -2,10 +2,15 @@
 
 Sent by the consumer side to the producer specifying that the consumer wants to create a vbucket stream. In order to initial a stream for a vbucket the consumer must send the following command below. In order to initiate multiple stream the consumer needs to send multiple commands. The value specified in opaque in the stream request packet will be used as opaque field in all commands sent for the stream.
 
+* A stream-request can be configured to use collections by encoding a
+[JSON](stream-request-value.md) object in the request.
+* Stream-request resumption must also include a collection's manifest-UID in the
+[value](stream-request-value.md).
+
 The request:
 * Must have extras
 * Must not have key
-* Must not have value
+* [May have a value](stream-request-value.md)
 
 Extra looks like:
 
@@ -301,6 +306,15 @@ This error code may be returned for one of the following reason. Check the serve
 **PROTOCOL_BINARY_RESPONSE_ENOMEM (0x82)**
 
 If the failover log could not be sent to due a failure to allocate memory.
+
+**PROTOCOL_BINARY_RESPONSE_MANIFEST_IS_AHEAD (0x8b)**
+
+The client's manifest `uid` (encoded in the [stream-request value](stream-request-value.md))
+is ahead of the vbucket's. Provided that the client observed the manifest uid from
+the cluster, the vbucket it is trying to request should catch up with the uid the
+client is using.
+
+The client should briefly pause and then retry the stream-request.
 
 **(Disconnect)**
 

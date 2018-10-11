@@ -373,6 +373,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/checkpoint_utils.h
                    tests/module_tests/collections/collections_dcp_test.cc
                    tests/module_tests/collections/evp_store_collections_dcp_test.cc
+                   tests/module_tests/collections/evp_store_collections_dcp_stream_test.cc
                    tests/module_tests/collections/evp_store_collections_eraser_test.cc
                    tests/module_tests/collections/evp_store_collections_test.cc
                    tests/module_tests/collections/filter_test.cc
