@@ -45,7 +45,7 @@ static EXTENSION_LOGGER_DESCRIPTOR descriptor;
  * TODO: Remove the duplication in the future, by (maybe) moving
  *       the const to a header file.
  */
-static const std::string log_pattern{"%Y-%m-%dT%T.%fZ %l %v"};
+static const std::string log_pattern{"%Y-%m-%dT%T.%f%z %l %v"};
 
 spdlog::level::level_enum cb::logger::convertToSpdSeverity(
         EXTENSION_LOG_LEVEL sev) {
