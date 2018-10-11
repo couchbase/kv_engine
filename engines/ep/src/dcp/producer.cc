@@ -212,6 +212,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
 
     enableExtMetaData = false;
     forceValueCompression = false;
+    enableExpiryOpcode = false;
 
     // Cursor dropping is disabled for replication connections by default,
     // but will be enabled through a control message to support backward
@@ -835,6 +836,17 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
            This is a one time setting and there is no point giving the client an
            option to toggle it back mid way during the connection */
         return ENGINE_SUCCESS;
+    } else if (strncmp(param, "enable_expiry_opcode", nkey) == 0) {
+        if (valueStr == "true") {
+            // Expiry opcode uses the same encoding as deleteV2 (includes
+            // delete time); therefore a client enabling expiry_opcode also
+            // implicitly enables includeDeletetime.
+            includeDeleteTime = IncludeDeleteTime::Yes;
+            enableExpiryOpcode = true;
+        } else {
+            enableExpiryOpcode = false;
+        }
+        return ENGINE_SUCCESS;
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
@@ -988,6 +1000,10 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("send_stream_end_on_client_close_stream",
             sendStreamEndOnClientStreamClose ? "true" : "false",
             add_stat, c);
+    addStat("enable_expiry_opcode_output",
+            enableExpiryOpcode ? "true" : "false",
+            add_stat,
+            c);
 
     // Possible that the producer has had its streams closed and hence doesn't
     // have a backfill manager anymore.

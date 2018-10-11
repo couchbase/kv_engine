@@ -78,6 +78,14 @@ public:
         return noopCtx.enabled;
     }
 
+    void setDCPExpiry(bool value) {
+        enableExpiryOpcode = value;
+    }
+
+    bool getDCPExpiry() const {
+        return enableExpiryOpcode;
+    }
+
     /**
      * Create the ActiveStreamCheckpointProcessorTask and assign to
      * checkpointCreator->task

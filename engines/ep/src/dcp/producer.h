@@ -188,6 +188,10 @@ public:
         lastReceiveTime = time;
     }
 
+    bool isDCPExpiryEnabled() const {
+        return enableExpiryOpcode;
+    }
+
     /**
      * Tracks the amount of outstanding sent data for a Dcp Producer, alongside
      * how many bytes have been acknowledged by the peer connection.
@@ -377,6 +381,7 @@ protected:
     Couchbase::RelaxedAtomic<bool> supportsCursorDropping;
     Couchbase::RelaxedAtomic<bool> sendStreamEndOnClientStreamClose;
     Couchbase::RelaxedAtomic<bool> supportsHifiMFU;
+    Couchbase::RelaxedAtomic<bool> enableExpiryOpcode;
 
     /// Timestamp of when we last transmitted a message to our peer.
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
