@@ -146,7 +146,9 @@ public:
      * @return ENGINE_SUCCESS upon a successful close
      *         ENGINE_NOT_MY_VBUCKET the vbucket stream doesn't exist
      */
-    ENGINE_ERROR_CODE closeStream(uint32_t opaque, Vbid vbucket) override;
+    ENGINE_ERROR_CODE closeStream(uint32_t opaque,
+                                  Vbid vbucket,
+                                  DcpStreamId sid = {}) override;
 
     void notifyStreamReady(Vbid vbucket);
 
@@ -395,10 +397,12 @@ protected:
                                      std::unique_ptr<Item> itmCpy,
                                      ENGINE_ERROR_CODE ret);
     /**
-     * Set the dead-status of the stream(s) associated with the specified
+     * Set the dead-status of the specified stream associated with the specified
      * vbucket.
      */
-    bool setStreamsDeadStatus(Vbid vbid, end_stream_status_t status);
+    bool setStreamDeadStatus(Vbid vbid,
+                             DcpStreamId sid,
+                             end_stream_status_t status);
 
     /**
      * The StreamContainer stores the Stream via a shared_ptr, this is because
@@ -425,7 +429,9 @@ protected:
      * @throws engine_error if an active stream already exists or logic_error
      *         if the update is not possible.
      */
-    bool updateStreamsMap(Vbid vbid, std::shared_ptr<Stream>& stream);
+    bool updateStreamsMap(Vbid vbid,
+                          DcpStreamId sid,
+                          std::shared_ptr<Stream>& stream);
 
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;

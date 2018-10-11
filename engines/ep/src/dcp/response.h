@@ -27,6 +27,7 @@
 #include "item.h"
 #include "systemevent.h"
 
+#include <memcached/dcp_stream_id.h>
 #include <memcached/protocol_binary.h>
 #include <memory>
 
@@ -44,8 +45,9 @@ public:
         SystemEvent
     };
 
-    DcpResponse(Event event, uint32_t opaque)
-        : opaque_(opaque), event_(event) {}
+    DcpResponse(Event event, uint32_t opaque, DcpStreamId sid)
+        : opaque_(opaque), event_(event), sid(sid) {
+    }
 
     virtual ~DcpResponse() {}
 
@@ -113,9 +115,14 @@ public:
 
     const char* to_string() const;
 
+    DcpStreamId getStreamId() const {
+        return sid;
+    }
+
 private:
     uint32_t opaque_;
     Event event_;
+    DcpStreamId sid;
 };
 
 std::ostream& operator<<(std::ostream& os, const DcpResponse& r);
@@ -130,7 +137,7 @@ public:
                   uint64_t vbucketUUID,
                   uint64_t snapStartSeqno,
                   uint64_t snapEndSeqno)
-        : DcpResponse(Event::StreamReq, opaque),
+        : DcpResponse(Event::StreamReq, opaque, {}),
           startSeqno_(startSeqno),
           endSeqno_(endSeqno),
           vbucketUUID_(vbucketUUID),
@@ -191,7 +198,7 @@ public:
     AddStreamResponse(uint32_t opaque,
                       uint32_t streamOpaque,
                       cb::mcbp::Status status)
-        : DcpResponse(Event::AddStream, opaque),
+        : DcpResponse(Event::AddStream, opaque, {}),
           streamOpaque_(streamOpaque),
           status_(status) {
     }
@@ -220,7 +227,7 @@ private:
 class SnapshotMarkerResponse : public DcpResponse {
 public:
     SnapshotMarkerResponse(uint32_t opaque, cb::mcbp::Status status)
-        : DcpResponse(Event::SnapshotMarker, opaque), status_(status) {
+        : DcpResponse(Event::SnapshotMarker, opaque, {}), status_(status) {
     }
 
     cb::mcbp::Status getStatus() const {
@@ -240,7 +247,7 @@ private:
 class SetVBucketStateResponse : public DcpResponse {
 public:
     SetVBucketStateResponse(uint32_t opaque, cb::mcbp::Status status)
-        : DcpResponse(Event::SetVbucket, opaque), status_(status) {
+        : DcpResponse(Event::SetVbucket, opaque, {}), status_(status) {
     }
 
     cb::mcbp::Status getStatus() const {
@@ -259,8 +266,11 @@ private:
 
 class StreamEndResponse : public DcpResponse {
 public:
-    StreamEndResponse(uint32_t opaque, end_stream_status_t flags, Vbid vbucket)
-        : DcpResponse(Event::StreamEnd, opaque),
+    StreamEndResponse(uint32_t opaque,
+                      end_stream_status_t flags,
+                      Vbid vbucket,
+                      DcpStreamId sid)
+        : DcpResponse(Event::StreamEnd, opaque, sid),
           flags_(statusToFlags(flags)),
           vbucket_(vbucket) {
     }
@@ -293,8 +303,11 @@ private:
 
 class SetVBucketState : public DcpResponse {
 public:
-    SetVBucketState(uint32_t opaque, Vbid vbucket, vbucket_state_t state)
-        : DcpResponse(Event::SetVbucket, opaque),
+    SetVBucketState(uint32_t opaque,
+                    Vbid vbucket,
+                    vbucket_state_t state,
+                    DcpStreamId sid)
+        : DcpResponse(Event::SetVbucket, opaque, sid),
           vbucket_(vbucket),
           state_(state) {
     }
@@ -324,8 +337,9 @@ public:
                    Vbid vbucket,
                    uint64_t start_seqno,
                    uint64_t end_seqno,
-                   uint32_t flags)
-        : DcpResponse(Event::SnapshotMarker, opaque),
+                   uint32_t flags,
+                   DcpStreamId sid)
+        : DcpResponse(Event::SnapshotMarker, opaque, sid),
           vbucket_(vbucket),
           start_seqno_(start_seqno),
           end_seqno_(end_seqno),
@@ -379,13 +393,15 @@ public:
                      IncludeXattrs includeXattrs,
                      IncludeDeleteTime includeDeleteTime,
                      DocKeyEncodesCollectionId includeCollectionID,
-                     EnableExpiryOutput enableExpiryOut)
+                     EnableExpiryOutput enableExpiryOut,
+                     DcpStreamId sid)
         : DcpResponse(item->isDeleted()
                               ? ((item->deletionSource() == DeleteSource::TTL)
                                          ? Event::Expiration
                                          : Event::Deletion)
                               : Event::Mutation,
-                      opaque),
+                      opaque,
+                      sid),
           item_(std::move(item)),
           includeValue(includeVal),
           includeXattributes(includeXattrs),
@@ -489,14 +505,16 @@ public:
                             IncludeXattrs includeXattrs,
                             IncludeDeleteTime includeDeleteTime,
                             DocKeyEncodesCollectionId includeCollectionID,
-                            ExtendedMetaData* e)
+                            ExtendedMetaData* e,
+                            DcpStreamId sid)
         : MutationResponse(item,
                            opaque,
                            includeVal,
                            includeXattrs,
                            includeDeleteTime,
                            includeCollectionID,
-                           EnableExpiryOutput::Yes),
+                           EnableExpiryOutput::Yes,
+                           sid),
           emd(e) {
     }
 
@@ -508,7 +526,8 @@ public:
                            response.getIncludeXattrs(),
                            response.getIncludeDeleteTime(),
                            response.getDocKeyEncodesCollectionId(),
-                           response.getEnableExpiryOutput()),
+                           response.getEnableExpiryOutput(),
+                           response.getStreamId()),
           emd(nullptr) {
     }
 
@@ -531,8 +550,8 @@ protected:
  */
 class SystemEventMessage : public DcpResponse {
 public:
-    SystemEventMessage(uint32_t opaque)
-        : DcpResponse(Event::SystemEvent, opaque) {
+    SystemEventMessage(uint32_t opaque, DcpStreamId sid)
+        : DcpResponse(Event::SystemEvent, opaque, sid) {
     }
     // baseMsgBytes is the unpadded size of the
     // protocol_binary_request_dcp_system_event::body struct
@@ -560,7 +579,7 @@ public:
                                mcbp::systemevent::version version,
                                cb::const_byte_buffer _key,
                                cb::const_byte_buffer _eventData)
-        : SystemEventMessage(opaque),
+        : SystemEventMessage(opaque, {}),
           event(ev),
           bySeqno(seqno),
           version(version),
@@ -624,7 +643,7 @@ public:
      *         queued_item data.
      */
     static std::unique_ptr<SystemEventProducerMessage> make(
-            uint32_t opaque, const queued_item& item);
+            uint32_t opaque, const queued_item& item, DcpStreamId sid);
 
     uint32_t getMessageSize() const override {
         return SystemEventMessage::baseMsgBytes + getKey().size() +
@@ -664,8 +683,10 @@ public:
     }
 
 protected:
-    SystemEventProducerMessage(uint32_t opaque, const queued_item& itm)
-        : SystemEventMessage(opaque), item(itm) {
+    SystemEventProducerMessage(uint32_t opaque,
+                               const queued_item& itm,
+                               DcpStreamId sid)
+        : SystemEventMessage(opaque, sid), item(itm) {
     }
 
     queued_item item;
@@ -675,8 +696,9 @@ class CollectionCreateProducerMessage : public SystemEventProducerMessage {
 public:
     CollectionCreateProducerMessage(uint32_t opaque,
                                     const queued_item& itm,
-                                    const Collections::CreateEventData& data)
-        : SystemEventProducerMessage(opaque, itm),
+                                    const Collections::CreateEventData& data,
+                                     DcpStreamId sid)
+        : SystemEventProducerMessage(opaque, itm, sid),
           key(data.name),
           eventData{data} {
     }
@@ -705,8 +727,9 @@ public:
     CollectionCreateWithMaxTtlProducerMessage(
             uint32_t opaque,
             const queued_item& itm,
-            const Collections::CreateEventData& data)
-        : SystemEventProducerMessage(opaque, itm),
+            const Collections::CreateEventData& data,
+            DcpStreamId sid)
+        : SystemEventProducerMessage(opaque, itm, sid),
           key(data.name),
           eventData{data} {
     }
@@ -733,8 +756,9 @@ class CollectionDropProducerMessage : public SystemEventProducerMessage {
 public:
     CollectionDropProducerMessage(uint32_t opaque,
                                   const queued_item& itm,
-                                  const Collections::DropEventData& data)
-        : SystemEventProducerMessage(opaque, itm), eventData{data} {
+                                  const Collections::DropEventData& data,
+                                  DcpStreamId sid)
+        : SystemEventProducerMessage(opaque, itm, sid), eventData{data} {
     }
 
     cb::const_char_buffer getKey() const override {
@@ -759,8 +783,9 @@ class ScopeCreateProducerMessage : public SystemEventProducerMessage {
 public:
     ScopeCreateProducerMessage(uint32_t opaque,
                                const queued_item& itm,
-                               const Collections::CreateScopeEventData& data)
-        : SystemEventProducerMessage(opaque, itm),
+                               const Collections::CreateScopeEventData& data,
+                               DcpStreamId sid)
+        : SystemEventProducerMessage(opaque, itm, sid),
           key(data.name),
           eventData{data} {
     }
@@ -787,8 +812,9 @@ class ScopeDropProducerMessage : public SystemEventProducerMessage {
 public:
     ScopeDropProducerMessage(uint32_t opaque,
                              const queued_item& itm,
-                             const Collections::DropScopeEventData& data)
-        : SystemEventProducerMessage(opaque, itm), eventData{data} {
+                             const Collections::DropScopeEventData& data,
+                             DcpStreamId sid)
+        : SystemEventProducerMessage(opaque, itm, sid), eventData{data} {
     }
 
     cb::const_char_buffer getKey() const override {

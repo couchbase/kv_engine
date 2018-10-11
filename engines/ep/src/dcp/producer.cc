@@ -509,7 +509,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
             static_cast<ActiveStream*>(s.get())->setActive();
         }
 
-        add_vb_conn_map = updateStreamsMap(vbucket, s);
+        add_vb_conn_map = updateStreamsMap(vbucket, filter.getStreamId(), s);
     }
 
     // See MB-25820:  Ensure that callback is called only after all other
@@ -957,7 +957,9 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
     return false;
 }
 
-ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, Vbid vbucket) {
+ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque,
+                                           Vbid vbucket,
+                                           DcpStreamId sid) {
     lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -975,7 +977,13 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, Vbid vbucket) {
         if (rv.second) {
             // Vbucket is mapped, get exclusive access to the StreamContainer
             auto handle = rv.first->wlock();
-            stream = handle.get();
+            // Try and locate a matching stream
+            for (; !handle.end(); handle.next()) {
+                if (handle.get()->compareStreamId(sid)) {
+                    stream = handle.get();
+                    break;
+                }
+            }
 
             if (!sendStreamEndOnClientStreamClose) {
                 // Need to tidy up the map, we first call erase on the handle,
@@ -1173,7 +1181,7 @@ void DcpProducer::notifySeqnoAvailable(Vbid vbucket, uint64_t seqno) {
 
 void DcpProducer::closeStreamDueToVbStateChange(Vbid vbucket,
                                                 vbucket_state_t state) {
-    if (setStreamsDeadStatus(vbucket, END_STREAM_STATE)) {
+    if (setStreamDeadStatus(vbucket, {}, END_STREAM_STATE)) {
         logger->debug("({}) State changed to {}, closing active stream!",
                       vbucket,
                       VBucket::toString(state));
@@ -1181,7 +1189,7 @@ void DcpProducer::closeStreamDueToVbStateChange(Vbid vbucket,
 }
 
 void DcpProducer::closeStreamDueToRollback(Vbid vbucket) {
-    if (setStreamsDeadStatus(vbucket, END_STREAM_ROLLBACK)) {
+    if (setStreamDeadStatus(vbucket, {}, END_STREAM_ROLLBACK)) {
         logger->debug(
                 "({}) Rollback occurred,"
                 "closing stream (downstream must rollback too)",
@@ -1206,11 +1214,16 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
     return false;
 }
 
-bool DcpProducer::setStreamsDeadStatus(Vbid vbid, end_stream_status_t status) {
+bool DcpProducer::setStreamDeadStatus(Vbid vbid,
+                                      DcpStreamId sid,
+                                      end_stream_status_t status) {
     auto rv = streams.find(vbid);
     if (rv.second) {
         for (auto handle = rv.first->rlock(); !handle.end(); handle.next()) {
-            handle.get()->setDead(status);
+            if (handle.get()->compareStreamId(sid)) {
+                handle.get()->setDead(status);
+                return true;
+            }
         }
         return true;
     }
@@ -1496,7 +1509,9 @@ DcpProducer::findStreams(Vbid vbid) {
     return nullptr;
 }
 
-bool DcpProducer::updateStreamsMap(Vbid vbid, std::shared_ptr<Stream>& stream) {
+bool DcpProducer::updateStreamsMap(Vbid vbid,
+                                   DcpStreamId sid,
+                                   std::shared_ptr<Stream>& stream) {
     std::lock_guard<StreamsMap> guard(streams);
     auto found = streams.find(vbid, guard);
 
@@ -1506,19 +1521,24 @@ bool DcpProducer::updateStreamsMap(Vbid vbid, std::shared_ptr<Stream>& stream) {
             for (auto handle = found.first->wlock(); !handle.end();
                  handle.next()) {
                 auto& sp = handle.get(); // get the shared_ptr<Stream>
-                if (sp->isActive()) {
-                    logger->warn(
-                            "({}) Stream request failed"
-                            " because a stream already exists for this "
-                            "vbucket",
-                            vbid);
-                    throw cb::engine_error(
-                            cb::engine_errc::key_already_exists,
-                            "Stream already exists for " + vbid.to_string());
-                } else {
-                    // Found a 'dead' stream, we can swap it
-                    handle.swap(stream);
-                    return false; // Do not update vb_conns_map
+                if (sp->compareStreamId(sid)) {
+                    // Error if found and active
+                    if (sp->isActive()) {
+                        logger->warn(
+                                "({}) Stream ({}) request failed"
+                                " because a stream already exists for this "
+                                "vbucket",
+                                vbid,
+                                sid.to_string());
+                        throw cb::engine_error(
+                                cb::engine_errc::key_already_exists,
+                                "Stream already exists for " +
+                                        vbid.to_string());
+                    } else {
+                        // Found a 'dead' stream, we can swap it
+                        handle.swap(stream);
+                        return false; // Do not update vb_conns_map
+                    }
                 }
             }
 

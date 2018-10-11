@@ -277,7 +277,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
             startSeqno,
             endSeqno);
         pushToReadyQ(std::make_unique<SnapshotMarker>(
-                opaque_, vb_, startSeqno, endSeqno, MARKER_FLAG_DISK));
+                opaque_, vb_, startSeqno, endSeqno, MARKER_FLAG_DISK, sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
         if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
@@ -544,7 +544,7 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase() {
         if (producer->bufferLogInsert(SetVBucketState::baseMsgBytes)) {
             transitionState(StreamState::TakeoverWait);
             return std::make_unique<SetVBucketState>(
-                    opaque_, vb_, takeoverState);
+                    opaque_, vb_, takeoverState, sid);
         }
     }
     return nullptr;
@@ -924,7 +924,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                       includeXattributes,
                                                       includeDeleteTime,
                                                       includeCollectionID,
-                                                      enableExpiryOutput);
+                                                      enableExpiryOutput,
+                                                      sid);
         }
 
         // Item unmodified - construct response from original.
@@ -934,9 +935,10 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                   includeXattributes,
                                                   includeDeleteTime,
                                                   includeCollectionID,
-                                                  enableExpiryOutput);
+                                                  enableExpiryOutput,
+                                                  sid);
     }
-    return SystemEventProducerMessage::make(opaque_, item);
+    return SystemEventProducerMessage::make(opaque_, item, sid);
 }
 
 void ActiveStream::processItems(std::vector<queued_item>& items,
@@ -1037,7 +1039,7 @@ void ActiveStream::snapshot(std::deque<std::unique_ptr<DcpResponse>>& items,
             firstMarkerSent = true;
         }
         pushToReadyQ(std::make_unique<SnapshotMarker>(
-                opaque_, vb_, snapStart, snapEnd, flags));
+                opaque_, vb_, snapStart, snapEnd, flags, sid));
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
     }
 
@@ -1081,8 +1083,8 @@ void ActiveStream::endStream(end_stream_status_t reason) {
         }
         transitionState(StreamState::Dead);
         if (reason != END_STREAM_DISCONNECTED) {
-            pushToReadyQ(
-                    std::make_unique<StreamEndResponse>(opaque_, reason, vb_));
+            pushToReadyQ(std::make_unique<StreamEndResponse>(
+                    opaque_, reason, vb_, sid));
         }
         VBucketPtr vb = engine->getVBucket(vb_);
 

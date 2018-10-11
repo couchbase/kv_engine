@@ -22,6 +22,7 @@
 #include "cursor.h"
 #include "dcp/dcp-types.h"
 
+#include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
 
 #include <atomic>
@@ -133,6 +134,10 @@ public:
 
     void clear();
 
+    bool compareStreamId(DcpStreamId id) const {
+        return id == this->id;
+    }
+
 protected:
     // The StreamState is protected as it needs to be accessed by sub-classes
     enum class StreamState {
@@ -190,6 +195,8 @@ protected:
     const static uint64_t dcpMaxSeqno;
 
     Cursor noCursor;
+
+    DcpStreamId id;
 
 private:
     /* readyQueueMemory tracks the memory occupied by elements

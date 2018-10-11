@@ -28,6 +28,8 @@
 #include "dcp/ready-queue.h"
 #include "globaltask.h"
 
+#include <memcached/dcp_stream_id.h>
+
 #include <relaxed_atomic.h>
 
 #include <list>
@@ -86,7 +88,9 @@ public:
                                 Vbid vbucket,
                                 uint32_t flags) override;
 
-    ENGINE_ERROR_CODE closeStream(uint32_t opaque, Vbid vbucket) override;
+    ENGINE_ERROR_CODE closeStream(uint32_t opaque,
+                                  Vbid vbucket,
+                                  DcpStreamId sid = {}) override;
 
     ENGINE_ERROR_CODE streamEnd(uint32_t opaque,
                                 Vbid vbucket,

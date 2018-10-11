@@ -127,7 +127,7 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
 }
 
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
-        uint32_t opaque, const queued_item& item) {
+        uint32_t opaque, const queued_item& item, DcpStreamId sid) {
     // Always ensure decompressed as we are about to use the value
     item->decompressValue();
     switch (SystemEvent(item->getFlags())) {
@@ -141,11 +141,11 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                 return std::unique_ptr<
                         CollectionCreateWithMaxTtlProducerMessage>{
                         new CollectionCreateWithMaxTtlProducerMessage(
-                                opaque, item, data)};
+                                opaque, item, data, sid)};
             } else {
                 return std::unique_ptr<CollectionCreateProducerMessage>{
                         new CollectionCreateProducerMessage(
-                                opaque, item, data)};
+                                opaque, item, data, sid)};
             }
         } else {
             // Note: constructor is private and make_unique is a pain to make
@@ -155,7 +155,8 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                             opaque,
                             item,
                             Collections::VB::Manifest::getDropEventData(
-                                    {item->getData(), item->getNBytes()}))};
+                                    {item->getData(), item->getNBytes()}),
+                            sid)};
         }
     }
     case SystemEvent::Scope: {
@@ -165,14 +166,16 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                             opaque,
                             item,
                             Collections::VB::Manifest::getCreateScopeEventData(
-                                    {item->getData(), item->getNBytes()}))};
+                                    {item->getData(), item->getNBytes()}),
+                            sid)};
         } else {
             return std::unique_ptr<ScopeDropProducerMessage>{
                     new ScopeDropProducerMessage(
                             opaque,
                             item,
                             Collections::VB::Manifest::getDropScopeEventData(
-                                    {item->getData(), item->getNBytes()}))};
+                                    {item->getData(), item->getNBytes()}),
+                            sid)};
         }
     }
     }

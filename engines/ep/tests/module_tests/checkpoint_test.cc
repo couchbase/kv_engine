@@ -1088,7 +1088,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
 
     // 1) the consumer receives the snapshot-marker
     SnapshotMarker snapshotMarker(
-            0 /* opaque */, vbid, snapshotStart, snapshotEnd, flags);
+            0 /* opaque */, vbid, snapshotStart, snapshotEnd, flags, {});
     passiveStream->processMarker(&snapshotMarker);
 
     // We must have 1 open checkpoint with id=0
@@ -1207,7 +1207,8 @@ TEST_F(SingleThreadedCheckpointTest,
                                               vbid,
                                               snapshotStart,
                                               diskSnapshotEnd,
-                                              flags);
+                                              flags,
+                                              {});
                 passiveStream->processMarker(&snapshotMarker);
                 processMutations(
                         *passiveStream, snapshotStart, diskSnapshotEnd);
@@ -1215,8 +1216,12 @@ TEST_F(SingleThreadedCheckpointTest,
             }
 
             // 1) the consumer receives the snapshot-marker
-            SnapshotMarker snapshotMarker(
-                    0 /* opaque */, vbid, snapshotStart, snapshotEnd, flags);
+            SnapshotMarker snapshotMarker(0 /* opaque */,
+                                          vbid,
+                                          snapshotStart,
+                                          snapshotEnd,
+                                          flags,
+                                          {});
             passiveStream->processMarker(&snapshotMarker);
 
             // 2) the consumer receives the mutations until (snapshotEnd -1)

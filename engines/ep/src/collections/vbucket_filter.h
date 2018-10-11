@@ -20,6 +20,7 @@
 #include "collections/collections_types.h"
 #include "item.h"
 
+#include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
 #include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>
@@ -158,6 +159,10 @@ public:
     }
 
     std::string getUid() const;
+
+    DcpStreamId getStreamId() const {
+        return {};
+    }
 
     /**
      * Dump this to std::cerr

@@ -3822,7 +3822,8 @@ TEST_F(SingleThreadedStreamTest, MB31410) {
                                   vbid,
                                   snapStart,
                                   snapEnd,
-                                  dcp_marker_flag_t::MARKER_FLAG_MEMORY);
+                                  dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                                  {});
     passiveStream->processMarker(&snapshotMarker);
 
     // The consumer receives mutations.

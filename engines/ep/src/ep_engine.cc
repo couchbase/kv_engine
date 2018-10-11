@@ -1215,7 +1215,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::close_stream(
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->closeStream(opaque, vbucket);
+        return conn->closeStream(opaque, vbucket, {/*no stream-id*/});
     }
     return ENGINE_DISCONNECT;
 }

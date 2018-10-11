@@ -341,4 +341,10 @@ private:
      * The filter the stream will use to decide which keys should be transmitted
      */
     Collections::VB::Filter filter;
+
+    /**
+     * A stream-ID which is defined if the producer is using enabled to allow
+     * many streams-per-vbucket
+     */
+    DcpStreamId sid;
 };
