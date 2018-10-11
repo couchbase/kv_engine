@@ -17,7 +17,6 @@
 
 #pragma once
 
-#include <cJSON.h>
 #include <memcached/mcd_util-visibility.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -45,21 +44,6 @@ struct MCD_UTIL_PUBLIC_API Settings {
      * Default constructor initialize the object to be in a disabled state
      */
     Settings() = default;
-
-    /**
-     * Initialize the Breakpad object from the specified JSON structure
-     * which looks like:
-     *
-     *     {
-     *         "enabled" : true,
-     *         "minidump_dir" : "/var/crash",
-     *         "content" : "default"
-     *     }
-     *
-     * @param json The json to parse
-     * @throws std::invalid_argument if the json dosn't look as expected
-     */
-    explicit Settings(gsl::not_null<const cJSON*> json);
 
     /**
      * Initialize the Breakpad object from the specified JSON structure

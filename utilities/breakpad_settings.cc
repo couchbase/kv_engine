@@ -17,17 +17,12 @@
 #include "breakpad_settings.h"
 #include "json_utilities.h"
 
-#include <cJSON_utils.h>
 #include <platform/dirutils.h>
 
 #include <nlohmann/json.hpp>
 
 namespace cb {
 namespace breakpad {
-
-Settings::Settings(gsl::not_null<const cJSON*> json) {
-    Settings(nlohmann::json::parse(to_string(json)));
-}
 
 Settings::Settings(const nlohmann::json& json) {
     enabled = cb::jsonGet<bool>(json, "enabled");

@@ -20,6 +20,7 @@
 #include <getopt.h>
 #include <gtest/gtest.h>
 #include <logger/logger.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/platform.h>
 #include <system_error>
@@ -830,29 +831,28 @@ TEST_F(SettingsTest, SslMinimumProtocol) {
 TEST_F(SettingsTest, Breakpad) {
     nonObjectValuesShouldFail("breakpad");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
+    nlohmann::json json;
 
     char minidump_dir[] = {"minidump.XXXXXX"};
     EXPECT_NE(nullptr, cb_mktemp(minidump_dir));
     cb::io::rmrf(minidump_dir);
     cb::io::mkdirp(minidump_dir);
 
-    cJSON_AddTrueToObject(obj.get(), "enabled");
-    cJSON_AddStringToObject(obj.get(), "minidump_dir", minidump_dir);
+    json["enabled"] = true;
+    json["minidump_dir"] = minidump_dir;
 
     // Content is optional
-    EXPECT_NO_THROW(cb::breakpad::Settings settings(obj.get()));
+    EXPECT_NO_THROW(cb::breakpad::Settings settings(json));
 
     // But the minidump dir is mandatory
     cb::io::rmrf(minidump_dir);
-    EXPECT_THROW(cb::breakpad::Settings settings(obj.get()), std::system_error);
+    EXPECT_THROW(cb::breakpad::Settings settings(json), std::system_error);
     cb::io::mkdirp(minidump_dir);
 
-    cJSON_AddStringToObject(obj.get(), "content", "default");
-    EXPECT_NO_THROW(cb::breakpad::Settings settings(obj.get()));
-    cJSON_ReplaceItemInObject(obj.get(), "content", cJSON_CreateString("foo"));
-    EXPECT_THROW(cb::breakpad::Settings settings(obj.get()),
-                 std::invalid_argument);
+    json["content"] = "default";
+    EXPECT_NO_THROW(cb::breakpad::Settings settings(json));
+    json["content"] = "foo";
+    EXPECT_THROW(cb::breakpad::Settings settings(json), std::invalid_argument);
 
     cb::io::rmrf(minidump_dir);
 }
