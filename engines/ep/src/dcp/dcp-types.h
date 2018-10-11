@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 template <class S, class Pointer, class Deleter> class SingleThreadedRCPtr;
 template <class C> class RCPtr;
 
@@ -123,3 +125,9 @@ enum class ForceValueCompression : bool {
     Yes,
     No,
 };
+
+/**
+ * DeleteSource denotes the source of an item's deletion;
+ * either explicitly or TTL (expired).
+ */
+enum class DeleteSource : uint8_t { Explicit, TTL };

@@ -318,11 +318,24 @@ public:
         return deleted;
     }
 
-    void setDeleted() {
+    /**
+     * setDeleted controls the item's deleted flag.
+     * @param cause Denotes the source of the deletion.
+     */
+    void setDeleted(DeleteSource cause = DeleteSource::Explicit) {
         switch (op) {
         case queue_op::mutation:
-        case queue_op::system_event:
             deleted = 1; // true
+            deletionCause = static_cast<uint8_t>(cause);
+            break;
+        case queue_op::system_event:
+            if (cause == DeleteSource::TTL) {
+                std::logic_error(
+                        "Item::setDeleted should not expire a system_event " +
+                        to_string(op));
+            }
+            deleted = 1; // true
+            deletionCause = static_cast<uint8_t>(cause);
             break;
         case queue_op::flush:
         case queue_op::empty:
@@ -332,6 +345,16 @@ public:
             throw std::logic_error("Item::setDeleted cannot delete " +
                                    to_string(op));
         }
+    }
+
+    // Returns the cause of the item's deletion (Explicit or TTL [aka expiry])
+    DeleteSource deletionSource() {
+        if (!isDeleted()) {
+            throw std::logic_error(
+                    "Item::deletionSource cannot be called on "
+                    "an item that hasn't been deleted ");
+        }
+        return static_cast<DeleteSource>(deletionCause);
     }
 
     uint32_t getQueuedTime(void) const { return queuedTime; }
@@ -477,6 +500,7 @@ private:
     queue_op op;
     uint8_t nru  : 2;
     uint8_t deleted : 1;
+    uint8_t deletionCause : 1;
 
     // Keep a cached version of the datatype. It allows for using
     // "partial" items created from from the hashtable. Every time the
