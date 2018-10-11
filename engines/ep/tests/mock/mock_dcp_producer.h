@@ -117,9 +117,7 @@ public:
     /**
      * Finds the stream for a given vbucket
      */
-    std::shared_ptr<Stream> findStream(Vbid vbid) {
-        return DcpProducer::findStream(vbid);
-    }
+    std::shared_ptr<Stream> findStream(Vbid vbid);
 
     /**
      * Sets the backfill buffer size (max limit) to a particular value

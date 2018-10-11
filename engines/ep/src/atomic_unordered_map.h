@@ -316,6 +316,17 @@ public:
         return result.second;
     }
 
+    /**
+     * Attempts to insert the given key into the map, if it does not already
+     * exist.
+     *  Returns true if the element was inserted, or false if an element
+     *  with the given key already exists.
+     */
+    bool insert(const value_type& value, std::lock_guard<map_type>&) {
+        auto result = map.insert(value);
+        return result.second;
+    }
+
     /*
      * Locking
      *

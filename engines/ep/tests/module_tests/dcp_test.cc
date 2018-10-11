@@ -2459,7 +2459,7 @@ TEST_P(ConnectionTest, test_producer_no_stream_end_on_client_close_stream) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(&producers));
 
     /* Check that the stream is not found in the producer's stream map */
-    EXPECT_FALSE(producer->findStream(vbid));
+    EXPECT_FALSE(producer->findStreams(vbid));
 
     /* Disconnect the producer connection */
     connMap.disconnect(cookie);

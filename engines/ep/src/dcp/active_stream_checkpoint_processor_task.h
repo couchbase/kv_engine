@@ -64,7 +64,7 @@ public:
                   const void* c) const;
 
 private:
-    std::shared_ptr<ActiveStream> queuePop() {
+    std::shared_ptr<StreamContainer<std::shared_ptr<Stream>>> queuePop() {
         Vbid vbid = Vbid(0);
         {
             LockHolder lh(workQueueLock);
@@ -80,8 +80,7 @@ private:
            without acquiring workQueueLock */
         auto producer = producerPtr.lock();
         if (producer) {
-            return dynamic_pointer_cast<ActiveStream>(
-                    producer->findStream(vbid));
+            return producer->findStreams(vbid);
         }
         return nullptr;
     }

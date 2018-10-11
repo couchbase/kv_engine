@@ -42,15 +42,18 @@ bool ActiveStreamCheckpointProcessorTask::run() {
     // Setup that we will sleep forever when done.
     snooze(INT_MAX);
 
-    // Clear the notfification flag
+    // Clear the notification flag
     notified.store(false);
 
     size_t iterations = 0;
     do {
-        std::shared_ptr<ActiveStream> stream = queuePop();
+        auto streams = queuePop();
 
-        if (stream) {
-            stream->nextCheckpointItemTask();
+        if (streams) {
+            for (auto rh = streams->rlock(); !rh.end(); rh.next()) {
+                ActiveStream* as = static_cast<ActiveStream*>(rh.get().get());
+                as->nextCheckpointItemTask();
+            }
         } else {
             break;
         }
