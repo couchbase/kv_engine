@@ -136,12 +136,13 @@ extern "C" {
 
         // Issue a request with the unexpected large checkpoint id 100, which
         // will cause timeout.
-        check(checkpointPersistence(h, 100, Vbid(0)) == ENGINE_TMPFAIL,
+        checkeq(ENGINE_TMPFAIL, checkpointPersistence(h, 100, Vbid(0)),
               "Expected temp failure for checkpoint persistence request");
-        check(get_int_stat(h, "ep_chk_persistence_timeout") > 10,
-              "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be "
-              "greater"
-              " than 10 secs");
+        checklt(10,
+                get_int_stat(h, "ep_chk_persistence_timeout"),
+                "Expected CHECKPOINT_PERSISTENCE_TIMEOUT was adjusted to be "
+                "greater"
+                " than 10 secs");
 
         for (int j = 0; j < 10; ++j) {
             std::stringstream ss;
@@ -188,7 +189,7 @@ static enum test_result test_checkpoint_persistence(EngineIface* h) {
     int closed_chk_id =
             get_int_stat(h, "vb_0:last_closed_checkpoint_id", "checkpoint 0");
     // Request to prioritize persisting vbucket 0.
-    check(checkpointPersistence(h, closed_chk_id, Vbid(0)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, checkpointPersistence(h, closed_chk_id, Vbid(0)),
           "Failed to request checkpoint persistence");
 
     return SUCCESS;
@@ -198,8 +199,8 @@ extern "C" {
     static void wait_for_persistence_thread(void *arg) {
         auto* h = static_cast<EngineIface*>(arg);
 
-        check(checkpointPersistence(h, 100, Vbid(1)) == ENGINE_TMPFAIL,
-              "Expected temp failure for checkpoint persistence request");
+        checkeq(ENGINE_TMPFAIL, checkpointPersistence(h, 100, Vbid(1)),
+                "Expected temp failure for checkpoint persistence request");
     }
 }
 

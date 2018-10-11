@@ -162,7 +162,7 @@ bool test_setup(EngineIface* h) {
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
-    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, h->unknown_command(NULL, pkt, add_response),
           "Failed to enable data traffic");
     cb_free(pkt);
 
@@ -468,8 +468,7 @@ void check_key_value(EngineIface* h,
                                              info.value[0].iov_len};
     }
 
-    checkeq(vlen, payload.size(), "Value length mismatch");
-    check(memcmp(payload.data(), val, vlen) == 0, "Data mismatch");
+    checkeq(cb::const_char_buffer(val, vlen), payload, "Data mismatch");
 }
 
 bool isCompressionEnabled(EngineIface* h) {
