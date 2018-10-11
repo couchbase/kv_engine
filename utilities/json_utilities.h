@@ -24,6 +24,69 @@
 
 namespace cb {
 /**
+ *  Helper function that will allow us to do an
+ *  nlohmann::json.at("foo").get<bar>() and return meaningful error
+ *  messages from the get call.
+ *
+ *  The standard .get<bar>() method will throw an exception that tells
+ *  the user a value is incorrect, but this does not include the key for
+ *  the value so the user may struggle to identify the problematic value.
+ *
+ *  This function intercepts the exception thrown by get and rethrows the
+ *  exception with the key prepended to the message.
+ *
+ * @tparam T - type of value that we wish to get
+ * @param obj - root json object
+ * @param key - key at which to retrieve the json value
+ * @throws nlohmann::detail::out_of_range if the key does not exist
+ * @throws nlohmann::detail::type_error if the value is of an incorrect type
+ * @return the value of type T
+ */
+MCD_UTIL_PUBLIC_API
+template <typename T>
+T jsonGet(const nlohmann::json& obj, const std::string& key) {
+    nlohmann::json value = obj.at(key);
+    try {
+        return value.get<T>();
+    } catch (nlohmann::json::exception& e) {
+        throw nlohmann::detail::type_error::create(
+                302, /* the exception code nlohmann would throw */
+                "value for key \"" + key + "\" - " + e.what());
+    }
+}
+
+/**
+ *  Alternate helper function that will allows the use of an iterator,
+ *  which contains a key and value, to trigger
+ *  nlohmann::json::const_iterator.value().get<bar> and return meaningful
+ *  error messages from the get call.
+ *
+ *  The standard .get<bar>() method will throw an exception that tells
+ *  the user a value is incorrect, but this does not include the key for
+ *  the value so the user may struggle to identify the problematic value.
+ *
+ *  This function intercepts the exception thrown by get and rethrows the
+ *  exception with the key prepended to the message.
+ *
+ * @tparam T - type of value that we wish to get
+ * @param it - iterator json object which contains both a key and value.
+ * @throws nlohmann::detail::out_of_range if the key does not exist
+ * @throws nlohmann::detail::type_error if the value is of an incorrect type
+ * @return the value of type T
+ */
+MCD_UTIL_PUBLIC_API
+template <typename T>
+T jsonGet(nlohmann::json::const_iterator it) {
+    try {
+        return it.value().get<T>();
+    } catch (nlohmann::json::exception& e) {
+        throw nlohmann::detail::type_error::create(
+                302, /* the exception code nlohmann would throw */
+                "value for key \"" + it.key() + "\" - " + e.what());
+    }
+}
+
+/**
  *  Helper function that returns a boost optional json object using the given
  *  object and key.
  *
