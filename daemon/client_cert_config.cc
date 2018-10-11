@@ -16,48 +16,17 @@
  */
 #include "client_cert_config.h"
 
-#include <cJSON_utils.h>
+#include <boost/optional.hpp>
 #include <nlohmann/json.hpp>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
-#include <memory>
-#include <mutex>
+#include <utilities/json_utilities.h>
 
 namespace cb {
 namespace x509 {
 
-static cJSON* getMandatoryObject(cJSON* root, const char* field, int type) {
-    auto* obj = cJSON_GetObjectItem(root, field);
-    if (obj == nullptr) {
-        throw std::invalid_argument(
-                std::string("getMandatoryObject: missing mandatory object: ") +
-                field);
-    }
-    if (obj->type != type) {
-        throw std::invalid_argument(
-                std::string("getMandatoryObject: incorrect type for field: ") +
-                field);
-    }
-    return obj;
-}
-
-static std::string getString(cJSON* root, const char* field) {
-    auto* obj = cJSON_GetObjectItem(root, field);
-    if (obj == nullptr) {
-        return "";
-    }
-
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument(
-                std::string("getString: type (not a string) for field: ") +
-                field);
-    }
-
-    return obj->valuestring;
-}
-
 struct CommonNameMapping : public ClientCertConfig::Mapping {
-    CommonNameMapping(std::string& path, cJSON* obj)
+    CommonNameMapping(std::string& path, const nlohmann::json& obj)
         : ClientCertConfig::Mapping(path, obj) {
     }
 
@@ -96,7 +65,7 @@ struct CommonNameMapping : public ClientCertConfig::Mapping {
 };
 
 struct SanMapping : public ClientCertConfig::Mapping {
-    SanMapping(std::string& path, int field_, cJSON* obj)
+    SanMapping(std::string& path, int field_, const nlohmann::json& obj)
         : ClientCertConfig::Mapping(path, obj), field(field_) {
     }
 
@@ -154,9 +123,9 @@ struct SanMapping : public ClientCertConfig::Mapping {
     const int field;
 };
 
-static std::unique_ptr<ClientCertConfig::Mapping> createMapping(cJSON* obj) {
-    std::string path =
-            getMandatoryObject(obj, "path", cJSON_String)->valuestring;
+static std::unique_ptr<ClientCertConfig::Mapping> createMapping(
+        const nlohmann::json& obj) {
+    auto path = cb::jsonGet<std::string>(obj, "path");
 
     if (path.empty()) {
         return std::make_unique<ClientCertConfig::Mapping>(path, obj);
@@ -182,10 +151,9 @@ static std::unique_ptr<ClientCertConfig::Mapping> createMapping(cJSON* obj) {
 }
 
 std::unique_ptr<cb::x509::ClientCertConfig> ClientCertConfig::create(
-        const cJSON& config) {
-    auto* root = const_cast<cJSON*>(&config);
-    const std::string mode{
-            getMandatoryObject(root, "state", cJSON_String)->valuestring};
+        const nlohmann::json& config) {
+    auto mode = cb::jsonGet<std::string>(config, "state");
+
     std::unique_ptr<cb::x509::ClientCertConfig> ret;
     if (mode == "disable") {
         return std::unique_ptr<cb::x509::ClientCertConfig>(
@@ -194,39 +162,34 @@ std::unique_ptr<cb::x509::ClientCertConfig> ClientCertConfig::create(
 
     if (mode == "enable") {
         return std::unique_ptr<cb::x509::ClientCertConfig>(
-                new ClientCertConfig(Mode::Enabled, root));
+                new ClientCertConfig(Mode::Enabled, config));
     }
 
     if (mode == "mandatory") {
         return std::unique_ptr<cb::x509::ClientCertConfig>(
-                new ClientCertConfig(Mode::Mandatory, root));
+                new ClientCertConfig(Mode::Mandatory, config));
     }
 
     throw std::invalid_argument(
             "ClientCertConfig::create: Invalid value for state");
 }
 
-std::unique_ptr<cb::x509::ClientCertConfig> ClientCertConfig::create(
-        const nlohmann::json& config) {
-    unique_cJSON_ptr json(cJSON_Parse(config.dump().data()));
-    return ClientCertConfig::create(*json);
-}
-
-ClientCertConfig::ClientCertConfig(Mode mode_, cJSON* config) : mode(mode_) {
-    auto* prefixes = cJSON_GetObjectItem(config, "prefixes");
-    if (prefixes == nullptr) {
+ClientCertConfig::ClientCertConfig(Mode mode_, const nlohmann::json& config)
+    : mode(mode_) {
+    auto prefixes = cb::getOptionalJsonObject(config, "prefixes");
+    if (!prefixes.is_initialized()) {
         // this is an old style configuration
         mappings.emplace_back(createMapping(config));
         return;
     }
 
-    if (prefixes->type != cJSON_Array) {
-        throw std::invalid_argument(
-                "ClientCertConfig: expected prefixes to be an array");
-    }
+    cb::throwIfWrongType("prefixes",
+                         *prefixes,
+                         nlohmann::json::value_t::array,
+                         "ClientCertConfig");
 
-    for (auto* child = prefixes->child; child != nullptr; child = child->next) {
-        mappings.emplace_back(createMapping(child));
+    for (auto& prefix : *prefixes) {
+        mappings.emplace_back(createMapping(prefix));
     }
 }
 
@@ -256,46 +219,43 @@ std::pair<Status, std::string> ClientCertConfig::lookupUser(X509* cert) const {
 }
 
 std::string ClientCertConfig::to_string() const {
-    unique_cJSON_ptr root(cJSON_CreateObject());
-
+    nlohmann::json root;
     switch (mode) {
     case Mode::Disabled:
-        cJSON_AddStringToObject(root.get(), "state", "disable");
+        root["state"] = "disable";
         break;
     case Mode::Enabled:
-        cJSON_AddStringToObject(root.get(), "state", "enable");
+        root["state"] = "enable";
         break;
     case Mode::Mandatory:
-        cJSON_AddStringToObject(root.get(), "state", "mandatory");
+        root["state"] = "mandatory";
         break;
     }
 
     if (mappings.size() == 1) {
-        cJSON_AddStringToObject(root.get(), "path", mappings[0]->path.c_str());
-        cJSON_AddStringToObject(
-                root.get(), "prefix", mappings[0]->prefix.c_str());
-        cJSON_AddStringToObject(
-                root.get(), "delimiter", mappings[0]->delimiter.c_str());
+        root["path"] = mappings[0]->path.c_str();
+        root["prefix"] = mappings[0]->prefix.c_str();
+        root["delimiter"] = mappings[0]->delimiter.c_str();
     } else {
-        unique_cJSON_ptr array(cJSON_CreateArray());
+        nlohmann::json array;
         for (const auto& m : mappings) {
-            unique_cJSON_ptr obj(cJSON_CreateObject());
-            cJSON_AddStringToObject(obj.get(), "path", m->path.c_str());
-            cJSON_AddStringToObject(obj.get(), "prefix", m->prefix.c_str());
-            cJSON_AddStringToObject(
-                    obj.get(), "delimiter", m->delimiter.c_str());
-            cJSON_AddItemToArray(array.get(), obj.release());
+            nlohmann::json mapping;
+            mapping["path"] = m->path.c_str();
+            mapping["prefix"] = m->prefix.c_str();
+            mapping["delimiter"] = m->delimiter.c_str();
+            array.push_back(mapping);
         }
-        cJSON_AddItemToObject(root.get(), "prefixes", array.release());
+        root["prefixes"] = array;
     }
 
-    return ::to_string(root, false);
+    return root.dump();
 }
 
-ClientCertConfig::Mapping::Mapping(std::string& path_, cJSON* obj)
+ClientCertConfig::Mapping::Mapping(std::string& path_,
+                                   const nlohmann::json& obj)
     : path(std::move(path_)),
-      prefix(getString(obj, "prefix")),
-      delimiter(getString(obj, "delimiter")) {
+      prefix(obj.value("prefix", "")),
+      delimiter(obj.value("delimiter", "")) {
 }
 
 std::string ClientCertConfig::Mapping::matchPattern(

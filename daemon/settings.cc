@@ -34,6 +34,7 @@
 #include "ssl_utils.h"
 
 #include <mcbp/mcbp.h>
+#include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
 
 // the global entry of the settings object
@@ -573,7 +574,10 @@ static void handle_xattr_enabled(Settings& s, cJSON* obj) {
  */
 static void handle_client_cert_auth(Settings& s, cJSON* obj) {
     if (obj->type == cJSON_Object && obj->child != nullptr) {
-        auto config = cb::x509::ClientCertConfig::create(*obj);
+        // TODO MB-30041: Remove when we migrate settings
+        std::string json_str = ::to_string(obj, false);
+        nlohmann::json json = nlohmann::json::parse(json_str);
+        auto config = cb::x509::ClientCertConfig::create(json);
         s.reconfigureClientCertAuth(config);
     } else {
         throw std::invalid_argument(R"("client_cert_auth" must be an object)");
@@ -944,8 +948,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (m != o) {
             LOG_INFO(
                     R"(Change SSL client auth from "{}" to "{}")", m, o);
-            unique_cJSON_ptr json(cJSON_Parse(o.c_str()));
-            auto config = cb::x509::ClientCertConfig::create(*json);
+            // TODO MB-30041: Remove when we migrate settings
+            nlohmann::json json = nlohmann::json::parse(o);
+            auto config = cb::x509::ClientCertConfig::create(json);
             reconfigureClientCertAuth(config);
         }
     }

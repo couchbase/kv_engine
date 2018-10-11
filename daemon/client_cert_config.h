@@ -16,14 +16,10 @@
  */
 #pragma once
 
-#include <cJSON.h>
-
-#include <stdexcept>
-
 #include <nlohmann/json_fwd.hpp>
 #include <openssl/ossl_typ.h>
-#include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -82,17 +78,6 @@ public:
      *
      * @param config the JSON providing the configuration
      * @return the newly created configuration
-     * @throws std::invalid_argument if the provided JSON isn't according
-     *         to the specification.
-     */
-    static std::unique_ptr<ClientCertConfig> create(const cJSON& config);
-
-    /**
-     * Factory method to create an instance of the ClientCertificateConfig
-     * by parsing the provided JSON.
-     *
-     * @param config the JSON providing the configuration
-     * @return the newly created configuration
      * @throws nlohmann::json::exception for json parsing/missing attribute
      *         errors
      * @throws std::invalid_argument if the provided JSON isn't according
@@ -130,7 +115,7 @@ public:
 
     struct Mapping {
         Mapping() = default;
-        Mapping(std::string& path_, cJSON* obj);
+        Mapping(std::string& path_, const nlohmann::json& obj);
         virtual ~Mapping() = default;
         virtual std::pair<Status, std::string> match(X509* cert) const;
 
@@ -150,7 +135,7 @@ public:
 protected:
     ClientCertConfig() : mode(Mode::Disabled) {
     }
-    explicit ClientCertConfig(Mode mode_, cJSON* config);
+    explicit ClientCertConfig(Mode mode_, const nlohmann::json& config);
 
     const Mode mode;
     std::vector<std::unique_ptr<Mapping>> mappings;

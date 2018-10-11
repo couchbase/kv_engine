@@ -52,11 +52,12 @@ TEST(X509, ValidateStateMandatory) {
 
 TEST(X509, ValidateInvalidStateValue) {
     EXPECT_THROW(ClientCertConfig::create(R"({"state": 5})"_json),
-                 std::invalid_argument);
+                 nlohmann::json::exception);
 }
 
 TEST(X509, ValidateMissingState) {
-    EXPECT_THROW(ClientCertConfig::create(R"({})"_json), std::invalid_argument);
+    EXPECT_THROW(ClientCertConfig::create(R"({})"_json),
+                 nlohmann::json::exception);
 }
 
 TEST(X509, ParseValidSingleEntryFormat) {
