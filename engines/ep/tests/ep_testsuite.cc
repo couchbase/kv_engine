@@ -321,7 +321,7 @@ static enum test_result test_flush_shutdown_noforce(EngineIface* h) {
     bool shutdownForce = false;
     int currItems =
             checkCurrItemsAfterShutdown(h, numItems2load, shutdownForce);
-    check (currItems == numItems2load,
+    checkeq(numItems2load, currItems,
            "Number of curr items should be equal to 3000, unless previous "
            "shutdown did not wait for the flusher");
     return SUCCESS;
@@ -402,50 +402,50 @@ static enum test_result test_specialKeys(EngineIface* h) {
     // Simplified Chinese "Couchbase"
     static const char key0[] = "沙发数据库";
     static const char val0[] = "some Chinese value";
-    check((ret = store(h, NULL, OPERATION_SET, key0, val0)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key0, val0)),
           "Failed set Chinese key");
     check_key_value(h, key0, val0, strlen(val0));
 
     // Traditional Chinese "Couchbase"
     static const char key1[] = "沙發數據庫";
     static const char val1[] = "some Traditional Chinese value";
-    check((ret = store(h, NULL, OPERATION_SET, key1, val1)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key1, val1)),
           "Failed set Traditional Chinese key");
 
     // Korean "couch potato"
     static const char key2[] = "쇼파감자";
     static const char val2[] = "some Korean value";
-    check((ret = store(h, NULL, OPERATION_SET, key2, val2)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key2, val2)),
           "Failed set Korean key");
 
     // Russian "couch potato"
     static const char key3[] = "лодырь, лентяй";
     static const char val3[] = "some Russian value";
-    check((ret = store(h, NULL, OPERATION_SET, key3, val3)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key3, val3)),
           "Failed set Russian key");
 
     // Japanese "couch potato"
     static const char key4[] = "カウチポテト";
     static const char val4[] = "some Japanese value";
-    check((ret = store(h, NULL, OPERATION_SET, key4, val4)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key4, val4)),
           "Failed set Japanese key");
 
     // Indian char key, and no idea what it is
     static const char key5[] = "हरियानवी";
     static const char val5[] = "some Indian value";
-    check((ret = store(h, NULL, OPERATION_SET, key5, val5)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key5, val5)),
           "Failed set Indian key");
 
     // Portuguese translation "couch potato"
     static const char key6[] = "sedentário";
     static const char val6[] = "some Portuguese value";
-    check((ret = store(h, NULL, OPERATION_SET, key6, val6)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key6, val6)),
           "Failed set Portuguese key");
 
     // Arabic translation "couch potato"
     static const char key7[] = "الحافلةالبطاطة";
     static const char val7[] = "some Arabic value";
-    check((ret = store(h, NULL, OPERATION_SET, key7, val7)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key7, val7)),
           "Failed set Arabic key");
 
     if (isWarmupEnabled(h)) {
@@ -475,14 +475,14 @@ static enum test_result test_binKeys(EngineIface* h) {
     // binary key with char values beyond 0x7F
     static const char key0[] = "\xe0\xed\xf1\x6f\x7f\xf8\xfa";
     static const char val0[] = "some value val8";
-    check((ret = store(h, NULL, OPERATION_SET, key0, val0)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key0, val0)),
           "Failed set binary key0");
     check_key_value(h, key0, val0, strlen(val0));
 
     // binary keys with char values beyond 0x7F
     static const char key1[] = "\xf1\xfd\xfe\xff\xf0\xf8\xef";
     static const char val1[] = "some value val9";
-    check((ret = store(h, NULL, OPERATION_SET, key1, val1)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key1, val1)),
           "Failed set binary key1");
     check_key_value(h, key1, val1, strlen(val1));
 
@@ -490,14 +490,14 @@ static enum test_result test_binKeys(EngineIface* h) {
     // 0xEF
     static const char key2[] = "\xff\xfe\xbb\xbf\xef";
     static const char val2[] = "some utf-8 bom value";
-    check((ret = store(h, NULL, OPERATION_SET, key2, val2)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key2, val2)),
           "Failed set binary utf-8 bom key");
     check_key_value(h, key2, val2, strlen(val2));
 
     // binary keys with special utf-16BE BOM values "U+FEFF"
     static const char key3[] = "U+\xfe\xff\xefU+\xff\xfe";
     static const char val3[] = "some utf-16 bom value";
-    check((ret = store(h, NULL, OPERATION_SET, key3, val3)) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, (ret = store(h, NULL, OPERATION_SET, key3, val3)),
           "Failed set binary utf-16 bom key");
     check_key_value(h, key3, val3, strlen(val3));
 
@@ -1956,7 +1956,8 @@ static enum test_result test_uuid_stats(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             get_stats(h, "uuid"_ccb, add_stats),
             "Failed to get stats.");
-    check(vals["uuid"] == "foobar", "Incorrect uuid");
+    checkeq(cb::const_char_buffer("foobar"),
+            static_cast<cb::const_char_buffer>(vals["uuid"]), "Incorrect uuid");
     return SUCCESS;
 }
 
@@ -2048,12 +2049,12 @@ static enum test_result test_mem_stats(EngineIface* h) {
             wait_for_item_compressor_to_settle(h);
         }
 
-        check(get_int_stat(h, "mem_used") >= mem_used,
-              "Expected mem_used to remain the same after an item is loaded "
-              "from disk");
-        check(get_int_stat(h, "ep_value_size") == value_size,
-              "Expected ep_value_size to remain the same after item is "
-              "loaded from disk");
+        checkle(mem_used, get_int_stat(h, "mem_used"),
+                "Expected mem_used to remain the same after an item is loaded "
+                "from disk");
+        checkeq(value_size, get_int_stat(h, "ep_value_size"),
+                "Expected ep_value_size to remain the same after item is "
+                "loaded from disk");
     }
 
     return SUCCESS;
@@ -2240,7 +2241,7 @@ static enum test_result test_bg_stats(EngineIface* h) {
 
     evict_key(h, "a", Vbid(0), "Ejected.");
     check_key_value(h, "a", "b\r\n", 3, Vbid(0));
-    check(get_int_stat(h, "ep_bg_num_samples") == 2, "Expected one sample");
+    checkeq(2, get_int_stat(h, "ep_bg_num_samples"), "Expected one sample");
 
     reset_stats(h);
     checkeq(0,
@@ -2594,8 +2595,9 @@ static enum test_result test_bloomfilter_conf(EngineIface* h) {
     check(get_bool_stat(h, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
 
-    check(get_float_stat(h, "ep_bfilter_residency_threshold") == (float)0.1,
-          "Incorrect initial bfilter_residency_threshold.");
+    checkeq(static_cast<float>(0.1),
+            get_float_stat(h, "ep_bfilter_residency_threshold"),
+            "Incorrect initial bfilter_residency_threshold.");
 
     check(set_param(h,
                     protocol_binary_engine_param_flush,
@@ -2608,10 +2610,11 @@ static enum test_result test_bloomfilter_conf(EngineIface* h) {
                     "0.15"),
           "Set bfilter_residency_threshold should have worked.");
 
-    check(get_bool_stat(h, "ep_bfilter_enabled") == false,
-          "Bloom filter should have been disabled.");
-    check(get_float_stat(h, "ep_bfilter_residency_threshold") == (float)0.15,
-          "Incorrect bfilter_residency_threshold.");
+    checkeq(false, get_bool_stat(h, "ep_bfilter_enabled"),
+            "Bloom filter should have been disabled.");
+    checkeq(static_cast<float>(0.15),
+            get_float_stat(h, "ep_bfilter_residency_threshold"),
+            "Incorrect bfilter_residency_threshold.");
 
     return SUCCESS;
 }
@@ -3546,7 +3549,7 @@ static enum test_result test_cbd_225(EngineIface* h) {
 
     // check token again, which should be the same as before
     time_t token2 = get_int_stat(h, "ep_startup_time");
-    check(token2 == token1, "Expected the same startup token");
+    checkeq(token1, token2, "Expected the same startup token");
 
     // reload the engine
     testHarness->time_travel(10);
@@ -4206,7 +4209,7 @@ static enum test_result test_disk_gt_ram_delete_paged_out(EngineIface* h) {
 
     checkeq(ENGINE_SUCCESS, del(h, "k1", 0, Vbid(0)), "Failed to delete.");
 
-    check(verify_key(h, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "k1"), "Expected miss.");
 
     checkeq(0,
             get_int_stat(h, "ep_bg_fetched"),
@@ -4275,7 +4278,7 @@ static enum test_result test_disk_gt_ram_rm_race(EngineIface* h) {
         abort();
     }
 
-    check(verify_key(h, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "k1"), "Expected miss.");
 
     // Should have bg_fetched, but discarded the old value.
     cb_assert(1 == get_int_stat(h, "ep_bg_fetched"));
@@ -4391,7 +4394,7 @@ static enum test_result test_mb3466(EngineIface* h) {
           "Expected \"bytes\" to be returned");
     std::string memUsed = vals["mem_used"];
     std::string bytes = vals["bytes"];
-    check(memUsed == bytes,
+    checkeq(memUsed, bytes,
           "Expected mem_used and bytes to have the same value");
 
     return SUCCESS;
@@ -4432,14 +4435,15 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
         item *it = NULL;
         uint64_t cas1;
         std::string value('x', 100);
-        check(storeCasOut(h,
+        checkeq(ENGINE_SUCCESS,
+                storeCasOut(h,
                           nullptr,
                           Vbid(1),
                           "key" + std::to_string(j),
                           value,
                           PROTOCOL_BINARY_RAW_BYTES,
                           it,
-                          cas1) == ENGINE_SUCCESS,
+                          cas1),
               "Expected set to succeed");
     }
 
@@ -4477,14 +4481,15 @@ static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
         item *it = NULL;
         uint64_t cas1;
         std::string value('x', 100);
-        check(storeCasOut(h,
+        checkeq(ENGINE_SUCCESS,
+                storeCasOut(h,
                           nullptr,
                           Vbid(1),
                           "key" + std::to_string(j),
                           value,
                           PROTOCOL_BINARY_RAW_BYTES,
                           it,
-                          cas1) == ENGINE_SUCCESS,
+                          cas1),
               "Expected set to succeed");
     }
 
@@ -4538,14 +4543,15 @@ static enum test_result test_observe_seqno_failover(EngineIface* h) {
         item *it = NULL;
         uint64_t cas1;
         std::string value('x', 100);
-        check(storeCasOut(h,
+        checkeq(ENGINE_SUCCESS,
+                storeCasOut(h,
                           nullptr,
                           Vbid(0),
                           "key" + std::to_string(j),
                           value,
                           PROTOCOL_BINARY_RAW_BYTES,
                           it,
-                          cas1) == ENGINE_SUCCESS,
+                          cas1),
               "Expected set to succeed");
     }
 
@@ -4623,14 +4629,15 @@ static enum test_result test_observe_single_key(EngineIface* h) {
     std::string value('x', 100);
     item *it = NULL;
     uint64_t cas1;
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(0),
                       "key",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas1) == ENGINE_SUCCESS,
+                      cas1),
           "Set should work");
 
     // Do an observe
@@ -4647,15 +4654,17 @@ static enum test_result test_observe_single_key(EngineIface* h) {
     uint64_t cas;
 
     memcpy(&vb, last_body.data(), sizeof(Vbid));
-    check(vb.ntoh() == Vbid(0), "Wrong vbucket in result");
+    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    check(ntohs(keylen) == 3, "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(3), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    check(strncmp(key, "key", 3) == 0, "Wrong key in result");
+    checkeq(cb::const_char_buffer("key", 3), cb::const_char_buffer(key, 3),
+            "Wrong key in result");
     memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
-    check(persisted == OBS_STATE_NOT_PERSISTED, "Expected persisted in result");
+    checkeq(static_cast<uint8_t >(OBS_STATE_NOT_PERSISTED), persisted,
+            "Expected persisted in result");
     memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
-    check(ntohll(cas) == cas1, "Wrong cas in result");
+    checkeq(static_cast<uint64_t>(cas1), ntohll(cas), "Wrong cas in result");
 
     return SUCCESS;
 }
@@ -4675,7 +4684,8 @@ static enum test_result test_observe_temp_item(EngineIface* h) {
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(get_meta(h, k1, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
+    checkeq(static_cast<uint8_t>(DocumentState::Deleted),
+            static_cast<uint8_t>(errorMetaPair.second.document_state),
           "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
 
@@ -4706,9 +4716,10 @@ static enum test_result test_observe_temp_item(EngineIface* h) {
     memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
     memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
 
-    check(vb.ntoh() == Vbid(0), "Wrong vbucket in result");
-    check(ntohs(keylen) == 3, "Wrong keylen in result");
-    check(strncmp(key, "key", 3) == 0, "Wrong key in result");
+    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
+    checkeq(static_cast<uint16_t>(3), ntohs(keylen), "Wrong keylen in result");
+    checkeq(cb::const_char_buffer("key", 3), cb::const_char_buffer(key, 3),
+            "Wrong key in result");
     if (isPersistentBucket(h)) {
         checkeq(OBS_STATE_NOT_FOUND,
                 int(persisted),
@@ -4735,34 +4746,37 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     item *it = NULL;
     uint64_t cas1, cas2, cas3;
     std::string value('x', 100);
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(0),
                       "key1",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas1) == ENGINE_SUCCESS,
+                      cas1),
           "Set should work");
 
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(1),
                       "key2",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas2) == ENGINE_SUCCESS,
+                      cas2),
           "Set should work");
 
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(1),
                       "key3",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas3) == ENGINE_SUCCESS,
+                      cas3),
           "Set should work");
 
     if (isPersistentBucket(h)) {
@@ -4789,37 +4803,40 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
                                            : OBS_STATE_NOT_PERSISTED;
 
     memcpy(&vb, last_body.data(), sizeof(Vbid));
-    check(vb.ntoh() == Vbid(0), "Wrong vbucket in result");
+    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
+    checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
+            "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    check(ntohll(cas) == cas1, "Wrong cas in result");
+    checkeq(cas1, ntohll(cas), "Wrong cas in result");
 
     memcpy(&vb, last_body.data() + 17, sizeof(Vbid));
-    check(vb.ntoh() == Vbid(1), "Wrong vbucket in result");
+    checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
-    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
+    checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
+            "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 26, sizeof(uint64_t));
-    check(ntohll(cas) == cas2, "Wrong cas in result");
+    checkeq(static_cast<uint64_t>(cas2), ntohll(cas), "Wrong cas in result");
 
     memcpy(&vb, last_body.data() + 34, sizeof(Vbid));
-    check(vb.ntoh() == Vbid(1), "Wrong vbucket in result");
+    checkeq(Vbid(1), vb.ntoh(),  "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
-    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
+    checkeq(cb::const_char_buffer("key3", 4), cb::const_char_buffer(key, 4),
+            "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
-    check(ntohll(cas) == cas3, "Wrong cas in result");
+    checkeq(static_cast<uint64_t>(cas3), ntohll(cas),  "Wrong cas in result");
 
     return SUCCESS;
 }
@@ -4836,24 +4853,26 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     item *it = NULL;
     uint64_t cas1, cas2;
     std::string value('x', 100);
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(0),
                       "key1",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas1) == ENGINE_SUCCESS,
+                      cas1),
           "Set should work");
 
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(0),
                       "key2",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas2) == ENGINE_SUCCESS,
+                      cas2),
           "Set should work");
 
     if (isPersistentBucket(h)) {
@@ -4871,16 +4890,17 @@ static enum test_result test_multiple_observes(EngineIface* h) {
                                            : OBS_STATE_NOT_PERSISTED;
 
     memcpy(&vb, last_body.data(), sizeof(Vbid));
-    check(vb.ntoh() == Vbid(0), "Wrong vbucket in result");
+    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
+    checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
+            "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    check(ntohll(cas) == cas1, "Wrong cas in result");
-    check(last_body.size() == 17, "Incorrect body length");
+    checkeq(cas1, ntohll(cas), "Wrong cas in result");
+    checkeq(static_cast<size_t>(17), last_body.size(), "Incorrect body length");
 
     // Do another observe
     obskeys.clear();
@@ -4889,16 +4909,17 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     memcpy(&vb, last_body.data(), sizeof(Vbid));
-    check(vb.ntoh() == Vbid(0), "Wrong vbucket in result");
+    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    check(ntohs(keylen) == 4, "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
+    checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
+            "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    check(ntohll(cas) == cas2, "Wrong cas in result");
-    check(last_body.size() == 17, "Incorrect body length");
+    checkeq(cas2, ntohll(cas),"Wrong cas in result");
+    checkeq(static_cast<size_t>(17), last_body.size(), "Incorrect body length");
 
     return SUCCESS;
 }
@@ -4912,14 +4933,15 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
     item *it = NULL;
     uint64_t cas1, cas3;
     std::string value('x', 100);
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(0),
                       "key1",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas1) == ENGINE_SUCCESS,
+                      cas1),
           "Set should work");
 
     if (isPersistentBucket(h)) {
@@ -4927,18 +4949,20 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
         stop_persistence(h);
     }
 
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(1),
                       "key3",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas3) == ENGINE_SUCCESS,
+                      cas3),
           "Set should work");
 
-    check(del(h, "key3", 0, Vbid(1)) == ENGINE_SUCCESS,
-          "Failed to remove a key");
+    checkeq(ENGINE_SUCCESS,
+            del(h, "key3", 0, Vbid(1)),
+            "Failed to remove a key");
 
     // Do observe
     std::map<std::string, Vbid> obskeys;
@@ -5952,32 +5976,35 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
     uint64_t cas1, cas2, cas3;
 
     std::string value('x', 100);
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(0),
                       "key1",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas1) == ENGINE_SUCCESS,
+                      cas1),
           "Set should work.");
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(1),
                       "key2",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas2) == ENGINE_SUCCESS,
+                      cas2),
           "Set should work.");
-    check(storeCasOut(h,
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h,
                       nullptr,
                       Vbid(1),
                       "key3",
                       value,
                       PROTOCOL_BINARY_RAW_BYTES,
                       it,
-                      cas3) == ENGINE_SUCCESS,
+                      cas3),
           "Set should work.");
 
     wait_for_stat_to_be(h, "ep_total_persisted", 3);
@@ -6278,8 +6305,10 @@ static enum test_result test_failover_log_behavior(EngineIface* h) {
     wait_for_warmup_complete(h);
     num_entries = get_int_stat(h, "vb_0:num_entries", "failovers");
 
-    check(num_entries == 3, "Failover log should have grown");
-    check(get_ull_stat(h, "vb_0:0:seq", "failovers") == 10,
+    checkeq(static_cast<uint64_t>(3), num_entries,
+            "Failover log should have grown");
+    checkeq(static_cast<uint64_t>(10),
+            get_ull_stat(h, "vb_0:0:seq", "failovers"),
           "Latest failover log entry should have correct high sequence number");
 
     return SUCCESS;
