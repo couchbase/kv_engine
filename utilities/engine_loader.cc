@@ -63,6 +63,7 @@ engine_reference* load_engine(const char* soname, const char* create_function) {
         int ii = 0;
         while (create_functions[ii] != NULL && create_symbol == NULL) {
             create_symbol = find_symbol(handle, create_functions[ii], &create_errmsg);
+            ii++;
         }
     }
 
@@ -70,6 +71,7 @@ engine_reference* load_engine(const char* soname, const char* create_function) {
     while (destroy_functions[ii] != NULL && destroy_symbol == NULL) {
         destroy_symbol =
                 find_symbol(handle, destroy_functions[ii], &destroy_errmsg);
+        ii++;
     }
 
     if (create_symbol == NULL) {
