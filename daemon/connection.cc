@@ -470,13 +470,6 @@ void Connection::updateDescription() {
 void Connection::setBucketIndex(int bucketIndex) {
     Connection::bucketIndex.store(bucketIndex, std::memory_order_relaxed);
 
-    if (bucketIndex < 0) {
-        // The connection objects which listens to the ports to accept
-        // use a bucketIndex of -1. Those connection objects should
-        // don't need an entry
-        return;
-    }
-
     // Update the privilege context. If a problem occurs within the RBAC
     // module we'll assign an empty privilege context to the connection.
     try {
