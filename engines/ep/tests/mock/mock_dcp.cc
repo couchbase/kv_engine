@@ -55,14 +55,16 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::get_failover_log(uint32_t opaque,
     return ENGINE_ENOTSUP;
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::stream_req(uint32_t opaque,
-                                                      Vbid vbucket,
-                                                      uint32_t flags,
-                                                      uint64_t start_seqno,
-                                                      uint64_t end_seqno,
-                                                      uint64_t vbucket_uuid,
-                                                      uint64_t snap_start_seqno,
-                                                      uint64_t snap_end_seqno) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::stream_req(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint32_t flags,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        const std::string& request_value) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpStreamReq;
     last_opaque = opaque;
@@ -74,6 +76,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::stream_req(uint32_t opaque,
     last_packet_size = 64;
     last_snap_start_seqno = snap_start_seqno;
     last_snap_end_seqno = snap_end_seqno;
+    last_collection_filter = request_value;
     return ENGINE_SUCCESS;
 }
 

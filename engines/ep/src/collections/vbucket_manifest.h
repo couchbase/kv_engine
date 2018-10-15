@@ -22,6 +22,7 @@
 #include "collections/vbucket_manifest_entry.h"
 #include "systemevent.h"
 
+#include <boost/optional/optional_fwd.hpp>
 #include <platform/non_negative_counter.h>
 #include <platform/rwlock.h>
 #include <platform/sized_buffer.h>
@@ -1234,6 +1235,8 @@ protected:
     mutable cb::RWLock rwlock;
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
+
+    static constexpr char const* UidKey = "uid";
 };
 
 /// Note that the VB::Manifest << operator does not obtain the rwlock

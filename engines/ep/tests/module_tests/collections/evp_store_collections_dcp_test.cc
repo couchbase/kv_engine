@@ -31,9 +31,12 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "tests/module_tests/collections/test_manifest.h"
+#include "tests/module_tests/dcp_utils.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
 
+#include <engines/ep/src/collections/collections_types.h>
+#include <engines/ep/tests/ep_test_apis.h>
 #include <functional>
 #include <thread>
 
@@ -102,6 +105,151 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     // It's gone!
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+}
+
+/**
+ * Test that we are sending the manifest uid when resuming a stream
+ */
+TEST_F(CollectionsDcpTest, stream_request_uid) {
+    createDcpConsumer();
+
+    // We shouldn't have tried to create a filtered producer
+    EXPECT_EQ("", producers->last_collection_filter);
+
+    // Create meat with uid 4 as if it came from manifest uid cafef00d
+    std::string collection = "meat";
+    CollectionID cid = CollectionEntry::meat.getId();
+    ScopeID sid = ScopeEntry::shop1.getId();
+    Collections::ManifestUid manifestUid = 0xcafef00d;
+    Collections::CreateEventData eventData{manifestUid, sid, cid};
+    Collections::CreateEventDcpData eventDcpData{eventData};
+
+    VBucketPtr vb = store->getVBucket(replicaVB);
+
+    EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+
+    uint32_t opaque = 1;
+    uint32_t seqno = 1;
+
+    // Call the consumer function for handling DCP events
+    // create the meat collection
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->systemEvent(
+                      opaque,
+                      replicaVB,
+                      mcbp::systemevent::id::CreateCollection,
+                      seqno,
+                      mcbp::systemevent::version::version0,
+                      {reinterpret_cast<const uint8_t*>(collection.data()),
+                       collection.size()},
+                      {reinterpret_cast<const uint8_t*>(&eventDcpData),
+                       Collections::CreateEventDcpData::size}));
+
+    // We can now access the collection
+    EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+    EXPECT_TRUE(vb->lockCollections().isCollectionOpen(CollectionEntry::meat));
+    EXPECT_EQ(0xcafef00d, vb->lockCollections().getManifestUid());
+
+    consumer->closeAllStreams();
+
+    // When we add a stream back we should send the latest manifest uid
+    EXPECT_EQ(ENGINE_SUCCESS, consumer->addStream(opaque, replicaVB, 0));
+
+    while (consumer->step(producers.get()) == ENGINE_SUCCESS) {
+        handleProducerResponseIfStepBlocked(*consumer, *producers.get());
+    }
+
+    // And we've passed the correct filter on to the producer
+    EXPECT_EQ("{\"uid\":\"cafef00d\"}", producers->last_collection_filter);
+}
+
+/**
+ * Test that we temp fail if we create a stream on a vbucket that is behind
+ * our manifest
+ */
+TEST_F(CollectionsDcpTest, failover_partial_drop) {
+    // Create two collections and ensure they exist in both active and replica
+    VBucketPtr active = store->getVBucket(vbid);
+
+    CollectionsManifest cm(CollectionEntry::meat);
+    active->updateFromManifest({cm.add(CollectionEntry::fruit)});
+
+    notifyAndStepToCheckpoint();
+
+    VBucketPtr replica = store->getVBucket(replicaVB);
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
+
+    ASSERT_TRUE(active->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+    ASSERT_TRUE(active->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"fruit:apple", CollectionEntry::fruit}));
+    ASSERT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
+
+    ASSERT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
+            StoredDocKey{"fruit:apple", CollectionEntry::fruit}));
+
+    // Create a new collections manifest so that we can use the old one for
+    // the new active
+    CollectionsManifest oldManifest(CollectionEntry::meat);
+    oldManifest.add(CollectionEntry::fruit);
+
+    // Drop one collection on the active but don't replicate the drop
+    active->updateFromManifest({cm.remove(CollectionEntry::fruit)});
+    notifyAndStepToCheckpoint();
+
+    // Kill the producer, then set up a consumer from the active to the
+    // replica to simulate a failover
+    producer->closeAllStreams();
+    producer->cancelCheckpointCreatorTask();
+    consumer->closeAllStreams();
+    consumer->cancelTask();
+
+    store->setVBucketState(vbid, vbucket_state_replica, {});
+    store->setVBucketState(replicaVB, vbucket_state_active, {});
+
+    consumer = std::make_shared<MockDcpConsumer>(
+            *engine, cookieP, "test_consumer");
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(0, vbid, 0));
+
+    // Instead of stepping through a stream request to get the vb manifest
+    // uid we can just grab it from the mock stream
+    auto mockPassiveStream = dynamic_cast<MockPassiveStream*>(
+            consumer->getVbucketStream(vbid).get());
+    auto uidFilter = mockPassiveStream->public_createStreamReqValue();
+    ASSERT_EQ("{\"uid\":\"4\"}", uidFilter);
+
+    // Now attempt to resume the stream. Setup the producer using the vb
+    // manifest uid the consumer has. We should fail with collections
+    // manifest is ahead
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieC, IncludeDeleteTime::No);
+    uint64_t rollbackSeqno;
+    try {
+        producer->streamRequest(0, // flags
+                                1, // opaque
+                                replicaVB,
+                                1, // start_seqno
+                                ~0ull, // end_seqno
+                                0, // vbucket_uuid,
+                                1, // snap_start_seqno,
+                                2, // snap_end_seqno,
+                                &rollbackSeqno,
+                                &CollectionsDcpTest::dcpAddFailoverLog,
+                                cb::const_char_buffer(uidFilter));
+        FAIL() << "Expected stream creation to throw";
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::collections_manifest_is_ahead, e.code());
+    }
 }
 
 /*

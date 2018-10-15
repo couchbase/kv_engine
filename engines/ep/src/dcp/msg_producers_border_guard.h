@@ -41,7 +41,8 @@ public:
                                  uint64_t end_seqno,
                                  uint64_t vbucket_uuid,
                                  uint64_t snap_start_seqno,
-                                 uint64_t snap_end_seqno) override;
+                                 uint64_t snap_end_seqno,
+                                 const std::string& request_value) override;
 
     ENGINE_ERROR_CODE add_stream_rsp(uint32_t opaque,
                                      uint32_t stream_opaque,

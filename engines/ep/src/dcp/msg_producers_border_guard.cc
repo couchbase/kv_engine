@@ -36,7 +36,8 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::stream_req(
         uint64_t end_seqno,
         uint64_t vbucket_uuid,
         uint64_t snap_start_seqno,
-        uint64_t snap_end_seqno) {
+        uint64_t snap_end_seqno,
+        const std::string& request_value) {
     NonBucketAllocationGuard guard;
     return guarded.stream_req(opaque,
                               vbucket,
@@ -45,7 +46,8 @@ ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::stream_req(
                               end_seqno,
                               vbucket_uuid,
                               snap_start_seqno,
-                              snap_end_seqno);
+                              snap_end_seqno,
+                              request_value);
 }
 
 ENGINE_ERROR_CODE DcpMsgProducersBorderGuard::add_stream_rsp(

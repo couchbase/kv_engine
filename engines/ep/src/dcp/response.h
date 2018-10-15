@@ -140,7 +140,8 @@ public:
                   uint64_t endSeqno,
                   uint64_t vbucketUUID,
                   uint64_t snapStartSeqno,
-                  uint64_t snapEndSeqno)
+                  uint64_t snapEndSeqno,
+                  const std::string& request_value)
         : DcpResponse(Event::StreamReq, opaque, {}),
           startSeqno_(startSeqno),
           endSeqno_(endSeqno),
@@ -148,7 +149,8 @@ public:
           snapStartSeqno_(snapStartSeqno),
           snapEndSeqno_(snapEndSeqno),
           flags_(flags),
-          vbucket_(vbucket) {
+          vbucket_(vbucket),
+          requestValue_(request_value) {
     }
 
     ~StreamRequest() {}
@@ -181,6 +183,10 @@ public:
         return snapEndSeqno_;
     }
 
+    const std::string getRequestValue() {
+        return requestValue_;
+    }
+
     uint32_t getMessageSize() const {
         return baseMsgBytes;
     }
@@ -195,6 +201,7 @@ private:
     uint64_t snapEndSeqno_;
     uint32_t flags_;
     Vbid vbucket_;
+    std::string requestValue_;
 };
 
 class AddStreamResponse : public DcpResponse {

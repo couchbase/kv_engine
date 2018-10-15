@@ -1694,13 +1694,18 @@ ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
                                          uint64_t end_seqno,
                                          uint64_t vbucket_uuid,
                                          uint64_t snap_start_seqno,
-                                         uint64_t snap_end_seqno) {
+                                         uint64_t snap_end_seqno,
+                                         const std::string& request_value) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpStreamReqPayload;
-    uint8_t buffer[sizeof(Request) + sizeof(DcpStreamReqPayload)];
 
-    Framebuilder builder({buffer, sizeof(buffer)});
+    auto size = sizeof(Request) + sizeof(DcpStreamReqPayload) +
+                request_value.size();
+
+    std::vector<uint8_t> buffer(size);
+
+    Framebuilder builder({buffer.data(), buffer.size()});
     builder.setMagic(cb::mcbp::Magic::ClientRequest);
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
     builder.setOpaque(opaque);
@@ -1716,6 +1721,10 @@ ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
 
     builder.setExtras(
             {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+
+    if (request_value.empty()) {
+        builder.setValue(request_value);
+    }
 
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }

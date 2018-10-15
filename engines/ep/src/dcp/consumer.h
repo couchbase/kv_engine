@@ -33,6 +33,7 @@
 
 #include <list>
 #include <map>
+#include <engines/ep/src/collections/collections_types.h>
 
 class DcpResponse;
 class PassiveStream;
@@ -66,6 +67,7 @@ public:
      * @param snap_start_seqno The snapshot start sequence number
      * @param snap_end_seqno The snapshot end sequence number
      * @param vb_high_seqno The last received sequence number
+     * @param vb_manifest_uid The newest collections manifest uid
      *
      * @return a SingleThreadedRCPtr to the newly created PassiveStream.
      */
@@ -81,7 +83,8 @@ public:
             uint64_t vb_uuid,
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
-            uint64_t vb_high_seqno);
+            uint64_t vb_high_seqno,
+            const Collections::ManifestUid vb_manifest_uid);
 
     ENGINE_ERROR_CODE addStream(uint32_t opaque,
                                 Vbid vbucket,

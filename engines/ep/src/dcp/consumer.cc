@@ -213,7 +213,8 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
         uint64_t vb_uuid,
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
-        uint64_t vb_high_seqno) {
+        uint64_t vb_high_seqno,
+        const Collections::ManifestUid vb_manifest_uid) {
     return std::make_shared<PassiveStream>(&e,
                                            consumer,
                                            name,
@@ -225,7 +226,8 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
                                            vb_uuid,
                                            snap_start_seqno,
                                            snap_end_seqno,
-                                           vb_high_seqno);
+                                           vb_high_seqno,
+                                           vb_manifest_uid);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
@@ -266,6 +268,8 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
     uint64_t snap_start_seqno = info.range.start;
     uint64_t snap_end_seqno = info.range.end;
     uint64_t high_seqno = vb->getHighSeqno();
+    const Collections::ManifestUid vb_manifest_uid =
+            vb->lockCollections().getManifestUid();
 
     auto stream = findStream(vbucket);
     if (stream) {
@@ -299,7 +303,8 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque,
                                       vbucket_uuid,
                                       snap_start_seqno,
                                       snap_end_seqno,
-                                      high_seqno)});
+                                      high_seqno,
+                                      vb_manifest_uid)});
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
 
@@ -871,7 +876,8 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
                                         sr->getEndSeqno(),
                                         sr->getVBucketUUID(),
                                         sr->getSnapStartSeqno(),
-                                        sr->getSnapEndSeqno());
+                                        sr->getSnapEndSeqno(),
+                                        sr->getRequestValue());
             break;
         }
         case DcpResponse::Event::SetVbucket:

@@ -75,7 +75,8 @@ public:
             uint64_t vb_uuid,
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
-            uint64_t vb_high_seqno) override {
+            uint64_t vb_high_seqno,
+            const Collections::ManifestUid vb_manifest_uid) override {
         return std::make_shared<MockPassiveStream>(e,
                                                    consumer,
                                                    name,
@@ -87,6 +88,7 @@ public:
                                                    vb_uuid,
                                                    snap_start_seqno,
                                                    snap_end_seqno,
-                                                   vb_high_seqno);
+                                                   vb_high_seqno,
+                                                   vb_manifest_uid);
     }
 };

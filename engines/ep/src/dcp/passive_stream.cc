@@ -43,7 +43,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              uint64_t vb_uuid,
                              uint64_t snap_start_seqno,
                              uint64_t snap_end_seqno,
-                             uint64_t vb_high_seqno)
+                             uint64_t vb_high_seqno,
+                             const Collections::ManifestUid vb_manifest_uid)
     : Stream(name,
              flags,
              opaque,
@@ -61,7 +62,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_end(0),
       cur_snapshot_type(Snapshot::None),
       cur_snapshot_ack(false),
-      cur_snapshot_prepare(false) {
+      cur_snapshot_prepare(false),
+      vb_manifest_uid(vb_manifest_uid) {
     LockHolder lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
@@ -89,6 +91,8 @@ void PassiveStream::streamRequest(uint64_t vb_uuid) {
 }
 
 void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
+    auto stream_req_value = createStreamReqValue();
+
     /* the stream should send a don't care vb_uuid if start_seqno is 0 */
     pushToReadyQ(std::make_unique<StreamRequest>(vb_,
                                                  opaque_,
@@ -97,16 +101,17 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
                                                  end_seqno_,
                                                  start_seqno_ ? vb_uuid : 0,
                                                  snap_start_seqno_,
-                                                 snap_end_seqno_));
+                                                 snap_end_seqno_,
+                                                 stream_req_value));
 
     const char* type = (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER)
                                ? "takeover stream"
                                : "stream";
+
     log(spdlog::level::level_enum::info,
-        "({}) Attempting to add {}: opaque_:{}, "
-        "start_seqno_:{}, end_seqno_:{}, "
-        "vb_uuid:{}, snap_start_seqno_:{}, "
-        "snap_end_seqno_:{}, last_seqno:{}",
+        "({}) Attempting to add {}: opaque_:{}, start_seqno_:{}, "
+        "end_seqno_:{}, vb_uuid:{}, snap_start_seqno_:{}, snap_end_seqno_:{}, "
+        "last_seqno:{}, stream_req_value:{}",
         vb_,
         type,
         opaque_,
@@ -115,7 +120,8 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
         vb_uuid,
         snap_start_seqno_,
         snap_end_seqno_,
-        last_seqno.load());
+        last_seqno.load(),
+        stream_req_value.empty() ? "none" : stream_req_value);
 }
 
 uint32_t PassiveStream::setDead(end_stream_status_t status) {
@@ -177,18 +183,23 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
     start_seqno_ = info.start;
     snap_end_seqno_ = info.range.end;
 
+    auto stream_req_value = createStreamReqValue();
+
     log(spdlog::level::level_enum::info,
         "({}) Attempting to reconnect stream with opaque {}, start seq "
-        "no {}, end seq no {}, snap start seqno {}, and snap end seqno {}",
+        "no {}, end seq no {}, snap start seqno {}, snap end seqno {}, and vb"
+        " manifest uid {}",
         vb_,
         new_opaque,
         start_seqno,
         end_seqno_,
         snap_start_seqno_,
-        snap_end_seqno_);
+        snap_end_seqno_,
+        stream_req_value.empty() ? "none" : stream_req_value);
     {
         LockHolder lh(streamMutex);
         last_seqno.store(start_seqno);
+
         pushToReadyQ(std::make_unique<StreamRequest>(vb_,
                                                      new_opaque,
                                                      flags_,
@@ -196,7 +207,8 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
                                                      end_seqno_,
                                                      vb_uuid_,
                                                      snap_start_seqno_,
-                                                     snap_end_seqno_));
+                                                     snap_end_seqno_,
+                                                     stream_req_value));
     }
     notifyStreamReady();
 }
@@ -927,6 +939,18 @@ void PassiveStream::addStats(const AddStatFn& add_stat, const void* c) {
                              vb_.get());
             add_casted_stat(buf, cur_snapshot_prepare.load(), add_stat, c);
         }
+
+        auto stream_req_value = createStreamReqValue();
+
+        if (!stream_req_value.empty()) {
+            checked_snprintf(buf,
+                             bsize,
+                             "%s:stream_%d_vb_manifest_uid",
+                             name_.c_str(),
+                             vb_.get());
+            add_casted_stat(buf, stream_req_value.c_str(), add_stat, c);
+        }
+
     } catch (std::exception& error) {
         EP_LOG_WARN("PassiveStream::addStats: Failed to build stats: {}",
                     error.what());
@@ -1029,6 +1053,14 @@ void PassiveStream::notifyStreamReady() {
     if (itemsReady.compare_exchange_strong(inverse, true)) {
         consumer->notifyStreamReady(vb_);
     }
+}
+
+const std::string PassiveStream::createStreamReqValue() const {
+    nlohmann::json stream_req_json;
+    std::ostringstream ostr;
+    ostr << std::hex << static_cast<uint64_t>(vb_manifest_uid);
+    stream_req_json["uid"] = ostr.str();
+    return stream_req_json.dump();
 }
 
 template <typename... Args>

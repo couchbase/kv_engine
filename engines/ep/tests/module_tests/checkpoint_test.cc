@@ -1079,7 +1079,8 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                     0 /* vbUuid */,
                     0 /* snapStartSeqno */,
                     0 /* snapEndSeqno */,
-                    0 /* vb_high_seqno */));
+                    0 /* vb_high_seqno */,
+                    {} /* vb_manifest_uid */));
 
     uint64_t snapshotStart = 1;
     const uint64_t snapshotEnd = 10;
@@ -1180,7 +1181,8 @@ TEST_F(SingleThreadedCheckpointTest,
                             0 /* vbUuid */,
                             0 /* snapStartSeqno */,
                             0 /* snapEndSeqno */,
-                            0 /* vb_high_seqno */));
+                            0 /* vb_high_seqno */,
+                            {} /* vb_manifest_uid */));
 
             uint64_t snapshotStart = 1;
             const uint64_t snapshotEnd = 10;

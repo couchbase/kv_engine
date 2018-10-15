@@ -43,7 +43,8 @@ public:
                   uint64_t vb_uuid,
                   uint64_t snap_start_seqno,
                   uint64_t snap_end_seqno,
-                  uint64_t vb_high_seqno);
+                  uint64_t vb_high_seqno,
+                  const Collections::ManifestUid vb_manifest_uid);
 
     virtual ~PassiveStream();
 
@@ -202,6 +203,8 @@ protected:
      */
     void notifyStreamReady();
 
+    const std::string createStreamReqValue() const;
+
     EventuallyPersistentEngine* engine;
     std::weak_ptr<DcpConsumer> consumerPtr;
 
@@ -220,6 +223,12 @@ protected:
     // flag when a Prepare is processed) and (2) we send the SeqnoAck only at
     // receiving the snapshot-end mutation, and only if the flag is set.
     std::atomic<bool> cur_snapshot_prepare;
+
+    // To keep the collections manifest for the Replica consistent we cannot
+    // allow it to stream from an Active that is behind in terms of the
+    // collections manifest. Send the collections manifest uid to the Active
+    // which will decide if it can stream data to us.
+    const Collections::ManifestUid vb_manifest_uid;
 
     struct Buffer {
         Buffer() : bytes(0) {

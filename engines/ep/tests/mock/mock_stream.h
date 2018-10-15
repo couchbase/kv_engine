@@ -245,7 +245,8 @@ public:
                       uint64_t vb_uuid,
                       uint64_t snap_start_seqno,
                       uint64_t snap_end_seqno,
-                      uint64_t vb_high_seqno)
+                      uint64_t vb_high_seqno,
+                      const Collections::ManifestUid vb_manifest_uid)
         : PassiveStream(&e,
                         consumer,
                         name,
@@ -257,7 +258,8 @@ public:
                         vb_uuid,
                         snap_start_seqno,
                         snap_end_seqno,
-                        vb_high_seqno) {
+                        vb_high_seqno,
+                        vb_manifest_uid) {
     }
 
     void transitionStateToDead() {
@@ -303,6 +305,10 @@ public:
 
     const std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() const {
         return readyQ;
+    }
+
+    const std::string public_createStreamReqValue() const {
+        return createStreamReqValue();
     }
 
     uint32_t responseMessageSize;

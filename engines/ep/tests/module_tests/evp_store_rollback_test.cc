@@ -771,14 +771,16 @@ public:
 
     class DcpProducers : public MockDcpMessageProducers {
     public:
-        ENGINE_ERROR_CODE stream_req(uint32_t opaque,
-                                     Vbid vbucket,
-                                     uint32_t flags,
-                                     uint64_t start_seqno,
-                                     uint64_t end_seqno,
-                                     uint64_t vbucket_uuid,
-                                     uint64_t snap_start_seqno,
-                                     uint64_t snap_end_seqno) override {
+        ENGINE_ERROR_CODE stream_req(
+                uint32_t opaque,
+                Vbid vbucket,
+                uint32_t flags,
+                uint64_t start_seqno,
+                uint64_t end_seqno,
+                uint64_t vbucket_uuid,
+                uint64_t snap_start_seqno,
+                uint64_t snap_end_seqno,
+                const std::string& vb_manifest_uid) override {
             streamRequestData = {true,
                                  opaque,
                                  vbucket,
