@@ -86,10 +86,12 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
           "Incorrect initial low wat.");
     check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850),
           "Incorrect initial high wat.");
-    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.75),
-          "Incorrect initial low wat. percent");
-    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.85),
-          "Incorrect initial high wat. percent");
+    checkeq(0.75f,
+            get_float_stat(h, "ep_mem_low_wat_percent"),
+            "Incorrect initial low wat. percent");
+    checkeq(0.85f,
+            get_float_stat(h, "ep_mem_high_wat_percent"),
+            "Incorrect initial high wat. percent");
 
     set_param(h, protocol_binary_engine_param_flush, "max_size", "1000000");
 
@@ -98,10 +100,12 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
           "Incorrect larger low wat.");
     check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850000),
           "Incorrect larger high wat.");
-    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.75),
-          "Incorrect larger low wat. percent");
-    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.85),
-          "Incorrect larger high wat. percent");
+    checkeq(0.75f,
+            get_float_stat(h, "ep_mem_low_wat_percent"),
+            "Incorrect larger low wat. percent");
+    checkeq(0.85f,
+            get_float_stat(h, "ep_mem_high_wat_percent"),
+            "Incorrect larger high wat. percent");
 
     set_param(h, protocol_binary_engine_param_flush, "mem_low_wat", "700000");
     set_param(h, protocol_binary_engine_param_flush, "mem_high_wat", "800000");
@@ -112,10 +116,12 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     checkeq(800000,
             get_int_stat(h, "ep_mem_high_wat"),
             "Incorrect even larger high wat.");
-    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.7),
-          "Incorrect even larger low wat. percent");
-    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.8),
-          "Incorrect even larger high wat. percent");
+    checkeq(0.7f,
+            get_float_stat(h, "ep_mem_low_wat_percent"),
+            "Incorrect even larger low wat. percent");
+    checkeq(0.8f,
+            get_float_stat(h, "ep_mem_high_wat_percent"),
+            "Incorrect even larger high wat. percent");
 
     set_param(h, protocol_binary_engine_param_flush, "max_size", "100");
 
@@ -124,10 +130,12 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
           "Incorrect smaller low wat.");
     check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 80),
           "Incorrect smaller high wat.");
-    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.7),
-          "Incorrect smaller low wat. percent");
-    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.8),
-          "Incorrect smaller high wat. percent");
+    checkeq(0.7f,
+            get_float_stat(h, "ep_mem_low_wat_percent"),
+            "Incorrect smaller low wat. percent");
+    checkeq(0.8f,
+            get_float_stat(h, "ep_mem_high_wat_percent"),
+            "Incorrect smaller high wat. percent");
 
     set_param(h, protocol_binary_engine_param_flush, "mem_low_wat", "50");
     set_param(h, protocol_binary_engine_param_flush, "mem_high_wat", "70");
@@ -138,10 +146,10 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     checkeq(70,
             get_int_stat(h, "ep_mem_high_wat"),
             "Incorrect even smaller high wat.");
-    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.5),
-          "Incorrect even smaller low wat. percent");
-    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.7),
-          "Incorrect even smaller high wat. percent");
+    checkeq(0.5f, get_float_stat(h, "ep_mem_low_wat_percent"),
+            "Incorrect even smaller low wat. percent");
+    checkeq(0.7f, get_float_stat(h, "ep_mem_high_wat_percent"),
+            "Incorrect even smaller high wat. percent");
 
     testHarness->reload_engine(&h,
                                testHarness->engine_path,
@@ -156,10 +164,10 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
           "Incorrect intial low wat.");
     check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850),
           "Incorrect initial high wat.");
-    check((get_float_stat(h, "ep_mem_low_wat_percent") == (float)0.75),
-          "Incorrect initial low wat. percent");
-    check((get_float_stat(h, "ep_mem_high_wat_percent") == (float)0.85),
-          "Incorrect initial high wat. percent");
+    checkeq(0.75f, get_float_stat(h, "ep_mem_low_wat_percent"),
+            "Incorrect initial low wat. percent");
+    checkeq(0.85f, get_float_stat(h, "ep_mem_high_wat_percent"),
+            "Incorrect initial high wat. percent");
 
     return SUCCESS;
 }
@@ -200,7 +208,8 @@ static enum test_result test_whitespace_db(EngineIface* h) {
         return FAIL;
     }
 
-    check(access(dbname.c_str(), F_OK) != -1, "I expected the whitespace db to exist");
+    checkne(-1, access(dbname.c_str(), F_OK),
+            "I expected the whitespace db to exist");
     return SUCCESS;
 }
 
@@ -260,10 +269,10 @@ static enum test_result test_set(EngineIface* h) {
 
         // The flusher could of ran > 1 times. We can only assert
         // that we persisted between num_keys and upto num_keys*num_sets
-        check(get_int_stat(h, "ep_total_persisted") >= num_keys,
-              error1.str().c_str());
-        check(get_int_stat(h, "ep_total_persisted") <= num_sets * num_keys,
-              error2.str().c_str());
+        checkle(num_keys, get_int_stat(h, "ep_total_persisted"),
+                error1.str().c_str());
+        checkge((num_sets * num_keys), get_int_stat(h, "ep_total_persisted"),
+                error2.str().c_str());
     }
     return SUCCESS;
 }
@@ -850,8 +859,8 @@ static enum test_result test_cas(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
             "Failed to do initial set.");
-    check(store(h, NULL, OPERATION_CAS, "key", "failcas") != ENGINE_SUCCESS,
-          "Failed to fail initial CAS.");
+    checkne(ENGINE_SUCCESS, store(h, NULL, OPERATION_CAS, "key", "failcas"),
+            "Failed to fail initial CAS.");
     check_key_value(h, "key", "somevalue", 9);
 
     auto ret = get(h, NULL, "key", Vbid(0));
@@ -892,9 +901,9 @@ static enum test_result test_replace(EngineIface* h) {
 
     memset(&info, 0, sizeof(info));
 
-    check(store(h, NULL, OPERATION_REPLACE, "key", "somevalue") !=
-                  ENGINE_SUCCESS,
-          "Failed to fail to replace non-existing value.");
+    checkne(ENGINE_SUCCESS,
+            store(h, NULL, OPERATION_REPLACE, "key", "somevalue"),
+            "Failed to fail to replace non-existing value.");
 
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
@@ -943,16 +952,17 @@ static enum test_result test_touch(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             touch(h, "mykey", Vbid(0), uint32_t(time(NULL) + 10)),
             "touch mykey");
-    check(last_cas != currMeta.cas,
-          "touch should have returned an updated CAS");
+    checkne(last_cas.load(),
+            currMeta.cas,
+            "touch should have returned an updated CAS");
 
     check(get_meta(h, "mykey", errorMetaPair), "Get meta failed");
 
-    check(errorMetaPair.second.cas != currMeta.cas,
+    checkne(errorMetaPair.second.cas, currMeta.cas,
           "touch should have updated the CAS");
-    check(errorMetaPair.second.exptime != currMeta.exptime,
+    checkne(errorMetaPair.second.exptime, currMeta.exptime,
           "touch should have updated the expiry time");
-    check(errorMetaPair.second.seqno == currMeta.seqno + 1,
+    checkeq(errorMetaPair.second.seqno, (currMeta.seqno + 1),
           "touch should have incremented rev seqno");
 
     // time-travel 9 secs..
@@ -1489,7 +1499,7 @@ static enum test_result test_delete(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             del(h, "key", &cas, Vbid(0), nullptr, &mut_info),
             "Failed remove with value.");
-    check(orig_cas != cas, "Expected CAS to be updated on delete");
+    checkne(orig_cas, cas, "Expected CAS to be updated on delete");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
     checkeq(vb_uuid, mut_info.vbucket_uuid, "Expected valid vbucket uuid");
     checkeq(high_seqno + 1, mut_info.seqno, "Expected valid sequence number");
