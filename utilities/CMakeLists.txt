@@ -26,6 +26,7 @@ add_library(mcd_util STATIC
             string_utilities.h
             terminate_handler.cc
             terminate_handler.h
+            types.cc
             util.cc
             vbucket.cc )
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)

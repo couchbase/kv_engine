@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <chrono>
+#include <ostream>
 
 #ifdef WIN32
 #include <platform/platform.h>
@@ -64,6 +65,9 @@ enum class DocumentState : uint8_t {
      */
     Alive = 0xF0,
 };
+
+std::string to_string(DocumentState& ds);
+std::ostream& operator<<(std::ostream& os, DocumentState& ds);
 
 /**
  * The DocumentStateFilter is an enum which allows you to specify the state(s)

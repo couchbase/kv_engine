@@ -75,8 +75,8 @@ static enum test_result test_get_meta(EngineIface* h) {
             "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     // check the stat
-    size_t temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 0, "Expect zero getMeta ops");
+    auto temp = get_int_stat(h, "ep_num_ops_get_meta");
+    checkeq(0, temp, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
@@ -87,7 +87,7 @@ static enum test_result test_get_meta(EngineIface* h) {
 
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 1, "Expect one getMeta op");
+    checkeq(1, temp, "Expect one getMeta op");
 
     h->release(i);
     return SUCCESS;
@@ -104,8 +104,8 @@ static enum test_result test_get_meta_with_extras(EngineIface* h) {
 
     Item *it1 = reinterpret_cast<Item*>(i);
     // check the stat
-    size_t temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 0, "Expect zero getMeta ops");
+    auto temp = get_int_stat(h, "ep_num_ops_get_meta");
+    checkeq(0, temp, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -115,7 +115,7 @@ static enum test_result test_get_meta_with_extras(EngineIface* h) {
     verifyMetaData(metadata1, errorMetaPair.second);
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 1, "Expect one getMeta op");
+    checkeq(1, temp, "Expect one getMeta op");
     h->release(i);
 
     if (isWarmupEnabled(h)) {
@@ -156,17 +156,18 @@ static enum test_result test_get_meta_deleted(EngineIface* h) {
 
     // check the stat
     int temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 0, "Expect zero getMeta ops");
+   checkeq(0, temp, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
-    check(errorMetaPair.second.seqno == it->getRevSeqno() + 1,
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
+    checkeq(errorMetaPair.second.seqno, (it->getRevSeqno() + 1),
           "Expected seqno to match");
-    check(errorMetaPair.second.cas != it->getCas(),
+    checkne(errorMetaPair.second.cas, it->getCas(),
           "Expected cas to be different");
-    check(errorMetaPair.second.flags == it->getFlags(),
+    checkeq(errorMetaPair.second.flags, it->getFlags(),
           "Expected flags to match");
 
     // check the stat again
@@ -182,7 +183,7 @@ static enum test_result test_get_meta_nonexistent(EngineIface* h) {
 
     // check the stat
     int temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 0, "Expect zero getMeta ops");
+   checkeq(0, temp, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
     check(!get_meta(h, key, errorMetaPair),
@@ -209,7 +210,7 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
     wait_for_flusher_to_settle(h);
     // check the stat
     int temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 0, "Expect zero getMeta ops");
+   checkeq(0, temp, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -220,14 +221,15 @@ static enum test_result test_get_meta_with_get(EngineIface* h) {
     ret.second.reset();
     // check the stat again
     temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 1, "Expect one getMeta op");
+   checkeq(1, temp, "Expect one getMeta op");
 
     // test get_meta followed by get for a deleted key. should fail.
     checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
     checkeq(cb::engine_errc::no_such_key,
             get(h, NULL, key1, Vbid(0)).first,
             "Expected enoent");
@@ -293,8 +295,9 @@ static enum test_result test_get_meta_with_set(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, key1, "someothervalue"),
             "Failed set.");
@@ -336,7 +339,7 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     wait_for_flusher_to_settle(h);
     // check the stat
     int temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 0, "Expect zero getMeta ops");
+   checkeq(0, temp, "Expect zero getMeta ops");
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
@@ -344,13 +347,14 @@ static enum test_result test_get_meta_with_delete(EngineIface* h) {
     checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_get_meta");
-    check(temp == 1, "Expect one getMeta op");
+   checkeq(1, temp, "Expect one getMeta op");
 
     // test get_meta followed by delete for a deleted key. should fail.
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
     checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Expected enoent");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_get_meta");
@@ -477,8 +481,8 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
         checkeq(PROTOCOL_BINARY_DATATYPE_XATTR,
                 errorMetaPair.second.datatype,
                 "Datatype is not XATTR");
-        checkeq(static_cast<uint8_t>(errorMetaPair.second.document_state),
-                static_cast<uint8_t>(DocumentState::Deleted),
+        checkeq(DocumentState::Deleted,
+                errorMetaPair.second.document_state,
                 "Expected deleted flag to be set");
     }
 
@@ -491,7 +495,7 @@ static enum test_result test_add_with_meta(EngineIface* h) {
     const char *key = "mykey";
     const size_t keylen = strlen(key);
     ItemMetaData itemMeta;
-    size_t temp = 0;
+    int temp = 0;
 
     // put some random metadata
     itemMeta.revSeqno = 10;
@@ -500,7 +504,7 @@ static enum test_result test_add_with_meta(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 0, "Expect zero setMeta ops");
+    checkeq(0, temp, "Expect zero setMeta ops");
 
     // store an item with meta data
     add_with_meta(h, key, keylen, NULL, 0, Vbid(0), &itemMeta);
@@ -512,7 +516,7 @@ static enum test_result test_add_with_meta(EngineIface* h) {
             "Expected add to fail when the item exists already");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 1, "Failed op does not count");
+    checkeq(1, temp, "Failed op does not count");
 
     return SUCCESS;
 }
@@ -526,8 +530,8 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
     uint64_t vb_uuid;
     uint32_t high_seqno;
     // check the stat
-    size_t temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 0, "Expect zero setMeta ops");
+    auto temp = get_int_stat(h, "ep_num_ops_del_meta");
+    checkeq(0, temp, "Expect zero setMeta ops");
 
     // put some random meta data
     itemMeta.revSeqno = 10;
@@ -563,12 +567,14 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
                   0 /*options*/,
                   cookie);
 
-    check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
-    check(last_seqno == high_seqno + 1, "Expected valid sequence number");
+    checkeq(last_uuid.load(), vb_uuid, "Expected valid vbucket uuid");
+    checkeq(last_seqno.load(),
+            static_cast<uint64_t>(high_seqno + 1),
+            "Expected valid sequence number");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 1, "Expect more setMeta ops");
+    checkeq(1, temp, "Expect more setMeta ops");
 
     testHarness->set_mutation_extras_handling(cookie, false);
 
@@ -582,15 +588,19 @@ static enum test_result test_delete_with_meta(EngineIface* h) {
                   0 /*options*/,
                   cookie);
 
-    check(last_uuid == vb_uuid, "Expected same vbucket uuid");
-    check(last_seqno == high_seqno + 1, "Expected same sequence number");
+    checkeq(last_uuid.load(), vb_uuid, "Expected valid vbucket uuid");
+    checkeq(last_seqno.load(),
+            static_cast<uint64_t>(high_seqno + 1),
+            "Expected valid sequence number");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     // delete an item with meta data
     del_with_meta(h, key3, keylen, Vbid(0), &itemMeta);
 
-    check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
-    check(last_seqno == high_seqno + 3, "Expected valid sequence number");
+    checkeq(last_uuid.load(), vb_uuid, "Expected valid vbucket uuid");
+    checkeq(last_seqno.load(),
+            static_cast<uint64_t>(high_seqno + 3),
+            "Expected valid sequence number");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     testHarness->destroy_cookie(cookie);
@@ -621,8 +631,9 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
 
     // get metadata of deleted key
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
@@ -654,13 +665,14 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
 
     // get metadata again to verify that delete with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
-    check(itm_meta.revSeqno == errorMetaPair.second.seqno,
-          "Expected seqno to match");
-    check(itm_meta.cas == errorMetaPair.second.cas, "Expected cas to match");
-    check(itm_meta.flags == errorMetaPair.second.flags,
-          "Expected flags to match");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
+    checkeq(static_cast<uint64_t>(itm_meta.revSeqno), errorMetaPair.second.seqno,
+            "Expected seqno to match");
+    checkeq(itm_meta.cas, errorMetaPair.second.cas, "Expected cas to match");
+    checkeq(itm_meta.flags, errorMetaPair.second.flags,
+            "Expected flags to match");
 
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
@@ -719,13 +731,15 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
 
     // get metadata again to verify that delete with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
-    check(itm_meta.revSeqno == errorMetaPair.second.seqno,
-          "Expected seqno to match");
-    check(itm_meta.cas == errorMetaPair.second.cas, "Expected cas to match");
-    check(itm_meta.flags == errorMetaPair.second.flags,
-          "Expected flags to match");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
+    checkeq(static_cast<uint64_t>(itm_meta.revSeqno),
+            errorMetaPair.second.seqno,
+            "Expected seqno to match");
+    checkeq(itm_meta.cas, errorMetaPair.second.cas, "Expected cas to match");
+    checkeq(itm_meta.flags, errorMetaPair.second.flags,
+            "Expected flags to match");
 
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
@@ -796,7 +810,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
     itm_meta.flags = 0xdeadbeef;
     // check the stat
     size_t temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 0, "Expect zero ops");
+    checkeq(size_t{0}, temp, "Expect zero ops");
 
     //
     // test race with a concurrent set for an existing key. should fail.
@@ -824,7 +838,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 0, "Failed op does not count");
+    checkeq(size_t{0}, temp, "Failed op does not count");
 
     //
     // test race with a concurrent set for a deleted key. should fail.
@@ -835,8 +849,9 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
 
     // do a concurrent set that changes the cas
     checkeq(ENGINE_SUCCESS,
@@ -849,7 +864,7 @@ static enum test_result test_delete_with_meta_race_with_set(EngineIface* h) {
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 0, "Failed op does not count");
+    checkeq(size_t{0}, temp, "Failed op does not count");
 
     return SUCCESS;
 }
@@ -862,7 +877,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
 
     // check the stat
     size_t temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 0, "Expect zero ops");
+    checkeq(size_t{0}, temp, "Expect zero ops");
 
     //
     // test race with a concurrent delete for an existing key. should fail.
@@ -900,7 +915,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 0, "Failed op does not count");
+    checkeq(size_t{0}, temp, "Failed op does not count");
 
     //
     // test race with a concurrent delete for a deleted key. should pass since
@@ -910,8 +925,9 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
     // do get_meta for the deleted key
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
 
     // do a concurrent delete
     checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Delete failed");
@@ -922,7 +938,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
           "Expected delete_with_meta success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 1, "Expect some ops");
+    checkeq(size_t{1}, temp, "Expect some ops");
 
     //
     // test race with a concurrent delete for a nonexistent key. should pass
@@ -946,7 +962,7 @@ static enum test_result test_delete_with_meta_race_with_delete(EngineIface* h) {
           "Expected delete_with_meta success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_del_meta");
-    check(temp == 2, "Expect some ops");
+    checkeq(size_t{2}, temp, "Expect some ops");
 
     return SUCCESS;
 }
@@ -1028,8 +1044,10 @@ static enum test_result test_set_with_meta(EngineIface* h) {
                   0,
                   cookie);
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-    check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
-    check(last_seqno == high_seqno + 1, "Expected valid sequence number");
+    checkeq(last_uuid.load(), vb_uuid, "Expected valid vbucket uuid");
+    checkeq(last_seqno.load(),
+            static_cast<uint64_t>(high_seqno + 1),
+            "Expected valid sequence number");
 
     // Check that set_with_meta has marked the JSON input as JSON
     item_info info;
@@ -1044,9 +1062,15 @@ static enum test_result test_set_with_meta(EngineIface* h) {
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.seqno == 10, "Expected seqno to match");
-    check(errorMetaPair.second.cas == 0xdeadbeef, "Expected cas to match");
-    check(errorMetaPair.second.flags == 0xdeadbeef, "Expected flags to match");
+    checkeq(uint64_t{10},
+            errorMetaPair.second.seqno,
+            "Expected seqno to match");
+    checkeq(uint64_t{0xdeadbeef},
+            errorMetaPair.second.cas,
+            "Expected cas to match");
+    checkeq(uint32_t{0xdeadbeef},
+            errorMetaPair.second.flags,
+            "Expected flags to match");
 
     //disable getting vb uuid and seqno as extras
     testHarness->set_mutation_extras_handling(cookie, false);
@@ -1064,16 +1088,20 @@ static enum test_result test_set_with_meta(EngineIface* h) {
                   0,
                   cookie);
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-    check(last_uuid == vb_uuid, "Expected same vbucket uuid");
-    check(last_seqno == high_seqno + 1, "Expected same sequence number");
+    checkeq(last_uuid.load(), vb_uuid, "Expected same vbucket uuid");
+    checkeq(last_seqno.load(),
+            static_cast<uint64_t>(high_seqno + 1),
+            "Expected same sequence number");
 
     itm_meta.revSeqno++;
     cas_for_set = last_meta.cas;
     set_with_meta(
             h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, cas_for_set);
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-    check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
-    check(last_seqno == high_seqno + 3, "Expected valid sequence number");
+    checkeq(last_uuid.load(), vb_uuid, "Expected valid vbucket uuid");
+    checkeq(last_seqno.load(),
+            static_cast<uint64_t>(high_seqno + 3),
+            "Expected valid sequence number");
 
     // Make sure the item expiration was processed correctly
     testHarness->time_travel(301);
@@ -1101,9 +1129,15 @@ static enum test_result test_set_with_meta_by_force(EngineIface* h) {
     // get metadata again to verify that the warmup loads an item correctly.
     cb::EngineErrorMetadataPair errorMetaPair;
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.seqno == 10, "Expected seqno to match");
-    check(errorMetaPair.second.cas == 0xdeadbeef, "Expected cas to match");
-    check(errorMetaPair.second.flags == 0xdeadbeef, "Expected flags to match");
+    checkeq(uint64_t{10},
+            errorMetaPair.second.seqno,
+            "Expected seqno to match");
+    checkeq(uint64_t{0xdeadbeef},
+            errorMetaPair.second.cas,
+            "Expected cas to match");
+    checkeq(uint32_t{0xdeadbeef},
+            errorMetaPair.second.flags,
+            "Expected flags to match");
 
     check_key_value(h, key, val, strlen(val));
 
@@ -1140,8 +1174,9 @@ static enum test_result test_set_with_meta_deleted(EngineIface* h) {
 
     // get metadata for the key
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
@@ -1246,7 +1281,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
     size_t keylen1 = strlen(key1);
     // check the stat
     size_t temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 0, "Expect zero ops");
+    checkeq(size_t{0}, temp, "Expect zero ops");
 
     //
     // test race with a concurrent set for an existing key. should fail.
@@ -1282,7 +1317,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 0, "Failed op does not count");
+    checkeq(size_t{0}, temp, "Failed op does not count");
 
     //
     // test race with a concurrent set for a deleted key. should fail.
@@ -1292,8 +1327,9 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
     checkeq(ENGINE_SUCCESS, del(h, key1, 0, Vbid(0)), "Delete failed");
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
 
     // do a concurrent set that changes the cas
     checkeq(ENGINE_SUCCESS,
@@ -1317,7 +1353,7 @@ static enum test_result test_set_with_meta_race_with_set(EngineIface* h) {
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 0, "Failed op does not count");
+    checkeq(size_t{0}, temp, "Failed op does not count");
 
     return SUCCESS;
 }
@@ -1329,7 +1365,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     size_t keylen2 = strlen(key2);
     // check the stat
     size_t temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 0, "Expect zero op");
+    checkeq(size_t{0}, temp, "Expect zero op");
 
     //
     // test race with a concurrent delete for an existing key. should fail.
@@ -1370,7 +1406,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
 
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 0, "Expect zero op");
+    checkeq(size_t{0}, temp, "Expect zero op");
 
     //
     // test race with a concurrent delete for a deleted key. should pass since
@@ -1380,8 +1416,9 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     // do get_meta for the deleted key
     wait_for_flusher_to_settle(h);
     check(get_meta(h, key1, errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
 
     // do a concurrent delete. should fail.
     checkeq(ENGINE_KEY_ENOENT, del(h, key1, 0, Vbid(0)), "Delete failed");
@@ -1403,7 +1440,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 1, "Expect some op");
+    checkeq(size_t{1}, temp, "Expect some op");
 
     //
     // test race with a concurrent delete for a nonexistent key. should pass
@@ -1426,7 +1463,7 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
-    check(temp == 2, "Expect some ops");
+    checkeq(size_t{2}, temp, "Expect some ops");
 
     return SUCCESS;
 }
@@ -1653,9 +1690,11 @@ static enum test_result test_exp_persisted_set_del(EngineIface* h) {
     wait_for_stat_to_be(h, "curr_items", 0);
 
     check(get_meta(h, "key3", errorMetaPair), "Expected to get meta");
-    check(errorMetaPair.second.seqno == 4, "Expected seqno to match");
-    check(errorMetaPair.second.cas != 3, "Expected cas to be different");
-    check(errorMetaPair.second.flags == 0, "Expected flags to match");
+    checkeq(uint64_t{4}, errorMetaPair.second.seqno, "Expected seqno to match");
+    checkne(uint64_t{3},
+            errorMetaPair.second.cas,
+            "Expected cas to be different");
+    checkeq(uint32_t{0}, errorMetaPair.second.flags, "Expected flags to match");
 
     return SUCCESS;
 }
@@ -1708,8 +1747,9 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
 
     check(get_meta(h, k1, errorMetaPair, cookie),
           "Expected get_meta to succeed");
-    check(errorMetaPair.second.document_state == DocumentState::Deleted,
-          "Expected deleted flag to be set");
+    checkeq(DocumentState::Deleted,
+            errorMetaPair.second.document_state,
+            "Expected deleted flag to be set");
 
     // Even though 2 get_meta calls are made, we may have one or two bg fetches
     // done. That is if first bgfetch restores in HT, the deleted item from
@@ -1996,13 +2036,13 @@ static enum test_result test_del_meta_conflict_resolution(EngineIface* h) {
     itemMeta.revSeqno--;
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
     checkeq(cb::mcbp::Status::KeyEexists, last_status.load(), "Expected exists");
-    check(get_int_stat(h, "ep_num_ops_del_meta_res_fail") == 4,
+    checkeq(4, get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     del_with_meta(h, "key", 3, Vbid(0), &itemMeta);
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-    check(get_int_stat(h, "ep_num_ops_del_meta_res_fail") == 4,
+    checkeq(4, get_int_stat(h, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     return SUCCESS;
