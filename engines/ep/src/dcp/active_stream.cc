@@ -1258,6 +1258,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                         vbucket->checkpointManager->registerCursorBySeqno(
                                 name_, lastReadSeqno.load());
                 curChkSeqno = result.seqno;
+                cursor = result.cursor;
             } catch (std::exception& error) {
                 log(spdlog::level::level_enum::warn,
                     "({}) Failed to register "

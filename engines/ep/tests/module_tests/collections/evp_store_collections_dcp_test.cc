@@ -220,6 +220,14 @@ TEST_F(CollectionsDcpTest, mb30893_dcp_partial_updates) {
 
     notifyAndStepToCheckpoint();
 
+    // MB-31463: Adding the following handleSlowStream gives coverage for this
+    // MB, without the fix the entire test fails as the stream cannot retrieve
+    // data from the checkpoint.
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    auto* as = static_cast<ActiveStream*>(stream.get());
+    as->handleSlowStream();
+
     VBucketPtr replica = store->getVBucket(replicaVB);
 
     // Now step the producer to transfer the collection creation(s)
