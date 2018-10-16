@@ -103,6 +103,17 @@ Each `FrameInfo` consists of:
    escape bytes).
 * N Bytes: *Object data*.
 
+##### ID:0 - reorder
+
+Allow this command to be reordered. FrameInfo encoded as:
+
+    Byte/     0       |
+       /              |
+      |0 1 2 3 4 5 6 7|
+      +---------------+
+     0|  ID:0 | Len:0 |
+
+
 ### Response header
 
       Byte/     0       |       1       |       2       |       3       |
@@ -1699,13 +1710,8 @@ The following features is defined:
   them to memcached. (note that this notification is subject to
   deduplication of the vbucket map received as part of not my vbucket)
 * `UnorderedExecution` - The client allows the server to reorder the
-  execution of commands (and send the responses in any order back to
-  the client). Some commands can however not be reordered (select
-  bucket being one of them), when such a command is received the
-  server awaits all concurrent commands to complete before executing
-  the command in isolation. Once the command is completed the server
-  starts reordering the next commands. NOTE: It is not possible to
-  enable unordered execution on connections used for DCP.
+  execution of commands. See the document
+  [UnorderedExecution](UnorderedExecution.md) for more information
 * `Tracing` - The client wants the server to include tracing information
   in the response packet
 * `AltRequest support` This is purely informational (it does not enable/disable
