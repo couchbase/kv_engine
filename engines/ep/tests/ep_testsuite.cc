@@ -69,8 +69,6 @@
 #undef htonl
 #endif
 
-using namespace std::string_literals;
-
 // ptr_fun don't like the extern "C" thing for unlock cookie.. cast it
 // away ;)
 typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
@@ -308,7 +306,7 @@ static enum test_result test_flush_shutdown_force(EngineIface* h) {
     bool shutdownForce = true;
     int currItems =
             checkCurrItemsAfterShutdown(h, numItems2load, shutdownForce);
-    checkle(currItems, numItems2load,
+    check (currItems <= numItems2load,
            "Number of curr items should be <= 3000, unless previous "
            "shutdown force had to wait for the flusher");
     return SUCCESS;
@@ -705,8 +703,8 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     // targetTaskTime1 and targetTaskTime2
     err_msg.assign("Unexpected task time range, expect: " +
                    targetTaskTime1 + " <= " + str + " <= " + targetTaskTime2);
-    checkle(targetTaskTime1, str, err_msg.c_str());
-    checkle(str, targetTaskTime2, err_msg.c_str());
+    check(targetTaskTime1 <= str, err_msg.c_str());
+    check(str <= targetTaskTime2, err_msg.c_str());
 
     return SUCCESS;
 }
@@ -1003,8 +1001,8 @@ static enum test_result test_expiration_on_compaction(EngineIface* h) {
     checkeq(50,
             get_int_stat(h, "curr_items"),
             "Unexpected number of items on database");
-    checklt(1, get_int_stat(h, "vb_0:persistence:num_visits", "checkpoint"),
-            "Cursor not moved even after flusher runs");
+    check(1 < get_int_stat(h, "vb_0:persistence:num_visits", "checkpoint"),
+          "Cursor not moved even after flusher runs");
 
     testHarness->time_travel(15);
 
@@ -1299,7 +1297,8 @@ static enum test_result test_get_replica(EngineIface* h) {
             "Get Replica Failed");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected cb::mcbp::Status::Success response.");
-    checkeq("replicadata"s, last_body, "Should have returned identical value");
+    checkeq(std::string("replicadata"), last_body,
+            "Should have returned identical value");
     checkeq(1, get_int_stat(h, "vb_replica_ops_get"), "Expected 1 get");
 
     cb_free(pkt);
@@ -1931,10 +1930,10 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
 
     size_t file_size = get_int_stat(h, "ep_db_file_size", "diskinfo");
     size_t data_size = get_int_stat(h, "ep_db_data_size", "diskinfo");
-    checklt(size_t{0}, file_size, "DB file size should be greater than 0");
-    checklt(size_t{0}, data_size, "DB data size should be greater than 0");
-    checkge(file_size, data_size, "DB file size should be >= DB data size");
-    checkgt(get_int_stat(h, "vb_1:data_size", "diskinfo detail"), 0,
+    check(file_size > 0, "DB file size should be greater than 0");
+    check(data_size > 0, "DB data size should be greater than 0");
+    check(file_size >= data_size, "DB file size should be >= DB data size");
+    check(get_int_stat(h, "vb_1:data_size", "diskinfo detail") > 0,
           "VB 1 data size should be greater than 0");
 
     checkeq(ENGINE_EINVAL,
@@ -2004,7 +2003,7 @@ static enum test_result test_stats(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             get_stats(h, {}, add_stats),
             "Failed to get stats.");
-    checklt(size_t{10}, vals.size(), "Kind of expected more stats than that.");
+    check(vals.size() > 10, "Kind of expected more stats than that.");
 
     return SUCCESS;
 }
@@ -2028,16 +2027,16 @@ static enum test_result test_mem_stats(EngineIface* h) {
     int cache_size = get_int_stat(h, "ep_total_cache_size");
     int overhead = get_int_stat(h, "ep_overhead");
     int value_size = get_int_stat(h, "ep_value_size");
-    checkgt((mem_used - overhead), cache_size,
-            "ep_kv_size should be greater than the hashtable cache size due to "
-            "the checkpoint overhead");
+    check((mem_used - overhead) > cache_size,
+          "ep_kv_size should be greater than the hashtable cache size due to "
+          "the checkpoint overhead");
 
     if (isPersistentBucket(h)) {
         evict_key(h, "key", Vbid(0), "Ejected.");
 
-        checkge(cache_size, get_int_stat(h, "ep_total_cache_size"),
-                "Evict a value shouldn't increase the total cache size");
-        checkgt(mem_used, get_int_stat(h, "mem_used"),
+        check(get_int_stat(h, "ep_total_cache_size") <= cache_size,
+              "Evict a value shouldn't increase the total cache size");
+        check(get_int_stat(h, "mem_used") < mem_used,
               "Expected mem_used to decrease when an item is evicted");
 
         check_key_value(h,
@@ -2162,19 +2161,19 @@ static enum test_result test_vb_file_stats(EngineIface* h) {
 
     int old_data_size = get_int_stat(h, "ep_db_data_size");
     int old_file_size = get_int_stat(h, "ep_db_file_size");
-    checkne(0, old_file_size, "Expected a non-zero value for ep_db_file_size");
+    check(old_file_size != 0, "Expected a non-zero value for ep_db_file_size");
 
     // Write a value and test ...
     wait_for_persisted_value(h, "a", "b\r\n");
-    checklt(old_data_size, get_int_stat(h, "ep_db_data_size"),
-            "Expected the DB data size to increase");
-    checklt(old_file_size, get_int_stat(h, "ep_db_file_size"),
-            "Expected the DB file size to increase");
+    check(get_int_stat(h, "ep_db_data_size") > old_data_size,
+          "Expected the DB data size to increase");
+    check(get_int_stat(h, "ep_db_file_size") > old_file_size,
+          "Expected the DB file size to increase");
 
-    checklt(0, get_int_stat(h, "vb_0:db_data_size", "vbucket-details 0"),
-            "Expected the vbucket DB data size to non-zero");
-    checklt(0, get_int_stat(h, "vb_0:db_file_size", "vbucket-details 0"),
-            "Expected the vbucket DB file size to non-zero");
+    check(get_int_stat(h, "vb_0:db_data_size", "vbucket-details 0") > 0,
+          "Expected the vbucket DB data size to non-zero");
+    check(get_int_stat(h, "vb_0:db_file_size", "vbucket-details 0") > 0,
+          "Expected the vbucket DB file size to non-zero");
     return SUCCESS;
 }
 
@@ -2212,12 +2211,8 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h) {
     int newSpaceUsed =
             get_int_stat(h, "vb_0:db_data_size", "vbucket-details 0");
 
-    checkle(static_cast<float>(0.9 * fileSize),
-            static_cast<float>(newFileSize),
-            "Unexpected fileSize for vbucket");
-    checkle(static_cast<float>(0.9 * spaceUsed),
-            static_cast<float>(newSpaceUsed),
-            "Unexpected spaceUsed for vbucket");
+    check((float)newFileSize >= 0.9 * fileSize, "Unexpected fileSize for vbucket");
+    check((float)newSpaceUsed >= 0.9 * spaceUsed, "Unexpected spaceUsed for vbucket");
 
     return SUCCESS;
 }
@@ -2543,7 +2538,7 @@ static enum test_result test_itempager_conf(EngineIface* h) {
                     "ht_eviction_policy",
                     "2-bit_lru"),
           "Setting ht_eviction_policy should have worked");
-    checkeq("2-bit_lru"s,
+    checkeq(std::string("2-bit_lru"),
             get_str_stat(h, "ep_ht_eviction_policy"),
             "ht_eviction_policy did not get set to the correct value");
 
@@ -2600,7 +2595,7 @@ static enum test_result test_bloomfilter_conf(EngineIface* h) {
     check(get_bool_stat(h, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
 
-    checkeq(0.1f,
+    checkeq(static_cast<float>(0.1),
             get_float_stat(h, "ep_bfilter_residency_threshold"),
             "Incorrect initial bfilter_residency_threshold.");
 
@@ -2617,7 +2612,7 @@ static enum test_result test_bloomfilter_conf(EngineIface* h) {
 
     checkeq(false, get_bool_stat(h, "ep_bfilter_enabled"),
             "Bloom filter should have been disabled.");
-    checkeq(0.15f,
+    checkeq(static_cast<float>(0.15),
             get_float_stat(h, "ep_bfilter_residency_threshold"),
             "Incorrect bfilter_residency_threshold.");
 
@@ -2639,7 +2634,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
     int num_read_attempts = get_int_stat_or_default(h, 0, "ep_bg_num_samples");
 
     // Ensure vbucket's bloom filter is enabled
-    checkeq("ENABLED"s,
+    checkeq(std::string("ENABLED"),
             get_str_stat(h, "vb_0:bloom_filter", "vbucket-details 0"),
             "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
@@ -2778,7 +2773,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
     int num_read_attempts = get_int_stat_or_default(h, 0, "ep_bg_num_samples");
 
     // Ensure vbucket's bloom filter is enabled
-    checkeq("ENABLED"s,
+    checkeq(std::string("ENABLED"),
             get_str_stat(h, "vb_0:bloom_filter", "vbucket-details 0"),
             "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
@@ -2873,7 +2868,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
           "Bloom filter wasn't enabled");
 
     // Ensure vbucket's bloom filter is enabled
-    checkeq("ENABLED"s,
+    checkeq(std::string("ENABLED"),
             get_str_stat(h, "vb_0:bloom_filter", "vbucket-details 0"),
             "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
@@ -2897,7 +2892,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
             get_int_stat(h, "vb_0:bloom_filter_key_count", "vbucket-details 0");
 
     if (key_count == 0) {
-        checkge(2, get_int_stat(h, "rw_0:io_num_write", "kvstore"),
+        check(get_int_stat(h, "rw_0:io_num_write", "kvstore") <= 2,
               "Unexpected number of writes");
         start_persistence(h);
         wait_for_flusher_to_settle(h);
@@ -2939,7 +2934,8 @@ static enum test_result test_datatype(EngineIface* h) {
 
     item_info info;
     h->get_item_info(ret.second.get(), &info);
-    checkeq(PROTOCOL_BINARY_DATATYPE_JSON, info.datatype, "Invalid datatype");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype");
 
     const char* key1 = "foo";
     const char* val1 = "{\"foo1\":\"bar1\"}";
@@ -2964,9 +2960,8 @@ static enum test_result test_datatype(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     h->get_item_info(ret.second.get(), &info);
-    checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
-            info.datatype,
-            "Invalid datatype, when setWithMeta");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype, when setWithMeta");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -3003,9 +2998,8 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
 
     item_info info;
     h->get_item_info(ret.second.get(), &info);
-    checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
-            info.datatype,
-            "Invalid datatype, when setWithMeta");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype, when setWithMeta");
 
     //SET_RETURN_META
     checkeq(ENGINE_SUCCESS,
@@ -3023,9 +3017,8 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected set returing meta to succeed");
-    checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
-            last_datatype.load(),
-            "Invalid datatype, when set_return_meta");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            last_datatype.load(), "Invalid datatype, when set_return_meta");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -3137,8 +3130,8 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     // targetTaskTime1 and targetTaskTime2
     err_msg.assign("Unexpected task time range, expect: " +
                    targetTaskTime1 + " <= " + str + " <= " + targetTaskTime2);
-    checkle(targetTaskTime1, str, err_msg.c_str());
-    checkle(str, targetTaskTime2, err_msg.c_str());
+    check(targetTaskTime1 <= str, err_msg.c_str());
+    check(str <= targetTaskTime2, err_msg.c_str());
 
     return SUCCESS;
 }
@@ -3543,7 +3536,7 @@ static enum test_result test_warmup_oom(EngineIface* h) {
 static enum test_result test_cbd_225(EngineIface* h) {
     // get engine startup token
     time_t token1 = get_int_stat(h, "ep_startup_time");
-    checkne(time_t{0}, token1, "Expected non-zero startup token");
+    check(token1 != 0, "Expected non-zero startup token");
 
     // store some random data
     checkeq(ENGINE_SUCCESS,
@@ -3570,7 +3563,7 @@ static enum test_result test_cbd_225(EngineIface* h) {
 
     // check token, this time we should get a different one
     time_t token3 = get_int_stat(h, "ep_startup_time");
-    checkne(token3, token1, "Expected a different startup token");
+    check(token3 != token1, "Expected a different startup token");
 
     return SUCCESS;
 }
@@ -4663,16 +4656,15 @@ static enum test_result test_observe_single_key(EngineIface* h) {
     memcpy(&vb, last_body.data(), sizeof(Vbid));
     checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{3}, ntohs(keylen), "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(3), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
     checkeq(cb::const_char_buffer("key", 3), cb::const_char_buffer(key, 3),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
-    checkeq(uint8_t{OBS_STATE_NOT_PERSISTED},
-            persisted,
+    checkeq(static_cast<uint8_t >(OBS_STATE_NOT_PERSISTED), persisted,
             "Expected persisted in result");
     memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
-    checkeq(cas1, ntohll(cas), "Wrong cas in result");
+    checkeq(static_cast<uint64_t>(cas1), ntohll(cas), "Wrong cas in result");
 
     return SUCCESS;
 }
@@ -4692,9 +4684,9 @@ static enum test_result test_observe_temp_item(EngineIface* h) {
     cb::EngineErrorMetadataPair errorMetaPair;
 
     check(get_meta(h, k1, errorMetaPair), "Expected to get meta");
-    checkeq(DocumentState::Deleted,
-            errorMetaPair.second.document_state,
-            "Expected deleted flag to be set");
+    checkeq(static_cast<uint8_t>(DocumentState::Deleted),
+            static_cast<uint8_t>(errorMetaPair.second.document_state),
+          "Expected deleted flag to be set");
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
 
     if (isPersistentBucket(h)) {
@@ -4725,7 +4717,7 @@ static enum test_result test_observe_temp_item(EngineIface* h) {
     memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
 
     checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
-    checkeq(uint16_t{3}, ntohs(keylen), "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(3), ntohs(keylen), "Wrong keylen in result");
     checkeq(cb::const_char_buffer("key", 3), cb::const_char_buffer(key, 3),
             "Wrong key in result");
     if (isPersistentBucket(h)) {
@@ -4813,7 +4805,7 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     memcpy(&vb, last_body.data(), sizeof(Vbid));
     checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
     checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
             "Wrong key in result");
@@ -4825,26 +4817,26 @@ static enum test_result test_observe_multi_key(EngineIface* h) {
     memcpy(&vb, last_body.data() + 17, sizeof(Vbid));
     checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
     checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 26, sizeof(uint64_t));
-    checkeq(cas2, ntohll(cas), "Wrong cas in result");
+    checkeq(static_cast<uint64_t>(cas2), ntohll(cas), "Wrong cas in result");
 
     memcpy(&vb, last_body.data() + 34, sizeof(Vbid));
     checkeq(Vbid(1), vb.ntoh(),  "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
     checkeq(cb::const_char_buffer("key3", 4), cb::const_char_buffer(key, 4),
             "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
-    checkeq(cas3, ntohll(cas), "Wrong cas in result");
+    checkeq(static_cast<uint64_t>(cas3), ntohll(cas),  "Wrong cas in result");
 
     return SUCCESS;
 }
@@ -4900,7 +4892,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     memcpy(&vb, last_body.data(), sizeof(Vbid));
     checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
     checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
             "Wrong key in result");
@@ -4908,7 +4900,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     checkeq(cas1, ntohll(cas), "Wrong cas in result");
-    checkeq(size_t{17}, last_body.size(), "Incorrect body length");
+    checkeq(static_cast<size_t>(17), last_body.size(), "Incorrect body length");
 
     // Do another observe
     obskeys.clear();
@@ -4919,7 +4911,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     memcpy(&vb, last_body.data(), sizeof(Vbid));
     checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    checkeq(static_cast<uint16_t>(4), ntohs(keylen), "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
     checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
             "Wrong key in result");
@@ -4927,7 +4919,7 @@ static enum test_result test_multiple_observes(EngineIface* h) {
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     checkeq(cas2, ntohll(cas),"Wrong cas in result");
-    checkeq(size_t{17}, last_body.size(), "Incorrect body length");
+    checkeq(static_cast<size_t>(17), last_body.size(), "Incorrect body length");
 
     return SUCCESS;
 }
@@ -4992,36 +4984,33 @@ static enum test_result test_observe_with_not_found(EngineIface* h) {
                                            : OBS_STATE_NOT_PERSISTED;
 
     memcpy(&vb, last_body.data(), sizeof(Vbid));
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
+    check(vb.ntoh() == Vbid(0), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
-            "Wrong key in result");
+    check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     checkeq(expected_persisted, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    checkeq(ntohll(cas), cas1, "Wrong cas in result");
+    check(ntohll(cas) == cas1, "Wrong cas in result");
 
     memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
-            "Wrong key in result");
+    check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     checkeq(OBS_STATE_NOT_FOUND, int(persisted), "Expected key_not_found key status");
 
     memcpy(&vb, last_body.data() + 34, sizeof(Vbid));
-    checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
+    check(vb.ntoh() == Vbid(1), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key3", 4), cb::const_char_buffer(key, 4),
-            "Wrong key in result");
+    check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     checkeq(OBS_STATE_LOGICAL_DEL, int(persisted), "Expected persisted in result");
     memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
-    checkne(cas3, ntohll(cas), "Expected cas to be different");
+    check(ntohll(cas) != cas3, "Expected cas to be different");
 
     return SUCCESS;
 }
@@ -5040,7 +5029,7 @@ static enum test_result test_observe_errors(EngineIface* h) {
     protocol_binary_request_header *pkt;
     pkt = createPacket(
             PROTOCOL_BINARY_CMD_OBSERVE, Vbid(0), 0, NULL, 0, NULL, 0, "0", 1);
-    checkeq(ENGINE_SUCCESS, h->unknown_command(NULL, pkt, add_response),
+    check(h->unknown_command(NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     checkeq(cb::mcbp::Status::Einval, last_status.load(), "Expected invalid");
     cb_free(pkt);
@@ -5159,7 +5148,7 @@ static enum test_result test_item_pager(EngineIface* h) {
     // The pager should of ran
     wait_for_stat_to_be_gte(h, "ep_num_value_ejects", 1);
 
-    checklt(10, docs_stored,
+    check(docs_stored > 10,
           "Failed to store enough documents before hitting TempOOM\n");
 
     // If the item pager hasn't run already, set mem_high_wat
@@ -5226,7 +5215,7 @@ static enum test_result test_item_pager(EngineIface* h) {
 
     //Tmp ooms now trigger the item_pager task to eject some items,
     //thus there would be a few background fetches at least.
-    checklt(0, get_int_stat(h, "ep_bg_fetched"),
+    check(get_int_stat(h, "ep_bg_fetched") > 0,
           "Expected a few disk reads for referenced items");
 
     return SUCCESS;
@@ -5251,7 +5240,8 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             h->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Failed to get stats.");
-    checkeq("dirty"s, vals.find("key_valid")->second, "Expected 'dirty'");
+    check(vals.find("key_valid")->second.compare("dirty") == 0,
+          "Expected 'dirty'");
 
     // Check that a key that is resident and persisted returns valid
     start_persistence(h);
@@ -5259,14 +5249,15 @@ static enum test_result test_stats_vkey_valid_field(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             h->get_stats(cookie, {stats_key, strlen(stats_key)}, add_stats),
             "Failed to get stats.");
-    checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
+    check(vals.find("key_valid")->second.compare("valid") == 0,
+          "Expected 'valid'");
 
     // Check that an evicted key still returns valid
     evict_key(h, "key", Vbid(0), "Ejected.");
     checkeq(ENGINE_SUCCESS,
             h->get_stats(cookie, "vkey key 0"_ccb, add_stats),
             "Failed to get stats.");
-    checkeq("valid"s, vals.find("key_valid")->second, "Expected 'valid'");
+    check(vals.find("key_valid")->second.compare("valid") == 0, "Expected 'valid'");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -5299,7 +5290,7 @@ static enum test_result test_multiple_transactions(EngineIface* h) {
                 "Failed to store a value");
     }
     wait_for_stat_to_be(h, "ep_total_persisted", 2000);
-    checklt(1, get_int_stat(h, "ep_commit_num"),
+    check(get_int_stat(h, "ep_commit_num") > 1,
           "Expected 20 transaction completions at least");
     return SUCCESS;
 }
@@ -5315,10 +5306,10 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
             "Expected 1 set rm op");
 
-    checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{1ull}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 1ull, "Invalid result for seqno");
 
     // Check that set with correct cas succeeds
     checkeq(ENGINE_SUCCESS,
@@ -5338,12 +5329,10 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
             "Expected 2 set rm ops");
 
-    checkeq(uint32_t{10}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{1735689600},
-            last_meta.exptime,
-            "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{2ull}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 2ull, "Invalid result for seqno");
 
     // Check that updating an item with no cas succeeds
     checkeq(ENGINE_SUCCESS,
@@ -5355,10 +5344,10 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
             "Expected 3 set rm ops");
 
-    checkeq(uint32_t{5}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{3ull}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 5, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 3ull, "Invalid result for seqno");
 
     // Check that updating an item with the wrong cas fails
     checkeq(ENGINE_SUCCESS,
@@ -5448,10 +5437,10 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
             "Expected 1 set rm op");
 
-    checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 1ull, "Invalid result for seqno");
 
     // Check that re-adding a key fails
     checkeq(ENGINE_SUCCESS,
@@ -5470,12 +5459,10 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
             "Expected 2 set rm ops");
 
-    checkeq(uint32_t{10}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{1735689600},
-            last_meta.exptime,
-            "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 1ull, "Invalid result for seqno");
 
     return SUCCESS;
 }
@@ -5558,10 +5545,10 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
 
-    checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 1ull, "Invalid result for seqno");
 
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0), 0),
@@ -5572,10 +5559,10 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_del_ret_meta"),
             "Expected 1 del rm op");
 
-    checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{2}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 2ull, "Invalid result for seqno");
 
     // Check that deleting a key with a cas succeeds.
     checkeq(ENGINE_SUCCESS,
@@ -5584,12 +5571,10 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
 
-    checkeq(uint32_t{10}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{1735689600},
-            last_meta.exptime,
-            "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{3}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 3ull, "Invalid result for seqno");
 
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas),
@@ -5600,12 +5585,10 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_del_ret_meta"),
             "Expected 2 del rm ops");
 
-    checkeq(uint32_t{10}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{1735689600},
-            last_meta.exptime,
-            "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{4}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 10, "Invalid result for flags");
+    check(last_meta.exptime == 1735689600, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 4ull, "Invalid result for seqno");
 
     // Check that deleting a key with the wrong cas fails
     checkeq(ENGINE_SUCCESS,
@@ -5614,10 +5597,10 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
 
-    checkeq(uint32_t{0}, last_meta.flags, "Invalid result for flags");
-    checkeq(time_t{0}, last_meta.exptime, "Invalid result for expiration");
-    checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
-    checkeq(cb::uint48_t{5}, last_meta.revSeqno, "Invalid result for seqno");
+    check(last_meta.flags == 0, "Invalid result for flags");
+    check(last_meta.exptime == 0, "Invalid result for expiration");
+    check(last_meta.cas != 0, "Invalid result for cas");
+    check(last_meta.revSeqno == 5ull, "Invalid result for seqno");
 
     checkeq(ENGINE_SUCCESS,
             del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas + 1),
@@ -5888,7 +5871,7 @@ static enum test_result test_gat_with_item_eviction(EngineIface* h) {
 
     gat(h, "mykey", Vbid(0), 10); // 10 sec as expiration time
     checkeq(cb::mcbp::Status::Success, last_status.load(), "gat mykey");
-    checkeq("somevalue"s, last_body, "Invalid data returned");
+    check(last_body == "somevalue", "Invalid data returned");
 
     // time-travel 9 secs..
     testHarness->time_travel(9);
@@ -5975,10 +5958,10 @@ static enum test_result test_del_with_item_eviction(EngineIface* h) {
     checkeq(ENGINE_SUCCESS,
             del(h, "key", &cas, Vbid(0), nullptr, &mut_info),
             "Failed remove with value.");
-    checkne(orig_cas, cas, "Expected CAS to be different on delete");
-    checkeq(ENGINE_KEY_ENOENT, verify_key(h, "key"), "Expected missing key");
-    checkeq(vb_uuid, mut_info.vbucket_uuid, "Expected valid vbucket uuid");
-    checkeq((high_seqno + 1), mut_info.seqno, "Expected valid sequence number");
+    check(orig_cas != cas, "Expected CAS to be different on delete");
+    check(ENGINE_KEY_ENOENT == verify_key(h, "key"), "Expected missing key");
+    check(vb_uuid == mut_info.vbucket_uuid, "Expected valid vbucket uuid");
+    check(high_seqno + 1 == mut_info.seqno, "Expected valid sequence number");
 
     return SUCCESS;
 }
@@ -6045,57 +6028,48 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
     uint64_t cas;
 
     memcpy(&vb, last_body.data(), sizeof(Vbid));
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
+    check(vb.ntoh() == Vbid(0), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
     memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key1", 4), cb::const_char_buffer(key, 4),
-            "Wrong key in result");
+    check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    checkeq(uint8_t{OBS_STATE_PERSISTED},
-            persisted,
-            "Expected persisted in result");
+    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
     memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    checkeq(ntohll(cas), cas1, "Wrong cas in result");
+    check(ntohll(cas) == cas1, "Wrong cas in result");
 
     memcpy(&vb, last_body.data() + 17, sizeof(Vbid));
-    checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
+    check(vb.ntoh() == Vbid(1), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
     memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key2", 4), cb::const_char_buffer(key, 4),
-            "Wrong key in result");
+    check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
-    checkeq(uint8_t{OBS_STATE_PERSISTED},
-            persisted,
-            "Expected persisted in result");
+    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
     memcpy(&cas, last_body.data() + 26, sizeof(uint64_t));
-    checkeq(ntohll(cas), cas2, "Wrong cas in result");
+    check(ntohll(cas) == cas2, "Wrong cas in result");
 
     memcpy(&vb, last_body.data() + 34, sizeof(Vbid));
-    checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
+    check(vb.ntoh() == Vbid(1), "Wrong vbucket in result");
     memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
+    check(ntohs(keylen) == 4, "Wrong keylen in result");
     memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    checkeq(cb::const_char_buffer("key3", 4), cb::const_char_buffer(key, 4),
-            "Wrong key in result");
+    check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
-    checkeq(uint8_t{OBS_STATE_PERSISTED},
-            persisted,
-            "Expected persisted in result");
+    check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
     memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
-    checkeq(ntohll(cas), cas3, "Wrong cas in result");
+    check(ntohll(cas) == cas3, "Wrong cas in result");
 
     return SUCCESS;
 }
 
 static enum test_result test_expired_item_with_item_eviction(EngineIface* h) {
     // Store the item!
-    checkeq(ENGINE_SUCCESS, store(h, NULL, OPERATION_SET, "mykey", "somevalue"),
+    check(store(h, NULL, OPERATION_SET, "mykey", "somevalue") == ENGINE_SUCCESS,
           "Failed set.");
     gat(h, "mykey", Vbid(0), 10); // 10 sec as expiration time
     checkeq(cb::mcbp::Status::Success, last_status.load(), "gat mykey");
-    checkeq("somevalue"s, last_body, "Invalid data returned");
+    check(last_body == "somevalue", "Invalid data returned");
 
     // Store a dummy item since we do not purge the item with highest seqno
     checkeq(ENGINE_SUCCESS,
@@ -6250,7 +6224,7 @@ static enum test_result test_get_random_key(EngineIface* h) {
             h->unknown_command(cookie, &pkt, add_response),
             "get random should work");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-    checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             last_datatype.load(),
             "Expected datatype to be JSON");
 
@@ -6292,9 +6266,7 @@ static enum test_result test_failover_log_behavior(EngineIface* h) {
     wait_for_warmup_complete(h);
     num_entries = get_int_stat(h, "vb_0:num_entries", "failovers");
 
-    checkeq(uint64_t{1},
-            num_entries,
-            "Failover log should have one entry for new vbucket");
+    check(num_entries == 1, "Failover log should have one entry for new vbucket");
     top_entry_id = get_ull_stat(h, "vb_0:0:id", "failovers");
 
     // restart
@@ -6307,8 +6279,8 @@ static enum test_result test_failover_log_behavior(EngineIface* h) {
     wait_for_warmup_complete(h);
     num_entries = get_int_stat(h, "vb_0:num_entries", "failovers");
 
-    checkeq(uint64_t{2}, num_entries, "Failover log should have grown");
-    checkne(top_entry_id, get_ull_stat(h, "vb_0:0:id", "failovers"),
+    check(num_entries == 2, "Failover log should have grown");
+    check(get_ull_stat(h, "vb_0:0:id", "failovers") != top_entry_id,
           "Entry at current seq should be overwritten after restart");
 
     int num_items = 10;
@@ -6333,11 +6305,11 @@ static enum test_result test_failover_log_behavior(EngineIface* h) {
     wait_for_warmup_complete(h);
     num_entries = get_int_stat(h, "vb_0:num_entries", "failovers");
 
-    checkeq(uint64_t{3}, num_entries, "Failover log should have grown");
-    checkeq(uint64_t{10},
+    checkeq(static_cast<uint64_t>(3), num_entries,
+            "Failover log should have grown");
+    checkeq(static_cast<uint64_t>(10),
             get_ull_stat(h, "vb_0:0:seq", "failovers"),
-            "Latest failover log entry should have correct high sequence "
-            "number");
+          "Latest failover log entry should have correct high sequence number");
 
     return SUCCESS;
 }
@@ -6355,7 +6327,7 @@ static enum test_result test_hlc_cas(EngineIface* h) {
 
     check(get_item_info(h, &info, key), "Error in getting item info");
     curr_cas = info.cas;
-    checklt(prev_cas, curr_cas, "CAS is not monotonically increasing");
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
     checkeq(ENGINE_SUCCESS,
@@ -6364,7 +6336,7 @@ static enum test_result test_hlc_cas(EngineIface* h) {
 
     check(get_item_info(h, &info, key), "Error getting item info");
     curr_cas = info.cas;
-    checklt(prev_cas, curr_cas, "CAS is not monotonically increasing");
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
     checkeq(ENGINE_SUCCESS,
@@ -6373,7 +6345,7 @@ static enum test_result test_hlc_cas(EngineIface* h) {
 
     check(get_item_info(h, &info, key), "Error in getting item info");
     curr_cas = info.cas;
-    checklt(prev_cas, curr_cas, "CAS is not monotonically increasing");
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
     checkeq(cb::engine_errc::success,
@@ -6382,7 +6354,7 @@ static enum test_result test_hlc_cas(EngineIface* h) {
     check(get_item_info(h, &info, key), "Error in getting item info");
 
     curr_cas = info.cas;
-    checklt(prev_cas, curr_cas, "CAS is not monotonically increasing");
+    check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     return SUCCESS;
 }
 
@@ -7444,7 +7416,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           {entry.first.empty() ? nullptr : entry.first.data(),
                            entry.first.size()},
                           add_stats),
-                ("Failed to get stats: "s + entry.first).c_str());
+                (std::string("Failed to get stats: ") + entry.first).c_str());
 
         // Extract the keys from the fetched stats, and sort them.
         std::vector<std::string> actual;
@@ -7597,7 +7569,7 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
         checkeq(ENGINE_SUCCESS,
                 get_stats(
                         h, {entry.first.data(), entry.first.size()}, add_stats),
-                ("Failed to get stats: "s + entry.first).c_str());
+                (std::string("Failed to get stats: ") + entry.first).c_str());
 
         // Verify that the stats we expected is there..
         for (const auto& key : entry.second) {
@@ -7670,7 +7642,9 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
 
     fflush(fp);
 
-    checkeq(size_t{2048}, numBytes, "Bytes written should be equal to 2048");
+    checkeq(static_cast<unsigned long>(2048),
+            static_cast<unsigned long>(numBytes),
+            "Bytes written should be equal to 2048");
 
     checkeq(ENGINE_SUCCESS,
             store(h, NULL, OPERATION_SET, "key", "somevalue"),
