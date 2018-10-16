@@ -488,6 +488,7 @@ for examples of commands that include quiet variants.
 | -----|---------------------------------------------------------|
 | 0x01 | [ClustermapChangeNotification](#0x01-clustermap-change-notification) |
 | 0x02 | [AuthRequest](#0x02-auth-request) |
+| 0x03 | [ActiveExternalUsers](#0x03-active-external-users) |
 
 ### Data Types
 
@@ -2148,3 +2149,58 @@ any kind of validation).
 ### 0x02 Auth Request
 
 See [External Auth Provider](ExternalAuthProvider.md#authentication-request).
+
+### 0x03 Active External Users
+
+The `active external users` command is sent from memcached to the external
+auth provider(s) to notify them about the external users which are currently
+active on the server.
+
+Request:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST have value
+
+The server ignores any replies to this message
+
+#### Example
+
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| 0x82          | 0x03          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       4| 0x00          | 0x01          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       8| 0x00          | 0x00          | 0x00          | 0x0d          |
+        +---------------+---------------+---------------+---------------+
+      12| 0xde          | 0xad          | 0xca          | 0xfe          |
+        +---------------+---------------+---------------+---------------+
+      16| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      20| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      24| 0x5b ('[')    | 0x22 ('"')    | 0x46 ('F')    | 0x6f ('o')    |
+        +---------------+---------------+---------------+---------------+
+      28| 0x6f ('o')    | 0x22 ('"')    | 0x2c (',')    | 0x22 ('"')    |
+        +---------------+---------------+---------------+---------------+
+      32| 0x42 ('B')    | 0x61 ('a')    | 0x72 ('r')    | 0x22 ('"')    |
+        +---------------+---------------+---------------+---------------+
+      36| 0x5d (']')    |
+        +---------------+
+        Total 37 bytes (24 bytes header and 13 value)
+
+    Field        (offset) (value)
+    Magic        (0)    : 0x82 (ServerRequest)
+    Opcode       (1)    : 0x03 (ActiveExternalUsers)
+    Key length   (2,3)  : 0x0000
+    Extra length (4)    : 0x00
+    Data type    (5)    : 0x01
+    Vbucket      (6,7)  : 0x0000
+    Total body   (8-11) : 0x0000000d
+    Opaque       (12-15): 0xfecaadde
+    CAS          (16-23): 0x0000000000000000
+    Value        (24-36): The textual string '["Foo","Bar"]'

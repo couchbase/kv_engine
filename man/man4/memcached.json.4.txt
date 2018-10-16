@@ -329,6 +329,13 @@ took on the server will be sent back as a part of the response.
 The *external_auth_service* attribute is a boolean value to enable
 or disable the use of an external authentication service.
 
+=== active_external_users_push_interval
+
+The *active_external_users_push_interval* attribute is a numeric
+parameter to specify the number of seconds between each time
+memcached push the set of active external users to the authentication
+providers.
+
 === opcode-attributes-override
 
 The *opcode-attributes-override* attribute is an object which follows
@@ -421,6 +428,7 @@ A Sample memcached.json:
         "xattr_enabled" : true,
         "tracing_enabled" : true,
         "external_auth_service" : false,
+        "active_external_users_push_interval" : 180,
         "opcode-attributes-override": {
            "version": 1,
            "get": {

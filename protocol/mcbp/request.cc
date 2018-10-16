@@ -148,7 +148,6 @@ bool cb::mcbp::Request::isQuiet() const {
         case ClientOpcode::UpdateUserPermissions:
         case ClientOpcode::RbacRefresh:
         case ClientOpcode::AuthProvider:
-        case ClientOpcode::GetActiveExternalUsers:
         case ClientOpcode::DropPrivilege:
         case ClientOpcode::AdjustTimeofday:
         case ClientOpcode::EwouldblockCtl:
@@ -186,6 +185,8 @@ bool cb::mcbp::Request::isQuiet() const {
         case ServerOpcode::ClustermapChangeNotification:
             return false;
         case ServerOpcode::AuthRequest:
+            return false;
+        case ServerOpcode::ActiveExternalUsers:
             return false;
         }
     }

@@ -30,7 +30,7 @@
 std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;
 
 /**
- * The AuthenticationRequestServerEvent is responible for injecting
+ * The AuthenticationRequestServerEvent is responsible for injecting
  * the Authentication Request packet onto the connections stream.
  */
 class AuthenticationRequestServerEvent : public ServerEvent {
@@ -76,6 +76,46 @@ public:
 protected:
     const uint32_t id;
     std::string payload;
+};
+
+/**
+ * The ActiveExternalUsersServerEvent is responsible for injecting
+ * the ActiveExternalUsers packet onto the connections stream.
+ */
+class ActiveExternalUsersServerEvent : public ServerEvent {
+public:
+    ActiveExternalUsersServerEvent(std::string payload)
+        : payload(std::move(payload)) {
+    }
+
+    std::string getDescription() const override {
+        return "ActiveExternalUsersServerEvent";
+    }
+
+    bool execute(Connection& connection) override {
+        using namespace cb::mcbp;
+
+        const size_t needed = sizeof(cb::mcbp::Request) + payload.size();
+        connection.write->ensureCapacity(needed);
+        RequestBuilder builder(connection.write->wdata());
+        builder.setMagic(Magic::ServerRequest);
+        builder.setDatatype(cb::mcbp::Datatype::JSON);
+        builder.setOpcode(ServerOpcode::ActiveExternalUsers);
+        builder.setValue({reinterpret_cast<const uint8_t*>(payload.data()),
+                          payload.size()});
+
+        // Inject our packet into the stream!
+        connection.addMsgHdr(true);
+        connection.addIov(connection.write->wdata().data(), needed);
+        connection.write->produced(needed);
+
+        connection.setState(StateMachine::State::send_data);
+        connection.setWriteAndGo(StateMachine::State::new_cmd);
+        return true;
+    }
+
+protected:
+    const std::string payload;
 };
 
 void ExternalAuthManagerThread::add(Connection& connection) {
@@ -145,10 +185,14 @@ void ExternalAuthManagerThread::run() {
     setRunning();
 
     std::unique_lock<std::mutex> lock(mutex);
+    activeUsersLastSent = std::chrono::steady_clock::now();
     while (running) {
         if (incomingRequests.empty() && incommingResponse.empty()) {
-            // @todo fixme
-            condition_variable.wait_for(lock, std::chrono::seconds(1));
+            // We need to wake up the next time we want to push the
+            // new active users list
+            const auto now = std::chrono::steady_clock::now();
+            const auto sleeptime = (now - activeUsersLastSent);
+            condition_variable.wait_for(lock, sleeptime);
             if (!running) {
                 // We're supposed to terminate
                 return;
@@ -165,6 +209,12 @@ void ExternalAuthManagerThread::run() {
         if (!incommingResponse.empty()) {
             processResponseQueue();
         }
+
+        const auto now = std::chrono::steady_clock::now();
+        if ((now - activeUsersLastSent) >= activeUsersPushInterval.load()) {
+            pushActiveUsers();
+            activeUsersLastSent = now;
+        }
     }
 }
 
@@ -172,6 +222,34 @@ void ExternalAuthManagerThread::shutdown() {
     std::lock_guard<std::mutex> guard(mutex);
     running = false;
     condition_variable.notify_all();
+}
+
+void ExternalAuthManagerThread::pushActiveUsers() {
+    if (connections.empty()) {
+        return;
+    }
+
+    const std::string payload = activeUsers.to_json().dump();
+
+    // We cannot hold the internal lock when we try to lock the front
+    // end thread as that'll cause a potential deadlock with the "add",
+    // "remove" and "responseReceived" as they'll hold the thread
+    // mutex and try to acquire the auth mutex in order to enqueue
+    // a new connection / response.
+    auto* provider = connections.front();
+
+    mutex.unlock();
+    {
+        // Lock the authentication provider (we're holding a
+        // reference counter to the provider, so it can't go away while we're
+        // doing this).
+        std::lock_guard<std::mutex> guard(provider->getThread()->mutex);
+        provider->enqueueServerEvent(
+                std::make_unique<ActiveExternalUsersServerEvent>(payload));
+        provider->signalIfIdle(false, 0);
+    }
+    // Acquire the lock
+    mutex.lock();
 }
 
 void ExternalAuthManagerThread::processRequestQueue() {

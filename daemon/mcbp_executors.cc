@@ -558,16 +558,6 @@ static void auth_provider_executor(Cookie& cookie) {
     }
 }
 
-static void get_active_external_users_executor(Cookie& cookie) {
-    auto users = externalAuthManager->getActiveUsers().dump();
-    cookie.sendResponse(cb::mcbp::Status::Success,
-                        {},
-                        {},
-                        cb::const_char_buffer{users},
-                        cb::mcbp::Datatype::JSON,
-                        0);
-}
-
 static void no_support_executor(Cookie& cookie) {
     cookie.sendResponse(cb::mcbp::Status::NotSupported);
 }
@@ -737,8 +727,6 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
     handlers[uint8_t(cb::mcbp::ClientOpcode::AuthProvider)] =
             auth_provider_executor;
-    handlers[uint8_t(cb::mcbp::ClientOpcode::GetActiveExternalUsers)] =
-            get_active_external_users_executor;
     handlers[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
             get_cluster_config_executor;
     handlers[PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG] =
@@ -892,6 +880,7 @@ static void execute_server_response_packet(Cookie& cookie,
 
     switch (response.getServerOpcode()) {
     case cb::mcbp::ServerOpcode::ClustermapChangeNotification:
+    case cb::mcbp::ServerOpcode::ActiveExternalUsers:
         // ignore
         return;
     case cb::mcbp::ServerOpcode::AuthRequest:

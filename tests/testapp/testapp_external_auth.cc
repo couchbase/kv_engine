@@ -61,6 +61,9 @@ protected:
         cJSON_DeleteItemFromObject(memcached_cfg.get(),
                                    "external_auth_service");
         cJSON_AddTrueToObject(memcached_cfg.get(), "external_auth_service");
+        cJSON_AddStringToObject(memcached_cfg.get(),
+                                "active_external_users_push_interval",
+                                "100 ms");
         reconfigure();
 
         auto& conn = getConnection();
@@ -84,8 +87,10 @@ protected:
 
     void stepAuthProvider() {
         Frame frame;
-        provider->recvFrame(frame);
-
+        do {
+            provider->recvFrame(frame);
+        } while (frame.getRequest()->getServerOpcode() ==
+                 cb::mcbp::ServerOpcode::ActiveExternalUsers);
         // Perform the authentication
 
         TestappAuthProvider authProvider;
@@ -132,31 +137,27 @@ protected:
     }
 
     /**
-     * We've got multiple worker threads and if we try to disconnect a user
-     * connected to one thread that thread may not be sheduled to run
-     * immediately, so we may end up serving requests for another worker
-     * thread.
-     *
-     * To work around this (and try to avoid spurious test failures) we'll
-     * try to run the command a few times before we give up.
+     * The authentication provider should push the list of active users
+     * every 20ms, so we should be able to pick the list up pretty fast.
      *
      * @param content what we want the content of the users list to be
      */
     void waitForUserList(const std::string& content) {
-        const auto start = std::chrono::steady_clock::now();
-        do {
-            auto& conn = getAdminConnection();
-            auto resp = conn.execute(BinprotGetActiveUsersCommand{});
-            if (resp.isSuccess() && content == resp.getDataString()) {
+        while (true) {
+            Frame frame;
+            provider->recvFrame(frame);
+
+            auto& request = *frame.getRequest();
+            ASSERT_EQ(cb::mcbp::Magic::ServerRequest, request.getMagic());
+            ASSERT_EQ(cb::mcbp::ServerOpcode::ActiveExternalUsers,
+                      request.getServerOpcode());
+            auto value = request.getValue();
+            std::string users(reinterpret_cast<const char*>(value.data()),
+                              value.size());
+            if (users == content) {
                 return;
             }
-        } while ((std::chrono::steady_clock::now() - start) <
-                 std::chrono::seconds(2));
-
-        auto& conn = getAdminConnection();
-        auto resp = conn.execute(BinprotGetActiveUsersCommand{});
-        FAIL() << "Timed out trying to get expected content [" << content
-               << "] Current content is: " << resp.getDataString();
+        }
     }
 
     std::unique_ptr<MemcachedConnection> provider;

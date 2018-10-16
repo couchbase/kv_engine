@@ -314,14 +314,6 @@ enum class ClientOpcode : uint8_t {
     AuthProvider = 0xf8,
 
     /**
-     * Get a list of all active external users currently logged in.
-     *
-     * The returned packet contains all of the users encoded in a json
-     * array:  ["user1","user2"]
-     */
-    GetActiveExternalUsers = 0xf9,
-
-    /**
      * Drop a privilege from the current privilege set.
      *
      * The intention of the DropPrivilege command is to ease unit tests
@@ -397,7 +389,15 @@ enum class ServerOpcode {
      * `challenge` is base64 encoding of the callenge sent from the client
      * to memcached.
      */
-    AuthRequest = 0x02
+    AuthRequest = 0x02,
+    /**
+     * The list of active external users (pushed to authentication providers)
+     * and the payload of the message contains the list of these users
+     * in the following format:
+     *
+     *     [ "joe", "smith", "perry" ]
+     */
+    ActiveExternalUsers = 0x03,
 };
 
 } // namespace mcbp

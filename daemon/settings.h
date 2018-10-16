@@ -727,6 +727,19 @@ public:
         return external_auth_service.load(std::memory_order_acquire);
     }
 
+    std::chrono::microseconds getActiveExternalUsersPushInterval() const {
+        return active_external_users_push_interval.load(
+                std::memory_order_acquire);
+    }
+
+    void setActiveExternalUsersPushInterval(
+            const std::chrono::microseconds interval) {
+        active_external_users_push_interval.store(interval,
+                                                  std::memory_order_release);
+        has.active_external_users_push_interval = true;
+        notify_changed("active_external_users_push_interval");
+    }
+
 protected:
 
     /**
@@ -896,6 +909,9 @@ protected:
      */
     std::atomic_bool external_auth_service;
 
+    std::atomic<std::chrono::microseconds> active_external_users_push_interval{
+            std::chrono::minutes(5)};
+
 public:
     /**
      * Flags for each of the above config options, indicating if they were
@@ -938,6 +954,7 @@ public:
         bool stdin_listener;
         bool scramsha_fallback_salt;
         bool external_auth_service;
+        bool active_external_users_push_interval = false;
     } has;
 
 protected:

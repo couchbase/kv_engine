@@ -47,5 +47,6 @@
     "datatype_json" : true,
     "datatype_snappy" : true,
     "max_packet_size" : 25,
-    "bio_drain_buffer_sz" : 8192
+    "bio_drain_buffer_sz" : 8192,
+    "active_external_users_push_interval" :  180
 }

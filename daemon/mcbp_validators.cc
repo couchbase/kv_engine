@@ -578,18 +578,6 @@ static Status auth_provider_validator(Cookie& cookie) {
     return Status::Success;
 }
 
-static Status get_active_external_users_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
-}
-
 static Status verbosity_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        4,
@@ -1549,8 +1537,6 @@ McbpValidatorChains::McbpValidatorChains() {
     push_unique(cb::mcbp::ClientOpcode::RbacRefresh,
                 configuration_refresh_validator);
     push_unique(cb::mcbp::ClientOpcode::AuthProvider, auth_provider_validator);
-    push_unique(cb::mcbp::ClientOpcode::GetActiveExternalUsers,
-                get_active_external_users_validator);
     push_unique(cb::mcbp::ClientOpcode::GetFailoverLog,
                 dcp_get_failover_log_validator);
     push_unique(cb::mcbp::ClientOpcode::CollectionsSetManifest,

@@ -20,6 +20,7 @@
 #include <platform/base64.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
+#include <platform/timeutils.h>
 
 #include <algorithm>
 #include <cstring>
@@ -241,6 +242,22 @@ static void handle_external_auth_service(Settings& s, cJSON* obj) {
     } else {
         throw std::invalid_argument(
                 R"("external_auth_service" must be a boolean value)");
+    }
+}
+
+static void handle_active_external_users_push_interval(Settings& s,
+                                                       cJSON* obj) {
+    if (obj->type == cJSON_Number) {
+        s.setActiveExternalUsersPushInterval(
+                std::chrono::seconds(obj->valueint));
+    } else if (obj->type == cJSON_String) {
+        using std::chrono::duration_cast;
+        using std::chrono::microseconds;
+        auto us = duration_cast<microseconds>(cb::text2time(obj->valuestring));
+        s.setActiveExternalUsersPushInterval(us);
+    } else {
+        throw std::invalid_argument(
+                R"("active_external_users_push_interval" must be a number or string)");
     }
 }
 
@@ -696,7 +713,9 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"topkeys_enabled", handle_topkeys_enabled},
             {"tracing_enabled", handle_tracing_enabled},
             {"scramsha_fallback_salt", handle_scramsha_fallback_salt},
-            {"external_auth_service", handle_external_auth_service}};
+            {"external_auth_service", handle_external_auth_service},
+            {"active_external_users_push_interval",
+             handle_active_external_users_push_interval}};
 
     cJSON* obj = json->child;
     while (obj != nullptr) {
@@ -1154,6 +1173,18 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     other.isExternalAuthServiceEnabled() ? "enabled"
                                                          : "disabled");
             setExternalAuthServiceEnabled(other.isExternalAuthServiceEnabled());
+        }
+    }
+
+    if (other.has.active_external_users_push_interval) {
+        if (getActiveExternalUsersPushInterval() !=
+            other.getActiveExternalUsersPushInterval()) {
+            LOG_INFO(
+                    R"(Change push interval for external users list from {}s to {}s)",
+                    getActiveExternalUsersPushInterval().count(),
+                    other.getActiveExternalUsersPushInterval().count());
+            setActiveExternalUsersPushInterval(
+                    other.getActiveExternalUsersPushInterval());
         }
     }
 }

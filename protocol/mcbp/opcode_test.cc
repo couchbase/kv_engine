@@ -175,7 +175,6 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::UpdateUserPermissions, "UPDATE_USER_PERMISSIONS"},
          {ClientOpcode::RbacRefresh, "RBAC_REFRESH"},
          {ClientOpcode::AuthProvider, "AUTH_PROVIDER"},
-         {ClientOpcode::GetActiveExternalUsers, "GET_ACTIVE_USERS"},
          {ClientOpcode::DropPrivilege, "DROP_PRIVILEGES"},
          {ClientOpcode::AdjustTimeofday, "ADJUST_TIMEOFDAY"},
          {ClientOpcode::EwouldblockCtl, "EWB_CTL"},
@@ -230,7 +229,8 @@ TEST(ClientOpcode_to_opcode, SpaceMayBeUsed) {
 const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
         {{ServerOpcode::ClustermapChangeNotification,
           "ClustermapChangeNotification"},
-         {ServerOpcode::AuthRequest, "AuthRequest"}}};
+         {ServerOpcode::AuthRequest, "AuthRequest"},
+         {ServerOpcode::ActiveExternalUsers, "ActiveExternalUsers"}}};
 
 TEST(ServerOpcode, to_string) {
     for (int ii = 0; ii < 0x100; ++ii) {

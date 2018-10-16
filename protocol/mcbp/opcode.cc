@@ -323,8 +323,6 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "RBAC_REFRESH";
     case ClientOpcode::AuthProvider:
         return "AUTH_PROVIDER";
-    case ClientOpcode::GetActiveExternalUsers:
-        return "GET_ACTIVE_USERS";
     case ClientOpcode::DropPrivilege:
         return "DROP_PRIVILEGES";
     case ClientOpcode::AdjustTimeofday:
@@ -349,6 +347,8 @@ std::string to_string(cb::mcbp::ServerOpcode opcode) {
         return "ClustermapChangeNotification";
     case ServerOpcode::AuthRequest:
         return "AuthRequest";
+    case ServerOpcode::ActiveExternalUsers:
+        return "ActiveExternalUsers";
     }
     throw std::invalid_argument(
             "to_string(cb::mcbp::ServerOpcode): Invalid opcode: " +

@@ -21,6 +21,7 @@
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/thread.h>
+#include <chrono>
 #include <gsl/gsl>
 #include <mutex>
 #include <queue>
@@ -96,6 +97,10 @@ public:
      */
     void shutdown();
 
+    void setPushActiveUsersInterval(std::chrono::microseconds interval) {
+        activeUsersPushInterval.store(interval);
+    }
+
 protected:
     /// The main loop of the thread
     void run() override;
@@ -116,6 +121,9 @@ protected:
      * count and tell the thread to complete its shutdown logic.
      */
     void purgePendingDeadConnections();
+
+    /// Push the list of active users to the authentication provider
+    void pushActiveUsers();
 
     /// Let the daemon thread run as long as this member is set to true
     bool running = true;
@@ -193,6 +201,34 @@ protected:
         mutable std::mutex mutex;
         std::unordered_map<std::string, uint32_t> users;
     } activeUsers;
+
+    /**
+     * The interval we'll push the current active users to the external
+     * authentication service.
+     *
+     * The list can't be considered as "absolute" as memcached is a
+     * highly multithreaded application and we may have disconnects
+     * happening in multiple threads at the same time and we might
+     * have login messages waiting to acquire the lock for the map.
+     * The intention with the list is that we'll poll the users from
+     * LDAP to check if the group membership has changed since the last
+     * time we checked. Given that LDAP is an external system and it
+     * can't push change notifications to our system our guarantee
+     * is that the change is reflected in memcached at within 2 times
+     * of the interval we push these users.
+     *
+     * We don't need microseconds resolution "in production", but
+     * we don't want to have our unit tests wait multiple seconds
+     * for this message to be sent
+     */
+    std::atomic<std::chrono::microseconds> activeUsersPushInterval{
+            std::chrono::minutes(5)};
+
+    /**
+     * The time point we last sent the list of active users to the auth
+     * provider
+     */
+    std::chrono::steady_clock::time_point activeUsersLastSent;
 };
 
 extern std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;
