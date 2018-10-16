@@ -1638,7 +1638,8 @@ The following features is defined:
 * `Duplex` - The client allows for full duplex on the socket. This means
              that the server may send requests back to the client.
              These messages is identified by the magic values of
-             0x82 (request) and 0x83 (response).
+             0x82 (request) and 0x83 (response). See the document
+             [Duplex](Duplex.md) for more information.
 * `Clustermap change notification` - The client wants the server to
   notify the client with new cluster maps whenever ns_server push
   them to memcached. (note that this notification is subject to
