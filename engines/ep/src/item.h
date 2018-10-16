@@ -322,7 +322,7 @@ public:
         switch (op) {
         case queue_op::mutation:
         case queue_op::system_event:
-            deleted = true;
+            deleted = 1; // true
             break;
         case queue_op::flush:
         case queue_op::empty:
@@ -474,9 +474,9 @@ private:
     std::atomic<int64_t> bySeqno;
     uint32_t queuedTime;
     Vbid vbucketId;
-    bool deleted;
     queue_op op;
     uint8_t nru  : 2;
+    uint8_t deleted : 1;
 
     // Keep a cached version of the datatype. It allows for using
     // "partial" items created from from the hashtable. Every time the

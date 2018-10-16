@@ -46,10 +46,10 @@ Item::Item(const DocKey& k,
       bySeqno(i),
       queuedTime(ep_current_time()),
       vbucketId(vbid),
-      deleted(false),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
                                                      : queue_op::mutation),
       nru(INITIAL_NRU_VALUE),
+      deleted(0), // false
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -76,10 +76,10 @@ Item::Item(const DocKey& k,
       bySeqno(i),
       queuedTime(ep_current_time()),
       vbucketId(vbid),
-      deleted(false),
       op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
                                                      : queue_op::mutation),
       nru(nru),
+      deleted(0), // false
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -100,9 +100,9 @@ Item::Item(const DocKey& k,
       bySeqno(bySeq),
       queuedTime(ep_current_time()),
       vbucketId(vb),
-      deleted(false),
       op(o),
-      nru(INITIAL_NRU_VALUE) {
+      nru(INITIAL_NRU_VALUE),
+      deleted(0) { // false
     if (bySeqno < 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-negative");
     }
@@ -117,9 +117,9 @@ Item::Item(const Item& other)
       bySeqno(other.bySeqno.load()),
       queuedTime(other.queuedTime),
       vbucketId(other.vbucketId),
-      deleted(other.deleted),
       op(other.op),
       nru(other.nru),
+      deleted(other.deleted),
       datatype(other.datatype) {
     ObjectRegistry::onCreateItem(this);
 }
