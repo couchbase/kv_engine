@@ -107,7 +107,7 @@ protected:
         ResponseBuilder builder({frame.payload.data(), frame.payload.size()});
         builder.setMagic(Magic::ServerResponse);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
-        builder.setOpcode(ServerOpcode::AuthRequest);
+        builder.setOpcode(ServerOpcode::Authenticate);
         builder.setOpaque(opaque);
         builder.setValue(
                 {reinterpret_cast<const uint8_t*>(auth_success.second.data()),

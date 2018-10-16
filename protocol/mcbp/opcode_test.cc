@@ -229,7 +229,7 @@ TEST(ClientOpcode_to_opcode, SpaceMayBeUsed) {
 const std::map<cb::mcbp::ServerOpcode, std::string> server_blueprint = {
         {{ServerOpcode::ClustermapChangeNotification,
           "ClustermapChangeNotification"},
-         {ServerOpcode::AuthRequest, "AuthRequest"},
+         {ServerOpcode::Authenticate, "Authenticate"},
          {ServerOpcode::ActiveExternalUsers, "ActiveExternalUsers"}}};
 
 TEST(ServerOpcode, to_string) {

@@ -345,8 +345,8 @@ std::string to_string(cb::mcbp::ServerOpcode opcode) {
     switch (opcode) {
     case ServerOpcode::ClustermapChangeNotification:
         return "ClustermapChangeNotification";
-    case ServerOpcode::AuthRequest:
-        return "AuthRequest";
+    case ServerOpcode::Authenticate:
+        return "Authenticate";
     case ServerOpcode::ActiveExternalUsers:
         return "ActiveExternalUsers";
     }

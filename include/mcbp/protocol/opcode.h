@@ -389,7 +389,7 @@ enum class ServerOpcode {
      * `challenge` is base64 encoding of the callenge sent from the client
      * to memcached.
      */
-    AuthRequest = 0x02,
+    Authenticate = 0x02,
     /**
      * The list of active external users (pushed to authentication providers)
      * and the payload of the message contains the list of these users

@@ -883,7 +883,7 @@ static void execute_server_response_packet(Cookie& cookie,
     case cb::mcbp::ServerOpcode::ActiveExternalUsers:
         // ignore
         return;
-    case cb::mcbp::ServerOpcode::AuthRequest:
+    case cb::mcbp::ServerOpcode::Authenticate:
         externalAuthManager->responseReceived(response);
         return;
     }

@@ -24,7 +24,7 @@ As of now only PLAIN authentication mechanism is implemented.
 
 ## Authentication request
 
-memcached will send `AuthRequest` with the following payload
+memcached will send `Authenticate` with the following payload
 
     {
       "step" : false,
@@ -97,7 +97,7 @@ to memcached.
 
     Field        (offset) (value)
     Magic        (0)    : 0x82 (ServerRequest)
-    Opcode       (1)    : 0x02 (AuthRequest)
+    Opcode       (1)    : 0x02 (Authenticate)
     Key length   (2,3)  : 0x0000
     Extra length (4)    : 0x00
     Data type    (5)    : 0x01
@@ -216,7 +216,7 @@ to the client as part of the SASL command.
 
     Field        (offset) (value)
     Magic        (0)    : 0x83 (ServerResponse)
-    Opcode       (1)    : 0x02 (AuthRequest)
+    Opcode       (1)    : 0x02 (Authenticate)
     Key length   (2,3)  : 0x0000
     Extra length (4)    : 0x00
     Data type    (5)    : 0x01
@@ -252,7 +252,7 @@ code set to AuthContinue and the following payload:
 to the client as part of the SASL response.
 
 `context` is a token that the provider wants back as part of the
-next AuthRequest (with `step` set to true)
+next Authenticate (with `step` set to true)
 
 ## Unsuccessfull Authentication response
 
@@ -298,7 +298,7 @@ following reasons codes should be used:
 
     Field        (offset) (value)
     Magic        (0)    : 0x83 (ServerResponse)
-    Opcode       (1)    : 0x02 (AuthRequest)
+    Opcode       (1)    : 0x02 (Authenticate)
     Key length   (2,3)  : 0x0000
     Extra length (4)    : 0x00
     Data type    (5)    : 0x01
@@ -330,7 +330,7 @@ following reasons codes should be used:
 
     Field        (offset) (value)
     Magic        (0)    : 0x83 (ServerResponse)
-    Opcode       (1)    : 0x02 (AuthRequest)
+    Opcode       (1)    : 0x02 (Authenticate)
     Key length   (2,3)  : 0x0000
     Extra length (4)    : 0x00
     Data type    (5)    : 0x01
@@ -362,7 +362,7 @@ following reasons codes should be used:
 
     Field        (offset) (value)
     Magic        (0)    : 0x83 (ServerResponse)
-    Opcode       (1)    : 0x02 (AuthRequest)
+    Opcode       (1)    : 0x02 (Authenticate)
     Key length   (2,3)  : 0x0000
     Extra length (4)    : 0x00
     Data type    (5)    : 0x01

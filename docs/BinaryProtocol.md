@@ -487,7 +487,7 @@ for examples of commands that include quiet variants.
 | Raw  | Description                                             |
 | -----|---------------------------------------------------------|
 | 0x01 | [ClustermapChangeNotification](#0x01-clustermap-change-notification) |
-| 0x02 | [AuthRequest](#0x02-auth-request) |
+| 0x02 | [Authenticate](#0x02-authenticate) |
 | 0x03 | [ActiveExternalUsers](#0x03-active-external-users) |
 
 ### Data Types
@@ -2146,7 +2146,7 @@ The revision number of the clustermap is stored with 4 bytes in the extras
 The server does not need a reply to the message (it is silently dropped without
 any kind of validation).
 
-### 0x02 Auth Request
+### 0x02 Authenticate
 
 See [External Auth Provider](ExternalAuthProvider.md#authentication-request).
 

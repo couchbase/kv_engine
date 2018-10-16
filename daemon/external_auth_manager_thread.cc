@@ -56,7 +56,7 @@ public:
         RequestBuilder builder(connection.write->wdata());
         builder.setMagic(Magic::ServerRequest);
         builder.setDatatype(cb::mcbp::Datatype::JSON);
-        builder.setOpcode(ServerOpcode::AuthRequest);
+        builder.setOpcode(ServerOpcode::Authenticate);
         builder.setOpaque(id);
 
         // The extras contains the cluster revision number as an uint32_t
