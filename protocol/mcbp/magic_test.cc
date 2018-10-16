@@ -25,6 +25,7 @@
 
 const std::map<cb::mcbp::Magic, std::string> blueprint = {
         {{cb::mcbp::Magic::ClientRequest, "ClientRequest"},
+         {cb::mcbp::Magic::AltClientRequest, "AltClientRequest"},
          {cb::mcbp::Magic::ClientResponse, "ClientResponse"},
          {cb::mcbp::Magic::AltClientResponse, "AltClientResponse"},
          {cb::mcbp::Magic::ServerRequest, "ServerRequest"},

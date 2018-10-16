@@ -57,6 +57,52 @@ General format of a packet:
         +---------------+---------------+---------------+---------------+
         Total 24 bytes
 
+
+#### Request header with "flexible framing extras"
+
+Some commands may accept extra attributes which may be set in the
+flexible framing extras section in the request packet. Such packets
+is identified by using a different magic (0x08 intead of 0x80).
+If enabled the header looks like:
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| Magic (0x08)  | Opcode        | Framing extras| Key Length    |
+        +---------------+---------------+---------------+---------------+
+       4| Extras length | Data type     | vbucket id                    |
+        +---------------+---------------+---------------+---------------+
+       8| Total body length                                             |
+        +---------------+---------------+---------------+---------------+
+      12| Opaque                                                        |
+        +---------------+---------------+---------------+---------------+
+      16| CAS                                                           |
+        |                                                               |
+        +---------------+---------------+---------------+---------------+
+        Total 24 bytes
+
+Following the header you'd now find the section containing the framing
+extras (the size is specified in byte 2). Following the framing extras you'll
+find the extras, then the key and finally the value. The size of the value
+is total body length - key length - extras length - framing extras.
+
+The framing extras is encoded as a series of variable-length `FrameInfo` objects.
+
+Each `FrameInfo` consists of:
+
+* 4 bits: *Object Identifier*. Encodes first 15 object IDs directly; with the 16th value (15) used
+   as an escape to support an additional 256 IDs by combining the value of the next byte:
+   * `0..14`: Identifier for this element.
+   * `15`: Escape: ID is 15 + value of next byte.
+* 4 bits: *Object Length*. Encodes sizes 0..14 directly; value 15 is
+   used to encode sizes above 14 by combining the value of a following
+   byte:
+   * `0..14`: Size in bytes of the element data.
+   * `15`: Escape: Size is 15 + value of next byte (after any object ID
+   escape bytes).
+* N Bytes: *Object data*.
+
 ### Response header
 
       Byte/     0       |       1       |       2       |       3       |
@@ -1596,6 +1642,7 @@ The following features is defined:
 | 0x000d | Clustermap change notification |
 | 0x000e | Unordered Execution |
 | 0x000f | Tracing |
+| 0x0010 | AltRequest support |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1654,6 +1701,10 @@ The following features is defined:
   enable unordered execution on connections used for DCP.
 * `Tracing` - The client wants the server to include tracing information
   in the response packet
+* `AltRequest support` This is purely informational (it does not enable/disable
+                      anything on the server). It may be used from the client to
+                      know if it may send the alternative request packet (magic
+                      0x08) containing FrameInfo segments.
 
 Response:
 

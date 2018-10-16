@@ -51,6 +51,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "Unordered execution";
     case cb::mcbp::Feature::Tracing:
         return "Tracing";
+    case cb::mcbp::Feature::AltRequestSupport:
+        return "AltRequestSupport";
     }
 
     throw std::invalid_argument(

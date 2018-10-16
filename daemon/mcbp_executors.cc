@@ -851,6 +851,7 @@ void execute_client_request_packet(Cookie& cookie,
 
 void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
     switch (request.getMagic()) {
+    case cb::mcbp::Magic::AltClientRequest:
     case cb::mcbp::Magic::ClientRequest:
         execute_client_request_packet(cookie, request);
         return;
@@ -922,6 +923,7 @@ void execute_response_packet(Cookie& cookie,
         execute_server_response_packet(cookie, response);
         return;
     case cb::mcbp::Magic::ClientRequest:
+    case cb::mcbp::Magic::AltClientRequest:
     case cb::mcbp::Magic::ServerRequest:;
     }
 

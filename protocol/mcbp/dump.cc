@@ -647,6 +647,7 @@ void cb::mcbp::dump(const uint8_t* packet, std::ostream& out) {
             reinterpret_cast<const protocol_binary_response_header*>(packet);
 
     switch (req->request.getMagic()) {
+    case Magic::AltClientRequest:
     case Magic::ClientRequest:
     case Magic::ServerRequest:
         dump_request(req, out);

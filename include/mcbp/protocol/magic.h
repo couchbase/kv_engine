@@ -28,6 +28,8 @@ namespace mcbp {
 enum class Magic : uint8_t {
     /// Request packet from client to server
     ClientRequest = 0x80,
+    /// The alternative request packet containing frame extras
+    AltClientRequest = 0x08,
     /// Response packet from server to client
     ClientResponse = 0x81,
     /// The alternative response packet containing frame extras

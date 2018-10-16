@@ -183,6 +183,7 @@ const cb::mcbp::Request& Cookie::getRequest(PacketContent content) const {
     const auto* ret = reinterpret_cast<const cb::mcbp::Request*>(packet.data());
     switch (ret->getMagic()) {
     case cb::mcbp::Magic::ClientRequest:
+    case cb::mcbp::Magic::AltClientRequest:
     case cb::mcbp::Magic::ServerRequest:
         return *ret;
     case cb::mcbp::Magic::AltClientResponse:
@@ -200,6 +201,7 @@ const cb::mcbp::Response& Cookie::getResponse(PacketContent content) const {
             reinterpret_cast<const cb::mcbp::Response*>(packet.data());
     switch (ret->getMagic()) {
     case cb::mcbp::Magic::ClientRequest:
+    case cb::mcbp::Magic::AltClientRequest:
     case cb::mcbp::Magic::ServerRequest:
         throw std::logic_error("Cookie::getRequest(): Packet is resquest");
     case cb::mcbp::Magic::AltClientResponse:

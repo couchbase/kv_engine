@@ -73,6 +73,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::ClustermapChangeNotification:
         case cb::mcbp::Feature::UnorderedExecution:
         case cb::mcbp::Feature::Tracing:
+        case cb::mcbp::Feature::AltRequestSupport:
 
             // This isn't very optimal, but we've only got a handfull of elements ;)
             if (!containsFeature(requested, feature)) {
@@ -97,6 +98,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::SNAPPY:
         case cb::mcbp::Feature::JSON:
         case cb::mcbp::Feature::Tracing:
+        case cb::mcbp::Feature::AltRequestSupport:
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::UnorderedExecution:
             // No other dependency
@@ -262,6 +264,10 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::SELECT_BUCKET:
             // The select bucket is only informative ;-)
             added = true;
+            break;
+        case cb::mcbp::Feature::AltRequestSupport:
+            // The AltRequestSupport is only informative, but we don't support
+            // it yet
             break;
         case cb::mcbp::Feature::COLLECTIONS:
             // Allow KV engine to chicken out
