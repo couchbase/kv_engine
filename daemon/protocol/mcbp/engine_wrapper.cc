@@ -446,7 +446,7 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
                                 Vbid vbid,
                                 uint64_t bySeqno,
                                 uint64_t revSeqno,
-                                cb::const_byte_buffer meta) {
+                                uint32_t deleteTime) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->expiration(&cookie,
@@ -459,7 +459,7 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
                                vbid,
                                bySeqno,
                                revSeqno,
-                               meta);
+                               deleteTime);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.expiration returned ENGINE_DISCONNECT",
                     connection.getId(),

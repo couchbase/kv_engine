@@ -901,12 +901,11 @@ public:
                                   uint32_t delete_time) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                 item* itm,
+                                 gsl::not_null<item*> itm,
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 const void* meta,
-                                 uint16_t nmeta) override;
+                                 uint32_t delete_time) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
                                         Vbid vbucket,
@@ -1005,6 +1004,20 @@ protected:
      * Add the provided packet to the send pipe for the connection
      */
     ENGINE_ERROR_CODE add_packet_to_send_pipe(cb::const_byte_buffer packet);
+
+    /*
+     * deletionOrExpirationV2 is a helper function to unify the code between
+     * deletion_v2 and expiration (which also uses v2 parameters). This creates
+     * an appropriate packet based on whether it has been called via deletion or
+     * expiry and runsdeletionInner on it, which returns an ENGINE_ERROR_CODE.
+     */
+    ENGINE_ERROR_CODE deletionOrExpirationV2(uint32_t opaque,
+                                             gsl::not_null<item*> it,
+                                             Vbid vbucket,
+                                             uint64_t by_seqno,
+                                             uint64_t rev_seqno,
+                                             uint32_t delete_time,
+                                             DeleteSource deleteSource);
 
     /**
      * The actual socket descriptor used by this connection

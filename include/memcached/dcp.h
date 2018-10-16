@@ -179,16 +179,16 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
+     * @param delete_time the time of the deletion (tombstone creation time)
      *
      * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                         item* itm,
+                                         gsl::not_null<item*> itm,
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
-                                         const void* meta,
-                                         uint16_t nmeta) = 0;
+                                         uint32_t delete_time) = 0;
 
     /**
      * Send a state transition for a vbucket
@@ -525,7 +525,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
-                                         cb::const_byte_buffer meta) = 0;
+                                         uint32_t deleteTime) = 0;
 
     /**
      * Callback to the engine that a set vbucket state message was received

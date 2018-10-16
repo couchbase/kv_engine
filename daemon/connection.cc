@@ -1548,6 +1548,82 @@ ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
     return ret;
 }
 
+ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
+        uint32_t opaque,
+        gsl::not_null<item*> it,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t delete_time,
+        DeleteSource deleteSource) {
+    std::string log_str;
+    if (deleteSource == DeleteSource::TTL) {
+        log_str = "expiration";
+    } else {
+        log_str = "deletion_v2";
+    }
+    // Use a unique_ptr to make sure we release the item in all error paths
+    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
+    item_info info;
+    if (!bucket_get_item_info(*this, it, &info)) {
+        LOG_WARNING("{}: Connection::{}: Failed to get item info",
+                    getId(),
+                    log_str);
+        return ENGINE_FAILED;
+    }
+
+    if (!reserveItem(it)) {
+        LOG_WARNING("{}: Connection::{}: Failed to grow item array",
+                    getId(),
+                    log_str);
+        return ENGINE_FAILED;
+    }
+
+    // we've reserved the item, and it'll be released when we're done sending
+    // the item.
+    item.release();
+
+    auto key = info.key;
+    if (!isCollectionsSupported()) {
+        key = info.key.makeDocKeyWithoutCollectionID();
+    }
+
+    if (deleteSource == DeleteSource::TTL) {
+        protocol_binary_request_dcp_expiration packet(
+                opaque,
+                vbucket,
+                info.cas,
+                gsl::narrow<uint16_t>(key.size()),
+                info.nbytes,
+                info.datatype,
+                by_seqno,
+                rev_seqno,
+                delete_time);
+        return deletionInner(info,
+                             {reinterpret_cast<const uint8_t*>(&packet),
+                              sizeof(packet.bytes)},
+                             {/*no extended meta in v2*/},
+                             key);
+    } else {
+        protocol_binary_request_dcp_deletion_v2 packet(
+                opaque,
+                vbucket,
+                info.cas,
+                gsl::narrow<uint16_t>(key.size()),
+                info.nbytes,
+                info.datatype,
+                by_seqno,
+                rev_seqno,
+                delete_time,
+                0 /*unused*/);
+        return deletionInner(info,
+                             {reinterpret_cast<const uint8_t*>(&packet),
+                              sizeof(packet.bytes)},
+                             {/*no extended meta in v2*/},
+                             key);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////
 //                                                                        //
 //                   DCP Message producer interface                       //
@@ -1867,62 +1943,28 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
                                           uint32_t delete_time) {
-    // Use a unique_ptr to make sure we release the item in all error paths
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
-    item_info info;
-    if (!bucket_get_item_info(*this, it, &info)) {
-        LOG_WARNING("{}: Connection::deletion_v2: Failed to get item info",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
-    if (!reserveItem(it)) {
-        LOG_WARNING("{}: Connection::deletion_v2: Failed to grow item array",
-                    getId());
-        return ENGINE_FAILED;
-    }
-
-    // we've reserved the item, and it'll be released when we're done sending
-    // the item.
-    item.release();
-
-    auto key = info.key;
-    if (!isCollectionsSupported()) {
-        key = info.key.makeDocKeyWithoutCollectionID();
-    }
-
-    protocol_binary_request_dcp_deletion_v2 packet(
-            opaque,
-            vbucket,
-            info.cas,
-            gsl::narrow<uint16_t>(key.size()),
-            info.nbytes,
-            info.datatype,
-            by_seqno,
-            rev_seqno,
-            delete_time,
-            0 /*unused*/);
-
-    return deletionInner(
-            info,
-            {reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)},
-            {/*no extended meta in v2*/},
-            key);
+    return deletionOrExpirationV2(opaque,
+                                  it,
+                                  vbucket,
+                                  by_seqno,
+                                  rev_seqno,
+                                  delete_time,
+                                  DeleteSource::Explicit);
 }
 
 ENGINE_ERROR_CODE Connection::expiration(uint32_t opaque,
-                                         item* it,
+                                         gsl::not_null<item*> it,
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
-                                         const void* meta,
-                                         uint16_t nmeta) {
-    /*
-     * EP engine don't use expiration, so we won't have tests for this
-     * code. Add it back once we have people calling the method
-     */
-    cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
-    return ENGINE_ENOTSUP;
+                                         uint32_t delete_time) {
+    return deletionOrExpirationV2(opaque,
+                                  it,
+                                  vbucket,
+                                  by_seqno,
+                                  rev_seqno,
+                                  delete_time,
+                                  DeleteSource::TTL);
 }
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,

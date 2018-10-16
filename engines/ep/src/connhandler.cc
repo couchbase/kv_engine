@@ -122,7 +122,7 @@ ENGINE_ERROR_CODE ConnHandler::expiration(uint32_t opaque,
                                           Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
-                                          cb::const_byte_buffer meta) {
+                                          uint32_t deleteTime) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the expiration API");

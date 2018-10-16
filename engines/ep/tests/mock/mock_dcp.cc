@@ -275,13 +275,21 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
                          protocol_binary_request_dcp_deletion_v2::extlen);
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(
-        uint32_t, item* itm, Vbid, uint64_t, uint64_t, const void*, uint16_t) {
-    clear_dcp_data();
-    if (engine_handle_v1 && engine_handle) {
-        engine_handle_v1->release(itm);
-    }
-    return ENGINE_ENOTSUP;
+ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t opaque,
+                                                      gsl::not_null<item*> itm,
+                                                      Vbid vbucket,
+                                                      uint64_t by_seqno,
+                                                      uint64_t rev_seqno,
+                                                      uint32_t deleteTime) {
+    return deletionInner(opaque,
+                         itm,
+                         vbucket,
+                         by_seqno,
+                         rev_seqno,
+                         nullptr,
+                         0,
+                         deleteTime,
+                         protocol_binary_request_dcp_expiration::extlen);
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state(

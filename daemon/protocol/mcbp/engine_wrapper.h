@@ -250,7 +250,7 @@ ENGINE_ERROR_CODE dcpDeletionV2(Cookie& cookie,
  * @param vbid The vbucket id
  * @param bySeqno The db sequence number
  * @param revSeqno The revision sequence number
- * @param meta The document meta
+ * @param deleteTime The time of the deletion
  * @return ENGINE_ERROR_CODE
  */
 ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
@@ -263,7 +263,7 @@ ENGINE_ERROR_CODE dcpExpiration(Cookie& cookie,
                                 Vbid vbid,
                                 uint64_t bySeqno,
                                 uint64_t revSeqno,
-                                cb::const_byte_buffer meta);
+                                uint32_t deleteTime);
 
 /**
  * Calls the underlying engine DCP get-failover-log

@@ -9,19 +9,19 @@ The request:
 
 Extra looks like:
 
-     Byte/     0       |       1       |       2       |       3       |
-        /              |               |               |               |
-       |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-       +---------------+---------------+---------------+---------------+
-      0| by_seqo                                                       |
-       |                                                               |
-       +---------------+---------------+---------------+---------------+
-      8| rev seqno                                                     |
-       |                                                               |
-       +---------------+---------------+---------------+---------------+
-     16| Metadata Size                 |
-       +---------------+---------------*
-       Total 18 bytes
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| by_seqo                                                       |
+        |                                                               |
+        +---------------+---------------+---------------+---------------+
+       8| rev seqno                                                     |
+        |                                                               |
+        +---------------+---------------+---------------+---------------+
+      16| Delete Time                                                   |
+        +---------------+-----------------------------------------------*
+        Total 20 bytes
 
 The metadata is located after the items key.
 
@@ -51,33 +51,41 @@ The client should not send a reply to this command. The following example shows 
         +---------------+---------------+---------------+---------------+
       36| 0x00          | 0x00          | 0x00          | 0x01          |
         +---------------+---------------+---------------+---------------+
-      40| 0x00          | 0x00          | 0x68 ('h')    | 0x65 ('e')    |
+      40| 0x00          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      44| 0x6c ('l')    | 0x6c ('l')    | 0x6f ('o')    |
-        +---------------+---------------+---------------+
-    UPR_EXPIRATION command
-    Field        (offset) (value)
-    Magic        (0)    : 0x80
-    Opcode       (1)    : 0x59
-    Key length   (2,3)  : 0x0005
-    Extra length (4)    : 0x12
-    Data type    (5)    : 0x00
-    Vbucket      (6,7)  : 0x0210
-    Total body   (8-11) : 0x00000017
-    Opaque       (12-15): 0x00001210
-    CAS          (16-23): 0x0000000000000000
-      by seqno   (24-31): 0x0000000000000005
-      rev seqno  (32-39): 0x0000000000000001
-      nmeta      (40-41): 0x0000
-    Key          (42-46): hello
+      44| 0x68 ('h')    | 0x65 ('e')    | 0x6c ('l')    | 0x6c ('l')    |
+        +---------------+---------------+---------------+---------------+
+      48| 0x6f ('o')    |
+        +---------------*
+    DCP_EXPIRATION command
+    Field         (offset) (value)
+    Magic         (0)    : 0x80
+    Opcode        (1)    : 0x59
+    Key length    (2,3)  : 0x0005
+    Extra length  (4)    : 0x12
+    Data type     (5)    : 0x00
+    Vbucket       (6,7)  : 0x0210
+    Total body    (8-11) : 0x00000017
+    Opaque        (12-15): 0x00001210
+    CAS           (16-23): 0x0000000000000000
+      by seqno    (24-31): 0x0000000000000005
+      rev seqno   (32-39): 0x0000000000000001
+      delete time (40-43): 0x00000000
+    Key           (44-48): hello
 
 ### Returns
 
 This message will not return a response unless an error occurs.
 
-### Extended Meta Data Section
-The extended meta data section is used to send extra meta data for a particular expiration. This section is at the very end, after the value. Its length will be set in the nmeta field.
-* [**Ext_Meta**](extended_meta/ext_meta_ver1.md)
+### Delete Time
+
+Receiving expiry opcodes requires 'include delete-times' so that packets sent
+can use the V2 format.
+
+The delete time field is used to time stamp when the item was deleted. This
+field is mainly of use to clients building a replica of an active vbucket as
+the delete time is persisted and used to allow deletions and expirations to
+remain on disk for a fixed period.
 
 ### Errors
 

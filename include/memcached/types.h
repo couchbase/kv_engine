@@ -148,3 +148,9 @@ using ExpiryLimit = boost::optional<std::chrono::seconds>;
 
 static const ExpiryLimit NoExpiryLimit{};
 }
+
+/**
+ * DeleteSource denotes the source of an item's deletion;
+ * either explicitly or TTL (expired).
+ */
+enum class DeleteSource : uint8_t { Explicit = 0, TTL = 1 };

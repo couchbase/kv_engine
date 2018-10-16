@@ -1612,12 +1612,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::expiration(
         Vbid vbucket,
         uint64_t by_seqno,
         uint64_t rev_seqno,
-        cb::const_byte_buffer meta) {
+        uint32_t deleteTime) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->expiration(opaque, key, value, priv_bytes, datatype, cas,
-                                vbucket, by_seqno, rev_seqno, meta);
+        return conn->expiration(opaque,
+                                key,
+                                value,
+                                priv_bytes,
+                                datatype,
+                                cas,
+                                vbucket,
+                                by_seqno,
+                                rev_seqno,
+                                deleteTime);
     }
     return ENGINE_DISCONNECT;
 }

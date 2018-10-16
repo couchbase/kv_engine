@@ -471,30 +471,17 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                         uint64_t bySeqno,
                                         uint64_t revSeqno,
                                         cb::const_byte_buffer meta) {
-    UpdateFlowControl ufc(*this,
-                          MutationResponse::deletionBaseMsgBytes + key.size() +
-                                  meta.size() + value.size());
-    auto err = deletion(opaque,
-                        key,
-                        value,
-                        datatype,
-                        cas,
-                        vbucket,
-                        bySeqno,
-                        revSeqno,
-                        meta,
-                        0,
-                        IncludeDeleteTime::No);
-
-    // TMPFAIL means the stream has buffered the message for later processing
-    // so skip flowControl, success or any other error, we still need to ack
-    if (err == ENGINE_TMPFAIL) {
-        ufc.release();
-        // Mask the TMPFAIL
-        return ENGINE_SUCCESS;
-    }
-
-    return err;
+    return toMainDeletion(DeleteType::Deletion,
+                          opaque,
+                          key,
+                          value,
+                          datatype,
+                          cas,
+                          vbucket,
+                          bySeqno,
+                          revSeqno,
+                          meta,
+                          0);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::deletionV2(uint32_t opaque,
@@ -507,30 +494,17 @@ ENGINE_ERROR_CODE DcpConsumer::deletionV2(uint32_t opaque,
                                           uint64_t bySeqno,
                                           uint64_t revSeqno,
                                           uint32_t deleteTime) {
-    UpdateFlowControl ufc(*this,
-                          MutationResponse::deletionV2BaseMsgBytes +
-                                  key.size() + value.size());
-    auto err = deletion(opaque,
-                        key,
-                        value,
-                        datatype,
-                        cas,
-                        vbucket,
-                        bySeqno,
-                        revSeqno,
-                        {},
-                        deleteTime,
-                        IncludeDeleteTime::Yes);
-
-    // TMPFAIL means the stream has buffered the message for later processing
-    // so skip flowControl, success or any other error, we still need to ack
-    if (err == ENGINE_TMPFAIL) {
-        ufc.release();
-        // Mask the TMPFAIL
-        return ENGINE_SUCCESS;
-    }
-
-    return err;
+    return toMainDeletion(DeleteType::DeletionV2,
+                          opaque,
+                          key,
+                          value,
+                          datatype,
+                          cas,
+                          vbucket,
+                          bySeqno,
+                          revSeqno,
+                          {},
+                          deleteTime);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
@@ -624,12 +598,69 @@ ENGINE_ERROR_CODE DcpConsumer::expiration(uint32_t opaque,
                                           uint8_t datatype,
                                           uint64_t cas,
                                           Vbid vbucket,
-                                          uint64_t by_seqno,
-                                          uint64_t rev_seqno,
-                                          cb::const_byte_buffer meta) {
-    // lastMessageTime is set in deletion function
-    return deletion(opaque, key, value, priv_bytes, datatype, cas, vbucket,
-                    by_seqno, rev_seqno, meta);
+                                          uint64_t bySeqno,
+                                          uint64_t revSeqno,
+                                          uint32_t deleteTime) {
+    return toMainDeletion(DeleteType::Expiration,
+                          opaque,
+                          key,
+                          value,
+                          datatype,
+                          cas,
+                          vbucket,
+                          bySeqno,
+                          revSeqno,
+                          {},
+                          deleteTime);
+}
+
+ENGINE_ERROR_CODE DcpConsumer::toMainDeletion(DeleteType origin,
+                                              uint32_t opaque,
+                                              const DocKey& key,
+                                              cb::const_byte_buffer value,
+                                              uint8_t datatype,
+                                              uint64_t cas,
+                                              Vbid vbucket,
+                                              uint64_t bySeqno,
+                                              uint64_t revSeqno,
+                                              cb::const_byte_buffer meta,
+                                              uint32_t deleteTime) {
+    IncludeDeleteTime includeDeleteTime;
+    uint32_t bytes;
+    if (origin == DeleteType::Deletion) {
+        deleteTime = 0;
+        includeDeleteTime = IncludeDeleteTime::No;
+        bytes = MutationResponse::deletionBaseMsgBytes + key.size() +
+                meta.size() + value.size();
+    } else {
+        meta = {};
+        includeDeleteTime = IncludeDeleteTime::Yes;
+        bytes = MutationResponse::deletionV2BaseMsgBytes + key.size() +
+                value.size();
+    }
+
+    UpdateFlowControl ufc(*this, bytes);
+    auto err = deletion(opaque,
+                        key,
+                        value,
+                        datatype,
+                        cas,
+                        vbucket,
+                        bySeqno,
+                        revSeqno,
+                        meta,
+                        deleteTime,
+                        includeDeleteTime);
+
+    // TMPFAIL means the stream has buffered the message for later processing
+    // so skip flowControl, success or any other error, we still need to ack
+    if (err == ENGINE_TMPFAIL) {
+        ufc.release();
+        // Mask the TMPFAIL
+        return ENGINE_SUCCESS;
+    }
+
+    return err;
 }
 
 ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,

@@ -817,7 +817,7 @@ public:
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 cb::const_byte_buffer meta) override;
+                                 uint32_t deleteTime) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
                                         uint32_t opaque,
@@ -1539,7 +1539,7 @@ ENGINE_ERROR_CODE EWB_Engine::expiration(gsl::not_null<const void*> cookie,
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
-                                         cb::const_byte_buffer meta) {
+                                         uint32_t deleteTime) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
@@ -1553,7 +1553,7 @@ ENGINE_ERROR_CODE EWB_Engine::expiration(gsl::not_null<const void*> cookie,
                                            vbucket,
                                            by_seqno,
                                            rev_seqno,
-                                           meta);
+                                           deleteTime);
     }
 }
 

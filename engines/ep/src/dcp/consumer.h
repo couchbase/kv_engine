@@ -138,7 +138,7 @@ public:
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 cb::const_byte_buffer meta) override;
+                                 uint32_t deleteTime) override;
 
     ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
                                      Vbid vbucket,
@@ -346,6 +346,28 @@ protected:
                                cb::const_byte_buffer meta,
                                uint32_t deleteTime,
                                IncludeDeleteTime includeDeleteTime);
+
+    enum class DeleteType { Deletion, DeletionV2, Expiration };
+    /**
+     * With the new implementation of expiration, all three of deletion,
+     * deletionV2 and expiration share identical code before slightly different
+     * parameters into the above main deletion function, so this takes the
+     * wrapping away from the original trio of functions.
+     *
+     * @param isV2DeleteOrExpiry An enum to identify the source and determine
+     *                           whether to use v2 parameters or not.
+     */
+    ENGINE_ERROR_CODE toMainDeletion(DeleteType origin,
+                                     uint32_t opaque,
+                                     const DocKey& key,
+                                     cb::const_byte_buffer value,
+                                     uint8_t datatype,
+                                     uint64_t cas,
+                                     Vbid vbucket,
+                                     uint64_t bySeqno,
+                                     uint64_t revSeqno,
+                                     cb::const_byte_buffer meta,
+                                     uint32_t deleteTime);
 
     /**
      * RAII helper class to update the flowControl object with the number of

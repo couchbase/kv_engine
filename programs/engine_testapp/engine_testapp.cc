@@ -222,7 +222,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 cb::const_byte_buffer meta) override;
+                                 uint32_t deleteTime) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(gsl::not_null<const void*> cookie,
                                         uint32_t opaque,
@@ -799,7 +799,7 @@ ENGINE_ERROR_CODE mock_engine::expiration(gsl::not_null<const void*> cookie,
                                           Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
-                                          cb::const_byte_buffer meta) {
+                                          uint32_t deleteTime) {
     struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
     auto engine_fn = std::bind(&DcpIface::expiration,
                                the_engine_dcp,
@@ -813,7 +813,7 @@ ENGINE_ERROR_CODE mock_engine::expiration(gsl::not_null<const void*> cookie,
                                vbucket,
                                by_seqno,
                                rev_seqno,
-                               meta);
+                               deleteTime);
 
     ENGINE_ERROR_CODE ret =
             call_engine_and_handle_EWOULDBLOCK(this, c, engine_fn);

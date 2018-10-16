@@ -41,12 +41,11 @@ void dcp_expiration_executor(Cookie& cookie) {
         const Vbid vbucket = req->message.header.request.vbucket.ntoh();
         const uint64_t by_seqno = ntohll(req->message.body.by_seqno);
         const uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
-        const uint16_t nmeta = ntohs(req->message.body.nmeta);
+        const uint32_t delete_time = ntohl(req->message.body.delete_time);
         const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
-                                  nkey - req->message.header.request.extlen -
-                                  nmeta;
+                                  nkey - req->message.header.request.extlen;
         cb::const_byte_buffer value{req->bytes + body_offset + nkey, valuelen};
-        cb::const_byte_buffer meta{value.buf + valuelen, nmeta};
+
         uint32_t priv_bytes = 0;
         if (mcbp::datatype::is_xattr(datatype)) {
             priv_bytes = valuelen;
@@ -65,7 +64,7 @@ void dcp_expiration_executor(Cookie& cookie) {
                                 vbucket,
                                 by_seqno,
                                 rev_seqno,
-                                meta);
+                                delete_time);
         }
     }
 

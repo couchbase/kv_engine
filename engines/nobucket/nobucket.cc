@@ -312,7 +312,7 @@ public:
                                  Vbid,
                                  uint64_t,
                                  uint64_t,
-                                 cb::const_byte_buffer) override {
+                                 uint32_t) override {
         return ENGINE_NO_BUCKET;
     }
 

@@ -2249,7 +2249,7 @@ public:
                   PROTOCOL_BINARY_RAW_BYTES,
                   0 /*bySeqno*/,
                   0 /*revSeqno*/,
-                  0 /*nmeta*/) {
+                  0 /*deleteTime*/) {
         request.message.header.request.opcode =
                 (uint8_t)cb::mcbp::ClientOpcode::DcpExpiration;
     }
@@ -2286,7 +2286,7 @@ TEST_P(DcpExpirationValidatorTest, InvalidExtlen) {
 
 TEST_P(DcpExpirationValidatorTest, InvalidKeylen) {
     request.message.header.request.keylen = GetParam() ? htons(1) : 0;
-    request.message.header.request.bodylen = htonl(18);
+    request.message.header.request.bodylen = htonl(19);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

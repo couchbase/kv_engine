@@ -1570,6 +1570,7 @@ union protocol_binary_request_dcp_deletion_v2 {
 };
 
 union protocol_binary_request_dcp_expiration {
+    static const size_t extlen = (2 * sizeof(uint64_t)) + sizeof(uint32_t);
     protocol_binary_request_dcp_expiration(uint32_t opaque,
                                            Vbid vbucket,
                                            uint64_t cas,
@@ -1578,14 +1579,13 @@ union protocol_binary_request_dcp_expiration {
                                            protocol_binary_datatype_t datatype,
                                            uint64_t bySeqno,
                                            uint64_t revSeqno,
-                                           uint16_t nmeta) {
+                                           uint32_t deleteTime) {
         auto& req = message.header.request;
         req.setMagic(cb::mcbp::Magic::ClientRequest);
         req.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
-        req.setExtlen(gsl::narrow<uint8_t>(getExtrasLength()));
+        req.setExtlen(extlen);
         req.setKeylen(keyLen);
-        req.setBodylen(gsl::narrow<uint8_t>(getExtrasLength()) + keyLen +
-                       nmeta + valueLen);
+        req.setBodylen(extlen + keyLen + valueLen);
         req.setOpaque(opaque);
         req.setVBucket(vbucket);
         req.setCas(cas);
@@ -1594,7 +1594,7 @@ union protocol_binary_request_dcp_expiration {
         auto& body = message.body;
         body.by_seqno = htonll(bySeqno);
         body.rev_seqno = htonll(revSeqno);
-        body.nmeta = htons(nmeta);
+        body.delete_time = htonl(deleteTime);
     }
 
     struct {
@@ -1602,13 +1602,13 @@ union protocol_binary_request_dcp_expiration {
         struct {
             uint64_t by_seqno;
             uint64_t rev_seqno;
-            uint16_t nmeta;
+            uint32_t delete_time;
         } body;
     } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 19];
+    uint8_t bytes[sizeof(protocol_binary_request_header) + extlen];
 
     static size_t getExtrasLength() {
-        return (2 * sizeof(uint64_t)) + sizeof(uint16_t);
+        return extlen;
     }
 
     /**

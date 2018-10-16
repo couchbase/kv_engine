@@ -126,8 +126,3 @@ enum class ForceValueCompression : bool {
     No,
 };
 
-/**
- * DeleteSource denotes the source of an item's deletion;
- * either explicitly or TTL (expired).
- */
-enum class DeleteSource : uint8_t { Explicit, TTL };

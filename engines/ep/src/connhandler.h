@@ -138,7 +138,7 @@ public:
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
-                                         cb::const_byte_buffer meta);
+                                         uint32_t deleteTime);
 
     virtual ENGINE_ERROR_CODE snapshotMarker(uint32_t opaque,
                                              Vbid vbucket,

@@ -91,12 +91,11 @@ public:
                                   uint32_t delete_time) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
-                                 item* itm,
+                                 gsl::not_null<item*> itm,
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 const void* meta,
-                                 uint16_t nmeta) override;
+                                 uint32_t delete_time) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
                                         Vbid vbucket,
