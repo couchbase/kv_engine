@@ -434,8 +434,8 @@ for examples of commands that include quiet variants.
 
 | Raw  | Description                                             |
 | -----|---------------------------------------------------------|
-| 0x01 | ClustermapChangeNotification |
-| 0x02 | GetUserPermissions |
+| 0x01 | [ClustermapChangeNotification](#0x01-clustermap-change-notification) |
+| 0x02 | [AuthRequest](#0x02-auth-request) |
 
 ### Data Types
 
@@ -451,7 +451,7 @@ If no bits is set the datatype is considered to be RAW. In order to utilize
 the datatype bits the client needs to notify the server that it supports
 datatype bits by performing a successful HELLO with the DATATYPE feature.
 
-## Commands
+## Client Commands
 
 ### Introduction
 The communication is initially initiated by a request being sent from the
@@ -2045,14 +2045,14 @@ is returned from a server which have 4 different failover ids available:
       vb UUID    (72-79): 0x00000000deadbeef
       vb seqno   (80-87): 0x0000000000006524
 
-### Returns
+#### Returns
 
 A failover log for the vbucket requested. The failover log will be in
 descending order of time meaning the oldest failover entry will be the last
 entry in the response and the newest entry will be the first entry in the
 response. On failure an error code is returned.
 
-### Errors
+#### Errors
 
 **PROTOCOL_BINARY_RESPONSE_EINVAL (0x04)**
 
@@ -2065,3 +2065,28 @@ If the VBucket the failover log is requested for does not exist.
 **PROTOCOL_BINARY_RESPONSE_ENOMEM (0x82)**
 
 If the failover log could not be sent to due a failure to allocate memory.
+
+## Server Commands
+
+The following chapter describes the packet layout for the various server
+commands.
+
+### 0x01 Clustermap Change Notification
+
+The server will push the new cluster map to the clients iff the client
+subscibes to clustermap notifications (see [HELO](#0x1f-helo))
+
+The request:
+* Must have extras
+* Must not have key
+* Must have value
+
+The revision number of the clustermap is stored with 4 bytes in the extras
+(network byte order), and the full clustermap is sent in the value field.
+
+The server does not need a reply to the message (it is silently dropped without
+any kind of validation).
+
+### 0x02 Auth Request
+
+See [External Auth Provider](ExternalAuthProvider.md#authentication-request).
