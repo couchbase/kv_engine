@@ -1036,6 +1036,12 @@ TYPED_TEST(CheckpointTest,
  * Here we want to check that the above applies.
  */
 TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
+    // For the test to work it must be configured to use the disk backfill
+    // queue.
+    if (!engine->getConfiguration().isDiskBackfillQueue()) {
+        engine->getConfiguration().setDiskBackfillQueue(true);
+        ASSERT_TRUE(engine->getConfiguration().isDiskBackfillQueue());
+    }
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     auto vb = store->getVBuckets().getBucket(vbid);
     auto* ckptMgr = vb->checkpointManager.get();
@@ -1129,6 +1135,12 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
  */
 TEST_F(SingleThreadedCheckpointTest,
        CloseReplicaCheckpointOnMemorySnapshotEnd) {
+    // For the test to work it must be configured to use the disk backfill
+    // queue.
+    if (!engine->getConfiguration().isDiskBackfillQueue()) {
+        engine->getConfiguration().setDiskBackfillQueue(true);
+        ASSERT_TRUE(engine->getConfiguration().isDiskBackfillQueue());
+    }
     for (const bool highMemUsed : {false, true}) {
         for (const uint32_t flags : {dcp_marker_flag_t::MARKER_FLAG_MEMORY,
                                      dcp_marker_flag_t::MARKER_FLAG_DISK}) {

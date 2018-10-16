@@ -348,6 +348,12 @@
                 }
             }
         },
+        "disk_backfill_queue": {
+            "default": "true",
+            "descr": "True if we want to use the dedicated backfill queue for the first disk snapshot",
+            "dynamic": true,
+            "type": "bool"
+        },
         "ephemeral_full_policy": {
             "default": "auto_delete",
             "descr": "How should an Ephemeral bucket becoming full be handled?",

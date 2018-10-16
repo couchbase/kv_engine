@@ -674,10 +674,16 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     if (vb) {
         auto& ckptMgr = *vb->checkpointManager;
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
-            vb->setBackfillPhase(true);
-            // calling setBackfillPhase sets the openCheckpointId to zero.
-            ckptMgr.setBackfillPhase(cur_snapshot_start.load(),
-                                     cur_snapshot_end.load());
+            if (engine->getConfiguration().isDiskBackfillQueue()) {
+                vb->setBackfillPhase(true);
+                // calling setBackfillPhase sets the openCheckpointId to zero.
+                ckptMgr.setBackfillPhase(cur_snapshot_start.load(),
+                                         cur_snapshot_end.load());
+            } else {
+                // Treat initial disk snapshot like all others
+                ckptMgr.createSnapshot(cur_snapshot_start.load(),
+                                       cur_snapshot_end.load());
+            }
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager->getOpenCheckpointId() == 0) {
