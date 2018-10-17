@@ -1206,11 +1206,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::add_stream(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::close_stream(
-        gsl::not_null<const void*> cookie, uint32_t opaque, Vbid vbucket) {
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        cb::mcbp::DcpStreamId sid) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->closeStream(opaque, vbucket, {/*no stream-id*/});
+        return conn->closeStream(opaque, vbucket, sid);
     }
     return ENGINE_DISCONNECT;
 }

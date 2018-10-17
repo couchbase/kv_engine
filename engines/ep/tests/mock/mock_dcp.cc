@@ -108,15 +108,19 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state_rsp(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(uint32_t opaque,
-                                                      Vbid vbucket,
-                                                      uint32_t flags) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::stream_end(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint32_t flags,
+        cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpStreamEnd;
     last_opaque = opaque;
     last_vbucket = vbucket;
     last_flags = flags;
     last_packet_size = 28;
+    last_stream_id = sid;
+
     return ENGINE_SUCCESS;
 }
 
@@ -124,7 +128,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
                                                   Vbid vbucket,
                                                   uint64_t snap_start_seqno,
                                                   uint64_t snap_end_seqno,
-                                                  uint32_t flags) {
+                                                  uint32_t flags,
+                                                  cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
     last_opaque = opaque;
@@ -133,6 +138,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::marker(uint32_t opaque,
     last_snap_start_seqno = snap_start_seqno;
     last_snap_end_seqno = snap_end_seqno;
     last_flags = flags;
+    last_stream_id = sid;
     return ENGINE_SUCCESS;
 }
 
@@ -144,7 +150,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
                                                     uint32_t lock_time,
                                                     const void* meta,
                                                     uint16_t nmeta,
-                                                    uint8_t nru) {
+                                                    uint8_t nru,
+                                                    cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
     last_op = cb::mcbp::ClientOpcode::DcpMutation;
@@ -174,6 +181,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
     if (engine_handle_v1 && engine_handle) {
         engine_handle_v1->release(item);
     }
+
+    last_stream_id = sid;
     return mutationStatus;
 }
 
@@ -187,7 +196,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
         uint16_t nmeta,
         uint32_t deleteTime,
         uint32_t extlen,
-        DeleteSource deleteSource) {
+        DeleteSource deleteSource,
+        cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
     if (deleteSource == DeleteSource::TTL) {
@@ -217,6 +227,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
         engine_handle_v1->release(item);
     }
 
+    last_stream_id = sid;
+
     return ENGINE_SUCCESS;
 }
 
@@ -226,7 +238,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
                                                     uint64_t by_seqno,
                                                     uint64_t rev_seqno,
                                                     const void* meta,
-                                                    uint16_t nmeta) {
+                                                    uint16_t nmeta,
+                                                    cb::mcbp::DcpStreamId sid) {
     return deletionInner(opaque,
                          itm,
                          vbucket,
@@ -236,15 +249,18 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
                          nmeta,
                          0,
                          sizeof(cb::mcbp::request::DcpDeletionV1Payload),
-                         DeleteSource::Explicit);
+                         DeleteSource::Explicit,
+                         sid);
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
-                                                       gsl::not_null<item*> itm,
-                                                       Vbid vbucket,
-                                                       uint64_t by_seqno,
-                                                       uint64_t rev_seqno,
-                                                       uint32_t deleteTime) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(
+        uint32_t opaque,
+        gsl::not_null<item*> itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t deleteTime,
+        cb::mcbp::DcpStreamId sid) {
     return deletionInner(opaque,
                          itm,
                          vbucket,
@@ -254,15 +270,18 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
                          0,
                          deleteTime,
                          sizeof(cb::mcbp::request::DcpDeletionV2Payload),
-                         DeleteSource::Explicit);
+                         DeleteSource::Explicit,
+                         sid);
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t opaque,
-                                                      gsl::not_null<item*> itm,
-                                                      Vbid vbucket,
-                                                      uint64_t by_seqno,
-                                                      uint64_t rev_seqno,
-                                                      uint32_t deleteTime) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(
+        uint32_t opaque,
+        gsl::not_null<item*> itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        uint32_t deleteTime,
+        cb::mcbp::DcpStreamId sid) {
     return deletionInner(opaque,
                          itm,
                          vbucket,
@@ -272,7 +291,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t opaque,
                          0,
                          deleteTime,
                          sizeof(cb::mcbp::request::DcpExpirationPayload),
-                         DeleteSource::TTL);
+                         DeleteSource::TTL,
+                         sid);
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state(
@@ -321,7 +341,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
         uint64_t bySeqno,
         mcbp::systemevent::version version,
         cb::const_byte_buffer key,
-        cb::const_byte_buffer eventData) {
+        cb::const_byte_buffer eventData,
+        cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
     last_system_event = event;
@@ -342,6 +363,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
                         eventData.data())
                         ->cid.to_host();
     }
+
+    last_stream_id = sid;
     return ENGINE_SUCCESS;
 }
 
@@ -386,4 +409,5 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_system_event_data.clear();
     last_system_event_version = mcbp::systemevent::version::version0;
     last_collection_manifest_uid = 0;
+    last_stream_id = cb::mcbp::DcpStreamId{};
 }

@@ -221,7 +221,8 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
         uint64_t bySeqno,
         mcbp::systemevent::version version,
         cb::const_byte_buffer key,
-        cb::const_byte_buffer eventData) {
+        cb::const_byte_buffer eventData,
+        cb::mcbp::DcpStreamId sid) {
     (void)vbucket; // ignored as we are connecting VBn to VBn+1
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
@@ -233,6 +234,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
     last_system_event_data.insert(
             last_system_event_data.begin(), eventData.begin(), eventData.end());
     last_system_event_version = version;
+    last_stream_id = sid;
 
     switch (event) {
     case mcbp::systemevent::id::CreateCollection: {

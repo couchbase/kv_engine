@@ -872,13 +872,15 @@ public:
 
     ENGINE_ERROR_CODE stream_end(uint32_t opaque,
                                  Vbid vbucket,
-                                 uint32_t flags) override;
+                                 uint32_t flags,
+                                 cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE marker(uint32_t opaque,
                              Vbid vbucket,
                              uint64_t start_seqno,
                              uint64_t end_seqno,
-                             uint32_t flags) override;
+                             uint32_t flags,
+                             cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE mutation(uint32_t opaque,
                                item* itm,
@@ -888,7 +890,8 @@ public:
                                uint32_t lock_time,
                                const void* meta,
                                uint16_t nmeta,
-                               uint8_t nru) override;
+                               uint8_t nru,
+                               cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion(uint32_t opaque,
                                item* itm,
@@ -896,21 +899,24 @@ public:
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                const void* meta,
-                               uint16_t nmeta) override;
+                               uint16_t nmeta,
+                               cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
                                   gsl::not_null<item*> itm,
                                   Vbid vbucket,
                                   uint64_t by_seqno,
                                   uint64_t rev_seqno,
-                                  uint32_t delete_time) override;
+                                  uint32_t delete_time,
+                                  cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                  gsl::not_null<item*> itm,
                                  Vbid vbucket,
                                  uint64_t by_seqno,
                                  uint64_t rev_seqno,
-                                 uint32_t delete_time) override;
+                                 uint32_t delete_time,
+                                 cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
                                         Vbid vbucket,
@@ -932,7 +938,9 @@ public:
                                    uint64_t bySeqno,
                                    mcbp::systemevent::version version,
                                    cb::const_byte_buffer key,
-                                   cb::const_byte_buffer eventData) override;
+                                   cb::const_byte_buffer eventData,
+                                   cb::mcbp::DcpStreamId sid) override;
+
     ENGINE_ERROR_CODE prepare(uint32_t opaque,
                               item* itm,
                               Vbid vbucket,
@@ -1041,7 +1049,8 @@ protected:
                                              uint64_t by_seqno,
                                              uint64_t rev_seqno,
                                              uint32_t delete_time,
-                                             DeleteSource deleteSource);
+                                             DeleteSource deleteSource,
+                                             cb::mcbp::DcpStreamId sid);
 
     /**
      * The actual socket descriptor used by this connection

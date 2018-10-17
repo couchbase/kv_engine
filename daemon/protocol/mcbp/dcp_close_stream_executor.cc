@@ -28,7 +28,10 @@ void dcp_close_stream_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         const auto& header = cookie.getHeader().getRequest();
-        ret = dcpCloseStream(cookie, header.getOpaque(), header.getVBucket());
+        ret = dcpCloseStream(cookie,
+                             header.getOpaque(),
+                             header.getVBucket(),
+                             {/*@todo read a DcpStreamId from flex-frame*/});
     }
 
     ret = connection.remapErrorCode(ret);

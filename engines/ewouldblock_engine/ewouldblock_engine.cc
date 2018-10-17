@@ -750,7 +750,8 @@ public:
 
     ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
-                                   Vbid vbucket) override;
+                                   Vbid vbucket,
+                                   cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE stream_req(
             gsl::not_null<const void*> cookie,
@@ -1344,7 +1345,8 @@ ENGINE_ERROR_CODE EWB_Engine::step(
                                            0 /*lock_time*/,
                                            nullptr /*meta*/,
                                            0 /*nmeta*/,
-                                           0 /*nru*/);
+                                           0 /*nru*/,
+                                           {});
             --count;
             return ret;
         }
@@ -1441,11 +1443,12 @@ ENGINE_ERROR_CODE EWB_Engine::add_stream(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE EWB_Engine::close_stream(gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
-                                           Vbid vbucket) {
+                                           Vbid vbucket,
+                                           cb::mcbp::DcpStreamId sid) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return real_engine_dcp->close_stream(cookie, opaque, vbucket);
+        return real_engine_dcp->close_stream(cookie, opaque, vbucket, sid);
     }
 }
 

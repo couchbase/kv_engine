@@ -824,7 +824,7 @@ ENGINE_ERROR_CODE TestDcpConsumer::closeStreams(bool fClear) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
     for (auto& ctx : stream_ctxs) {
         if (ctx.opaque > 0) {
-            err = dcp->close_stream(cookie, ctx.opaque, Vbid(0));
+            err = dcp->close_stream(cookie, ctx.opaque, Vbid(0), {});
             if (ENGINE_SUCCESS != err) {
                 break;
             }
@@ -3902,7 +3902,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->close_stream(cookie, stream_opaque, Vbid(0)),
+            dcp->close_stream(cookie, stream_opaque, Vbid(0), {}),
             "Expected success");
 
     // Simulating a failover scenario, where the replica vbucket will
@@ -4779,7 +4779,7 @@ static enum test_result test_dcp_close_stream_no_stream(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     checkeq(ENGINE_KEY_ENOENT,
-            dcp->close_stream(cookie, opaque + 1, Vbid(0)),
+            dcp->close_stream(cookie, opaque + 1, Vbid(0), {}),
             "Expected stream doesn't exist");
 
     testHarness->destroy_cookie(cookie);
@@ -4810,7 +4810,7 @@ static enum test_result test_dcp_close_stream(EngineIface* h) {
     checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->close_stream(cookie, stream_opaque, Vbid(0)),
+            dcp->close_stream(cookie, stream_opaque, Vbid(0), {}),
             "Expected success");
 
     testHarness->destroy_cookie(cookie);
@@ -5857,7 +5857,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             get_int_stat(h, "vb_0:num_items", "vbucket-details 0"),
             "The last mutation should've been dropped!");
 
-    checkeq(dcp->close_stream(cookie, stream_opaque, Vbid(0)),
+    checkeq(dcp->close_stream(cookie, stream_opaque, Vbid(0), {}),
             ENGINE_SUCCESS,
             "Expected to close stream!");
     testHarness->destroy_cookie(cookie);
@@ -5913,7 +5913,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
     std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
     wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
 
-    checkeq(dcp->close_stream(cookie1, stream_opaque, Vbid(0)),
+    checkeq(dcp->close_stream(cookie1, stream_opaque, Vbid(0), {}),
             ENGINE_SUCCESS,
             "Expected to close stream1!");
     testHarness->destroy_cookie(cookie1);
@@ -5966,7 +5966,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
         }
     }
 
-    checkeq(dcp->close_stream(cookie2, stream_opaque, Vbid(0)),
+    checkeq(dcp->close_stream(cookie2, stream_opaque, Vbid(0), {}),
             ENGINE_SUCCESS,
             "Expected to close stream2!");
     testHarness->destroy_cookie(cookie2);

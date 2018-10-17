@@ -230,7 +230,8 @@ public:
 
     ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
-                                   Vbid vbucket) override;
+                                   Vbid vbucket,
+                                   cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE stream_req(
             gsl::not_null<const void*> cookie,

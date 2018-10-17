@@ -162,9 +162,13 @@ ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
  * @param cookie The cookie representing the connection
  * @param opaque The opaque field in the received message
  * @param vbid The vbucket id
+ * @param sid The ID of the stream
  * @return ENGINE_ERROR_CODE
  */
-ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie, uint32_t opaque, Vbid vbid);
+ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
+                                 uint32_t opaque,
+                                 Vbid vbid,
+                                 cb::mcbp::DcpStreamId sid);
 
 /**
  * Calls the underlying engine DCP control

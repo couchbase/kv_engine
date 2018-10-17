@@ -354,10 +354,13 @@ ENGINE_ERROR_CODE dcpBufferAcknowledgement(Cookie& cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie, uint32_t opaque, Vbid vbid) {
+ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie,
+                                 uint32_t opaque,
+                                 Vbid vbid,
+                                 cb::mcbp::DcpStreamId sid) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->close_stream(&cookie, opaque, vbid);
+    auto ret = dcp->close_stream(&cookie, opaque, vbid, sid);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.close_stream returned ENGINE_DISCONNECT",
                     connection.getId(),

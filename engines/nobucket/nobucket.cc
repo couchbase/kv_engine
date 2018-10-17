@@ -218,7 +218,8 @@ public:
 
     ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*>,
                                    uint32_t,
-                                   Vbid) override {
+                                   Vbid,
+                                   cb::mcbp::DcpStreamId) override {
         return ENGINE_NO_BUCKET;
     }
 

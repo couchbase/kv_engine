@@ -17,6 +17,7 @@
 #pragma once
 
 #include <mcbp/protocol/status.h>
+#include <memcached/dcp_stream_id.h>
 #include <memcached/engine_error.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
@@ -82,6 +83,7 @@ struct dcp_message_producers {
      *              0 = success
      *              1 = Something happened on the vbucket causing
      *                  us to abort it.
+     * @param sid The stream-ID the end applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
      *         ENGINE_EWOULDBLOCK if no data is available
@@ -89,7 +91,8 @@ struct dcp_message_producers {
      */
     virtual ENGINE_ERROR_CODE stream_end(uint32_t opaque,
                                          Vbid vbucket,
-                                         uint32_t flags) = 0;
+                                         uint32_t flags,
+                                         cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a marker
@@ -97,6 +100,9 @@ struct dcp_message_producers {
      * @param opaque this is the opaque requested by the consumer
      *               in the Stream Request message
      * @param vbucket the vbucket id the message belong to
+     * @param start_seqno start of the snapshot range
+     * @param end_seqno end of the snapshot range
+     * @param sid The stream-ID the marker applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
      */
@@ -104,7 +110,8 @@ struct dcp_message_producers {
                                      Vbid vbucket,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,
-                                     uint32_t flags) = 0;
+                                     uint32_t flags,
+                                     cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a Mutation
@@ -120,6 +127,7 @@ struct dcp_message_producers {
      * @param meta
      * @param nmeta
      * @param nru the nru field used by ep-engine (may safely be ignored)
+     * @param sid The stream-ID the mutation applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
      */
@@ -131,7 +139,8 @@ struct dcp_message_producers {
                                        uint32_t lock_time,
                                        const void* meta,
                                        uint16_t nmeta,
-                                       uint8_t nru) = 0;
+                                       uint8_t nru,
+                                       cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a deletion
@@ -143,6 +152,7 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param by_seqno
      * @param rev_seqno
+     * @param sid The stream-ID the deletion applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
      */
@@ -152,7 +162,8 @@ struct dcp_message_producers {
                                        uint64_t by_seqno,
                                        uint64_t rev_seqno,
                                        const void* meta,
-                                       uint16_t nmeta) = 0;
+                                       uint16_t nmeta,
+                                       cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a deletion with delete_time or collections (or both)
@@ -165,6 +176,7 @@ struct dcp_message_producers {
      * @param by_seqno
      * @param rev_seqno
      * @param delete_time the time of the deletion (tombstone creation time)
+     * @param sid The stream-ID the deletion applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
      */
@@ -173,7 +185,8 @@ struct dcp_message_producers {
                                           Vbid vbucket,
                                           uint64_t by_seqno,
                                           uint64_t rev_seqno,
-                                          uint32_t delete_time) = 0;
+                                          uint32_t delete_time,
+                                          cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send an expiration
@@ -186,6 +199,7 @@ struct dcp_message_producers {
      * @param by_seqno
      * @param rev_seqno
      * @param delete_time the time of the deletion (tombstone creation time)
+     * @param sid The stream-ID the expiration applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
      */
@@ -194,7 +208,8 @@ struct dcp_message_producers {
                                          Vbid vbucket,
                                          uint64_t by_seqno,
                                          uint64_t rev_seqno,
-                                         uint32_t delete_time) = 0;
+                                         uint32_t delete_time,
+                                         cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Send a state transition for a vbucket
@@ -257,6 +272,7 @@ struct dcp_message_producers {
      * @param version A version value defining the eventData format
      * @param key the system event's key data
      * @param eventData the system event's specific data
+     * @param sid The stream-ID the event applies to (can be 0 for none)
      *
      * @return ENGINE_SUCCESS upon success
      */
@@ -266,7 +282,8 @@ struct dcp_message_producers {
                                            uint64_t bySeqno,
                                            mcbp::systemevent::version version,
                                            cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) = 0;
+                                           cb::const_byte_buffer eventData,
+                                           cb::mcbp::DcpStreamId sid) = 0;
 
     /*
      * Send a GetErrorMap message to the other end
@@ -409,11 +426,13 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *               connection).
      * @param opaque what to use as the opaque for this DCP connection.
      * @param vbucket The vBucket to close.
+     * @param sid The id of the stream to close (can be 0/none)
      * @return
      */
     virtual ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
                                            uint32_t opaque,
-                                           Vbid vbucket) = 0;
+                                           Vbid vbucket,
+                                           cb::mcbp::DcpStreamId sid) = 0;
 
     /**
      * Callback to the engine that a Stream Request message was received

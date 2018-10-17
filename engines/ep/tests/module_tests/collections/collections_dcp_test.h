@@ -20,6 +20,7 @@
 #include "tests/mock/mock_dcp.h"
 #include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
+#include <memcached/dcp_stream_id.h>
 
 class MockDcpConsumer;
 class MockDcpProducer;
@@ -38,7 +39,8 @@ public:
                                    uint64_t bySeqno,
                                    mcbp::systemevent::version version,
                                    cb::const_byte_buffer key,
-                                   cb::const_byte_buffer eventData) override;
+                                   cb::const_byte_buffer eventData,
+                                   cb::mcbp::DcpStreamId sid) override;
 
     MockDcpConsumer* consumer = nullptr;
     Vbid replicaVB;

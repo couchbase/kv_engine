@@ -152,7 +152,8 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE close_stream(gsl::not_null<const void*> cookie,
                                    uint32_t opaque,
-                                   Vbid vbucket) override;
+                                   Vbid vbucket,
+                                   cb::mcbp::DcpStreamId sid) override;
 
     ENGINE_ERROR_CODE stream_req(
             gsl::not_null<const void*> cookie,
@@ -694,8 +695,9 @@ ENGINE_ERROR_CODE mock_engine::add_stream(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE mock_engine::close_stream(gsl::not_null<const void*> cookie,
                                             uint32_t opaque,
-                                            Vbid vbucket) {
-    return the_engine_dcp->close_stream(cookie, opaque, vbucket);
+                                            Vbid vbucket,
+                                            cb::mcbp::DcpStreamId sid) {
+    return the_engine_dcp->close_stream(cookie, opaque, vbucket, sid);
 }
 
 ENGINE_ERROR_CODE mock_engine::stream_req(
