@@ -21,12 +21,11 @@
 #include <algorithm>
 #include <limits>
 
-#include <platform/histogram.h>
-#include <platform/timeutils.h>
 #include "atomic_unordered_map.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "common.h"
+#include "dcp/response.h"
 #include "dcp/stream.h"
 #include "item.h"
 #include "persistence_callback.h"
@@ -34,6 +33,8 @@
 #include "stored-value.h"
 #include "vbucket.h"
 #include "vbucketmap.h"
+#include <platform/histogram.h>
+#include <platform/timeutils.h>
 
 static void display(const char *name, size_t size) {
     std::cout << name << "\t" << size << std::endl;
@@ -87,6 +88,9 @@ int main(int, char **) {
             sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
     display("ProbabilisticCounter<uint8_t>",
             sizeof(ProbabilisticCounter<uint8_t>));
+    display("DcpResponse", sizeof(DcpResponse));
+    display("MutationResponse", sizeof(MutationResponse));
+    display("queued_item", sizeof(queued_item));
 
     std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
 

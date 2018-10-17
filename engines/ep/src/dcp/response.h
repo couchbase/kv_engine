@@ -32,7 +32,7 @@
 
 class DcpResponse {
 public:
-    enum class Event {
+    enum class Event : uint8_t {
         Mutation,
         Deletion,
         Expiration,
@@ -378,16 +378,14 @@ public:
                      IncludeValue includeVal,
                      IncludeXattrs includeXattrs,
                      IncludeDeleteTime includeDeleteTime,
-                     DocKeyEncodesCollectionId includeCollectionID,
-                     ExtendedMetaData* e = NULL)
+                     DocKeyEncodesCollectionId includeCollectionID)
         : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation,
                       opaque),
           item_(std::move(item)),
           includeValue(includeVal),
           includeXattributes(includeXattrs),
           includeDeleteTime(includeDeleteTime),
-          includeCollectionID(includeCollectionID),
-          emd(e) {
+          includeCollectionID(includeCollectionID) {
     }
 
     queued_item& getItem() {
@@ -426,8 +424,17 @@ public:
         return item_->size();
     }
 
-    ExtendedMetaData* getExtMetaData() {
-        return emd.get();
+    IncludeValue getIncludeValue() const {
+        return includeValue;
+    }
+    IncludeXattrs getIncludeXattrs() const {
+        return includeXattributes;
+    }
+    IncludeDeleteTime getIncludeDeleteTime() const {
+        return includeDeleteTime;
+    }
+    DocKeyEncodesCollectionId getDocKeyEncodesCollectionId() const {
+        return includeCollectionID;
     }
 
     static const uint32_t mutationBaseMsgBytes = 55;
@@ -447,7 +454,55 @@ protected:
     IncludeDeleteTime includeDeleteTime;
     // Whether the response includes the collection-ID
     DocKeyEncodesCollectionId includeCollectionID;
+};
 
+/**
+ * MutationConsumerMessage is a class for storing a mutation that has been
+ * sent to a DcpConsumer/PassiveStream.
+ *
+ * The class differs from the DcpProducer version (MutationResponse) in that
+ * it can optionally store 'ExtendedMetaData'
+ *
+ */
+class MutationConsumerMessage : public MutationResponse {
+public:
+    MutationConsumerMessage(queued_item item,
+                            uint32_t opaque,
+                            IncludeValue includeVal,
+                            IncludeXattrs includeXattrs,
+                            IncludeDeleteTime includeDeleteTime,
+                            DocKeyEncodesCollectionId includeCollectionID,
+                            ExtendedMetaData* e)
+        : MutationResponse(item,
+                           opaque,
+                           includeVal,
+                           includeXattrs,
+                           includeDeleteTime,
+                           includeCollectionID),
+          emd(e) {
+    }
+
+    // Used in test code for wiring a producer/consumer directly
+    MutationConsumerMessage(MutationResponse& response)
+        : MutationResponse(response.getItem(),
+                           response.getOpaque(),
+                           response.getIncludeValue(),
+                           response.getIncludeXattrs(),
+                           response.getIncludeDeleteTime(),
+                           response.getDocKeyEncodesCollectionId()),
+          emd(nullptr) {
+    }
+
+    /**
+     * @return size of message on the wire
+     */
+    uint32_t getMessageSize() const;
+
+    ExtendedMetaData* getExtMetaData() {
+        return emd.get();
+    }
+
+protected:
     std::unique_ptr<ExtendedMetaData> emd;
 };
 

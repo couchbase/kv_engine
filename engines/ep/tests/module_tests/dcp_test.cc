@@ -3725,7 +3725,7 @@ TEST_F(SingleThreadedStreamTest, MB31410) {
     size_t seqno = snapStart;
     for (; seqno <= snapEnd; seqno++) {
         auto ret = passiveStream->messageReceived(
-                makeMutation(seqno, vbid, value, opaque));
+                makeMutationConsumerMessage(seqno, vbid, value, opaque));
 
         // We get ENGINE_TMPFAIL when we hit the replication threshold.
         // When it happens, we buffer the mutation for deferred processing
@@ -3783,7 +3783,7 @@ TEST_F(SingleThreadedStreamTest, MB31410) {
         // has failed. But, I use EXPECT rather than ASSERT  because, in the
         // case of failure, I want to trigger also the ASSERT_NO_THROW below.
         EXPECT_EQ(ENGINE_TMPFAIL,
-                  passiveStream->messageReceived(makeMutation(
+                  passiveStream->messageReceived(makeMutationConsumerMessage(
                           nextFrontEndSeqno, vbid, value, opaque)));
         // I cannot check the status of the buffer here because we have released
         // buffer.bufMutex and the DcpConsumerTask has started draining.

@@ -591,10 +591,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                 throw std::logic_error(
                     "DcpProducer::step(Mutation): itmCpy must be != nullptr");
             }
-            std::pair<const char*, uint16_t> meta{nullptr, 0};
-            if (mutationResponse->getExtMetaData()) {
-                meta = mutationResponse->getExtMetaData()->getExtMeta();
-            }
 
             Configuration& config = engine_.getConfiguration();
             uint8_t hotness;
@@ -623,8 +619,8 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                                       *mutationResponse->getBySeqno(),
                                       mutationResponse->getRevSeqno(),
                                       0 /* lock time */,
-                                      meta.first,
-                                      meta.second,
+                                      nullptr,
+                                      0,
                                       hotness);
             break;
         }
@@ -644,17 +640,13 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                         mutationResponse->getRevSeqno(),
                         mutationResponse->getItem()->getExptime());
             } else {
-                std::pair<const char*, uint16_t> meta{nullptr, 0};
-                if (mutationResponse->getExtMetaData()) {
-                    meta = mutationResponse->getExtMetaData()->getExtMeta();
-                }
                 ret = producers->deletion(mutationResponse->getOpaque(),
                                           itmCpy.release(),
                                           mutationResponse->getVBucket(),
                                           *mutationResponse->getBySeqno(),
                                           mutationResponse->getRevSeqno(),
-                                          meta.first,
-                                          meta.second);
+                                          nullptr,
+                                          0);
             }
             break;
         }

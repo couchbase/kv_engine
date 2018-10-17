@@ -85,9 +85,10 @@ public:
 protected:
     bool transitionState(StreamState newState);
 
-    virtual ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
+    virtual ENGINE_ERROR_CODE processMutation(
+            MutationConsumerMessage* mutation);
 
-    ENGINE_ERROR_CODE processDeletion(MutationResponse* deletion);
+    ENGINE_ERROR_CODE processDeletion(MutationConsumerMessage* deletion);
 
     /**
      * Handle DCP system events against this stream.

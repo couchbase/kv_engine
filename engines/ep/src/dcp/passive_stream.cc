@@ -257,13 +257,13 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(
             ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
             switch (dcpResponse->getEvent()) {
             case DcpResponse::Event::Mutation:
-                ret = processMutation(
-                        static_cast<MutationResponse*>(dcpResponse.get()));
+                ret = processMutation(static_cast<MutationConsumerMessage*>(
+                        dcpResponse.get()));
                 break;
             case DcpResponse::Event::Deletion:
             case DcpResponse::Event::Expiration:
-                ret = processDeletion(
-                        static_cast<MutationResponse*>(dcpResponse.get()));
+                ret = processDeletion(static_cast<MutationConsumerMessage*>(
+                        dcpResponse.get()));
                 break;
             case DcpResponse::Event::SnapshotMarker:
                 processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
@@ -360,12 +360,12 @@ process_items_error_t PassiveStream::processBufferedMessages(
         switch (response->getEvent()) {
         case DcpResponse::Event::Mutation:
             ret = processMutation(
-                    static_cast<MutationResponse*>(response.get()));
+                    static_cast<MutationConsumerMessage*>(response.get()));
             break;
         case DcpResponse::Event::Deletion:
         case DcpResponse::Event::Expiration:
             ret = processDeletion(
-                    static_cast<MutationResponse*>(response.get()));
+                    static_cast<MutationConsumerMessage*>(response.get()));
             break;
         case DcpResponse::Event::SnapshotMarker:
             processMarker(static_cast<SnapshotMarker*>(response.get()));
@@ -439,7 +439,8 @@ process_items_error_t PassiveStream::processBufferedMessages(
     return all_processed;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
+ENGINE_ERROR_CODE PassiveStream::processMutation(
+        MutationConsumerMessage* mutation) {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
@@ -513,7 +514,8 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     return ret;
 }
 
-ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
+ENGINE_ERROR_CODE PassiveStream::processDeletion(
+        MutationConsumerMessage* deletion) {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;

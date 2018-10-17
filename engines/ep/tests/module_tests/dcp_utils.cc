@@ -54,12 +54,13 @@ void processMutations(MockPassiveStream& stream,
                                 i /*bySeqno*/,
                                 stream.getVBucket()));
 
-        MutationResponse mutation(std::move(qi),
-                                  0 /* opaque */,
-                                  IncludeValue::Yes,
-                                  IncludeXattrs::Yes,
-                                  IncludeDeleteTime::No,
-                                  DocKeyEncodesCollectionId::No);
+        MutationConsumerMessage mutation(std::move(qi),
+                                         0 /* opaque */,
+                                         IncludeValue::Yes,
+                                         IncludeXattrs::Yes,
+                                         IncludeDeleteTime::No,
+                                         DocKeyEncodesCollectionId::No,
+                                         nullptr);
 
         // PassiveStream::processMutation does 2 things:
         //     1) setWithMeta; that enqueues the item into the
@@ -73,10 +74,8 @@ void processMutations(MockPassiveStream& stream,
     }
 }
 
-std::unique_ptr<MutationResponse> makeMutation(uint64_t seqno,
-                                               Vbid vbid,
-                                               const std::string& value,
-                                               uint64_t opaque) {
+std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
+        uint64_t seqno, Vbid vbid, const std::string& value, uint64_t opaque) {
     queued_item qi(new Item(makeStoredDocKey("key_" + std::to_string(seqno)),
                             0 /*flags*/,
                             0 /*expiry*/,
@@ -86,10 +85,12 @@ std::unique_ptr<MutationResponse> makeMutation(uint64_t seqno,
                             0 /*cas*/,
                             seqno,
                             vbid));
-    return std::make_unique<MutationResponse>(std::move(qi),
-                                              opaque,
-                                              IncludeValue::Yes,
-                                              IncludeXattrs::Yes,
-                                              IncludeDeleteTime::No,
-                                              DocKeyEncodesCollectionId::No);
+    return std::make_unique<MutationConsumerMessage>(
+            std::move(qi),
+            opaque,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            IncludeDeleteTime::No,
+            DocKeyEncodesCollectionId::No,
+            nullptr);
 }

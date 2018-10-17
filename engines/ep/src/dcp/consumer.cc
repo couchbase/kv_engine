@@ -438,13 +438,14 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque,
 
         try {
             err = stream->messageReceived(
-                    std::make_unique<MutationResponse>(item,
-                                                       opaque,
-                                                       IncludeValue::Yes,
-                                                       IncludeXattrs::Yes,
-                                                       IncludeDeleteTime::No,
-                                                       key.getEncoding(),
-                                                       emd.release()));
+                    std::make_unique<MutationConsumerMessage>(
+                            item,
+                            opaque,
+                            IncludeValue::Yes,
+                            IncludeXattrs::Yes,
+                            IncludeDeleteTime::No,
+                            key.getEncoding(),
+                            emd.release()));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
@@ -595,13 +596,14 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
 
         try {
             err = stream->messageReceived(
-                    std::make_unique<MutationResponse>(item,
-                                                       opaque,
-                                                       IncludeValue::Yes,
-                                                       IncludeXattrs::Yes,
-                                                       includeDeleteTime,
-                                                       key.getEncoding(),
-                                                       emd.release()));
+                    std::make_unique<MutationConsumerMessage>(
+                            item,
+                            opaque,
+                            IncludeValue::Yes,
+                            IncludeXattrs::Yes,
+                            includeDeleteTime,
+                            key.getEncoding(),
+                            emd.release()));
         } catch (const std::bad_alloc&) {
             err = ENGINE_ENOMEM;
         }

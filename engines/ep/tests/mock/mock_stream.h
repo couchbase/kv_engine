@@ -291,7 +291,8 @@ public:
         PassiveStream::processMarker(marker);
     }
 
-    ENGINE_ERROR_CODE processMutation(MutationResponse* mutation) override {
+    ENGINE_ERROR_CODE processMutation(
+            MutationConsumerMessage* mutation) override {
         return PassiveStream::processMutation(mutation);
     }
 

@@ -80,12 +80,18 @@ uint32_t MutationResponse::getMessageSize() const {
     }
     uint32_t body = keySize + item_->getNBytes();
 
+    return header + body;
+}
+
+uint32_t MutationConsumerMessage::getMessageSize() const {
+    uint32_t body = MutationResponse::getMessageSize();
+
     // Check to see if we need to include the extended meta data size.
     if (emd) {
         body += emd->getExtMeta().second;
     }
 
-    return header + body;
+    return body;
 }
 
 std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {

@@ -27,6 +27,7 @@
 #include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include "checkpoint_manager.h"
+#include "dcp/response.h"
 #include "evp_store_single_threaded_test.h"
 #include "test_helpers.h"
 
@@ -186,7 +187,8 @@ void DCPLoopbackStreamTest::readNextConsumerMsgAndSendToProducer(
 }
 
 /**
- * Test the behavour of a Takeover stream between a DcpProducer and DcpConsumer.
+ * Test the behaviour of a Takeover stream between a DcpProducer and
+ * DcpConsumer.
  *
  * Creates a Producer and Consumer; along with a single Active -> Passive
  * stream, then makes a streamRequest (simulating what ns_server normally does).
@@ -211,6 +213,15 @@ TEST_F(DCPLoopbackStreamTest, Takeover) {
 
     while (true) {
         auto producerMsg = getNextProducerMsg(producerStream);
+        ASSERT_TRUE(producerMsg);
+
+        // Cannot pass mutation/deletion directly to the consumer as the object
+        // is different
+        if (producerMsg->getEvent() == DcpResponse::Event::Mutation ||
+            producerMsg->getEvent() == DcpResponse::Event::Deletion) {
+            producerMsg = std::make_unique<MutationConsumerMessage>(
+                    *static_cast<MutationResponse*>(producerMsg.get()));
+        }
 
         // Pass the message onto the consumer.
         EXPECT_EQ(ENGINE_SUCCESS,
