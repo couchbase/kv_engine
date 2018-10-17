@@ -493,6 +493,12 @@ protected:
        NOTE: We always create the checkpoint processor task during regular
              operation. This flag is used for unit testing only */
     const bool createChkPtProcessorTsk;
+
+    /**
+     * Does the producer allow the client to create more than one active stream
+     * per vbucket (client must enable this feature)
+     */
+    MultipleStreamRequests multipleStreamRequests{MultipleStreamRequests::No};
 };
 
 #endif  // SRC_DCP_PRODUCER_H_

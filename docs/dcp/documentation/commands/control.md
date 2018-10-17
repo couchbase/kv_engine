@@ -27,6 +27,12 @@ Valid Keys:
 
 * "enable_expiry_opcode" - Tells the server that the client would like to receive expiry opcodes when an item is expired. The value of this should be set to 'true' for this control to occur, and 'false' will turn them off which is also its default state. Note by setting this to true, the delete time is required inside the expiration packets so delete times (and therefore delete_v2) is implicitly enabled. This option is available in versions from Couchbase 6.5.
 
+* `enable_stream_id` = `true` - Tells the server that the client would
+like to create multiple DCP streams for a vbucket. Once enabled the client must
+provide a stream-id value to all stream-requests. Note that once enabled on a
+producer, it cannot be disabled.
+
+
 The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |

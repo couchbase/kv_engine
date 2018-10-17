@@ -144,3 +144,13 @@ enum class EnableExpiryOutput : bool {
     Yes,
     No,
 };
+
+/**
+ * MultipleStreamRequests determines if a Producer is allowed to create more
+ * than one active stream for a vbucket, this is used in conjunction with
+ * collection streaming.
+ */
+enum class MultipleStreamRequests : bool {
+    Yes,
+    No
+};

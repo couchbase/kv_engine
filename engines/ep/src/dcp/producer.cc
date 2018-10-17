@@ -893,6 +893,14 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
             enableExpiryOpcode = false;
         }
         return ENGINE_SUCCESS;
+    } else if (keyStr == "enable_stream_id") {
+        if (valueStr != "true") {
+            // For simplicity, user cannot turn this off, it is by default off
+            // and can only be enabled one-way per Producer.
+            return ENGINE_EINVAL;
+        }
+        multipleStreamRequests = MultipleStreamRequests::Yes;
+        return ENGINE_SUCCESS;
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
@@ -1077,6 +1085,11 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
             add_stat, c);
     addStat("enable_expiry_opcode",
             enableExpiryOpcode ? "true" : "false",
+            add_stat,
+            c);
+    addStat("enable_stream_id",
+            multipleStreamRequests == MultipleStreamRequests::Yes ? "true"
+                                                                  : "false",
             add_stat,
             c);
 

@@ -174,4 +174,8 @@ public:
      */
     ENGINE_ERROR_CODE stepAndExpect(MockDcpMessageProducers* producers,
                                     cb::mcbp::ClientOpcode expectedOpcode);
+
+    void enableMultipleStreamRequests() {
+        multipleStreamRequests = MultipleStreamRequests::Yes;
+    }
 };
