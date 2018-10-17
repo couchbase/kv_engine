@@ -54,24 +54,43 @@ static void handle_interface_backlog(NetworkInterface& ifc, cJSON* obj) {
     ifc.backlog = gsl::narrow<int>(obj->valueint);
 }
 
-static void handle_interface_ipv4(NetworkInterface& ifc, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        ifc.ipv4 = true;
+/**
+ * Set the given NetworkInterface::Protocol based on the value of `obj`,
+ * or throw std::invalid_argument if obj is not a valid setting.
+ */
+static void handle_interface_protocol(NetworkInterface::Protocol& proto,
+                                      const char* proto_name,
+                                      const cJSON* obj) {
+    if (obj->type == cJSON_String) {
+        const std::string value(obj->valuestring);
+        if (value == "required") {
+            proto = NetworkInterface::Protocol::Required;
+        } else if (value == "optional") {
+            proto = NetworkInterface::Protocol::Optional;
+        } else if (value == "off") {
+            proto = NetworkInterface::Protocol::Off;
+        } else {
+            throw std::invalid_argument(
+                    "\"" + std::string(proto_name) +
+                    "\" has an unrecognized string value \"" + value + R"(")");
+        }
+        // Backwards compatibility - map True -> Optional, False -> Off
+    } else if (obj->type == cJSON_True) {
+        proto = NetworkInterface::Protocol::Optional;
     } else if (obj->type == cJSON_False) {
-        ifc.ipv4 = false;
+        proto = NetworkInterface::Protocol::Off;
     } else {
-        throw std::invalid_argument(R"("ipv4" must be a boolean value)");
+        throw std::invalid_argument("\"" + std::string(proto_name) +
+                                    "\" must be a string or boolean value)");
     }
 }
 
+static void handle_interface_ipv4(NetworkInterface& ifc, cJSON* obj) {
+    handle_interface_protocol(ifc.ipv4, "ipv4", obj);
+}
+
 static void handle_interface_ipv6(NetworkInterface& ifc, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        ifc.ipv6 = true;
-    } else if (obj->type == cJSON_False) {
-        ifc.ipv6 = false;
-    } else {
-        throw std::invalid_argument(R"("ipv6" must be a boolean value)");
-    }
+    handle_interface_protocol(ifc.ipv6, "ipv6", obj);
 }
 
 static void handle_interface_tcp_nodelay(NetworkInterface& ifc, cJSON* obj) {
@@ -188,4 +207,16 @@ NetworkInterface::NetworkInterface(gsl::not_null<const cJSON*> json) {
 
         obj = obj->next;
     }
+}
+
+std::string to_string(const NetworkInterface::Protocol& proto) {
+    switch (proto) {
+    case NetworkInterface::Protocol::Off:
+        return "off";
+    case NetworkInterface::Protocol::Optional:
+        return "optional";
+    case NetworkInterface::Protocol::Required:
+        return "required";
+    }
+    return "<invalid>";
 }

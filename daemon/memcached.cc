@@ -1024,11 +1024,12 @@ static bool server_socket(const NetworkInterface& interf) {
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (interf.ipv4 && interf.ipv6) {
+    if (interf.ipv4 != NetworkInterface::Protocol::Off &&
+        interf.ipv6 != NetworkInterface::Protocol::Off) {
         hints.ai_family = AF_UNSPEC;
-    } else if (interf.ipv4) {
+    } else if (interf.ipv4 != NetworkInterface::Protocol::Off) {
         hints.ai_family = AF_INET;
-    } else if (interf.ipv6) {
+    } else if (interf.ipv6 != NetworkInterface::Protocol::Off) {
         hints.ai_family = AF_INET6;
     } else {
         throw std::invalid_argument(
@@ -1070,8 +1071,12 @@ static bool server_socket(const NetworkInterface& interf) {
 
         in_port_t listenport = 0;
         if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
-            LOG_WARNING("Failed to bind to address: {}",
-                        cb_strerror(cb::net::get_socket_error()));
+            const auto bind_error = cb::net::get_socket_error();
+            auto name = cb::net::to_string(
+                    reinterpret_cast<sockaddr_storage*>(next->ai_addr),
+                    static_cast<socklen_t>(next->ai_addrlen));
+            LOG_WARNING(
+                    "Failed to bind to {} - {}", name, cb_strerror(bind_error));
             safe_close(sfd);
             continue;
         }
@@ -1110,23 +1115,40 @@ static bool server_socket(const NetworkInterface& interf) {
 
     freeaddrinfo(ai);
 
-    if (interf.ipv4 && !ipv4) {
-        // Failed to create an IPv4 port
-        LOG_CRITICAL(R"(Failed to create IPv4 port for "{}:{}")",
-                     interf.host.empty() ? "*" : interf.host,
-                     interf.port);
-    }
+    // Check if we successfully listened on all required protocols.
+    bool required_proto_missing = false;
 
-    if (interf.ipv6 && !ipv6) {
-        // Failed to create an IPv6 oprt
-        LOG_CRITICAL(R"(Failed to create IPv6 port for "{}:{}")",
-                     interf.host.empty() ? "*" : interf.host,
-                     interf.port);
+    // Check if the specified (missing) protocol was requested; if so log a
+    // message, and if required return true.
+    auto checkIfProtocolRequired =
+            [interf](const NetworkInterface::Protocol& protoMode,
+                     const char* protoName) -> bool {
+        if (protoMode != NetworkInterface::Protocol::Off) {
+            // Failed to create a socket for this protocol; and it's not
+            // disabled
+            auto level = spdlog::level::level_enum::warn;
+            if (protoMode == NetworkInterface::Protocol::Required) {
+                level = spdlog::level::level_enum::critical;
+            }
+            CB_LOG_ENTRY(level,
+                         R"(Failed to create {} {} socket for "{}:{}")",
+                         to_string(protoMode),
+                         protoName,
+                         interf.host.empty() ? "*" : interf.host,
+                         interf.port);
+        }
+        return protoMode == NetworkInterface::Protocol::Required;
+    };
+    if (!ipv4) {
+        required_proto_missing |= checkIfProtocolRequired(interf.ipv4, "IPv4");
+    }
+    if (!ipv6) {
+        required_proto_missing |= checkIfProtocolRequired(interf.ipv6, "IPv6");
     }
 
     // Return success as long as we managed to create a listening port
-    // for at least one protocol.
-    return ipv4 || ipv6;
+    // for all non-optional protocols.
+    return !required_proto_missing;
 }
 
 static bool server_sockets(bool management) {
@@ -1155,14 +1177,18 @@ static bool server_sockets(bool management) {
 
 static void create_listen_sockets(bool management) {
     if (!server_sockets(management)) {
-        FATAL_ERROR(EX_OSERR, "Failed to create listening socket(s)");
+        FATAL_ERROR(
+                EX_OSERR,
+                "Failed to create required listening socket(s). Terminating.");
     }
 
     if (management) {
         // the client is not expecting us to update the port set at
         // later time, so enable all ports immediately
         if (!server_sockets(false)) {
-            FATAL_ERROR(EX_OSERR, "Failed to create listening socket(s)");
+            FATAL_ERROR(EX_OSERR,
+                        "Failed to create required listening socket(s). "
+                        "Terminating.");
         }
     }
 
@@ -2308,6 +2334,12 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 #endif
 
+    /* create the listening socket(s), bind, and init. Note this is done
+     * before starting worker threads; so _if_ any required sockets fail then
+     * terminating is simpler as we don't need to shutdown the workers.
+     */
+    create_listen_sockets(true);
+
     /* start up worker threads if MT mode */
     thread_init(settings.getNumWorkerThreads(), main_base, dispatch_event_handler);
 
@@ -2326,9 +2358,6 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* Initialise memcached time keeping */
     mc_time_init(main_base);
-
-    /* create the listening socket, bind it, and init */
-    create_listen_sockets(true);
 
     /* Optional parent monitor */
     char *env = getenv("MEMCACHED_PARENT_MONITOR");
