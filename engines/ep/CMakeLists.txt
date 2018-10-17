@@ -16,6 +16,18 @@ CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" ON
 CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" ON
         "ROCKSDB_INCLUDE_DIR;ROCKSDB_LIBRARIES" OFF)
 
+# The test in ep-engine is time consuming (and given that we run some of
+# them with different modes it really adds up). By default we should build
+# and run all of them, but in some cases it would be nice to be able to
+# skip running them (for instance if one is working with the front-end and
+# wants to speed up the test run)
+CMAKE_DEPENDENT_OPTION(EP_BYPASS_TESTS "Bypass tests in ep-engine" OFF
+                       "COUCHBASE_KV_BUILD_UNIT_TESTS" ON)
+
+if (EP_BYPASS_TESTS)
+   message(WARNING "Skipping tests in ep-engine")
+endif()
+
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}
                            ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -105,7 +117,7 @@ FIND_PACKAGE(PythonInterp)
 # to avoid cluttering source dir with name + "c" files
 SET(ENV{PYTHONDONTWRITEBYTECODE} 1)
 
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+if (NOT EP_BYPASS_TESTS)
     # runs cbstats & cbepctl - will fail on basic syntax errors
     ADD_TEST(NAME cbstats_test
              COMMAND ${PYTHON_EXECUTABLE}
@@ -116,7 +128,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     ADD_TEST(NAME kv_trace_dump_test
              COMMAND ${PYTHON_EXECUTABLE}
              ${CMAKE_CURRENT_SOURCE_DIR}/management/kv_trace_dump --help)
-endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+endif (NOT EP_BYPASS_TESTS)
 
 IF (WIN32)
    INCLUDE_DIRECTORIES(AFTER ${CMAKE_SOURCE_DIR}/platform/include/win32)
@@ -305,7 +317,7 @@ ADD_LIBRARY(ep_testsuite_objs OBJECT
 SET_PROPERTY(TARGET ep_testsuite_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_testsuite_objs)
 
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+if (NOT EP_BYPASS_TESTS)
     # Single executable containing all class-level unit tests involving
     # EventuallyPersistentEngine driven by GoogleTest.
     # (We end up compiling most of the src/ files of ep-engine for these unit tests,
@@ -599,7 +611,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
     #            ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_9.c)
 
     #SET_TARGET_PROPERTIES(generated_testsuite PROPERTIES PREFIX "")
-endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+endif (NOT EP_BYPASS_TESTS)
 
 INSTALL(PROGRAMS
         ${CMAKE_CURRENT_BINARY_DIR}/wrapper/cbepctl
@@ -637,7 +649,7 @@ INSTALL(TARGETS ep
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
-if (COUCHBASE_KV_BUILD_UNIT_TESTS)
+if (NOT EP_BYPASS_TESTS)
     IF (EP_USE_ROCKSDB)
         ADD_TEST(NAME ep-engine-persistence-unit-tests.rocksdb
                  COMMAND memcached_testapp -E ep -c "backend=rocksdb$<SEMICOLON>collections_enabled=false" --gtest_filter=*PersistToTest*)
@@ -719,7 +731,7 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
     # ============================================================================ #
 
     ENABLE_CODE_COVERAGE_REPORT()
-endif (COUCHBASE_KV_BUILD_UNIT_TESTS)
+endif (NOT EP_BYPASS_TESTS)
 
 
 # Extra (non-default) target to compile all ep-engine headers (for
