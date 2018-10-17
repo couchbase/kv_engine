@@ -83,7 +83,7 @@ enum dcp_marker_flag_t {
  * IncludeValue is used to state whether an active stream needs to send the
  * value in the response.
  */
-enum class IncludeValue {
+enum class IncludeValue : bool {
     Yes,
     No,
 };
@@ -92,7 +92,7 @@ enum class IncludeValue {
  * IncludeXattrs is used to state whether an active stream needs to send the
  * xattrs, (if any exist), in the response.
  */
-enum class IncludeXattrs {
+enum class IncludeXattrs : bool {
     Yes,
     No,
 };
@@ -101,7 +101,7 @@ enum class IncludeXattrs {
  * IncludeDeleteTime is used to state whether an active stream needs to send the
  * tombstone creation time (only applies to backfilled items)
  */
-enum class IncludeDeleteTime {
+enum class IncludeDeleteTime : bool {
     Yes,
     No,
 };
@@ -110,7 +110,7 @@ enum class IncludeDeleteTime {
  * SnappyEnabled is used to state whether an active stream supports snappy
  * compressed documents.
  */
-enum class SnappyEnabled {
+enum class SnappyEnabled : bool {
     Yes,
     No,
 };
@@ -119,7 +119,7 @@ enum class SnappyEnabled {
  * ForceValueCompression is used to state whether an active stream
  * should forcefully compress all items.
  */
-enum class ForceValueCompression {
+enum class ForceValueCompression : bool {
     Yes,
     No,
 };
