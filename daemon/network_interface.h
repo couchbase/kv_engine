@@ -25,6 +25,13 @@
 
 class NetworkInterface {
 public:
+    /// Should a protocol be enabled, and if so how?
+    enum class Protocol {
+        Off, /// Do not enable protocol.
+        Optional, /// Protocol should be enabled, failure is non-fatal.
+        Required, /// Protocol must be enabled; failure is fatal.
+    };
+
     NetworkInterface() = default;
     explicit NetworkInterface(gsl::not_null<const cJSON*> json);
 
@@ -36,8 +43,10 @@ public:
     int maxconn = 1000;
     int backlog = 1024;
     in_port_t port = 11211;
-    bool ipv6 = true;
-    bool ipv4 = true;
+    Protocol ipv6 = Protocol::Optional;
+    Protocol ipv4 = Protocol::Optional;
     bool tcp_nodelay = true;
     bool management = false;
 };
+
+std::string to_string(const NetworkInterface::Protocol& proto);

@@ -48,6 +48,12 @@ public:
 
     void nonObjectValuesShouldFail(const std::string& tag);
 
+    /**
+     * Convenience method - returns a config JSON object with an "interfaces"
+     * array containing single interface object with the given properties.
+     */
+    unique_cJSON_ptr makeInterfacesConfig(const char* protocolMode);
+
     template <typename T = std::invalid_argument>
     void expectFail(const unique_cJSON_ptr& ptr) {
         EXPECT_THROW(Settings settings(ptr), T) << to_string(ptr, true);
@@ -221,6 +227,18 @@ void SettingsTest::nonObjectValuesShouldFail(const std::string& tag) {
     expectFail(obj);
 }
 
+unique_cJSON_ptr SettingsTest::makeInterfacesConfig(const char* protocolMode) {
+    unique_cJSON_ptr array(cJSON_CreateArray());
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddStringToObject(obj.get(), "ipv4", protocolMode);
+    cJSON_AddStringToObject(obj.get(), "ipv6", protocolMode);
+
+    cJSON_AddItemToArray(array.get(), obj.release());
+
+    unique_cJSON_ptr root(cJSON_CreateObject());
+    cJSON_AddItemToObject(root.get(), "interfaces", array.release());
+    return root;
+}
 
 TEST_F(SettingsTest, AuditFile) {
     // Ensure that we detect non-string values for admin
@@ -321,8 +339,8 @@ TEST_F(SettingsTest, Interfaces) {
         const auto& ifc0 = settings.getInterfaces()[0];
 
         EXPECT_EQ(0, ifc0.port);
-        EXPECT_TRUE(ifc0.ipv4);
-        EXPECT_TRUE(ifc0.ipv6);
+        EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv4);
+        EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv6);
         EXPECT_EQ(10, ifc0.maxconn);
         EXPECT_EQ(10, ifc0.backlog);
         EXPECT_EQ("*", ifc0.host);
@@ -425,6 +443,84 @@ TEST_F(SettingsTest, InterfacesInvalidSslEntry) {
     expectFail(root);
 
     cb::io::rmrf(pattern);
+}
+
+/// Test that "off" is correctly handled for ipv4 & ipv6 protocols.
+TEST_F(SettingsTest, InterfacesProtocolOff) {
+    auto root = makeInterfacesConfig("off");
+
+    try {
+        Settings settings(root);
+        ASSERT_EQ(1, settings.getInterfaces().size());
+        ASSERT_TRUE(settings.has.interfaces);
+
+        const auto& ifc0 = settings.getInterfaces()[0];
+
+        EXPECT_EQ(NetworkInterface::Protocol::Off, ifc0.ipv4);
+        EXPECT_EQ(NetworkInterface::Protocol::Off, ifc0.ipv6);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
+/// Test that "optional" is correctly handled for ipv4 & ipv6 protocols.
+TEST_F(SettingsTest, InterfacesProtocolOptional) {
+    auto root = makeInterfacesConfig("optional");
+
+    try {
+        Settings settings(root);
+        ASSERT_EQ(1, settings.getInterfaces().size());
+        ASSERT_TRUE(settings.has.interfaces);
+
+        const auto& ifc0 = settings.getInterfaces()[0];
+
+        EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv4);
+        EXPECT_EQ(NetworkInterface::Protocol::Optional, ifc0.ipv6);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
+/// Test that "required" is correctly handled for ipv4 & ipv6 protocols.
+TEST_F(SettingsTest, InterfacesProtocolRequired) {
+    auto root = makeInterfacesConfig("required");
+
+    try {
+        Settings settings(root);
+        ASSERT_EQ(1, settings.getInterfaces().size());
+        ASSERT_TRUE(settings.has.interfaces);
+
+        const auto& ifc0 = settings.getInterfaces()[0];
+
+        EXPECT_EQ(NetworkInterface::Protocol::Required, ifc0.ipv4);
+        EXPECT_EQ(NetworkInterface::Protocol::Required, ifc0.ipv6);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+}
+
+/// Test that invalid numeric values for ipv4 & ipv6 protocols are rejected.
+TEST_F(SettingsTest, InterfacesInvalidProtocolNumber) {
+    // Numbers not permitted
+    unique_cJSON_ptr array(cJSON_CreateArray());
+    unique_cJSON_ptr obj(cJSON_CreateObject());
+    cJSON_AddNumberToObject(obj.get(), "ipv4", 1);
+    cJSON_AddNumberToObject(obj.get(), "ipv6", 2);
+
+    cJSON_AddItemToArray(array.get(), obj.release());
+
+    unique_cJSON_ptr root(cJSON_CreateObject());
+    cJSON_AddItemToObject(root.get(), "interfaces", array.release());
+
+    expectFail(root);
+}
+
+/// Test that invalid string values for ipv4 & ipv6 protocols are rejected.
+TEST_F(SettingsTest, InterfacesInvalidProtocolString) {
+    // Strings not in (off, optional, required) not permitted.
+    auto root = makeInterfacesConfig("sometimes");
+
+    expectFail(root);
 }
 
 TEST_F(SettingsTest, ParseLoggerSettings) {
@@ -1072,7 +1168,7 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
     {
         Settings updated;
         NetworkInterface myifc;
-        myifc.ipv4 = false;
+        myifc.ipv4 = NetworkInterface::Protocol::Off;
         updated.addInterface(myifc);
 
         EXPECT_THROW(settings.updateSettings(updated, false),
@@ -1082,7 +1178,7 @@ TEST(SettingsUpdateTest, InterfaceSomeValuesMayNotChange) {
     {
         Settings updated;
         NetworkInterface myifc;
-        myifc.ipv6 = false;
+        myifc.ipv6 = NetworkInterface::Protocol::Off;
         updated.addInterface(myifc);
 
         EXPECT_THROW(settings.updateSettings(updated, false),

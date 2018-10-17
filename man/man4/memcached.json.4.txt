@@ -102,11 +102,29 @@ object describing a single interface with the following properties:
 
     port          An integral number specifying the port number
 
-    IPv4          A boolean value specifying if IPv4 should be enabled
-                  or not. By default IPv4 is enabled.
+    IPv4 & IPv6   A string value specifying if the given protocol (IPv4 or
+                  IPv6) should be enabled, and if so how failure to bind should
+                   be handled. Permitted values:
 
-    IPv6          A boolean value specifying if IPv6 should be enabled
-                  or not. By default IPv6 is enabled.
+                  "required"  The specified protocol must be enabled on this
+                              interface. If it cannot be enabled, then
+                              memcached will fail to start.
+
+                  "optional"  The specified protocol should be enabled on this
+                              interface. If it cannot be enabled, then permit
+                              memcached to still start.
+
+                  "off"       Do not attempt to enable the specified protocol
+                              on this interface.
+
+                  The default value is "optional".
+
+                  Backward compatability note: To support old configurations
+                  (before the tri-state string was introduced), a boolean value
+                  is accepted which maps to the above string values:
+
+                  true  -> "optional"
+                  false -> "off"
 
     maxconn       An integral number specifying the maximum number of
                   concurrent clients that may be connected.
