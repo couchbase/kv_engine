@@ -191,7 +191,7 @@ void EphemeralVBucket::dump() const {
 ENGINE_ERROR_CODE EphemeralVBucket::completeBGFetchForSingleItem(
         const DocKey& key,
         const VBucketBGFetchItem& fetched_item,
-        const ProcessClock::time_point startTime) {
+        const std::chrono::steady_clock::time_point startTime) {
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
     throw std::logic_error(
             "EphemeralVBucket::completeBGFetchForSingleItem() "

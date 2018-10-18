@@ -17,7 +17,7 @@
 #pragma once
 
 #include "tracing/tracetypes.h"
-#include <platform/processclock.h>
+#include <chrono>
 #include <vector>
 
 namespace cb {
@@ -45,11 +45,11 @@ public:
     using Duration = std::chrono::duration<int32_t, std::micro>;
 
     Span(TraceCode code,
-         ProcessClock::time_point start,
+         std::chrono::steady_clock::time_point start,
          Duration duration = Duration::max())
         : start(start), duration(duration), code(code) {
     }
-    ProcessClock::time_point start;
+    std::chrono::steady_clock::time_point start;
     Duration duration;
     TraceCode code;
 };
@@ -66,14 +66,17 @@ public:
 
     /// Begin a Span starting from the specified time point (defaults to now)
     SpanId begin(const TraceCode tracecode,
-                 ProcessClock::time_point startTime = ProcessClock::now());
+                 std::chrono::steady_clock::time_point startTime =
+                         std::chrono::steady_clock::now());
 
     bool end(SpanId spanId,
-             ProcessClock::time_point endTime = ProcessClock::now());
+             std::chrono::steady_clock::time_point endTime =
+                     std::chrono::steady_clock::now());
 
     /// End a Span, stopping at the specified time point (defaults to now).
     bool end(const TraceCode tracecode,
-             ProcessClock::time_point endTime = ProcessClock::now());
+             std::chrono::steady_clock::time_point endTime =
+                     std::chrono::steady_clock::now());
 
     // get the tracepoints as ordered durations
     const std::vector<Span>& getDurations() const;

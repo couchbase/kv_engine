@@ -207,7 +207,7 @@ VBucket::VBucket(Vbid i,
     }
 
     backfill.isBackfillPhase = false;
-    pendingOpsStart = ProcessClock::time_point();
+    pendingOpsStart = std::chrono::steady_clock::time_point();
     stats.coreLocal.get()->memOverhead.fetch_add(
             sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
     EP_LOG_INFO(
@@ -263,8 +263,8 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
                          ENGINE_ERROR_CODE code) {
     std::unique_lock<std::mutex> lh(pendingOpLock);
 
-    if (pendingOpsStart > ProcessClock::time_point()) {
-        auto now = ProcessClock::now();
+    if (pendingOpsStart > std::chrono::steady_clock::time_point()) {
+        auto now = std::chrono::steady_clock::now();
         if (now > pendingOpsStart) {
             auto d = std::chrono::duration_cast<std::chrono::microseconds>(
                     now - pendingOpsStart);
@@ -276,7 +276,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
         return;
     }
 
-    pendingOpsStart = ProcessClock::time_point();
+    pendingOpsStart = std::chrono::steady_clock::time_point();
     stats.pendingOps.fetch_sub(pendingOps.size());
     atomic_setIfBigger(stats.pendingOpsMax, pendingOps.size());
 
@@ -341,13 +341,13 @@ VBucket::ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     const auto ckptMgrLimit = approxLimit - result.items.size();
     CheckpointManager::ItemsForCursor ckptItems;
     if (ckptMgrLimit > 0) {
-        auto _begin_ = ProcessClock::now();
+        auto _begin_ = std::chrono::steady_clock::now();
         ckptItems = checkpointManager->getItemsForPersistence(result.items,
                                                               ckptMgrLimit);
         result.range = ckptItems.range;
         stats.persistenceCursorGetItemsHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - _begin_));
+                        std::chrono::steady_clock::now() - _begin_));
     } else {
         // We haven't got sufficient remaining capacity to read items from
         // CheckpoitnManager, therefore we must assume that there /could/
@@ -512,7 +512,7 @@ bool VBucket::addPendingOp(const void* cookie) {
     }
     // Start a timer when enqueuing the first client.
     if (pendingOps.empty()) {
-        pendingOpsStart = ProcessClock::now();
+        pendingOpsStart = std::chrono::steady_clock::now();
     }
     pendingOps.push_back(cookie);
     ++stats.pendingOps;
@@ -2671,7 +2671,7 @@ std::map<const void*, ENGINE_ERROR_CODE> VBucket::getHighPriorityNotifications(
 
         std::string logStr(to_string(notifyType));
 
-        auto wall_time = ProcessClock::now() - entry->start;
+        auto wall_time = std::chrono::steady_clock::now() - entry->start;
         auto spent =
                 std::chrono::duration_cast<std::chrono::seconds>(wall_time);
         if (entry->id <= idNum) {

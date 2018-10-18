@@ -108,18 +108,19 @@ protected:
         // least once (given the age_threshold may be up to 10).
         const size_t passes = 10;
 
-        auto start = ProcessClock::now();
+        auto start = std::chrono::steady_clock::now();
         for (size_t i = 0; i < passes; i++) {
             // Loop until we get to the end; this may take multiple chunks
             // depending
             // on the chunk_duration.
             HashTable::Position pos;
             while (pos != vbucket->ht.endPosition()) {
-                visitor.setDeadline(ProcessClock::now() + chunk_duration);
+                visitor.setDeadline(std::chrono::steady_clock::now() +
+                                    chunk_duration);
                 pos = vbucket->ht.pauseResumeVisit(visitor, pos);
             }
         }
-        auto end = ProcessClock::now();
+        auto end = std::chrono::steady_clock::now();
         auto duration = (end - start);
 
         return {visitor.getVisitedCount(), duration};

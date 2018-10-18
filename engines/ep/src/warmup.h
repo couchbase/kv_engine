@@ -25,9 +25,9 @@
 #include <memcached/engine_common.h>
 #include <phosphor/phosphor.h>
 #include <platform/atomic_duration.h>
-#include <platform/processclock.h>
 
 #include <atomic>
+#include <chrono>
 #include <deque>
 #include <map>
 #include <ostream>
@@ -142,14 +142,14 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c) const;
 
-    ProcessClock::duration getTime() {
+    std::chrono::steady_clock::duration getTime() {
         return warmup.load();
     }
 
     void setWarmupTime() {
         std::lock_guard<std::mutex> lock(warmupStart.mutex);
-        warmup.store(ProcessClock::now() - warmupStart.time +
-                     ProcessClock::duration(1));
+        warmup.store(std::chrono::steady_clock::now() - warmupStart.time +
+                     std::chrono::steady_clock::duration(1));
     }
 
     size_t doWarmup(MutationLog& lf,
@@ -235,7 +235,7 @@ private:
     // in order to synchronise access from multiple threads.
     struct {
         std::mutex mutex;
-        ProcessClock::time_point time;
+        std::chrono::steady_clock::time_point time;
     } warmupStart;
 
     // Time it took to load metadata and complete warmup, stored atomically.

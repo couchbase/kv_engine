@@ -71,7 +71,8 @@ public:
     InstantTracer(Cookie& cookie,
                   const cb::tracing::TraceCode code,
                   bool begin,
-                  ProcessClock::time_point time = ProcessClock::now()) {
+                  std::chrono::steady_clock::time_point time =
+                          std::chrono::steady_clock::now()) {
         if (cookie.isTracingEnabled()) {
             auto& tracer = cookie.getTracer();
             if (begin) {
@@ -86,7 +87,8 @@ public:
     InstantTracer(const void* cookie,
                   const cb::tracing::TraceCode code,
                   bool begin,
-                  ProcessClock::time_point time = ProcessClock::now())
+                  std::chrono::steady_clock::time_point time =
+                          std::chrono::steady_clock::now())
         : InstantTracer(*reinterpret_cast<Cookie*>(const_cast<void*>(cookie)),
                         code,
                         begin,
@@ -99,9 +101,9 @@ public:
  * Tracer objects, by storing the cookie and code in the object. To be used
  * with ScopeTimer classes.
  *
- * It's stop() and start() methods (which only take a ProcessClock::time_point)
- * use the stored cookie and TraceCode to record the times in the appropriate
- * tracer object.
+ * It's stop() and start() methods (which only take a
+ * std::chrono::steady_clock::time_point) use the stored cookie and TraceCode to
+ * record the times in the appropriate tracer object.
  */
 class TracerStopwatch {
 public:
@@ -115,13 +117,13 @@ public:
                           code) {
     }
 
-    void start(ProcessClock::time_point startTime) {
+    void start(std::chrono::steady_clock::time_point startTime) {
         if (cookie.isTracingEnabled()) {
             spanId = cookie.getTracer().begin(code, startTime);
         }
     }
 
-    void stop(ProcessClock::time_point stopTime) {
+    void stop(std::chrono::steady_clock::time_point stopTime) {
         if (cookie.isTracingEnabled()) {
             cookie.getTracer().end(spanId, stopTime);
         }
@@ -140,14 +142,14 @@ protected:
 
 /**
  * Begin a trace. Accepts a single optional argument - the time_point to use
- * as the starting time instead of the default ProcessClock::now().
+ * as the starting time instead of the default std::chrono::steady_clock::now().
  */
 #define TRACE_BEGIN(ck, code, ...) \
     InstantTracer(ck, code, /*begin*/ true, __VA_ARGS__)
 
 /**
  * End a trace. Accepts a single optional argument - the time_point to use
- * as the ending time instead of the default ProcessClock::now().
+ * as the ending time instead of the default std::chrono::steady_clock::now().
  */
 #define TRACE_END(ck, code, ...) \
     InstantTracer(ck, code, /*begin*/ false, __VA_ARGS__)

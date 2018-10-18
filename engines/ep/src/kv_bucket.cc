@@ -612,13 +612,14 @@ bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
     }
 }
 
-void KVBucket::logQTime(TaskId taskType, const ProcessClock::duration enqTime) {
+void KVBucket::logQTime(TaskId taskType,
+                        const std::chrono::steady_clock::duration enqTime) {
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(enqTime);
     stats.schedulingHisto[static_cast<int>(taskType)].add(ms);
 }
 
 void KVBucket::logRunTime(TaskId taskType,
-                          const ProcessClock::duration runTime) {
+                          const std::chrono::steady_clock::duration runTime) {
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(runTime);
     stats.taskRuntimeHisto[static_cast<int>(taskType)].add(ms);
 }
@@ -1291,9 +1292,10 @@ void KVBucket::appendAggregatedVBucketStats(VBucketCountVisitor& active,
 void KVBucket::completeBGFetch(const DocKey& key,
                                Vbid vbucket,
                                const void* cookie,
-                               ProcessClock::time_point init,
+                               std::chrono::steady_clock::time_point init,
                                bool isMeta) {
-    ProcessClock::time_point startTime(ProcessClock::now());
+    std::chrono::steady_clock::time_point startTime(
+            std::chrono::steady_clock::now());
     // Go find the data
     GetValue gcb = getROUnderlying(vbucket)->get(key, vbucket, isMeta);
 
@@ -1320,9 +1322,10 @@ void KVBucket::completeBGFetch(const DocKey& key,
     --stats.numRemainingBgJobs;
 }
 
-void KVBucket::completeBGFetchMulti(Vbid vbId,
-                                    std::vector<bgfetched_item_t>& fetchedItems,
-                                    ProcessClock::time_point startTime) {
+void KVBucket::completeBGFetchMulti(
+        Vbid vbId,
+        std::vector<bgfetched_item_t>& fetchedItems,
+        std::chrono::steady_clock::time_point startTime) {
     VBucketPtr vb = getVBucket(vbId);
     if (vb) {
         for (const auto& item : fetchedItems) {
@@ -1338,7 +1341,7 @@ void KVBucket::completeBGFetchMulti(Vbid vbId,
                 uint64_t(fetchedItems.size()),
                 vbId,
                 std::chrono::duration_cast<std::chrono::milliseconds>(
-                        ProcessClock::now().time_since_epoch())
+                        std::chrono::steady_clock::now().time_since_epoch())
                         .count());
     } else {
         for (const auto& item : fetchedItems) {

@@ -86,12 +86,12 @@ protected:
     void SetUp() {
         // Record initial time as an epoch (all subsequent times should be
         // greater or equal to this).
-        epoch = ProcessClock::now();
+        epoch = std::chrono::steady_clock::now();
     }
 
     MockConnection connection;
     Cookie cookie;
-    ProcessClock::time_point epoch;
+    std::chrono::steady_clock::time_point epoch;
 };
 
 TEST_F(TracingCookieTest, InstantTracerBegin) {

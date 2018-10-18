@@ -133,7 +133,7 @@ private:
     /// Flag used to identify if memory usage is below the low watermark.
     bool isBelowLowWaterMark;
     bool wasHighMemoryUsage;
-    ProcessClock::time_point taskStart;
+    std::chrono::steady_clock::time_point taskStart;
     std::atomic<item_pager_phase>* pager_phase;
 
     // Indicates whether the vbucket we are visiting is from an ephemeral

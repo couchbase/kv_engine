@@ -179,38 +179,38 @@ public:
         return taskable;
     }
 
-    ProcessClock::time_point getWaketime() const {
+    std::chrono::steady_clock::time_point getWaketime() const {
         const auto waketime_chrono = std::chrono::nanoseconds(waketime);
-        return ProcessClock::time_point(waketime_chrono);
+        return std::chrono::steady_clock::time_point(waketime_chrono);
     }
 
-    void updateWaketime(ProcessClock::time_point tp) {
+    void updateWaketime(std::chrono::steady_clock::time_point tp) {
         waketime = to_ns_since_epoch(tp).count();
     }
 
-    void updateWaketimeIfLessThan(ProcessClock::time_point tp) {
+    void updateWaketimeIfLessThan(std::chrono::steady_clock::time_point tp) {
         const int64_t tp_ns = to_ns_since_epoch(tp).count();
         atomic_setIfBigger(waketime, tp_ns);
     }
 
-    ProcessClock::time_point getLastStartTime() const {
+    std::chrono::steady_clock::time_point getLastStartTime() const {
         const auto waketime_chrono = std::chrono::nanoseconds(lastStartTime);
-        return ProcessClock::time_point(waketime_chrono);
+        return std::chrono::steady_clock::time_point(waketime_chrono);
     }
 
-    void updateLastStartTime(ProcessClock::time_point tp) {
+    void updateLastStartTime(std::chrono::steady_clock::time_point tp) {
         lastStartTime = to_ns_since_epoch(tp).count();
     }
 
-    ProcessClock::duration getTotalRuntime() const {
+    std::chrono::steady_clock::duration getTotalRuntime() const {
         return std::chrono::nanoseconds(totalRuntime);
     }
 
-    ProcessClock::duration getPrevRuntime() const {
+    std::chrono::steady_clock::duration getPrevRuntime() const {
         return std::chrono::nanoseconds(previousRuntime);
     }
 
-    void updateRuntime(ProcessClock::duration tp) {
+    void updateRuntime(std::chrono::steady_clock::duration tp) {
         int64_t nanoseconds =
                 std::chrono::duration_cast<std::chrono::nanoseconds>(tp)
                         .count();

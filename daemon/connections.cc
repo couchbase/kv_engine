@@ -146,9 +146,9 @@ void close_all_connections() {
 }
 
 void run_event_loop(Connection* c, short which) {
-    const auto start = ProcessClock::now();
+    const auto start = std::chrono::steady_clock::now();
     c->runEventLoop(which);
-    const auto stop = ProcessClock::now();
+    const auto stop = std::chrono::steady_clock::now();
 
     using namespace std::chrono;
     const auto ns = duration_cast<nanoseconds>(stop - start);

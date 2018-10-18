@@ -39,13 +39,13 @@ public:
      * Run the next task from the taskQ
      * The task must match the expectedTaskName parameter
      */
-    ProcessClock::time_point runNextTask(TaskQueue& taskQ,
-                                         const std::string& expectedTaskName);
+    std::chrono::steady_clock::time_point runNextTask(
+            TaskQueue& taskQ, const std::string& expectedTaskName);
 
     /*
      * Run the next task from the taskQ
      */
-    ProcessClock::time_point runNextTask(TaskQueue& taskQ);
+    std::chrono::steady_clock::time_point runNextTask(TaskQueue& taskQ);
 
     /*
      * DCP helper. Create a MockDcpProducer configured with (or without)

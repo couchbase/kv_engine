@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 
-#include <platform/processclock.h>
+#include <chrono>
 #include <iostream>
 
 #include "testapp.h"
@@ -68,9 +68,9 @@ TEST_F(TracingTest, ValidDataOnRequest) {
     conn.setFeature(cb::mcbp::Feature::Tracing, true);
 
     // Expect some trace data
-    auto start = ProcessClock::now();
+    auto start = std::chrono::steady_clock::now();
     conn.mutate(document, Vbid(0), MutationType::Add);
-    auto end = ProcessClock::now();
+    auto end = std::chrono::steady_clock::now();
     auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     auto traceData = conn.getTraceData();

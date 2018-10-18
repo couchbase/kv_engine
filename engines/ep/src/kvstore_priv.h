@@ -59,7 +59,7 @@ public:
 
     std::chrono::microseconds getDelta() {
         return std::chrono::duration_cast<std::chrono::microseconds>(
-                ProcessClock::now() - start);
+                std::chrono::steady_clock::now() - start);
     }
 
     Callback<TransactionContext, mutation_result>* getSetCallback(void) {
@@ -78,7 +78,7 @@ protected:
     Vbid vbucketId;
     bool deleteItem;
     MutationRequestCallback callback;
-    ProcessClock::time_point start;
+    std::chrono::steady_clock::time_point start;
     StoredDocKey key;
     size_t dataSize;
 };

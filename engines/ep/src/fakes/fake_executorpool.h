@@ -194,8 +194,8 @@ public:
         run();
     }
 
-    ProcessClock::time_point completeCurrentTask() {
-        auto min_waketime = ProcessClock::time_point::min();
+    std::chrono::steady_clock::time_point completeCurrentTask() {
+        auto min_waketime = std::chrono::steady_clock::time_point::min();
         manager->doneWork(taskType);
         if (rescheduled && !currentTask->isdead()) {
             min_waketime = queue.reschedule(currentTask);

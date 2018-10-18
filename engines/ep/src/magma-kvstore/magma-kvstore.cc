@@ -425,7 +425,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbucketId,
                                    const vbucket_state& vbstate,
                                    VBStatePersist options) {
     // TODO Refactor out behaviour common to this and CouchKVStore
-    auto start = ProcessClock::now();
+    auto start = std::chrono::steady_clock::now();
 
     if (updateCachedVBState(vbucketId, vbstate) &&
         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
@@ -433,7 +433,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbucketId,
     }
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - start));
+            std::chrono::steady_clock::now() - start));
 
     return true;
 }
@@ -541,7 +541,7 @@ int MagmaKVStore::saveDocs(
     int64_t lastSeqno = 0;
     int status = 0;
 
-    auto begin = ProcessClock::now();
+    auto begin = std::chrono::steady_clock::now();
     {
         KVMagma db(vbid, magmaPath);
 
@@ -561,7 +561,7 @@ int MagmaKVStore::saveDocs(
     }
 
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - begin));
+            std::chrono::steady_clock::now() - begin));
     if (status) {
         logger.warn(
                 "MagmaKVStore::saveDocs: magma::DB::Write error:{}, "

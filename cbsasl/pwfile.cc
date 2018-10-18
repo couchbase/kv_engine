@@ -18,8 +18,8 @@
 #include "password_database.h"
 
 #include <cbsasl/logging.h>
-#include <platform/processclock.h>
 #include <platform/timeutils.h>
+#include <chrono>
 #include <mutex>
 #include <sstream>
 
@@ -52,12 +52,13 @@ bool find_user(const std::string& username, cb::sasl::pwdb::User& user) {
 
 cb::sasl::Error parse_user_db(const std::string content, bool file) {
     try {
-        auto start = cb::ProcessClock::now();
+        auto start = std::chrono::steady_clock::now();
         std::unique_ptr<cb::sasl::pwdb::PasswordDatabase> db(
                 new cb::sasl::pwdb::PasswordDatabase(content, file));
 
-        std::string logmessage("Loading [" + content + "] took " +
-                               cb::time2text(ProcessClock::now() - start));
+        std::string logmessage(
+                "Loading [" + content + "] took " +
+                cb::time2text(std::chrono::steady_clock::now() - start));
         cb::sasl::logging::log(cb::sasl::logging::Level::Debug, logmessage);
         pwmgr.swap(db);
     } catch (std::exception& e) {

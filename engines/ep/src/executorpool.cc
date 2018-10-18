@@ -26,7 +26,6 @@
 
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
-#include <platform/processclock.h>
 #include <platform/string_hex.h>
 #include <platform/sysinfo.h>
 #include <algorithm>
@@ -789,7 +788,8 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
 
         if (strcmp(t->getStateName().c_str(), "running") == 0) {
             checked_snprintf(statname, sizeof(statname), "%s:runtime", prefix);
-            const auto duration = ProcessClock::now() - t->getTaskStart();
+            const auto duration =
+                    std::chrono::steady_clock::now() - t->getTaskStart();
             add_casted_stat(statname, std::chrono::duration_cast<
                             std::chrono::microseconds>(duration).count(),
                             add_stat, cookie);
@@ -878,7 +878,7 @@ void ExecutorPool::doTasksStat(EventuallyPersistentEngine* engine,
 
     checked_snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
     add_casted_stat(statname,
-                    to_ns_since_epoch(ProcessClock::now()).count(),
+                    to_ns_since_epoch(std::chrono::steady_clock::now()).count(),
                     add_stat,
                     cookie);
 

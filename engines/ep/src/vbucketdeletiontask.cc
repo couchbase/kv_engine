@@ -22,7 +22,7 @@
 #include "kvshard.h"
 
 #include <phosphor/phosphor.h>
-#include <platform/processclock.h>
+#include <chrono>
 
 VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
         EventuallyPersistentEngine& eng, VBucket* vb, TaskId tid)
@@ -83,9 +83,9 @@ bool VBucketMemoryAndDiskDeletionTask::run() {
                  (vbucket->getId()).get());
     notifyAllPendingConnsFailed(false);
 
-    auto start = ProcessClock::now();
+    auto start = std::chrono::steady_clock::now();
     shard.getRWUnderlying()->delVBucket(vbucket->getId(), vbDeleteRevision);
-    auto elapsed = ProcessClock::now() - start;
+    auto elapsed = std::chrono::steady_clock::now() - start;
     auto wallTime =
             std::chrono::duration_cast<std::chrono::microseconds>(elapsed);
 

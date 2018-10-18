@@ -46,7 +46,7 @@
 #include <thread>
 #include <engines/ep/src/ephemeral_vb.h>
 
-ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(
+std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
         TaskQueue& taskQ, const std::string& expectedTaskName) {
     CheckedExecutor executor(task_executor, taskQ);
 
@@ -55,7 +55,8 @@ ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(
     return executor.completeCurrentTask();
 }
 
-ProcessClock::time_point SingleThreadedKVBucketTest::runNextTask(TaskQueue& taskQ) {
+std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
+        TaskQueue& taskQ) {
     CheckedExecutor executor(task_executor, taskQ);
 
     // Run the task
@@ -2111,8 +2112,8 @@ TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
     ExTask hpTask = task;
     task_executor->schedule(hpTask);
 
-    ProcessClock::time_point waketime = runNextTask(lpNonioQ,
-                                    "TestTask PendingOpsNotification");
+    std::chrono::steady_clock::time_point waketime =
+            runNextTask(lpNonioQ, "TestTask PendingOpsNotification");
     EXPECT_EQ(waketime, task->getWaketime()) <<
                            "Rescheduled to much later time!";
 }

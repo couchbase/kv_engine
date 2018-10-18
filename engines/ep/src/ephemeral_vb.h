@@ -51,7 +51,7 @@ public:
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DocKey& key,
             const VBucketBGFetchItem& fetched_item,
-            const ProcessClock::time_point startTime) override;
+            const std::chrono::steady_clock::time_point startTime) override;
 
     void resetStats() override;
 

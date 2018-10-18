@@ -443,7 +443,7 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
                                      GetMetaOnly getMetaOnly,
                                      bool fetchDelete) {
     Db *db = (Db *)dbHandle;
-    auto start = ProcessClock::now();
+    auto start = std::chrono::steady_clock::now();
     DocInfo *docInfo = NULL;
     sized_buf id;
     GetValue rv;
@@ -490,7 +490,7 @@ GetValue CouchKVStore::getWithHeader(void* dbHandle,
         // record stats
         st.readTimeHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - start));
+                        std::chrono::steady_clock::now() - start));
         if (errCode == COUCHSTORE_SUCCESS) {
             st.readSizeHisto.add(key.size() + rv.item->getNBytes());
         }
@@ -946,7 +946,8 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     DbHolder compactdb(*this);
     DbHolder targetDb(*this);
     couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
-    ProcessClock::time_point     start = ProcessClock::now();
+    std::chrono::steady_clock::time_point start =
+            std::chrono::steady_clock::now();
     std::string                 dbfile;
     std::string           compact_file;
     std::string               new_file;
@@ -1074,7 +1075,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
     unlinkCouchFile(vbid, compactdb.getFileRev());
 
     st.compactHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - start));
+            std::chrono::steady_clock::now() - start));
 
     return true;
 }
@@ -1164,7 +1165,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
         return false;
     }
 
-    auto start = ProcessClock::now();
+    auto start = std::chrono::steady_clock::now();
 
     if (updateCachedVBState(vbucketId, vbstate) &&
          (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
@@ -1185,7 +1186,7 @@ bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
                  vbstate.toJSON());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - start));
+            std::chrono::steady_clock::now() - start));
 
     return true;
 }
@@ -2033,7 +2034,7 @@ couchstore_error_t CouchKVStore::saveDocs(
                 kvctx.keyStats[key] = false;
             }
 
-            auto cs_begin = ProcessClock::now();
+            auto cs_begin = std::chrono::steady_clock::now();
 
             uint64_t flags = COMPRESS_DOC_BODIES | COUCHSTORE_SEQUENCE_AS_IS;
             errCode = couchstore_save_documents_and_callback(
@@ -2047,7 +2048,7 @@ couchstore_error_t CouchKVStore::saveDocs(
 
             st.saveDocsHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
-                            ProcessClock::now() - cs_begin));
+                            std::chrono::steady_clock::now() - cs_begin));
             if (errCode != COUCHSTORE_SUCCESS) {
                 logger.warn(
                         "CouchKVStore::saveDocs: couchstore_save_documents "
@@ -2082,11 +2083,11 @@ couchstore_error_t CouchKVStore::saveDocs(
             saveCollectionsManifest(*db, collectionsFlush);
         }
 
-        auto cs_begin = ProcessClock::now();
+        auto cs_begin = std::chrono::steady_clock::now();
         errCode = couchstore_commit(db);
         st.commitHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - cs_begin));
+                        std::chrono::steady_clock::now() - cs_begin));
         if (errCode) {
             logger.warn(
                     "CouchKVStore::saveDocs: couchstore_commit error:{} [{}]",
@@ -2612,7 +2613,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         fetch->value = &bg_itm_ctx.value;
         st.readTimeHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - fetch->initTime));
+                        std::chrono::steady_clock::now() - fetch->initTime));
         if (errCode == COUCHSTORE_SUCCESS) {
             st.readSizeHisto.add(bg_itm_ctx.value.item->getKey().size() +
                                  bg_itm_ctx.value.item->getNBytes());

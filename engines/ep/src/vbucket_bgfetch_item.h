@@ -28,12 +28,13 @@ enum class GetMetaOnly;
 class VBucketBGFetchItem {
 public:
     VBucketBGFetchItem(const void* c, bool meta_only)
-        : VBucketBGFetchItem(nullptr, c, ProcessClock::now(), meta_only) {
+        : VBucketBGFetchItem(
+                  nullptr, c, std::chrono::steady_clock::now(), meta_only) {
     }
 
     VBucketBGFetchItem(GetValue* value_,
                        const void* c,
-                       ProcessClock::time_point init_time,
+                       std::chrono::steady_clock::time_point init_time,
                        bool meta_only)
         : value(value_),
           cookie(c),
@@ -46,7 +47,7 @@ public:
 
     GetValue* value;
     const void* cookie;
-    ProcessClock::time_point initTime;
+    std::chrono::steady_clock::time_point initTime;
     bool metaDataOnly;
 };
 

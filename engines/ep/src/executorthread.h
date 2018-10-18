@@ -23,7 +23,6 @@
 #include "task_type.h"
 
 #include <platform/ring_buffer.h>
-#include <platform/processclock.h>
 #include <relaxed_atomic.h>
 
 #include <atomic>
@@ -59,29 +58,30 @@ class ExecutorThread {
     friend class ExecutorPool;
     friend class TaskQueue;
 public:
-
     /* The AtomicProcessTime class provides an abstraction for ensuring that
-     * changes to a ProcessClock::time_point are atomic.  This is achieved by
-     * ensuring that all accesses are protected by a mutex.
+     * changes to a std::chrono::steady_clock::time_point are atomic.  This is
+     * achieved by ensuring that all accesses are protected by a mutex.
      */
     class AtomicProcessTime {
     public:
         AtomicProcessTime() {}
-        AtomicProcessTime(const ProcessClock::time_point& tp) : timepoint(tp) {}
+        AtomicProcessTime(const std::chrono::steady_clock::time_point& tp)
+            : timepoint(tp) {
+        }
 
-        void setTimePoint(const ProcessClock::time_point& tp) {
+        void setTimePoint(const std::chrono::steady_clock::time_point& tp) {
             std::lock_guard<std::mutex> lock(mutex);
             timepoint = tp;
         }
 
-        ProcessClock::time_point getTimePoint() const {
+        std::chrono::steady_clock::time_point getTimePoint() const {
             std::lock_guard<std::mutex> lock(mutex);
             return timepoint;
         }
 
     private:
         mutable std::mutex mutex;
-        ProcessClock::time_point timepoint;
+        std::chrono::steady_clock::time_point timepoint;
     };
 
     ExecutorThread(ExecutorPool* m, task_type_t type, const std::string nm)
@@ -89,8 +89,8 @@ public:
           taskType(type),
           name(nm),
           state(EXECUTOR_RUNNING),
-          now(ProcessClock::now()),
-          waketime(ProcessClock::time_point::max()),
+          now(std::chrono::steady_clock::now()),
+          waketime(std::chrono::steady_clock::time_point::max()),
           taskStart(),
           currentTask(NULL) {
     }
@@ -123,32 +123,33 @@ public:
 
     const std::string getTaskableName();
 
-    ProcessClock::time_point getTaskStart() const {
+    std::chrono::steady_clock::time_point getTaskStart() const {
         return taskStart.getTimePoint();
     }
 
     void updateTaskStart(void) {
-        const ProcessClock::time_point& now = ProcessClock::now();
+        const std::chrono::steady_clock::time_point& now =
+                std::chrono::steady_clock::now();
         taskStart.setTimePoint(now);
         currentTask->updateLastStartTime(now);
     }
 
     const std::string getStateName();
 
-    ProcessClock::time_point getWaketime() const {
+    std::chrono::steady_clock::time_point getWaketime() const {
         return waketime.getTimePoint();
     }
 
-    void setWaketime(const ProcessClock::time_point tp) {
+    void setWaketime(const std::chrono::steady_clock::time_point tp) {
         waketime.setTimePoint(tp);
     }
 
-    ProcessClock::time_point getCurTime() const {
+    std::chrono::steady_clock::time_point getCurTime() const {
         return now.getTimePoint();
     }
 
     void updateCurrentTime(void) {
-        now.setTimePoint(ProcessClock::now());
+        now.setTimePoint(std::chrono::steady_clock::now());
     }
 
 protected:

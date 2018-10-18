@@ -19,7 +19,7 @@
 
 #include "config.h"
 #include "bucket_logger.h"
-#include <platform/processclock.h>
+#include <chrono>
 
 /**
  * Lock holder wrapper to assist to debugging locking issues - Logs when the
@@ -55,8 +55,8 @@ public:
      *  @param name_ A name for this mutex, used in log messages.
      */
     LockTimer(typename T::mutex_type& m, const char* name_)
-        : name(name_), start(ProcessClock::now()), lock_holder(m) {
-        acquired = ProcessClock::now();
+        : name(name_), start(std::chrono::steady_clock::now()), lock_holder(m) {
+        acquired = std::chrono::steady_clock::now();
         const uint64_t msec =
                 std::chrono::duration_cast<std::chrono::milliseconds>(acquired -
                                                                       start)
@@ -86,7 +86,7 @@ public:
 
 private:
     void check_held_duration() {
-        const auto released = ProcessClock::now();
+        const auto released = std::chrono::steady_clock::now();
         const uint64_t msec =
                 std::chrono::duration_cast<std::chrono::milliseconds>(released -
                                                                       acquired)
@@ -100,10 +100,10 @@ private:
     const char* name;
 
     // Time when lock acquisition started.
-    ProcessClock::time_point start;
+    std::chrono::steady_clock::time_point start;
 
     // Time when we completed acquiring the lock.
-    ProcessClock::time_point acquired;
+    std::chrono::steady_clock::time_point acquired;
 
     // The underlying 'real' lock holder we are wrapping.
     T lock_holder;

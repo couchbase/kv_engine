@@ -43,9 +43,10 @@ public:
 
     WorkLoadPolicy& getWorkLoadPolicy(void);
 
-    void logQTime(TaskId id, const ProcessClock::duration enqTime);
+    void logQTime(TaskId id, const std::chrono::steady_clock::duration enqTime);
 
-    void logRunTime(TaskId id, const ProcessClock::duration runTime);
+    void logRunTime(TaskId id,
+                    const std::chrono::steady_clock::duration runTime);
 
 protected:
     std::string name;

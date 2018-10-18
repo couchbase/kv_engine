@@ -77,7 +77,8 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
                  vbId.get(),
                  "#itemsToFetch",
                  itemsToFetch.size());
-    ProcessClock::time_point startTime(ProcessClock::now());
+    std::chrono::steady_clock::time_point startTime(
+            std::chrono::steady_clock::now());
     EP_LOG_DEBUG(
             "BgFetcher is fetching data, {} numDocs:{} "
             "startTime:{}",
@@ -105,7 +106,7 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
         store->completeBGFetchMulti(vbId, fetchedItems, startTime);
         stats.getMultiHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - startTime),
+                        std::chrono::steady_clock::now() - startTime),
                 fetchedItems.size());
         stats.getMultiBatchSizeHisto.add(fetchedItems.size());
     }

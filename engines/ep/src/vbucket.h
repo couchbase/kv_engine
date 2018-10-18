@@ -97,7 +97,10 @@ struct HighPriorityVBEntry {
     HighPriorityVBEntry(const void* c,
                         uint64_t idNum,
                         HighPriorityVBNotify reqType)
-        : cookie(c), id(idNum), reqType(reqType), start(ProcessClock::now()) {
+        : cookie(c),
+          id(idNum),
+          reqType(reqType),
+          start(std::chrono::steady_clock::now()) {
     }
 
     const void* cookie;
@@ -105,7 +108,7 @@ struct HighPriorityVBEntry {
     HighPriorityVBNotify reqType;
 
     /* for stats (histogram) */
-    ProcessClock::time_point start;
+    std::chrono::steady_clock::time_point start;
 };
 
 typedef std::unique_ptr<Callback<const Vbid, const VBNotifyCtx&>>
@@ -746,7 +749,7 @@ public:
     virtual ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DocKey& key,
             const VBucketBGFetchItem& fetched_item,
-            const ProcessClock::time_point startTime) = 0;
+            const std::chrono::steady_clock::time_point startTime) = 0;
 
     /**
      * Retrieve an item from the disk for vkey stats
@@ -1760,7 +1763,7 @@ private:
     vbucket_state_t                 initialState;
     std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;
-    ProcessClock::time_point        pendingOpsStart;
+    std::chrono::steady_clock::time_point pendingOpsStart;
     WeaklyMonotonic<uint64_t>       purge_seqno;
     std::atomic<bool>               takeover_backed_up;
 

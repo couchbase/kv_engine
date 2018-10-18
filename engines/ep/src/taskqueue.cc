@@ -110,7 +110,8 @@ bool TaskQueue::_doSleep(ExecutorThread &t,
         }
         t.updateCurrentTime();
     }
-    t.setWaketime(ProcessClock::time_point(ProcessClock::time_point::max()));
+    t.setWaketime(std::chrono::steady_clock::time_point(
+            std::chrono::steady_clock::time_point::max()));
     return true;
 }
 
@@ -157,7 +158,8 @@ bool TaskQueue::fetchNextTask(ExecutorThread &thread, bool toSleep) {
     return rv;
 }
 
-size_t TaskQueue::_moveReadyTasks(const ProcessClock::time_point tv) {
+size_t TaskQueue::_moveReadyTasks(
+        const std::chrono::steady_clock::time_point tv) {
     if (!readyQueue.empty()) {
         return 0;
     }
@@ -189,14 +191,14 @@ void TaskQueue::_checkPendingQueue(void) {
     }
 }
 
-ProcessClock::time_point TaskQueue::_reschedule(ExTask &task) {
+std::chrono::steady_clock::time_point TaskQueue::_reschedule(ExTask& task) {
     LockHolder lh(mutex);
 
     futureQueue.push(task);
     return futureQueue.top()->getWaketime();
 }
 
-ProcessClock::time_point TaskQueue::reschedule(ExTask &task) {
+std::chrono::steady_clock::time_point TaskQueue::reschedule(ExTask& task) {
     NonBucketAllocationGuard guard;
     auto rv = _reschedule(task);
     return rv;
@@ -234,7 +236,8 @@ void TaskQueue::schedule(ExTask &task) {
 }
 
 void TaskQueue::_wake(ExTask &task) {
-    const ProcessClock::time_point now = ProcessClock::now();
+    const std::chrono::steady_clock::time_point now =
+            std::chrono::steady_clock::now();
     TaskQueue* sleepQ;
     // One task is being made ready regardless of the queue it's in.
     size_t readyCount = 1;

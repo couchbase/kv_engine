@@ -31,7 +31,8 @@ DefragmentVisitor::DefragmentVisitor(uint8_t age_threshold_,
 DefragmentVisitor::~DefragmentVisitor() {
 }
 
-void DefragmentVisitor::setDeadline(ProcessClock::time_point deadline) {
+void DefragmentVisitor::setDeadline(
+        std::chrono::steady_clock::time_point deadline) {
     progressTracker.setDeadline(deadline);
 }
 

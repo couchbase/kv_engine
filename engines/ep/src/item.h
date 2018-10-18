@@ -21,9 +21,9 @@
 
 #include <memcached/engine.h>
 #include <platform/n_byte_integer.h>
-#include <platform/processclock.h>
 #include <stdio.h>
 #include <string.h>
+#include <chrono>
 #include <utility>
 
 #include <cstring>
@@ -433,7 +433,8 @@ public:
     }
 
     static uint64_t nextCas(void) {
-        return ProcessClock::now().time_since_epoch().count() + (++casCounter);
+        return std::chrono::steady_clock::now().time_since_epoch().count() +
+               (++casCounter);
     }
 
     /* Returns true if the specified CAS is valid */

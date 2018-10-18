@@ -20,14 +20,15 @@
 #include <limits>
 
 ProgressTracker::ProgressTracker()
-  : need_initial_time(true),
-    next_visit_count_check(INITIAL_VISIT_COUNT_CHECK),
-    deadline(ProcessClock::time_point::max()),
-    previous_time(ProcessClock::time_point::min()),
-    previous_visited(0) {
+    : need_initial_time(true),
+      next_visit_count_check(INITIAL_VISIT_COUNT_CHECK),
+      deadline(std::chrono::steady_clock::time_point::max()),
+      previous_time(std::chrono::steady_clock::time_point::min()),
+      previous_visited(0) {
 }
 
-void ProgressTracker::setDeadline(ProcessClock::time_point new_deadline) {
+void ProgressTracker::setDeadline(
+        std::chrono::steady_clock::time_point new_deadline) {
     need_initial_time = true;
     deadline = new_deadline;
 }
@@ -36,13 +37,14 @@ void ProgressTracker::setDeadline(ProcessClock::time_point new_deadline) {
  * pause, however reading time can be an expensive operation (especially on
  * virtualised platforms). Therefore instead of reading the time on every item
  * we use the rate of visiting (items/sec) to estimate when we expect to
- * complete, only calling ProcessClock::now() periodically to check our rate.
+ * complete, only calling std::chrono::steady_clock::now() periodically to check
+ * our rate.
  */
 bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
     // Grab time if we haven't already got it.
     if (need_initial_time) {
         next_visit_count_check = visited_items + INITIAL_VISIT_COUNT_CHECK;
-        previous_time = ProcessClock::now();
+        previous_time = std::chrono::steady_clock::now();
         previous_visited = visited_items;
         need_initial_time = false;
     }
@@ -54,7 +56,7 @@ bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
     }
 
     // First check if the deadline has been exceeded; if so need to pause.
-    const auto now = ProcessClock::now();
+    const auto now = std::chrono::steady_clock::now();
     if (now >= deadline) {
         return false;
     }
@@ -70,14 +72,15 @@ bool ProgressTracker::shouldContinueVisiting(size_t visited_items) {
     // identical (and hence time_delta being zero, ultimately
     // triggering a div-by-zero error), add the minimum duration of the
     // clock to the delta.
-    const auto time_delta = (now - previous_time) + ProcessClock::duration(1);
+    const auto time_delta =
+            (now - previous_time) + std::chrono::steady_clock::duration(1);
 
     const size_t visited_delta = visited_items - previous_visited;
     // Calculate time for one item. Similar to above, ensure this is
     // always at least a nonzero value (by adding the clock min
     // duration) to prevent div-by-zero.
-    const auto time_per_item =
-            (time_delta / visited_delta) + ProcessClock::duration(1);
+    const auto time_per_item = (time_delta / visited_delta) +
+                               std::chrono::steady_clock::duration(1);
 
     const auto time_remaining = (deadline - now);
     const size_t est_items_to_deadline = time_remaining / time_per_item;

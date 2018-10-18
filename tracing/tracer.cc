@@ -23,7 +23,8 @@
 #include <limits>
 #include <sstream>
 
-std::chrono::microseconds to_micros(const ProcessClock::time_point tp) {
+std::chrono::microseconds to_micros(
+        const std::chrono::steady_clock::time_point tp) {
     return std::chrono::time_point_cast<std::chrono::microseconds>(tp)
             .time_since_epoch();
 }
@@ -36,12 +37,12 @@ Tracer::SpanId Tracer::invalidSpanId() {
 }
 
 Tracer::SpanId Tracer::begin(const TraceCode tracecode,
-                             ProcessClock::time_point startTime) {
+                             std::chrono::steady_clock::time_point startTime) {
     vecSpans.emplace_back(tracecode, startTime);
     return vecSpans.size() - 1;
 }
 
-bool Tracer::end(SpanId spanId, ProcessClock::time_point endTime) {
+bool Tracer::end(SpanId spanId, std::chrono::steady_clock::time_point endTime) {
     if (spanId >= vecSpans.size())
         return false;
     auto& span = vecSpans[spanId];
@@ -50,7 +51,8 @@ bool Tracer::end(SpanId spanId, ProcessClock::time_point endTime) {
     return true;
 }
 
-bool Tracer::end(const TraceCode tracecode, ProcessClock::time_point endTime) {
+bool Tracer::end(const TraceCode tracecode,
+                 std::chrono::steady_clock::time_point endTime) {
     // Locate the ID for this tracecode (when we begin the Span).
     SpanId spanId = 0;
     for (const auto& span : vecSpans) {
@@ -73,8 +75,8 @@ Span::Duration Tracer::getTotalMicros() const {
     const auto& top = vecSpans[0];
     // If the Span has not yet been closed; return the duration up to now.
     if (top.duration == Span::Duration::max()) {
-        return std::chrono::duration_cast<Span::Duration>(ProcessClock::now() -
-                                                          top.start);
+        return std::chrono::duration_cast<Span::Duration>(
+                std::chrono::steady_clock::now() - top.start);
     }
     return top.duration;
 }

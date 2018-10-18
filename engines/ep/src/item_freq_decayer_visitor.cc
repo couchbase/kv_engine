@@ -23,7 +23,8 @@ ItemFreqDecayerVisitor::ItemFreqDecayerVisitor(uint16_t percentage_)
     : percentage(percentage_), visitedCount(0) {
 }
 
-void ItemFreqDecayerVisitor::setDeadline(ProcessClock::time_point deadline) {
+void ItemFreqDecayerVisitor::setDeadline(
+        std::chrono::steady_clock::time_point deadline) {
     progressTracker.setDeadline(deadline);
 }
 

@@ -20,8 +20,8 @@
 class Executor;
 
 #include <memcached/types.h>
-#include <platform/processclock.h>
 
+#include <chrono>
 #include <mutex>
 #include <stdexcept>
 
@@ -84,14 +84,14 @@ public:
      * The same as `makeRunnable()` except it defers making it runnable
      * until a point in the future.
      */
-    void makeRunnable(ProcessClock::time_point time);
+    void makeRunnable(std::chrono::steady_clock::time_point time);
 
 protected:
     /**
      * If the task was scheduled via makeRunnable(time_point) then this
      * is the time that it was scheduled for.
      */
-    ProcessClock::time_point scheduledTime;
+    std::chrono::steady_clock::time_point scheduledTime;
 
 private:
     /**
@@ -152,7 +152,7 @@ private:
     /**
      * @return the time of the next execution
      */
-    ProcessClock::time_point next();
+    std::chrono::steady_clock::time_point next();
 
     const std::chrono::seconds period;
 };

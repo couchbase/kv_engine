@@ -26,10 +26,10 @@
 #include <memcached/engine_common.h>
 #include <platform/histogram.h>
 #include <platform/n_byte_integer.h>
-#include <platform/processclock.h>
 
 #include <relaxed_atomic.h>
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <deque>
 #include <list>

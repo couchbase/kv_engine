@@ -103,13 +103,14 @@ void ExecutorThread::run() {
 
             // Measure scheduling overhead as difference between the time
             // that the task wanted to wake up and the current time
-            const ProcessClock::time_point woketime =
+            const std::chrono::steady_clock::time_point woketime =
                     currentTask->getWaketime();
             const auto scheduleOverhead = getCurTime() - woketime;
             currentTask->getTaskable().logQTime(
                     currentTask->getTaskId(),
-                    scheduleOverhead.count() ? scheduleOverhead
-                                             : ProcessClock::duration::zero());
+                    scheduleOverhead.count()
+                            ? scheduleOverhead
+                            : std::chrono::steady_clock::duration::zero());
             // MB-25822: It could be useful to have the exact datetime of long
             // schedule times, in the same way we have for long runtimes.
             // It is more difficult to estimate the expected schedule time than
@@ -148,8 +149,8 @@ void ExecutorThread::run() {
             bool again = currentTask->run();
 
             // Task done, log it ...
-            const ProcessClock::duration runtime(ProcessClock::now() -
-                                                 getTaskStart());
+            const std::chrono::steady_clock::duration runtime(
+                    std::chrono::steady_clock::now() - getTaskStart());
             currentTask->getTaskable().logRunTime(currentTask->getTaskId(),
                                                   runtime);
             currentTask->updateRuntime(runtime);
@@ -174,7 +175,7 @@ void ExecutorThread::run() {
                 currentTask->updateWaketimeIfLessThan(getCurTime());
 
                 // reschedule this task back into the queue it was fetched from
-                const ProcessClock::time_point new_waketime =
+                const std::chrono::steady_clock::time_point new_waketime =
                         q->reschedule(currentTask);
                 // record min waketime ...
                 if (new_waketime < getWaketime()) {

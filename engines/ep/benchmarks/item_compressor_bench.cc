@@ -102,7 +102,7 @@ BENCHMARK_DEFINE_F(ItemCompressorBench, Visit)(benchmark::State& state) {
         HashTable::Position pos;
         while (pos != vbucket->ht.endPosition()) {
             state.PauseTiming();
-            visitor.setDeadline(ProcessClock::now() +
+            visitor.setDeadline(std::chrono::steady_clock::now() +
                                 std::chrono::milliseconds(20));
             state.ResumeTiming();
             pos = vbucket->ht.pauseResumeVisit(visitor, pos);

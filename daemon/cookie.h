@@ -24,8 +24,8 @@
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
-#include <platform/processclock.h>
 #include <platform/sized_buffer.h>
+#include <chrono>
 
 // Forward decls
 class Connection;
@@ -426,12 +426,12 @@ public:
      *
      * @param elapsed the time elapsed while executing the command
      */
-    void maybeLogSlowCommand(ProcessClock::duration elapsed) const;
+    void maybeLogSlowCommand(std::chrono::steady_clock::duration elapsed) const;
 
     /**
      * Get the start time for this command
      */
-    ProcessClock::time_point getStart() const {
+    std::chrono::steady_clock::time_point getStart() const {
         return start;
     }
 
@@ -488,7 +488,7 @@ protected:
      * The high resolution timer value for when we started executing the
      * current command.
      */
-    ProcessClock::time_point start;
+    std::chrono::steady_clock::time_point start;
 
     /**
      *  command-specific context - for use by command executors to maintain

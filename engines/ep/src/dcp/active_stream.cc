@@ -806,11 +806,11 @@ std::vector<queued_item> ActiveStream::getOutstandingItems(VBucket& vb) {
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
-    auto _begin_ = ProcessClock::now();
+    auto _begin_ = std::chrono::steady_clock::now();
     vb.checkpointManager->getAllItemsForCursor(cursor.lock().get(), items);
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
-                    ProcessClock::now() - _begin_));
+                    std::chrono::steady_clock::now() - _begin_));
 
     if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
         engine->getKVBucket()->wakeUpCheckpointRemover();

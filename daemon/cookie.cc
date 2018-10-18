@@ -459,7 +459,8 @@ void Cookie::setCommandContext(CommandContext* ctx) {
     commandContext.reset(ctx);
 }
 
-void Cookie::maybeLogSlowCommand(ProcessClock::duration elapsed) const {
+void Cookie::maybeLogSlowCommand(
+        std::chrono::steady_clock::duration elapsed) const {
     const auto opcode = getRequest().getClientOpcode();
     const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
 
@@ -520,7 +521,7 @@ void Cookie::initialize(cb::const_byte_buffer header, bool tracing_enabled) {
     enableTracing = tracing_enabled;
     setPacket(Cookie::PacketContent::Header, header);
     setCas(0);
-    start = ProcessClock::now();
+    start = std::chrono::steady_clock::now();
     tracer.begin(cb::tracing::TraceCode::REQUEST, start);
 }
 

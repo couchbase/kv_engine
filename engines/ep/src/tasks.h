@@ -22,9 +22,9 @@
 #include "globaltask.h"
 #include "kvstore.h"
 #include "storeddockey.h"
-#include <platform/processclock.h>
 
 #include <array>
+#include <chrono>
 #include <string>
 
 class EPBucket;
@@ -226,7 +226,7 @@ public:
           vbucket(vbid),
           cookie(c),
           metaFetch(isMeta),
-          init(ProcessClock::now()),
+          init(std::chrono::steady_clock::now()),
           description("Fetching item from disk: key{" +
                       std::string(key.c_str()) + "}, " + vbucket.to_string()) {
     }
@@ -252,7 +252,7 @@ private:
     const Vbid vbucket;
     const void*                cookie;
     bool                       metaFetch;
-    ProcessClock::time_point   init;
+    std::chrono::steady_clock::time_point init;
     const std::string description;
 };
 

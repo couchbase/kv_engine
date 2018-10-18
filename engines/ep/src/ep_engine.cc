@@ -55,7 +55,6 @@
 #include <platform/checked_snprintf.h>
 #include <platform/compress.h>
 #include <platform/platform.h>
-#include <platform/processclock.h>
 #include <platform/scope_timer.h>
 #include <tracing/trace_helpers.h>
 #include <utilities/logtags.h>
@@ -63,6 +62,7 @@
 
 #include <fcntl.h>
 #include <stdarg.h>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -4886,12 +4886,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
 
 
     void *startTimeC = getEngineSpecific(cookie);
-    ProcessClock::time_point startTime;
+    std::chrono::steady_clock::time_point startTime;
     if (startTimeC) {
-        startTime = ProcessClock::time_point(
-                ProcessClock::duration(*(static_cast<hrtime_t*>(startTimeC))));
+        startTime = std::chrono::steady_clock::time_point(
+                std::chrono::steady_clock::duration(
+                        *(static_cast<hrtime_t*>(startTimeC))));
     } else {
-        startTime = ProcessClock::now();
+        startTime = std::chrono::steady_clock::now();
     }
     TRACE_BEGIN(cookie, TraceCode::SETWITHMETA, startTime);
 
@@ -4925,7 +4926,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     cas = 0;
     if (ret == ENGINE_SUCCESS) {
         ++stats.numOpsSetMeta;
-        auto endTime = ProcessClock::now();
+        auto endTime = std::chrono::steady_clock::now();
         TRACE_END(cookie, TraceCode::SETWITHMETA, endTime);
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - startTime);
@@ -6143,13 +6144,13 @@ WorkLoadPolicy&  EpEngineTaskable::getWorkLoadPolicy(void) {
     return myEngine->getWorkLoadPolicy();
 }
 
-void EpEngineTaskable::logQTime(TaskId id,
-                                const ProcessClock::duration enqTime) {
+void EpEngineTaskable::logQTime(
+        TaskId id, const std::chrono::steady_clock::duration enqTime) {
     myEngine->getKVBucket()->logQTime(id, enqTime);
 }
 
-void EpEngineTaskable::logRunTime(TaskId id,
-                                  const ProcessClock::duration runTime) {
+void EpEngineTaskable::logRunTime(
+        TaskId id, const std::chrono::steady_clock::duration runTime) {
     myEngine->getKVBucket()->logRunTime(id, runTime);
 }
 

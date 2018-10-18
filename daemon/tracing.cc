@@ -24,8 +24,8 @@
 #include "tracing_types.h"
 
 #include <daemon/protocol/mcbp/command_context.h>
-#include <platform/processclock.h>
 
+#include <chrono>
 #include <memory>
 #include <mutex>
 
@@ -62,7 +62,7 @@ void erase_if(ContainerT& items, const PredicateT& predicate) {
 
 Task::Status StaleTraceDumpRemover::periodicExecute() {
     {
-        const auto now = ProcessClock::now();
+        const auto now = std::chrono::steady_clock::now();
         std::lock_guard<std::mutex> lh(traceDumps.mutex);
 
         using value_type = decltype(TraceDumps::dumps)::value_type;

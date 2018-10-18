@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include <platform/processclock.h>
+#include <chrono>
 
 /**
  * Helper class used by objects which want to track their progress (how long
@@ -30,7 +30,8 @@
  *
  *     // Create a ProcessTracker with a deadline of 10ms from now.
  *     ProgressTracker tracker;
- *     tracker.setDeadline(ProcessClock::now + std::chrono::milliseconds(10));
+ *     tracker.setDeadline(std::chrono::steady_clock::now +
+ * std::chrono::milliseconds(10));
  *
  *     // Loop doing some work; where you want to stop after some time limit.
  *     for (size_t ii = 0; ii < ...; ii++) {
@@ -45,7 +46,7 @@ class ProgressTracker
 public:
     ProgressTracker();
 
-    void setDeadline(ProcessClock::time_point new_deadline);
+    void setDeadline(std::chrono::steady_clock::time_point new_deadline);
 
     /**
      * Inform the progress tracker that work has been done, and if visiting
@@ -69,7 +70,7 @@ private:
     bool need_initial_time;
 
     size_t next_visit_count_check;
-    ProcessClock::time_point deadline;
-    ProcessClock::time_point previous_time;
+    std::chrono::steady_clock::time_point deadline;
+    std::chrono::steady_clock::time_point previous_time;
     size_t previous_visited;
 };

@@ -697,7 +697,7 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
                                      const vbucket_state& vbstate,
                                      VBStatePersist options) {
     // TODO RDB: Refactor out behaviour common to this and CouchKVStore
-    auto start = ProcessClock::now();
+    auto start = std::chrono::steady_clock::now();
 
     if (updateCachedVBState(vbucketId, vbstate) &&
         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
@@ -731,7 +731,7 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
                  vbstate.toJSON());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - start));
+            std::chrono::steady_clock::now() - start));
 
     return true;
 }
@@ -1174,10 +1174,10 @@ void RocksDBKVStore::applyUserCFOptions(rocksdb::ColumnFamilyOptions& cfOptions,
 }
 
 rocksdb::Status RocksDBKVStore::writeAndTimeBatch(rocksdb::WriteBatch batch) {
-    auto begin = ProcessClock::now();
+    auto begin = std::chrono::steady_clock::now();
     auto status = rdb->Write(writeOptions, &batch);
     st.commitHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - begin));
+            std::chrono::steady_clock::now() - begin));
     return status;
 }
 
@@ -1284,7 +1284,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
     rocksdb::Slice bySeqnoSlice = getSeqnoSlice(&request->getDocMeta().bySeqno);
     // We use the `saveDocsHisto` to track the time spent on
     // `rocksdb::WriteBatch::Put()`.
-    auto begin = ProcessClock::now();
+    auto begin = std::chrono::steady_clock::now();
     auto status =
             batch.Put(vbh.defaultCFH.get(), keySliceParts, valueSliceParts);
     if (!status.ok()) {
@@ -1307,7 +1307,7 @@ rocksdb::Status RocksDBKVStore::addRequestToWriteBatch(
         return status;
     }
     st.saveDocsHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - begin));
+            std::chrono::steady_clock::now() - begin));
 
     return rocksdb::Status::OK();
 }

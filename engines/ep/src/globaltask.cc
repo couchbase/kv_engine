@@ -60,11 +60,11 @@ GlobalTask::GlobalTask(EventuallyPersistentEngine *e,
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        updateWaketime(ProcessClock::time_point::max());
+        updateWaketime(std::chrono::steady_clock::time_point::max());
         return;
     }
 
-    const auto curTime = ProcessClock::now();
+    const auto curTime = std::chrono::steady_clock::now();
     if (secs) {
         setState(TASK_SNOOZED, TASK_RUNNING);
         int64_t nano_secs = static_cast<int64_t>(secs * 1000000000);
@@ -75,7 +75,7 @@ void GlobalTask::snooze(const double secs) {
 }
 
 void GlobalTask::wakeUp() {
-    updateWaketime(ProcessClock::now());
+    updateWaketime(std::chrono::steady_clock::now());
 }
 
 /*

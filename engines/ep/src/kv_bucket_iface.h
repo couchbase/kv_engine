@@ -396,7 +396,7 @@ public:
     virtual void completeBGFetch(const DocKey& key,
                                  Vbid vbucket,
                                  const void* cookie,
-                                 ProcessClock::time_point init,
+                                 std::chrono::steady_clock::time_point init,
                                  bool isMeta) = 0;
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
@@ -410,7 +410,7 @@ public:
     virtual void completeBGFetchMulti(
             Vbid vbId,
             std::vector<bgfetched_item_t>& fetchedItems,
-            ProcessClock::time_point start) = 0;
+            std::chrono::steady_clock::time_point start) = 0;
 
     virtual VBucketPtr getVBucket(Vbid vbid) = 0;
 
@@ -621,11 +621,13 @@ public:
     virtual bool isMetaDataResident(VBucketPtr &vb,
                                     const DocKey& key) = 0;
 
-    virtual void logQTime(TaskId taskType,
-                          const ProcessClock::duration enqTime) = 0;
+    virtual void logQTime(
+            TaskId taskType,
+            const std::chrono::steady_clock::duration enqTime) = 0;
 
-    virtual void logRunTime(TaskId taskType,
-                            const ProcessClock::duration runTime) = 0;
+    virtual void logRunTime(
+            TaskId taskType,
+            const std::chrono::steady_clock::duration runTime) = 0;
 
     virtual bool multiBGFetchEnabled() = 0;
 

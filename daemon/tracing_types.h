@@ -36,7 +36,7 @@ struct DumpContext {
     DumpContext(phosphor::TraceContext&& _context)
         : context(std::move(_context)),
           json_export(context),
-          last_touch(ProcessClock::now()) {
+          last_touch(std::chrono::steady_clock::now()) {
     }
 
     // Moving is dangerous as json_export contains a reference to
@@ -45,7 +45,7 @@ struct DumpContext {
 
     phosphor::TraceContext context;
     phosphor::tools::JSONExport json_export;
-    ProcessClock::time_point last_touch;
+    std::chrono::steady_clock::time_point last_touch;
     std::mutex mutex;
 };
 

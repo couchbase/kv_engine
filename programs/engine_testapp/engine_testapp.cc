@@ -4,6 +4,7 @@
 #include <memcached/engine_testapp.h>
 
 #include <getopt.h>
+#include <chrono>
 #include <cstdlib>
 #include <functional>
 #include <map>
@@ -24,7 +25,6 @@
 #include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
-#include <platform/processclock.h>
 #include <platform/strerror.h>
 
 struct mock_engine : public EngineIface, public DcpIface {
@@ -909,8 +909,8 @@ static void usage(void) {
     printf("-n                           Regex specifying name(s) of test(s) to run\n");
 }
 
-static int report_test(const char *name,
-                       ProcessClock::duration duration,
+static int report_test(const char* name,
+                       std::chrono::steady_clock::duration duration,
                        enum test_result r,
                        bool quiet,
                        bool compact) {
@@ -1570,7 +1570,7 @@ int main(int argc, char **argv) {
                      (attempt < attempts) && ((ecode != SUCCESS) &&
                                               (ecode != SUCCESS_AFTER_RETRY));
                      attempt++) {
-                    auto start = ProcessClock::now();
+                    auto start = std::chrono::steady_clock::now();
                     if (testcases[i].tfun || testcases[i].api_v2.tfun) {
                         // check there's a test to run, some modules need
                         // cleaning up of dead tests if all modules are fixed,
@@ -1590,7 +1590,7 @@ int main(int argc, char **argv) {
                         ecode = PENDING; // ignored tests would always return
                                          // PENDING
                     }
-                    auto stop = ProcessClock::now();
+                    auto stop = std::chrono::steady_clock::now();
 
                     /* If we only got SUCCESS after one or more
                        retries, change result to

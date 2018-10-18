@@ -30,8 +30,8 @@
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_callback_iface.h>
-#include <platform/processclock.h>
 
+#include <chrono>
 #include <string>
 #include <unordered_map>
 
@@ -77,9 +77,10 @@ public:
 
     WorkLoadPolicy& getWorkLoadPolicy();
 
-    void logQTime(TaskId id, const ProcessClock::duration enqTime);
+    void logQTime(TaskId id, const std::chrono::steady_clock::duration enqTime);
 
-    void logRunTime(TaskId id, const ProcessClock::duration runTime);
+    void logRunTime(TaskId id,
+                    const std::chrono::steady_clock::duration runTime);
 
 private:
     EventuallyPersistentEngine* myEngine;

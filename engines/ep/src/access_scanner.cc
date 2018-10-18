@@ -47,7 +47,7 @@ public:
           store(_store),
           stats(_stats),
           startTime(ep_real_time()),
-          taskStart(ProcessClock::now()),
+          taskStart(std::chrono::steady_clock::now()),
           shardID(sh),
           stateFinalizer(sfin),
           as(aS),
@@ -127,7 +127,7 @@ public:
             stats.alogNumItems.store(num_items);
             stats.accessScannerHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
-                            ProcessClock::now() - taskStart));
+                            std::chrono::steady_clock::now() - taskStart));
 
             if (num_items == 0) {
                 EP_LOG_INFO(
@@ -212,7 +212,7 @@ private:
     KVBucket& store;
     EPStats& stats;
     rel_time_t startTime;
-    ProcessClock::time_point taskStart;
+    std::chrono::steady_clock::time_point taskStart;
     std::string prev;
     std::string next;
     std::string name;

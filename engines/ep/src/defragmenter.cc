@@ -68,7 +68,7 @@ bool DefragmenterTask::run(void) {
 
         // Prepare the underlying visitor.
         auto& visitor = getDefragVisitor();
-        const auto start = ProcessClock::now();
+        const auto start = std::chrono::steady_clock::now();
         const auto deadline = start + getChunkDuration();
         visitor.setDeadline(deadline);
         visitor.clearStats();
@@ -76,7 +76,7 @@ bool DefragmenterTask::run(void) {
         // Do it - set off the visitor.
         epstore_position = engine->getKVBucket()->pauseResumeVisit(
                 *prAdapter, epstore_position);
-        const auto end = ProcessClock::now();
+        const auto end = std::chrono::steady_clock::now();
 
         // Defrag complete. Restore thread caching.
         alloc_hooks->enable_thread_cache(old_tcache);

@@ -312,7 +312,7 @@ public:
     void completeBGFetch(const DocKey& key,
                          Vbid vbucket,
                          const void* cookie,
-                         ProcessClock::time_point init,
+                         std::chrono::steady_clock::time_point init,
                          bool isMeta);
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
@@ -325,7 +325,7 @@ public:
      */
     void completeBGFetchMulti(Vbid vbId,
                               std::vector<bgfetched_item_t>& fetchedItems,
-                              ProcessClock::time_point start);
+                              std::chrono::steady_clock::time_point start);
 
     /**
      * Returns the number of vbuckets in a given state.
@@ -647,7 +647,7 @@ public:
     void resetAccessScannerStartTime();
 
     void resetAccessScannerTasktime() {
-        accessScanner.lastTaskRuntime = ProcessClock::now();
+        accessScanner.lastTaskRuntime = std::chrono::steady_clock::now();
     }
 
     void setAllBloomFilters(bool to);
@@ -662,9 +662,11 @@ public:
 
     bool isMetaDataResident(VBucketPtr &vb, const DocKey& key);
 
-    void logQTime(TaskId taskType, const ProcessClock::duration enqTime);
+    void logQTime(TaskId taskType,
+                  const std::chrono::steady_clock::duration enqTime);
 
-    void logRunTime(TaskId taskType, const ProcessClock::duration runTime);
+    void logRunTime(TaskId taskType,
+                    const std::chrono::steady_clock::duration runTime);
 
     bool multiBGFetchEnabled() {
         StorageProperties storeProp = getStorageProperties();
@@ -986,13 +988,13 @@ protected:
         ALogTask()
             : sleeptime(0),
               task(0),
-              lastTaskRuntime(ProcessClock::now()),
+              lastTaskRuntime(std::chrono::steady_clock::now()),
               enabled(true) {
         }
         std::mutex mutex;
         size_t sleeptime;
         size_t task;
-        ProcessClock::time_point lastTaskRuntime;
+        std::chrono::steady_clock::time_point lastTaskRuntime;
         bool enabled;
     } accessScanner;
     struct ResidentRatio {

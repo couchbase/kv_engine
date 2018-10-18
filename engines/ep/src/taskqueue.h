@@ -23,8 +23,7 @@
 #include "syncobject.h"
 #include "task_type.h"
 
-#include <platform/processclock.h>
-
+#include <chrono>
 #include <list>
 #include <queue>
 
@@ -39,7 +38,7 @@ public:
 
     void schedule(ExTask &task);
 
-    ProcessClock::time_point reschedule(ExTask &task);
+    std::chrono::steady_clock::time_point reschedule(ExTask& task);
 
     void checkPendingQueue(void);
 
@@ -67,13 +66,13 @@ public:
 
 private:
     void _schedule(ExTask &task);
-    ProcessClock::time_point _reschedule(ExTask &task);
+    std::chrono::steady_clock::time_point _reschedule(ExTask& task);
     void _checkPendingQueue(void);
     bool _fetchNextTask(ExecutorThread &thread, bool toSleep);
     void _wake(ExTask &task);
     bool _doSleep(ExecutorThread &thread, std::unique_lock<std::mutex>& lock);
     void _doWake_UNLOCKED(size_t &numToWake);
-    size_t _moveReadyTasks(const ProcessClock::time_point tv);
+    size_t _moveReadyTasks(const std::chrono::steady_clock::time_point tv);
     ExTask _popReadyTask(void);
 
     SyncObject mutex;

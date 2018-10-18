@@ -54,7 +54,7 @@ public:
     ENGINE_ERROR_CODE completeBGFetchForSingleItem(
             const DocKey& key,
             const VBucketBGFetchItem& fetched_item,
-            const ProcessClock::time_point startTime) override;
+            const std::chrono::steady_clock::time_point startTime) override;
 
     vb_bgfetch_queue_t getBGFetchItems() override;
 
@@ -217,9 +217,9 @@ private:
      * @param start the time when the background fetch was started
      * @param stop the time when the background fetch completed
      */
-    void updateBGStats(const ProcessClock::time_point init,
-                       const ProcessClock::time_point start,
-                       const ProcessClock::time_point stop);
+    void updateBGStats(const std::chrono::steady_clock::time_point init,
+                       const std::chrono::steady_clock::time_point start,
+                       const std::chrono::steady_clock::time_point stop);
 
     GetValue getInternalNonResident(const DocKey& key,
                                     const void* cookie,

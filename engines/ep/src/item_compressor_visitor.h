@@ -36,7 +36,7 @@ public:
     ~ItemCompressorVisitor();
 
     // Set the deadline at which point the visitor will pause visiting.
-    void setDeadline(ProcessClock::time_point deadline_);
+    void setDeadline(std::chrono::steady_clock::time_point deadline_);
 
     // Set the current bucket compression mode
     void setCompressionMode(const BucketCompressionMode compressionMode);

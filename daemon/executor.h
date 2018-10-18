@@ -70,7 +70,7 @@ public:
     /**
      * Schedule the task to be made runnable in the future
      */
-    void makeRunnable(Task& task, ProcessClock::time_point time);
+    void makeRunnable(Task& task, std::chrono::steady_clock::time_point time);
 
     /**
      * This method should be called periodically (usually by the ExecutorPool)
@@ -119,7 +119,7 @@ protected:
      */
     std::unordered_map<Task*, std::shared_ptr<Task> > waitq;
 
-    using FutureTask = std::pair<Task*, ProcessClock::time_point>;
+    using FutureTask = std::pair<Task*, std::chrono::steady_clock::time_point>;
 
     /**
      * If a task needs to be be runnable at a specific time in the future
@@ -145,8 +145,8 @@ protected:
     std::condition_variable shutdowncond;
 
     /**
-     * The source to use for getting 'now' for the ProcessClock. Mostly
-     * intended for allowing mocking of the time source in testing.
+     * The source to use for getting 'now' for the std::chrono::steady_clock.
+     * Mostly intended for allowing mocking of the time source in testing.
      */
     cb::ProcessClockSource& clock;
 };

@@ -556,5 +556,5 @@ IORequest::IORequest(Vbid vbId,
         callback.setCb = cb.setCb;
     }
 
-    start = ProcessClock::now();
+    start = std::chrono::steady_clock::now();
 }

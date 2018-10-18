@@ -250,7 +250,7 @@ void mcbp_collect_timings(Cookie& cookie) {
         return;
     }
     const auto opcode = header.getOpcode();
-    const auto endTime = ProcessClock::now();
+    const auto endTime = std::chrono::steady_clock::now();
     const auto elapsed = endTime - cookie.getStart();
     cookie.getTracer().end(cb::tracing::TraceCode::REQUEST, endTime);
 

@@ -88,7 +88,7 @@ public:
     HTTombstonePurger(rel_time_t purgeAge);
 
     // Set the deadline at which point the visitor will pause visiting.
-    void setDeadline(ProcessClock::time_point deadline);
+    void setDeadline(std::chrono::steady_clock::time_point deadline);
 
     void setCurrentVBucket(VBucket& vb) override;
 

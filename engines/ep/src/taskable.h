@@ -21,10 +21,10 @@
 
 #pragma once
 
-#include <platform/processclock.h>
-
 #include "globaltask.h"
 #include "workload.h"
+
+#include <chrono>
 
 /*
     A type for identifying all tasks belonging to a task owner.
@@ -66,13 +66,14 @@ public:
     /*
         Called with the time spent queued
     */
-    virtual void logQTime(TaskId id, const ProcessClock::duration enqTime) = 0;
+    virtual void logQTime(
+            TaskId id, const std::chrono::steady_clock::duration enqTime) = 0;
 
     /*
         Called with the time spent running
     */
-    virtual void logRunTime(TaskId id,
-                            const ProcessClock::duration runTime) = 0;
+    virtual void logRunTime(
+            TaskId id, const std::chrono::steady_clock::duration runTime) = 0;
 
 protected:
     virtual ~Taskable() {}

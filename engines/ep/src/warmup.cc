@@ -842,7 +842,7 @@ void Warmup::initialize()
 {
     {
         std::lock_guard<std::mutex> lock(warmupStart.mutex);
-        warmupStart.time = ProcessClock::now();
+        warmupStart.time = std::chrono::steady_clock::now();
     }
 
     std::map<std::string, std::string> session_stats;
@@ -979,7 +979,7 @@ bool Warmup::shouldSetVBStateBlock(const void* cookie) {
 void Warmup::scheduleEstimateDatabaseItemCount()
 {
     threadtask_count = 0;
-    estimateTime.store(ProcessClock::duration::zero());
+    estimateTime.store(std::chrono::steady_clock::duration::zero());
     estimatedItemCount = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = std::make_shared<WarmupEstimateDatabaseItemCount>(
@@ -990,7 +990,7 @@ void Warmup::scheduleEstimateDatabaseItemCount()
 
 void Warmup::estimateDatabaseItemCount(uint16_t shardId)
 {
-    auto st = ProcessClock::now();
+    auto st = std::chrono::steady_clock::now();
     size_t item_count = 0;
 
     for (const auto vbid : shardVbIds[shardId]) {
@@ -1004,7 +1004,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     }
 
     estimatedItemCount.fetch_add(item_count);
-    estimateTime.fetch_add(ProcessClock::now() - st);
+    estimateTime.fetch_add(std::chrono::steady_clock::now() - st);
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
         if (store.getItemEvictionPolicy() == VALUE_ONLY) {
@@ -1079,7 +1079,7 @@ void Warmup::checkForAccessLog()
 {
     {
         std::lock_guard<std::mutex> lock(warmupStart.mutex);
-        metadata.store(ProcessClock::now() - warmupStart.time);
+        metadata.store(std::chrono::steady_clock::now() - warmupStart.time);
     }
     EP_LOG_INFO("metadata loaded in {}",
                 cb::time2text(std::chrono::nanoseconds(metadata.load())));
@@ -1123,7 +1123,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
 {
     LoadStorageKVPairCallback load_cb(store, true, state.getState());
     bool success = false;
-    auto stTime = ProcessClock::now();
+    auto stTime = std::chrono::steady_clock::now();
     if (store.accessLog[shardId].exists()) {
         try {
             store.accessLog[shardId].open();
@@ -1161,7 +1161,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
     if (success && numItems) {
         EP_LOG_INFO("{} items loaded from access log, completed in {}",
                     uint64_t(numItems),
-                    cb::time2text(ProcessClock::now() - stTime));
+                    cb::time2text(std::chrono::steady_clock::now() - stTime));
     } else {
         size_t estimatedCount= store.getEPEngine().getEpStats().warmedUpKeys;
         setEstimatedWarmupCount(estimatedCount);
@@ -1196,18 +1196,18 @@ size_t Warmup::doWarmup(MutationLog& lf,
     auto alog_iter = lf.begin();
     do {
         // Load a chunk of the access log file
-        auto start = ProcessClock::now();
+        auto start = std::chrono::steady_clock::now();
         alog_iter = harvester.loadBatch(alog_iter, config.getWarmupBatchSize());
-        log_load_duration += (ProcessClock::now() - start);
+        log_load_duration += (std::chrono::steady_clock::now() - start);
 
         // .. then apply it to the store.
-        auto apply_start = ProcessClock::now();
+        auto apply_start = std::chrono::steady_clock::now();
         if (store.multiBGFetchEnabled()) {
             harvester.apply(&cookie, &batchWarmupCallback);
         } else {
             harvester.apply(&cookie, &warmupCallback);
         }
-        log_apply_duration += (ProcessClock::now() - apply_start);
+        log_apply_duration += (std::chrono::steady_clock::now() - apply_start);
     } while (alog_iter != lf.end());
 
     size_t total = harvester.total();

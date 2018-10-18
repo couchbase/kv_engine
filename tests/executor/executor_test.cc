@@ -140,7 +140,7 @@ TEST_F(ExecutorTest, RescheduleMissingLock) {
 }
 
 struct MockProcessClockSource : cb::ProcessClockSource {
-    MOCK_METHOD0(now, ProcessClock::time_point());
+    MOCK_METHOD0(now, std::chrono::steady_clock::time_point());
 };
 
 /*
@@ -158,7 +158,7 @@ TEST_F(ExecutorTest, FutureExecution) {
     using namespace testing;
 
     MockProcessClockSource mockClock;
-    auto now = ProcessClock::now();
+    auto now = std::chrono::steady_clock::now();
 
     executorpool = std::make_unique<ExecutorPool>(4, mockClock);
 
@@ -248,7 +248,7 @@ TEST_F(ExecutorTest, PeriodicExecution) {
     using namespace testing;
 
     MockProcessClockSource mockClock;
-    auto now = ProcessClock::now();
+    auto now = std::chrono::steady_clock::now();
 
     executorpool = std::make_unique<ExecutorPool>(4, mockClock);
 
@@ -257,7 +257,7 @@ TEST_F(ExecutorTest, PeriodicExecution) {
 
     std::unique_lock<std::mutex> lock(task->getMutex());
     executorpool->schedule(task, false);
-    task->makeRunnable(ProcessClock::now());
+    task->makeRunnable(std::chrono::steady_clock::now());
 
     for (int i = 1; i < 6; ++i) {
         // Move 1 second into the future on each iteration

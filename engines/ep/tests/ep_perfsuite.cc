@@ -377,7 +377,7 @@ static void perf_latency_core(EngineIface* h,
 
     // Create (add)
     for (auto& key : keys) {
-        const auto start = ProcessClock::now();
+        const auto start = std::chrono::steady_clock::now();
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h,
                              cookie,
@@ -392,22 +392,22 @@ static void perf_latency_core(EngineIface* h,
                              0)
                         .first,
                 "Failed to add a value");
-        const auto end = ProcessClock::now();
+        const auto end = std::chrono::steady_clock::now();
         add_timings.push_back((end - start).count());
     }
 
     // Get
     for (auto& key : keys) {
-        const auto start = ProcessClock::now();
+        const auto start = std::chrono::steady_clock::now();
         auto ret = get(h, cookie, key, Vbid(0));
         checkeq(cb::engine_errc::success, ret.first, "Failed to get a value");
-        const auto end = ProcessClock::now();
+        const auto end = std::chrono::steady_clock::now();
         get_timings.push_back((end - start).count());
     }
 
     // Update (Replace)
     for (auto& key : keys) {
-        const auto start = ProcessClock::now();
+        const auto start = std::chrono::steady_clock::now();
         checkeq(cb::engine_errc::success,
                 storeCasVb11(h,
                              cookie,
@@ -422,17 +422,17 @@ static void perf_latency_core(EngineIface* h,
                              0)
                         .first,
                 "Failed to replace a value");
-        const auto end = ProcessClock::now();
+        const auto end = std::chrono::steady_clock::now();
         replace_timings.push_back((end - start).count());
     }
 
     // Delete
     for (auto& key : keys) {
-        const auto start = ProcessClock::now();
+        const auto start = std::chrono::steady_clock::now();
         checkeq(ENGINE_SUCCESS,
                 del(h, key.c_str(), 0, Vbid(0), cookie),
                 "Failed to delete a value");
-        const auto end = ProcessClock::now();
+        const auto end = std::chrono::steady_clock::now();
         delete_timings.push_back((end - start).count());
     }
 
@@ -826,7 +826,8 @@ static void perf_load_client(EngineIface* h,
                              vbid)
                         .first,
                 "Failed set.");
-        insertTimes.push_back(ProcessClock::now().time_since_epoch().count());
+        insertTimes.push_back(
+                std::chrono::steady_clock::now().time_since_epoch().count());
     }
 
     add_sentinel_doc(h, vbid);
@@ -863,7 +864,7 @@ static void perf_background_sets(EngineIface* h,
         if (ii == count) {
             ii = 0;
         }
-        const auto start = ProcessClock::now();
+        const auto start = std::chrono::steady_clock::now();
         checkeq(storeCasVb11(h,
                              cookie,
                              OPERATION_SET,
@@ -876,7 +877,7 @@ static void perf_background_sets(EngineIface* h,
                         .first,
                 cb::engine_errc::success,
                 "Failed set.");
-        const auto end = ProcessClock::now();
+        const auto end = std::chrono::steady_clock::now();
         insertTimes.push_back((end - start).count());
         ++ii;
     }
@@ -982,8 +983,9 @@ static void perf_dcp_client(EngineIface* h,
                         done = true;
                         break;
                     }
-                    recv_timings.push_back(
-                            ProcessClock::now().time_since_epoch().count());
+                    recv_timings.push_back(std::chrono::steady_clock::now()
+                                                   .time_since_epoch()
+                                                   .count());
                     bytes_received.push_back(dcp_last_value.length());
                     bytes_read += dcp_last_packet_size;
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
@@ -1259,7 +1261,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                                     dcp_marker_flag_t::MARKER_FLAG_MEMORY),
                 "dcp.snapshot_marker failed");
 
-        auto begin = ProcessClock::now();
+        auto begin = std::chrono::steady_clock::now();
         std::string key = "key_" + std::to_string(seqno);
         // 2) snapshot-end mutation
         checkeq(ENGINE_SUCCESS,
@@ -1283,7 +1285,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                 "dcp.mutation failed");
 
         timings.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                  ProcessClock::now() - begin)
+                                  std::chrono::steady_clock::now() - begin)
                                   .count());
     }
 
@@ -1378,7 +1380,7 @@ static void perf_stat_latency_core(EngineIface* h,
     for (auto& stat : stat_tests) {
         if (stat.second.runtime == statRuntime) {
             for (int ii = 0; ii < iterations; ii++) {
-                auto start = ProcessClock::now();
+                auto start = std::chrono::steady_clock::now();
                 if (stat.first.compare("engine") == 0) {
                     checkeq(ENGINE_SUCCESS,
                             h->get_stats(cookie, {}, add_stats),
@@ -1394,7 +1396,7 @@ static void perf_stat_latency_core(EngineIface* h,
                                     .c_str());
                 }
 
-                auto end = ProcessClock::now();
+                auto end = std::chrono::steady_clock::now();
                 stat.second.timings.push_back((end - start).count());
             }
         }

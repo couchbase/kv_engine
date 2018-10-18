@@ -44,10 +44,12 @@ WorkLoadPolicy& MockTaskable::getWorkLoadPolicy(void) {
     return policy;
 }
 
-void MockTaskable::logQTime(TaskId id, const ProcessClock::duration enqTime) {
+void MockTaskable::logQTime(TaskId id,
+                            const std::chrono::steady_clock::duration enqTime) {
 }
 
-void MockTaskable::logRunTime(TaskId id, const ProcessClock::duration runTime) {
+void MockTaskable::logRunTime(
+        TaskId id, const std::chrono::steady_clock::duration runTime) {
 }
 
 ExTask makeTask(Taskable& taskable, ThreadGate& tg, size_t i) {

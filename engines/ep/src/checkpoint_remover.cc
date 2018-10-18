@@ -42,7 +42,7 @@ public:
         : store(s),
           stats(st),
           removed(0),
-          taskStart(ProcessClock::now()),
+          taskStart(std::chrono::steady_clock::now()),
           wasHighMemoryUsage(s->isMemoryUsageTooHigh()),
           stateFinalizer(sfin) {
     }
@@ -73,7 +73,7 @@ public:
 
         stats.checkpointRemoverHisto.add(
                 std::chrono::duration_cast<std::chrono::microseconds>(
-                        ProcessClock::now() - taskStart));
+                        std::chrono::steady_clock::now() - taskStart));
 
         // Wake up any sleeping backfill tasks if the memory usage is lowered
         // below the high watermark as a result of checkpoint removal.
@@ -86,7 +86,7 @@ private:
     KVBucketIface* store;
     EPStats                   &stats;
     size_t                     removed;
-    ProcessClock::time_point   taskStart;
+    std::chrono::steady_clock::time_point taskStart;
     bool                       wasHighMemoryUsage;
     std::atomic<bool>         &stateFinalizer;
 };

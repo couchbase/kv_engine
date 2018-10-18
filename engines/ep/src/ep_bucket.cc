@@ -275,7 +275,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
 
     int items_flushed = 0;
     bool moreAvailable = false;
-    const auto flush_start = ProcessClock::now();
+    const auto flush_start = std::chrono::steady_clock::now();
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
     if (!vb.owns_lock()) {
@@ -447,7 +447,7 @@ std::pair<bool, size_t> EPBucket::flushVBucket(Vbid vbid) {
                 }
             }
 
-            auto flush_end = ProcessClock::now();
+            auto flush_end = std::chrono::steady_clock::now();
             uint64_t trans_time =
                     std::chrono::duration_cast<std::chrono::milliseconds>(
                             flush_end - flush_start)
@@ -495,7 +495,7 @@ void EPBucket::commit(KVStore& kvstore,
                       Collections::VB::Flush& collectionsFlush) {
     auto& pcbs = kvstore.getPersistenceCbList();
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
-    auto commit_start = ProcessClock::now();
+    auto commit_start = std::chrono::steady_clock::now();
 
     while (!kvstore.commit(collectionsFlush)) {
         ++stats.commitFailed;
@@ -508,7 +508,7 @@ void EPBucket::commit(KVStore& kvstore,
     pcbs.shrink_to_fit();
 
     ++stats.flusherCommits;
-    auto commit_end = ProcessClock::now();
+    auto commit_end = std::chrono::steady_clock::now();
     auto commit_time = std::chrono::duration_cast<std::chrono::milliseconds>(
                                commit_end - commit_start)
                                .count();

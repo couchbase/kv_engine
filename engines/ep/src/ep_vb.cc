@@ -85,7 +85,7 @@ EPVBucket::~EPVBucket() {
 ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         const DocKey& key,
         const VBucketBGFetchItem& fetched_item,
-        const ProcessClock::time_point startTime) {
+        const std::chrono::steady_clock::time_point startTime) {
     ENGINE_ERROR_CODE status = fetched_item.value->getStatus();
     Item* fetchedValue = fetched_item.value->item.get();
     { // locking scope
@@ -181,7 +181,7 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
         ++stats.bg_fetched;
     }
 
-    const auto fetchEnd = ProcessClock::now();
+    const auto fetchEnd = std::chrono::steady_clock::now();
     updateBGStats(fetched_item.initTime, startTime, fetchEnd);
 
     // Close the BG_WAIT span; and add a BG_LOAD span
@@ -579,9 +579,10 @@ EPVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
     return ENGINE_EWOULDBLOCK;
 }
 
-void EPVBucket::updateBGStats(const ProcessClock::time_point init,
-                              const ProcessClock::time_point start,
-                              const ProcessClock::time_point stop) {
+void EPVBucket::updateBGStats(
+        const std::chrono::steady_clock::time_point init,
+        const std::chrono::steady_clock::time_point start,
+        const std::chrono::steady_clock::time_point stop) {
     ++stats.bgNumOperations;
     auto waitNs =
             std::chrono::duration_cast<std::chrono::nanoseconds>(start - init);

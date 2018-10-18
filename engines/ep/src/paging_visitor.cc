@@ -67,7 +67,7 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       canPause(pause),
       isBelowLowWaterMark(false),
       wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
-      taskStart(ProcessClock::now()),
+      taskStart(std::chrono::steady_clock::now()),
       pager_phase(phase),
       isEphemeral(_isEphemeral),
       agePercentage(agePercentage),
@@ -317,7 +317,7 @@ void PagingVisitor::complete() {
     update();
 
     auto elapsed_time = std::chrono::duration_cast<std::chrono::microseconds>(
-            ProcessClock::now() - taskStart);
+            std::chrono::steady_clock::now() - taskStart);
     if (owner == ITEM_PAGER) {
         stats.itemPagerHisto.add(elapsed_time);
     } else if (owner == EXPIRY_PAGER) {
