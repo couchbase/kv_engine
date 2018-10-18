@@ -197,7 +197,8 @@ private:
             StoredValue& v,
             bool onlyMarkDeleted,
             const VBQueueItemCtx& queueItmCtx,
-            uint64_t bySeqno) override;
+            uint64_t bySeqno,
+            DeleteSource deleteSource = DeleteSource::Explicit) override;
 
     void bgFetch(const DocKey& key,
                  const void* cookie,

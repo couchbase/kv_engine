@@ -605,16 +605,25 @@ public:
      *
      * @param lck if true, the new item will return a locked CAS ID.
      * @param vbucket the vbucket containing this item.
+     * @param deleteSource If the object is deleted, the source of deletion can
+     *                     be set. Defaults to Explicit.
      */
-    std::unique_ptr<Item> toItem(bool lck, Vbid vbucket) const;
+    std::unique_ptr<Item> toItem(
+            bool lck,
+            Vbid vbucket,
+            DeleteSource deleteSource = DeleteSource::Explicit) const;
 
     /**
      * Generate a new Item with only key and metadata out of this object.
      * The item generated will not contain value
      *
      * @param vbucket the vbucket containing this item.
+     * @param deleteSource If the object is deleted, the source of deletion can
+     *                     be set. Defaults to Explicit.
      */
-    std::unique_ptr<Item> toItemKeyOnly(Vbid vbucket) const;
+    std::unique_ptr<Item> toItemKeyOnly(
+            Vbid vbucket,
+            DeleteSource deleteSource = DeleteSource::Explicit) const;
 
     /**
      * Get an item_info from the StoredValue

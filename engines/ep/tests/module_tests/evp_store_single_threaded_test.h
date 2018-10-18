@@ -152,6 +152,7 @@ class SingleThreadedEPBucketTest : public SingleThreadedKVBucketTest {
 public:
     enum class BackfillBufferLimit { StreamByte, StreamItem, ConnectionByte };
 
+    void backfillExpiryOutput(bool xattr);
     void producerReadyQLimitOnBackfill(BackfillBufferLimit limitType);
 
 protected:

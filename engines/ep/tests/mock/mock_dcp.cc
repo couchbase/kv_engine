@@ -203,18 +203,24 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::mutation(uint32_t opaque,
     return mutationStatus;
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(uint32_t opaque,
-                                                         item* itm,
-                                                         Vbid vbucket,
-                                                         uint64_t by_seqno,
-                                                         uint64_t rev_seqno,
-                                                         const void* meta,
-                                                         uint16_t nmeta,
-                                                         uint32_t deleteTime,
-                                                         uint32_t extlen) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::deletionInner(
+        uint32_t opaque,
+        item* itm,
+        Vbid vbucket,
+        uint64_t by_seqno,
+        uint64_t rev_seqno,
+        const void* meta,
+        uint16_t nmeta,
+        uint32_t deleteTime,
+        uint32_t extlen,
+        DeleteSource deleteSource) {
     clear_dcp_data();
     Item* item = reinterpret_cast<Item*>(itm);
-    dcp_last_op = cb::mcbp::ClientOpcode::DcpDeletion;
+    if (deleteSource == DeleteSource::TTL) {
+        dcp_last_op = cb::mcbp::ClientOpcode::DcpExpiration;
+    } else {
+        dcp_last_op = cb::mcbp::ClientOpcode::DcpDeletion;
+    }
     dcp_last_opaque = opaque;
     dcp_last_key.assign(item->getKey().c_str());
     dcp_last_cas = item->getCas();
@@ -255,7 +261,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
                          meta,
                          nmeta,
                          0,
-                         protocol_binary_request_dcp_deletion::extlen);
+                         protocol_binary_request_dcp_deletion::extlen,
+                         DeleteSource::Explicit);
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
@@ -272,7 +279,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
                          nullptr,
                          0,
                          deleteTime,
-                         protocol_binary_request_dcp_deletion_v2::extlen);
+                         protocol_binary_request_dcp_deletion_v2::extlen,
+                         DeleteSource::Explicit);
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t opaque,
@@ -289,7 +297,8 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::expiration(uint32_t opaque,
                          nullptr,
                          0,
                          deleteTime,
-                         protocol_binary_request_dcp_expiration::extlen);
+                         protocol_binary_request_dcp_expiration::extlen,
+                         DeleteSource::TTL);
 }
 
 ENGINE_ERROR_CODE MockDcpMessageProducers::set_vbucket_state(

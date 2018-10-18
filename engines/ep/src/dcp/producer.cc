@@ -640,9 +640,26 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                 throw std::logic_error(
                     "DcpProducer::step(Deletion): itmCpy must be != nullptr");
             }
-
-            if (includeDeleteTime == IncludeDeleteTime::Yes) {
-                ret = producers->deletion_v2(
+            ret = deletionV1OrV2(includeDeleteTime,
+                                 *mutationResponse,
+                                 producers,
+                                 std::move(itmCpy),
+                                 ret);
+            break;
+        }
+        case DcpResponse::Event::Expiration: {
+            if (itmCpy == nullptr) {
+                throw std::logic_error(
+                        "DcpProducer::step(Expiration): itmCpy must be != "
+                        "nullptr");
+            }
+            if (enableExpiryOpcode) {
+                if (includeDeleteTime == IncludeDeleteTime::No) {
+                    throw std::logic_error(
+                            "DcpProducer::step(Expiration): If enabling Expiry "
+                            "opcodes, you cannot disable delete_v2");
+                }
+                ret = producers->expiration(
                         mutationResponse->getOpaque(),
                         itmCpy.release(),
                         mutationResponse->getVBucket(),
@@ -650,13 +667,11 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                         mutationResponse->getRevSeqno(),
                         mutationResponse->getItem()->getExptime());
             } else {
-                ret = producers->deletion(mutationResponse->getOpaque(),
-                                          itmCpy.release(),
-                                          mutationResponse->getVBucket(),
-                                          *mutationResponse->getBySeqno(),
-                                          mutationResponse->getRevSeqno(),
-                                          nullptr,
-                                          0);
+                ret = deletionV1OrV2(includeDeleteTime,
+                                     *mutationResponse,
+                                     producers,
+                                     std::move(itmCpy),
+                                     ret);
             }
             break;
         }
@@ -729,6 +744,32 @@ ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
     lastReceiveTime = ep_current_time();
     log.acknowledge(buffer_bytes);
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE DcpProducer::deletionV1OrV2(
+        IncludeDeleteTime includeDeleteTime,
+        MutationResponse& mutationResponse,
+        dcp_message_producers* producers,
+        std::unique_ptr<Item> itmCpy,
+        ENGINE_ERROR_CODE ret) {
+    if (includeDeleteTime == IncludeDeleteTime::Yes) {
+        ret = producers->deletion_v2(
+                mutationResponse.getOpaque(),
+                itmCpy.release(),
+                mutationResponse.getVBucket(),
+                *mutationResponse.getBySeqno(),
+                mutationResponse.getRevSeqno(),
+                mutationResponse.getItem()->getDeleteTime());
+    } else {
+        ret = producers->deletion(mutationResponse.getOpaque(),
+                                  itmCpy.release(),
+                                  mutationResponse.getVBucket(),
+                                  *mutationResponse.getBySeqno(),
+                                  mutationResponse.getRevSeqno(),
+                                  nullptr,
+                                  0);
+    }
+    return ret;
 }
 
 ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
@@ -1001,7 +1042,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("send_stream_end_on_client_close_stream",
             sendStreamEndOnClientStreamClose ? "true" : "false",
             add_stat, c);
-    addStat("enable_expiry_opcode_output",
+    addStat("enable_expiry_opcode",
             enableExpiryOpcode ? "true" : "false",
             add_stat,
             c);

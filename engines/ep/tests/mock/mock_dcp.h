@@ -19,8 +19,9 @@
 
 #include "config.h"
 
-#include <memcached/engine.h>
+#include <dcp/dcp-types.h>
 #include <memcached/dcp.h>
+#include <memcached/engine.h>
 
 extern std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
 
@@ -120,7 +121,7 @@ public:
                                    cb::const_byte_buffer eventData) override;
 
 protected:
-    /// Helper method for deletion / deletion_v2
+    /// Helper method for deletion / deletion_v2 / expiration
     ENGINE_ERROR_CODE deletionInner(uint32_t opaque,
                                     item* itm,
                                     Vbid vbucket,
@@ -129,7 +130,8 @@ protected:
                                     const void* meta,
                                     uint16_t nmeta,
                                     uint32_t deleteTime,
-                                    uint32_t extlen);
+                                    uint32_t extlen,
+                                    DeleteSource deleteSource);
 
     ENGINE_ERROR_CODE mutationStatus = ENGINE_SUCCESS;
 };

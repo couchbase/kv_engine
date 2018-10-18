@@ -372,6 +372,16 @@ protected:
     end_stream_status_t mapEndStreamStatus(const void* cookie,
                                            end_stream_status_t status) const;
 
+    /*
+     * deletionV1OrV2 unifies the code where a choice is made between triggering
+     * a deletion using version 1 or version 2.
+     */
+    ENGINE_ERROR_CODE deletionV1OrV2(IncludeDeleteTime includeDeleteTime,
+                                     MutationResponse& mutationResponse,
+                                     dcp_message_producers* producers,
+                                     std::unique_ptr<Item> itmCpy,
+                                     ENGINE_ERROR_CODE ret);
+
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 

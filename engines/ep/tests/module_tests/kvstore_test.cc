@@ -1931,9 +1931,11 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     uint64_t cas = 0xf00f00ull;
     uint32_t exp = 0xcafe1234;
     uint32_t flags = 0xc0115511;
+    DeleteSource deleteSource = DeleteSource::Explicit;
     metadata->setCas(cas);
     metadata->setExptime(exp);
     metadata->setFlags(flags);
+    metadata->setDeleteSource(deleteSource);
     metadata->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
 
     // Check they all read back
@@ -1941,6 +1943,7 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     EXPECT_EQ(exp, metadata->getExptime());
     EXPECT_EQ(flags, metadata->getFlags());
     EXPECT_EQ(FLEX_META_CODE, metadata->getFlexCode());
+    EXPECT_EQ(deleteSource, metadata->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, metadata->getDataType());
 
     // Now we move the metadata out, this will give back a V1 structure
@@ -1956,6 +1959,7 @@ TEST_F(CouchKVStoreMetaData, writeToOverlay) {
     EXPECT_EQ(exp, metadata->getExptime());
     EXPECT_EQ(flags, metadata->getFlags());
     EXPECT_EQ(FLEX_META_CODE, metadata->getFlexCode());
+    EXPECT_EQ(deleteSource, metadata->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, metadata->getDataType());
     EXPECT_EQ(out.size, MetaData::getMetaDataSize(MetaData::Version::V1));
 
@@ -1975,9 +1979,11 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     uint64_t cas = 0xf00f00ull;
     uint32_t exp = 0xcafe1234;
     uint32_t flags = 0xc0115511;
+    DeleteSource deleteSource = DeleteSource::TTL;
     metadata->setCas(cas);
     metadata->setExptime(exp);
     metadata->setFlags(flags);
+    metadata->setDeleteSource(deleteSource);
     metadata->setDataType( PROTOCOL_BINARY_DATATYPE_JSON);
 
     // Create a second metadata to write into
@@ -1994,6 +2000,7 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(100, copy->getExptime());
     EXPECT_EQ(flags, copy->getFlags());
     EXPECT_EQ(FLEX_META_CODE, copy->getFlexCode());
+    EXPECT_EQ(deleteSource, copy->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy->getDataType());
 
     // And a final assignment
@@ -2009,6 +2016,7 @@ TEST_F(CouchKVStoreMetaData, assignment) {
     EXPECT_EQ(100, copy2->getExptime());
     EXPECT_EQ(flags, copy2->getFlags());
     EXPECT_EQ(FLEX_META_CODE, copy2->getFlexCode());
+    EXPECT_EQ(deleteSource, copy2->getDeleteSource());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, copy2->getDataType());
 }
 

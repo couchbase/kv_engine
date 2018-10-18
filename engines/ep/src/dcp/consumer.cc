@@ -517,7 +517,8 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
                                         uint64_t revSeqno,
                                         cb::const_byte_buffer meta,
                                         uint32_t deleteTime,
-                                        IncludeDeleteTime includeDeleteTime) {
+                                        IncludeDeleteTime includeDeleteTime,
+                                        DeleteSource deletionCause) {
     lastMessageTime = ep_current_time();
 
     if (doDisconnect()) {
@@ -532,17 +533,17 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        queued_item item(new Item(key,
-                                  0,
-                                  deleteTime,
-                                  value.data(),
-                                  value.size(),
-                                  datatype,
-                                  cas,
-                                  bySeqno,
-                                  vbucket,
-                                  revSeqno));
-        item->setDeleted();
+        queued_item item(Item::makeDeletedItem(deletionCause,
+                                               key,
+                                               0,
+                                               deleteTime,
+                                               value.data(),
+                                               value.size(),
+                                               datatype,
+                                               cas,
+                                               bySeqno,
+                                               vbucket,
+                                               revSeqno));
 
         // MB-29040: Producer may send deleted doc with value that still has
         // the user xattrs and the body. Fix up that mistake by running the
@@ -627,12 +628,19 @@ ENGINE_ERROR_CODE DcpConsumer::toMainDeletion(DeleteType origin,
                                               uint32_t deleteTime) {
     IncludeDeleteTime includeDeleteTime;
     uint32_t bytes;
+    DeleteSource deleteSource;
     if (origin == DeleteType::Deletion) {
         deleteTime = 0;
         includeDeleteTime = IncludeDeleteTime::No;
         bytes = MutationResponse::deletionBaseMsgBytes + key.size() +
                 meta.size() + value.size();
+        deleteSource = DeleteSource::Explicit;
     } else {
+        if (origin == DeleteType::DeletionV2) {
+            deleteSource = DeleteSource::Explicit;
+        } else {
+            deleteSource = DeleteSource::TTL;
+        }
         meta = {};
         includeDeleteTime = IncludeDeleteTime::Yes;
         bytes = MutationResponse::deletionV2BaseMsgBytes + key.size() +
@@ -650,7 +658,8 @@ ENGINE_ERROR_CODE DcpConsumer::toMainDeletion(DeleteType origin,
                         revSeqno,
                         meta,
                         deleteTime,
-                        includeDeleteTime);
+                        includeDeleteTime,
+                        deleteSource);
 
     // TMPFAIL means the stream has buffered the message for later processing
     // so skip flowControl, success or any other error, we still need to ack

@@ -184,6 +184,36 @@ public:
 
     ~Item();
 
+    static Item* makeDeletedItem(
+            DeleteSource cause,
+            const DocKey& k,
+            const uint32_t fl,
+            const time_t exp,
+            const void* dta,
+            const size_t nb,
+            protocol_binary_datatype_t dtype = PROTOCOL_BINARY_RAW_BYTES,
+            uint64_t theCas = 0,
+            int64_t i = -1,
+            Vbid vbid = Vbid(0),
+            uint64_t sno = 1,
+            uint8_t nru = INITIAL_NRU_VALUE,
+            uint16_t freqCount = initialFreqCount) {
+        auto ret = new Item(k,
+                            fl,
+                            exp,
+                            dta,
+                            nb,
+                            dtype,
+                            theCas,
+                            i,
+                            vbid,
+                            sno,
+                            nru,
+                            freqCount);
+        ret->setDeleted(cause);
+        return ret;
+    }
+
     /* Snappy compress value and update datatype */
     bool compressValue();
 

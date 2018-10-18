@@ -345,7 +345,8 @@ protected:
                                uint64_t revSeqno,
                                cb::const_byte_buffer meta,
                                uint32_t deleteTime,
-                               IncludeDeleteTime includeDeleteTime);
+                               IncludeDeleteTime includeDeleteTime,
+                               DeleteSource deletionCause);
 
     enum class DeleteType { Deletion, DeletionV2, Expiration };
     /**

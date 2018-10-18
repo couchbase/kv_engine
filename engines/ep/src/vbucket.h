@@ -1441,11 +1441,15 @@ protected:
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue, whether to track cas, generate seqno,
      *                    generate new cas
+     * @param deleteSource If queuing a delete, sets the source of the delete,
+     *                     which defaults to Explicit.
      *
      * @return Notification context containing info needed to notify the
      *         clients (like connections, flusher)
      */
-    VBNotifyCtx queueDirty(StoredValue& v, const VBQueueItemCtx& queueItmCtx);
+    VBNotifyCtx queueDirty(StoredValue& v,
+                           const VBQueueItemCtx& queueItmCtx,
+                           DeleteSource deleteSource = DeleteSource::Explicit);
 
     /**
      * Queue an item for persistence and replication
@@ -1462,6 +1466,8 @@ protected:
      * @param preLinkDocumentContext context object which allows running the
      *        document pre link callback after the cas is assinged (but
      *        but document not available for anyone)
+     * @param deleteSource If queuing a delete, sets the source of the delete,
+     *                     which defaults to Explicit.
      *
      * @return Notification context containing info needed to notify the
      *         clients (like connections, flusher)
@@ -1471,7 +1477,8 @@ protected:
             GenerateBySeqno generateBySeqno = GenerateBySeqno::Yes,
             GenerateCas generateCas = GenerateCas::Yes,
             bool isBackfillItem = false,
-            PreLinkDocumentContext* preLinkDocumentContext = nullptr);
+            PreLinkDocumentContext* preLinkDocumentContext = nullptr,
+            DeleteSource deleteSource = DeleteSource::Explicit);
 
     /**
      * Adds a temporary StoredValue in in-memory data structures like HT.
@@ -1642,6 +1649,7 @@ private:
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue
      * @param bySeqno seqno of the key being deleted
+     * @param deleteSource The source of the delete (explicit or TTL [expiry])
      *
      * @return pointer to the updated StoredValue. It can be same as that of
      *         v or different value if a new StoredValue is created for the
@@ -1653,10 +1661,11 @@ private:
             StoredValue& v,
             bool onlyMarkDeleted,
             const VBQueueItemCtx& queueItmCtx,
-            uint64_t bySeqno) = 0;
+            uint64_t bySeqno,
+            DeleteSource deleteSource) = 0;
 
     /**
-     * This function handles expiry relatead stuff before logically (soft)
+     * This function handles expiry related stuff before logically (soft)
      * deleting an item in in-memory structures like HT, and checkpoint mgr.
      * Assumes that HT bucket lock is grabbed.
      *

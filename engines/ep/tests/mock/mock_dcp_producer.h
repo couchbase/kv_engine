@@ -80,6 +80,12 @@ public:
 
     void setDCPExpiry(bool value) {
         enableExpiryOpcode = value;
+        if (enableExpiryOpcode) {
+            // Expiry opcode uses the same encoding as deleteV2 (includes
+            // delete time); therefore a client enabling expiry_opcode also
+            // implicitly enables includeDeletetime.
+            includeDeleteTime = IncludeDeleteTime::Yes;
+        }
     }
 
     bool getDCPExpiry() const {

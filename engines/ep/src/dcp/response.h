@@ -379,7 +379,11 @@ public:
                      IncludeXattrs includeXattrs,
                      IncludeDeleteTime includeDeleteTime,
                      DocKeyEncodesCollectionId includeCollectionID)
-        : DcpResponse(item->isDeleted() ? Event::Deletion : Event::Mutation,
+        : DcpResponse(item->isDeleted()
+                              ? ((item->deletionSource() == DeleteSource::TTL)
+                                           ? Event::Expiration
+                                           : Event::Deletion)
+                              : Event::Mutation,
                       opaque),
           item_(std::move(item)),
           includeValue(includeVal),

@@ -199,7 +199,9 @@ size_t StoredValue::getRequiredStorage(const DocKey& key) {
     return sizeof(StoredValue) + SerialisedDocKey::getObjectSize(key.size());
 }
 
-std::unique_ptr<Item> StoredValue::toItem(bool lck, Vbid vbucket) const {
+std::unique_ptr<Item> StoredValue::toItem(bool lck,
+                                          Vbid vbucket,
+                                          DeleteSource deleteSource) const {
     auto itm =
             std::make_unique<Item>(getKey(),
                                    getFlags(),
@@ -215,13 +217,14 @@ std::unique_ptr<Item> StoredValue::toItem(bool lck, Vbid vbucket) const {
     itm->setFreqCounterValue(getFreqCounterValue());
 
     if (isDeleted()) {
-        itm->setDeleted();
+        itm->setDeleted(deleteSource);
     }
 
     return itm;
 }
 
-std::unique_ptr<Item> StoredValue::toItemKeyOnly(Vbid vbucket) const {
+std::unique_ptr<Item> StoredValue::toItemKeyOnly(
+        Vbid vbucket, DeleteSource deleteSource) const {
     auto itm =
             std::make_unique<Item>(getKey(),
                                    getFlags(),
@@ -237,7 +240,7 @@ std::unique_ptr<Item> StoredValue::toItemKeyOnly(Vbid vbucket) const {
     itm->setFreqCounterValue(getFreqCounterValue());
 
     if (isDeleted()) {
-        itm->setDeleted();
+        itm->setDeleted(deleteSource);
     }
 
     return itm;

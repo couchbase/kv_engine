@@ -471,7 +471,7 @@ void VBucket::handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
                               StoredValue& v) {
     value_t value = v.getValue();
     if (value) {
-        std::unique_ptr<Item> itm(v.toItem(false, id));
+        std::unique_ptr<Item> itm(v.toItem(false, id, DeleteSource::TTL));
         item_info itm_info;
         EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
         itm_info =
@@ -499,7 +499,7 @@ void VBucket::handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
 
             new_item.setNRUValue(v.getNRUValue());
             new_item.setFreqCounterValue(v.getFreqCounterValue());
-            new_item.setDeleted();
+            new_item.setDeleted(DeleteSource::TTL);
             ht.unlocked_updateStoredValue(hbl, v, new_item);
         }
     }
@@ -704,15 +704,15 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
-VBNotifyCtx VBucket::queueDirty(
-        StoredValue& v,
-        const GenerateBySeqno generateBySeqno,
-        const GenerateCas generateCas,
-        const bool isBackfillItem,
-        PreLinkDocumentContext* preLinkDocumentContext) {
+VBNotifyCtx VBucket::queueDirty(StoredValue& v,
+                                const GenerateBySeqno generateBySeqno,
+                                const GenerateCas generateCas,
+                                const bool isBackfillItem,
+                                PreLinkDocumentContext* preLinkDocumentContext,
+                                DeleteSource deleteSource) {
     VBNotifyCtx notifyCtx;
 
-    queued_item qi(v.toItem(false, getId()));
+    queued_item qi(v.toItem(false, getId(), deleteSource));
 
     // MB-27457: Timestamp deletes only when they don't already have a timestamp
     // assigned. This is here to ensure all deleted items have a timestamp which
@@ -2511,7 +2511,8 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
                                   v,
                                   /*onlyMarkDeleted*/ false,
                                   queueItmCtx,
-                                  bySeqno);
+                                  bySeqno,
+                                  DeleteSource::Explicit);
     ht.updateMaxDeletedRevSeqno(metadata.revSeqno);
     return std::make_tuple(rv, newSv, notifyCtx);
 }
@@ -2533,7 +2534,9 @@ VBucket::processExpiredItem(
                                queueDirty(v,
                                           GenerateBySeqno::Yes,
                                           GenerateCas::Yes,
-                                          /*isBackfillItem*/ false));
+                                          /*isBackfillItem*/ false,
+                                          /*preLinkDocumentContext*/ nullptr,
+                                          DeleteSource::TTL));
     }
 
     /* If the datatype is XATTR, mark the item as deleted
@@ -2558,7 +2561,8 @@ VBucket::processExpiredItem(
                                                  TrackCasDrift::No,
                                                  /*isBackfillItem*/ false,
                                                  nullptr /* no pre link */),
-                                  v.getBySeqno());
+                                  v.getBySeqno(),
+                                  DeleteSource::TTL);
     ht.updateMaxDeletedRevSeqno(newSv->getRevSeqno() + 1);
     return std::make_tuple(MutationStatus::NotFound, newSv, notifyCtx);
 }
@@ -2642,7 +2646,8 @@ int64_t VBucket::queueItem(Item* item, OptionalSeqno seqno) {
 }
 
 VBNotifyCtx VBucket::queueDirty(StoredValue& v,
-                                const VBQueueItemCtx& queueItmCtx) {
+                                const VBQueueItemCtx& queueItmCtx,
+                                DeleteSource deleteSource) {
     if (queueItmCtx.trackCasDrift == TrackCasDrift::Yes) {
         setMaxCasAndTrackDrift(v.getCas());
     }
@@ -2650,7 +2655,8 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
                       queueItmCtx.genBySeqno,
                       queueItmCtx.genCas,
                       queueItmCtx.isBackfillItem,
-                      queueItmCtx.preLinkDocumentContext);
+                      queueItmCtx.preLinkDocumentContext,
+                      deleteSource);
 }
 
 void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {

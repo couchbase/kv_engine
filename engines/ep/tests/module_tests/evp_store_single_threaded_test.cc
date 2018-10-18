@@ -2767,6 +2767,67 @@ TEST_F(WarmupTest, produce_delete_times) {
     producer.reset();
 }
 
+// MB-26907
+TEST_F(WarmupTest, enable_expiry_output) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto cookie = create_mock_cookie();
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    MockDcpMessageProducers producers(engine.get());
+
+    createDcpStream(*producer);
+
+    // noop off as we will play with time travel
+    producer->setNoopEnabled(false);
+    // Enable DCP Expiry opcodes
+    producer->setDCPExpiry(true);
+
+    auto step = [this, producer, &producers](bool inMemory) {
+        notifyAndStepToCheckpoint(*producer,
+                                  producers,
+                                  cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                                  inMemory);
+
+        // Now step the producer to transfer the delete/tombstone
+        EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    };
+
+    // Expire a key and check that the delete_time we receive is the
+    // expiry time, not actually the time it was deleted.
+    auto expiryTime = ep_real_time() + 32000;
+    store_item(
+            vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
+
+    step(true);
+    size_t expectedBytes = SnapshotMarker::baseMsgBytes +
+                           MutationResponse::mutationBaseMsgBytes +
+                           (sizeof("value") - 1) + (sizeof("KEY3") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
+
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+    TimeTraveller arron(64000);
+
+    // Trigger expiry on a GET
+    auto gv = store->get(
+            {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    step(true);
+
+    EXPECT_EQ(expiryTime, dcp_last_delete_time);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, dcp_last_op);
+    EXPECT_EQ("KEY3", dcp_last_key);
+    expectedBytes += SnapshotMarker::baseMsgBytes +
+                     MutationResponse::deletionV2BaseMsgBytes +
+                     (sizeof("KEY3") - 1);
+    EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
+
+    destroy_mock_cookie(cookie);
+    producer->closeAllStreams();
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
+}
+
 TEST_P(XattrSystemUserTest, MB_29040) {
     auto& kvbucket = *engine->getKVBucket();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -3550,6 +3611,85 @@ TEST_F(SingleThreadedEPBucketTest, MB_31481) {
     producer->cancelCheckpointCreatorTask();
 }
 
+void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
+    auto flags = xattr ? DCP_OPEN_INCLUDE_XATTRS : 0;
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Expire a key;
+    auto expiryTime = ep_real_time() + 32000;
+    store_item(
+            vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
+
+    // Trigger expiry on the stored item
+    TimeTraveller arron(64000);
+
+    // Trigger expiry on a GET
+    auto gv = store->get(
+            {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Now flush to disk and wipe memory to ensure that DCP will have to do
+    // a backfill
+    flush_vbucket_to_disk(vbid, 1);
+    resetEngineAndWarmup();
+
+    // Setup DCP, 1 producer and we will do a takeover of the vbucket
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "mb-26907", flags);
+
+    MockDcpMessageProducers producers(engine.get());
+
+    ASSERT_TRUE(producer->getReadyQueue().empty());
+
+    // noop on as could be using xattr's
+    producer->setNoopEnabled(true);
+
+    // Enable DCP Expiry opcodes
+    producer->setDCPExpiry(true);
+
+    uint64_t rollbackSeqno = 0;
+    auto vb = store->getVBuckets().getBucket(vbid);
+    ASSERT_NE(nullptr, vb.get());
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno
+                                      vb->getHighSeqno(), // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      0, // snap_start_seqno
+                                      vb->getHighSeqno(), // snap_end_seqno
+                                      &rollbackSeqno,
+                                      &dcpAddFailoverLog,
+                                      {}));
+
+    notifyAndStepToCheckpoint(*producer,
+                              producers,
+                              cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              false);
+
+    // Now step the producer to transfer the delete/tombstone
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+
+    EXPECT_EQ(expiryTime, dcp_last_delete_time);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, dcp_last_op);
+    EXPECT_EQ("KEY3", dcp_last_key);
+
+    producer->closeAllStreams();
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
+}
+// MB-26907
+TEST_F(SingleThreadedEPBucketTest, backfill_expiry_output) {
+    backfillExpiryOutput(false);
+}
+
+// MB-26907
+TEST_F(SingleThreadedEPBucketTest, backfill_expiry_output_xattr) {
+    backfillExpiryOutput(true);
+}
+
 void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
         const BackfillBufferLimit limitType) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -3575,7 +3715,6 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
             0 /* snapEndSeqno */);
 
     stream->transitionStateToBackfilling();
-
     size_t limit = 0;
     size_t valueSize = 0;
     switch (limitType) {
