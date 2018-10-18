@@ -373,10 +373,9 @@ bool mayAccessBucket(const std::string& user,
 /**
  * Update the user entry with the supplied new configuration
  *
- * @param user The user to update
- * @param json the new definition for the user (empty == remove)
+ * @param json the new definition for the user
  */
-void updateExternalUser(const std::string& user, const std::string& json);
+void updateExternalUser(const std::string& json);
 
 /**
  * Initialize the RBAC module

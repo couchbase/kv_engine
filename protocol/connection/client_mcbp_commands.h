@@ -954,8 +954,7 @@ public:
 
 class BinprotUpdateUserPermissionsCommand : public BinprotGenericCommand {
 public:
-    BinprotUpdateUserPermissionsCommand(const std::string& username,
-                                        std::string payload);
+    BinprotUpdateUserPermissionsCommand(std::string payload);
 
     void encode(std::vector<uint8_t>& buf) const override;
 

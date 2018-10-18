@@ -351,7 +351,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     // Drop a privilege from the effective set
     setup(cb::mcbp::ClientOpcode::DropPrivilege, empty);
 
-    setup(cb::mcbp::ClientOpcode::UpdateUserPermissions,
+    setup(cb::mcbp::ClientOpcode::UpdateExternalUserPermissions,
           require<Privilege::SecurityManagement>);
 
     /* Refresh the RBAC data */

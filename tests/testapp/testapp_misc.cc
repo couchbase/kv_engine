@@ -78,8 +78,7 @@ TEST_P(MiscTest, UpdateUserPermissionsSuccess) {
   "privileges": []
 }})";
     auto& conn = getAdminConnection();
-    auto resp =
-            conn.execute(BinprotUpdateUserPermissionsCommand{"johndoe", rbac});
+    auto resp = conn.execute(BinprotUpdateUserPermissionsCommand{rbac});
     EXPECT_TRUE(resp.isSuccess());
 }
 
@@ -92,8 +91,7 @@ TEST_P(MiscTest, UpdateUserPermissionsSuccess) {
  */
 TEST_P(MiscTest, DISABLED_UpdateUserPermissionsRemoveUser) {
     auto& conn = getAdminConnection();
-    auto resp =
-            conn.execute(BinprotUpdateUserPermissionsCommand{"johndoe", ""});
+    auto resp = conn.execute(BinprotUpdateUserPermissionsCommand{""});
     EXPECT_TRUE(resp.isSuccess());
 }
 
@@ -105,8 +103,7 @@ TEST_P(MiscTest, DISABLED_UpdateUserPermissionsRemoveUser) {
  */
 TEST_P(MiscTest, UpdateUserPermissionsInvalidPayload) {
     auto& conn = getAdminConnection();
-    auto resp = conn.execute(
-            BinprotUpdateUserPermissionsCommand{"johndoe", "bogus"});
+    auto resp = conn.execute(BinprotUpdateUserPermissionsCommand{"bogus"});
     EXPECT_FALSE(resp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }

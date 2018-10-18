@@ -30,7 +30,8 @@ memcached will send `Authenticate` with the following payload
       "step" : false,
       "context" : "",
       "mechanism" : "",
-      "challenge" : "base64encoded challenge sent from client"
+      "challenge" : "base64encoded challenge sent from client",
+      "authentication-only" : true
     }
 
 `step` should be set to true if this is a continuation of an ongoing
@@ -44,6 +45,10 @@ not be present if this is a continuation of an authentication).
 
 `challenge` is base64 encoding of the challenge sent from the client
 to memcached.
+
+`authentication-only` should be set to true if an RBAC entry already
+exists locally (in memcached). If this is set to true a potential
+success response won't include the RBAC entry.
 
 ### Packet dump example
 
@@ -370,3 +375,74 @@ following reasons codes should be used:
     Total body   (8-11) : 0x00000000
     Opaque       (12-15): 0x00000000
     CAS          (16-23): 0x0000000000000000
+
+## ActiveExternalUsers request
+
+memcached will send `ActiveExternalUsers` command to to the external
+auth provider at a configurable interval (configured through the
+`active_external_users_push_interval` attribute in the configuration
+file specified via the -C command line option) to notify them about
+the external users which are currently active on the server.
+
+The payload contains an array of the user currently logged into the
+server. Ex: `["Foo","Bar"]`
+
+The server ignores the reply to this message (and won't complain if
+the authentication provider don't send any).
+
+### Example
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| 0x82          | 0x03          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       4| 0x00          | 0x01          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       8| 0x00          | 0x00          | 0x00          | 0x0d          |
+        +---------------+---------------+---------------+---------------+
+      12| 0xde          | 0xad          | 0xca          | 0xfe          |
+        +---------------+---------------+---------------+---------------+
+      16| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      20| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      24| 0x5b ('[')    | 0x22 ('"')    | 0x46 ('F')    | 0x6f ('o')    |
+        +---------------+---------------+---------------+---------------+
+      28| 0x6f ('o')    | 0x22 ('"')    | 0x2c (',')    | 0x22 ('"')    |
+        +---------------+---------------+---------------+---------------+
+      32| 0x42 ('B')    | 0x61 ('a')    | 0x72 ('r')    | 0x22 ('"')    |
+        +---------------+---------------+---------------+---------------+
+      36| 0x5d (']')    |
+        +---------------+
+        Total 37 bytes (24 bytes header and 13 value)
+
+    Field        (offset) (value)
+    Magic        (0)    : 0x82 (ServerRequest)
+    Opcode       (1)    : 0x03 (ActiveExternalUsers)
+    Key length   (2,3)  : 0x0000
+    Extra length (4)    : 0x00
+    Data type    (5)    : 0x01
+    Vbucket      (6,7)  : 0x0000
+    Total body   (8-11) : 0x0000000d
+    Opaque       (12-15): 0xfecaadde
+    CAS          (16-23): 0x0000000000000000
+    Value        (24-36): The textual string '["Foo","Bar"]'
+
+## UpdateExternalUserPermission
+
+The external auth providers may update the RBAC entry for a user by using
+the `UpdateExternalUserPermission` command. The payload contains the full
+updated RBAC definition for the user:
+
+    {
+        "user1": {
+           "buckets": [
+              "bucket1": ["Read", "Write", "SimpleStats"],
+              "bucket2": ["Read", "SimpleStats"]
+           ],
+           "privileges": ["BucketManagement"],
+           "domain": "external"
+        }
+    }

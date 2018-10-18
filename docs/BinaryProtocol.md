@@ -471,7 +471,7 @@ information about a given command.
 | 0xf3 | Get cmd timer |
 | 0xf4 | Set ctrl token |
 | 0xf5 | Get ctrl token |
-| 0xf6 | Update User Permissions |
+| 0xf6 | [Update External User Permissions](ExternalAuthProvider.md#updateexternaluserpermission) |
 | 0xf7 | RBAC refresh |
 | 0xf8 | AUTH provider |
 | 0xf9 | Get Active External Users |
@@ -2152,55 +2152,4 @@ See [External Auth Provider](ExternalAuthProvider.md#authentication-request).
 
 ### 0x03 Active External Users
 
-The `active external users` command is sent from memcached to the external
-auth provider(s) to notify them about the external users which are currently
-active on the server.
-
-Request:
-
-* MUST NOT have extra
-* MUST NOT have key
-* MUST have value
-
-The server ignores any replies to this message
-
-#### Example
-
-
-      Byte/     0       |       1       |       2       |       3       |
-         /              |               |               |               |
-        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-        +---------------+---------------+---------------+---------------+
-       0| 0x82          | 0x03          | 0x00          | 0x00          |
-        +---------------+---------------+---------------+---------------+
-       4| 0x00          | 0x01          | 0x00          | 0x00          |
-        +---------------+---------------+---------------+---------------+
-       8| 0x00          | 0x00          | 0x00          | 0x0d          |
-        +---------------+---------------+---------------+---------------+
-      12| 0xde          | 0xad          | 0xca          | 0xfe          |
-        +---------------+---------------+---------------+---------------+
-      16| 0x00          | 0x00          | 0x00          | 0x00          |
-        +---------------+---------------+---------------+---------------+
-      20| 0x00          | 0x00          | 0x00          | 0x00          |
-        +---------------+---------------+---------------+---------------+
-      24| 0x5b ('[')    | 0x22 ('"')    | 0x46 ('F')    | 0x6f ('o')    |
-        +---------------+---------------+---------------+---------------+
-      28| 0x6f ('o')    | 0x22 ('"')    | 0x2c (',')    | 0x22 ('"')    |
-        +---------------+---------------+---------------+---------------+
-      32| 0x42 ('B')    | 0x61 ('a')    | 0x72 ('r')    | 0x22 ('"')    |
-        +---------------+---------------+---------------+---------------+
-      36| 0x5d (']')    |
-        +---------------+
-        Total 37 bytes (24 bytes header and 13 value)
-
-    Field        (offset) (value)
-    Magic        (0)    : 0x82 (ServerRequest)
-    Opcode       (1)    : 0x03 (ActiveExternalUsers)
-    Key length   (2,3)  : 0x0000
-    Extra length (4)    : 0x00
-    Data type    (5)    : 0x01
-    Vbucket      (6,7)  : 0x0000
-    Total body   (8-11) : 0x0000000d
-    Opaque       (12-15): 0xfecaadde
-    CAS          (16-23): 0x0000000000000000
-    Value        (24-36): The textual string '["Foo","Bar"]'
+See [External Auth Provider](ExternalAuthProvider.md#activeexternalusers-request).

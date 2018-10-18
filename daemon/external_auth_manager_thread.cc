@@ -170,7 +170,7 @@ void ExternalAuthManagerThread::responseReceived(
         auto rbac = decoded.find("rbac");
         if (rbac != decoded.end()) {
             const auto username = rbac->begin().key();
-            cb::rbac::updateExternalUser(username, rbac->dump());
+            cb::rbac::updateExternalUser(rbac->dump());
         }
     }
 

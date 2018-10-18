@@ -1600,10 +1600,10 @@ void BinprotObserveSeqnoResponse::assign(std::vector<uint8_t>&& buf) {
 }
 
 BinprotUpdateUserPermissionsCommand::BinprotUpdateUserPermissionsCommand(
-        const std::string& username, std::string payload)
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::UpdateUserPermissions),
+        std::string payload)
+    : BinprotGenericCommand(
+              cb::mcbp::ClientOpcode::UpdateExternalUserPermissions),
       payload(std::move(payload)) {
-    setKey(username);
 }
 
 void BinprotUpdateUserPermissionsCommand::encode(

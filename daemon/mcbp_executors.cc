@@ -504,14 +504,11 @@ static void shutdown_executor(Cookie& cookie) {
 
 static void update_user_permissions_executor(Cookie& cookie) {
     auto& request = cookie.getRequest(Cookie::PacketContent::Full);
-    auto key = request.getKey();
     auto value = request.getValue();
     auto status = cb::mcbp::Status::Success;
 
     try {
         cb::rbac::updateExternalUser(
-                std::string{reinterpret_cast<const char*>(key.data()),
-                            key.size()},
                 std::string{reinterpret_cast<const char*>(value.data()),
                             value.size()});
     } catch (const nlohmann::json::exception& error) {
@@ -722,7 +719,7 @@ void initialize_mbcp_lookup_map() {
     handlers[PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG] =
             dcp_get_failover_log_executor;
     handlers[PROTOCOL_BINARY_CMD_DROP_PRIVILEGE] = drop_privilege_executor;
-    handlers[uint8_t(cb::mcbp::ClientOpcode::UpdateUserPermissions)] =
+    handlers[uint8_t(cb::mcbp::ClientOpcode::UpdateExternalUserPermissions)] =
             update_user_permissions_executor;
     handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
     handlers[uint8_t(cb::mcbp::ClientOpcode::AuthProvider)] =

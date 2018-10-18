@@ -145,7 +145,7 @@ bool cb::mcbp::Request::isQuiet() const {
         case ClientOpcode::GetCmdTimer:
         case ClientOpcode::SetCtrlToken:
         case ClientOpcode::GetCtrlToken:
-        case ClientOpcode::UpdateUserPermissions:
+        case ClientOpcode::UpdateExternalUserPermissions:
         case ClientOpcode::RbacRefresh:
         case ClientOpcode::AuthProvider:
         case ClientOpcode::DropPrivilege:

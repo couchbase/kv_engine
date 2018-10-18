@@ -391,11 +391,7 @@ bool mayAccessBucket(const std::string& user,
     return false;
 }
 
-void updateExternalUser(const std::string& user, const std::string& descr) {
-    if (descr.empty()) {
-        throw std::runtime_error("Not implemented");
-    }
-
+void updateExternalUser(const std::string& descr) {
     // Parse the JSON and create the UserEntry object before grabbing
     // the write lock!
     auto json = nlohmann::json::parse(descr);
@@ -405,7 +401,7 @@ void updateExternalUser(const std::string& user, const std::string& descr) {
     auto& ctx = contexts[to_index(Domain::External)];
 
     std::lock_guard<cb::WriterLock> guard(ctx.rwlock.writer());
-    auto next = ctx.db->updateUser(user, Domain::External, entry);
+    auto next = ctx.db->updateUser(username, Domain::External, entry);
     if (next) {
         // I changed the database.. swap
         ctx.db.swap(next);

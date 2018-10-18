@@ -543,8 +543,8 @@ static Status dcp_control_validator(Cookie& cookie) {
 static Status update_user_permissions_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::NonZero,
                        ExpectedCas::NotSet,
                        PROTOCOL_BINARY_RAW_BYTES)) {
         return Status::Einval;
@@ -1532,7 +1532,7 @@ McbpValidatorChains::McbpValidatorChains() {
     push_unique(cb::mcbp::ClientOpcode::GetErrorMap, get_errmap_validator);
     push_unique(cb::mcbp::ClientOpcode::GetLocked, get_locked_validator);
     push_unique(cb::mcbp::ClientOpcode::UnlockKey, unlock_validator);
-    push_unique(cb::mcbp::ClientOpcode::UpdateUserPermissions,
+    push_unique(cb::mcbp::ClientOpcode::UpdateExternalUserPermissions,
                 update_user_permissions_validator);
     push_unique(cb::mcbp::ClientOpcode::RbacRefresh,
                 configuration_refresh_validator);
