@@ -1037,8 +1037,7 @@ ENGINE_ERROR_CODE VBucket::replace(
     }
 }
 
-ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
-                                           const GenerateBySeqno genBySeqno) {
+ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm) {
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
                                       hbl.getBucketNum(),
@@ -1050,7 +1049,7 @@ ENGINE_ERROR_CODE VBucket::addBackfillItem(Item& itm,
         v->unlock();
     }
 
-    VBQueueItemCtx queueItmCtx(genBySeqno,
+    VBQueueItemCtx queueItmCtx(GenerateBySeqno::No,
                                GenerateCas::No,
                                TrackCasDrift::No,
                                /*isBackfillItem*/ true,

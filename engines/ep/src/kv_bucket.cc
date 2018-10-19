@@ -744,7 +744,6 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
 }
 
 ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
-                                            GenerateBySeqno genBySeqno,
                                             ExtendedMetaData* emd) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -766,7 +765,7 @@ ENGINE_ERROR_CODE KVBucket::addBackfillItem(Item& itm,
         return ENGINE_KEY_EEXISTS;
     }
 
-    return vb->addBackfillItem(itm, genBySeqno);
+    return vb->addBackfillItem(itm);
 }
 
 ENGINE_ERROR_CODE KVBucket::setVBucketState(Vbid vbid,

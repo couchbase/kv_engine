@@ -482,7 +482,6 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     if (vb->isBackfillPhase()) {
         ret = engine->getKVBucket()->addBackfillItem(
                 *mutation->getItem(),
-                GenerateBySeqno::No,
                 mutation->getExtMetaData());
     } else {
         ret = engine->getKVBucket()->setWithMeta(*mutation->getItem(),

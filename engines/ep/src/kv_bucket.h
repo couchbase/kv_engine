@@ -152,11 +152,9 @@ public:
     /**
      * Add a DCP backfill item into its corresponding vbucket
      * @param item the item to be added
-     * @param genBySeqno whether or not to generate sequence number
      * @return the result of the operation
      */
     ENGINE_ERROR_CODE addBackfillItem(Item& item,
-                                      GenerateBySeqno genBySeqno,
                                       ExtendedMetaData* emd = NULL);
 
     /**

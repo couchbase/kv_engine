@@ -838,11 +838,9 @@ public:
      *
      * @param itm Item to be added/updated from DCP backfill. Upon
      *            success, the itm revSeqno is updated
-     * @param genBySeqno whether or not to generate sequence number
-     *
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE addBackfillItem(Item& itm, GenerateBySeqno genBySeqno);
+    ENGINE_ERROR_CODE addBackfillItem(Item& itm);
 
     /**
      * Set an item in the store from a non-front end operation (DCP, XDCR)
