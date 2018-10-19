@@ -47,6 +47,7 @@ ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
 
 ParentMonitor::~ParentMonitor() {
     active = false;
+    shutdown_cv.notify_all();
     cb_join_thread(thread);
 }
 
