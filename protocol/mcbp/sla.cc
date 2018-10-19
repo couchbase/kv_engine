@@ -20,6 +20,7 @@
 
 #include <cJSON_utils.h>
 #include <platform/dirutils.h>
+#include <platform/timeutils.h>
 
 #include <algorithm>
 #include <array>
@@ -324,60 +325,13 @@ std::chrono::nanoseconds getSlowOpThreshold(const cJSON& doc) {
                 std::string{doc.string} + "' is not a value or a string");
     }
 
-    // Try to parse the string. It should be of the following format:
-    //
-    // value [specifier]
-    //
-    // where the specifier may be:
-    //    ns / nanoseconds
-    //    us / microseconds
-    //    ms / milliseconds
-    //    s / seconds
-    //    m / minutes
-    //    h / hours
-    std::size_t pos = 0;
-    auto value = std::stoi(std::string(val->valuestring), &pos);
-
-    // trim off whitespace
-    while (std::isspace(val->valuestring[pos])) {
-        ++pos;
+    try {
+        return cb::text2time(val->valuestring);
+    } catch (const std::invalid_argument&) {
+        throw std::invalid_argument(
+                "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
+                to_string(&doc, false) + "' contains an unknown time unit");
     }
-
-    std::string specifier{val->valuestring + pos};
-    // Trim off trailing whitespace
-    pos = specifier.find(' ');
-    if (pos != std::string::npos) {
-        specifier.resize(pos);
-    }
-
-    if (specifier == "ns" || specifier == "nanoseconds") {
-        return std::chrono::nanoseconds(value);
-    }
-
-    if (specifier == "us" || specifier == "microseconds") {
-        return std::chrono::microseconds(value);
-    }
-
-    if (specifier.empty() || specifier == "ms" || specifier == "milliseconds") {
-        return std::chrono::milliseconds(value);
-    }
-
-    if (specifier == "s" || specifier == "seconds") {
-        return std::chrono::seconds(value);
-    }
-
-    if (specifier == "m" || specifier == "minutes") {
-        return std::chrono::minutes(value);
-    }
-
-    if (specifier == "h" || specifier == "hours") {
-        return std::chrono::hours(value);
-    }
-
-    throw std::invalid_argument("cb::mcbp::sla::getSlowOpThreshold: Entry '" +
-                                std::string{doc.valuestring} +
-                                "' contains an unknown specifier: '" +
-                                specifier + "'");
 }
 
 static void merge_docs(cJSON& doc1, const cJSON& doc2) {
