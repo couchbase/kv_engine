@@ -91,7 +91,10 @@ public:
         return false;
     }
 
-    cb::mcbp::Status evictKey(const DocKey& key, const char** msg) override {
+    cb::mcbp::Status evictKey(
+            const DocKey& key,
+            const char** msg,
+            const Collections::VB::Manifest::CachingReadHandle&) override {
         /* There is nothing (no disk) to evictKey to. Later on if we decide to
            use this as a deletion, then we can handle it differently */
         return cb::mcbp::Status::NotSupported;

@@ -520,7 +520,7 @@ cb::mcbp::Status KVBucket::evictKey(const DocKey& key,
             return cb::mcbp::Status::UnknownCollection;
         } // now hold collections read access for the duration of the evict
 
-        return vb->evictKey(key, msg);
+        return vb->evictKey(key, msg, collectionsRHandle);
     }
 }
 
@@ -1616,7 +1616,8 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                          key,
                                          WantsDeleted::Yes,
                                          TrackReference::Yes,
-                                         QueueExpired::Yes);
+                                         QueueExpired::Yes,
+                                         collectionsRHandle);
 
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, collectionsRHandle)) {
@@ -1682,8 +1683,12 @@ std::string KVBucket::validateKey(const DocKey& key,
     }
 
     auto hbl = vb->ht.getLockedBucket(key);
-    StoredValue* v = vb->fetchValidValue(
-            hbl, key, WantsDeleted::Yes, TrackReference::No, QueueExpired::Yes);
+    StoredValue* v = vb->fetchValidValue(hbl,
+                                         key,
+                                         WantsDeleted::Yes,
+                                         TrackReference::No,
+                                         QueueExpired::Yes,
+                                         collectionsRHandle);
 
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, collectionsRHandle)) {
@@ -2522,7 +2527,7 @@ bool KVBucket::collectionsEraseKey(
         auto collectionsRHandle =
                 eraserContext.lockCollections(key, true /* allow system */);
         if (collectionsRHandle.isLogicallyDeleted(bySeqno)) {
-            vb->removeKey(key, bySeqno);
+            vb->removeKey(key, bySeqno, collectionsRHandle);
 
             // Update item count for real collections (System is not a
             // collection)

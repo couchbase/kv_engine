@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "checkpoint_manager.h"
 #include "collections/collections_types.h"
 #include "ep_time.h"
 #include "kvstore.h"
@@ -927,4 +928,68 @@ TEST_F(CollectionsManagerTest, cid_clash) {
               store->setCollections({cm.remove(CollectionEntry::meat)}).code());
     EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,
               store->setCollections({cm.add(CollectionEntry::meat)}).code());
+}
+
+// Test the compactor doesn't generate expired items for a dropped collection
+TEST_F(CollectionsTest, collections_expiry_after_drop_collection_compaction) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Add the meat collection + 1 item with TTL (and flush it all out)
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+    StoredDocKey key{"lamb", CollectionEntry::meat};
+    store_item(vbid, key, "value", ep_real_time() + 100);
+    flush_vbucket_to_disk(vbid, 2);
+    // And now drop the meat collection
+    vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Time travel
+    TimeTraveller docBrown(2000);
+
+    // Now compact to force expiry of our little lamb
+    runCompaction();
+
+    std::vector<queued_item> items;
+    vb->checkpointManager->getAllItemsForPersistence(items);
+
+    // No mutation of the original key is allowed as it would invalidate the
+    // ordering of create @x, item @y, drop @z  x < y < z
+    for (auto& i : items) {
+        EXPECT_NE(key, i->getKey());
+    }
+}
+
+// Test the pager doesn't generate expired items for a dropped collection
+TEST_F(CollectionsTest, collections_expiry_after_drop_collection_pager) {
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Add the meat collection + 1 item with TTL (and flush it all out)
+    CollectionsManifest cm(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+    StoredDocKey key{"lamb", CollectionEntry::meat};
+    store_item(vbid, key, "value", ep_real_time() + 100);
+    flush_vbucket_to_disk(vbid, 2);
+    // And now drop the meat collection
+    vb->updateFromManifest({cm.remove(CollectionEntry::meat)});
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Time travel
+    TimeTraveller docBrown(2000);
+
+    // Now run the pager to force expiry of our little lamb
+    auto task = std::make_shared<ExpiredItemPager>(
+            engine.get(), engine->getEpStats(), 0);
+    static_cast<ExpiredItemPager*>(task.get())->run();
+    runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
+                "Expired item remover on vb:0");
+
+    std::vector<queued_item> items;
+    vb->checkpointManager->getAllItemsForPersistence(items);
+
+    // No mutation of the original key is allowed as it would invalidate the
+    // ordering of create @x, item @y, drop @z  x < y < z
+    for (auto& i : items) {
+        EXPECT_NE(key, i->getKey());
+    }
 }

@@ -90,12 +90,16 @@ ENGINE_ERROR_CODE EPVBucket::completeBGFetchForSingleItem(
     Item* fetchedValue = fetched_item.value->item.get();
     { // locking scope
         ReaderLockHolder rlh(getStateLock());
+        auto cHandle = lockCollections(key);
         auto hbl = ht.getLockedBucket(key);
-        StoredValue* v = fetchValidValue(hbl,
-                                         key,
-                                         WantsDeleted::Yes,
-                                         TrackReference::Yes,
-                                         QueueExpired::Yes);
+        StoredValue* v = nullptr;
+        v = fetchValidValue(
+                hbl,
+                key,
+                WantsDeleted::Yes,
+                TrackReference::Yes,
+                cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
+                cHandle);
 
         if (fetched_item.metaDataOnly) {
             if (status == ENGINE_SUCCESS) {
@@ -307,7 +311,8 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
                                      key,
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
-                                     QueueExpired::Yes);
+                                     QueueExpired::Yes,
+                                     readHandle);
 
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, readHandle)) {
@@ -347,12 +352,15 @@ ENGINE_ERROR_CODE EPVBucket::statsVKey(const DocKey& key,
 }
 
 void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
+    auto cHandle = lockCollections(key);
     auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(hbl,
-                                     key,
-                                     WantsDeleted::Yes,
-                                     TrackReference::Yes,
-                                     QueueExpired::Yes);
+    StoredValue* v = fetchValidValue(
+            hbl,
+            key,
+            WantsDeleted::Yes,
+            TrackReference::Yes,
+            cHandle.valid() ? QueueExpired::Yes : QueueExpired::No,
+            cHandle);
 
     if (v && v->isTempInitialItem()) {
         if (gcb.getStatus() == ENGINE_SUCCESS) {
@@ -404,10 +412,17 @@ void EPVBucket::addStats(bool details, ADD_STAT add_stat, const void* c) {
     }
 }
 
-cb::mcbp::Status EPVBucket::evictKey(const DocKey& key, const char** msg) {
+cb::mcbp::Status EPVBucket::evictKey(
+        const DocKey& key,
+        const char** msg,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(
-            hbl, key, WantsDeleted::No, TrackReference::No, QueueExpired::Yes);
+    StoredValue* v = fetchValidValue(hbl,
+                                     key,
+                                     WantsDeleted::No,
+                                     TrackReference::No,
+                                     QueueExpired::Yes,
+                                     cHandle);
 
     if (!v) {
         if (eviction == VALUE_ONLY) {

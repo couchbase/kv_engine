@@ -62,9 +62,14 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
     // Trigger the "automatic" deletion of an item by paging it out.
     auto vb = store->getVBucket(vbid);
     auto key = makeStoredDocKey("doc");
+    auto handle = vb->lockCollections(key);
     auto lock = vb->ht.getLockedBucket(key);
-    auto* value = vb->fetchValidValue(
-            lock, key, WantsDeleted::No, TrackReference::Yes, QueueExpired::No);
+    auto* value = vb->fetchValidValue(lock,
+                                      key,
+                                      WantsDeleted::No,
+                                      TrackReference::Yes,
+                                      QueueExpired::No,
+                                      handle);
     ASSERT_TRUE(vb->pageOut(lock, value));
 
     stats = get_stat("vbucket-details 0");

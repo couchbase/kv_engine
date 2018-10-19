@@ -728,12 +728,15 @@ public:
      * @param wantsDeleted
      * @param trackReference
      * @param queueExpired Delete an expired item
+     * @param cHandle Collections manifest readhandle (caching mode)
      */
-    StoredValue* fetchValidValue(HashTable::HashBucketLock& hbl,
-                                 const DocKey& key,
-                                 WantsDeleted wantsDeleted,
-                                 TrackReference trackReference,
-                                 QueueExpired queueExpired);
+    StoredValue* fetchValidValue(
+            HashTable::HashBucketLock& hbl,
+            const DocKey& key,
+            WantsDeleted wantsDeleted,
+            TrackReference trackReference,
+            QueueExpired queueExpired,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Complete the background fetch for the specified item. Depending on the
@@ -956,12 +959,16 @@ public:
      * @param key Key to evict
      * @param[out] msg Updated to point to a string (with static duration)
      *                 describing the result of the operation.
+     * @param cHandle A collections CachingReadHandle for the key
      *
      * @return SUCCESS if key was successfully evicted (or was already
      *                 evicted), or the reason why the request failed.
      *
      */
-    virtual cb::mcbp::Status evictKey(const DocKey& key, const char** msg) = 0;
+    virtual cb::mcbp::Status evictKey(
+            const DocKey& key,
+            const char** msg,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle) = 0;
 
     /**
      * Page out a StoredValue from memory.
@@ -1225,8 +1232,11 @@ public:
      *
      * @param key The key to look for
      * @param bySeqno The seqno of the key to remove
+     * @param cHandle A collections CachingReadHandle for the key
      */
-    void removeKey(const DocKey& key, int64_t bySeqno);
+    void removeKey(const DocKey& key,
+                   int64_t bySeqno,
+                   Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     static std::chrono::seconds getCheckpointFlushTimeout();
 
@@ -1644,6 +1654,7 @@ private:
      *
      * @param hbl Hash table bucket lock that must be held
      * @param v Reference to the StoredValue to be soft deleted
+     * @param cHandle A collections CachingReadHandle for the expired key
      *
      * @return status of the operation.
      *         pointer to the updated StoredValue. It can be same as that of
@@ -1652,7 +1663,9 @@ private:
      *         notification info.
      */
     std::tuple<MutationStatus, StoredValue*, VBNotifyCtx> processExpiredItem(
-            const HashTable::HashBucketLock& hbl, StoredValue& v);
+            const HashTable::HashBucketLock& hbl,
+            StoredValue& v,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Add a temporary item in hash table and enqueue a background fetch for a

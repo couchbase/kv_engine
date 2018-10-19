@@ -34,12 +34,15 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
     auto& vbucket = epCtx.vbucket;
 
     if (value.first == 1) {
+        auto handle = vbucket.lockCollections(queuedItem->getKey());
         auto hbl = vbucket.ht.getLockedBucket(queuedItem->getKey());
-        StoredValue* v = vbucket.fetchValidValue(hbl,
-                                                 queuedItem->getKey(),
-                                                 WantsDeleted::Yes,
-                                                 TrackReference::No,
-                                                 QueueExpired::Yes);
+        StoredValue* v = vbucket.fetchValidValue(
+                hbl,
+                queuedItem->getKey(),
+                WantsDeleted::Yes,
+                TrackReference::No,
+                handle.valid() ? QueueExpired::Yes : QueueExpired::No,
+                handle);
         if (v) {
             if (v->getCas() == cas) {
                 // mark this item clean only if current and stored cas
@@ -70,12 +73,15 @@ void PersistenceCallback::callback(TransactionContext& txCtx,
         // If the return was 0 here, we're in a bad state because
         // we do not know the rowid of this object.
         if (value.first == 0) {
+            auto handle = vbucket.lockCollections(queuedItem->getKey());
             auto hbl = vbucket.ht.getLockedBucket(queuedItem->getKey());
-            StoredValue* v = vbucket.fetchValidValue(hbl,
-                                                     queuedItem->getKey(),
-                                                     WantsDeleted::Yes,
-                                                     TrackReference::No,
-                                                     QueueExpired::Yes);
+            StoredValue* v = vbucket.fetchValidValue(
+                    hbl,
+                    queuedItem->getKey(),
+                    WantsDeleted::Yes,
+                    TrackReference::No,
+                    handle.valid() ? QueueExpired::Yes : QueueExpired::No,
+                    handle);
             if (v) {
                 EP_LOG_WARN(
                         "PersistenceCallback::callback: Persisting on "

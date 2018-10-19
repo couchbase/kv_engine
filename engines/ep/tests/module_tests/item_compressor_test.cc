@@ -75,7 +75,9 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
     stored_item->markClean();
 
     const char* str;
-    EXPECT_EQ(cb::mcbp::Status::Success, vbucket->evictKey(evictedKey, &str))
+    auto handle = vbucket->lockCollections(evictedKey);
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              vbucket->evictKey(evictedKey, &str, handle))
             << str;
 
     // Save the datatype counts before and after compression. The test needs

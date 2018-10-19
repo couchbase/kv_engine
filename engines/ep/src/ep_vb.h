@@ -89,7 +89,11 @@ public:
 
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
 
-    cb::mcbp::Status evictKey(const DocKey& key, const char** msg) override;
+    cb::mcbp::Status evictKey(
+            const DocKey& key,
+            const char** msg,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle)
+            override;
 
     bool pageOut(const HashTable::HashBucketLock& lh, StoredValue*& v) override;
 

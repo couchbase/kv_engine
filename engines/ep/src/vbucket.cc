@@ -755,11 +755,13 @@ VBNotifyCtx VBucket::queueDirty(
     return notifyCtx;
 }
 
-StoredValue* VBucket::fetchValidValue(HashTable::HashBucketLock& hbl,
-                                      const DocKey& key,
-                                      WantsDeleted wantsDeleted,
-                                      TrackReference trackReference,
-                                      QueueExpired queueExpired) {
+StoredValue* VBucket::fetchValidValue(
+        HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        WantsDeleted wantsDeleted,
+        TrackReference trackReference,
+        QueueExpired queueExpired,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     if (!hbl.getHTLock()) {
         throw std::logic_error(
                 "Hash bucket lock not held in "
@@ -767,6 +769,11 @@ StoredValue* VBucket::fetchValidValue(HashTable::HashBucketLock& hbl,
                 std::to_string(hbl.getBucketNum()) + "for key: " +
                 std::string(reinterpret_cast<const char*>(key.data()),
                             key.size()));
+    }
+    if (queueExpired == QueueExpired::Yes && !cHandle.valid()) {
+        throw std::invalid_argument(
+                "VBucket::fetchValidValue cannot queue "
+                "expired items for invalid collection");
     }
     StoredValue* v = ht.unlocked_find(
             key, hbl.getBucketNum(), wantsDeleted, trackReference);
@@ -784,7 +791,7 @@ StoredValue* VBucket::fetchValidValue(HashTable::HashBucketLock& hbl,
                 handlePreExpiry(hbl.getHTLock(), *v);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, v, notifyCtx) =
-                        processExpiredItem(hbl, *v);
+                        processExpiredItem(hbl, *v, cHandle);
                 notifyNewSeqno(notifyCtx);
             }
             return wantsDeleted == WantsDeleted::Yes ? v : NULL;
@@ -1312,7 +1319,7 @@ ENGINE_ERROR_CODE VBucket::deleteItem(
     MutationStatus delrv;
     boost::optional<VBNotifyCtx> notifyCtx;
     if (v->isExpired(ep_real_time())) {
-        std::tie(delrv, v, notifyCtx) = processExpiredItem(hbl, *v);
+        std::tie(delrv, v, notifyCtx) = processExpiredItem(hbl, *v, readHandle);
     } else {
         ItemMetaData metadata;
         metadata.revSeqno = v->getRevSeqno() + 1;
@@ -1550,13 +1557,23 @@ void VBucket::deleteExpiredItem(const Item& it,
                                 time_t startTime,
                                 ExpireBy source) {
 
+    const DocKey& key = it.getKey();
+
+    // Must obtain collection handle and hold it to ensure any queued item is
+    // interlocked with collection membership changes.
+    auto rHandle = manifest.lock(key);
+    if (!rHandle.valid()) {
+        // The collection has now been dropped, no action required
+        return;
+    }
+
     // The item is correctly trimmed (by the caller). Fetch the one in the
     // hashtable and replace it if the CAS match (same item; no race).
     // If not found in the hashtable we should add it as a deleted item
-    const DocKey& key = it.getKey();
     auto hbl = ht.getLockedBucket(key);
     StoredValue* v = ht.unlocked_find(
             key, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
+
     if (v) {
         if (v->getCas() != it.getCas()) {
             return;
@@ -1575,7 +1592,7 @@ void VBucket::deleteExpiredItem(const Item& it,
             VBNotifyCtx notifyCtx;
             ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, it);
             std::tie(std::ignore, std::ignore, notifyCtx) =
-                    processExpiredItem(hbl, *v);
+                    processExpiredItem(hbl, *v, rHandle);
             // we unlock ht lock here because we want to avoid potential lock
             // inversions arising from notifyNewSeqno() call
             hbl.getHTLock().unlock();
@@ -1600,7 +1617,7 @@ void VBucket::deleteExpiredItem(const Item& it,
                 ht.unlocked_updateStoredValue(hbl.getHTLock(), *v, it);
                 VBNotifyCtx notifyCtx;
                 std::tie(std::ignore, std::ignore, notifyCtx) =
-                        processExpiredItem(hbl, *v);
+                        processExpiredItem(hbl, *v, rHandle);
                 // we unlock ht lock here because we want to avoid potential
                 // lock inversions arising from notifyNewSeqno() call
                 hbl.getHTLock().unlock();
@@ -1740,7 +1757,8 @@ GetValue VBucket::getAndUpdateTtl(
                                      readHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
-                                     QueueExpired::Yes);
+                                     QueueExpired::Yes,
+                                     readHandle);
     GetValue gv;
     MutationStatus status;
     std::tie(status, gv) = processGetAndUpdateTtl(hbl, v, exptime, readHandle);
@@ -1782,7 +1800,8 @@ GetValue VBucket::getInternal(
                                      readHandle.getKey(),
                                      WantsDeleted::Yes,
                                      trackReference,
-                                     QueueExpired::Yes);
+                                     QueueExpired::Yes,
+                                     readHandle);
     if (v) {
         // 1 If SV is deleted and user didn't request deleted items
         // 2 (or) If collection says this key is gone.
@@ -1954,7 +1973,8 @@ ENGINE_ERROR_CODE VBucket::getKeyStats(
                                      readHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
-                                     QueueExpired::Yes);
+                                     QueueExpired::Yes,
+                                     readHandle);
 
     if (v) {
         if ((v->isDeleted() ||
@@ -2016,7 +2036,8 @@ GetValue VBucket::getLocked(
                                      readHandle.getKey(),
                                      WantsDeleted::Yes,
                                      TrackReference::Yes,
-                                     QueueExpired::Yes);
+                                     QueueExpired::Yes,
+                                     readHandle);
 
     if (v) {
         if (isLogicallyNonExistent(*v, readHandle)) {
@@ -2073,12 +2094,17 @@ GetValue VBucket::getLocked(
 }
 
 void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
+    auto handle = manifest.lock(queuedItem.getKey());
     auto hbl = ht.getLockedBucket(queuedItem.getKey());
-    StoredValue* v = fetchValidValue(hbl,
-                                     queuedItem.getKey(),
-                                     WantsDeleted::Yes,
-                                     TrackReference::No,
-                                     QueueExpired::Yes);
+    StoredValue* v = nullptr;
+
+    v = fetchValidValue(hbl,
+                        queuedItem.getKey(),
+                        WantsDeleted::Yes,
+                        TrackReference::No,
+                        handle.valid() ? QueueExpired::Yes : QueueExpired::No,
+                        handle);
+
     // Delete the item in the hash table iff:
     //  1. Item is existent in hashtable, and deleted flag is true
     //  2. rev seqno of queued item matches rev seqno of hash table item
@@ -2489,8 +2515,10 @@ VBucket::processSoftDelete(const HashTable::HashBucketLock& hbl,
 }
 
 std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
-VBucket::processExpiredItem(const HashTable::HashBucketLock& hbl,
-                            StoredValue& v) {
+VBucket::processExpiredItem(
+        const HashTable::HashBucketLock& hbl,
+        StoredValue& v,
+        const Collections::VB::Manifest::CachingReadHandle& cHandle) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processExpiredItem: htLock not held for " +
@@ -2775,10 +2803,18 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
     }
 }
 
-void VBucket::removeKey(const DocKey& key, int64_t bySeqno) {
+void VBucket::removeKey(const DocKey& key,
+                        int64_t bySeqno,
+                        Collections::VB::Manifest::CachingReadHandle& cHandle) {
     auto hbl = ht.getLockedBucket(key);
-    StoredValue* v = fetchValidValue(
-            hbl, key, WantsDeleted::No, TrackReference::No, QueueExpired::Yes);
+    // removeKey must not generate expired items as it's used for erasing a
+    // collection.
+    StoredValue* v = fetchValidValue(hbl,
+                                     key,
+                                     WantsDeleted::No,
+                                     TrackReference::No,
+                                     QueueExpired::No,
+                                     cHandle);
 
     if (v && v->getBySeqno() == bySeqno) {
         ht.unlocked_del(hbl, v->getKey());
