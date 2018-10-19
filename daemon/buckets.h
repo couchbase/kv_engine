@@ -16,18 +16,21 @@
  */
 #pragma once
 
+#include "config.h"
 #include "cluster_config.h"
 #include "mcbp_validators.h"
 #include "timings.h"
 
 #include <memcached/server_callback_iface.h>
 #include <memcached/types.h>
+#include <nlohmann/json_fwd.hpp>
 
 #include <condition_variable>
 
 struct thread_stats;
 struct DcpIface;
 class TopKeys;
+class Connection;
 
 enum class BucketState : uint8_t {
     /** This bucket entry is not used */
@@ -151,7 +154,7 @@ public:
     /**
      * The validator chains to use for this bucket when receiving MCBP commands.
      */
-    McbpValidatorChains validatorChains;
+    McbpValidator validator;
 
     using ResponseCounter = Couchbase::RelaxedAtomic<uint64_t>;
 

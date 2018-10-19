@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
 #include <platform/sized_buffer.h>

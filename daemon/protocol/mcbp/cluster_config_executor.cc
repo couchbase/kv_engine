@@ -18,11 +18,13 @@
 #include "executors.h"
 #include <daemon/buckets.h>
 #include <daemon/cccp_notification_task.h>
+#include <daemon/cookie.h>
 #include <daemon/executorpool.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <daemon/session_cas.h>
 #include <logger/logger.h>
+#include <mcbp/protocol/request.h>
 
 void get_cluster_config_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();

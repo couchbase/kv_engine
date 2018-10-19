@@ -16,8 +16,10 @@
  */
 #include "config.h"
 #include "mcaudit.h"
+
 #include "buckets.h"
 #include "connection.h"
+#include "cookie.h"
 #include "debug_helpers.h"
 #include "log_macros.h"
 #include "logger/logger.h"

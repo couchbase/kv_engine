@@ -17,6 +17,7 @@
 #include "config.h"
 #include "mcbp_test.h"
 
+#include <daemon/cookie.h>
 #include <daemon/settings.h>
 #include <event2/event.h>
 #include <mcbp/protocol/header.h>
@@ -66,7 +67,7 @@ cb::mcbp::Status ValidatorTest::validate(cb::mcbp::ClientOpcode opcode,
     const size_t size = sizeof(req) + req.getBodylen();
     cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
     MockCookie cookie(connection, buffer);
-    return validatorChains.invoke(opcode, cookie);
+    return validatorChains.validate(opcode, cookie);
 }
 
 std::string ValidatorTest::validate_error_context(cb::mcbp::ClientOpcode opcode,
@@ -75,7 +76,7 @@ std::string ValidatorTest::validate_error_context(cb::mcbp::ClientOpcode opcode,
     const size_t size = sizeof(req) + req.getBodylen();
     cb::const_byte_buffer buffer{static_cast<uint8_t*>(packet), size};
     MockCookie cookie(connection, buffer);
-    validatorChains.invoke(opcode, cookie);
+    validatorChains.validate(opcode, cookie);
     return cookie.getErrorContext();
 }
 

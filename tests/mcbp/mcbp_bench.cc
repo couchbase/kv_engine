@@ -17,7 +17,10 @@
 
 #include "mock_connection.h"
 #include <benchmark/benchmark.h>
+#include <daemon/cookie.h>
 #include <daemon/mcbp_validators.h>
+#include <mcbp/protocol/header.h>
+#include <memcached/protocol_binary.h>
 
 /**
  * Test the performance of the command validators for the some of the most
@@ -32,7 +35,7 @@ public:
     }
 
 protected:
-    McbpValidatorChains validatorChains;
+    McbpValidator validator;
     MockConnection connection;
 
     union {
@@ -55,7 +58,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
     while (state.KeepRunning()) {
         cookie.reset();
         cookie.setPacket(Cookie::PacketContent::Full, buffer);
-        validatorChains.invoke(cb::mcbp::ClientOpcode::Get, cookie);
+        validator.validate(cb::mcbp::ClientOpcode::Get, cookie);
     }
 }
 
@@ -73,7 +76,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
     while (state.KeepRunning()) {
         cookie.reset();
         cookie.setPacket(Cookie::PacketContent::Full, buffer);
-        validatorChains.invoke(cb::mcbp::ClientOpcode::Set, cookie);
+        validator.validate(cb::mcbp::ClientOpcode::Set, cookie);
     }
 }
 
@@ -91,7 +94,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
     while (state.KeepRunning()) {
         cookie.reset();
         cookie.setPacket(Cookie::PacketContent::Full, buffer);
-        validatorChains.invoke(cb::mcbp::ClientOpcode::Add, cookie);
+        validator.validate(cb::mcbp::ClientOpcode::Add, cookie);
     }
 }
 

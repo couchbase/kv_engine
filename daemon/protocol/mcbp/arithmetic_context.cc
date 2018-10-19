@@ -16,13 +16,14 @@
  */
 #include "arithmetic_context.h"
 
+#include "engine_wrapper.h"
 #include <daemon/buckets.h>
+#include <daemon/cookie.h>
 #include <daemon/mcbp.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/util.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-#include "engine_wrapper.h"
 
 ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
                                                    const cb::mcbp::Request& req)

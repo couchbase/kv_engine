@@ -20,40 +20,39 @@
  */
 #pragma once
 
-#include "cookie.h"
-#include "function_chain.h"
-#include <mcbp/mcbp.h>
-#include <memcached/protocol_binary.h>
+#include <mcbp/protocol/opcode.h>
+#include <mcbp/protocol/status.h>
 #include <array>
-#include <type_traits>
+#include <functional>
+
+class Cookie;
 
 /**
- * The MCBP validator chains.
+ * The MCBP validator.
  *
- * Class stores a chain per opcode allowing a sequence of command validators
- * to be configured, stored and invoked.
- *
+ * Class stores a validator per opcode and invokes the validator if one is
+ * configured for that opcode.
  */
-class McbpValidatorChains {
+class McbpValidator {
 public:
     using ClientOpcode = cb::mcbp::ClientOpcode;
     using Status = cb::mcbp::Status;
 
-    McbpValidatorChains();
+    McbpValidator();
 
     /**
-     * Invoke the chain for the command
+     * Invoke the validator for the command if one is configured. Otherwise
+     * Success is returned
      */
-    Status invoke(ClientOpcode command, Cookie& cookie);
+    Status validate(ClientOpcode command, Cookie& cookie);
 
 protected:
     /**
-     * Silently ignores any attempt to push the same function onto the chain.
+     * Installs a validator for the given command
      */
-    void push_unique(ClientOpcode command, Status (*f)(Cookie&));
+    void setup(ClientOpcode command, Status (*f)(Cookie&));
 
-    std::array<FunctionChain<Status, Status::Success, Cookie&>, 0x100>
-            commandChains;
+    std::array<std::function<Status(Cookie&)>, 0x100> validators;
 };
 
 /// @return true if the keylen represents a valid key for the connection

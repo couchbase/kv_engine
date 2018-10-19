@@ -20,6 +20,7 @@
 #include "buckets.h"
 #include "connection.h"
 #include "connections.h"
+#include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"

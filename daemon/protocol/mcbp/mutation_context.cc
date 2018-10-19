@@ -20,6 +20,7 @@
 #include "engine_wrapper.h"
 
 #include <daemon/buckets.h>
+#include <daemon/cookie.h>
 #include <daemon/mcbp.h>
 #include <daemon/memcached.h>
 #include <memcached/protocol_binary.h>

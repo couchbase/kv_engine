@@ -19,6 +19,7 @@
 #include "engine_wrapper.h"
 
 #include <daemon/buckets.h>
+#include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
 #include <logger/logger.h>

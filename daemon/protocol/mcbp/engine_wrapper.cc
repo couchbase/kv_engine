@@ -22,6 +22,7 @@
 #include <daemon/memcached.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
+#include <mcbp/protocol/request.h>
 #include <tracing/trace_helpers.h>
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie,

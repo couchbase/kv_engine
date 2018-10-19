@@ -16,6 +16,7 @@
  */
 #include "flush_command_context.h"
 #include "engine_wrapper.h"
+#include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/mcbp.h>
 #include <logger/logger.h>

@@ -19,6 +19,7 @@
 
 #include "buckets.h"
 #include "connections.h"
+#include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "mc_time.h"
 #include "mcaudit.h"

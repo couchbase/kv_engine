@@ -35,6 +35,7 @@
 #include <daemon/stats_tasks.h>
 #include <daemon/topkeys.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <mcbp/protocol/header.h>
 #include <memcached/audit_interface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/stats_callback.h>

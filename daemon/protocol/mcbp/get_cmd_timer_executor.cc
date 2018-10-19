@@ -21,6 +21,7 @@
 #include <daemon/buckets.h>
 #include <daemon/mcbp.h>
 #include <logger/logger.h>
+#include <mcbp/protocol/request.h>
 
 /**
  * Get the timing histogram for the specified bucket if we've got access

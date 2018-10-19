@@ -29,6 +29,7 @@
 #include <daemon/mcbp_validators.h>
 #include <daemon/stats.h>
 #include <gtest/gtest.h>
+#include <memcached/protocol_binary.h>
 
 namespace mcbp {
 namespace test {
@@ -49,7 +50,7 @@ protected:
     std::string validate_error_context(cb::mcbp::ClientOpcode opcode,
                                        void* request);
 
-    McbpValidatorChains validatorChains;
+    McbpValidator validatorChains;
 
     MockConnection connection;
 

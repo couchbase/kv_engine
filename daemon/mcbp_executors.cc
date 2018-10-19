@@ -791,7 +791,7 @@ void execute_client_request_packet(Cookie& cookie,
         // The framing of the packet is valid...
         // Verify that the actual command is legal
         auto& bucket = cookie.getConnection().getBucket();
-        auto result = bucket.validatorChains.invoke(opcode, cookie);
+        auto result = bucket.validator.validate(opcode, cookie);
         if (result != cb::mcbp::Status::Success) {
             std::string command;
             try {

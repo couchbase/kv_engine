@@ -20,6 +20,7 @@
 #include "cmdline.h"
 #include "config_parse.h"
 #include "connections.h"
+#include "cookie.h"
 #include "debug_helpers.h"
 #include "doc_pre_expiry.h"
 #include "enginemap.h"

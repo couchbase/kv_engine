@@ -17,6 +17,7 @@
 #include "mcbp.h"
 
 #include "buckets.h"
+#include "cookie.h"
 #include "debug_helpers.h"
 #include "memcached.h"
 #include "settings.h"
@@ -24,6 +25,8 @@
 #include "xattr/utils.h"
 #include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <mcbp/protocol/header.h>
+#include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
 
