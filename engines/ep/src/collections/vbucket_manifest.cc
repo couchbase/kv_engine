@@ -560,28 +560,6 @@ std::string Manifest::serialToJson(const Item& collectionsEventItem) {
     return json.str();
 }
 
-std::string Manifest::serialToJson(cb::const_char_buffer buffer) {
-    const auto* sMan =
-            reinterpret_cast<const SerialisedManifest*>(buffer.data());
-    const auto* serial = sMan->getManifestEntryBuffer();
-
-    std::stringstream json;
-    json << R"({"uid":")" << std::hex << sMan->getManifestUid()
-         << R"(","collections":[)";
-
-    for (uint32_t ii = 0; ii < sMan->getEntryCount(); ii++) {
-        json << serial->toJson();
-        serial = serial->nextEntry();
-
-        if (ii < sMan->getEntryCount() - 1) {
-            json << ",";
-        }
-    }
-
-    json << "]}";
-    return json.str();
-}
-
 nlohmann::json Manifest::getJsonEntry(const nlohmann::json& object,
                                       const std::string& key,
                                       nlohmann::json::value_t expectedType) {

@@ -512,16 +512,6 @@ public:
                                             OptionalSeqno seqno) const;
 
 protected:
-    /**
-     * Return a std::string containing a JSON representation of a
-     * VBucket::Manifest. The input data should be a previously serialised
-     * object, i.e. the input to this function is the output of
-     * populateWithSerialisedData(cb::char_buffer out)
-     *
-     * @param buffer The raw data to process.
-     * @returns std::string containing a JSON representation of the manifest
-     */
-    static std::string serialToJson(cb::const_char_buffer buffer);
 
     /**
      * Update from a Collections::Manifest
