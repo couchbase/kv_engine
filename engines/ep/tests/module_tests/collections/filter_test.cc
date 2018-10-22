@@ -566,18 +566,18 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     Collections::VB::Filter vbf(json, vbm);
 
     // meat system event is allowed by the meat filter
-    EXPECT_TRUE(vbf.checkAndUpdate(
-            *SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {})));
+    EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
+            SystemEvent::Collection, "meat", {}, {})));
 
     // $default system event is allowed by the filter
     EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$default", 0, {})));
+            SystemEvent::Collection, "$default", {}, {})));
 
     // dairy system event is allowed even though dairy doesn't exist in the
     // manifest, we wouldn't actually create this event as dairy isn't present
     // but this just shows the passthrough interface at work.
     EXPECT_TRUE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "dairy", 0, {})));
+            SystemEvent::Collection, "dairy", {}, {})));
 }
 
 /**
@@ -638,10 +638,10 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
     Collections::VB::Filter vbf(json, vbm);
 
     // All system events dropped by this empty/legacy filter
-    EXPECT_FALSE(vbf.checkAndUpdate(
-            *SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {})));
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "$default", 0, {})));
+            SystemEvent::Collection, "meat", {}, {})));
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
-            SystemEvent::Collection, "dairy", 0, {})));
+            SystemEvent::Collection, "$default", {}, {})));
+    EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
+            SystemEvent::Collection, "dairy", {}, {})));
 }

@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "collections/collections_types.h"
 #include "ep_time.h"
 #include "kvstore.h"
 #include "programs/engine_testapp/mock_server.h"
@@ -78,7 +79,7 @@ TEST_F(CollectionsTest, uid_equal) {
 // in a different namespace.
 TEST_F(CollectionsTest, namespace_separation) {
     // Use the event factory to get an event which we'll borrow the key from
-    auto se = SystemEventFactory::make(SystemEvent::Collection, "meat", 0, {});
+    auto se = SystemEventFactory::make(SystemEvent::Collection, "meat", {}, {});
     DocKey key(se->getKey().data(),
                se->getKey().size(),
                DocKeyEncodesCollectionId::No);
@@ -550,15 +551,16 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
                        _1,
                        CollectionEntry::dairy2)}};
 
-    std::string m1;
+    Collections::VB::PersistedManifest m1;
     int step = 0;
     for (auto& f : test) {
         auto m2 = f.function();
         // The manifest should change for each step
-        EXPECT_NE(m1, m2) << "Failed step:" + std::to_string(step) << ", " << m1
-                          << " should not match " << m2;
+        EXPECT_NE(m1, m2) << "Failed step:" + std::to_string(step) << "\n"
+                          << m1 << "\n should not match " << m2 << "\n";
         EXPECT_TRUE(f.validator(m2))
-                << "Failed step:" + std::to_string(step) + " validating " + m2;
+                << "Failed at step:" << std::to_string(step) << " validating "
+                << m2;
         m1 = m2;
         step++;
     }

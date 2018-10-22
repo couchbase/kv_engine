@@ -79,15 +79,13 @@ public:
      *           value stored in the flags field.
      * @param keyExtra Every SystemEvent has defined key, keyExtra is appended
      *        to the defined key
-     * @param itemSize The returned Item can be requested to allocate a value
-     *        of itemSize. Some SystemEvents will update the value with data to
-     *        be persisted/replicated.
+     * @param data The data which will be written to the value of the Item
      * @param seqno An OptionalSeqno - if defined the returned Item will have
      *        the seqno value set as its bySeqno.
      */
     static std::unique_ptr<Item> make(SystemEvent se,
                                       const std::string& keyExtra,
-                                      size_t itemSize,
+                                      cb::const_byte_buffer data,
                                       OptionalSeqno seqno);
 
     /**

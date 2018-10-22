@@ -35,6 +35,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${BOOST_INCLUDE_DIR}
                            ${SNAPPY_INCLUDE_DIR}
                            ${BOOST_INCLUDE_DIR}
+                           ${FLATBUFFERS_INCLUDE_DIR}
                            ${Platform_SOURCE_DIR}/include
                            ${Platform_SOURCE_DIR}/external
                            ${Memcached_SOURCE_DIR}
@@ -174,6 +175,15 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      src/generated_configuration.h.temp
                   COMMENT "Copying code for configuration class")
 
+
+ADD_CUSTOM_COMMAND(OUTPUT
+                     ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_generated.h
+                  COMMAND
+                     ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/collections/ --gen-mutable --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/vbucket_serialised_manifest_entry.fbs
+                  DEPENDS
+                     src/collections/vbucket_serialised_manifest_entry.fbs
+                  COMMENT "Generating flatbuffers serialied_manifest_entry_generated")
+
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
             src/couch-kvstore/couch-fs-stats.cc)
 SET(OBJECTREGISTRY_SOURCE src/objectregistry.cc)
@@ -185,6 +195,7 @@ SET(COLLECTIONS_SOURCE src/collections/collections_callbacks.cc
                        src/collections/flush.cc
                        src/collections/manager.cc
                        src/collections/manifest.cc
+                       ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_generated.h
                        src/collections/vbucket_filter.cc
                        src/collections/vbucket_manifest.cc
                        src/collections/vbucket_manifest_entry.cc)

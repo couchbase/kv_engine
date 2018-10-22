@@ -23,6 +23,7 @@
 #include <platform/sized_buffer.h>
 #include <gsl/gsl>
 #include <unordered_map>
+#include <vector>
 
 namespace Collections {
 
@@ -165,7 +166,10 @@ namespace VB {
  * The PersistedManifest which stores a copy of the VB::Manifest, the actual
  * format of the data is defined by VB::Manifest
  */
-using PersistedManifest = std::string;
-} // namespace VB
+using PersistedManifest = std::vector<uint8_t>;
 
+} // namespace VB
 } // end namespace Collections
+
+std::ostream& operator<<(std::ostream& os,
+                         const Collections::VB::PersistedManifest& data);

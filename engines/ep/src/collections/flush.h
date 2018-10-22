@@ -56,7 +56,7 @@ public:
      * @return the data to be persisted when a collection event is part of the
      *         flusher's batch of Items.
      */
-    PersistedManifest getJsonForFlush() const;
+    PersistedManifest getManifestData() const;
 
     /**
      * Run the specified callback against the list of collections which were

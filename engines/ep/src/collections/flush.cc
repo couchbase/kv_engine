@@ -50,9 +50,9 @@ void Collections::VB::Flush::saveItemCounts(
     }
 }
 
-Collections::VB::PersistedManifest Collections::VB::Flush::getJsonForFlush()
+Collections::VB::PersistedManifest Collections::VB::Flush::getManifestData()
         const {
-    return Collections::VB::Manifest::serialToJson(
+    return Collections::VB::Manifest::patchSerialisedData(
             *getCollectionsManifestItem());
 }
 

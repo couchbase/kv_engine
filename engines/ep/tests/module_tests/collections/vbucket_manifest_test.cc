@@ -18,7 +18,6 @@
 #include "checkpoint_manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
-#include "collections/vbucket_serialised_manifest_entry.h"
 #include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
@@ -447,7 +446,7 @@ public:
      */
     ::testing::AssertionResult checkJson(const Item& manifest) {
         MockVBManifest newManifest(
-                Collections::VB::Manifest::serialToJson(manifest));
+                Collections::VB::Manifest::patchSerialisedData(manifest));
         if (active != newManifest) {
             return ::testing::AssertionFailure() << "manifest mismatch\n"
                                                  << "generated\n"

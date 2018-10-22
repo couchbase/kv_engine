@@ -2435,10 +2435,9 @@ couchstore_error_t CouchKVStore::saveCollectionsManifest(
     lDoc.id.buf = const_cast<char*>(Collections::CouchstoreManifest);
     lDoc.id.size = Collections::CouchstoreManifestLen;
 
-    // Convert the Item into JSON
-    std::string state = collectionsFlush.getJsonForFlush();
+    auto state = collectionsFlush.getManifestData();
 
-    lDoc.json.buf = const_cast<char*>(state.c_str());
+    lDoc.json.buf = reinterpret_cast<char*>(state.data());
     lDoc.json.size = state.size();
     lDoc.deleted = 0;
     couchstore_error_t errCode = couchstore_save_local_document(&db, &lDoc);
@@ -2483,7 +2482,8 @@ Collections::VB::PersistedManifest CouchKVStore::readCollectionsManifest(
         return {};
     }
 
-    return {lDoc.getLocalDoc()->json.buf, lDoc.getLocalDoc()->json.size};
+    return {lDoc.getLocalDoc()->json.buf,
+            lDoc.getLocalDoc()->json.buf + lDoc.getLocalDoc()->json.size};
 }
 
 void CouchKVStore::saveItemCount(Db& db, CollectionID cid, uint64_t count) {

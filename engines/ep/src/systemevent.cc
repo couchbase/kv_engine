@@ -23,17 +23,16 @@
 #include "item.h"
 #include "kvstore.h"
 
-std::unique_ptr<Item> SystemEventFactory::make(
-        SystemEvent se,
-        const std::string& keyExtra,
-        size_t itemSize,
-        OptionalSeqno seqno) {
+std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
+                                               const std::string& keyExtra,
+                                               cb::const_byte_buffer data,
+                                               OptionalSeqno seqno) {
     auto item = std::make_unique<Item>(
             StoredDocKey(makeKey(se, keyExtra), DocNamespace::System),
             uint32_t(se) /*flags*/,
             0 /*exptime*/,
-            nullptr, /*no data to copy-in*/
-            itemSize);
+            data.data(),
+            data.size());
 
     if (seqno) {
         item->setBySeqno(seqno.value());

@@ -20,15 +20,11 @@
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "collections/manifest.h"
-#include "collections/vbucket_serialised_manifest_entry.h"
+#include "collections/vbucket_serialised_manifest_entry_generated.h"
 #include "item.h"
 #include "statwriter.h"
 #include "vbucket.h"
 
-#include <json_utilities.h>
-
-#include <JSON_checker.h>
-#include <nlohmann/json.hpp>
 #include <memory>
 
 namespace Collections {
@@ -47,34 +43,19 @@ Manifest::Manifest(const PersistedManifest& data)
         return;
     }
 
-    nlohmann::json parsed;
-    try {
-        parsed = nlohmann::json::parse(data);
-    } catch (const nlohmann::json::exception& e) {
-        throw std::invalid_argument(
-                "VB::Manifest nlohmann "
-                "cannot parse json" +
-                cb::to_string(data) + ", e:" + e.what());
-    }
+    auto manifest = flatbuffers::GetRoot<SerialisedManifest>(
+            reinterpret_cast<const uint8_t*>(data.data()));
 
-    manifestUid =
-            makeUid(getJsonEntry(parsed, UidKey, UidType).get<std::string>());
+    manifestUid = manifest->uid();
 
-    // Load the collections array
-    auto collections = getJsonEntry(parsed, CollectionsKey, CollectionsType);
-
-    for (const auto& collection : collections) {
-        auto cid = makeCollectionID(
-                getJsonEntry(collection, UidKey, UidType).get<std::string>());
-        auto sid = makeScopeID(
-                getJsonEntry(collection, SidKey, SidType).get<std::string>());
-        auto startSeqno = std::stoll(
-                getJsonEntry(collection, StartSeqnoKey, StartSeqnoType)
-                        .get<std::string>());
-        auto endSeqno =
-                std::stoll(getJsonEntry(collection, EndSeqnoKey, EndSeqnoType)
-                                   .get<std::string>());
-        addNewCollectionEntry({sid, cid}, startSeqno, endSeqno);
+    auto entries = manifest->entries();
+    // Use our defined entryCount so we skip any fully dropped collection which
+    // maybe at the end
+    for (uint32_t ii = 0; ii < manifest->entryCount(); ii++) {
+        auto entry = entries->Get(ii);
+        addNewCollectionEntry({entry->scopeId(), entry->collectionId()},
+                              entry->startSeqno(),
+                              entry->endSeqno());
     }
 }
 
@@ -93,6 +74,7 @@ boost::optional<ScopeCollectionPair> Manifest::applyChanges(
 
     return rv;
 }
+
 bool Manifest::update(::VBucket& vb, const Collections::Manifest& manifest) {
     auto rv = processManifest(manifest);
     if (!rv.is_initialized()) {
@@ -427,20 +409,14 @@ std::unique_ptr<Item> Manifest::createSystemEvent(
     // Create an item (to be queued and written to disk) that represents
     // the update of a collection and allows the checkpoint to update
     // the _local document with a persisted version of this object (the entire
-    // manifest is persisted to disk as JSON).
-    // The key for the item includes the name and revision to ensure a
-    // checkpoint consumer (e.g. DCP) can transmit the full collection info.
+    // manifest is persisted to disk as flatbuffer data).
+    flatbuffers::FlatBufferBuilder builder;
+    populateWithSerialisedData(builder, identifiers);
     auto item = SystemEventFactory::make(
             se,
             makeCollectionIdIntoString(identifiers.second),
-            getSerialisedDataSize(identifiers.second),
+            {builder.GetBufferPointer(), builder.GetSize()},
             seqno);
-
-    // Quite rightly an Item's value is const, but in this case the Item is
-    // owned only by the local scope so is safe to mutate (by const_cast force)
-    populateWithSerialisedData(
-            {const_cast<char*>(item->getData()), item->getNBytes()},
-            identifiers);
 
     if (deleted) {
         item->setDeleted();
@@ -466,26 +442,13 @@ int64_t Manifest::queueSystemEvent(::VBucket& vb,
     return rv;
 }
 
-size_t Manifest::getSerialisedDataSize(CollectionID identifier) const {
-    size_t bytesNeeded = SerialisedManifest::getObjectSize();
-    for (const auto& collectionEntry : map) {
-        // Skip if a collection in the map matches the collection being changed
-        if (collectionEntry.first == identifier) {
-            continue;
-        }
-        bytesNeeded += SerialisedManifestEntry::getObjectSize();
-    }
-
-    return bytesNeeded + SerialisedManifestEntry::getObjectSize();
-}
-
 void Manifest::populateWithSerialisedData(
-        cb::char_buffer out, ScopeCollectionPair identifiers) const {
-    auto* sMan = SerialisedManifest::make(out.data(), getManifestUid(), out);
-    uint32_t itemCounter = 1; // always a final entry
-    auto* serial = sMan->getManifestEntryBuffer();
-
+        flatbuffers::FlatBufferBuilder& builder,
+        ScopeCollectionPair identifiers) const {
     const ManifestEntry* finalEntry = nullptr;
+
+    std::vector<flatbuffers::Offset<SerialisedManifestEntry>> entriesVector;
+
     for (const auto& collectionEntry : map) {
         // Check if we find the mutated entry in the map (so we know if we're
         // mutating it)
@@ -494,76 +457,81 @@ void Manifest::populateWithSerialisedData(
             // save the iterator so we can use it when creating the final entry
             finalEntry = &collectionEntry.second;
         } else {
-            itemCounter++;
-            auto* sme = SerialisedManifestEntry::make(
-                    serial,
-                    {collectionEntry.second.getScopeID(),
-                     collectionEntry.first},
-                    collectionEntry.second,
-                    out);
-            serial = sme->nextEntry();
+            auto newEntry = CreateSerialisedManifestEntry(
+                    builder,
+                    collectionEntry.second.getStartSeqno(),
+                    collectionEntry.second.getEndSeqno(),
+                    collectionEntry.second.getScopeID(),
+                    collectionEntry.first);
+            entriesVector.push_back(newEntry);
         }
     }
 
-    SerialisedManifestEntry* finalSme = nullptr;
+    // Note that patchSerialisedData will change one of these values when the
+    // real seqno is known.
+    int64_t startSeqno = StoredValue::state_collection_open;
+    int64_t endSeqno = StoredValue::state_collection_open;
     if (finalEntry) {
-        // delete
-        finalSme = SerialisedManifestEntry::make(
-                serial, identifiers, *finalEntry, out);
-    } else {
-        // create
-        finalSme = SerialisedManifestEntry::make(serial, identifiers, out);
+        startSeqno = finalEntry->getStartSeqno();
+        endSeqno = finalEntry->getEndSeqno();
     }
 
-    sMan->setEntryCount(itemCounter);
-    sMan->calculateFinalEntryOffest(finalSme);
+    auto newEntry = CreateSerialisedManifestEntry(builder,
+                                                  startSeqno,
+                                                  endSeqno,
+                                                  identifiers.first,
+                                                  identifiers.second);
+
+    entriesVector.push_back(newEntry);
+    auto entries = builder.CreateVector(entriesVector);
+    auto manifest = CreateSerialisedManifest(
+            builder, getManifestUid(), entriesVector.size(), entries);
+    builder.Finish(manifest);
 }
 
-std::string Manifest::serialToJson(const Item& collectionsEventItem) {
-    cb::const_char_buffer buffer(collectionsEventItem.getData(),
-                                 collectionsEventItem.getNBytes());
+PersistedManifest Manifest::patchSerialisedData(
+        const Item& collectionsEventItem) {
+    const uint8_t* ptr =
+            reinterpret_cast<const uint8_t*>(collectionsEventItem.getData());
+    PersistedManifest mutableData(ptr, ptr + collectionsEventItem.getNBytes());
+    auto manifest =
+            flatbuffers::GetMutableRoot<SerialisedManifest>(mutableData.data());
+
     const auto se = SystemEvent(collectionsEventItem.getFlags());
-
-    const auto* sMan =
-            reinterpret_cast<const SerialisedManifest*>(buffer.data());
-    const auto* serial = sMan->getManifestEntryBuffer();
-
-    std::stringstream json;
-    json << R"({"uid":")" << std::hex << sMan->getManifestUid()
-         << R"(","collections":[)";
-
-    if (sMan->getEntryCount() > 1) {
-        // Iterate and produce an comma separated list
-        for (uint32_t ii = 1; ii < sMan->getEntryCount(); ii++) {
-            json << serial->toJson();
-            serial = serial->nextEntry();
-
-            if (ii < sMan->getEntryCount() - 1) {
-                json << ",";
-            }
-        }
-
-        // DeleteCollectionHard removes this last entry so no comma
-        if (se != SystemEvent::DeleteCollectionHard) {
-            json << ",";
-        }
-    }
-
-    // Last entry is the collection which changed. How did it change?
     if (se == SystemEvent::Collection) {
-        // Collection start/end (create/delete)
-        json << serial->toJsonCreateOrDelete(collectionsEventItem.isDeleted(),
-                                             collectionsEventItem.getBySeqno());
+        auto mutatedEntry = manifest->mutable_entries()->GetMutableObject(
+                manifest->entries()->size() - 1);
+
+        bool failed = false;
+        if (collectionsEventItem.isDeleted()) {
+            failed = !mutatedEntry->mutate_endSeqno(
+                    collectionsEventItem.getBySeqno());
+        } else {
+            failed = !mutatedEntry->mutate_startSeqno(
+                    collectionsEventItem.getBySeqno());
+        }
+
+        if (failed) {
+            throw std::logic_error(
+                    "Manifest::patchSerialisedData failed to mutate, "
+                    "new seqno: " +
+                    std::to_string(collectionsEventItem.getBySeqno()) +
+                    " isDeleted:" +
+                    std::to_string(collectionsEventItem.isDeleted()));
+        }
+    } else if (se == SystemEvent::DeleteCollectionHard) {
+        // DeleteHard is removing the mutated collection, we achieve this by
+        // trimming the counter we maintain, the mutated entry still exists but#
+        // will be ignored if used in the VB::Manifest constructor
+        if (!manifest->mutate_entryCount(manifest->entryCount() - 1)) {
+            throw std::logic_error(
+                    "Manifest::patchSerialisedData failed to mutate entryCount "
+                    "to newvalue:" +
+                    std::to_string(manifest->entryCount() - 1));
+        }
     }
 
-    json << "]}";
-    return json.str();
-}
-
-nlohmann::json Manifest::getJsonEntry(const nlohmann::json& object,
-                                      const std::string& key,
-                                      nlohmann::json::value_t expectedType) {
-    return cb::getJsonObject(object, key, expectedType, "VB::Manifest");
+    return mutableData;
 }
 
 void Manifest::trackEndSeqno(int64_t seqno) {
@@ -576,9 +544,15 @@ void Manifest::trackEndSeqno(int64_t seqno) {
 
 SystemEventData Manifest::getSystemEventData(
         cb::const_char_buffer serialisedManifest) {
-    const auto* sm = SerialisedManifest::make(serialisedManifest);
-    const auto* sme = sm->getFinalManifestEntry();
-    return {sm->getManifestUid(), sme->getScopeID(), sme->getCollectionID()};
+    auto manifest = flatbuffers::GetRoot<SerialisedManifest>(
+            (const uint8_t*)serialisedManifest.data());
+
+    auto mutatedEntry = manifest->entries()->GetMutableObject(
+            manifest->entries()->size() - 1);
+
+    return {manifest->uid(),
+            mutatedEntry->scopeId(),
+            mutatedEntry->collectionId()};
 }
 
 std::string Manifest::getExceptionString(const std::string& thrower,
@@ -649,8 +623,9 @@ void Manifest::updateSummary(Summary& summary) const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
-    os << "VB::Manifest"
-       << ": defaultCollectionExists:" << manifest.defaultCollectionExists
+    os << "VB::Manifest: "
+       << "uid:" << manifest.manifestUid
+       << ", defaultCollectionExists:" << manifest.defaultCollectionExists
        << ", greatestEndSeqno:" << manifest.greatestEndSeqno
        << ", nDeletingCollections:" << manifest.nDeletingCollections
        << ", map.size:" << manifest.map.size() << std::endl;

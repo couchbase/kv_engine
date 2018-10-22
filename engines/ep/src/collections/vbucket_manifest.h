@@ -33,6 +33,10 @@
 
 class VBucket;
 
+namespace flatbuffers {
+class FlatBufferBuilder;
+}
+
 namespace Collections {
 namespace VB {
 
@@ -416,20 +420,20 @@ public:
     friend WriteHandle;
 
     /**
-     * Construct a VBucket::Manifest from a JSON string or an empty string.
+     * Construct a VBucket::Manifest optionally using serialised (flatbuffers)
+     * data.
      *
-     * Empty string allows for construction where no JSON data was found i.e.
-     * an upgrade occurred and this is the first construction of a manifest
-     * for a VBucket which has persisted data, but no manifest data. When an
-     * empty string is used, the manifest will initialise with default settings.
+     * Empty data allows for construction where no persisted data was found i.e.
+     * an upgrade occurred and this is the first construction of a VB::Manifest
+     * for a VBucket which has persisted data, but no VB::Manifest data. When
+     * empty data is used, the manifest will initialise with default settings.
      * - Default Collection enabled.
-     * - Separator defined as Collections::DefaultSeparator
+     * - uid of 0
      *
-     * A non-empty string must be a valid JSON manifest that determines which
-     * collections to instantiate.
+     * A non-empty object must contain valid flatbuffers VB::Manifest which is
+     * used to define the new object.
      *
-     * @param manifest A std::string containing a JSON manifest. An empty string
-     *        indicates no manifest and is valid.
+     * @param data object storing flatbuffer manifest data (or empty)
      */
     Manifest(const PersistedManifest& data);
 
@@ -453,19 +457,20 @@ public:
     }
 
     /**
-     * Return a std::string containing a JSON representation of a
-     * VBucket::Manifest. The input is an Item previously created for an event
-     * with the value being a serialised binary blob which is turned into JSON.
+     * Return a patched PersistedManifest object cloned and mutated from the
+     * specified Item.
      *
-     * When the Item was created it did not have a seqno for the collection
-     * entry being modified, this function will return JSON data with the
-     * missing seqno 'patched' with the 'collectionsEventItem's seqno.
+     * The reason this is done is because when the Item was created and assigned
+     * flatbuffer data, the seqno for the start/end of the collection was not
+     * known, this call will patch the correct seqno into the created or dropped
+     * collection entry.
      *
      * @param collectionsEventItem an Item created to represent a collection
-     *        event. The value of which is converted to JSON.
-     * @return JSON representation of the Item's value.
+     *        event. .
+     * @return The patched PersistedManifest which can be stored to disk.
      */
-    static std::string serialToJson(const Item& collectionsEventItem);
+    static PersistedManifest patchSerialisedData(
+            const Item& collectionsEventItem);
 
     /**
      * Get the system event collection create/delete data from a SystemEvent
@@ -495,7 +500,7 @@ public:
 
     /**
      * Create a SystemEvent Item, the Item's value will contain data for later
-     * consumption by serialToJson
+     * consumption by patchSerialisedData/getSystemEventData
      *
      * @param se SystemEvent to create.
      * @param identifiers ScopeID and CollectionID pair
@@ -791,41 +796,16 @@ protected:
                              OptionalSeqno seqno) const;
 
     /**
-     * Obtain how many bytes of storage are needed for a serialised copy
-     * of this object including the size of the modified collection.
+     * Populate a buffer with the serialised state of the manifest. The
+     * serialised state also always places the mutated CollectionEntry as the
+     * last element of the entries Vector. The mutated entry represents the
+     * created collection or the one we've dropped.
      *
-     * @param identifier The ID of the collection being changed.
-     * @returns how many bytes will be needed to serialise the manifest and
-     *          the collection being changed.
+     * @param builder FlatBuffer builder for serialisation.
+     * @param identifiers ScopeID/CollectionID pair of the mutated collection
      */
-    size_t getSerialisedDataSize(CollectionID identifier) const;
-
-    /**
-     * Obtain how many bytes of storage are needed for a serialised copy
-     * of this object.
-     *
-     * @returns how many bytes will be needed to serialise the manifest.
-     */
-    size_t getSerialisedDataSize() const;
-
-    /**
-     * Populate a buffer with the serialised state of the manifest and one
-     * additional entry that is the collection being changed, i.e. the addition
-     * or deletion.
-     *
-     * @param out A buffer for the data to be written into.
-     * @param revision The Manifest revision we are processing
-     * @param identifiers ScopeID and CollectionID pair
-     */
-    void populateWithSerialisedData(cb::char_buffer out,
+    void populateWithSerialisedData(flatbuffers::FlatBufferBuilder& builder,
                                     ScopeCollectionPair identifiers) const;
-
-    /**
-     * @returns the json for the given key from the nlohmann::json object.
-     */
-    nlohmann::json getJsonEntry(const nlohmann::json& object,
-                                const std::string& key,
-                                nlohmann::json::value_t expectedType);
 
     /**
      * Update greatestEndSeqno if the seqno is larger
