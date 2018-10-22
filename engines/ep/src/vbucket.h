@@ -148,7 +148,7 @@ public:
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             bool mightContainXattrs = false,
-            const std::string& collectionsManifest = "");
+            const Collections::VB::PersistedManifest& collectionsManifest = {});
 
     virtual ~VBucket();
 

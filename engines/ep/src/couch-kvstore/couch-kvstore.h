@@ -437,7 +437,8 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
-    std::string getCollectionsManifest(Vbid vbid) override;
+    Collections::VB::PersistedManifest getCollectionsManifest(
+            Vbid vbid) override;
 
     uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
                                     CollectionID collection) override;
@@ -596,10 +597,9 @@ protected:
      * Read the collections manifest from the _local/collections_manifest
      * document.
      *
-     * @return std:string with the manifest JSON data or an empty string if no
-     *         manifest is present.
+     * @return The manifest data or an empty object if no manifest is present.
      */
-    std::string readCollectionsManifest(Db& db);
+    Collections::VB::PersistedManifest readCollectionsManifest(Db& db);
 
     /**
      * Save count for collection cid into the file referenced by db

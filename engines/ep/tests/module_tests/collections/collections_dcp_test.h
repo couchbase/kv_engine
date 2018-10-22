@@ -29,7 +29,7 @@ public:
 
     // Setup a producer/consumer ready for the test
     void SetUp() override;
-    std::string getManifest(Vbid vb) const;
+    Collections::VB::PersistedManifest getManifest(Vbid vb) const;
 
     void createDcpStream(boost::optional<cb::const_char_buffer> collections);
 

@@ -42,7 +42,8 @@ void CollectionsDcpTest::SetUp() {
     createDcpObjects({{}} /*collections on, but no filter*/);
 }
 
-std::string CollectionsDcpTest::getManifest(Vbid vb) const {
+Collections::VB::PersistedManifest CollectionsDcpTest::getManifest(
+        Vbid vb) const {
     return store->getVBucket(vb)
             ->getShard()
             ->getRWUnderlying()

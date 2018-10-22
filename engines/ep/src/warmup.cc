@@ -916,7 +916,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                     config.isCollectionsEnabled()
                             ? store.getROUnderlyingByShard(shardId)
                                       ->getCollectionsManifest(vbid)
-                            : "" /*no collections manifest*/);
+                            : Collections::VB::PersistedManifest{});
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
                 if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {

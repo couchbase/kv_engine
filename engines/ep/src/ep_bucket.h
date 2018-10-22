@@ -117,7 +117,8 @@ public:
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
                            bool mightContainXattrs,
-                           const std::string& collectionsManifest) override;
+                           const Collections::VB::PersistedManifest&
+                                   collectionsManifest) override;
 
     ENGINE_ERROR_CODE statsVKey(const DocKey& key,
                                 Vbid vbucket,

@@ -42,7 +42,7 @@ public:
         store->setVBucketState(vbid, vbucket_state_active, false);
     }
 
-    std::string getManifest(Vbid vb) const {
+    Collections::VB::PersistedManifest getManifest(Vbid vb) const {
         return store->getVBucket(vb)
                 ->getShard()
                 ->getRWUnderlying()
@@ -364,38 +364,37 @@ public:
     void collectionsFlusher(int items);
 
 private:
-    std::string createCollectionAndFlush(const std::string& json,
-                                         CollectionID collection,
-                                         int items);
-    std::string deleteCollectionAndFlush(const std::string& json,
-                                         CollectionID collection,
-                                         int items);
-    std::string completeDeletionAndFlush(CollectionID collection, int items);
+    Collections::VB::PersistedManifest createCollectionAndFlush(
+            const std::string& json, CollectionID collection, int items);
+    Collections::VB::PersistedManifest deleteCollectionAndFlush(
+            const std::string& json, CollectionID collection, int items);
+    Collections::VB::PersistedManifest completeDeletionAndFlush(
+            CollectionID collection, int items);
 
     void storeItems(CollectionID collection,
                     int items,
                     cb::engine_errc = cb::engine_errc::success);
 
     /**
-     * Create manifest object from jsonManifest and validate if we can write to
-     * the collection.
-     * @param jsonManifest - A JSON VB manifest
+     * Create manifest object from persisted manifest and validate if we can
+     * write to the collection.
+     * @param data - The persisted manifest data
      * @param collection - a collection name to test for writing
      *
      * @return true if the collection can be written
      */
-    static bool canWrite(const std::string& jsonManifest,
+    static bool canWrite(const Collections::VB::PersistedManifest& data,
                          CollectionID collection);
 
     /**
-     * Create manifest object from jsonManifest and validate if we cannot write
-     * to the collection.
-     * @param jsonManifest - A JSON VB manifest
+     * Create manifest object from persisted manifest and validate if we can
+     * write to the collection.
+     * @param data - The persisted manifest data
      * @param collection - a collection name to test for writing
      *
      * @return true if the collection cannot be written
      */
-    static bool cannotWrite(const std::string& jsonManifest,
+    static bool cannotWrite(const Collections::VB::PersistedManifest& data,
                             CollectionID collection);
 };
 
@@ -408,8 +407,10 @@ void CollectionsFlushTest::storeItems(CollectionID collection,
     }
 }
 
-std::string CollectionsFlushTest::createCollectionAndFlush(
-        const std::string& json, CollectionID collection, int items) {
+Collections::VB::PersistedManifest
+CollectionsFlushTest::createCollectionAndFlush(const std::string& json,
+                                               CollectionID collection,
+                                               int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
@@ -420,8 +421,10 @@ std::string CollectionsFlushTest::createCollectionAndFlush(
     return getManifest(vbid);
 }
 
-std::string CollectionsFlushTest::deleteCollectionAndFlush(
-        const std::string& json, CollectionID collection, int items) {
+Collections::VB::PersistedManifest
+CollectionsFlushTest::deleteCollectionAndFlush(const std::string& json,
+                                               CollectionID collection,
+                                               int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, items);
     vb->updateFromManifest(json);
@@ -433,8 +436,9 @@ std::string CollectionsFlushTest::deleteCollectionAndFlush(
     return getManifest(vbid);
 }
 
-std::string CollectionsFlushTest::completeDeletionAndFlush(
-        CollectionID collection, int items) {
+Collections::VB::PersistedManifest
+CollectionsFlushTest::completeDeletionAndFlush(CollectionID collection,
+                                               int items) {
     // complete deletion by triggering the erase of collection (Which calls
     // completed once it's purged all items of the deleted collection)
     runCompaction();
@@ -447,17 +451,19 @@ std::string CollectionsFlushTest::completeDeletionAndFlush(
     return getManifest(vbid);
 }
 
-bool CollectionsFlushTest::canWrite(const std::string& jsonManifest,
-                                    CollectionID collection) {
-    Collections::VB::Manifest manifest(jsonManifest);
+bool CollectionsFlushTest::canWrite(
+        const Collections::VB::PersistedManifest& data,
+        CollectionID collection) {
+    Collections::VB::Manifest manifest(data);
     std::string key = std::to_string(collection);
     return manifest.lock().doesKeyContainValidCollection(
             StoredDocKey{key, collection});
 }
 
-bool CollectionsFlushTest::cannotWrite(const std::string& jsonManifest,
-                                       CollectionID collection) {
-    return !canWrite(jsonManifest, collection);
+bool CollectionsFlushTest::cannotWrite(
+        const Collections::VB::PersistedManifest& data,
+        CollectionID collection) {
+    return !canWrite(data, collection);
 }
 
 /**
@@ -469,8 +475,9 @@ bool CollectionsFlushTest::cannotWrite(const std::string& jsonManifest,
  */
 void CollectionsFlushTest::collectionsFlusher(int items) {
     struct testFuctions {
-        std::function<std::string()> function;
-        std::function<bool(const std::string&)> validator;
+        std::function<Collections::VB::PersistedManifest()> function;
+        std::function<bool(const Collections::VB::PersistedManifest&)>
+                validator;
     };
 
     CollectionsManifest cm(CollectionEntry::meat);

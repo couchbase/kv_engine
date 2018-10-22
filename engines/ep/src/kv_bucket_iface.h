@@ -736,7 +736,8 @@ public:
             uint64_t maxCas = 0,
             int64_t hlcEpochSeqno = HlcCasSeqnoUninitialised,
             bool mightContainXattrs = false,
-            const std::string& collectionsManifest = "") = 0;
+            const Collections::VB::PersistedManifest& collectionsManifest =
+                    {}) = 0;
 
     /**
      * Notify all the clients of a new seqno being added in the vbucket

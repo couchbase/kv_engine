@@ -184,7 +184,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
         uint64_t maxCas,
         int64_t hlcEpochSeqno,
         bool mightContainXattrs,
-        const std::string& collectionsManifest) {
+        const Collections::VB::PersistedManifest& collectionsManifest) {
     (void)hlcEpochSeqno; // Ephemeral overrides this to be 0
     // Not using make_shared or allocate_shared
     // 1. make_shared doesn't accept a Deleter

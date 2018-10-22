@@ -34,11 +34,11 @@
 namespace Collections {
 namespace VB {
 
-Manifest::Manifest(const std::string& manifest)
+Manifest::Manifest(const PersistedManifest& data)
     : defaultCollectionExists(false),
       greatestEndSeqno(StoredValue::state_collection_open),
       nDeletingCollections(0) {
-    if (manifest.empty()) {
+    if (data.empty()) {
         // Empty manifest, initialise the manifest with the default collection
         addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
                               0,
@@ -49,12 +49,12 @@ Manifest::Manifest(const std::string& manifest)
 
     nlohmann::json parsed;
     try {
-        parsed = nlohmann::json::parse(manifest);
+        parsed = nlohmann::json::parse(data);
     } catch (const nlohmann::json::exception& e) {
         throw std::invalid_argument(
                 "VB::Manifest nlohmann "
                 "cannot parse json" +
-                cb::to_string(manifest) + ", e:" + e.what());
+                cb::to_string(data) + ", e:" + e.what());
     }
 
     manifestUid =

@@ -242,7 +242,7 @@ public:
                 ValueFilter _valFilter,
                 uint64_t _documentCount,
                 const KVStoreConfig& _config,
-                const std::string& collectionsManifest);
+                const Collections::VB::PersistedManifest& manifestData);
 
     const std::shared_ptr<StatusCallback<GetValue>> callback;
     const std::shared_ptr<StatusCallback<CacheLookup>> lookup;
@@ -824,7 +824,8 @@ public:
      * collection manifest data as a std::string (data written by
      * persistCollectionsManifestItem)
      */
-    virtual std::string getCollectionsManifest(Vbid vbid) = 0;
+    virtual Collections::VB::PersistedManifest getCollectionsManifest(
+            Vbid vbid) = 0;
 
     /**
      * Obtain a KVFileHandle which holds the KVStore implementation's handle

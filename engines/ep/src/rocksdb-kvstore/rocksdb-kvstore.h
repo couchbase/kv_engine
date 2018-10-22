@@ -288,9 +288,10 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
-    std::string getCollectionsManifest(Vbid vbid) override {
+    Collections::VB::PersistedManifest getCollectionsManifest(
+            Vbid vbid) override {
         // TODO DJR 2017-05-19 implement this.
-        return "";
+        return {};
     }
 
     std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(

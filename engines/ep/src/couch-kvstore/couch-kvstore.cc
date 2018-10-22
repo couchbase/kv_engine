@@ -2461,7 +2461,8 @@ couchstore_error_t CouchKVStore::saveCollectionsManifest(
     return errCode;
 }
 
-std::string CouchKVStore::readCollectionsManifest(Db& db) {
+Collections::VB::PersistedManifest CouchKVStore::readCollectionsManifest(
+        Db& db) {
     sized_buf id;
     id.buf = const_cast<char*>(Collections::CouchstoreManifest);
     id.size = sizeof(Collections::CouchstoreManifest) - 1;
@@ -3015,7 +3016,8 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
     }
 }
 
-std::string CouchKVStore::getCollectionsManifest(Vbid vbid) {
+Collections::VB::PersistedManifest CouchKVStore::getCollectionsManifest(
+        Vbid vbid) {
     DbHolder db(*this);
 
     // openDB logs error details

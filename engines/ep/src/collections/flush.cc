@@ -50,7 +50,8 @@ void Collections::VB::Flush::saveItemCounts(
     }
 }
 
-std::string Collections::VB::Flush::getJsonForFlush() const {
+Collections::VB::PersistedManifest Collections::VB::Flush::getJsonForFlush()
+        const {
     return Collections::VB::Manifest::serialToJson(
             *getCollectionsManifestItem());
 }

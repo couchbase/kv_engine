@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "collections/collections_types.h"
 #include "item.h"
 
 #include <unordered_set>
@@ -52,10 +53,10 @@ public:
     }
 
     /**
-     * @return the JSON data to be persisted if a collection create/drop is part
-     *         of the flushers items
+     * @return the data to be persisted when a collection event is part of the
+     *         flusher's batch of Items.
      */
-    std::string getJsonForFlush() const;
+    PersistedManifest getJsonForFlush() const;
 
     /**
      * Run the specified callback against the list of collections which were

@@ -153,7 +153,7 @@ VBucket::VBucket(Vbid i,
                  uint64_t maxCas,
                  int64_t hlcEpochSeqno,
                  bool mightContainXattrs,
-                 const std::string& collectionsManifest)
+                 const Collections::VB::PersistedManifest& collectionsManifest)
     : ht(st, std::move(valFact), config.getHtSize(), config.getHtLocks()),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             i,

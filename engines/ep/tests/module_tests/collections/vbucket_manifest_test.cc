@@ -35,7 +35,8 @@ public:
     MockVBManifest() : Collections::VB::Manifest({/* no collection data*/}) {
     }
 
-    MockVBManifest(const std::string& json) : Collections::VB::Manifest(json) {
+    MockVBManifest(const Collections::VB::PersistedManifest& manifestData)
+        : Collections::VB::Manifest(manifestData) {
     }
 
     bool exists(CollectionID identifier) const {

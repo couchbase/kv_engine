@@ -29,25 +29,26 @@
 #include "vbucket_bgfetch_item.h"
 #include "vbucketdeletiontask.h"
 
-EPVBucket::EPVBucket(Vbid i,
-                     vbucket_state_t newState,
-                     EPStats& st,
-                     CheckpointConfig& chkConfig,
-                     KVShard* kvshard,
-                     int64_t lastSeqno,
-                     uint64_t lastSnapStart,
-                     uint64_t lastSnapEnd,
-                     std::unique_ptr<FailoverTable> table,
-                     std::shared_ptr<Callback<Vbid> > flusherCb,
-                     NewSeqnoCallback newSeqnoCb,
-                     Configuration& config,
-                     item_eviction_policy_t evictionPolicy,
-                     vbucket_state_t initState,
-                     uint64_t purgeSeqno,
-                     uint64_t maxCas,
-                     int64_t hlcEpochSeqno,
-                     bool mightContainXattrs,
-                     const std::string& collectionsManifest)
+EPVBucket::EPVBucket(
+        Vbid i,
+        vbucket_state_t newState,
+        EPStats& st,
+        CheckpointConfig& chkConfig,
+        KVShard* kvshard,
+        int64_t lastSeqno,
+        uint64_t lastSnapStart,
+        uint64_t lastSnapEnd,
+        std::unique_ptr<FailoverTable> table,
+        std::shared_ptr<Callback<Vbid> > flusherCb,
+        NewSeqnoCallback newSeqnoCb,
+        Configuration& config,
+        item_eviction_policy_t evictionPolicy,
+        vbucket_state_t initState,
+        uint64_t purgeSeqno,
+        uint64_t maxCas,
+        int64_t hlcEpochSeqno,
+        bool mightContainXattrs,
+        const Collections::VB::PersistedManifest& collectionsManifest)
     : VBucket(i,
               newState,
               st,
@@ -67,8 +68,7 @@ EPVBucket::EPVBucket(Vbid i,
               hlcEpochSeqno,
               mightContainXattrs,
               collectionsManifest),
-      multiBGFetchEnabled(kvshard
-                                  ? kvshard->getROUnderlying()
+      multiBGFetchEnabled(kvshard ? kvshard->getROUnderlying()
                                             ->getStorageProperties()
                                             .hasEfficientGet()
                                   : false),

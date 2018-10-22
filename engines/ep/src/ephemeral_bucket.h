@@ -78,7 +78,8 @@ public:
                            uint64_t maxCas,
                            int64_t hlcEpochSeqno,
                            bool mightContainXattrs,
-                           const std::string& collectionsManifest) override;
+                           const Collections::VB::PersistedManifest&
+                                   collectionsManifest) override;
 
     /// Do nothing - no flusher to notify
     void notifyFlusher(const Vbid vbid) override {

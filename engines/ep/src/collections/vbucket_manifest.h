@@ -431,7 +431,7 @@ public:
      * @param manifest A std::string containing a JSON manifest. An empty string
      *        indicates no manifest and is valid.
      */
-    Manifest(const std::string& manifest);
+    Manifest(const PersistedManifest& data);
 
     ReadHandle lock() const {
         return {*this, rwlock};

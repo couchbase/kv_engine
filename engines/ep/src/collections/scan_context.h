@@ -34,7 +34,7 @@ namespace VB {
  */
 class ScanContext {
 public:
-    ScanContext(const std::string& jsonManifest) : manifest(jsonManifest) {
+    ScanContext(const PersistedManifest& data) : manifest(data) {
     }
 
     /**

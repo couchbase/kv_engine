@@ -160,4 +160,12 @@ struct SystemEventDcpData {
     constexpr static size_t size{16};
 };
 
+namespace VB {
+/**
+ * The PersistedManifest which stores a copy of the VB::Manifest, the actual
+ * format of the data is defined by VB::Manifest
+ */
+using PersistedManifest = std::string;
+} // namespace VB
+
 } // end namespace Collections
