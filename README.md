@@ -42,6 +42,7 @@ built via the Couchbase
 * [Environment variables](docs/EnvironmentVariables.md)
 * [Role Based Access Control (RBAC)](docs/rbac.md)
 * [SSL Client Certificate](docs/ssl_client_cert.md)
+* [DCP](docs/dcp/README.md)
 
 ### Protocols
 
@@ -49,6 +50,7 @@ built via the Couchbase
     * [SASL](docs/sasl.md)
     * [Duplex mode](docs/Duplex.md)
     * [External Authentication Provider](docs/ExternalAuthProvider.md)
+    * [DCP](docs/dcp/protocol.md)
 
 ### Policies / Guidelines
 
