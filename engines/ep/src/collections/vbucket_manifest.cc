@@ -43,6 +43,14 @@ Manifest::Manifest(const PersistedManifest& data)
         return;
     }
 
+    {
+        flatbuffers::Verifier v(data.data(), data.size());
+        if (!VerifySerialisedManifestBuffer(v)) {
+            throwException<std::invalid_argument>(
+                    __FUNCTION__, "FlatBuffer validation failed.");
+        }
+    }
+
     auto manifest = flatbuffers::GetRoot<SerialisedManifest>(
             reinterpret_cast<const uint8_t*>(data.data()));
 

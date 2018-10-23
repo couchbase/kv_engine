@@ -43,3 +43,5 @@ table SerialisedManifest {
     entryCount:uint;
     entries:[SerialisedManifestEntry];
 }
+
+root_type SerialisedManifest;
