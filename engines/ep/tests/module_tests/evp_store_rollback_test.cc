@@ -516,7 +516,8 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
 }
 
 /*
- * The opencheckpointid of a bucket is one after a rollback.
+ * The opencheckpointid of a bucket is one after a rollback and
+ * the receivingInitialDiskSnapshot flag is false.
  */
 TEST_P(RollbackTest, MB21784) {
     // Make the vbucket a replica
@@ -530,6 +531,8 @@ TEST_P(RollbackTest, MB21784) {
     auto vb = store->getVBucket(vbid);
     auto& ckpt_mgr = *vb->checkpointManager;
     EXPECT_EQ(1, ckpt_mgr.getOpenCheckpointId()) << "opencheckpointId not one";
+    EXPECT_FALSE(vb->isReceivingInitialDiskSnapshot())
+            << "receivingInitialDiskSnapshot is true";
 
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);

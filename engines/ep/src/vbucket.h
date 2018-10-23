@@ -444,6 +444,14 @@ public:
         backfill.isBackfillPhase.store(backfillPhase);
     }
 
+    bool isReceivingInitialDiskSnapshot() {
+        return receivingInitialDiskSnapshot.load();
+    }
+
+    void setReceivingInitialDiskSnapshot(bool receivingDiskSnapshot) {
+        receivingInitialDiskSnapshot.store(receivingDiskSnapshot);
+    }
+
     /**
      * Returns the map of bgfetch items for this vbucket, clearing the
      * pendingBGFetches.
@@ -1783,6 +1791,14 @@ private:
     mutable std::mutex snapshotMutex;
     uint64_t persisted_snapshot_start;
     uint64_t persisted_snapshot_end;
+
+    /*
+     * When a vbucket is in the middle of receiving the initial disk snapshot
+     * we do not want to accept stream requests (instead we return tmp fail).
+     * The reason for this is that if ns_server fails to see kv_engine
+     * receive the full disk snapshot, it deletes the vbucket files.
+     */
+    std::atomic<bool> receivingInitialDiskSnapshot;
 
     std::mutex bfMutex;
     std::unique_ptr<BloomFilter> bFilter;

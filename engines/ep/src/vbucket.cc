@@ -187,6 +187,7 @@ VBucket::VBucket(Vbid i,
       takeover_backed_up(false),
       persisted_snapshot_start(lastSnapStart),
       persisted_snapshot_end(lastSnapEnd),
+      receivingInitialDiskSnapshot(false),
       rollbackItemCount(0),
       hlc(maxCas,
           hlcEpochSeqno,
@@ -2161,6 +2162,7 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
                          rollbackResult.snapEndSeqno);
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
     checkpointManager->setOpenCheckpointId(1);
+    setReceivingInitialDiskSnapshot(false);
 }
 
 void VBucket::dump() const {

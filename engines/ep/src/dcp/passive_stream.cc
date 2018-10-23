@@ -682,6 +682,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                          cur_snapshot_end.load());
             } else {
                 // Treat initial disk snapshot like all others
+                vb->setReceivingInitialDiskSnapshot(true);
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load());
             }
@@ -715,6 +716,12 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
 void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end.load()) {
         auto& ckptMgr = *vb->checkpointManager;
+
+        if (!engine->getConfiguration().isDiskBackfillQueue() &&
+            cur_snapshot_type.load() == Snapshot::Disk) {
+            vb->setReceivingInitialDiskSnapshot(false);
+        }
+
         if (cur_snapshot_type.load() == Snapshot::Disk &&
             vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);

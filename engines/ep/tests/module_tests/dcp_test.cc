@@ -2792,14 +2792,64 @@ TEST_P(ConnectionTest, test_not_using_backfill_queue) {
     consumer->snapshotMarker(/*opaque*/ 1,
                              Vbid(0),
                              /*start_seqno*/ 0,
-                             /*end_seqno*/ 0,
+                             /*end_seqno*/ 1,
                              /*flags set to MARKER_FLAG_DISK*/ 0x2);
 
     // Should not be in backfill phase
     EXPECT_FALSE(engine->getKVBucket()->getVBucket(vbid)->isBackfillPhase());
+    EXPECT_TRUE(engine->getKVBucket()
+                        ->getVBucket(vbid)
+                        ->isReceivingInitialDiskSnapshot());
+
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*flags*/ 0);
+
+    /*
+     * StreamRequest should tmp fail due to the associated vbucket receiving
+     * a disk snapshot.
+     */
+    uint64_t rollbackSeqno = 0;
+    auto err = producer->streamRequest(/*flags*/ 0,
+                                       /*opaque*/ 0,
+                                       vbid,
+                                       /*start_seqno*/ 0,
+                                       /*end_seqno*/ 0,
+                                       /*vb_uuid*/ 0,
+                                       /*snap_start*/ 0,
+                                       /*snap_end*/ 0,
+                                       &rollbackSeqno,
+                                       fakeDcpAddFailoverLog,
+                                       {});
+
+    EXPECT_EQ(ENGINE_TMPFAIL, err);
 
     // Open checkpoint Id should not be effected.
     EXPECT_EQ(2, manager.getOpenCheckpointId());
+
+    /* Send a mutation */
+    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->mutation(/*opaque*/ 1,
+                                 docKey,
+                                 {}, // value
+                                 0, // priv bytes
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 1, // bySeqno
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    // Have received the mutation and so have snapshot end.
+    EXPECT_FALSE(engine->getKVBucket()
+                         ->getVBucket(vbid)
+                         ->isReceivingInitialDiskSnapshot());
 
     consumer->snapshotMarker(/*opaque*/ 1,
                              Vbid(0),
