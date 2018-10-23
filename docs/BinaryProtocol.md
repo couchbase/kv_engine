@@ -392,21 +392,21 @@ information about a given command.
 | 0x46 | TAP Checkout Start - TAP removed in 5.0                |
 | 0x47 | TAP Checkpoint End - TAP removed in 5.0                |
 | 0x48 | Get all vb seqnos |
-| 0x50 | Dcp Open |
-| 0x51 | Dcp add stream |
-| 0x52 | Dcp close stream |
-| 0x53 | Dcp stream req |
-| 0x54 | Dcp get failover log |
-| 0x55 | Dcp stream end |
-| 0x56 | Dcp snapshot marker |
-| 0x57 | Dcp mutation |
-| 0x58 | Dcp deletion |
-| 0x59 | Dcp expiration |
-| 0x5a | UNUSED (was Dcp flush) |
-| 0x5b | Dcp set vbucket state |
-| 0x5c | Dcp noop |
-| 0x5d | Dcp buffer acknowledgement |
-| 0x5e | Dcp control |
+| 0x50 | [Dcp Open](dcp/commands/open-connection.md) |
+| 0x51 | [Dcp add stream](dcp/commands/add-stream.md) |
+| 0x52 | [Dcp close stream](dcp/commands/close-stream.md) |
+| 0x53 | [Dcp stream req](dcp/commands/stream-request.md) |
+| 0x54 | [Dcp get failover log](dcp/commands/failover-log.md) |
+| 0x55 | [Dcp stream end](dcp/commands/stream-end.md) |
+| 0x56 | [Dcp snapshot marker](dcp/commands/snapshot-marker.md) |
+| 0x57 | [Dcp mutation](dcp/commands/mutation.md) |
+| 0x58 | [Dcp deletion](dcp/commands/deletion.md) |
+| 0x59 | [Dcp expiration](dcp/commands/expiration.md) |
+| 0x5a | [UNUSED (was Dcp flush)](dcp/commands/flush.md) |
+| 0x5b | [Dcp set vbucket state](dcp/commands/set-vbucket-state.md) |
+| 0x5c | [Dcp noop](dcp/commands/no-op.md) |
+| 0x5d | [Dcp buffer acknowledgement](dcp/commands/buffer-ack.md) |
+| 0x5e | [Dcp control](dcp/commands/control.md) |
 | 0x5f | Dcp reserved4 |
 | 0x80 | Stop persistence |
 | 0x81 | Start persistence |
