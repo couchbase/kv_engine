@@ -103,8 +103,8 @@ TEST_F(CollectionsVBFilterTest, validation1) {
 
     std::vector<std::string> inputs = {
             R"({"collections":["0"]})",
-            R"({"collections":["2"]})",
-            R"({"collections":["3", "4"]})"};
+            R"({"collections":["8"]})",
+            R"({"collections":["9", "a"]})"};
 
     for (const auto& s : inputs) {
         boost::optional<cb::const_char_buffer> json(s);
@@ -130,8 +130,8 @@ TEST_F(CollectionsVBFilterTest, validation2) {
 
     std::vector<std::string> inputs = {
             // wrong UID inputs
-            R"({"collections":["8"]})", // one unknown CID
-            R"({"collections":["4","22"]})" // one known, one unknown
+            R"({"collections":["e"]})", // one unknown CID
+            R"({"collections":["8","22"]})" // one known, one unknown
     };
 
     for (const auto& s : inputs) {
@@ -183,7 +183,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
-    std::string jsonFilter = R"({"collections":["0", "4", "3"]})";
+    std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
     Collections::VB::Filter f(json, vbm);
 
@@ -268,7 +268,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
-    std::string jsonFilter = R"({"collections":["0", "2", "3"]})";
+    std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     Collections::VB::Filter vbf(json, vbm);
@@ -391,7 +391,7 @@ TEST_F(CollectionsVBFilterTest, no_default) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
-    std::string jsonFilter = R"({"collections":["2", "3"]})";
+    std::string jsonFilter = R"({"collections":["8", "9"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     // Now filter!
@@ -442,7 +442,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
-    std::string jsonFilter = R"({"collections":["2", "3"]})";
+    std::string jsonFilter = R"({"collections":["8", "9"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     Collections::VB::Filter vbf(json, vbm);
@@ -498,7 +498,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     Collections::Manifest m(cm);
     vbm.wlock().update(vb, m);
 
-    std::string jsonFilter = R"({"collections":["0", "2"]})";
+    std::string jsonFilter = R"({"collections":["0", "8"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     Collections::VB::Filter vbf(json, vbm);
@@ -592,7 +592,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     vbm.wlock().update(vb, m);
 
     // only events for default and meat are allowed
-    std::string jsonFilter = R"({"collections":["0", "2"]})";
+    std::string jsonFilter = R"({"collections":["0", "8"]})";
     boost::optional<cb::const_char_buffer> json(jsonFilter);
 
     Collections::VB::Filter vbf(json, vbm);

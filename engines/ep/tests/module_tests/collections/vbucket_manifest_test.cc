@@ -859,7 +859,7 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
                       std::placeholders::_3),
             changes);
     EXPECT_FALSE(value.is_initialized());
-    changes.push_back(std::make_pair(0, 5));
+    changes.push_back(std::make_pair(0, 8));
     value = manifest.getActiveManifest().public_applyChanges(
             std::bind(&MockVBManifest::public_addCollection,
                       &manifest.getActiveManifest(),
@@ -870,11 +870,11 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
             changes);
     EXPECT_TRUE(value.is_initialized());
     EXPECT_EQ(0, value->first);
-    EXPECT_EQ(5, value->second);
+    EXPECT_EQ(8, value->second);
     EXPECT_TRUE(changes.empty());
 
-    changes.push_back(std::make_pair(0, 4));
-    changes.push_back(std::make_pair(0, 5));
+    changes.push_back(std::make_pair(0, 8));
+    changes.push_back(std::make_pair(0, 9));
     EXPECT_EQ(1, manifest.getActiveManifest().size());
     value = manifest.getActiveManifest().public_applyChanges(
             std::bind(&MockVBManifest::public_addCollection,
@@ -886,7 +886,7 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
             changes);
     EXPECT_TRUE(value.is_initialized());
     EXPECT_EQ(0, value->first);
-    EXPECT_EQ(5, value->second);
+    EXPECT_EQ(9, value->second);
     EXPECT_EQ(2, manifest.getActiveManifest().size());
 }
 

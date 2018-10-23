@@ -42,13 +42,13 @@ constexpr char dairy2[] = "dairy";
 
 // For building CollectionEntry we need a UID
 namespace CollectionUid {
-const CollectionID defaultC = 0;
-const CollectionID meat = 2;
-const CollectionID fruit = 3;
-const CollectionID vegetable = 4;
-const CollectionID vegetable2 = 5;
-const CollectionID dairy = 6;
-const CollectionID dairy2 = 7;
+const CollectionID defaultC = 0x0;
+const CollectionID meat = 0x8;
+const CollectionID fruit = 0x9;
+const CollectionID vegetable = 0xa;
+const CollectionID vegetable2 = 0xb;
+const CollectionID dairy = 0xc;
+const CollectionID dairy2 = 0xd;
 } // namespace CollectionUid
 
 namespace CollectionEntry {
@@ -88,7 +88,7 @@ constexpr char shop1[] = "supermarket";
 // For building ScopeEntry we need a UID
 namespace ScopeUid {
 const ScopeID defaultS = 0;
-const ScopeID shop1 = 2;
+const ScopeID shop1 = 8;
 } // namespace ScopeUid
 
 namespace ScopeEntry {

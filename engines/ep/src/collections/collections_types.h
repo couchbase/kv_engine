@@ -117,8 +117,8 @@ static inline CollectionID makeCollectionID(const std::string& uid) {
  * @return std::invalid_argument if uid is invalid
  */
 static inline ScopeID makeScopeID(const char* uid) {
-    // ScopeID currently follows the same rules as CollectionID
-    return makeCollectionID(uid);
+    // ScopeId is 8 characters max and smaller than a ManifestUid
+    return gsl::narrow_cast<ScopeID>(makeUid(uid, 8));
 }
 
 /**

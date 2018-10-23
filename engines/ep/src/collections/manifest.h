@@ -218,9 +218,9 @@ private:
     static bool validName(const std::string& name);
 
     /**
-     * Check if the identifier is valid
+     * Check if the CollectionID is invalid for a Manifest
      */
-    static bool validUid(CollectionID identifier);
+    static bool invalidCollectionID(CollectionID identifier);
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 

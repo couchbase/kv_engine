@@ -502,14 +502,14 @@ TEST_F(CollectionsDcpTest, MB_26455) {
             CollectionsManifest cm;
             vb->updateFromManifest({cm});
 
-            // add fruit (new generation)
-            vb->updateFromManifest(
-                    {cm.add(CollectionEntry::Entry{CollectionName::fruit, n})});
+            // add fruit (new generation), + 10 to use valid collection range
+            vb->updateFromManifest({cm.add(
+                    CollectionEntry::Entry{CollectionName::fruit, n + 10})});
 
             // Mutate fruit
             for (int ii = 0; ii < items; ii++) {
                 std::string key = "fruit:" + std::to_string(ii);
-                store_item(vbid, StoredDocKey{key, n}, "value");
+                store_item(vbid, StoredDocKey{key, n + 10}, "value");
             }
 
             // expect create_collection + items
@@ -532,8 +532,8 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     // Streamed from disk, one create (create of fruit) and items of fruit
     testDcpCreateDelete(1, 0, items, false /*fromMemory*/);
 
-    EXPECT_TRUE(
-            store->getVBucket(vbid)->lockCollections().isCollectionOpen(m - 1));
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+            (m - 1) + 10));
 }
 
 TEST_F(CollectionsDcpTest, collections_manifest_is_ahead) {
@@ -603,8 +603,8 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     CollectionsManifest cm;
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
-    // Setup filtered DCP for CID 6 (dairy)
-    createDcpObjects({{R"({"collections":["6"]})"}});
+    // Setup filtered DCP for CID 12/0xc (dairy)
+    createDcpObjects({{R"({"collections":["c"]})"}});
     notifyAndStepToCheckpoint();
 
     // SystemEvent createCollection
@@ -651,7 +651,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // In order to create a filter, a manifest needs to be set
     store->setCollections({cm});
 
-    createDcpObjects({{R"({"collections":["6"]})"}});
+    createDcpObjects({{R"({"collections":["c"]})"}});
 
     // Streamed from disk
     // 1x create - create of dairy
@@ -670,7 +670,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
     // Setup filtered DCP
-    createDcpObjects({{R"({"collections":["6"]})"}});
+    createDcpObjects({{R"({"collections":["c"]})"}});
 
     // Store collection documents
     store_item(vbid, StoredDocKey{"meat::one", CollectionEntry::meat}, "value");
@@ -744,7 +744,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     store->setCollections({cm.add(CollectionEntry::meat)});
 
     // Setup filtered DCP
-    createDcpObjects({{R"({"collections":["2"]})"}});
+    createDcpObjects({{R"({"collections":["8"]})"}});
 
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -808,7 +808,7 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
                                 0, // snap_end_seqno,
                                 &rollbackSeqno,
                                 &CollectionsDcpTest::dcpAddFailoverLog,
-                                {{R"({"collections":["2"]})"}});
+                                {{R"({"collections":["8"]})"}});
         FAIL() << "Expected an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,

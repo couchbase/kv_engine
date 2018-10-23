@@ -25,6 +25,12 @@ std::string CollectionID::to_string() const {
     return sstream.str();
 }
 
+std::string ScopeID::to_string() const {
+    std::stringstream sstream;
+    sstream << "0x" << std::hex << value;
+    return sstream.str();
+}
+
 CollectionID DocKey::getCollectionID() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         return cb::mcbp::decode_unsigned_leb128<CollectionIDType>(buffer).first;

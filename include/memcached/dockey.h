@@ -24,6 +24,7 @@
 #include <platform/socket.h>
 
 class CollectionIDNetworkOrder;
+class ScopeIDNetworkOrder;
 
 /**
  * DocNamespace "Document Namespace"
@@ -56,13 +57,25 @@ public:
         Default = 0,
 
         /// To weave system things into the users namespace, reserve 1
-        System = 1
+        System = 1,
+
+        /// Reserved for future use
+        Reserved2 = 2,
+        Reserved3 = 3,
+        Reserved4 = 4,
+        Reserved5 = 5,
+        Reserved6 = 6,
+        Reserved7 = 7
     };
 
     CollectionID() : value(Default) {
     }
 
     CollectionID(CollectionIDType value) : value(value) {
+        if (value > System && value <= Reserved7) {
+            throw std::invalid_argument("CollectionID: invalid value:" +
+                                        std::to_string(value));
+        }
     }
 
     operator uint32_t() const {
@@ -71,6 +84,10 @@ public:
 
     bool isDefaultCollection() const {
         return value == Default;
+    }
+
+    bool isSystem() const {
+        return value == System;
     }
 
     /// Get network byte order of the value
@@ -82,7 +99,48 @@ private:
     CollectionIDType value;
 };
 
-using ScopeID = CollectionID;
+using ScopeIDType = uint32_t;
+class ScopeID {
+public:
+    enum {
+        Default = 0,
+        // We reserve 1 to 7 for future use
+        Reserved1 = 1,
+        Reserved2 = 2,
+        Reserved3 = 3,
+        Reserved4 = 4,
+        Reserved5 = 5,
+        Reserved6 = 6,
+        Reserved7 = 7
+    };
+
+    ScopeID() : value(Default) {
+    }
+
+    ScopeID(ScopeIDType value) : value(value) {
+        if (value > Default && value <= Reserved7) {
+            throw std::invalid_argument("ScopeID: invalid value:" +
+                                        std::to_string(value));
+        }
+    }
+
+    operator uint32_t() const {
+        return value;
+    }
+
+    bool isDefaultScope() const {
+        return value == Default;
+    }
+
+    /// Get network byte order of the value
+    ScopeIDNetworkOrder to_network() const;
+
+    std::string to_string() const;
+
+private:
+    ScopeIDType value;
+};
+
 using ScopeCollectionPair = std::pair<ScopeID, CollectionID>;
 
 /**
@@ -102,12 +160,29 @@ private:
     CollectionIDType value;
 };
 
-using ScopeIDNetworkOrder = CollectionIDNetworkOrder;
+class ScopeIDNetworkOrder {
+public:
+    ScopeIDNetworkOrder(ScopeID v) : value(htonl(uint32_t(v))) {
+    }
+
+    ScopeID to_host() const {
+        return ScopeID(ntohl(value));
+    }
+
+private:
+    ScopeIDType value;
+};
 
 static_assert(sizeof(CollectionIDType) == 4,
               "CollectionIDNetworkOrder assumes 4-byte id");
 
+static_assert(sizeof(ScopeIDType) == 4, "ScopeIDType assumes 4-byte id");
+
 inline CollectionIDNetworkOrder CollectionID::to_network() const {
+    return {*this};
+}
+
+inline ScopeIDNetworkOrder ScopeID::to_network() const {
     return {*this};
 }
 
@@ -115,6 +190,13 @@ namespace std {
 template <>
 struct hash<CollectionID> {
     std::size_t operator()(const CollectionID& k) const {
+        return std::hash<uint32_t>()(k);
+    }
+};
+
+template <>
+struct hash<ScopeID> {
+    std::size_t operator()(const ScopeID& k) const {
         return std::hash<uint32_t>()(k);
     }
 };

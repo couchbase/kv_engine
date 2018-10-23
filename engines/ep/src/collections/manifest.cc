@@ -75,12 +75,8 @@ Manifest::Manifest(cb::const_char_buffer json,
                                         nameValue + " is not valid.");
         }
 
+        // Construction of ScopeID checks for invalid values
         ScopeID uidValue = makeScopeID(uid.get<std::string>());
-        if (!validUid(uidValue)) {
-            throw std::invalid_argument(
-                    "Manifest::Manifest scope uid: " + uidValue.to_string() +
-                    " is not valid.");
-        }
 
         if (this->scopes.count(uidValue) > 0) {
             throw std::invalid_argument(
@@ -118,8 +114,11 @@ Manifest::Manifest(cb::const_char_buffer json,
                         " is not valid");
             }
 
+            // The constructor of CollectionID checks for invalid values, but
+            // we need to check to ensure System (1) wasn't present in the
+            // Manifest
             CollectionID cuidValue = makeCollectionID(cuid.get<std::string>());
-            if (!validUid(cuidValue)) {
+            if (invalidCollectionID(cuidValue)) {
                 throw std::invalid_argument(
                         "Manifest::Manifest collection uid: " +
                         cuidValue.to_string() + " is not valid.");
@@ -132,8 +131,7 @@ Manifest::Manifest(cb::const_char_buffer json,
             }
 
             // The default collection must be within the default scope
-            if (cuidValue.isDefaultCollection() &&
-                !uidValue.isDefaultCollection()) {
+            if (cuidValue.isDefaultCollection() && !uidValue.isDefaultScope()) {
                 throw std::invalid_argument(
                         "Manifest::Manifest the default collection is"
                         " not in the default scope");
@@ -195,9 +193,9 @@ bool Manifest::validName(const std::string& name) {
     return true;
 }
 
-bool Manifest::validUid(CollectionID identifier) {
-    // We reserve system
-    return identifier != CollectionID::System;
+bool Manifest::invalidCollectionID(CollectionID identifier) {
+    // System cannot appear in a manifest
+    return identifier == CollectionID::System;
 }
 
 std::string Manifest::toJson() const {
