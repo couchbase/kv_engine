@@ -639,10 +639,12 @@ class MemcachedClient(object):
                 raise exceptions.RuntimeError("Collections are not enabled")
 
         if type(collection) == str:
+            # expect scope.collection for name API
             try:
                 collection = self.collection_map[collection]
             except KeyError, e:
                 print("Error: cannot map collection \"{}\" to an ID".format(collection))
+                print("name API expects \"scope.collection\" as the key")
                 raise e
 
         output = array.array('B', [0])
@@ -659,8 +661,11 @@ class MemcachedClient(object):
                 output[-1] = byte
         return output.tostring() + key
 
+    # Maintain a map of 'scope.collection' => 'collection-id'
     def _update_collection_map(self, manifest):
         self.collection_map = {}
         parsed = json.loads(manifest)
-        for e in parsed['collections']:
-            self.collection_map[e[u'name']] = int(e[u'uid'])
+        for scope in parsed['scopes']:
+            for collection in scope['collections']:
+                key = scope[u'name'] + "." + collection[u'name']
+                self.collection_map[key] = int(collection[u'uid'])
