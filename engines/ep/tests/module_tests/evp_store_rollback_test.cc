@@ -36,12 +36,11 @@
 
 #include <memcached/server_cookie_iface.h>
 
-class RollbackTest
-        : public EPBucketTest,
-          public ::testing::WithParamInterface<
-                  std::tuple<std::string, std::string, std::string>> {
+class RollbackTest : public EPBucketTest,
+                     public ::testing::WithParamInterface<
+                             std::tuple<std::string, std::string>> {
     void SetUp() override {
-        config_string += std::get<2>(GetParam());
+        config_string += "item_eviction_policy=" + std::get<0>(GetParam());
         EPBucketTest::SetUp();
         if (std::get<1>(GetParam()) == "pending") {
             vbStateAtRollback = vbucket_state_pending;
@@ -84,9 +83,9 @@ protected:
 
     /**
      * Test rollback after deleting an item.
-     * @param flush_before_rollback: Should the vbuckt be flushed to disk just
-     *        before the rollback (i.e. guaranteeing the in-memory state is in sync
-     *        with disk).
+     * @param flush_before_rollback: Should the vbucket be flushed to disk just
+     *        before the rollback (i.e. guaranteeing the in-memory state is in
+     *        sync with disk).
      */
     void rollback_after_deletion_test(bool flush_before_rollback) {
         // Setup: Store an item then flush the vBucket (creating a checkpoint);
@@ -109,9 +108,21 @@ protected:
             ASSERT_EQ(std::make_pair(false, size_t(1)),
                       getEPBucket().flushVBucket(vbid));
         }
+
         // Sanity-check - item should no longer exist.
-        EXPECT_EQ(ENGINE_KEY_ENOENT,
-                  store->get(a, vbid, nullptr, {}).getStatus());
+        // If we're in value_only or have not flushed in full_eviction then
+        // we don't need to do a bg fetch
+        if (std::get<0>(GetParam()) == "value_only" || !flush_before_rollback) {
+            EXPECT_EQ(ENGINE_KEY_ENOENT,
+                      store->get(a, vbid, nullptr, {}).getStatus());
+        } else {
+            EXPECT_EQ(ENGINE_EWOULDBLOCK,
+                      store->get(a, vbid, nullptr, QUEUE_BG_FETCH).getStatus());
+            // Manually run the bgfetch task.
+            runBGFetcherTask();
+            EXPECT_EQ(ENGINE_KEY_ENOENT,
+                      store->get(a, vbid, nullptr, QUEUE_BG_FETCH).getStatus());
+        }
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
         // of the item has been restored.
@@ -367,10 +378,9 @@ TEST_P(RollbackTest, RollbackOnActive) {
     EXPECT_EQ(TaskStatus::Abort, store->rollback(vbid, 0 /*rollbackReqSeqno*/));
 }
 
-class RollbackDcpTest
-        : public SingleThreadedEPBucketTest,
-          public ::testing::WithParamInterface<
-                  std::tuple<std::string, std::string, std::string>> {
+class RollbackDcpTest : public SingleThreadedEPBucketTest,
+                        public ::testing::WithParamInterface<
+                                std::tuple<std::string, std::string>> {
 public:
     // Mock implementation of dcp_message_producers which ... TODO
     class DcpProducers;
@@ -379,7 +389,7 @@ public:
     }
 
     void SetUp() override {
-        config_string += std::get<2>(GetParam());
+        config_string += "item_eviction_policy=" + std::get<0>(GetParam());
         SingleThreadedEPBucketTest::SetUp();
         if (std::get<1>(GetParam()) == "pending") {
             vbStateAtRollback = vbucket_state_pending;
@@ -751,27 +761,9 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     producer->cancelCheckpointCreatorTask();
 }
 
-static auto allConfigValues = ::testing::Values(
-        std::make_tuple(std::string("value_only"),
-                        std::string("replica"),
-                        std::string()),
-        std::make_tuple(std::string("full_eviction"),
-                        std::string("replica"),
-                        std::string()),
-        std::make_tuple(std::string("value_only"),
-                        std::string("pending"),
-                        std::string()),
-        std::make_tuple(std::string("full_eviction"),
-                        std::string("pending"),
-                        std::string()),
-        // Add a couple of extra collection enabled tests to cover the basic
-        // rollback
-        std::make_tuple(std::string("value_only"),
-                        std::string("replica"),
-                        std::string("collections_enabled=true")),
-        std::make_tuple(std::string("full_eviction"),
-                        std::string("replica"),
-                        std::string("collections_enabled=true")));
+auto allConfigValues =
+        ::testing::Combine(::testing::Values("value_only", "full_eviction"),
+                           ::testing::Values("replica", "pending"));
 
 // Test cases which run in both Full and Value eviction on replica and pending
 // vbucket states
