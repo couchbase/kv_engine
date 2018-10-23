@@ -65,7 +65,8 @@ bool UserEntry::operator==(const UserEntry& other) const {
 
 UserEntry::UserEntry(const std::string& username,
                      const nlohmann::json& json,
-                     Domain expectedDomain) {
+                     Domain expectedDomain)
+    : timestamp(std::chrono::steady_clock::now()) {
     // All system internal users is prefixed with @
     internal = username.front() == '@';
 
@@ -186,7 +187,9 @@ std::unique_ptr<PrivilegeDatabase> PrivilegeDatabase::updateUser(
     // Check if they differ
     auto iter = userdb.find(user);
     if (iter != userdb.end() && entry == iter->second) {
-        // This is the same entry I've got.. no need to do anything
+        // This is the same entry I've got.. no need to do anything, just
+        // make sure that we timestamp it
+        iter->second.setTimestamp(std::chrono::steady_clock::now());
         return std::unique_ptr<PrivilegeDatabase>{};
     }
 
@@ -412,6 +415,18 @@ nlohmann::json to_json(Domain domain) {
     auto& ctx = contexts[to_index(domain)];
     std::lock_guard<cb::ReaderLock> guard(ctx.rwlock.reader());
     return ctx.db->to_json(domain);
+}
+
+boost::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
+        const std::string& user) {
+    auto& ctx = contexts[to_index(Domain::External)];
+    std::lock_guard<cb::WriterLock> guard(ctx.rwlock.reader());
+    try {
+        auto ue = ctx.db->lookup(user);
+        return {ue.getTimestamp()};
+    } catch (const NoSuchUserException&) {
+        return {};
+    }
 }
 
 } // namespace rbac

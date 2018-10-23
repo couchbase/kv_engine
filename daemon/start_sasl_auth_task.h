@@ -41,10 +41,7 @@ public:
     void externalAuthResponse(cb::mcbp::Status status,
                               const std::string& payload);
 
-    /**
-     * Do we just need to perform authentication
-     */
-    bool onlyRequestExternalAuthentication();
+    std::string getUsername() const;
 
 protected:
     Status internal_auth();

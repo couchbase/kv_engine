@@ -35,12 +35,14 @@ std::unique_ptr<ExternalAuthManagerThread> externalAuthManager;
  */
 class AuthenticationRequestServerEvent : public ServerEvent {
 public:
-    AuthenticationRequestServerEvent(uint32_t id, StartSaslAuthTask& req)
+    AuthenticationRequestServerEvent(uint32_t id,
+                                     StartSaslAuthTask& req,
+                                     bool authenticateOnly)
         : id(id) {
         nlohmann::json json;
         json["mechanism"] = req.getMechanism();
         json["challenge"] = cb::base64::encode(req.getChallenge(), false);
-        json["authentication-only"] = req.onlyRequestExternalAuthentication();
+        json["authentication-only"] = authenticateOnly;
         payload = json.dump();
     }
 
@@ -84,7 +86,7 @@ protected:
  */
 class ActiveExternalUsersServerEvent : public ServerEvent {
 public:
-    ActiveExternalUsersServerEvent(std::string payload)
+    explicit ActiveExternalUsersServerEvent(std::string payload)
         : payload(std::move(payload)) {
     }
 
@@ -274,9 +276,16 @@ void ExternalAuthManagerThread::processRequestQueue() {
     // the provider, so that I don't need to block the provider for a long
     // period of time.
     std::vector<std::unique_ptr<AuthenticationRequestServerEvent>> events;
+    // Just authenticate if we've got an entry which is newer than 2x of the
+    // push interval
+    const auto now = std::chrono::steady_clock::now() -
+                     2 * activeUsersPushInterval.load();
     while (!incomingRequests.empty()) {
+        const auto timestamp = cb::rbac::getExternalUserTimestamp(
+                incomingRequests.front()->getUsername());
+        const bool authenticate = (timestamp && (timestamp.get() > now));
         events.emplace_back(std::make_unique<AuthenticationRequestServerEvent>(
-                next, *incomingRequests.front()));
+                next, *incomingRequests.front(), authenticate));
         requestMap[next++] = std::make_pair(provider, incomingRequests.front());
         incomingRequests.pop();
     }

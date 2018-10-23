@@ -21,10 +21,12 @@
  * by the memcached core. For more information see rbac.md in the
  * docs directory.
  */
+#include <boost/optional.hpp>
 #include <cbsasl/domain.h>
 #include <memcached/rbac/privileges.h>
 #include <nlohmann/json_fwd.hpp>
 #include <bitset>
+#include <chrono>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -97,6 +99,29 @@ public:
 
     nlohmann::json to_json(Domain domain) const;
 
+    /**
+     * Get the timestamp for the last time we updated the user entry
+     */
+    std::chrono::steady_clock::time_point getTimestamp() const {
+        return timestamp;
+    }
+
+    /**
+     * Set the timestamp for the user. It looks a bit weird that this method
+     * is const and that the timestamp is marked mutable, but it has a reason.
+     * The user database is using a copy on write schema, so we don't want
+     * to update any entries in here. As part of moving LDAP authentication and
+     * authorization to ns_server it push the external users at a fixed rate.
+     * We don't want to copy the entire user database just to update the
+     * timestamp. The timestamp is needed as ns_server wants to not have
+     * to return the RBAC data as part of each authentication request. We
+     * need to know that the entry is fresh (and not 1 month old) when we try
+     * to log in.
+     */
+    void setTimestamp(std::chrono::steady_clock::time_point ts) const {
+        timestamp = ts;
+    }
+
 protected:
     /**
      * Parse a JSON array containing a set of privileges.
@@ -110,7 +135,7 @@ protected:
     PrivilegeMask parsePrivileges(const nlohmann::json& privs, bool buckets);
 
     std::vector<std::string> mask2string(const PrivilegeMask& mask) const;
-
+    mutable std::chrono::steady_clock::time_point timestamp;
     std::unordered_map<std::string, PrivilegeMask> buckets;
     PrivilegeMask privileges;
     bool internal;
@@ -386,6 +411,15 @@ void initialize();
  * Destroy the RBAC module
  */
 void destroy();
+
+/**
+ * Get the modification timestamp for an external user (if found)
+ *
+ * @param user the name of the user to search for
+ * @return The modification timestamp for the user if found
+ */
+boost::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
+        const std::string& user);
 
 /**
  * Dump the user database to JSON

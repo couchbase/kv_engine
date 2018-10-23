@@ -89,14 +89,8 @@ Task::Status StartSaslAuthTask::external_auth() {
     return Status::Finished;
 }
 
-bool StartSaslAuthTask::onlyRequestExternalAuthentication() {
-    try {
-        cb::rbac::createInitialContext(serverContext.getUsername(),
-                                       cb::rbac::Domain::External);
-        return true;
-    } catch (const std::exception&) {
-        return false;
-    }
+std::string StartSaslAuthTask::getUsername() const {
+    return connection.getSaslConn().getUsername();
 }
 
 void StartSaslAuthTask::externalAuthResponse(cb::mcbp::Status status,
