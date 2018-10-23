@@ -612,10 +612,6 @@ bool Connection::updateEvent(const short new_flags) {
     return true;
 }
 
-bool Connection::reapplyEventmask() {
-    return updateEvent(ev_flags);
-}
-
 bool Connection::initializeEvent() {
     short event_flags = (EV_READ | EV_PERSIST);
 
