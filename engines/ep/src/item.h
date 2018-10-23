@@ -348,7 +348,7 @@ public:
     }
 
     // Returns the cause of the item's deletion (Explicit or TTL [aka expiry])
-    DeleteSource deletionSource() {
+    DeleteSource deletionSource() const {
         if (!isDeleted()) {
             throw std::logic_error(
                     "Item::deletionSource cannot be called on "

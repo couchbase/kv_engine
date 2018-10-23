@@ -249,6 +249,7 @@ CouchRequest::CouchRequest(const Item& it,
 
     if (del) {
         dbDocInfo.deleted =  1;
+        meta.setDeleteSource(it.deletionSource());
     } else {
         dbDocInfo.deleted = 0;
     }
@@ -794,6 +795,7 @@ static int notify_expired_item(DocInfo& info,
             info.rev_seq);
 
     it.setRevSeqno(info.rev_seq);
+    it.setDeleted(DeleteSource::TTL);
     ctx.expiryCallback->callback(it, currtime);
 
     return COUCHSTORE_SUCCESS;
@@ -1687,7 +1689,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
         it->setRevSeqno(docinfo->rev_seq);
 
         if (docinfo->deleted) {
-            it->setDeleted();
+            it->setDeleted(metadata->getDeleteSource());
         }
         docValue = GetValue(std::move(it));
         // update ep-engine IO stats
@@ -1744,7 +1746,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                     docinfo->rev_seq);
 
              if (docinfo->deleted) {
-                 it->setDeleted();
+                 it->setDeleted(metadata->getDeleteSource());
              }
              docValue = GetValue(std::move(it));
         } catch (std::bad_alloc&) {
@@ -1865,7 +1867,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
             docinfo->rev_seq);
 
     if (docinfo->deleted) {
-        it->setDeleted();
+        it->setDeleted(metadata->getDeleteSource());
     }
 
     bool onlyKeys = (sctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;

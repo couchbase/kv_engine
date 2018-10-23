@@ -24,6 +24,10 @@
 #include <memcached/protocol_binary.h>
 #include "item.h"
 
+// Bitwise masks for manipulating the flexCode variable inside MetaDataV1
+const uint8_t flexCodeMask = 0x7F;
+const uint8_t deleteSourceMask = 0x80;
+
 class MetaData {
 protected:
     /*
@@ -120,7 +124,7 @@ static_assert(sizeof(MetaDataV0) == 16,
             flexCode = raw[0];
             dataType = raw[1];
 
-            if (flexCode != FLEX_META_CODE) {
+            if (getFlexCode() != FLEX_META_CODE) {
                 std::invalid_argument("MetaDataV1::initialise illegal "
                                       "flexCode \"" + std::to_string(flexCode) +
                                       "\"");
@@ -132,11 +136,12 @@ static_assert(sizeof(MetaDataV0) == 16,
         }
 
         void setFlexCode(uint8_t code) {
-            flexCode = code;
+            auto codeIn = code & flexCodeMask;
+            flexCode = codeIn + (flexCode & deleteSourceMask);
         }
 
         uint8_t getFlexCode() const {
-            return flexCode;
+            return static_cast<uint8_t>(flexCode & flexCodeMask);
         }
 
         void setDataType(protocol_binary_datatype_t dataType) {
@@ -152,10 +157,20 @@ static_assert(sizeof(MetaDataV0) == 16,
             raw[1] = dataType;
         }
 
+        void setDeleteSource(DeleteSource source) {
+            auto deleteInt = (static_cast<uint8_t>(source)) << 7;
+            flexCode = deleteInt + (flexCode & flexCodeMask);
+        }
+
+        DeleteSource getDeleteSource() const {
+            auto deleteBit = flexCode >> 7;
+            return static_cast<DeleteSource>(deleteBit);
+        }
+
     private:
         /*
          * V1 is a 2 byte extension storing datatype
-         *   0 - flexCode
+         *   0 - flexCode (which also holds deleteSource in bit 7)
          *   1 - dataType
          */
         uint8_t flexCode;
@@ -294,6 +309,14 @@ public:
 
     uint8_t getFlexCode() const {
         return allMeta.v1.getFlexCode();
+    }
+
+    void setDeleteSource(DeleteSource source) {
+        allMeta.v1.setDeleteSource(source);
+    }
+
+    DeleteSource getDeleteSource() const {
+        return allMeta.v1.getDeleteSource();
     }
 
     /*
