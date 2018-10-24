@@ -35,19 +35,19 @@
  */
 class TimingHistogram {
 public:
-    TimingHistogram(void);
+    TimingHistogram();
     TimingHistogram(const TimingHistogram &other);
     TimingHistogram& operator=(const TimingHistogram &other);
     TimingHistogram& operator+=(const TimingHistogram& other);
 
-    void reset(void);
-    void add(const std::chrono::nanoseconds nsec);
-    std::string to_string(void);
+    void reset();
+    void add(std::chrono::nanoseconds nsec);
+    std::string to_string();
     uint32_t get_ns();
-    uint32_t get_usec(const uint8_t index);
-    uint32_t get_msec(const uint8_t index);
-    uint32_t get_halfsec(const uint8_t index);
-    uint32_t get_wayout(const uint8_t index);
+    uint32_t get_usec(uint8_t index);
+    uint32_t get_msec(uint8_t index);
+    uint32_t get_halfsec(uint8_t index);
+    uint32_t get_wayout(uint8_t index);
     uint64_t get_total();
 
     uint32_t aggregate_wayout();

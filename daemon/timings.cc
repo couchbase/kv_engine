@@ -30,9 +30,9 @@ Timings& Timings::operator=(const Timings& other) {
     return *this;
 }
 
-void Timings::reset(void) {
-    for (int ii = 0; ii < MAX_NUM_OPCODES; ++ii) {
-        timings[ii].reset();
+void Timings::reset() {
+    for (auto& t : timings) {
+        t.reset();
     }
 
     {
@@ -42,15 +42,14 @@ void Timings::reset(void) {
     }
 }
 
-void Timings::collect(const uint8_t opcode,
-                      const std::chrono::nanoseconds nsec) {
+void Timings::collect(uint8_t opcode, std::chrono::nanoseconds nsec) {
     timings[opcode].add(nsec);
     auto& interval = interval_counters[opcode];
     interval.count++;
     interval.duration_ns += nsec.count();
 }
 
-std::string Timings::generate(const uint8_t opcode) {
+std::string Timings::generate(uint8_t opcode) {
     return timings[opcode].to_string();
 }
 

@@ -31,14 +31,14 @@
  */
 class Timings {
 public:
-    Timings(void);
+    Timings();
     Timings& operator=(const Timings& other);
     Timings(const Timings&) = delete;
 
-    void reset(void);
-    void collect(const uint8_t opcode, const std::chrono::nanoseconds nsec);
+    void reset();
+    void collect(uint8_t opcode, std::chrono::nanoseconds nsec);
     void sample(std::chrono::seconds sample_interval);
-    std::string generate(const uint8_t opcode);
+    std::string generate(uint8_t opcode);
     uint64_t get_aggregated_mutation_stats();
     uint64_t get_aggregated_retrival_stats();
 

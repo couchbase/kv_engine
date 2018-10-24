@@ -90,7 +90,7 @@ TimingHistogram& TimingHistogram::operator+=(const TimingHistogram& other) {
     return *this;
 }
 
-void TimingHistogram::reset(void) {
+void TimingHistogram::reset() {
     ns = 0;
     for (auto& us : usec) {
         us.reset();
@@ -107,7 +107,7 @@ void TimingHistogram::reset(void) {
     total.reset();
 }
 
-void TimingHistogram::add(const std::chrono::nanoseconds nsec) {
+void TimingHistogram::add(std::chrono::nanoseconds nsec) {
     using namespace std::chrono;
     using halfseconds = duration<long long, std::ratio<1, 2>>;
 
@@ -141,7 +141,7 @@ void TimingHistogram::add(const std::chrono::nanoseconds nsec) {
     total++;
 }
 
-std::string TimingHistogram::to_string(void) {
+std::string TimingHistogram::to_string() {
     unique_cJSON_ptr json(cJSON_CreateObject());
     cJSON* root = json.get();
 
@@ -191,19 +191,19 @@ uint32_t TimingHistogram::get_ns() {
     return ns;
 }
 
-uint32_t TimingHistogram::get_usec(const uint8_t index) {
+uint32_t TimingHistogram::get_usec(uint8_t index) {
     return usec[index];
 }
 
-uint32_t TimingHistogram::get_msec(const uint8_t index) {
+uint32_t TimingHistogram::get_msec(uint8_t index) {
     return msec[index];
 }
 
-uint32_t TimingHistogram::get_halfsec(const uint8_t index) {
+uint32_t TimingHistogram::get_halfsec(uint8_t index) {
     return halfsec[index];
 }
 
-uint32_t TimingHistogram::get_wayout(const uint8_t index) {
+uint32_t TimingHistogram::get_wayout(uint8_t index) {
     return wayout[index];
 }
 
