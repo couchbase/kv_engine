@@ -993,31 +993,43 @@ public:
             throw std::logic_error(
                     "EPDiskRollbackCB::callback: dbHandle is NULL");
         }
-        UniqueItemPtr itm(std::move(val.item));
-        VBucketPtr vb = engine.getVBucket(itm->getVBucketId());
-        GetValue gcb = engine.getKVBucket()
-                               ->getROUnderlying(itm->getVBucketId())
-                               ->getWithHeader(dbHandle,
-                                               itm->getKey(),
-                                               itm->getVBucketId(),
-                                               GetMetaOnly::No);
-        if (gcb.getStatus() == ENGINE_SUCCESS) {
-            UniqueItemPtr it(std::move(gcb.item));
-            if (it->isDeleted()) {
-                removeDeletedDoc(*vb, it->getKey());
+        // This is the item in its current state, after the rollback seqno
+        // (i.e. the state that we are reverting)
+        UniqueItemPtr postRbSeqnoItem(std::move(val.item));
+        VBucketPtr vb = engine.getVBucket(postRbSeqnoItem->getVBucketId());
+
+        // The get value of the item before the rollback seqno
+        GetValue preRbSeqnoGetValue =
+                engine.getKVBucket()
+                        ->getROUnderlying(postRbSeqnoItem->getVBucketId())
+                        ->getWithHeader(dbHandle,
+                                        postRbSeqnoItem->getKey(),
+                                        postRbSeqnoItem->getVBucketId(),
+                                        GetMetaOnly::No);
+        if (preRbSeqnoGetValue.getStatus() == ENGINE_SUCCESS) {
+            // This is the item in the state it was before the rollback seqno
+            // (i.e. the desired state)
+            UniqueItemPtr preRbSeqnoItem(std::move(preRbSeqnoGetValue.item));
+            if (preRbSeqnoItem->isDeleted()) {
+                // If the item existed before, but had been deleted, we
+                // should delete it now
+                removeDeletedDoc(*vb, postRbSeqnoItem->getKey());
             } else {
-                MutationStatus mtype = vb->setFromInternal(*it);
+                // The item existed before and was not deleted, we need to
+                // revert the items state to the preRollbackSeqno state
+                MutationStatus mtype = vb->setFromInternal(*preRbSeqnoItem);
 
                 if (mtype == MutationStatus::NoMem) {
                     setStatus(ENGINE_ENOMEM);
                 }
             }
-        } else if (gcb.getStatus() == ENGINE_KEY_ENOENT) {
-            removeDeletedDoc(*vb, itm->getKey());
+        } else if (preRbSeqnoGetValue.getStatus() == ENGINE_KEY_ENOENT) {
+            // If the item did not exist before we should delete it now
+            removeDeletedDoc(*vb, postRbSeqnoItem->getKey());
         } else {
             EP_LOG_WARN(
                     "EPDiskRollbackCB::callback:Unexpected Error Status: {}",
-                    gcb.getStatus());
+                    preRbSeqnoGetValue.getStatus());
         }
     }
 
