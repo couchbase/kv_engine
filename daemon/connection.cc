@@ -229,8 +229,6 @@ nlohmann::json Connection::toJSON() const {
     ret["temp_alloc_list"] = talloc;
 
     /* @todo we should decode the binary header */
-    ret["aiostat"] = aiostat;
-    ret["ewouldblock"] = ewouldblock;
     ret["ssl"] = ssl.toJSON();
     ret["total_recv"] = totalRecv;
     ret["total_send"] = totalSend;
@@ -1470,7 +1468,16 @@ void Connection::propagateDisconnect() const {
 }
 
 void Connection::signalIfIdle(bool logbusy, size_t workerthread) {
-    if (!isEwouldblock() && stateMachine.isIdleState()) {
+    bool ewb = false;
+
+    for (const auto& c : cookies) {
+        if (c->isEwouldblock()) {
+            ewb = true;
+            break;
+        }
+    }
+
+    if (!ewb && stateMachine.isIdleState()) {
         // Raise a 'fake' write event to ensure the connection has an
         // event delivered (for example if its sendQ is full).
         if (!registered_in_libevent) {

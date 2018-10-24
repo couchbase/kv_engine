@@ -722,28 +722,12 @@ public:
         Connection::supports_mutation_extras = supports_mutation_extras;
     }
 
-    const ENGINE_ERROR_CODE& getAiostat() const {
-        return aiostat;
-    }
-
-    void setAiostat(const ENGINE_ERROR_CODE& aiostat) {
-        Connection::aiostat = aiostat;
-    }
-
     bool isTracingEnabled() const {
         return tracingEnabled;
     }
 
     void setTracingEnabled(bool enable) {
         tracingEnabled = enable;
-    }
-
-    bool isEwouldblock() const {
-        return ewouldblock;
-    }
-
-    void setEwouldblock(bool ewouldblock) {
-        Connection::ewouldblock = ewouldblock;
     }
 
     /**
@@ -1235,16 +1219,6 @@ protected:
      * mutation.
      */
     bool supports_mutation_extras = false;
-
-    /**
-     * The status for the async io operation
-     */
-    ENGINE_ERROR_CODE aiostat = ENGINE_SUCCESS;
-
-    /**
-     * Is this connection currently in an "ewouldblock" state?
-     */
-    bool ewouldblock = false;
 
     /**
      * The SSL context used by this connection (if enabled)

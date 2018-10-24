@@ -57,7 +57,8 @@ nlohmann::json Cookie::toJSON() const {
     }
 
     ret["connection"] = connection.getDescription();
-
+    ret["ewouldblock"] = ewouldblock;
+    ret["aiostat"] = to_string(cb::engine_errc(aiostat));
     return ret;
 }
 
@@ -220,15 +221,11 @@ ENGINE_ERROR_CODE Cookie::swapAiostat(ENGINE_ERROR_CODE value) {
 }
 
 ENGINE_ERROR_CODE Cookie::getAiostat() const {
-    return connection.getAiostat();
+    return aiostat;
 }
 
 void Cookie::setAiostat(ENGINE_ERROR_CODE aiostat) {
-    connection.setAiostat(aiostat);
-}
-
-bool Cookie::isEwouldblock() const {
-    return connection.isEwouldblock();
+    Cookie::aiostat = aiostat;
 }
 
 void Cookie::setEwouldblock(bool ewouldblock) {
@@ -236,7 +233,7 @@ void Cookie::setEwouldblock(bool ewouldblock) {
         setAiostat(ENGINE_EWOULDBLOCK);
     }
 
-    connection.setEwouldblock(ewouldblock);
+    Cookie::ewouldblock = ewouldblock;
 }
 
 void Cookie::sendDynamicBuffer() {
@@ -523,6 +520,7 @@ void Cookie::initialize(cb::const_byte_buffer header, bool tracing_enabled) {
     setCas(0);
     start = std::chrono::steady_clock::now();
     tracer.begin(cb::tracing::TraceCode::REQUEST, start);
+    ewouldblock = false;
 }
 
 void Cookie::reset() {
@@ -534,4 +532,5 @@ void Cookie::reset() {
     commandContext.reset();
     dynamicBuffer.clear();
     tracer.clear();
+    ewouldblock = false;
 }

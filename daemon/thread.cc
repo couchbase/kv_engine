@@ -298,13 +298,15 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
             c->registerEvent();
         }
 
+        // @todo we need to refactor this so we keep the _cookies_ and not
+        //       the connections
+        c->getCookieObject().setAiostat(status);
+        c->getCookieObject().setEwouldblock(false);
         /*
          * We don't want the thread to keep on serving all of the data
          * from the context of the notification pipe, so just let it
          * run one time to set up the correct mask in libevent
          */
-        c->setAiostat(status);
-        c->setEwouldblock(false);
         c->setNumEvents(1);
         run_event_loop(c, EV_READ | EV_WRITE);
     }

@@ -318,7 +318,9 @@ public:
     /**
      * Is the current cookie blocked?
      */
-    bool isEwouldblock() const;
+    bool isEwouldblock() const {
+        return ewouldblock;
+    }
 
     /**
      * Set the ewouldblock status for the cookie
@@ -506,4 +508,11 @@ protected:
      * @param reason the text to log
      */
     void logResponse(const char* reason) const;
+
+    /**
+     * The status for the async io operation
+     */
+    ENGINE_ERROR_CODE aiostat = ENGINE_SUCCESS;
+
+    bool ewouldblock = false;
 };
