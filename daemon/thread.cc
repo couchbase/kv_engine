@@ -366,7 +366,7 @@ static int last_thread = -1;
  * Dispatches a new connection to another thread. This is only ever called
  * from the main thread, or because of an incoming connection.
  */
-void dispatch_conn_new(SOCKET sfd, int parent_port) {
+void dispatch_conn_new(SOCKET sfd, in_port_t parent_port) {
     size_t tid = (last_thread + 1) % settings.getNumWorkerThreads();
     auto& thread = threads[tid];
     last_thread = gsl::narrow<int>(tid);
