@@ -1340,6 +1340,15 @@ void enable_shutdown(void) {
     shutdown_cv.notify_all();
 }
 
+Cookie& getCookie(gsl::not_null<const void*> void_cookie) {
+    auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie.get());
+    return *const_cast<Cookie*>(ccookie);
+}
+
+Cookie& getCookie(gsl::not_null<void*> void_cookie) {
+    return *reinterpret_cast<Cookie*>(void_cookie.get());
+}
+
 struct ServerCoreApi : public ServerCoreIface {
     rel_time_t get_current_time() override {
         return mc_time_get_current_time();
@@ -1493,33 +1502,29 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     ENGINE_ERROR_CODE release(gsl::not_null<const void*> void_cookie) override {
-        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-        auto* c = &cookie->getConnection();
+        auto& cookie = getCookie(void_cookie);
+        auto& connection = cookie.getConnection();
         int notify;
-        FrontEndThread* thr;
+        auto* thr = connection.getThread();
 
-        thr = c->getThread();
-        cb_assert(thr);
-
-        {
+        if (thr == nullptr) {
+            throw std::runtime_error(
+                    R"(ServerCookieApi::release: connection is not bound to a thread)");
+        } else {
             TRACE_LOCKGUARD_TIMED(thr->mutex,
                                   "mutex",
                                   "release_cookie::threadLock",
                                   SlowMutexThreshold);
 
-            c->decrementRefcount();
-
-            /* Releasing the refererence to the object may cause it to change
-             * state. (NOTE: the release call shall never be called from the
-             * worker threads), so should put the connection in the pool of
-             * pending IO and have the system retry the operation for the
-             * connection
-             */
-            notify = add_conn_to_pending_io_list(c, ENGINE_SUCCESS);
+            // Releasing the reference to the object may cause it to change
+            // state. (NOTE: the release call shall never be called from the
+            // worker threads), so put the connection in the pool of pending
+            // IO and have the system retry the operation for the connection
+            connection.decrementRefcount();
+            notify = add_conn_to_pending_io_list(&connection, ENGINE_SUCCESS);
         }
 
-        /* kick the thread in the butt */
+        // kick the thread in the butt
         if (notify) {
             notify_thread(*thr);
         }
