@@ -18,12 +18,14 @@ Valid Keys:
 * "set_priority" - Sets the priority that the connection should have when sending data. The priority may be set to "high", "medium", or "low". High priority connections will send messages at a higher rate than medium and low priority connections. This parameter is availale starting in Couchbase 4.0.
 
 * "enable_ext_metadata" - Enables sending extended meta data. This meta data is mainly used for internal server processes and will vary between different releases of Couchbase. See the documentation on [extended meta data](extended_meta/ext_meta_ver1.md) for more information on what will be sent. Each version of Couchbase will support a specific version of extended meta data. This parameter is available stating in Couchbase 4.0.
- 
+
 * "force_value_compression" - Compresses values using snappy compression before sending them. Clients need to negotiate for snappy using HELO as a prerequisite to using this parameter. This will be available from version 5.5 onwards.
 
 * "supports_cursor_dropping" - Tells the server that the client can tolerate the server dropping the connection. The server will only do this if the client cannot read data from the stream fast enough and it is highly recommended to be used in all situations. We only support disabling cursor dropping for backwards compatibility. This parameter is available starting in Couchbase 4.5.
 
 * "send_stream_end_on_client_close_stream" - Tells the server (DCP Producer) that the client expects "STREAM_END" msg when the client initiates the stream close. The value for this message should be set to 'true' if the client expects "STREAM_END", else the msg need not be sent (default is 'false'). That is, if the DCP client sends this control message during the connection set up, only then the producer sends the "STREAM_END" message for stream close initiated by the client. For all other causes of stream close, server by default sends the "STREAM_END" message when it closes the stream (say due to all items being streamed or due to an error condition). This is available only from Couchbase 5.5 and the older versions do not recognize the ctrl message and return error "EINVAL", thereby helping the clients to identify whether the server has this feature or not.
+
+* "enable_expiry_opcode" - Tells the server that the client would like to receive expiry opcodes when an item is expired. The value of this should be set to 'true' for this control to occur, and 'false' will turn them off which is also its default state. Note by setting this to true, the delete time is required inside the expiration packets so delete times (and therefore delete_v2) is implicitly enabled. This option is available in versions from Couchbase 6.5.
 
 The following example shows the breakdown of the message:
 
