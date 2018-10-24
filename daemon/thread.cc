@@ -332,8 +332,6 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     }
 }
 
-extern volatile rel_time_t current_time;
-
 void notify_io_complete(gsl::not_null<const void*> void_cookie,
                         ENGINE_ERROR_CODE status) {
     auto* ccookie = reinterpret_cast<const Cookie*>(void_cookie.get());
