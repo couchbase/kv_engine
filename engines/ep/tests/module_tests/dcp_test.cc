@@ -2004,7 +2004,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
     producer->setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
     EXPECT_EQ(ENGINE_SUCCESS, ret)
-    << "maybeSendNoop not returning ENGINE_WANT_MORE";
+            << "maybeSendNoop not returning ENGINE_SUCCESS";
     EXPECT_TRUE(producer->getNoopPendingRecv())
             << "Not waiting for noop acknowledgement";
     EXPECT_NE(send_time, producer->getNoopSendTime())
@@ -2027,9 +2027,9 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     producer->setNoopEnabled(true);
     producer->setNoopSendTime(send_time);
     ENGINE_ERROR_CODE ret = producer->maybeSendNoop(&producers);
-    // Check to see if a noop was sent i.e. returned ENGINE_WANT_MORE
+    // Check to see if a noop was sent i.e. returned ENGINE_SUCCESS
     EXPECT_EQ(ENGINE_SUCCESS, ret)
-            << "maybeSendNoop not returning ENGINE_WANT_MORE";
+            << "maybeSendNoop not returning ENGINE_SUCCESS";
     EXPECT_TRUE(producer->getNoopPendingRecv())
             << "Not awaiting noop acknowledgement";
     EXPECT_NE(send_time, producer->getNoopSendTime())

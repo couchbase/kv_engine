@@ -25,7 +25,6 @@
 #include "mcaudit.h"
 #include "memcached.h"
 #include "protocol/mcbp/engine_wrapper.h"
-#include "protocol/mcbp/ship_dcp_log.h"
 #include "runtime.h"
 #include "server_event.h"
 #include "settings.h"
@@ -48,6 +47,15 @@
 #ifndef WIN32
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
+
+static ENGINE_ERROR_CODE dcp_message_system_event(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        mcbp::systemevent::id event,
+        uint64_t bySeqno,
+        cb::const_byte_buffer key,
+        cb::const_byte_buffer eventData);
 
 std::string to_string(Connection::Priority priority) {
     switch (priority) {
@@ -2009,13 +2017,14 @@ ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
     return ret;
 }
 
-ENGINE_ERROR_CODE dcp_message_system_event(gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           Vbid vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) {
+static ENGINE_ERROR_CODE dcp_message_system_event(
+        gsl::not_null<const void*> cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        mcbp::systemevent::id event,
+        uint64_t bySeqno,
+        cb::const_byte_buffer key,
+        cb::const_byte_buffer eventData) {
     auto& c = (*reinterpret_cast<const Cookie*>(cookie.get())).getConnection();
     protocol_binary_request_dcp_system_event packet(
             opaque,

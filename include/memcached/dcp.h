@@ -38,10 +38,6 @@ enum class id : uint32_t;
  * to add messages into the DCP stream.  Please look at the full
  * DCP documentation to figure out the real meaning for all of the
  * messages.
- *
- * The DCP client is free to call this functions multiple times
- * to add more messages into the pipeline as long as the producer
- * returns ENGINE_WANT_MORE.
  */
 struct dcp_message_producers {
     virtual ~dcp_message_producers() = default;
@@ -94,7 +90,7 @@ struct dcp_message_producers {
      *               in the Stream Request message
      * @param vbucket the vbucket id the message belong to
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE marker(uint32_t opaque,
                                      Vbid vbucket,
@@ -117,7 +113,7 @@ struct dcp_message_producers {
      * @param nmeta
      * @param nru the nru field used by ep-engine (may safely be ignored)
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE mutation(uint32_t opaque,
                                        item* itm,
@@ -140,7 +136,7 @@ struct dcp_message_producers {
      * @param by_seqno
      * @param rev_seqno
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE deletion(uint32_t opaque,
                                        item* itm,
@@ -162,7 +158,7 @@ struct dcp_message_producers {
      * @param rev_seqno
      * @param delete_time the time of the deletion (tombstone creation time)
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE deletion_v2(uint32_t opaque,
                                           gsl::not_null<item*> itm,
@@ -182,7 +178,7 @@ struct dcp_message_producers {
      * @param by_seqno
      * @param rev_seqno
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE expiration(uint32_t opaque,
                                          item* itm,
@@ -200,7 +196,7 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param state the new state
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE set_vbucket_state(uint32_t opaque,
                                                 Vbid vbucket,
@@ -211,7 +207,7 @@ struct dcp_message_producers {
      *
      * @param opaque what to use as the opaque in the buffer
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE noop(uint32_t opaque) = 0;
 
@@ -223,7 +219,7 @@ struct dcp_message_producers {
      * @param vbucket the vbucket id the message belong to
      * @param buffer_bytes the amount of bytes processed
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE buffer_acknowledgement(uint32_t opaque,
                                                      Vbid vbucket,
@@ -239,7 +235,7 @@ struct dcp_message_producers {
      *              value is defined for the key)
      * @paran nvalue The size of the value
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE control(uint32_t opaque,
                                       const void* key,
@@ -257,7 +253,7 @@ struct dcp_message_producers {
      * @param key the system event's key data
      * @param eventData the system event's specific data
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     ENGINE_ERROR_CODE(*system_event)
     (gsl::not_null<const void*> cookie,
@@ -274,7 +270,7 @@ struct dcp_message_producers {
      * @param opaque The opaque to send over
      * @param version The version of the error map
      *
-     * @return ENGINE_WANT_MORE or ENGINE_SUCCESS upon success
+     * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE get_error_map(uint32_t opaque,
                                             uint16_t version) = 0;
@@ -299,9 +295,6 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *         producerif it failed, or:
      *         ENGINE_SUCCESS if the engine don't have more messages
      *                        to send at this moment
-     *         ENGINE_WANT_MORE if the engine have more data it wants
-     *                          to send
-     *
      */
     virtual ENGINE_ERROR_CODE step(
             gsl::not_null<const void*> cookie,

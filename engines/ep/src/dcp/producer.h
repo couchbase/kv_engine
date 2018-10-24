@@ -319,7 +319,7 @@ protected:
 
     /** We may send a noop if a noop acknowledgement is not pending and
      *  we have exceeded the dcpNoopTxInterval since we last sent a noop.
-     *  Returns ENGINE_WANT_MORE if a noop was sent.
+     *  Returns ENGINE_SUCCESS if a noop was sent.
      *  Returns ENGINE_FAILED if a noop is not required to be sent.
      *  This occurs if noop messages are disabled, or because we have already
      *  sent a noop and we are awaiting a receive, or because the time interval

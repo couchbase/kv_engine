@@ -26,7 +26,6 @@
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_executors.h"
-#include "protocol/mcbp/ship_dcp_log.h"
 #include "sasl_tasks.h"
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
@@ -182,19 +181,38 @@ bool StateMachine::conn_ship_log() {
     } else if (connection.isWriteEvent()) {
         if (connection.decrementNumEvents() >= 0) {
             auto& cookie = connection.getCookieObject();
-            ship_dcp_log(cookie);
-            if (cookie.isEwouldblock()) {
+            connection.addMsgHdr(true);
+            cookie.setEwouldblock(false);
+            cont = true;
+
+            const auto ret = connection.getBucket().getDcpIface()->step(
+                    static_cast<const void*>(&cookie), &connection);
+
+            switch (connection.remapErrorCode(ret)) {
+            case ENGINE_SUCCESS:
+                /* The engine got more data it wants to send */
+                connection.setState(StateMachine::State::send_data);
+                connection.setWriteAndGo(StateMachine::State::ship_log);
+                break;
+            case ENGINE_EWOULDBLOCK:
+                /* the engine don't have more data to send at this moment */
                 mask = EV_READ | EV_PERSIST;
-            } else {
-                cont = true;
+                cont = false;
+                break;
+            default:
+                LOG_WARNING(
+                        R"({}: ship_dcp_log - step returned {} - closing connection {})",
+                        connection.getId(),
+                        std::to_string(ret),
+                        connection.getDescription());
+                connection.setState(StateMachine::State::closing);
             }
         }
     }
 
     if (!connection.updateEvent(mask)) {
         LOG_WARNING(
-                "{}: conn_ship_log - Unable to update libevent "
-                "settings, closing connection {}",
+                R"({}: conn_ship_log - Unable to update libevent, closing connection {})",
                 connection.getId(),
                 connection.getDescription());
         connection.setState(StateMachine::State::closing);
