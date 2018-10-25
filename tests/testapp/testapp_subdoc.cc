@@ -1974,11 +1974,7 @@ public:
             CreateTestBucket();
         }
     }
-
-    static unique_cJSON_ptr memcached_cfg;
 };
-
-unique_cJSON_ptr WorkerConcurrencyTest::memcached_cfg;
 
 // MB-30301: Temporarily disabling due to intermittent timeouts.
 TEST_F(WorkerConcurrencyTest, DISABLED_SubdocArrayPushLast_Concurrent) {
