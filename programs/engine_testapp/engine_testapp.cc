@@ -253,6 +253,7 @@ struct mock_engine : public EngineIface, public DcpIface {
                                    Vbid vbucket,
                                    mcbp::systemevent::id event,
                                    uint64_t bySeqno,
+                                   mcbp::systemevent::version version,
                                    cb::const_byte_buffer key,
                                    cb::const_byte_buffer eventData) override;
 
@@ -862,10 +863,11 @@ ENGINE_ERROR_CODE mock_engine::system_event(gsl::not_null<const void*> cookie,
                                             Vbid vbucket,
                                             mcbp::systemevent::id event,
                                             uint64_t bySeqno,
+                                            mcbp::systemevent::version version,
                                             cb::const_byte_buffer key,
                                             cb::const_byte_buffer eventData) {
     return the_engine_dcp->system_event(
-            cookie, opaque, vbucket, event, bySeqno, key, eventData);
+            cookie, opaque, vbucket, event, bySeqno, version, key, eventData);
 }
 
 static cb::engine_error mock_collections_set_manifest(

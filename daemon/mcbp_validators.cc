@@ -357,10 +357,16 @@ static Status dcp_system_event_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (!mcbp::systemevent::validate(ntohl(req->message.body.event))) {
+    if (!mcbp::systemevent::validate_id(ntohl(req->message.body.event))) {
         cookie.setErrorContext("Invalid system event id");
         return Status::Einval;
     }
+
+    if (!mcbp::systemevent::validate_version(req->message.body.version)) {
+        cookie.setErrorContext("Invalid system event version");
+        return Status::Einval;
+    }
+
     return verify_common_dcp_restrictions(cookie);
 }
 

@@ -30,7 +30,9 @@ union protocol_binary_response_header;
 namespace mcbp {
 namespace systemevent {
 enum class id : uint32_t;
+enum class version : uint8_t;
 }
+
 } // namespace mcbp
 
 /**
@@ -250,6 +252,7 @@ struct dcp_message_producers {
      * @param opaque what to use as the opaque in the buffer
      * @param vbucket the vbucket the event applies to
      * @param bySeqno the sequence number of the event
+     * @param version A version value defining the eventData format
      * @param key the system event's key data
      * @param eventData the system event's specific data
      *
@@ -259,6 +262,7 @@ struct dcp_message_producers {
                                            Vbid vbucket,
                                            mcbp::systemevent::id event,
                                            uint64_t bySeqno,
+                                           mcbp::systemevent::version version,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) = 0;
 
@@ -583,6 +587,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      * @param vbucket The vbucket identifier for this event.
      * @param event The type of system event.
      * @param bySeqno Sequence number of event.
+     * @param version The version of system event (defines the eventData format)
      * @param key The event name .
      * @param eventData The event value.
      * @return Standard engine error code.
@@ -592,6 +597,7 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
                                            Vbid vbucket,
                                            mcbp::systemevent::id event,
                                            uint64_t bySeqno,
+                                           mcbp::systemevent::version version,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) = 0;
 };

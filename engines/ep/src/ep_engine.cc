@@ -1680,13 +1680,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::system_event(
         Vbid vbucket,
         mcbp::systemevent::id event,
         uint64_t bySeqno,
+        mcbp::systemevent::version version,
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
         return conn->systemEvent(
-                opaque, vbucket, event, bySeqno, key, eventData);
+                opaque, vbucket, event, bySeqno, version, key, eventData);
     }
     return ENGINE_DISCONNECT;
 }

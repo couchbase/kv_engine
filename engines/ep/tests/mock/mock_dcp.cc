@@ -329,6 +329,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
         Vbid vbucket,
         mcbp::systemevent::id event,
         uint64_t bySeqno,
+        mcbp::systemevent::version version,
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
     clear_dcp_data();

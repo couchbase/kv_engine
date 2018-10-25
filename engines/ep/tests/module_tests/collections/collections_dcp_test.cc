@@ -178,6 +178,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
         Vbid vbucket,
         mcbp::systemevent::id event,
         uint64_t bySeqno,
+        mcbp::systemevent::version version,
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
     (void)vbucket; // ignored as we are connecting VBn to VBn+1
@@ -197,7 +198,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
     EXPECT_EQ(expectedSize, eventData.size());
     if (consumer) {
         return consumer->systemEvent(
-                opaque, replicaVB, event, bySeqno, key, eventData);
+                opaque, replicaVB, event, bySeqno, version, key, eventData);
     }
     return ENGINE_SUCCESS;
 }

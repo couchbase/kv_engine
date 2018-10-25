@@ -847,6 +847,7 @@ public:
                                    Vbid vbucket,
                                    mcbp::systemevent::id event,
                                    uint64_t bySeqno,
+                                   mcbp::systemevent::version version,
                                    cb::const_byte_buffer key,
                                    cb::const_byte_buffer eventData) override;
 
@@ -1619,13 +1620,20 @@ ENGINE_ERROR_CODE EWB_Engine::system_event(gsl::not_null<const void*> cookie,
                                            Vbid vbucket,
                                            mcbp::systemevent::id event,
                                            uint64_t bySeqno,
+                                           mcbp::systemevent::version version,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return real_engine_dcp->system_event(
-                cookie, opaque, vbucket, event, bySeqno, key, eventData);
+        return real_engine_dcp->system_event(cookie,
+                                             opaque,
+                                             vbucket,
+                                             event,
+                                             bySeqno,
+                                             version,
+                                             key,
+                                             eventData);
     }
 }
 

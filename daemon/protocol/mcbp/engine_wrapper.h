@@ -429,6 +429,7 @@ ENGINE_ERROR_CODE dcpStreamReq(Cookie& cookie,
  * @param vbid The vbucket id
  * @param eventId The event id
  * @param bySeqno
+ * @param version A version value which defines the key and data of the event
  * @param eventKey The event key
  * @param eventData The event data
  * @return ENGINE_ERROR_CODE
@@ -438,5 +439,6 @@ ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
                                  Vbid vbucket,
                                  mcbp::systemevent::id eventId,
                                  uint64_t bySeqno,
+                                 mcbp::systemevent::version version,
                                  cb::const_byte_buffer eventKey,
                                  cb::const_byte_buffer eventData);

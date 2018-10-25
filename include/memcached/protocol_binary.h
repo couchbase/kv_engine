@@ -1665,10 +1665,12 @@ enum class id : uint32_t {
     FlushCollection = 2
 };
 
+enum class version : uint8_t { version0 = 0 };
+
 /**
  * Validate that the uint32_t represents a valid systemevent::id
  */
-static inline bool validate(uint32_t event) {
+static inline bool validate_id(uint32_t event) {
     switch (id(event)) {
         case id::CreateCollection:
         case id::DeleteCollection:
@@ -1678,6 +1680,16 @@ static inline bool validate(uint32_t event) {
     return false;
 }
 
+/**
+ * Validate that the uint8_t represents a valid systemevent::version
+ */
+static inline bool validate_version(uint8_t event) {
+    switch (version(event)) {
+    case version::version0:
+        return true;
+    }
+    return false;
+}
 }
 }
 
@@ -1686,12 +1698,14 @@ static inline bool validate(uint32_t event) {
  * event and the event's identifier.
  */
 union protocol_binary_request_dcp_system_event {
-    protocol_binary_request_dcp_system_event(uint32_t opaque,
-                                             Vbid vbucket,
-                                             uint16_t keyLen,
-                                             size_t valueLen,
-                                             mcbp::systemevent::id event,
-                                             uint64_t bySeqno) {
+    protocol_binary_request_dcp_system_event(
+            uint32_t opaque,
+            Vbid vbucket,
+            uint16_t keyLen,
+            size_t valueLen,
+            mcbp::systemevent::id event,
+            uint64_t bySeqno,
+            mcbp::systemevent::version version) {
         auto& req = message.header.request;
         req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
@@ -1704,21 +1718,23 @@ union protocol_binary_request_dcp_system_event {
         req.datatype = PROTOCOL_BINARY_RAW_BYTES;
         message.body.event = htonl(uint32_t(event));
         message.body.by_seqno = htonll(bySeqno);
+        message.body.version = uint8_t(version);
     }
     struct {
         protocol_binary_request_header header;
         struct {
             uint64_t by_seqno;
             uint32_t event;
+            uint8_t version;
         } body;
     } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
+    uint8_t bytes[sizeof(protocol_binary_request_header) + 13];
 
     /**
      * @returns the extlen value that a system_event packet should encode.
      */
     static inline uint8_t getExtrasLength() {
-        return sizeof(uint64_t) + sizeof(uint32_t);
+        return sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint8_t);
     }
 };
 

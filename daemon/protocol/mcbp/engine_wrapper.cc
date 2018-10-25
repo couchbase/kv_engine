@@ -638,12 +638,19 @@ ENGINE_ERROR_CODE dcpSystemEvent(Cookie& cookie,
                                  Vbid vbucket,
                                  mcbp::systemevent::id eventId,
                                  uint64_t bySeqno,
+                                 mcbp::systemevent::version version,
                                  cb::const_byte_buffer key,
                                  cb::const_byte_buffer eventData) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->system_event(
-            &cookie, opaque, vbucket, eventId, bySeqno, key, eventData);
+    auto ret = dcp->system_event(&cookie,
+                                 opaque,
+                                 vbucket,
+                                 eventId,
+                                 bySeqno,
+                                 version,
+                                 key,
+                                 eventData);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.system_event returned ENGINE_DISCONNECT",
                     connection.getId(),

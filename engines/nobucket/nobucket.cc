@@ -355,6 +355,7 @@ public:
                                    Vbid vbucket,
                                    mcbp::systemevent::id event,
                                    uint64_t bySeqno,
+                                   mcbp::systemevent::version version,
                                    cb::const_byte_buffer key,
                                    cb::const_byte_buffer eventData) override {
         return ENGINE_NO_BUCKET;

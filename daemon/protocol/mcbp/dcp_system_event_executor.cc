@@ -43,6 +43,7 @@ void dcp_system_event_executor(Cookie& cookie) {
                 req->message.header.request.vbucket.ntoh(),
                 mcbp::systemevent::id(ntohl(req->message.body.event)),
                 ntohll(req->message.body.by_seqno),
+                mcbp::systemevent::version(req->message.body.version),
                 key,
                 eventData);
     }

@@ -210,6 +210,7 @@ ENGINE_ERROR_CODE ConnHandler::systemEvent(uint32_t opaque,
                                            Vbid vbucket,
                                            mcbp::systemevent::id event,
                                            uint64_t bySeqno,
+                                           mcbp::systemevent::version version,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) {
     logger->warn(
