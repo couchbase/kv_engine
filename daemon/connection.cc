@@ -1677,7 +1677,7 @@ ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,
     cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
 
     item_info info;
-    if (!bucket_get_item_info(getCookieObject(), it, &info)) {
+    if (!bucket_get_item_info(*this, it, &info)) {
         LOG_WARNING("{}: Failed to get item info", getId());
         return ENGINE_FAILED;
     }
@@ -1810,7 +1810,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     // Use a unique_ptr to make sure we release the item in all error paths
     cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     item_info info;
-    if (!bucket_get_item_info(getCookieObject(), it, &info)) {
+    if (!bucket_get_item_info(*this, it, &info)) {
         LOG_WARNING("{}: Connection::deletion: Failed to get item info",
                     getId());
         return ENGINE_FAILED;
@@ -1861,7 +1861,7 @@ ENGINE_ERROR_CODE Connection::deletion_v2(uint32_t opaque,
     // Use a unique_ptr to make sure we release the item in all error paths
     cb::unique_item_ptr item(it, cb::ItemDeleter{getBucketEngine()});
     item_info info;
-    if (!bucket_get_item_info(getCookieObject(), it, &info)) {
+    if (!bucket_get_item_info(*this, it, &info)) {
         LOG_WARNING("{}: Connection::deletion_v2: Failed to get item info",
                     getId());
         return ENGINE_FAILED;

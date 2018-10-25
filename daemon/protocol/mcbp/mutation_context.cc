@@ -186,7 +186,7 @@ ENGINE_ERROR_CODE MutationCommandContext::getExistingItemToPreserveXattr() {
         return ENGINE_SUCCESS;
     }
 
-    if (!bucket_get_item_info(cookie, existing.get(), &existing_info)) {
+    if (!bucket_get_item_info(connection, existing.get(), &existing_info)) {
         return ENGINE_FAILED;
     }
 
@@ -253,12 +253,12 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
     }
 
     if (operation == OPERATION_ADD || input_cas != 0) {
-        bucket_item_set_cas(cookie, newitem.get(), input_cas);
+        bucket_item_set_cas(connection, newitem.get(), input_cas);
     } else {
         if (existing) {
-            bucket_item_set_cas(cookie, newitem.get(), existing_info.cas);
+            bucket_item_set_cas(connection, newitem.get(), existing_info.cas);
         } else {
-            bucket_item_set_cas(cookie, newitem.get(), input_cas);
+            bucket_item_set_cas(connection, newitem.get(), input_cas);
         }
     }
 
@@ -336,7 +336,7 @@ ENGINE_ERROR_CODE MutationCommandContext::sendResponse() {
 
     if (connection.isSupportsMutationExtras()) {
         item_info newitem_info;
-        if (!bucket_get_item_info(cookie, newitem.get(), &newitem_info)) {
+        if (!bucket_get_item_info(connection, newitem.get(), &newitem_info)) {
             return ENGINE_FAILED;
         }
 

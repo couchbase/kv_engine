@@ -41,7 +41,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
 
-        if (!bucket_get_item_info(cookie, olditem.get(), &oldItemInfo)) {
+        if (!bucket_get_item_info(connection, olditem.get(), &oldItemInfo)) {
             return ENGINE_FAILED;
         }
 
@@ -191,7 +191,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
     // copy the xattr over;
     memcpy(body.buf, src, xattrsize);
     memcpy(body.buf + xattrsize, value.data(), value.size());
-    bucket_item_set_cas(cookie, newitem.get(), oldItemInfo.cas);
+    bucket_item_set_cas(connection, newitem.get(), oldItemInfo.cas);
 
     state = State::StoreItem;
     return ENGINE_SUCCESS;
@@ -240,7 +240,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
 
     if (connection.isSupportsMutationExtras()) {
         item_info newItemInfo;
-        if (!bucket_get_item_info(cookie, newitem.get(), &newItemInfo)) {
+        if (!bucket_get_item_info(connection, newitem.get(), &newItemInfo)) {
             return ENGINE_FAILED;
         }
 

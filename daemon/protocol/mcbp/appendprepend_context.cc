@@ -112,7 +112,7 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::getItem() {
     auto ret = bucket_get(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
-        if (!bucket_get_item_info(cookie, olditem.get(), &oldItemInfo)) {
+        if (!bucket_get_item_info(connection, olditem.get(), &oldItemInfo)) {
             return ENGINE_FAILED;
         }
 
@@ -211,8 +211,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::allocateNewItem() {
             old.len + value.len};
     // Update the documents's datatype and CAS values
     setDatatypeJSONFromValue(buf, datatype);
-    bucket_item_set_datatype(cookie, newitem.get(), datatype);
-    bucket_item_set_cas(cookie, newitem.get(), oldItemInfo.cas);
+    bucket_item_set_datatype(connection, newitem.get(), datatype);
+    bucket_item_set_cas(connection, newitem.get(), oldItemInfo.cas);
 
     state = State::StoreItem;
 
@@ -228,7 +228,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
         cookie.setCas(ncas);
         if (connection.isSupportsMutationExtras()) {
             item_info newItemInfo;
-            if (!bucket_get_item_info(cookie, newitem.get(), &newItemInfo)) {
+            if (!bucket_get_item_info(
+                        connection, newitem.get(), &newItemInfo)) {
                 return ENGINE_FAILED;
             }
             extras.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);

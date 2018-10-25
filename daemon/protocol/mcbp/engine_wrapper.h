@@ -37,15 +37,15 @@
 
 ENGINE_ERROR_CODE bucket_unknown_command(Cookie& cookie, ADD_RESPONSE response);
 
-void bucket_item_set_cas(Cookie& cookie, gsl::not_null<item*> it, uint64_t cas);
+void bucket_item_set_cas(Connection& c, gsl::not_null<item*> it, uint64_t cas);
 
-void bucket_item_set_datatype(Cookie& cookie,
+void bucket_item_set_datatype(Connection& c,
                               gsl::not_null<item*> it,
                               protocol_binary_datatype_t datatype);
 
 void bucket_reset_stats(Cookie& cookie);
 
-bool bucket_get_item_info(Cookie& cookie,
+bool bucket_get_item_info(Connection& c,
                           gsl::not_null<const item*> item_,
                           gsl::not_null<item_info*> item_info_);
 

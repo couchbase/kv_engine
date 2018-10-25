@@ -335,7 +335,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
     item_info& info = getInputItemInfo();
     auto& c = connection;
 
-    if (!bucket_get_item_info(cookie, fetchedItem.get(), &info)) {
+    if (!bucket_get_item_info(connection, fetchedItem.get(), &info)) {
         LOG_WARNING("{}: Failed to get item info", c.getId());
         return cb::mcbp::Status::Einternal;
     }

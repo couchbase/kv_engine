@@ -32,7 +32,7 @@ ENGINE_ERROR_CODE GetCommandContext::getItem() {
     auto ret = bucket_get(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
-        if (!bucket_get_item_info(cookie, it.get(), &info)) {
+        if (!bucket_get_item_info(connection, it.get(), &info)) {
             LOG_WARNING("{}: Failed to get item info", connection.getId());
             return ENGINE_FAILED;
         }

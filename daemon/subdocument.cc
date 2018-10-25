@@ -1289,12 +1289,12 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         // To ensure we only replace the version of the document we
         // just appended to; set the CAS to the one retrieved from.
-        bucket_item_set_cas(cookie, context.out_doc.get(), context.in_cas);
+        bucket_item_set_cas(connection, context.out_doc.get(), context.in_cas);
 
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
         if (!bucket_get_item_info(
-                    cookie, context.out_doc.get(), &new_doc_info)) {
+                    connection, context.out_doc.get(), &new_doc_info)) {
             cookie.sendResponse(cb::mcbp::Status::Einternal);
             return ENGINE_FAILED;
         }
@@ -1333,7 +1333,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
             } else {
                 item_info info;
                 if (!bucket_get_item_info(
-                            cookie, context.out_doc.get(), &info)) {
+                            connection, context.out_doc.get(), &info)) {
                     LOG_WARNING("{}: Subdoc: Failed to get item info",
                                 connection.getId());
                     cookie.sendResponse(cb::mcbp::Status::Einternal);

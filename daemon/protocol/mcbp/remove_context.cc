@@ -66,7 +66,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::getItem() {
     auto ret = bucket_get(cookie, key, vbucket);
     if (ret.first == cb::engine_errc::success) {
         existing = std::move(ret.second);
-        if (!bucket_get_item_info(cookie, existing.get(), &existing_info)) {
+        if (!bucket_get_item_info(connection, existing.get(), &existing_info)) {
             return ENGINE_FAILED;
         }
 
@@ -111,9 +111,9 @@ ENGINE_ERROR_CODE RemoveCommandContext::allocateDeletedItem() {
 
     deleted = std::move(pair.first);
     if (input_cas == 0) {
-        bucket_item_set_cas(cookie, deleted.get(), existing_info.cas);
+        bucket_item_set_cas(connection, deleted.get(), existing_info.cas);
     } else {
-        bucket_item_set_cas(cookie, deleted.get(), input_cas);
+        bucket_item_set_cas(connection, deleted.get(), input_cas);
     }
 
     if (xattr.size() > 0) {
@@ -135,7 +135,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
     if (ret == ENGINE_SUCCESS) {
 
         item_info info;
-        if (!bucket_get_item_info(cookie, deleted.get(), &info)) {
+        if (!bucket_get_item_info(connection, deleted.get(), &info)) {
             return ENGINE_FAILED;
         }
 
