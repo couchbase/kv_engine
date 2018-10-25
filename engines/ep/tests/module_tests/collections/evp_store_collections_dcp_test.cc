@@ -40,6 +40,7 @@ extern cb::mcbp::ClientOpcode dcp_last_op;
 extern std::string dcp_last_key;
 extern uint32_t dcp_last_flags;
 extern CollectionID dcp_last_collection_id;
+extern mcbp::systemevent::id dcp_last_system_event;
 
 TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     store->setVBucketState(vbid, vbucket_state_replica, false);
@@ -51,8 +52,11 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     CollectionID cid = CollectionEntry::meat.getId();
     ScopeID sid = ScopeEntry::shop1.getId();
     Collections::ManifestUid manifestUid = 0xcafef00d;
-    Collections::SystemEventData eventData{manifestUid, sid, cid};
-    Collections::SystemEventDcpData eventDcpData{eventData};
+    Collections::CreateEventData createEventData{
+            manifestUid, sid, cid, "noname", {/*no ttl*/}};
+    Collections::CreateEventDcpData createEventDcpData{createEventData};
+    Collections::DropEventData dropEventData{manifestUid, cid};
+    Collections::DropEventDcpData dropEventDcpData{dropEventData};
 
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->snapshotMarker(/*opaque*/ 2,
@@ -77,8 +81,8 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
-                      {reinterpret_cast<const uint8_t*>(&eventDcpData),
-                       Collections::SystemEventDcpData::size}));
+                      {reinterpret_cast<const uint8_t*>(&createEventDcpData),
+                       Collections::CreateEventDcpData::size}));
 
     // We can now access the collection
     EXPECT_TRUE(vb->lockCollections().doesKeyContainValidCollection(
@@ -97,8 +101,8 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
                        collection.size()},
-                      {reinterpret_cast<const uint8_t*>(&eventDcpData),
-                       Collections::SystemEventDcpData::size}));
+                      {reinterpret_cast<const uint8_t*>(&dropEventDcpData),
+                       Collections::DropEventDcpData::size}));
 
     // It's gone!
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
@@ -228,17 +232,23 @@ TEST_F(CollectionsDcpTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, dcp_last_op);
     EXPECT_EQ(0, replica->lockCollections().getManifestUid());
+    EXPECT_EQ("fruit", dcp_last_key);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection, dcp_last_system_event);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, dcp_last_op);
     EXPECT_EQ(0, replica->lockCollections().getManifestUid());
+    EXPECT_EQ("dairy", dcp_last_key);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection, dcp_last_system_event);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, dcp_last_op);
+    EXPECT_EQ("meat", dcp_last_key);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection, dcp_last_system_event);
 
     // And now the new manifest-UID is exposed
     // The cm will have uid 3 + 1 (for the addition of the default scope)
@@ -311,7 +321,9 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
         // In-memory stream will also see all 2*items mutations (ordered with
         // create
         // and delete)
-        testDcpCreateDelete(2, 1, (2 * items));
+        testDcpCreateDelete({CollectionEntry::fruit, CollectionEntry::dairy},
+                            {CollectionEntry::dairy},
+                            (2 * items));
     }
 
     resetEngineAndWarmup();
@@ -319,7 +331,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
     createDcpObjects({{nullptr, 0}}); // from disk
 
     // Streamed from disk, one create (create of fruit) and items of fruit
-    testDcpCreateDelete(1, 0, items, false);
+    testDcpCreateDelete({CollectionEntry::fruit}, {}, items, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             CollectionEntry::fruit));
@@ -384,7 +396,10 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
     // Now read from DCP. We will see:
     // * 2 creates (from the disk backfill)
     // * 2*items, basically all items from all collections
-    testDcpCreateDelete(2, 0, (2 * items), false);
+    testDcpCreateDelete({CollectionEntry::fruit, CollectionEntry::dairy},
+                        {},
+                        (2 * items),
+                        false);
 
     resetEngineAndWarmup();
 
@@ -394,7 +409,10 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
     // * 2 creates (from the disk backfill)
     // * 2*items, basically all items from all collections
     // The important part is we see the same creates/items as before the warmup
-    testDcpCreateDelete(2, 0, (2 * items), false);
+    testDcpCreateDelete({CollectionEntry::fruit, CollectionEntry::dairy},
+                        {},
+                        (2 * items),
+                        false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             CollectionEntry::fruit));
@@ -429,7 +447,9 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
         flush_vbucket_to_disk(Vbid(0), items + 2);
 
         // However DCP - Should see 2x create dairy and 1x delete dairy
-        testDcpCreateDelete(2, 1, items);
+        testDcpCreateDelete({CollectionEntry::dairy, CollectionEntry::dairy2},
+                            {CollectionEntry::dairy},
+                            items);
     }
 
     resetEngineAndWarmup();
@@ -438,7 +458,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
 
     // Streamed from disk, we won't see the 2x create events or the intermediate
     // delete. So check DCP sends only 1 collection create.
-    testDcpCreateDelete(1, 0, 0, false);
+    testDcpCreateDelete({CollectionEntry::dairy2}, {}, 0, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             CollectionEntry::dairy2.getId()));
@@ -469,7 +489,9 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
         flush_vbucket_to_disk(Vbid(0), items + 2);
 
         // However DCP - Should see 2x create dairy and 1x delete dairy
-        testDcpCreateDelete(2, 1, items);
+        testDcpCreateDelete({CollectionEntry::dairy, CollectionEntry::dairy2},
+                            {CollectionEntry::dairy},
+                            items);
     }
 
     resetEngineAndWarmup();
@@ -477,7 +499,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
     createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, we won't see the first create or delete
-    testDcpCreateDelete(1, 0, 0, false);
+    testDcpCreateDelete({CollectionEntry::dairy2}, {}, 0, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             CollectionEntry::dairy2.getId()));
@@ -523,7 +545,11 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, one create (create of fruit) and items of fruit
-    testDcpCreateDelete(1, 0, items, false /*fromMemory*/);
+    testDcpCreateDelete(
+            {CollectionEntry::Entry{CollectionName::fruit, (m - 1) + 10}},
+            {},
+            items,
+            false /*fromMemory*/);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             (m - 1) + 10));
@@ -602,6 +628,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, dcp_last_op);
     EXPECT_EQ(CollectionEntry::dairy.getId(), dcp_last_collection_id);
+    EXPECT_EQ("dairy", dcp_last_key);
 
     // Store collection documents
     std::array<std::string, 2> expectedKeys = {{"dairy:one", "dairy:two"}};
@@ -647,7 +674,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // Streamed from disk
     // 1x create - create of dairy
     // 2x mutations in the dairy collection
-    testDcpCreateDelete(1, 0, 2, false);
+    testDcpCreateDelete({CollectionEntry::dairy}, {}, 2, false);
 }
 
 TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
@@ -713,7 +740,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     // Streamed from disk
     // 1x create - create of dairy
     // 2x mutations in the dairy collection
-    testDcpCreateDelete(1, 0, 2, false);
+    testDcpCreateDelete({CollectionEntry::dairy}, {}, 2, false);
 }
 
 TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
@@ -780,7 +807,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
     // Streamed from disk
     // 1x create - create of dairy
     // 2x mutations - 2x in dairy
-    testDcpCreateDelete(1, 0, 2, false);
+    testDcpCreateDelete({CollectionEntry::dairy}, {}, 2, false);
 }
 
 TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
@@ -856,7 +883,8 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     // Streamed from disk
     // 2x create - create of dairy, create of vegetable
     // 2x mutations - 2x in vegetable
-    testDcpCreateDelete(2, 0, 2, false);
+    testDcpCreateDelete(
+            {CollectionEntry::dairy, CollectionEntry::vegetable}, {}, 2, false);
 }
 
 TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
@@ -960,7 +988,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     // Streamed from disk
     // 1x create - create of vegetable
     // 2x mutations - 2x mutations in vegetable
-    testDcpCreateDelete(1, 0, 2, false);
+    testDcpCreateDelete({CollectionEntry::vegetable}, {}, 2, false);
 }
 
 // Check that when filtering is on, we don't send snapshots for fully filtered

@@ -1478,13 +1478,13 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         try {
             err = stream->messageReceived(
-                    std::make_unique<SystemEventConsumerMessage>(
-                            opaque,
-                            event,
-                            bySeqno,
-                            vbucket,
-                            key,
-                            eventData));
+                    std::make_unique<SystemEventConsumerMessage>(opaque,
+                                                                 event,
+                                                                 bySeqno,
+                                                                 vbucket,
+                                                                 version,
+                                                                 key,
+                                                                 eventData));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }

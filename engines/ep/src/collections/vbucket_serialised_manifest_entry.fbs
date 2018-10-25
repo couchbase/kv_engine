@@ -31,6 +31,11 @@ table SerialisedManifestEntry {
     endSeqno:long = -1;
     scopeId:uint;
     collectionId:uint;
+
+    // The TTL is optional, ttlValid determines if the value of ttl should be
+    // used when processing new items.
+    ttlValid:bool;
+    maxTtl:uint;
 }
 
 table SerialisedManifest {
@@ -41,7 +46,15 @@ table SerialisedManifest {
     // pop_back exists, so we just adjust the entryCount so any warmup would
     // ignore the dropped entry.
     entryCount:uint;
+
+    // Each entry of the collection manifest map is added to this vector
+    // The final entry of the vector is added/dropped collection which triggered
+    // a serialisation of the manifest
     entries:[SerialisedManifestEntry];
+
+    // This stores the name of the created collection, but only when a creation
+    // triggered the serialisation of the manifest
+    mutatedName:string;
 }
 
 root_type SerialisedManifest;

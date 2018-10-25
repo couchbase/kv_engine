@@ -691,6 +691,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::fruit},
+            {},
             true /*delete*/,
             {})));
 
@@ -712,6 +713,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
     auto deleteMeat =
             vbm.createSystemEvent(SystemEvent::Collection,
                                   {ScopeEntry::defaultS, CollectionEntry::meat},
+                                  {},
                                   true /*delete*/,
                                   {});
     EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
@@ -746,6 +748,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::defaultC},
+            {},
             true /*delete*/,
             {})));
     EXPECT_FALSE(vbf.checkAndUpdate(
@@ -765,6 +768,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
     auto deleteMeat =
             vbm.createSystemEvent(SystemEvent::Collection,
                                   {ScopeEntry::defaultS, CollectionEntry::meat},
+                                  {},
                                   true /*delete*/,
                                   {});
     EXPECT_TRUE(vbf.checkAndUpdate(*deleteMeat));
@@ -835,6 +839,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::meat},
+            {},
             false,
             {})));
 
@@ -842,6 +847,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::defaultC},
+            {},
             false,
             {})));
 
@@ -849,6 +855,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::dairy},
+            {},
             false,
             {})));
 }
@@ -874,6 +881,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::defaultC},
+            {},
             false,
             {})));
 
@@ -881,6 +889,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::dairy},
+            {},
             false,
             {})));
 
@@ -888,6 +897,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
     EXPECT_FALSE(vbf.checkAndUpdate(
             *vbm.createSystemEvent(SystemEvent::Collection,
                                    {ScopeEntry::shop1, CollectionEntry::meat},
+                                   {},
                                    false,
                                    {})));
 }
@@ -913,6 +923,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
     EXPECT_TRUE(vbf.checkAndUpdate(
             *vbm.createSystemEvent(SystemEvent::Collection,
                                    {ScopeEntry::shop1, CollectionEntry::meat},
+                                   {},
                                    false,
                                    {})));
 
@@ -920,6 +931,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
     EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::defaultC},
+            {},
             false,
             {})));
 
@@ -927,6 +939,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
     EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::dairy},
+            {},
             false,
             {})));
 }
@@ -983,6 +996,7 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
     ASSERT_TRUE(vbf.checkAndUpdate(
             *vbm.createSystemEvent(SystemEvent::Collection,
                                    {ScopeEntry::shop1, CollectionEntry::dairy},
+                                   {},
                                    false,
                                    {})));
 
@@ -1017,6 +1031,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
     ASSERT_TRUE(vbf.checkAndUpdate(
             *vbm.createSystemEvent(SystemEvent::Collection,
                                    {ScopeEntry::shop1, CollectionEntry::dairy},
+                                   {},
                                    true, /* delete */
                                    {})));
 
@@ -1031,6 +1046,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
     ASSERT_TRUE(vbf.checkAndUpdate(
             *vbm.createSystemEvent(SystemEvent::Collection,
                                    {ScopeEntry::shop1, CollectionEntry::meat},
+                                   {},
                                    true, /* delete */
                                    {})));
 
@@ -1063,6 +1079,7 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
     ASSERT_TRUE(vbf.checkAndUpdate(
             *vbm.createSystemEvent(SystemEvent::Collection,
                                    {ScopeEntry::shop1, CollectionEntry::meat},
+                                   {},
                                    false, /* create */
                                    {})));
 

@@ -47,6 +47,12 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
         char buffer[bsize];
         checked_snprintf(buffer,
                          bsize,
+                         "vb_%d:collection:%s:entry:scope",
+                         vbid.get(),
+                         cid.c_str());
+        add_casted_stat(buffer, getScopeID(), add_stat, cookie);
+        checked_snprintf(buffer,
+                         bsize,
                          "vb_%d:collection:%s:entry:start_seqno",
                          vbid.get(),
                          cid.c_str());
@@ -63,6 +69,15 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
                          vbid.get(),
                          cid.c_str());
         add_casted_stat(buffer, getDiskCount(), add_stat, cookie);
+
+        if (getMaxTtl()) {
+            checked_snprintf(buffer,
+                             bsize,
+                             "vb_%d:collection:%s:entry:max_ttl",
+                             vbid.get(),
+                             cid.c_str());
+            add_casted_stat(buffer, getMaxTtl().get(), add_stat, cookie);
+        }
         return true;
     } catch (const std::exception& error) {
         EP_LOG_WARN(
@@ -81,5 +96,9 @@ std::ostream& Collections::VB::operator<<(
        << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", endSeqno:" << manifestEntry.getEndSeqno()
        << ", diskCount:" << manifestEntry.getDiskCount();
+
+    if (manifestEntry.getMaxTtl()) {
+        os << ", maxTtl:" << manifestEntry.getMaxTtl().get().count();
+    }
     return os;
 }

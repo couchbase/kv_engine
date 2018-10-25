@@ -24,6 +24,8 @@
  *
  */
 
+#pragma once
+
 #include "collections/collections_types.h"
 
 #include <memcached/dockey.h>

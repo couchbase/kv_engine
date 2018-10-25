@@ -418,7 +418,7 @@ information about a given command.
 | 0x5c | [Dcp noop](dcp/commands/no-op.md) |
 | 0x5d | [Dcp buffer acknowledgement](dcp/commands/buffer-ack.md) |
 | 0x5e | [Dcp control](dcp/commands/control.md) |
-| 0x5f | Dcp reserved4 |
+| 0x5f | [Dcp system event](dcp/commands/system_event.md) |
 | 0x80 | Stop persistence |
 | 0x81 | Start persistence |
 | 0x82 | Set param |

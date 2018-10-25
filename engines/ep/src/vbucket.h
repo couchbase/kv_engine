@@ -668,12 +668,17 @@ public:
      *
      * @param uid the uid of the manifest which made the change
      * @param identifiers ScopeID and CollectionID pair
+     * @param collectionName name of the added collection
+     * @param maxTtl An optional max_ttl for the collection
      * @param bySeqno The seqno assigned to the collection create event.
      */
     void replicaAddCollection(Collections::ManifestUid uid,
                               ScopeCollectionPair identifiers,
+                              cb::const_char_buffer collectionName,
+                              cb::ExpiryLimit maxTtl,
                               int64_t bySeqno) {
-        manifest.wlock().replicaAdd(*this, uid, identifiers, bySeqno);
+        manifest.wlock().replicaAdd(
+                *this, uid, identifiers, collectionName, maxTtl, bySeqno);
     }
 
     /**
@@ -681,13 +686,13 @@ public:
      * this VB is a replica.
      *
      * @param uid the uid of the manifest which made the change
-     * @param identifiers ScopeID and CollectionID pair
+     * @param cid CollectionID to begin deleting
      * @param bySeqno The seqno assigned to the collection delete event.
      */
     void replicaBeginDeleteCollection(Collections::ManifestUid uid,
-                                      ScopeCollectionPair identifiers,
+                                      CollectionID cid,
                                       int64_t bySeqno) {
-        manifest.wlock().replicaBeginDelete(*this, uid, identifiers, bySeqno);
+        manifest.wlock().replicaBeginDelete(*this, uid, cid, bySeqno);
     }
 
     /**

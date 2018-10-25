@@ -33,14 +33,21 @@ namespace VB {
 /**
  * The Collections::VB::ManifestEntry stores the data a collection
  * needs from a vbucket's perspective.
- * - The CollectionID
  * - The ScopeID
+ * - The TTL value of the collection (applies to items not the collection)
  * - The seqno lifespace of the collection
  */
 class ManifestEntry {
 public:
-    ManifestEntry(ScopeID _scopeID, int64_t _startSeqno, int64_t _endSeqno)
-        : startSeqno(-1), endSeqno(-1), scopeID(_scopeID), diskCount(0) {
+    ManifestEntry(ScopeID scopeID,
+                  cb::ExpiryLimit maxTtl,
+                  int64_t _startSeqno,
+                  int64_t _endSeqno)
+        : diskCount(0),
+          startSeqno(-1),
+          endSeqno(-1),
+          scopeID(scopeID),
+          maxTtl(maxTtl) {
         // Setters validate the start/end range is valid
         setStartSeqno(_startSeqno);
         setEndSeqno(_endSeqno);
@@ -48,7 +55,7 @@ public:
 
     bool operator==(const ManifestEntry& other) const {
         if (scopeID == other.scopeID && startSeqno == other.startSeqno &&
-            endSeqno == other.endSeqno) {
+            endSeqno == other.endSeqno && maxTtl == other.maxTtl) {
             return true;
         }
         return false;
@@ -93,6 +100,10 @@ public:
 
     ScopeID getScopeID() const {
         return scopeID;
+    }
+
+    cb::ExpiryLimit getMaxTtl() const {
+        return maxTtl;
     }
 
     /**
@@ -174,6 +185,14 @@ private:
     }
 
     /**
+     * The count of items in this collection
+     * mutable - the VB:Manifest read/write lock protects this object and
+     *           we can do stats updates as long as the read lock is held.
+     *           The write lock is really for the Manifest map being changed.
+     */
+    mutable cb::NonNegativeCounter<uint64_t,
+                                   cb::ThrowExceptionUnderflowPolicy> diskCount;
+    /**
      * Collection life-time is recorded as the seqno the collection was added
      * to the seqno of the point we started to delete it.
      *
@@ -182,16 +201,12 @@ private:
      */
     int64_t startSeqno;
     int64_t endSeqno;
+
+    /// The scope the collection belongs to
     ScopeID scopeID;
 
-    /**
-     * The count of items in this collection
-     * mutable - the VB:Manifest read/write lock protects this object and
-     *           we can do stats updates as long as the read lock is held.
-     *           The write lock is really for the Manifest map being changed.
-     */
-    mutable cb::NonNegativeCounter<uint64_t, cb::ThrowExceptionUnderflowPolicy>
-            diskCount;
+    /// The max_ttl of the collection
+    cb::ExpiryLimit maxTtl;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

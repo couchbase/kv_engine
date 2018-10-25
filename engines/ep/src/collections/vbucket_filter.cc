@@ -245,23 +245,36 @@ bool Filter::checkAndUpdateSystemEvent(const Item& item) {
     }
     switch (SystemEvent(item.getFlags())) {
     case SystemEvent::Collection: {
-        auto dcpData = VB::Manifest::getSystemEventData(
-                {item.getData(), item.getNBytes()});
+        CollectionID cid;
+        ManifestUid manifestUid = 0;
+        boost::optional<ScopeID> sid;
+        if (!item.isDeleted()) {
+            auto dcpData = VB::Manifest::getCreateEventData(
+                    {item.getData(), item.getNBytes()});
+            manifestUid = dcpData.manifestUid;
+            sid = dcpData.sid;
+            cid = dcpData.cid;
+        } else {
+            auto dcpData = VB::Manifest::getDropEventData(
+                    {item.getData(), item.getNBytes()});
+            manifestUid = dcpData.manifestUid;
+            cid = dcpData.cid;
+        }
+
         // Only consider this if it is an event the client hasn't observed
-        if (!uid || (dcpData.manifestUid > *uid)) {
+        if (!uid || (manifestUid > *uid)) {
             if (passthrough || deleted ||
-                (dcpData.cid.isDefaultCollection() && defaultAllowed)) {
+                (cid.isDefaultCollection() && defaultAllowed)) {
                 return true;
             }
 
-            // If scopeID is not uninitialized then we are filtering on a
-            // scope
-            if (scopeID && dcpData.sid == scopeID) {
-                filter.insert(dcpData.cid);
+            // If scopeID is not uninitialized then we are filtering on a scope
+            if (sid && scopeID && (sid == scopeID)) {
+                filter.insert(cid);
             }
 
             // When filtered allow only if there is a match
-            return filter.count(dcpData.cid) > 0;
+            return filter.count(cid) > 0;
         }
         return false;
     }

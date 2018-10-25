@@ -1382,7 +1382,7 @@ enum class id : uint32_t {
     FlushCollection = 2
 };
 
-enum class version : uint8_t { version0 = 0 };
+enum class version : uint8_t { version0 = 0, version1 = 1 };
 
 /**
  * Validate that the uint32_t represents a valid systemevent::id
@@ -1403,6 +1403,7 @@ static inline bool validate_id(uint32_t event) {
 static inline bool validate_version(uint8_t event) {
     switch (version(event)) {
     case version::version0:
+    case version::version1:
         return true;
     }
     return false;

@@ -20,8 +20,10 @@
 #include "monotonic.h"
 
 #include <memcached/dockey.h>
+#include <memcached/types.h>
 #include <platform/sized_buffer.h>
 #include <gsl/gsl>
+
 #include <unordered_map>
 #include <vector>
 
@@ -135,19 +137,26 @@ static inline ScopeID makeScopeID(const std::string& uid) {
 /**
  * All of the data a system event needs
  */
-struct SystemEventData {
-    ManifestUid manifestUid; // The Manifest which created the event
+struct CreateEventData {
+    ManifestUid manifestUid; // The Manifest which generated the event
     ScopeID sid; // The scope that the collection belongs to
+    CollectionID cid; // The collection the event belongs to
+    std::string name; // The collection name
+    cb::ExpiryLimit maxTtl; // The collection's max_ttl
+};
+
+struct DropEventData {
+    ManifestUid manifestUid; // The Manifest which generated the event
     CollectionID cid; // The collection the event belongs to
 };
 
 /**
- * All of the data a DCP system event message will transmit in the value of the
+ * All of the data a DCP create event message will transmit in the value of the
  * message. This is the layout to be used on the wire and is in the correct
  * byte order
  */
-struct SystemEventDcpData {
-    SystemEventDcpData(const SystemEventData& data)
+struct CreateEventDcpData {
+    CreateEventDcpData(const CreateEventData& data)
         : manifestUid(data.manifestUid), sid(data.sid), cid(data.cid) {
     }
     /// The manifest uid stored in network byte order ready for sending
@@ -156,9 +165,53 @@ struct SystemEventDcpData {
     ScopeIDNetworkOrder sid;
     /// The collection id stored in network byte order ready for sending
     CollectionIDNetworkOrder cid;
-    // The size is sizeof(manifestUid) + sizeof(cid) + sizeof(sid) (msvc won't
-    // allow that expression)
+    // The size is sizeof(manifestUid) + sizeof(cid) + sizeof(sid)
+    // (msvc won't allow that expression)
     constexpr static size_t size{16};
+};
+
+/**
+ * All of the data a DCP create event message will transmit in the value of a
+ * DCP system event message (when the collection is created with a TTL). This is
+ * the layout to be used on the wire and is in the correct byte order
+ */
+struct CreateWithMaxTtlEventDcpData {
+    CreateWithMaxTtlEventDcpData(const CreateEventData& data)
+        : manifestUid(data.manifestUid),
+          sid(data.sid),
+          cid(data.cid),
+          maxTtl(htonl(gsl::narrow_cast<uint32_t>(data.maxTtl.get().count()))) {
+    }
+    /// The manifest uid stored in network byte order ready for sending
+    ManifestUidNetworkOrder manifestUid;
+    /// The scope id stored in network byte order ready for sending
+    ScopeIDNetworkOrder sid;
+    /// The collection id stored in network byte order ready for sending
+    CollectionIDNetworkOrder cid;
+    /// The collection's max_ttl value (in network byte order)
+    uint32_t maxTtl;
+    // The size is sizeof(manifestUid) + sizeof(cid) + sizeof(sid) +
+    //             sizeof(max_ttl) (msvc won't allow that expression)
+    constexpr static size_t size{20};
+};
+
+/**
+ * All of the data a DCP drop event message will transmit in the value of the
+ * message. This is the layout to be used on the wire and is in the correct
+ * byte order
+ */
+struct DropEventDcpData {
+    DropEventDcpData(const DropEventData& data)
+        : manifestUid(data.manifestUid), cid(data.cid) {
+    }
+
+    /// The manifest uid stored in network byte order ready for sending
+    ManifestUidNetworkOrder manifestUid;
+    /// The collection id stored in network byte order ready for sending
+    CollectionIDNetworkOrder cid;
+    // The size is sizeof(manifestUid) + sizeof(cid) (msvc won't allow that
+    // expression)
+    constexpr static size_t size{12};
 };
 
 namespace VB {

@@ -519,14 +519,15 @@ public:
     SystemEventMessage(uint32_t opaque)
         : DcpResponse(Event::SystemEvent, opaque) {
     }
-    /// @todo use sizeof(protocol_system_ev_message) once defined in memcached
+    // baseMsgBytes is the unpadded size of the
+    // protocol_binary_request_dcp_system_event::body struct
     static const uint32_t baseMsgBytes =
-            sizeof(protocol_binary_request_header) + sizeof(SystemEvent) +
-            sizeof(uint16_t) + sizeof(int64_t);
+            sizeof(protocol_binary_request_header) + sizeof(uint64_t) +
+            sizeof(uint32_t) + sizeof(uint8_t);
     virtual mcbp::systemevent::id getSystemEvent() const = 0;
-    virtual Vbid getVBucket() const = 0;
     virtual cb::const_char_buffer getKey() const = 0;
     virtual cb::const_byte_buffer getEventData() const = 0;
+    virtual mcbp::systemevent::version getVersion() const = 0;
 };
 
 /**
@@ -541,12 +542,13 @@ public:
                                mcbp::systemevent::id ev,
                                int64_t seqno,
                                Vbid vbucket,
+                               mcbp::systemevent::version version,
                                cb::const_byte_buffer _key,
                                cb::const_byte_buffer _eventData)
         : SystemEventMessage(opaque),
           event(ev),
           bySeqno(seqno),
-          vbid(vbucket),
+          version(version),
           key(reinterpret_cast<const char*>(_key.data()), _key.size()),
           eventData(_eventData.begin(), _eventData.end()) {
         if (seqno > std::numeric_limits<int64_t>::max()) {
@@ -568,10 +570,6 @@ public:
         return OptionalSeqno{bySeqno};
     }
 
-    Vbid getVBucket() const override {
-        return vbid;
-    }
-
     cb::const_char_buffer getKey() const override {
         return key;
     }
@@ -580,10 +578,14 @@ public:
         return {eventData.data(), eventData.size()};
     }
 
+    mcbp::systemevent::version getVersion() const override {
+        return version;
+    }
+
 private:
     mcbp::systemevent::id event;
     int64_t bySeqno;
-    Vbid vbid;
+    mcbp::systemevent::version version;
     std::string key;
     std::vector<uint8_t> eventData;
 };
@@ -631,7 +633,7 @@ public:
         return OptionalSeqno{item->getBySeqno()};
     }
 
-    Vbid getVBucket() const override {
+    Vbid getVBucket() const {
         return item->getVBucketId();
     }
 
@@ -651,29 +653,89 @@ protected:
     queued_item item;
 };
 
-class CollectionsProducerMessage : public SystemEventProducerMessage {
+class CollectionsCreateProducerMessage : public SystemEventProducerMessage {
 public:
-    CollectionsProducerMessage(uint32_t opaque,
-                               const queued_item& itm,
-                               const Collections::SystemEventData& data)
-        : SystemEventProducerMessage(opaque, itm), eventData{data} {
+    CollectionsCreateProducerMessage(uint32_t opaque,
+                                     const queued_item& itm,
+                                     const Collections::CreateEventData& data)
+        : SystemEventProducerMessage(opaque, itm),
+          key(data.name),
+          eventData{data} {
     }
 
-    // Collections system event have no key data, all is in the event data
     cb::const_char_buffer getKey() const override {
-        return {/*no key*/};
+        return {key.data(), key.size()};
     }
 
     cb::const_byte_buffer getEventData() const override {
         return {reinterpret_cast<const uint8_t*>(&eventData),
-                Collections::SystemEventDcpData::size};
+                Collections::CreateEventDcpData::size};
+    }
+
+    mcbp::systemevent::version getVersion() const override {
+        return mcbp::systemevent::version::version0;
     }
 
 private:
-    /// Stores uid of manifest and cid of affected collection in network order
-    Collections::SystemEventDcpData eventData;
+    std::string key;
+    Collections::CreateEventDcpData eventData;
 };
 
+class CollectionsCreateWithMaxTtlProducerMessage
+    : public SystemEventProducerMessage {
+public:
+    CollectionsCreateWithMaxTtlProducerMessage(
+            uint32_t opaque,
+            const queued_item& itm,
+            const Collections::CreateEventData& data)
+        : SystemEventProducerMessage(opaque, itm),
+          key(data.name),
+          eventData{data} {
+    }
+
+    cb::const_char_buffer getKey() const override {
+        return {key.data(), key.size()};
+    }
+
+    cb::const_byte_buffer getEventData() const override {
+        return {reinterpret_cast<const uint8_t*>(&eventData),
+                Collections::CreateWithMaxTtlEventDcpData::size};
+    }
+
+    mcbp::systemevent::version getVersion() const override {
+        return mcbp::systemevent::version::version1;
+    }
+
+private:
+    std::string key;
+    Collections::CreateWithMaxTtlEventDcpData eventData;
+};
+
+class CollectionsDropProducerMessage : public SystemEventProducerMessage {
+public:
+    CollectionsDropProducerMessage(uint32_t opaque,
+                                   const queued_item& itm,
+                                   const Collections::DropEventData& data)
+        : SystemEventProducerMessage(opaque, itm), eventData{data} {
+    }
+
+    cb::const_char_buffer getKey() const override {
+        return {/* no key value for a drop event*/};
+    }
+
+    cb::const_byte_buffer getEventData() const override {
+        return {reinterpret_cast<const uint8_t*>(&eventData),
+                Collections::DropEventDcpData::size};
+    }
+
+    mcbp::systemevent::version getVersion() const override {
+        return mcbp::systemevent::version::version0;
+    }
+
+private:
+    std::string key;
+    Collections::DropEventDcpData eventData;
+};
 
 /**
  * CollectionsEvent provides a shim on top of SystemEventMessage for
@@ -703,10 +765,18 @@ protected:
     const SystemEventMessage& event;
 };
 
-class CreateOrDeleteCollectionEvent : public CollectionsEvent {
+class CreateCollectionEvent : public CollectionsEvent {
 public:
-    CreateOrDeleteCollectionEvent(const SystemEventMessage& e)
-        : CollectionsEvent(e, Collections::SystemEventDcpData::size) {
+    CreateCollectionEvent(const SystemEventMessage& e)
+        : CollectionsEvent(
+                  e,
+                  e.getVersion() == mcbp::systemevent::version::version0
+                          ? Collections::CreateEventDcpData::size
+                          : Collections::CreateWithMaxTtlEventDcpData::size) {
+    }
+
+    cb::const_char_buffer getKey() const {
+        return event.getKey();
     }
 
     /**
@@ -714,14 +784,14 @@ public:
      */
     CollectionID getCollectionID() const {
         const auto* dcpData =
-                reinterpret_cast<const Collections::SystemEventDcpData*>(
+                reinterpret_cast<const Collections::CreateEventDcpData*>(
                         event.getEventData().data());
         return dcpData->cid.to_host();
     }
 
     ScopeID getScopeID() const {
         const auto* dcpData =
-                reinterpret_cast<const Collections::SystemEventDcpData*>(
+                reinterpret_cast<const Collections::CreateEventDcpData*>(
                         event.getEventData().data());
         return dcpData->sid.to_host();
     }
@@ -731,9 +801,50 @@ public:
      */
     Collections::ManifestUid getManifestUid() const {
         const auto* dcpData =
-                reinterpret_cast<const Collections::SystemEventDcpData*>(
+                reinterpret_cast<const Collections::CreateEventDcpData*>(
                         event.getEventData().data());
         return dcpData->manifestUid.to_host();
+    }
+
+    /**
+     * @return max_ttl of collection
+     */
+    cb::ExpiryLimit getMaxTtl() const {
+        if (event.getVersion() == mcbp::systemevent::version::version0) {
+            return {};
+        } else {
+            const auto* dcpData = reinterpret_cast<
+                    const Collections::CreateWithMaxTtlEventDcpData*>(
+                    event.getEventData().data());
+            return std::chrono::seconds(ntohl(dcpData->maxTtl));
+        }
+    }
+};
+
+class DropCollectionEvent : public CollectionsEvent {
+public:
+    DropCollectionEvent(const SystemEventMessage& e)
+        : CollectionsEvent(e, Collections::DropEventDcpData::size) {
+    }
+
+    /**
+     * @return manifest uid which triggered the create or delete
+     */
+    Collections::ManifestUid getManifestUid() const {
+        const auto* dcpData =
+                reinterpret_cast<const Collections::CreateEventDcpData*>(
+                        event.getEventData().data());
+        return dcpData->manifestUid.to_host();
+    }
+
+    /**
+     * @return the CollectionID of the event
+     */
+    CollectionID getCollectionID() const {
+        const auto* dcpData =
+                reinterpret_cast<const Collections::DropEventDcpData*>(
+                        event.getEventData().data());
+        return dcpData->cid.to_host();
     }
 };
 

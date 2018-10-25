@@ -22,6 +22,7 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
+extern std::string dcp_last_key;
 extern cb::mcbp::ClientOpcode dcp_last_op;
 extern CollectionID dcp_last_collection_id;
 extern mcbp::systemevent::id dcp_last_system_event;
@@ -123,23 +124,42 @@ void CollectionsDcpTest::notifyAndStepToCheckpoint(
             *producer, *producers, expectedOp, fromMemory);
 }
 
-void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
-                                             int expectedDeletes,
-                                             int expectedMutations,
-                                             bool fromMemory) {
+void CollectionsDcpTest::testDcpCreateDelete(
+        const std::vector<CollectionEntry::Entry>& expectedCreates,
+        const std::vector<CollectionEntry::Entry>& expectedDeletes,
+        int expectedMutations,
+        bool fromMemory) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               fromMemory);
 
-    int creates = 0, deletes = 0, mutations = 0;
+    int mutations = 0;
+
+    auto createItr = expectedCreates.begin();
+    auto deleteItr = expectedDeletes.begin();
+
     // step until done
     while (producer->step(producers.get()) == ENGINE_SUCCESS) {
         if (dcp_last_op == cb::mcbp::ClientOpcode::DcpSystemEvent) {
             switch (dcp_last_system_event) {
             case mcbp::systemevent::id::CreateCollection:
-                creates++;
+                if (createItr == expectedCreates.end()) {
+                    throw std::logic_error(
+                            "Found a create collection, but expected vector is "
+                            "now at the end");
+                }
+                EXPECT_EQ((*createItr).name, dcp_last_key);
+                EXPECT_EQ((*createItr).uid, dcp_last_collection_id);
+
+                createItr++;
                 break;
             case mcbp::systemevent::id::DeleteCollection:
-                deletes++;
+                if (deleteItr == expectedCreates.end()) {
+                    throw std::logic_error(
+                            "Found a drop collection, but expected vector is "
+                            "now at the end");
+                }
+                EXPECT_EQ((*deleteItr).uid, dcp_last_collection_id);
+                deleteItr++;
                 break;
             default:
                 throw std::logic_error(
@@ -152,8 +172,8 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
         }
     }
 
-    EXPECT_EQ(expectedCreates, creates);
-    EXPECT_EQ(expectedDeletes, deletes);
+    EXPECT_EQ(createItr, expectedCreates.end());
+    EXPECT_EQ(deleteItr, expectedDeletes.end());
     EXPECT_EQ(expectedMutations, mutations);
 
     // Finally check that the active and replica have the same manifest, our
@@ -184,18 +204,30 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
     (void)vbucket; // ignored as we are connecting VBn to VBn+1
     dcp_last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
     dcp_last_system_event = event;
-    if (event == mcbp::systemevent::id::CreateCollection ||
-        event == mcbp::systemevent::id::DeleteCollection) {
+    EXPECT_EQ(mcbp::systemevent::version::version0, version);
+    if (event == mcbp::systemevent::id::CreateCollection) {
         dcp_last_collection_id =
-                reinterpret_cast<const Collections::SystemEventDcpData*>(
+                reinterpret_cast<const Collections::CreateEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
+        // Using the ::size directly in the EXPECT is failing to link on
+        // OSX build, but copying the value works.
+        const auto expectedSize = Collections::CreateEventDcpData::size;
+        EXPECT_EQ(expectedSize, eventData.size());
+        dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
+                            key.size());
+    } else if (event == mcbp::systemevent::id::DeleteCollection) {
+        dcp_last_collection_id =
+                reinterpret_cast<const Collections::DropEventDcpData*>(
+                        eventData.data())
+                        ->cid.to_host();
+        // Using the ::size directly in the EXPECT is failing to link on
+        // OSX build, but copying the value works.
+        const auto expectedSize = Collections::DropEventDcpData::size;
+        EXPECT_EQ(expectedSize, eventData.size());
+        EXPECT_EQ(nullptr, key.data());
     }
 
-    // Using the ::size directly in the EXPECT is failing to link on
-    // OSX build, but copying the value works.
-    const auto expectedSize = Collections::SystemEventDcpData::size;
-    EXPECT_EQ(expectedSize, eventData.size());
     if (consumer) {
         return consumer->systemEvent(
                 opaque, replicaVB, event, bySeqno, version, key, eventData);

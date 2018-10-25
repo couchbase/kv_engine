@@ -700,7 +700,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     s->getVBucket(),
                     s->getSystemEvent(),
                     *s->getBySeqno(),
-                    mcbp::systemevent::version::version0,
+                    s->getVersion(),
                     {reinterpret_cast<const uint8_t*>(s->getKey().data()),
                      s->getKey().size()},
                     s->getEventData());

@@ -104,7 +104,7 @@ protected:
      * @param event The collection system event creating the collection.
      */
     ENGINE_ERROR_CODE processCreateCollection(
-            VBucket& vb, const CreateOrDeleteCollectionEvent& event);
+            VBucket& vb, const CreateCollectionEvent& event);
 
     /**
      * Process a begin delete collection event.
@@ -113,7 +113,7 @@ protected:
      * @param event The collection system event deleting the collection.
      */
     ENGINE_ERROR_CODE processBeginDeleteCollection(
-            VBucket& vb, const CreateOrDeleteCollectionEvent& event);
+            VBucket& vb, const DropCollectionEvent& event);
 
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 

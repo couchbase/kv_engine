@@ -18,6 +18,7 @@
 #pragma once
 
 #include "tests/mock/mock_dcp.h"
+#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 
 class MockDcpConsumer;
@@ -68,10 +69,12 @@ public:
                     cb::mcbp::ClientOpcode::DcpSnapshotMarker,
             bool fromMemory = true);
 
-    void testDcpCreateDelete(int expectedCreates,
-                             int expectedDeletes,
-                             int expectedMutations,
-                             bool fromMemory = true);
+    /// the vectors are ordered, so front() is the first item we expect to see
+    void testDcpCreateDelete(
+            const std::vector<CollectionEntry::Entry>& expectedCreates,
+            const std::vector<CollectionEntry::Entry>& expectedDeletes,
+            int expectedMutations,
+            bool fromMemory = true);
 
     void resetEngineAndWarmup(std::string new_config = "");
 

@@ -351,10 +351,17 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
     clear_dcp_data();
     dcp_last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
     dcp_last_system_event = event;
-    if (event == mcbp::systemevent::id::CreateCollection ||
-        event == mcbp::systemevent::id::DeleteCollection) {
+    if (event == mcbp::systemevent::id::CreateCollection) {
         dcp_last_collection_id =
-                reinterpret_cast<const Collections::SystemEventDcpData*>(
+                reinterpret_cast<const Collections::CreateEventDcpData*>(
+                        eventData.data())
+                        ->cid.to_host();
+
+        dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
+                            key.size());
+    } else if (event == mcbp::systemevent::id::DeleteCollection) {
+        dcp_last_collection_id =
+                reinterpret_cast<const Collections::DropEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
     }

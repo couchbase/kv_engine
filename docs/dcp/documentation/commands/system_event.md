@@ -1,28 +1,33 @@
-### System Event (0x5f) - Draft - subject to change
+### System Event (0x5f)
 
-Tells the consumer that the message contains a system event. The system event message
-encodes event information that relates to the users data, but is not necessarily something
-they can control.
+Tells the consumer that the message contains a system event. The system event
+message encodes event information that relates to the user's data, but is not
+necessarily something they directly control.
 
-The primary use-case for system events is collections, and thus the following system events can occur:
+The primary use-case for system events is collections, and thus the following
+system events can occur:
 
 * Collection creation.
 * Collection drop.
+* Collection flush (not yet supported).
 
-A system event always encodes in the extras the seqno of the event and an identifier for the event, the following identifiers are defined.
+A system event always encodes in the extras the seqno of the event and an
+identifier for the event, the following events are defined (values shown).
 
 * 0 - A collection has been created
 * 1 - A collection has been dropped
-* 2 - A collection has been flushed
+* 2 - A collection has been flushed (not yet supported)
 
-The different events then define an optional value, the encoding of which is listed in subsequent sections.
+Each event is free to define if a key or value is present, and the format of each.
+
 
 The request:
 * Must have extras
-* Must have key
+* May have key
 * May have value
 
-Extra looks like:
+
+Extra data for system event:
 
      Byte/     0       |       1       |       2       |       3       |
         /              |               |               |               |
@@ -34,27 +39,47 @@ Extra looks like:
        +---------------+---------------+---------------+---------------+
       8| event                                                         |
        +---------------+---------------+---------------+---------------+
-       Total 12 bytes
+     12| version       |
+       +---------------+
+       Total 13 bytes
 
 The consumer should not send a reply to this command.
 
-The following example shows the breakdown of the message, the example message is showing
-a system event for the creation of "mycollection" with a revision of 2. This would occur
-because the node has been told to create "mycollection" from a JSON manifest such as:
+### Example
+
+The following example is showing a system event for the creation of
+"mycollection" with a collection-uid of 8.
+
+This would occur in response to set_collections receiving a JSON manifest as:
 
 ```
-{"revision":2, "separator":"::", "collections":["mycollection"]}
+{
+   "uid":"2",
+   "scopes":[
+      {
+         "uid":"0",
+         "name":"_default",
+         "collections":[
+            {
+               "uid":"8",
+               "name":"mycollection",
+               "max_ttl" : 72000
+            }
+         ]
+      }
+   ]
+}
 ```
 
       Byte/     0       |       1       |       2       |       3       |
          /              |               |               |               |
         |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
         +---------------+---------------+---------------+---------------+
-       0| 0x80          | 0x5f          | 0x00          | 0x05          |
+       0| 0x80          | 0x5f          | 0x00          | 0x0c          |
         +---------------+---------------+---------------+---------------+
-       4| 0x0c          | 0x00          | 0x02          | 0x10          |
+       4| 0x0D          | 0x00          | 0x02          | 0x10          |
         +---------------+---------------+---------------+---------------+
-       8| 0x00          | 0x00          | 0x00          | 0x29          |
+       8| 0x00          | 0x00          | 0x00          | 0x2d          |
         +---------------+---------------+---------------+---------------+
       12| 0x00          | 0x00          | 0x12          | 0x10          |
         +---------------+---------------+---------------+---------------+
@@ -66,37 +91,117 @@ because the node has been told to create "mycollection" from a JSON manifest suc
         +---------------+---------------+---------------+---------------+
       28| 0x00          | 0x00          | 0x00          | 0x04          |
         +---------------+---------------+---------------+---------------+
-      32| 0x00          | 0x00          | 0x00          | 0x01          |
+      32| 0x00          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      36| 0x00 ('m')    | 0x00 ('y')    | 0x00 ('c')    | 0x00 ('o')    |
+      36| 0x01          | 0x6d ('m')    | 0x79 ('y')    | 0x63 ('c')    |
         +---------------+---------------+---------------+---------------+
-      40| 0x00 ('l')    | 0x00 ('l')    | 0x00 ('e')    | 0x00 ('c')    |
+      40| 0x6f ('o')    | 0x6c ('l')    | 0x6c ('l')    | 0x65 ('e')    |
         +---------------+---------------+---------------+---------------+
-      44| 0x00 ('t')    | 0x00 ('i')    | 0x00 ('o')    | 0x00 ('n')    |
+      44| 0x63 ('c')    | 0x74 ('t')    | 0x69 ('i')    | 0x6f ('o')    |
         +---------------+---------------+---------------+---------------+
-      48| 0x00          | 0x00          | 0x00          | 0x02          |
+      48| 0x6e ('n')    | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
+      52| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      56| 0x05          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      60| 0x08          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      64| 0x00          | 0x00          | 0x01          | 0x19          |
+        +---------------+---------------+---------------+---------------+
+      68| 0x40          |
+        +---------------+
+      Total 69 bytes (24 byte header + 13 byte extras + 12 byte key + 20 byte value)
+
+
           DCP_SYSTEM_EVENT command
     Field        (offset) (value)
     Magic        (0)    : 0x80
-    Opcode       (1)    : 0x57
-    Key length   (2,3)  : 0x0005
-    Extra length (4)    : 0x0c
+    Opcode       (1)    : 0x5F
+    Key length   (2,3)  : 0x000C
+    Extra length (4)    : 0x0D
     Data type    (5)    : 0x00
     Vbucket      (6,7)  : 0x0210
-    Total body   (8-11) : 0x00000029
+    Total body   (8-11) : 0x0000002D
     Opaque       (12-15): 0x00001210
     CAS          (16-23): 0x0000000000000000
-      by seqno   (24-31): 0x0000000000000004
-      event      (32-35): 0x00000001
-    Key          (36-47): mycollection
-    Value        (48-51): 0x00000002
+     by seqno    (24-31): 0x0000000000000004
+     event       (32-35): 0x00000000
+     version     (36):    0x01
+    Key          (37-48): mycollection
+    Value        (49-56): 0x0000000000000005 # manifest ID
+                 (57-60): 0x00000008 # Collection-ID
+                 (61-64): 0x00000000 # Scope-ID
+                 (65-68): 0x00011940 # max_ttl
+
+
+
+### Extras
+
+The extras of a system event encodes
+
+* The seqno at which the event occurred
+* The id of the event
+* A version for the event data - clients must read the version before assuming
+  the value and key format.
+
+### Value Data Definition
+
+#### Create Collection
+
+A create collection system event with version 0 or 1 has a key which is the name of
+the created collection.
+
+A create collection system event with version 0 contains a 16 byte value.
+A create collection system event with version 1 contains a 20 byte value.
+
+
+version 0:
+* The ID of the manifest which generated the collection as a 8-byte integer (network endian)
+* The ID of the new collection as a 4-byte integer (network endian)
+* The Scope-ID that the new collection belongs to as a 4-byte integer (network endian)
+
+version 1:
+Contains version 0 +
+
+* The max_ttl value of the collection as 4-byte integer  (network endian)
+
+```
+    struct collection_create_event_data_version0 {
+       uint64_t manifest_uid;
+       uint32_t scope_id;
+       uint32_t collection_id;
+    }
+
+    struct collection_create_event_data_version1 {
+       uint64_t manifest_uid;
+       uint32_t scope_id;
+       uint32_t collection_id;
+       uint32_t max_ttl;
+    }
+```
+
+#### Drop/Flush Collection
+
+A drop or flush collection system event with version 0 contains:
+
+* The ID of the manifest which dropped the collection as a 8-byte integer (network endian)
+* The ID of the dropped collection as a 4-byte integer (network endian)
+
+Note drop collection does not encode a collection name.
+
+```
+    struct collection_drop_event_data_version0 {
+       uint64_t manifest_uid;
+       uint32_t collection_id;
+    }
+```
 
 ### Returns
 
 This message will not return a response unless an error occurs.
 
-### Errors
+### Errors (from KV DCP consumer)
 
 **PROTOCOL_BINARY_RESPONSE_KEY_ENOENT (0x01)**
 
@@ -108,7 +213,10 @@ If data in this packet is malformed or incomplete then this error is returned.
 
 **PROTOCOL_BINARY_RESPONSE_ERANGE (0x22)**
 
-If the by sequence number is lower than the current by sequence number contained on the consumer. The by sequence number should always be greater than the one the consumer currently has so if the by sequence number in the message is less than or equal to the by sequence number on the consumer this error is returned.
+If the by sequence number is lower than the current by sequence number contained
+on the consumer. The by sequence number should always be greater than the one
+the consumer currently has so if the by sequence number in the message is less
+than or equal to the by sequence number on the consumer this error is returned.
 
 **(Disconnect)**
 

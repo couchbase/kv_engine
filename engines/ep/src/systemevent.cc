@@ -136,13 +136,31 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         uint32_t opaque, const queued_item& item) {
     switch (SystemEvent(item->getFlags())) {
     case SystemEvent::Collection: {
-        // Note: constructor is private and make_unique is a pain to make friend
-        return std::unique_ptr<CollectionsProducerMessage>{
-                new CollectionsProducerMessage(
-                        opaque,
-                        item,
-                        Collections::VB::Manifest::getSystemEventData(
-                                {item->getData(), item->getNBytes()}))};
+        if (!item->isDeleted()) {
+            // Note: constructor is private and make_unique is a pain to make
+            // friend
+            auto data = Collections::VB::Manifest::getCreateEventData(
+                    {item->getData(), item->getNBytes()});
+            if (data.maxTtl) {
+                return std::unique_ptr<
+                        CollectionsCreateWithMaxTtlProducerMessage>{
+                        new CollectionsCreateWithMaxTtlProducerMessage(
+                                opaque, item, data)};
+            } else {
+                return std::unique_ptr<CollectionsCreateProducerMessage>{
+                        new CollectionsCreateProducerMessage(
+                                opaque, item, data)};
+            }
+        } else {
+            // Note: constructor is private and make_unique is a pain to make
+            // friend
+            return std::unique_ptr<CollectionsDropProducerMessage>{
+                    new CollectionsDropProducerMessage(
+                            opaque,
+                            item,
+                            Collections::VB::Manifest::getDropEventData(
+                                    {item->getData(), item->getNBytes()}))};
+        }
     }
     case SystemEvent::DeleteCollectionHard:
         break;

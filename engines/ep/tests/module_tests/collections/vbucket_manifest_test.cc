@@ -122,19 +122,9 @@ public:
     }
 
     // Wire through to private method
-    boost::optional<std::pair<ScopeID, CollectionID>> public_applyChanges(
-            std::function<void(Collections::ManifestUid,
-                               ScopeCollectionPair,
-                               OptionalSeqno)> update,
-            std::vector<ScopeCollectionPair>& changes) {
-        return applyChanges(update, changes);
-    }
-
-    void public_addCollection(::VBucket& vb,
-                              Collections::ManifestUid manifestUid,
-                              ScopeCollectionPair identifiers,
-                              OptionalSeqno optionalSeqno) {
-        addCollection(vb, manifestUid, identifiers, optionalSeqno);
+    boost::optional<Manifest::Addition> public_applyCreates(
+            ::VBucket& vb, std::vector<Addition>& changes) {
+        return applyCreates(vb, changes);
     }
 
     boost::optional<std::vector<CollectionID>> public_getCollectionsForScope(
@@ -404,22 +394,26 @@ public:
         for (const auto& qi : events) {
             lastSeqno = qi->getBySeqno();
             if (qi->getOperation() == queue_op::system_event) {
-                auto dcpData = Collections::VB::Manifest::getSystemEventData(
-                        {qi->getData(), qi->getNBytes()});
-
                 switch (SystemEvent(qi->getFlags())) {
                 case SystemEvent::Collection: {
                     if (qi->isDeleted()) {
+                        auto dcpData =
+                                Collections::VB::Manifest::getDropEventData(
+                                        {qi->getData(), qi->getNBytes()});
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaBeginDelete(
-                                vbR,
-                                dcpData.manifestUid,
-                                {dcpData.sid, dcpData.cid},
-                                qi->getBySeqno());
+                        replica.wlock().replicaBeginDelete(vbR,
+                                                           dcpData.manifestUid,
+                                                           dcpData.cid,
+                                                           qi->getBySeqno());
                     } else {
+                        auto dcpData =
+                                Collections::VB::Manifest::getCreateEventData(
+                                        {qi->getData(), qi->getNBytes()});
                         replica.wlock().replicaAdd(vbR,
                                                    dcpData.manifestUid,
                                                    {dcpData.sid, dcpData.cid},
+                                                   dcpData.name,
+                                                   dcpData.maxTtl,
                                                    qi->getBySeqno());
                     }
                     break;
@@ -957,44 +951,28 @@ TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
 }
 
 TEST_F(VBucketManifestTest, check_applyChanges) {
-    std::vector<ScopeCollectionPair> changes; // start out empty
-    auto value = manifest.getActiveManifest().public_applyChanges(
-            std::bind(&MockVBManifest::public_addCollection,
-                      &manifest.getActiveManifest(),
-                      std::ref(manifest.getActiveVB()),
-                      std::placeholders::_1,
-                      std::placeholders::_2,
-                      std::placeholders::_3),
-            changes);
+    std::vector<Collections::VB::Manifest::Addition> changes; // start out empty
+    auto value = manifest.getActiveManifest().public_applyCreates(
+            manifest.getActiveVB(), changes);
     EXPECT_FALSE(value.is_initialized());
-    changes.push_back(std::make_pair(0, 8));
-    value = manifest.getActiveManifest().public_applyChanges(
-            std::bind(&MockVBManifest::public_addCollection,
-                      &manifest.getActiveManifest(),
-                      std::ref(manifest.getActiveVB()),
-                      std::placeholders::_1,
-                      std::placeholders::_2,
-                      std::placeholders::_3),
-            changes);
-    EXPECT_TRUE(value.is_initialized());
-    EXPECT_EQ(0, value->first);
-    EXPECT_EQ(8, value->second);
+    changes.push_back({std::make_pair(0, 8), "name1"});
+    value = manifest.getActiveManifest().public_applyCreates(
+            manifest.getActiveVB(), changes);
+    ASSERT_TRUE(value.is_initialized());
+    EXPECT_EQ(0, value.get().identifiers.first);
+    EXPECT_EQ(8, value.get().identifiers.second);
+    EXPECT_EQ("name1", value.get().name);
     EXPECT_TRUE(changes.empty());
 
-    changes.push_back(std::make_pair(0, 8));
-    changes.push_back(std::make_pair(0, 9));
+    changes.push_back({std::make_pair(0, 8), "name2"});
+    changes.push_back({std::make_pair(0, 9), "name3"});
     EXPECT_EQ(1, manifest.getActiveManifest().size());
-    value = manifest.getActiveManifest().public_applyChanges(
-            std::bind(&MockVBManifest::public_addCollection,
-                      &manifest.getActiveManifest(),
-                      std::ref(manifest.getActiveVB()),
-                      std::placeholders::_1,
-                      std::placeholders::_2,
-                      std::placeholders::_3),
-            changes);
-    EXPECT_TRUE(value.is_initialized());
-    EXPECT_EQ(0, value->first);
-    EXPECT_EQ(9, value->second);
+    value = manifest.getActiveManifest().public_applyCreates(
+            manifest.getActiveVB(), changes);
+    ASSERT_TRUE(value.is_initialized());
+    EXPECT_EQ(0, value.get().identifiers.first);
+    EXPECT_EQ(9, value.get().identifiers.second);
+    EXPECT_EQ("name3", value.get().name);
     EXPECT_EQ(2, manifest.getActiveManifest().size());
 }
 

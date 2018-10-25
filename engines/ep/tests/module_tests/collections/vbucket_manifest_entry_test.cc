@@ -20,20 +20,26 @@
 
 #include <gtest/gtest.h>
 
+using namespace std::chrono_literals;
+
 // Basic ManifestEntry construction checks
 TEST(ManifestEntry, test_getters) {
     Collections::VB::ManifestEntry m(ScopeEntry::defaultS,
+                                     5000s, // ttl
                                      1000, // start
                                      StoredValue::state_collection_open); // end
     EXPECT_EQ(1000, m.getStartSeqno());
     EXPECT_EQ(StoredValue::state_collection_open, m.getEndSeqno());
     EXPECT_TRUE(m.isOpen());
+    EXPECT_TRUE(m.getMaxTtl());
+    EXPECT_EQ(5000s, m.getMaxTtl().get());
 }
 
 // Check isDeleting changes state when end seqno is adjusted
 TEST(ManifestEntry, test_state) {
     // Collection starts at seqno 1000
     Collections::VB::ManifestEntry m(ScopeEntry::defaultS,
+                                     {},
                                      1000, // start
                                      StoredValue::state_collection_open); // end
     EXPECT_TRUE(m.isOpen());
@@ -59,6 +65,7 @@ TEST(ManifestEntry, exceptions) {
 
     // Collection starts at seqno 1000
     Collections::VB::ManifestEntry m(ScopeEntry::defaultS,
+                                     {},
                                      1000, // start
                                      StoredValue::state_collection_open); // end
 
@@ -89,14 +96,15 @@ TEST(ManifestEntry, exceptions) {
     EXPECT_NO_THROW(m.setEndSeqno(StoredValue::state_collection_open));
 
     // start/end can't be equal
-    EXPECT_THROW(Collections::VB::ManifestEntry(ScopeEntry::defaultS, 100, 100),
-                 std::invalid_argument);
+    EXPECT_THROW(
+            Collections::VB::ManifestEntry(ScopeEntry::defaultS, {}, 100, 100),
+            std::invalid_argument);
 }
 
 TEST(ManifestEntry, construct_assign) {
 
     // Collection starts at seqno 1000
-    Collections::VB::ManifestEntry entry1(ScopeEntry::defaultS, 2, 9);
+    Collections::VB::ManifestEntry entry1(ScopeEntry::defaultS, {}, 2, 9);
 
     //  Move entry1 to entry2
     Collections::VB::ManifestEntry entry2(std::move(entry1));
