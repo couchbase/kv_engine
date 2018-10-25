@@ -22,7 +22,6 @@
 #include "testapp_environment.h"
 #include "utilities.h"
 
-#include <cJSON_utils.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <fstream>
@@ -325,32 +324,22 @@ void McdEnvironment::SetupAuditFile() {
         cb::io::mkdirp(audit_log_dir);
 
         // Generate the auditd config file.
-        audit_config.reset(cJSON_CreateObject());
-        cJSON_AddNumberToObject(audit_config.get(), "version", 2);
-        cJSON_AddStringToObject(audit_config.get(), "uuid", "this_is_the_uuid");
-        cJSON_AddFalseToObject(audit_config.get(), "auditd_enabled");
-        cJSON_AddNumberToObject(audit_config.get(), "rotate_interval", 1440);
-        cJSON_AddNumberToObject(audit_config.get(), "rotate_size", 20971520);
-        cJSON_AddFalseToObject(audit_config.get(), "buffered");
-        cJSON_AddStringToObject(audit_config.get(), "log_path",
-                                audit_log_dir.c_str());
-        cJSON_AddStringToObject(audit_config.get(), "descriptors_path",
-                                descriptor.c_str());
-        cJSON_AddItemToObject(audit_config.get(), "sync", cJSON_CreateArray());
-        cJSON_AddItemToObject(audit_config.get(), "disabled",
-                              cJSON_CreateArray());
-
-        auto* states = cJSON_CreateObject();
-        cJSON_AddStringToObject(
-                states,
-                std::to_string(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)
-                        .c_str(),
-                "enabled");
-        cJSON_AddItemToObject(audit_config.get(), "event_states", states);
-        cJSON_AddFalseToObject(audit_config.get(), "filtering_enabled");
-        cJSON_AddItemToObject(
-                audit_config.get(), "disabled_userids", cJSON_CreateArray());
-
+        audit_config = {};
+        audit_config["version"] = 2;
+        audit_config["uuid"] = "this_is_the_uuid";
+        audit_config["auditd_enabled"] = false;
+        audit_config["rotate_interval"] = 1440;
+        audit_config["rotate_size"] = 20971520;
+        audit_config["buffered"] = false;
+        audit_config["log_path"] = audit_log_dir;
+        audit_config["descriptors_path"] = descriptor;
+        audit_config["sync"] = nlohmann::json::array();
+        audit_config["disabled"] = nlohmann::json::array();
+        audit_config["event_states"]
+                    [std::to_string(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)] =
+                            "enabled";
+        audit_config["filtering_enabled"] = false;
+        audit_config["disabled_userids"] = nlohmann::json::array();
     } catch (const std::exception& e) {
         FAIL() << "Failed to generate audit configuration: " << e.what();
     }
@@ -377,7 +366,7 @@ void McdEnvironment::TearDown() {
 
 void McdEnvironment::rewriteAuditConfig() {
     try {
-        std::string audit_text = to_string(audit_config);
+        std::string audit_text = audit_config.dump();
         std::ofstream out(audit_file_name);
         out.write(audit_text.c_str(), audit_text.size());
         out.close();
@@ -390,9 +379,7 @@ void McdEnvironment::SetupRbacFile() {
     std::string input_file{SOURCE_ROOT};
     input_file.append("/tests/testapp/rbac.json");
     cb::io::sanitizePath(input_file);
-    const auto input = cb::io::loadFile(input_file);
-    rbac_data.reset(cJSON_Parse(input.c_str()));
-
+    rbac_data = nlohmann::json::parse(cb::io::loadFile(input_file));
     rbac_file_name = cwd + "/" + cb::io::mktemp("rbac.json.XXXXXX");
     rewriteRbacFile();
 }
@@ -400,7 +387,7 @@ void McdEnvironment::SetupRbacFile() {
 void McdEnvironment::rewriteRbacFile() {
     try {
         std::ofstream out(rbac_file_name);
-        out << to_string(rbac_data, true) << std::endl;
+        out << rbac_data.dump(2) << std::endl;
         out.close();
     } catch (std::exception& e) {
         FAIL() << "Failed to store rbac configuration: " << e.what();

@@ -16,10 +16,10 @@
  */
 #pragma once
 
-#include <cJSON_utils.h>
 #include <gtest/gtest.h>
-#include <string>
 #include <memcached/protocol_binary.h>
+#include <nlohmann/json.hpp>
+#include <string>
 
 class MemcachedConnection;
 
@@ -160,8 +160,8 @@ public:
      *
      * @return the root object of the audit configuration.
      */
-    cJSON* getAuditConfig() {
-        return audit_config.get();
+    nlohmann::json& getAuditConfig() {
+        return audit_config;
     }
 
     /**
@@ -187,8 +187,8 @@ public:
      *
      * @return the object containing the RBAC configuration
      */
-    cJSON* getRbacConfig() {
-        return rbac_data.get();
+    nlohmann::json& getRbacConfig() {
+        return rbac_data;
     }
 
     /**
@@ -217,8 +217,8 @@ private:
     std::string audit_file_name;
     std::string audit_log_dir;
     std::string cwd;
-    unique_cJSON_ptr audit_config;
-    unique_cJSON_ptr rbac_data;
+    nlohmann::json audit_config;
+    nlohmann::json rbac_data;
     static char isasl_env_var[256];
     bool manageSSL;
     std::unique_ptr<TestBucketImpl> testBucket;

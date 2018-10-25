@@ -51,11 +51,9 @@ public:
     }
 
     void setEnabled(bool mode) {
-        auto* json = mcd_env->getAuditConfig();
+        auto& json = mcd_env->getAuditConfig();
+        json["auditd_enabled"] = mode;
         try {
-            cJSON_ReplaceItemInObject(json, "auditd_enabled",
-                                      mode ? cJSON_CreateTrue() :
-                                             cJSON_CreateFalse());
             mcd_env->rewriteAuditConfig();
         } catch (std::exception& e) {
             FAIL() << "Failed to toggle audit state: " << e.what();
