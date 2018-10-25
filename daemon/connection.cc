@@ -1428,8 +1428,11 @@ void Connection::runEventLoop(short which) {
 
 bool Connection::close() {
     bool ewb = false;
+    uint32_t rc = refcount;
+
     for (auto& cookie : cookies) {
         if (cookie) {
+            rc += cookie->getRefcount();
             if (cookie->isEwouldblock()) {
                 ewb = true;
             } else {
@@ -1462,7 +1465,7 @@ bool Connection::close() {
         ewb = false;
     }
 
-    if (refcount > 1 || ewb) {
+    if (rc > 1 || ewb) {
         setState(StateMachine::State::pending_close);
         return false;
     }

@@ -1504,9 +1504,7 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     ENGINE_ERROR_CODE reserve(gsl::not_null<const void*> void_cookie) override {
-        auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
-
-        cookie->getConnection().incrementRefcount();
+        getCookie(void_cookie).incrementRefcount();
         return ENGINE_SUCCESS;
     }
 
@@ -1529,7 +1527,7 @@ struct ServerCookieApi : public ServerCookieIface {
             // state. (NOTE: the release call shall never be called from the
             // worker threads), so put the connection in the pool of pending
             // IO and have the system retry the operation for the connection
-            connection.decrementRefcount();
+            cookie.decrementRefcount();
             notify = add_conn_to_pending_io_list(&connection, ENGINE_SUCCESS);
         }
 

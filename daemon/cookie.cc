@@ -59,6 +59,7 @@ nlohmann::json Cookie::toJSON() const {
     ret["connection"] = connection.getDescription();
     ret["ewouldblock"] = ewouldblock;
     ret["aiostat"] = to_string(cb::engine_errc(aiostat));
+    ret["refcount"] = uint32_t(refcount);
     return ret;
 }
 

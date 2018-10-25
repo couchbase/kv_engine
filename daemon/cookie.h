@@ -449,6 +449,24 @@ public:
         return tracer;
     }
 
+    uint8_t getRefcount() {
+        return refcount;
+    }
+    void incrementRefcount() {
+        if (refcount == 255) {
+            throw std::logic_error(
+                    "Cookie::incrementRefcount(): refcount will wrap");
+        }
+        refcount++;
+    }
+    void decrementRefcount() {
+        if (refcount == 0) {
+            throw std::logic_error(
+                    "Cookie::decrementRefcount(): refcount will wrap");
+        }
+        refcount--;
+    }
+
 protected:
     bool enableTracing = false;
     cb::tracing::Tracer tracer;
@@ -515,4 +533,11 @@ protected:
     ENGINE_ERROR_CODE aiostat = ENGINE_SUCCESS;
 
     bool ewouldblock = false;
+
+    /// The number of times someone tried to reserve the cookie (to avoid
+    /// releasing it while other parties think they reserved the object.
+    /// Previously reserve would lock the connection, but with OOO we
+    /// might have multiple cookies in flight and needs to be able to
+    /// lock them independently
+    uint8_t refcount = 0;
 };
