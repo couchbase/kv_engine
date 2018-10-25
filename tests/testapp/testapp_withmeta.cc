@@ -43,15 +43,11 @@ public:
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
         cmd.addDocFlags(mcbp::subdoc::doc_flag::None);
 
-        conn.sendCommand(cmd);
+        auto resp = conn.execute(cmd);
 
-        BinprotSubdocResponse resp;
-        conn.recvResponse(resp);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        unique_cJSON_ptr vattr(cJSON_Parse(resp.getValue().c_str()));
-
-        EXPECT_STREQ(testCasStr,
-                     cJSON_GetObjectItem(vattr.get(), "CAS")->valuestring);
+        auto json = nlohmann::json::parse(resp.getDataString());
+        EXPECT_STREQ(testCasStr, json["CAS"].get<std::string>().c_str());
     }
 
     /**
