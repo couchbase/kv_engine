@@ -346,9 +346,6 @@ TEST_P(ArithmeticXattrOnTest, MB25402) {
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
 
     // Ensure that we found all we expected and they're of the correct type:
-    unique_cJSON_ptr meta(cJSON_Parse(results[0].value.c_str()));
-    auto* obj = cJSON_GetObjectItem(meta.get(), "exptime");
-    EXPECT_NE(nullptr, obj);
-    EXPECT_EQ(cJSON_Number, obj->type);
-    EXPECT_EQ(0, obj->valueint);
+    auto meta = nlohmann::json::parse(results[0].value);
+    EXPECT_EQ(0, meta["exptime"].get<int>());
 }
