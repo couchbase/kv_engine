@@ -32,6 +32,8 @@
 // used for backwards source compatibility
 #include <memcached/protocol_binary.h>
 
+#include <nlohmann/json_fwd.hpp>
+
 #include <cJSON_utils.h>
 
 #include <chrono>
@@ -157,6 +159,12 @@ unique_cJSON_ptr to_json();
  * the per-opcode section of the full SLA entry
  */
 std::chrono::nanoseconds getSlowOpThreshold(const cJSON& doc);
+
+/**
+ * Get the slow operation threshold for the given doc (this should be
+ * the per-opcode section of the full SLA entry
+ */
+std::chrono::nanoseconds getSlowOpThreshold(const nlohmann::json& doc);
 
 } // namespace sla
 }

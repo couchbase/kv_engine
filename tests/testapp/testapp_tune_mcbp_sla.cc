@@ -31,21 +31,21 @@ protected:
 std::chrono::nanoseconds TuneMcbpSla::getSlowThreshold(
         cb::mcbp::ClientOpcode opcode) {
     auto& connection = getAdminConnection();
-    unique_cJSON_ptr json(cJSON_Parse(connection.ioctl_get("sla").c_str()));
+    auto json = nlohmann::json::parse(connection.ioctl_get("sla"));
 
-    cJSON* obj = cJSON_GetObjectItem(json.get(), to_string(opcode).c_str());
-    if (obj == nullptr) {
+    auto iter = json.find(to_string(opcode));
+    if (iter == json.end()) {
         // There isn't an explicit entry for the opcode.. there might be
         // default entry we should use instead
-        obj = cJSON_GetObjectItem(json.get(), "default");
-        if (obj == nullptr) {
+        iter = json.find("default");
+        if (iter == json.end()) {
             throw std::logic_error(
                     "TuneMcbpSla::getSlowThreshold: No entry for " +
                     to_string(opcode));
         }
     }
 
-    return cb::mcbp::sla::getSlowOpThreshold(*obj);
+    return cb::mcbp::sla::getSlowOpThreshold(*iter);
 }
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,

@@ -19,6 +19,7 @@
 #include <mcbp/protocol/opcode.h>
 
 #include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
 
@@ -332,6 +333,12 @@ std::chrono::nanoseconds getSlowOpThreshold(const cJSON& doc) {
                 "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
                 to_string(&doc, false) + "' contains an unknown time unit");
     }
+}
+
+std::chrono::nanoseconds getSlowOpThreshold(const nlohmann::json& doc) {
+    // Use the cJSON one until we've moved everything to nlohmann
+    unique_cJSON_ptr json(cJSON_Parse(doc.dump().c_str()));
+    return getSlowOpThreshold(*json.get());
 }
 
 static void merge_docs(cJSON& doc1, const cJSON& doc2) {
