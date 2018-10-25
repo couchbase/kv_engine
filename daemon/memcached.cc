@@ -758,7 +758,16 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     //
     {
         std::lock_guard<std::mutex> lock(thr->pending_io.mutex);
-        thr->pending_io.map.erase(c);
+        auto iter = thr->pending_io.map.find(c);
+        if (iter != thr->pending_io.map.end()) {
+            for (const auto& pair : iter->second) {
+                if (pair.first) {
+                    pair.first->setAiostat(pair.second);
+                    pair.first->setEwouldblock(false);
+                }
+            }
+            thr->pending_io.map.erase(iter);
+        }
     }
 
     TRACE_LOCKGUARD_TIMED(thr->mutex,
@@ -1528,7 +1537,8 @@ struct ServerCookieApi : public ServerCookieIface {
             // worker threads), so put the connection in the pool of pending
             // IO and have the system retry the operation for the connection
             cookie.decrementRefcount();
-            notify = add_conn_to_pending_io_list(&connection, ENGINE_SUCCESS);
+            notify = add_conn_to_pending_io_list(
+                    &connection, nullptr, ENGINE_SUCCESS);
         }
 
         // kick the thread in the butt

@@ -61,7 +61,9 @@ struct FrontEndThread {
      * Pending IO requests for this thread. Maps each pending Connection to
      * the IO status to be notified.
      */
-    using PendingIoMap = std::unordered_map<Connection*, ENGINE_ERROR_CODE>;
+    using PendingIoMap = std::unordered_map<
+            Connection*,
+            std::vector<std::pair<Cookie*, ENGINE_ERROR_CODE>>>;
 
     /**
      * Destructor.

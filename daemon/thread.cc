@@ -292,7 +292,6 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
     for (auto io : pending) {
         auto* c = io.first;
-        auto status = io.second;
         if (c->getSocketDescriptor() != INVALID_SOCKET &&
             !c->isRegisteredInLibevent()) {
             /* The socket may have been shut down while we're looping */
@@ -300,10 +299,13 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
             c->registerEvent();
         }
 
-        // @todo we need to refactor this so we keep the _cookies_ and not
-        //       the connections
-        c->getCookieObject().setAiostat(status);
-        c->getCookieObject().setEwouldblock(false);
+        for (const auto& pair : io.second) {
+            if (pair.first) {
+                pair.first->setAiostat(pair.second);
+                pair.first->setEwouldblock(false);
+            }
+        }
+
         /*
          * We don't want the thread to keep on serving all of the data
          * from the context of the notification pipe, so just let it
@@ -358,7 +360,7 @@ void notify_io_complete(gsl::not_null<const void*> void_cookie,
               status);
 
     /* kick the thread in the butt */
-    if (add_conn_to_pending_io_list(&cookie.getConnection(), status)) {
+    if (add_conn_to_pending_io_list(&cookie.getConnection(), &cookie, status)) {
         notify_thread(*thr);
     }
 }
@@ -522,14 +524,28 @@ void notify_thread(FrontEndThread& thread) {
     }
 }
 
-int add_conn_to_pending_io_list(Connection* c, ENGINE_ERROR_CODE status) {
+int add_conn_to_pending_io_list(Connection* c,
+                                Cookie* cookie,
+                                ENGINE_ERROR_CODE status) {
     auto* thread = c->getThread();
 
-    std::pair<FrontEndThread::PendingIoMap::iterator, bool> result;
-    {
-        std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
-        result = thread->pending_io.map.emplace(c, status);
+    std::lock_guard<std::mutex> lock(thread->pending_io.mutex);
+    auto iter = thread->pending_io.map.find(c);
+    if (iter == thread->pending_io.map.end()) {
+        thread->pending_io.map.emplace(
+                c,
+                std::vector<std::pair<Cookie*, ENGINE_ERROR_CODE>>{
+                        {cookie, status}});
+        return 1;
+    } else {
+        for (const auto& pair : iter->second) {
+            if (pair.first == cookie) {
+                // we've already got a pending notification for this
+                // cookie.. Ignore it
+                return 0;
+            }
+        }
+        iter->second.push_back({cookie, status});
+        return 1;
     }
-    int notify = result.second ? 1 : 0;
-    return notify;
 }

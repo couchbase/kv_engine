@@ -86,7 +86,9 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 void notify_io_complete(gsl::not_null<const void*> cookie,
                         ENGINE_ERROR_CODE status);
 void safe_close(SOCKET sfd);
-int add_conn_to_pending_io_list(Connection* c, ENGINE_ERROR_CODE status);
+int add_conn_to_pending_io_list(Connection* c,
+                                Cookie* cookie,
+                                ENGINE_ERROR_CODE status);
 void event_handler(evutil_socket_t fd, short which, void *arg);
 void listen_event_handler(evutil_socket_t, short, void *);
 
