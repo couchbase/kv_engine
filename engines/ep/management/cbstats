@@ -477,20 +477,22 @@ def stats_dcp(mc):
     stats_formatter(stats_perform(mc, 'dcp'))
 
 @cmd
-def stats_collections(mc, vb=-1):
+def stats_collections(mc):
+    stats_formatter(stats_perform(mc, 'collections'))
+
+@cmd
+def stats_collections_details(mc, vb=-1):
     try:
         vb = int(vb)
         if vb == -1:
-            cmd = 'collections'
+            cmd = 'collections-details'
         else:
-            cmd = "collections %s" % (str(vb))
+            cmd = "collections-details %s" % (str(vb))
         stats_formatter(stats_perform(mc, cmd))
     except ValueError:
         print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
-def stats_collections_details(mc):
-    stats_formatter(stats_perform(mc, 'collections-details'))
 
 @cmd
 def stats_dcpagg(mc):
