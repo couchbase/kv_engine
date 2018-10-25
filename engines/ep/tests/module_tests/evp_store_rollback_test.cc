@@ -81,6 +81,7 @@ protected:
         return ENGINE_SUCCESS;
     }
 
+public:
     /**
      * Test rollback after deleting an item.
      * @param flush_before_rollback: Should the vbucket be flushed to disk just
@@ -162,12 +163,13 @@ protected:
                       getEPBucket().flushVBucket(vbid));
         }
 
-        // Test - rollback to seqno of item_v1 and verify that the previous value
-        // of the item has been restored.
+        // Test - rollback to seqno of item_v1 and verify that the previous
+        // value of the item has been restored.
         store->setVBucketState(vbid, vbStateAtRollback, false);
         ASSERT_EQ(TaskStatus::Complete,
                   store->rollback(vbid, item_v1.getBySeqno()));
-        ASSERT_EQ(item_v1.getBySeqno(), store->getVBucket(vbid)->getHighSeqno());
+        ASSERT_EQ(item_v1.getBySeqno(),
+                  store->getVBucket(vbid)->getHighSeqno());
 
         // a should have the value of 'old'
         {
@@ -181,7 +183,7 @@ protected:
         {
             auto result = store->get(key, vbid, nullptr, {});
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
-                << "A key set after the rollback point was found";
+                    << "A key set after the rollback point was found";
         }
 
         if (!flush_before_rollback) {
@@ -189,6 +191,117 @@ protected:
             EXPECT_EQ(std::make_pair(false, size_t(0)),
                       getEPBucket().flushVBucket(vbid));
         }
+    }
+
+protected:
+    /**
+     * Test what happens in scenarios where we delete and rollback a
+     * document that only existed post rollback seqno.
+     *
+     * @param deleteLast - should the last operation be the deletion of the
+     *        document
+     * @param flushOnce - should we only flush once before the rollback (or
+     *        should we flush after each operation)
+     */
+    void rollback_after_creation_and_deletion_test(bool deleteLast,
+                                                   bool flushOnce) {
+        auto rbSeqno = store->getVBucket(vbid)->getHighSeqno();
+
+        // Setup
+        StoredDocKey a = makeStoredDocKey("a");
+        if (deleteLast) {
+            store_item(vbid, a, "new");
+            if (!flushOnce) {
+                ASSERT_EQ(std::make_pair(false, size_t(1)),
+                          getEPBucket().flushVBucket(vbid));
+            }
+            delete_item(vbid, a);
+            if (!flushOnce) {
+                ASSERT_EQ(std::make_pair(false, size_t(1)),
+                          getEPBucket().flushVBucket(vbid));
+            }
+        } else {
+            // Make sure we have something to delete
+            store_item(vbid, a, "new");
+            if (!flushOnce) {
+                ASSERT_EQ(std::make_pair(false, size_t(1)),
+                          getEPBucket().flushVBucket(vbid));
+            }
+            delete_item(vbid, a);
+            if (!flushOnce) {
+                ASSERT_EQ(std::make_pair(false, size_t(1)),
+                          getEPBucket().flushVBucket(vbid));
+            }
+            store_item(vbid, a, "new");
+            if (!flushOnce) {
+                ASSERT_EQ(std::make_pair(false, size_t(1)),
+                          getEPBucket().flushVBucket(vbid));
+            }
+        }
+
+        if (flushOnce) {
+            ASSERT_EQ(std::make_pair(false, size_t(1)),
+                      getEPBucket().flushVBucket(vbid));
+        }
+
+        // Test - rollback to seqno before this test
+        store->setVBucketState(vbid, vbStateAtRollback, false);
+        ASSERT_EQ(TaskStatus::Complete, store->rollback(vbid, rbSeqno));
+        ASSERT_EQ(rbSeqno, store->getVBucket(vbid)->getHighSeqno());
+
+        if (std::get<0>(GetParam()) == "value_only") {
+            EXPECT_EQ(ENGINE_KEY_ENOENT,
+                      store->get(a, vbid, nullptr, {}).getStatus());
+        } else {
+            GetValue gcb = store->get(a, vbid, nullptr, QUEUE_BG_FETCH);
+
+            if (flushOnce && !deleteLast) {
+                EXPECT_EQ(ENGINE_KEY_ENOENT, gcb.getStatus());
+            } else {
+                // We only need to bg fetch the document if we deduplicate a
+                // create + delete + create which is flushed in one go
+                EXPECT_EQ(ENGINE_EWOULDBLOCK, gcb.getStatus());
+                // Manually run the bgfetch task.
+                runBGFetcherTask();
+                EXPECT_EQ(ENGINE_KEY_ENOENT,
+                          store->get(a, vbid, nullptr, QUEUE_BG_FETCH)
+                                  .getStatus());
+            }
+        }
+    }
+
+    // Check the doc counts after rolling back
+    void rollback_doc_count_test(int expectedDifference,
+                                 std::function<void()> test) {
+        // Everything will be in the default collection
+        auto vb = store->getVBucket(vbid);
+
+        // Get the starting item count
+        auto startDefaultCollectionCount =
+                vb->getManifest().lock().getItemCount(CollectionID::Default);
+
+        test();
+
+        EXPECT_EQ(startDefaultCollectionCount + expectedDifference,
+                  vb->getManifest().lock().getItemCount(CollectionID::Default));
+    }
+
+    // Check the doc counts after rolling back a creation and deletion
+    void rollback_create_delete_doc_count_test(bool deleteLast,
+                                               bool flushOnce,
+                                               int expectedDifference) {
+        // Everything will be in the default collection
+        auto vb = store->getVBucket(vbid);
+
+        // Get the starting item count
+        auto startDefaultCollectionCount =
+                vb->getManifest().lock().getItemCount(CollectionID::Default);
+
+        rollback_after_creation_and_deletion_test(deleteLast, flushOnce);
+
+        // Item counts should be the start + the expectedDifference
+        EXPECT_EQ(startDefaultCollectionCount + expectedDifference,
+                  vb->getManifest().lock().getItemCount(CollectionID::Default));
     }
 
     void rollback_to_middle_test(bool flush_before_rollback) {
@@ -273,6 +386,86 @@ TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshot) {
 
 TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshotNoFlush) {
     rollback_to_middle_test(false);
+}
+
+// Test what happens when we rollback the creation and the mutation of
+// different documents that are persisted
+TEST_P(RollbackTest, RollbackMutationDocCounts) {
+    rollback_doc_count_test(
+            1,
+            std::bind(&RollbackTest::rollback_after_mutation_test, this, true));
+}
+
+// Test what happens when we rollback the creation and the mutation of
+// different documents that are not persisted
+TEST_P(RollbackTest, RollbackMutationDocCountsNoFlush) {
+    rollback_doc_count_test(
+            1,
+            std::bind(
+                    &RollbackTest::rollback_after_mutation_test, this, false));
+}
+
+// Test what happens when we rollback a deletion of a document that existed
+// before rollback that has been persisted
+TEST_P(RollbackTest, RollbackDeletionDocCounts) {
+    rollback_doc_count_test(
+            1,
+            std::bind(&RollbackTest::rollback_after_deletion_test, this, true));
+}
+
+// Test what happens when we rollback a deletion of a document that existed
+// before rollback that has not been persisted
+TEST_P(RollbackTest, RollbackDeletionDocCountsNoFlush) {
+    rollback_doc_count_test(
+            1,
+            std::bind(
+                    &RollbackTest::rollback_after_deletion_test, this, false));
+}
+
+// Test what happens if we rollback the creation and deletion of a document
+// when we flush them separately
+TEST_P(RollbackTest, RollbackCreationAndDeletionDocCountsSeparateFlushes) {
+    // Doc count should not change
+    rollback_create_delete_doc_count_test(true, false, 0);
+}
+
+// Test what happens if we rollback the creation and deletion of a document
+// when we flush them in one go
+TEST_P(RollbackTest, RollbackCreationAndDeletionDocCountsOneFlush) {
+    // Doc count should not change
+    rollback_create_delete_doc_count_test(true, true, 0);
+}
+
+// Test what happens if we rollback the creation + deletion + creation of a
+// document when we flush them separately
+TEST_P(RollbackTest, RollbackDeletionAndCreationDocCountsSeparateFlushes) {
+    // Doc count should not change
+    rollback_create_delete_doc_count_test(false, false, 0);
+}
+
+// Test what happens if we rollback the creation + deletion + creation of a
+// document when we flush them in one go
+TEST_P(RollbackTest, RollbackDeletionAndCreationDocCountsOneFlush) {
+    // Doc count should not change
+    rollback_create_delete_doc_count_test(false, true, 0);
+}
+
+// Test what happens to the doc counts if we rollback the vBucket completely
+TEST_P(RollbackTest, RollbackFromZeroDocCounts) {
+    // Trigger a rollback to zero by rolling back to a seqno just before the
+    // halfway point between start and end (2 in this case)
+    store->setVBucketState(vbid, vbStateAtRollback, false);
+    auto docKey = makeStoredDocKey("dummy1");
+    ASSERT_EQ(
+            TaskStatus::Complete,
+            store->rollback(
+                    vbid,
+                    store->get(docKey, vbid, nullptr, {}).item->getBySeqno()));
+
+    // No items at all
+    ASSERT_EQ(0, store->getVBucket(vbid)->getHighSeqno());
+    EXPECT_EQ(0, store->getVBucket(vbid)->getManifest().lock().getItemCount(0));
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
 }
 
 TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {

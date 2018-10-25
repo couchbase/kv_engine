@@ -1013,7 +1013,7 @@ public:
             if (preRbSeqnoItem->isDeleted()) {
                 // If the item existed before, but had been deleted, we
                 // should delete it now
-                removeDeletedDoc(*vb, postRbSeqnoItem->getKey());
+                removeDeletedDoc(*vb, *postRbSeqnoItem);
             } else {
                 // The item existed before and was not deleted, we need to
                 // revert the items state to the preRollbackSeqno state
@@ -1022,10 +1022,20 @@ public:
                 if (mtype == MutationStatus::NoMem) {
                     setStatus(ENGINE_ENOMEM);
                 }
+
+                // If we are rolling back a deletion then we should increment
+                // our disk counts. We need to increment the vBucket disk
+                // count here too because we're not going to flush this item
+                // later
+                if (postRbSeqnoItem->isDeleted()) {
+                    vb->getManifest()
+                            .lock(preRbSeqnoItem->getKey())
+                            .incrementDiskCount();
+                }
             }
         } else if (preRbSeqnoGetValue.getStatus() == ENGINE_KEY_ENOENT) {
             // If the item did not exist before we should delete it now
-            removeDeletedDoc(*vb, postRbSeqnoItem->getKey());
+            removeDeletedDoc(*vb, *postRbSeqnoItem);
         } else {
             EP_LOG_WARN(
                     "EPDiskRollbackCB::callback:Unexpected Error Status: {}",
@@ -1034,8 +1044,8 @@ public:
     }
 
     /// Remove a deleted-on-disk document from the VBucket's hashtable.
-    void removeDeletedDoc(VBucket& vb, const DocKey& key) {
-        if (vb.deleteKey(key)) {
+    void removeDeletedDoc(VBucket& vb, const Item& item) {
+        if (vb.deleteKey(item.getKey())) {
             setStatus(ENGINE_SUCCESS);
         } else {
             // Document didn't exist in memory - may have been deleted in since
@@ -1045,6 +1055,15 @@ public:
         // Irrespective of if the in-memory delete succeeded; the document
         // doesn't exist on disk; so decrement the item count.
         vb.decrNumTotalItems();
+
+        // We should only decrement the counts if we are rolling back a
+        // mutation. If we are rolling back a deletion then the counts are
+        // already correct
+        if (!item.isDeleted()) {
+            // Irrespective of if the in-memory delete succeeded; the document
+            // doesn't exist on disk; so decrement the item count.
+            vb.getManifest().lock(item.getKey()).decrementDiskCount();
+        }
     }
 
 private:
