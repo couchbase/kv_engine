@@ -167,7 +167,7 @@ TestBucketImpl& TestappTest::GetTestBucket()
 void TestappTest::SetUpTestCase() {
     token = 0xdeadbeef;
     memcached_cfg.reset(cJSON_Parse(generate_config(0).dump().c_str()));
-    start_memcached_server(memcached_cfg.get());
+    start_memcached_server();
 
     if (HasFailure()) {
         std::cerr << "Error in TestappTest::SetUpTestCase, terminating process"
@@ -920,9 +920,9 @@ void delete_object(const char* key, bool ignore_missing) {
                                   cb::mcbp::Status::Success);
 }
 
-void TestappTest::start_memcached_server(cJSON* config) {
+void TestappTest::start_memcached_server() {
     config_file = cb::io::mktemp("memcached_testapp.json");
-    write_config_to_file(to_string(config), config_file);
+    write_config_to_file(to_string(memcached_cfg), config_file);
 
     server_start_time = time(0);
 

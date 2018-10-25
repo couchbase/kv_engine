@@ -157,7 +157,7 @@ protected:
     static nlohmann::json generate_config(uint16_t ssl_port);
     static nlohmann::json generate_config();
 
-    static void start_memcached_server(cJSON* config);
+    static void start_memcached_server();
 
     /**
      * Function to start the server and let it listen on a random port.

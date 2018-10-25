@@ -1963,7 +1963,7 @@ public:
         // Change the number of worker threads to one so we guarantee that
         // multiple connections are handled by a single worker.
         cJSON_AddNumberToObject(memcached_cfg.get(), "threads", 1);
-        start_memcached_server(memcached_cfg.get());
+        start_memcached_server();
 
         if (HasFailure()) {
             std::cerr << "Error in WorkerConcurrencyTest::SetUpTestCase, "
