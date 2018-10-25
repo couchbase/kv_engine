@@ -768,19 +768,6 @@ TEST_P(XattrTest, MB_22691) {
             << to_string(resp.getStatus());
 }
 
-/**
- * Verify that a vattr entry exists, and is of the specified type
- *
- * @param root The root in the JSON object
- * @param name The name of the tag to search for
- * @param type The expected type for this object
- */
-static void verify_vattr_entry(cJSON* root, const char* name, int type) {
-    auto* obj = cJSON_GetObjectItem(root, name);
-    ASSERT_NE(nullptr, obj) << "Failed for vattr:" << name;
-    EXPECT_EQ(type, obj->type);
-}
-
 TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     // Test to check that we can get both an xattr and the main body in
     // subdoc multi-lookup
@@ -807,46 +794,43 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
 
     // Ensure that we found all we expected and they're of the correct type:
-    unique_cJSON_ptr meta(cJSON_Parse(results[0].value.c_str()));
-    verify_vattr_entry(meta.get(), "CAS", cJSON_String);
-    verify_vattr_entry(meta.get(), "vbucket_uuid", cJSON_String);
-    verify_vattr_entry(meta.get(), "seqno", cJSON_String);
-    verify_vattr_entry(meta.get(), "exptime", cJSON_Number);
-    verify_vattr_entry(meta.get(), "value_bytes", cJSON_Number);
-    verify_vattr_entry(meta.get(), "deleted", cJSON_False);
-    verify_vattr_entry(meta.get(), "flags", cJSON_Number);
+    auto json = nlohmann::json::parse(results[0].value);
+    EXPECT_TRUE(json["CAS"].is_string());
+    EXPECT_TRUE(json["vbucket_uuid"].is_string());
+    EXPECT_TRUE(json["seqno"].is_string());
+    EXPECT_TRUE(json["exptime"].is_number());
+    EXPECT_TRUE(json["value_bytes"].is_number());
+    EXPECT_TRUE(json["deleted"].is_boolean());
+    EXPECT_TRUE(json["flags"].is_number());
 
     if (mcd_env->getTestBucket().supportsLastModifiedVattr()) {
-        verify_vattr_entry(meta.get(), "last_modified", cJSON_String);
+        EXPECT_TRUE(json["last_modified"].is_string());
     }
 
     // Verify exptime is showing as 0 (document has no expiry)
-    EXPECT_EQ(0, cJSON_GetObjectItem(meta.get(), "exptime")->valueint);
+    EXPECT_EQ(0, json["exptime"].get<int>());
 
     // Verify that the flags is correct
-    EXPECT_EQ(0xcaffee, cJSON_GetObjectItem(meta.get(), "flags")->valueint);
+    EXPECT_EQ(0xcaffee, json["flags"].get<int>());
 
     // verify that the datatype is correctly encoded and contains
     // the correct bits
-    auto* obj = cJSON_GetObjectItem(meta.get(), "datatype");
-    ASSERT_NE(nullptr, obj);
-    ASSERT_EQ(cJSON_Array, obj->type);
+    auto datatype = json["datatype"];
+    ASSERT_TRUE(datatype.is_array());
     bool found_xattr = false;
     bool found_json = false;
 
-    for (obj = obj->child; obj != nullptr; obj = obj->next) {
-        EXPECT_EQ(cJSON_String, obj->type);
-        const std::string tag{obj->valuestring};
-        if (tag == "xattr") {
+    for (const auto tag : datatype) {
+        if (tag.get<std::string>() == "xattr") {
             found_xattr = true;
-        } else if (tag == "json") {
+        } else if (tag.get<std::string>() == "json") {
             found_json = true;
-        } else if (tag == "snappy") {
+        } else if (tag.get<std::string>() == "snappy") {
             // Not currently checked; default engine doesn't support
             // storing as Snappy (will inflate) so not trivial to assert
             // when this should be true.
         } else {
-            EXPECT_EQ(nullptr, tag.c_str()) << "Unexpected datatype: " << tag;
+            FAIL() << "Unexpected datatype: " << tag.get<std::string>();
         }
     }
     EXPECT_TRUE(found_json);
@@ -854,11 +838,10 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
 
     // Verify that we got a partial from the second one
     EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
-    const std::string cas{std::string{"\""} +
-                          cJSON_GetObjectItem(meta.get(), "CAS")->valuestring +
+    const std::string cas{std::string{"\""} + json["CAS"].get<std::string>() +
                           "\""};
-    meta.reset(cJSON_Parse(multiResp.getResults()[1].value.c_str()));
-    EXPECT_EQ(cas, to_string(meta));
+    json = nlohmann::json::parse(multiResp.getResults()[1].value);
+    EXPECT_EQ(cas, json.dump());
 
     // The third one didn't exist
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, results[2].status);
