@@ -1335,22 +1335,6 @@ std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
     return std::make_pair(resp.getStatus(), meta);
 }
 
-unique_cJSON_ptr MemcachedConnection::getErrorMap(uint16_t version) {
-    BinprotGetErrorMapCommand cmd;
-    cmd.setVersion(version);
-
-    BinprotGetErrorMapResponse resp;
-    executeCommand(cmd, resp);
-
-    if (!resp.isSuccess()) {
-        throw ConnectionError(
-                "MemcachedConnection::getErrorMap: Failed to get error map",
-                resp.getStatus());
-    }
-
-    return unique_cJSON_ptr{cJSON_Parse(resp.getDataString().c_str())};
-}
-
 void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
     switch (mode) {
     case ExecutionMode::Ordered:

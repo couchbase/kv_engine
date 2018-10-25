@@ -730,17 +730,6 @@ public:
     void setUnorderedExecutionMode(ExecutionMode mode);
 
     /**
-     * Get the error map from the server
-     *
-     * The server may support multiple versions of the error map (the
-     * version number dictates the format of the map returned)
-     *
-     * @param version the format version for the error map to fetch
-     * @return a JSON representation of the errormap
-     */
-    unique_cJSON_ptr getErrorMap(uint16_t version = 1);
-
-    /**
      * Attempts to enable or disable a feature
      * @param feature Feature to enable or disable
      * @param enabled whether to enable or disable
