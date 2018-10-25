@@ -51,9 +51,6 @@
 #include "memcached/openssl.h"
 #include "utilities.h"
 
-using Testapp::MAX_CONNECTIONS;
-using Testapp::BACKLOG;
-
 // Note: retained as a seperate function as other tests call this.
 void test_noop(void) {
     union {
@@ -1148,8 +1145,8 @@ TEST_P(McdTestappTest, Config_ValidateInterface) {
 
     cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
     cJSON* iface = cJSON_GetArrayItem(iface_list, 0);
-    cJSON_ReplaceItemInObject(iface, "maxconn",
-                              cJSON_CreateNumber(MAX_CONNECTIONS * 2));
+    cJSON_ReplaceItemInObject(
+            iface, "maxconn", cJSON_CreateNumber(Testapp::MAX_CONNECTIONS * 2));
     const auto dyn_string = to_string(dynamic);
     size_t len = mcbp_raw_command(buffer.bytes,
                                   sizeof(buffer.bytes),
@@ -1197,8 +1194,10 @@ TEST_P(McdTestappTest, Config_Reload) {
         auto dynamic = generate_config(ssl_port);
         cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
-        cJSON_ReplaceItemInObject(iface, "maxconn",
-                                  cJSON_CreateNumber(MAX_CONNECTIONS * 2));
+        cJSON_ReplaceItemInObject(
+                iface,
+                "maxconn",
+                cJSON_CreateNumber(Testapp::MAX_CONNECTIONS * 2));
         const auto dyn_string = to_string(dynamic);
 
         write_config_to_file(dyn_string, config_file);
@@ -1220,8 +1219,8 @@ TEST_P(McdTestappTest, Config_Reload) {
         auto dynamic = generate_config(ssl_port);
         cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
-        cJSON_ReplaceItemInObject(iface, "backlog",
-                                  cJSON_CreateNumber(BACKLOG * 2));
+        cJSON_ReplaceItemInObject(
+                iface, "backlog", cJSON_CreateNumber(Testapp::BACKLOG * 2));
         const auto dyn_string = to_string(dynamic);
 
         write_config_to_file(dyn_string, config_file);

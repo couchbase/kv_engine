@@ -27,6 +27,13 @@
 
 #include <memory>
 
+// Properties of a particular subdoc statistic set.
+struct SubdocStatTraits {
+    const char* count_name;
+    const char* bytes_total_name;
+    const char* bytes_extracted_subset;
+};
+
 typedef std::pair<cb::mcbp::Status, std::string> SubdocMultiLookupResult;
 
 /**

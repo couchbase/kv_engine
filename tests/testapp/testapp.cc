@@ -25,9 +25,6 @@
 
 McdEnvironment* mcd_env = nullptr;
 
-using Testapp::MAX_CONNECTIONS;
-using Testapp::BACKLOG;
-
 /* test phases (bitmasks) */
 #define phase_plain 0x2
 #define phase_ssl 0x4
@@ -449,8 +446,8 @@ unique_cJSON_ptr TestappTest::generate_config(uint16_t ssl_port) {
     cJSON_AddNumberToObject(obj, "port", 0);
     cJSON_AddStringToObject(obj, "ipv4", "optional");
     cJSON_AddStringToObject(obj, "ipv6", "optional");
-    cJSON_AddInteger64ToObject(obj, "maxconn", MAX_CONNECTIONS);
-    cJSON_AddInteger64ToObject(obj, "backlog", BACKLOG);
+    cJSON_AddInteger64ToObject(obj, "maxconn", Testapp::MAX_CONNECTIONS);
+    cJSON_AddInteger64ToObject(obj, "backlog", Testapp::BACKLOG);
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddStringToObject(obj, "protocol", "memcached");
     cJSON_AddTrueToObject(obj, "management");
@@ -459,8 +456,8 @@ unique_cJSON_ptr TestappTest::generate_config(uint16_t ssl_port) {
     // One interface using the memcached binary protocol over SSL
     obj = cJSON_CreateObject();
     cJSON_AddNumberToObject(obj, "port", ssl_port);
-    cJSON_AddInteger64ToObject(obj, "maxconn", MAX_CONNECTIONS);
-    cJSON_AddInteger64ToObject(obj, "backlog", BACKLOG);
+    cJSON_AddInteger64ToObject(obj, "maxconn", Testapp::MAX_CONNECTIONS);
+    cJSON_AddInteger64ToObject(obj, "backlog", Testapp::BACKLOG);
     cJSON_AddStringToObject(obj, "ipv4", "optional");
     cJSON_AddStringToObject(obj, "ipv6", "optional");
     cJSON_AddStringToObject(obj, "host", "*");
@@ -521,7 +518,7 @@ void write_config_to_file(const std::string& config, const std::string& fname) {
  * @return the decoded cJSON representation
  * @throw a string if something goes wrong
  */
-unique_cJSON_ptr loadJsonFile(const std::string &file) {
+static unique_cJSON_ptr loadJsonFile(const std::string& file) {
     unique_cJSON_ptr ret(cJSON_Parse(cb::io::loadFile(file).c_str()));
     if (ret.get() == nullptr) {
         throw std::logic_error("Failed to parse: " + file);

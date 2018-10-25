@@ -19,41 +19,30 @@
 
 #include "config.h"
 
-#include <cJSON_utils.h>
-
 #include "testapp_binprot.h"
-#include <memory>
-#include <stdint.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <string>
-#include <tuple>
+#include "testapp_environment.h"
 
 #include <cJSON.h>
+#include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
-
-#include "engines/ewouldblock_engine/ewouldblock_engine.h"
-
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_connection_map.h>
 #include <protocol/connection/client_mcbp_commands.h>
 
-#include "testapp_environment.h"
+#include <sys/types.h>
+#include <cstdint>
+#include <cstdlib>
+#include <memory>
+#include <string>
+#include <tuple>
 
 enum class TransportProtocols {
     McbpPlain,
     McbpSsl,
     McbpIpv6Plain,
     McbpIpv6Ssl
-};
-
-// Properties of a particular subdoc statistic set.
-struct SubdocStatTraits {
-    const char* count_name;
-    const char* bytes_total_name;
-    const char* bytes_extracted_subset;
 };
 
 namespace Testapp {
@@ -470,8 +459,6 @@ stats_response_t request_stats();
  */
 uint64_t extract_single_stat(const stats_response_t& stats,
                                       const char* name);
-
-unique_cJSON_ptr loadJsonFile(const std::string &file);
 
 ssize_t socket_recv(SOCKET s, char *buf, size_t len);
 ssize_t socket_send(SOCKET s, const char *buf, size_t len);
