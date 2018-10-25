@@ -166,7 +166,7 @@ TestBucketImpl& TestappTest::GetTestBucket()
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
     token = 0xdeadbeef;
-    memcached_cfg = generate_config(0);
+    memcached_cfg.reset(cJSON_Parse(generate_config(0).dump().c_str()));
     start_memcached_server(memcached_cfg.get());
 
     if (HasFailure()) {
@@ -421,7 +421,7 @@ static std::string get_errmaps_dir() {
     return dir;
 }
 
-unique_cJSON_ptr TestappTest::generate_config(uint16_t ssl_port) {
+nlohmann::json TestappTest::generate_config(uint16_t ssl_port) {
     const std::string cwd = cb::io::getcwd();
     const std::string pem_path = cwd + CERTIFICATE_PATH("testapp.pem");
     const std::string cert_path = cwd + CERTIFICATE_PATH("testapp.cert");
@@ -464,10 +464,10 @@ unique_cJSON_ptr TestappTest::generate_config(uint16_t ssl_port) {
     ret["ssl_minimum_protocol"] = "tlsv1";
     ret["opcode_attributes_override"]["version"] = 1;
     ret["opcode_attributes_override"]["EWB_CTL"]["slow"] = 50;
-    return unique_cJSON_ptr{cJSON_Parse(ret.dump().c_str())};
+    return ret;
 }
 
-unique_cJSON_ptr TestappTest::generate_config() {
+nlohmann::json TestappTest::generate_config() {
     return generate_config(ssl_port);
 }
 

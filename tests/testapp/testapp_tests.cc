@@ -1142,12 +1142,8 @@ TEST_P(McdTestappTest, Config_ValidateInterface) {
 
     /* 'interfaces' - should be able to change max connections */
     auto dynamic = generate_config();
-
-    cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
-    cJSON* iface = cJSON_GetArrayItem(iface_list, 0);
-    cJSON_ReplaceItemInObject(
-            iface, "maxconn", cJSON_CreateNumber(Testapp::MAX_CONNECTIONS * 2));
-    const auto dyn_string = to_string(dynamic);
+    dynamic["interfaces"][0]["maxconn"] = Testapp::MAX_CONNECTIONS * 2;
+    const auto dyn_string = dynamic.dump();
     size_t len = mcbp_raw_command(buffer.bytes,
                                   sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
@@ -1192,13 +1188,8 @@ TEST_P(McdTestappTest, Config_Reload) {
     /* Change max_conns on first interface. */
     {
         auto dynamic = generate_config(ssl_port);
-        cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
-        cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
-        cJSON_ReplaceItemInObject(
-                iface,
-                "maxconn",
-                cJSON_CreateNumber(Testapp::MAX_CONNECTIONS * 2));
-        const auto dyn_string = to_string(dynamic);
+        dynamic["interfaces"][0]["maxconn"] = Testapp::MAX_CONNECTIONS * 2;
+        const auto dyn_string = dynamic.dump();
 
         write_config_to_file(dyn_string, config_file);
 
@@ -1217,12 +1208,8 @@ TEST_P(McdTestappTest, Config_Reload) {
     /* Change backlog on first interface. */
     {
         auto dynamic = generate_config(ssl_port);
-        cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
-        cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
-        cJSON_ReplaceItemInObject(
-                iface, "backlog", cJSON_CreateNumber(Testapp::BACKLOG * 2));
-        const auto dyn_string = to_string(dynamic);
-
+        dynamic["interfaces"][0]["maxconn"] = Testapp::BACKLOG * 2;
+        const auto dyn_string = dynamic.dump();
         write_config_to_file(dyn_string, config_file);
 
         size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -1240,10 +1227,8 @@ TEST_P(McdTestappTest, Config_Reload) {
     /* Change tcp_nodelay on first interface. */
     {
         auto dynamic = generate_config(ssl_port);
-        cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
-        cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
-        cJSON_AddFalseToObject(iface, "tcp_nodelay");
-        const auto dyn_string = to_string(dynamic);
+        dynamic["interfaces"][0]["tcp_nodelay"] = false;
+        const auto dyn_string = dynamic.dump();
 
         write_config_to_file(dyn_string, config_file);
 
@@ -1263,7 +1248,7 @@ TEST_P(McdTestappTest, Config_Reload) {
        leak any memory in the process). */
     {
         auto dynamic = generate_config(ssl_port);
-        auto dyn_string = to_string(dynamic);
+        auto dyn_string = dynamic.dump();
         // Corrupt the JSON by replacing first opening brace '{' with
         // a closing '}'.
         dyn_string.front() = '}';
@@ -1284,7 +1269,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Restore original configuration. */
     auto dynamic = generate_config(ssl_port);
-    const auto dyn_string = to_string(dynamic);
+    const auto dyn_string = dynamic.dump();
 
     write_config_to_file(dyn_string, config_file);
 
@@ -1312,18 +1297,13 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     sasl_auth("@admin", "password");
 
     /* Change ssl cert/key on second interface. */
-    auto dynamic = generate_config(ssl_port);
-    cJSON* iface_list = cJSON_GetObjectItem(dynamic.get(), "interfaces");
-    cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
-    cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
-
     const std::string cwd = cb::io::getcwd();
     const std::string pem_path = cwd + CERTIFICATE_PATH("testapp2.pem");
     const std::string cert_path = cwd + CERTIFICATE_PATH("testapp2.cert");
-
-    cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path.c_str()));
-    cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path.c_str()));
-    const auto dyn_string = to_string(dynamic);
+    auto dynamic = generate_config(ssl_port);
+    dynamic["interfaces"][1]["ssl"]["key"] = pem_path;
+    dynamic["interfaces"][1]["ssl"]["cert"] = cert_path;
+    const auto dyn_string = dynamic.dump();
     write_config_to_file(dyn_string, config_file);
 
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),

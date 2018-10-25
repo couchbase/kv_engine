@@ -27,6 +27,7 @@
 #include <gtest/gtest.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
+#include <nlohmann/json.hpp>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_connection_map.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -153,8 +154,8 @@ protected:
     //per test min compression ratio configuration
     void setMinCompressionRatio(const float min_compression_ratio);
 
-    static unique_cJSON_ptr generate_config(uint16_t ssl_port);
-    static unique_cJSON_ptr generate_config();
+    static nlohmann::json generate_config(uint16_t ssl_port);
+    static nlohmann::json generate_config();
 
     static void start_memcached_server(cJSON* config);
 

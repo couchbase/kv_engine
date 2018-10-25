@@ -1959,7 +1959,7 @@ INSTANTIATE_TEST_CASE_P(
 class WorkerConcurrencyTest : public TestappTest {
 public:
     static void SetUpTestCase() {
-        memcached_cfg = generate_config(0);
+        memcached_cfg.reset(cJSON_Parse(generate_config(0).dump().c_str()));
         // Change the number of worker threads to one so we guarantee that
         // multiple connections are handled by a single worker.
         cJSON_AddNumberToObject(memcached_cfg.get(), "threads", 1);
