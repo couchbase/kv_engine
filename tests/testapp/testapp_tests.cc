@@ -1030,13 +1030,8 @@ TEST_P(McdTestappTest, IOCTL_Tracing) {
 
     // Difficult to tell what's been written to the buffer so just check
     // that it's valid JSON and that the traceEvents array is present
-    unique_cJSON_ptr json = unique_cJSON_ptr(cJSON_Parse(dump.c_str()));
-    EXPECT_NE(nullptr, json);
-    EXPECT_EQ(cJSON_Object, json->type);
-
-    auto* events = cJSON_GetObjectItem(json.get(), "traceEvents");
-    EXPECT_NE(nullptr, events);
-    EXPECT_EQ(cJSON_Array, events->type);
+    auto json = nlohmann::json::parse(dump);
+    EXPECT_TRUE(json["traceEvents"].is_array());
 }
 
 TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
@@ -1114,9 +1109,9 @@ TEST_P(McdTestappTest, Config_ValidateThreadsNotDynamic) {
     sasl_auth("@admin", "password");
 
     /* 'threads' cannot be changed */
-    unique_cJSON_ptr dynamic(cJSON_CreateObject());
-    cJSON_AddNumberToObject(dynamic.get(), "threads", 99);
-    const auto dyn_string = to_string(dynamic);
+    nlohmann::json json;
+    json["threads"] = 99;
+    const auto dyn_string = json.dump();
     size_t len = mcbp_raw_command(buffer.bytes,
                                   sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
@@ -2431,33 +2426,19 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     EXPECT_EQ(0, buffer.response.message.header.response.getKeylen());
 
     // Check for response string
+    auto json = nlohmann::json::parse(value);
 
-    cJSON* json_value = cJSON_Parse(value.c_str());
-    if (json_value == nullptr) {
-        ADD_FAILURE() << "Failed to parse response string '" << value << "' to JSON";
-        return false;
-    }
-
-    cJSON* topkeys = cJSON_GetObjectItem(json_value, "topkeys");
-    EXPECT_NE(nullptr, topkeys);
+    auto topkeys = json["topkeys"];
+    EXPECT_TRUE(topkeys.is_array());
 
     // Search the array for the specified key's information.
-    for (int ii = 0; ii < cJSON_GetArraySize(topkeys); ii++) {
-        cJSON *record = cJSON_GetArrayItem(topkeys, ii);
-
-        cJSON* current_key = cJSON_GetObjectItem(record, "key");
-        EXPECT_NE(nullptr, current_key);
-
-        if (key == current_key->valuestring) {
-            cJSON* access_count = cJSON_GetObjectItem(record, "access_count");
-            EXPECT_NE(nullptr, access_count);
-            count = gsl::narrow<int>(access_count->valueint);
-            cJSON_Delete(json_value);
+    for (auto record : topkeys) {
+        if (key == record["key"]) {
+            count = record["access_count"].get<int>();
             return true;
         }
     }
 
-    cJSON_Delete(json_value);
     return false;
 }
 
