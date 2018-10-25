@@ -43,15 +43,7 @@ protected:
 
 void ClusterConfigTest::test_MB_17506(bool dedupe) {
     // First set the correct deduplication mode
-    auto* value = cJSON_GetObjectItem(memcached_cfg.get(), "dedupe_nmvb_maps");
-    ASSERT_NE(nullptr, value);
-    if (dedupe) {
-        cJSON_ReplaceItemInObject(
-                memcached_cfg.get(), "dedupe_nmvb_maps", cJSON_CreateTrue());
-    } else {
-        cJSON_ReplaceItemInObject(
-                memcached_cfg.get(), "dedupe_nmvb_maps", cJSON_CreateFalse());
-    }
+    memcached_cfg["dedupe_nmvb_maps"] = dedupe;
     reconfigure();
 
     const std::string clustermap{R"({"rev":100})"};

@@ -104,8 +104,7 @@ protected:
             key.insert(0, "ssl_");
         }
 
-        cJSON_DeleteItemFromObject(memcached_cfg.get(), key.c_str());
-        cJSON_AddStringToObject(memcached_cfg.get(), key.c_str(), mechanisms);
+        memcached_cfg[key] = mechanisms;
         reconfigure();
     }
 

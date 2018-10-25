@@ -194,7 +194,7 @@ TEST_P(ArithmeticTest, TestMutationInfo) {
     doc.info.cas = info.cas;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    doc.value = to_string(memcached_cfg.get());
+    doc.value = memcached_cfg.dump();
 
     conn.mutate(doc, Vbid(0), MutationType::Replace);
 }
@@ -206,7 +206,7 @@ TEST_P(ArithmeticTest, TestIllegalDatatype) {
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    doc.value = to_string(memcached_cfg.get());
+    doc.value = memcached_cfg.dump();
 
     ASSERT_NO_THROW(conn.mutate(doc, Vbid(0), MutationType::Add));
 

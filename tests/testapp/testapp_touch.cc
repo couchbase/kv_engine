@@ -29,7 +29,7 @@ public:
         document.info.cas = mcbp::cas::Wildcard;
         document.info.flags = 0xcaffee;
         document.info.id = name;
-        document.value = to_string(memcached_cfg, false);
+        document.value = memcached_cfg.dump();
     }
 
 protected:
@@ -86,7 +86,7 @@ void TouchTest::testHit(bool quiet) {
 
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_EQ(0xcaffee, rsp.getDocumentFlags());
-    EXPECT_EQ(to_string(memcached_cfg, false), rsp.getDataString());
+    EXPECT_EQ(memcached_cfg.dump(), rsp.getDataString());
     EXPECT_NE(info.cas, rsp.getCas());
 
     // The stat should have been incremented with 1

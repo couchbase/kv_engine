@@ -1048,7 +1048,7 @@ TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
     sasl_auth("@admin", "password");
 
     /* identity config is valid. */
-    const auto config_string = to_string(memcached_cfg);
+    const auto config_string = memcached_cfg.dump();
     size_t len = mcbp_raw_command(buffer.bytes,
                                   sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,

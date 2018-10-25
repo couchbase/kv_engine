@@ -30,7 +30,7 @@ public:
         document.info.cas = mcbp::cas::Wildcard;
         document.info.flags = 0xcaffee;
         document.info.id = name;
-        document.value = to_string(memcached_cfg, false);
+        document.value = memcached_cfg.dump();
     }
 
 protected:

@@ -22,8 +22,6 @@
 #include "testapp_binprot.h"
 #include "testapp_environment.h"
 
-#include <cJSON.h>
-#include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
@@ -223,7 +221,7 @@ protected:
     void reconfigure();
 
     // JSON configuration (as JSON object) memcached was configured with.
-    static unique_cJSON_ptr memcached_cfg;
+    static nlohmann::json memcached_cfg;
     static std::string portnumber_file;
     static std::string config_file;
 

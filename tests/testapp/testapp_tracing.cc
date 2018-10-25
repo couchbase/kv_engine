@@ -23,11 +23,7 @@
 class TracingTest : public TestappTest {
 public:
     void setTracingFeatureOnServer(bool enabled) {
-        // Delete the old item from the array
-        cJSON_DeleteItemFromObject(memcached_cfg.get(), "tracing_enabled");
-        cJSON_AddBoolToObject(memcached_cfg.get(), "tracing_enabled", enabled);
-
-        // update the server to use this!
+        memcached_cfg["tracing_enabled"] = enabled;
         reconfigure();
     }
 
@@ -37,7 +33,7 @@ public:
         document.info.flags = 0xcaffee;
         document.info.id = name;
         document.info.expiration = 0;
-        document.value = to_string(memcached_cfg, false);
+        document.value = memcached_cfg.dump();
     }
 
 protected:

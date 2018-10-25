@@ -680,7 +680,7 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = "TestBucketIsolationBuckets";
-    doc.value = to_string(memcached_cfg.get());
+    doc.value = memcached_cfg.dump();
 
     for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         std::stringstream ss;

@@ -58,12 +58,8 @@ class ExternalAuthTest : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappTest::SetUp();
-        cJSON_DeleteItemFromObject(memcached_cfg.get(),
-                                   "external_auth_service");
-        cJSON_AddTrueToObject(memcached_cfg.get(), "external_auth_service");
-        cJSON_AddStringToObject(memcached_cfg.get(),
-                                "active_external_users_push_interval",
-                                "100 ms");
+        memcached_cfg["external_auth_service"] = true;
+        memcached_cfg["active_external_users_push_interval"] = "100 ms";
         reconfigure();
 
         auto& conn = getConnection();
@@ -78,9 +74,8 @@ protected:
 
     void TearDown() override {
         provider.reset();
-        cJSON_DeleteItemFromObject(memcached_cfg.get(),
-                                   "external_auth_service");
-        cJSON_AddTrueToObject(memcached_cfg.get(), "external_auth_service");
+        memcached_cfg["external_auth_service"] = false;
+        memcached_cfg["active_external_users_push_interval"] = "30 m";
         reconfigure();
         TestappTest::TearDown();
     }

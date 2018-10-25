@@ -217,7 +217,7 @@ protected:
         document.info.datatype = cb::mcbp::Datatype::JSON;
         document.info.flags = 0xcaffee;
         document.info.id = name;
-        document.value = to_string(memcached_cfg, false);
+        document.value = memcached_cfg.dump();
         return conn.mutate(document, Vbid(0), type);
     }
 

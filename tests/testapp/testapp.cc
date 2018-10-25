@@ -166,7 +166,7 @@ TestBucketImpl& TestappTest::GetTestBucket()
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
     token = 0xdeadbeef;
-    memcached_cfg.reset(cJSON_Parse(generate_config(0).dump().c_str()));
+    memcached_cfg = generate_config(0);
     start_memcached_server();
 
     if (HasFailure()) {
@@ -196,16 +196,11 @@ void TestappTest::reconfigure_client_cert_auth(const std::string& state,
                                                const std::string& path,
                                                const std::string& prefix,
                                                const std::string& delimiter) {
-    // Delete the old item from the array
-    cJSON_DeleteItemFromObject(memcached_cfg.get(), "client_cert_auth");
-
-    auto obj = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj, "state", state.c_str());
-    cJSON_AddStringToObject(obj, "path", path.c_str());
-    cJSON_AddStringToObject(obj, "prefix", prefix.c_str());
-    cJSON_AddStringToObject(obj, "delimiter", delimiter.c_str());
-    cJSON_AddItemToObject(memcached_cfg.get(), "client_cert_auth", obj);
-
+    memcached_cfg["client_cert_auth"] = {};
+    memcached_cfg["client_cert_auth"]["state"] = state;
+    memcached_cfg["client_cert_auth"]["path"] = path;
+    memcached_cfg["client_cert_auth"]["prefix"] = prefix;
+    memcached_cfg["client_cert_auth"]["delimiter"] = delimiter;
     // update the server to use this!
     reconfigure();
 }
@@ -922,7 +917,7 @@ void delete_object(const char* key, bool ignore_missing) {
 
 void TestappTest::start_memcached_server() {
     config_file = cb::io::mktemp("memcached_testapp.json");
-    write_config_to_file(to_string(memcached_cfg), config_file);
+    write_config_to_file(memcached_cfg.dump(2), config_file);
 
     server_start_time = time(0);
 
@@ -1309,7 +1304,7 @@ void TestappTest::ewouldblock_engine_disable() {
 }
 
 void TestappTest::reconfigure() {
-    write_config_to_file(to_string(memcached_cfg, true), config_file);
+    write_config_to_file(memcached_cfg.dump(2), config_file);
     auto& conn = getAdminConnection();
 
     BinprotGenericCommand req{PROTOCOL_BINARY_CMD_CONFIG_RELOAD, {}, {}};
@@ -1440,7 +1435,7 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
     return connection;
 }
 
-unique_cJSON_ptr TestappTest::memcached_cfg;
+nlohmann::json TestappTest::memcached_cfg;
 std::string TestappTest::portnumber_file;
 std::string TestappTest::config_file;
 ConnectionMap TestappTest::connectionMap;

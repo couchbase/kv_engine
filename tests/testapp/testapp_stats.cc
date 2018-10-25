@@ -42,7 +42,7 @@ TEST_P(StatsTest, TestGetMeta) {
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    doc.value = to_string(memcached_cfg.get());
+    doc.value = memcached_cfg.dump();
     conn.mutate(doc, Vbid(0), MutationType::Set);
 
     // Send 10 GET_META, this should not increase the `cmd_get` and `get_hits` stats
@@ -159,7 +159,7 @@ TEST_P(StatsTest, Test_MB_17815) {
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    doc.value = to_string(memcached_cfg.get());
+    doc.value = memcached_cfg.dump();
 
     conn.mutate(doc, Vbid(0), MutationType::Add);
     stats = conn.stats("");
@@ -198,7 +198,7 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    doc.value = to_string(memcached_cfg.get());
+    doc.value = memcached_cfg.dump();
     conn.mutate(doc, Vbid(0), MutationType::Set);
 
     // Now append to the same doc
@@ -228,7 +228,7 @@ TEST_P(StatsTest, Test_MB_29259_Append) {
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    doc.value = to_string(memcached_cfg.get());
+    doc.value = memcached_cfg.dump();
 
     // Try to append to non-existing document
     try {
@@ -253,7 +253,7 @@ TEST_P(StatsTest, TestAppend) {
     doc.info.cas = mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    doc.value = to_string(memcached_cfg.get());
+    doc.value = memcached_cfg.dump();
     conn.mutate(doc, Vbid(0), MutationType::Set);
 
     // Send 10 appends, this should increase the `cmd_set` stat by 10
@@ -467,7 +467,7 @@ TEST_P(StatsTest, TestTopkeys) {
         doc.info.cas = mcbp::cas::Wildcard;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
-        doc.value = to_string(memcached_cfg.get());
+        doc.value = memcached_cfg.dump();
 
         conn.mutate(doc, Vbid(0), MutationType::Set);
     }
@@ -485,7 +485,7 @@ TEST_P(StatsTest, TestTopkeysJson) {
         doc.info.cas = mcbp::cas::Wildcard;
         doc.info.flags = 0xcaffee;
         doc.info.id = name;
-        doc.value = to_string(memcached_cfg.get());
+        doc.value = memcached_cfg.dump();
 
         conn.mutate(doc, Vbid(0), MutationType::Set);
     }
