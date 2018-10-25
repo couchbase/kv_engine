@@ -42,11 +42,6 @@ extern uint32_t dcp_last_flags;
 extern CollectionID dcp_last_collection_id;
 
 TEST_F(CollectionsDcpTest, test_dcp_consumer) {
-    const void* cookie = create_mock_cookie();
-
-    auto consumer =
-            std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
-
     store->setVBucketState(vbid, vbucket_state_replica, false);
     ASSERT_EQ(ENGINE_SUCCESS,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
@@ -60,7 +55,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     Collections::SystemEventDcpData eventDcpData{eventData};
 
     ASSERT_EQ(ENGINE_SUCCESS,
-              consumer->snapshotMarker(/*opaque*/ 1,
+              consumer->snapshotMarker(/*opaque*/ 2,
                                        vbid,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 100,
@@ -75,7 +70,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     // create the meat collection
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->systemEvent(
-                      /*opaque*/ 1,
+                      /*opaque*/ 2,
                       vbid,
                       mcbp::systemevent::id::CreateCollection,
                       /*seqno*/ 1,
@@ -94,7 +89,7 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     // delete the meat collection
     EXPECT_EQ(ENGINE_SUCCESS,
               consumer->systemEvent(
-                      /*opaque*/ 1,
+                      /*opaque*/ 2,
                       vbid,
                       mcbp::systemevent::id::DeleteCollection,
                       /*seqno*/ 2,
@@ -106,10 +101,6 @@ TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     // It's gone!
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
-
-    consumer->closeAllStreams();
-    destroy_mock_cookie(cookie);
-    consumer->cancelTask();
 }
 
 /*
@@ -544,8 +535,6 @@ TEST_F(CollectionsDcpTest, collections_manifest_is_ahead) {
 
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
-    // Patch our local callback into the handlers
-    producers->system_event = &CollectionsDcpTest::sendSystemEvent;
 
     try {
         createDcpStream({{R"({"uid":"9"})"}});
@@ -589,7 +578,7 @@ public:
     void SetUp() override {
         config_string += "collections_enabled=true";
         SingleThreadedKVBucketTest::SetUp();
-        producers = std::make_unique<MockDcpMessageProducers>(engine.get());
+        producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
     }

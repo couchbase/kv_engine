@@ -114,6 +114,13 @@ public:
     // Change the status code returned from mutation() to the specified value.
     void setMutationStatus(ENGINE_ERROR_CODE code);
 
+    ENGINE_ERROR_CODE system_event(uint32_t opaque,
+                                   Vbid vbucket,
+                                   mcbp::systemevent::id event,
+                                   uint64_t bySeqno,
+                                   cb::const_byte_buffer key,
+                                   cb::const_byte_buffer eventData) override;
+
 protected:
     /// Helper method for deletion / deletion_v2
     ENGINE_ERROR_CODE deletionInner(uint32_t opaque,

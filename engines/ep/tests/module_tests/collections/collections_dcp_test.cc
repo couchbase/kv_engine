@@ -38,7 +38,7 @@ void CollectionsDcpTest::SetUp() {
     SingleThreadedKVBucketTest::SetUp();
     // Start vbucket as active to allow us to store items directly to it.
     store->setVBucketState(vbid, vbucket_state_active, false);
-    producers = std::make_unique<MockDcpMessageProducers>(engine.get());
+    producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
     createDcpObjects({{}} /*collections on, but no filter*/);
 }
 
@@ -68,7 +68,7 @@ void CollectionsDcpTest::createDcpStream(
 }
 
 void CollectionsDcpTest::createDcpConsumer() {
-    CollectionsDcpTest::consumer = std::make_shared<MockDcpConsumer>(
+    consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookieC, "test_consumer");
     store->setVBucketState(replicaVB, vbucket_state_replica, false);
     ASSERT_EQ(ENGINE_SUCCESS,
@@ -89,8 +89,10 @@ void CollectionsDcpTest::createDcpObjects(
     createDcpConsumer();
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
-    // Patch our local callback into the handlers
-    producers->system_event = &CollectionsDcpTest::sendSystemEvent;
+    // Give the producers object access to the consumer and vbid of replica
+    producers->consumer = consumer.get();
+    producers->replicaVB = replicaVB;
+
     createDcpStream(collections);
 }
 
@@ -163,7 +165,7 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
 void CollectionsDcpTest::resetEngineAndWarmup(std::string new_config) {
     teardown();
     SingleThreadedKVBucketTest::resetEngineAndWarmup(new_config);
-    producers = std::make_unique<MockDcpMessageProducers>(engine.get());
+    producers = std::make_unique<CollectionsDcpTestProducers>(engine.get());
     cookieC = create_mock_cookie();
     cookieP = create_mock_cookie();
 }
@@ -171,15 +173,13 @@ void CollectionsDcpTest::resetEngineAndWarmup(std::string new_config) {
 /*
  * DCP callback method to push SystemEvents on to the consumer
  */
-ENGINE_ERROR_CODE CollectionsDcpTest::sendSystemEvent(
-        gsl::not_null<const void*> cookie,
+ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
         uint32_t opaque,
         Vbid vbucket,
         mcbp::systemevent::id event,
         uint64_t bySeqno,
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
-    (void)cookie;
     (void)vbucket; // ignored as we are connecting VBn to VBn+1
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
     dcp_last_system_event = event;
@@ -190,12 +190,16 @@ ENGINE_ERROR_CODE CollectionsDcpTest::sendSystemEvent(
                         eventData.data())
                         ->cid.to_host();
     }
+
     // Using the ::size directly in the EXPECT is failing to link on
     // OSX build, but copying the value works.
     const auto expectedSize = Collections::SystemEventDcpData::size;
     EXPECT_EQ(expectedSize, eventData.size());
-    return consumer->systemEvent(
-            opaque, replicaVB, event, bySeqno, key, eventData);
+    if (consumer) {
+        return consumer->systemEvent(
+                opaque, replicaVB, event, bySeqno, key, eventData);
+    }
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE CollectionsDcpTest::dcpAddFailoverLog(
@@ -204,6 +208,3 @@ ENGINE_ERROR_CODE CollectionsDcpTest::dcpAddFailoverLog(
         gsl::not_null<const void*> cookie) {
     return ENGINE_SUCCESS;
 }
-
-Vbid CollectionsDcpTest::replicaVB;
-std::shared_ptr<MockDcpConsumer> CollectionsDcpTest::consumer;

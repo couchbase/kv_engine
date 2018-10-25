@@ -255,14 +255,12 @@ struct dcp_message_producers {
      *
      * @return ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE(*system_event)
-    (gsl::not_null<const void*> cookie,
-     uint32_t opaque,
-     Vbid vbucket,
-     mcbp::systemevent::id event,
-     uint64_t bySeqno,
-     cb::const_byte_buffer key,
-     cb::const_byte_buffer eventData) = nullptr;
+    virtual ENGINE_ERROR_CODE system_event(uint32_t opaque,
+                                           Vbid vbucket,
+                                           mcbp::systemevent::id event,
+                                           uint64_t bySeqno,
+                                           cb::const_byte_buffer key,
+                                           cb::const_byte_buffer eventData) = 0;
 
     /*
      * Send a GetErrorMap message to the other end

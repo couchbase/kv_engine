@@ -940,6 +940,13 @@ public:
 
     ENGINE_ERROR_CODE get_error_map(uint32_t opaque, uint16_t version) override;
 
+    ENGINE_ERROR_CODE system_event(uint32_t opaque,
+                                   Vbid vbucket,
+                                   mcbp::systemevent::id event,
+                                   uint64_t bySeqno,
+                                   cb::const_byte_buffer key,
+                                   cb::const_byte_buffer eventData) override;
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses

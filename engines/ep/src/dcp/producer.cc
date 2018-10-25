@@ -671,7 +671,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
             SystemEventProducerMessage* s =
                     static_cast<SystemEventProducerMessage*>(resp.get());
             ret = producers->system_event(
-                    getCookie(),
                     s->getOpaque(),
                     s->getVBucket(),
                     s->getSystemEvent(),

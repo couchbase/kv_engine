@@ -17,11 +17,30 @@
 
 #pragma once
 
+#include "tests/mock/mock_dcp.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 
 class MockDcpConsumer;
-class MockDcpMessageProducers;
 class MockDcpProducer;
+
+class CollectionsDcpTestProducers : public MockDcpMessageProducers {
+public:
+    CollectionsDcpTestProducers(EngineIface* engine = nullptr)
+        : MockDcpMessageProducers(engine) {
+    }
+    ~CollectionsDcpTestProducers() {
+    }
+
+    ENGINE_ERROR_CODE system_event(uint32_t opaque,
+                                   Vbid vbucket,
+                                   mcbp::systemevent::id event,
+                                   uint64_t bySeqno,
+                                   cb::const_byte_buffer key,
+                                   cb::const_byte_buffer eventData) override;
+
+    MockDcpConsumer* consumer = nullptr;
+    Vbid replicaVB;
+};
 
 class CollectionsDcpTest : public SingleThreadedKVBucketTest {
 public:
@@ -55,20 +74,6 @@ public:
 
     void resetEngineAndWarmup(std::string new_config = "");
 
-    static Vbid replicaVB;
-    static std::shared_ptr<MockDcpConsumer> consumer;
-
-    /*
-     * DCP callback method to push SystemEvents on to the consumer
-     */
-    static ENGINE_ERROR_CODE sendSystemEvent(gsl::not_null<const void*> cookie,
-                                             uint32_t opaque,
-                                             Vbid vbucket,
-                                             mcbp::systemevent::id event,
-                                             uint64_t bySeqno,
-                                             cb::const_byte_buffer key,
-                                             cb::const_byte_buffer eventData);
-
     static ENGINE_ERROR_CODE dcpAddFailoverLog(
             vbucket_failover_t* entry,
             size_t nentries,
@@ -76,6 +81,8 @@ public:
 
     const void* cookieC;
     const void* cookieP;
-    std::unique_ptr<MockDcpMessageProducers> producers;
+    std::unique_ptr<CollectionsDcpTestProducers> producers;
     std::shared_ptr<MockDcpProducer> producer;
+    std::shared_ptr<MockDcpConsumer> consumer;
+    Vbid replicaVB;
 };

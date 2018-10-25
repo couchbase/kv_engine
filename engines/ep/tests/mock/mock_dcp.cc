@@ -324,14 +324,13 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::control(uint32_t opaque,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE mock_system_event(gsl::not_null<const void*> cookie,
-                                           uint32_t opaque,
-                                           Vbid vbucket,
-                                           mcbp::systemevent::id event,
-                                           uint64_t bySeqno,
-                                           cb::const_byte_buffer key,
-                                           cb::const_byte_buffer eventData) {
-    (void)cookie;
+ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
+        uint32_t opaque,
+        Vbid vbucket,
+        mcbp::systemevent::id event,
+        uint64_t bySeqno,
+        cb::const_byte_buffer key,
+        cb::const_byte_buffer eventData) {
     clear_dcp_data();
     dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
     dcp_last_system_event = event;
@@ -353,8 +352,6 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::get_error_map(uint32_t opaque,
 }
 
 MockDcpMessageProducers::MockDcpMessageProducers(EngineIface* engine) {
-    system_event = mock_system_event;
-
     engine_handle = engine;
     engine_handle_v1 = engine;
 }
