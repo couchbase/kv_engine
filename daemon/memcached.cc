@@ -541,8 +541,10 @@ static void settings_init(void) {
     settings.addChangeListener(
             "active_external_users_push_interval",
             [](const std::string&, Settings& s) -> void {
-                externalAuthManager->setPushActiveUsersInterval(
-                        s.getActiveExternalUsersPushInterval());
+                if (externalAuthManager) {
+                    externalAuthManager->setPushActiveUsersInterval(
+                            s.getActiveExternalUsersPushInterval());
+                }
             });
     NetworkInterface default_interface;
     settings.addInterface(default_interface);

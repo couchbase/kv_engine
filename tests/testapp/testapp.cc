@@ -491,6 +491,8 @@ unique_cJSON_ptr TestappTest::generate_config(uint16_t ssl_port) {
     cJSON_AddItemToObject(root, "opcode_attributes_override", kvattr.release());
 
     cJSON_AddFalseToObject(root, "dedupe_nmvb_maps");
+    cJSON_AddStringToObject(
+            root, "active_external_users_push_interval", "30 m");
 
     return object;
 }
