@@ -1238,11 +1238,6 @@ void MemcachedConnection::unlock(const std::string& id,
     }
 }
 
-unique_cJSON_ptr MemcachedConnection::timings(uint8_t opcode,
-                                              const std::string& bucket) {
-    return unique_cJSON_ptr();
-}
-
 void MemcachedConnection::dropPrivilege(cb::rbac::Privilege privilege) {
     BinprotGenericCommand command(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE,
                                   cb::rbac::to_string(privilege));

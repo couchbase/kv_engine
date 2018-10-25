@@ -697,8 +697,6 @@ public:
                effective_features.end();
     }
 
-    unique_cJSON_ptr timings(uint8_t opcode, const std::string& bucket);
-
     void setDatatypeJson(bool enable) {
         setFeature(cb::mcbp::Feature::JSON, enable);
     }
