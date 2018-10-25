@@ -145,29 +145,21 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
     BinprotResponse resp;
     conn.recvResponse(resp);
     ASSERT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
-    unique_cJSON_ptr json(cJSON_Parse(resp.getDataString().c_str()));
-    ASSERT_TRUE(json);
+    auto json = nlohmann::json::parse(resp.getDataString());
 
-    auto* error = cJSON_GetObjectItem(json.get(), "error");
-    ASSERT_NE(nullptr, error);
-
-    // The Auth error should
-    auto* context = cJSON_GetObjectItem(error, "context");
-    auto* ref = cJSON_GetObjectItem(error, "ref");
-    ASSERT_NE(nullptr, context);
-    ASSERT_NE(nullptr, ref);
+    ASSERT_TRUE(json["error"].is_object());
+    ASSERT_TRUE(json["error"]["context"].is_string());
+    auto ref = json["error"]["ref"].get<std::string>();
 
     // @todo I could parse the UUID to see that it is actually an UUID,
     //       but for now I just trust it to be a UUID and not something
     //       else (just add a check for the length of an UUID)
-    std::string value(ref->valuestring);
-    EXPECT_EQ(36, value.size());
+    EXPECT_EQ(36, ref.size());
 
     const std::string expected{"Authorization failure: can't execute "
                                "RBAC_REFRESH operation without the "
                                "SecurityManagement privilege"};
-    value.assign(context->valuestring);
-    EXPECT_EQ(expected, value);
+    EXPECT_EQ(expected, json["error"]["context"]);
 }
 
 class RbacRoleTest : public TestappClientTest {
