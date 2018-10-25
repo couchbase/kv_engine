@@ -952,7 +952,8 @@ static cb::mcbp::Status validate_packet_execusion_constraints(Cookie& cookie) {
     return cb::mcbp::Status::Success;
 }
 
-void try_read_mcbp_command(Connection& c) {
+void try_read_mcbp_command(Cookie& cookie) {
+    auto& c = cookie.getConnection();
     auto input = c.read->rdata();
     if (input.size() < sizeof(cb::mcbp::Request)) {
         throw std::logic_error(
@@ -960,7 +961,6 @@ void try_read_mcbp_command(Connection& c) {
                 std::to_string(c.read->rsize()) + " of " +
                 std::to_string(sizeof(cb::mcbp::Request)) + ")");
     }
-    auto& cookie = c.getCookieObject();
     cookie.initialize(
             cb::const_byte_buffer{input.data(), sizeof(cb::mcbp::Request)},
             c.isTracingEnabled());

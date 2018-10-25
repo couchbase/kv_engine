@@ -26,7 +26,7 @@ struct Response;
 } // namespace mcbp
 } // namespace cb
 
-void try_read_mcbp_command(Connection& c);
+void try_read_mcbp_command(Cookie& cookie);
 
 void initialize_mbcp_lookup_map();
 

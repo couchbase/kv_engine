@@ -161,7 +161,7 @@ bool StateMachine::conn_ship_log() {
 
     if (connection.isReadEvent() || !connection.read->empty()) {
         if (connection.read->rsize() >= sizeof(cb::mcbp::Header)) {
-            try_read_mcbp_command(connection);
+            try_read_mcbp_command(connection.getCookieObject());
         } else {
             connection.setState(StateMachine::State::read_packet_header);
         }
@@ -283,7 +283,7 @@ bool StateMachine::conn_parse_cmd() {
     // Parse the data in the input pipe and prepare the cookie for execution.
     // If all data is available we'll move over to the execution phase,
     // otherwise we'll wait for the data to arrive
-    try_read_mcbp_command(connection);
+    try_read_mcbp_command(connection.getCookieObject());
     return true;
 }
 
