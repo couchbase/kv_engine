@@ -7,14 +7,15 @@ they can control.
 The primary use-case for system events is collections, and thus the following system events can occur:
 
 * Collection creation.
-* Collection deletion.
-* Collection separator has been changed.
+* Collection drop.
 
-The extra data encodes an event identifier to indicate which event has occurred.
+A system event always encodes in the extras the seqno of the event and an identifier for the event, the following identifiers are defined.
 
 * 0 - A collection has been created
-* 1 - A collection has been deleted
-* 2 - The collections separator has changed
+* 1 - A collection has been dropped
+* 2 - A collection has been flushed
+
+The different events then define an optional value, the encoding of which is listed in subsequent sections.
 
 The request:
 * Must have extras
