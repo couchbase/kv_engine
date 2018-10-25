@@ -19,6 +19,7 @@
 #include <platform/compress.h>
 #include <fstream>
 
+#include <nlohmann/json.hpp>
 #include <atomic>
 #include <csignal>
 #include <thread>
@@ -421,77 +422,49 @@ static std::string get_errmaps_dir() {
 }
 
 unique_cJSON_ptr TestappTest::generate_config(uint16_t ssl_port) {
-    unique_cJSON_ptr object(cJSON_CreateObject());
-    cJSON* root = object.get();
-    cJSON *array = cJSON_CreateArray();
-    cJSON *obj = nullptr;
-    cJSON *obj_ssl = nullptr;
-
     const std::string cwd = cb::io::getcwd();
     const std::string pem_path = cwd + CERTIFICATE_PATH("testapp.pem");
     const std::string cert_path = cwd + CERTIFICATE_PATH("testapp.cert");
 
-    unique_cJSON_ptr logger(cJSON_CreateObject());
-    cJSON_AddTrueToObject(logger.get(), "unit_test");
+    nlohmann::json ret;
+    ret["logger"]["unit_test"] = true;
     if (memcached_verbose == 0) {
-        cJSON_AddFalseToObject(logger.get(), "console");
+        ret["logger"]["console"] = false;
     }
-    cJSON_AddItemToObject(root, "logger", logger.release());
-    cJSON_AddNumberToObject(root, "verbosity", memcached_verbose);
-    cJSON_AddFalseToObject(root, "stdin_listener");
 
-    // Build up the interface array
-    // One interface using the memcached binary protocol
-    obj = cJSON_CreateObject();
-    cJSON_AddNumberToObject(obj, "port", 0);
-    cJSON_AddStringToObject(obj, "ipv4", "optional");
-    cJSON_AddStringToObject(obj, "ipv6", "optional");
-    cJSON_AddInteger64ToObject(obj, "maxconn", Testapp::MAX_CONNECTIONS);
-    cJSON_AddInteger64ToObject(obj, "backlog", Testapp::BACKLOG);
-    cJSON_AddStringToObject(obj, "host", "*");
-    cJSON_AddStringToObject(obj, "protocol", "memcached");
-    cJSON_AddTrueToObject(obj, "management");
-    cJSON_AddItemToArray(array, obj);
-
-    // One interface using the memcached binary protocol over SSL
-    obj = cJSON_CreateObject();
-    cJSON_AddNumberToObject(obj, "port", ssl_port);
-    cJSON_AddInteger64ToObject(obj, "maxconn", Testapp::MAX_CONNECTIONS);
-    cJSON_AddInteger64ToObject(obj, "backlog", Testapp::BACKLOG);
-    cJSON_AddStringToObject(obj, "ipv4", "optional");
-    cJSON_AddStringToObject(obj, "ipv6", "optional");
-    cJSON_AddStringToObject(obj, "host", "*");
-    cJSON_AddStringToObject(obj, "protocol", "memcached");
-    obj_ssl = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj_ssl, "key", pem_path.c_str());
-    cJSON_AddStringToObject(obj_ssl, "cert", cert_path.c_str());
-    cJSON_AddItemToObject(obj, "ssl", obj_ssl);
-    cJSON_AddItemToArray(array, obj);
-
-    cJSON_AddItemToObject(root, "interfaces", array);
-
-    cJSON_AddTrueToObject(root, "datatype_json");
-    cJSON_AddTrueToObject(root, "datatype_snappy");
-    cJSON_AddStringToObject(root, "audit_file",
-                            mcd_env->getAuditFilename().c_str());
-    cJSON_AddStringToObject(root, "error_maps_dir", get_errmaps_dir().c_str());
-    cJSON_AddTrueToObject(root, "xattr_enabled");
-    cJSON_AddStringToObject(root, "rbac_file",
-                            mcd_env->getRbacFilename().c_str());
-    cJSON_AddStringToObject(root, "ssl_cipher_list", "HIGH");
-    cJSON_AddStringToObject(root, "ssl_minimum_protocol", "tlsv1");
-
-    // Add an opcode_attributes_override element so that we know we can
-    // parse it if ns_server starts applying one ;-)
-    unique_cJSON_ptr kvattr(cJSON_Parse(
-            R"({"version":1,"EWB_CTL": {"slow":50}})"));
-    cJSON_AddItemToObject(root, "opcode_attributes_override", kvattr.release());
-
-    cJSON_AddFalseToObject(root, "dedupe_nmvb_maps");
-    cJSON_AddStringToObject(
-            root, "active_external_users_push_interval", "30 m");
-
-    return object;
+    ret["verbosity"] = memcached_verbose;
+    ret["stdin_listener"] = false;
+    ret["interfaces"][0]["port"] = 0;
+    ret["interfaces"][0]["ipv4"] = "optional";
+    ret["interfaces"][0]["ipv6"] = "optional";
+    ret["interfaces"][0]["maxconn"] = Testapp::MAX_CONNECTIONS;
+    ret["interfaces"][0]["backlog"] = Testapp::BACKLOG;
+    ret["interfaces"][0]["host"] = "*";
+    ret["interfaces"][0]["protocol"] = "memcached";
+    ret["interfaces"][0]["management"] = true;
+    ret["interfaces"][1]["port"] = ssl_port;
+    ret["interfaces"][1]["ipv4"] = "optional";
+    ret["interfaces"][1]["ipv6"] = "optional";
+    ret["interfaces"][1]["maxconn"] = Testapp::MAX_CONNECTIONS;
+    ret["interfaces"][1]["backlog"] = Testapp::BACKLOG;
+    ret["interfaces"][1]["host"] = "*";
+    ret["interfaces"][1]["protocol"] = "memcached";
+    ret["interfaces"][1]["management"] = true;
+    ret["interfaces"][1]["ssl"]["key"] = pem_path;
+    ret["interfaces"][1]["ssl"]["cert"] = cert_path;
+    ret["datatype_json"] = true;
+    ret["datatype_snappy"] = true;
+    ret["xattr_enabled"] = true;
+    ret["dedupe_nmvb_maps"] = false;
+    ret["active_external_users_push_interval"] = "30 m";
+    ret["error_maps_dir"] = get_errmaps_dir();
+    ret["audit_file"] = mcd_env->getAuditFilename();
+    ret["rbac_file"] = mcd_env->getRbacFilename();
+    ret["ssl_cipher_list"] = "HIGH";
+    ret["ssl_minimum_protocol"] = "tlsv1";
+    ret["opcode_attributes_override"]["version"] = 1;
+    ret["opcode_attributes_override"]["EWB_CTL"]["slow"] = 50;
+    return unique_cJSON_ptr{cJSON_Parse(ret.dump().c_str())};
 }
 
 unique_cJSON_ptr TestappTest::generate_config() {
