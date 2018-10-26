@@ -205,8 +205,15 @@ ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
                 if (vb) {
                     success = vb->lockCollections().addCollectionStats(
                             vbid, cookie, add_stat);
+                } else {
+                    return ENGINE_NOT_MY_VBUCKET;
                 }
-            } catch (const std::exception&) {
+            } catch (const std::exception& e) {
+                EP_LOG_WARN(
+                        "Collections::Manager::doStats failed to build "
+                        "stats for {} exception:{}",
+                        statKey.substr(pos),
+                        e.what());
                 return ENGINE_EINVAL;
             }
         } else {
