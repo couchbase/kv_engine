@@ -19,12 +19,11 @@
 #include <cJSON_utils.h>
 #include <gtest/gtest.h>
 #include <mcbp/mcbp.h>
+#include <nlohmann/json.hpp>
 
 TEST(McbpSlaReconfig, MissingVersion) {
-    unique_cJSON_ptr doc(cJSON_Parse("{}"));
-
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(nlohmann::json::object());
         FAIL() << "version is a mandatory element";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
@@ -35,9 +34,9 @@ TEST(McbpSlaReconfig, MissingVersion) {
 }
 
 TEST(McbpSlaReconfig, IncorrectVersionType) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":true})"));
+    const auto doc = R"({"version": true})"_json;
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(doc);
         FAIL() << "version should be a number";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ("cb::mcbp::sla::reconfigure: 'version' should be a number",
@@ -46,9 +45,9 @@ TEST(McbpSlaReconfig, IncorrectVersionType) {
 }
 
 TEST(McbpSlaReconfig, UnsupportedVersion) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":2})"));
+    const auto doc = R"({"version": 2})"_json;
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(doc);
         FAIL() << "version should be 1";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ("cb::mcbp::sla::reconfigure: Unsupported version: 2",
@@ -57,14 +56,14 @@ TEST(McbpSlaReconfig, UnsupportedVersion) {
 }
 
 TEST(McbpSlaReconfig, SupportedVersion) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":1})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    const auto doc = R"({"version": 1})"_json;
+    cb::mcbp::sla::reconfigure(doc);
 }
 
 TEST(McbpSlaReconfig, DefaultEntryNotAnObject) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":1,"default": false})"));
+    const auto doc = R"({"version": 1, "default": false})"_json;
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(doc);
         FAIL() << "Default must be an object";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
@@ -75,9 +74,9 @@ TEST(McbpSlaReconfig, DefaultEntryNotAnObject) {
 }
 
 TEST(McbpSlaReconfig, DefaultObjectMissingSlow) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":1,"default": {}})"));
+    nlohmann::json doc = R"({"version": 1, "default": {}})"_json;
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(doc);
         FAIL() << "Default must contain 'slow'";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
@@ -88,16 +87,15 @@ TEST(McbpSlaReconfig, DefaultObjectMissingSlow) {
 }
 
 TEST(McbpSlaReconfig, LegalDefaultObject) {
-    unique_cJSON_ptr doc(
-            cJSON_Parse(R"({"version":1,"default": {"slow":500}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    const auto doc = R"({"version": 1, "default": {"slow": 500}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
 }
 
 TEST(McbpSlaReconfig, UnknownCommand) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":1,"foo": {"slow":500}})"));
+    const auto doc = R"({"version": 1, "foo": {"slow": 500}})"_json;
 
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(doc);
         FAIL() << "Should not allow unknown commands";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ("cb::mcbp::sla::reconfigure: Unknown command 'foo'",
@@ -106,9 +104,9 @@ TEST(McbpSlaReconfig, UnknownCommand) {
 }
 
 TEST(McbpSlaReconfig, GetEntryNotAnObject) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":1,"get": false})"));
+    const auto doc = R"({"version": 1, "get": false})"_json;
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(doc);
         FAIL() << "Entries must be an object";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
@@ -119,9 +117,9 @@ TEST(McbpSlaReconfig, GetEntryNotAnObject) {
 }
 
 TEST(McbpSlaReconfig, GetObjectMissingSlow) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":1,"get": {}})"));
+    const auto doc = R"({"version": 1, "get": {}})"_json;
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(doc);
         FAIL() << "Entries must contain 'slow'";
     } catch (const std::invalid_argument& e) {
         EXPECT_STREQ(
@@ -132,80 +130,76 @@ TEST(McbpSlaReconfig, GetObjectMissingSlow) {
 }
 
 TEST(McbpSlaReconfig, LegalGetObject) {
-    unique_cJSON_ptr doc(cJSON_Parse(R"({"version":1,"get": {"slow":500}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    const auto doc = R"({"version": 1, "get": {"slow": 500}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
 }
 
 // Test all of the allowed permutations of string values to specify a time
 // gap
 TEST(McbpSlaReconfig, GetParseStringValues) {
-    unique_cJSON_ptr doc;
-
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "1 ns"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    auto doc = R"({"version": 1, "get": {"slow": "1 ns"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::nanoseconds(1),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "2 nanoseconds"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "2 nanoseconds"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::nanoseconds(2),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "1 us"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "1 us"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::microseconds(1),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(
-            cJSON_Parse(R"({"version":1,"get": {"slow": "2 microseconds"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "2 microseconds"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::microseconds(2),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "1 ms"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "1 ms"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::milliseconds(1),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(
-            cJSON_Parse(R"({"version":1,"get": {"slow": "2 milliseconds"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "2 milliseconds"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::milliseconds(2),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "1 s"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "1 s"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::seconds(1),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "2 seconds"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "2 seconds"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::seconds(2),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "1 m"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "1 m"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::minutes(1),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "2 minutes"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "2 minutes"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::minutes(2),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "1 h"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "1 h"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::hours(1),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "2 hours"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
+    doc = R"({"version": 1, "get": {"slow": "2 hours"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
     EXPECT_EQ(std::chrono::hours(2),
               cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Get));
 }
 
 TEST(McbpSlaReconfig, ReconfigureFiles) {
-    cb::mcbp::sla::reconfigure(SOURCE_ROOT);
+    cb::mcbp::sla::reconfigure(std::string{SOURCE_ROOT});
 
     // We should have applied the files in the following order
     //   etc/couchbase/kv/opcode-attributes.json
@@ -234,28 +228,15 @@ TEST(McbpSlaReconfig, ReconfigureFiles) {
 TEST(McbpSlaReconfig, toJSON) {
     // Verify that we try to print the number as easy to read for
     // a human
-    unique_cJSON_ptr doc(
-            cJSON_Parse(R"({"version":1,"get": {"slow": "1000000 ns"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
-    auto json = cb::mcbp::sla::to_json();
-    ASSERT_TRUE(json) << "Failed to generate JSON representation";
-    auto* obj = cJSON_GetObjectItem(json.get(), "GET");
-    ASSERT_NE(nullptr, obj) << "Expected GET to be present";
-    auto* slow = cJSON_GetObjectItem(obj, "slow");
-    ASSERT_NE(nullptr, slow) << "Expected slow to be present";
-    ASSERT_EQ(cJSON_String, slow->type) << "Slow should be a string";
-    ASSERT_EQ(std::string{"1 ms"}, slow->valuestring);
+    auto doc = R"({"version": 1, "get": {"slow": "1000000 ns"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
+    auto json = nlohmann::json::parse(to_string(cb::mcbp::sla::to_json()));
+    EXPECT_EQ("1 ms", json["GET"]["slow"].get<std::string>());
 
     // Verify that we don't loose information when trying to
     // make the number easier to read.
-    doc.reset(cJSON_Parse(R"({"version":1,"get": {"slow": "1001 ns"}})"));
-    cb::mcbp::sla::reconfigure(*doc);
-    json = cb::mcbp::sla::to_json();
-    ASSERT_TRUE(json) << "Failed to generate JSON representation";
-    obj = cJSON_GetObjectItem(json.get(), "GET");
-    ASSERT_NE(nullptr, obj) << "Expected GET to be present";
-    slow = cJSON_GetObjectItem(obj, "slow");
-    ASSERT_NE(nullptr, slow) << "Expected slow to be present";
-    ASSERT_EQ(cJSON_String, slow->type) << "Slow should be a string";
-    ASSERT_EQ(std::string{"1001 ns"}, slow->valuestring);
+    doc = R"({"version": 1, "get": {"slow": "1001 ns"}})"_json;
+    cb::mcbp::sla::reconfigure(doc);
+    json = nlohmann::json::parse(to_string(cb::mcbp::sla::to_json()));
+    EXPECT_EQ("1001 ns", json["GET"]["slow"].get<std::string>());
 }

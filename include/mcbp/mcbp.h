@@ -108,6 +108,7 @@ namespace sla {
  *                               document
  */
 void reconfigure(const cJSON& doc, bool apply = true);
+void reconfigure(const nlohmann::json& doc, bool apply = true);
 
 /**
  * Reconfigure the SLA module by parsing the configuration files stored

@@ -300,6 +300,11 @@ void reconfigure(const cJSON& doc, bool apply) {
     }
 }
 
+void reconfigure(const nlohmann::json& doc, bool apply) {
+    unique_cJSON_ptr json(cJSON_Parse(doc.dump().c_str()));
+    reconfigure(*json.get(), apply);
+}
+
 std::chrono::nanoseconds getSlowOpThreshold(const cJSON& doc) {
     if (doc.type != cJSON_Object) {
         throw std::invalid_argument(
