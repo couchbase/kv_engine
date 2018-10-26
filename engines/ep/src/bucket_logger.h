@@ -157,27 +157,17 @@ extern std::shared_ptr<BucketLogger> globalBucketLogger;
         }                                             \
     } while (false)
 
-#define EP_LOG_TRACE(...)                                          \
-    do {                                                           \
-        EP_LOG_FMT(spdlog::level::level_enum::trace, __VA_ARGS__); \
-    } while (false)
+#define EP_LOG_TRACE(...) \
+    EP_LOG_FMT(spdlog::level::level_enum::trace, __VA_ARGS__)
 
-#define EP_LOG_DEBUG(...)                                          \
-    do {                                                           \
-        EP_LOG_FMT(spdlog::level::level_enum::debug, __VA_ARGS__); \
-    } while (false)
+#define EP_LOG_DEBUG(...) \
+    EP_LOG_FMT(spdlog::level::level_enum::debug, __VA_ARGS__)
 
-#define EP_LOG_INFO(...)                                          \
-    do {                                                          \
-        EP_LOG_FMT(spdlog::level::level_enum::info, __VA_ARGS__); \
-    } while (false)
+#define EP_LOG_INFO(...) \
+    EP_LOG_FMT(spdlog::level::level_enum::info, __VA_ARGS__)
 
-#define EP_LOG_WARN(...)                                          \
-    do {                                                          \
-        EP_LOG_FMT(spdlog::level::level_enum::warn, __VA_ARGS__); \
-    } while (false)
+#define EP_LOG_WARN(...) \
+    EP_LOG_FMT(spdlog::level::level_enum::warn, __VA_ARGS__)
 
-#define EP_LOG_CRITICAL(...)                                          \
-    do {                                                              \
-        EP_LOG_FMT(spdlog::level::level_enum::critical, __VA_ARGS__); \
-    } while (false)
+#define EP_LOG_CRITICAL(...) \
+    EP_LOG_FMT(spdlog::level::level_enum::critical, __VA_ARGS__)
