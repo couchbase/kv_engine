@@ -279,11 +279,13 @@ protected:
         // Get the starting item count
         auto startDefaultCollectionCount =
                 vb->getManifest().lock().getItemCount(CollectionID::Default);
+        auto startVBCount = vb->getNumItems();
 
         test();
 
         EXPECT_EQ(startDefaultCollectionCount + expectedDifference,
                   vb->getManifest().lock().getItemCount(CollectionID::Default));
+        EXPECT_EQ(startVBCount + expectedDifference, vb->getNumItems());
     }
 
     // Check the doc counts after rolling back a creation and deletion
@@ -296,12 +298,14 @@ protected:
         // Get the starting item count
         auto startDefaultCollectionCount =
                 vb->getManifest().lock().getItemCount(CollectionID::Default);
+        auto startVBCount = vb->getNumItems();
 
         rollback_after_creation_and_deletion_test(deleteLast, flushOnce);
 
         // Item counts should be the start + the expectedDifference
         EXPECT_EQ(startDefaultCollectionCount + expectedDifference,
                   vb->getManifest().lock().getItemCount(CollectionID::Default));
+        EXPECT_EQ(startVBCount + expectedDifference, vb->getNumItems());
     }
 
     void rollback_to_middle_test(bool flush_before_rollback) {

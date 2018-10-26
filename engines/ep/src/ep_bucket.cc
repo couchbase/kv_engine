@@ -1028,6 +1028,7 @@ public:
                 // count here too because we're not going to flush this item
                 // later
                 if (postRbSeqnoItem->isDeleted()) {
+                    vb->incrNumTotalItems();
                     vb->getManifest()
                             .lock(preRbSeqnoItem->getKey())
                             .incrementDiskCount();
@@ -1052,16 +1053,11 @@ public:
             // the checkpoint.
             setStatus(ENGINE_KEY_ENOENT);
         }
-        // Irrespective of if the in-memory delete succeeded; the document
-        // doesn't exist on disk; so decrement the item count.
-        vb.decrNumTotalItems();
 
-        // We should only decrement the counts if we are rolling back a
-        // mutation. If we are rolling back a deletion then the counts are
-        // already correct
         if (!item.isDeleted()) {
             // Irrespective of if the in-memory delete succeeded; the document
             // doesn't exist on disk; so decrement the item count.
+            vb.decrNumTotalItems();
             vb.getManifest().lock(item.getKey()).decrementDiskCount();
         }
     }
