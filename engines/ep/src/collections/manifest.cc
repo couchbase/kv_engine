@@ -257,8 +257,9 @@ void Manifest::addCollectionStats(const void* cookie, ADD_STAT add_stat) const {
         for (const auto& entry : collections) {
             checked_snprintf(buffer,
                              bsize,
-                             "manifest:collection:%s",
+                             "manifest:collection:%s:name",
                              entry.first.to_string().c_str());
+            add_casted_stat(buffer, entry.second.c_str(), add_stat, cookie);
         }
     } catch (const std::exception& e) {
         EP_LOG_WARN(
