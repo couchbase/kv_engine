@@ -669,9 +669,9 @@ uint64_t Manifest::getItemCount(CollectionID collection) const {
     return itr->second.getDiskCount();
 }
 
-bool Manifest::addStats(Vbid vbid,
-                        const void* cookie,
-                        ADD_STAT add_stat) const {
+bool Manifest::addCollectionStats(Vbid vbid,
+                                  const void* cookie,
+                                  ADD_STAT add_stat) const {
     try {
         const int bsize = 512;
         char buffer[bsize];
@@ -691,7 +691,7 @@ bool Manifest::addStats(Vbid vbid,
         add_casted_stat(buffer, nDeletingCollections, add_stat, cookie);
     } catch (const std::exception& e) {
         EP_LOG_WARN(
-                "VB::Manifest::addStats {}, failed to build stats "
+                "VB::Manifest::addCollectionStats {}, failed to build stats "
                 "exception:{}",
                 vbid,
                 e.what());

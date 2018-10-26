@@ -808,9 +808,9 @@ protected:
     void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
                                   const VBucketPtr &vb);
 
-    ENGINE_ERROR_CODE doCollectionsStats(const void* cookie,
-                                         ADD_STAT add_stat,
-                                         const std::string& statKey);
+    ENGINE_ERROR_CODE doCollectionStats(const void* cookie,
+                                        ADD_STAT add_stat,
+                                        const std::string& statKey);
 
     void addLookupResult(const void* cookie, std::unique_ptr<Item> result);
 

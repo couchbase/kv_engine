@@ -159,8 +159,10 @@ public:
             return manifest.getItemCount(collection);
         }
 
-        bool addStats(Vbid vbid, const void* cookie, ADD_STAT add_stat) const {
-            return manifest.addStats(vbid, cookie, add_stat);
+        bool addCollectionStats(Vbid vbid,
+                                const void* cookie,
+                                ADD_STAT add_stat) const {
+            return manifest.addCollectionStats(vbid, cookie, add_stat);
         }
 
         void updateSummary(Summary& summary) const {
@@ -780,9 +782,11 @@ protected:
 
     /**
      * Detailed stats for this VB::Manifest
-     * @return true if addStats was successful, false if failed.
+     * @return true if addCollectionStats was successful, false if failed.
      */
-    bool addStats(Vbid vbid, const void* cookie, ADD_STAT add_stat) const;
+    bool addCollectionStats(Vbid vbid,
+                            const void* cookie,
+                            ADD_STAT add_stat) const;
 
     void updateSummary(Summary& summary) const;
 

@@ -139,11 +139,11 @@ void Collections::Manager::logAll(KVBucket& bucket) const {
     }
 }
 
-void Collections::Manager::addStats(const void* cookie,
-                                    ADD_STAT add_stat) const {
+void Collections::Manager::addCollectionStats(const void* cookie,
+                                              ADD_STAT add_stat) const {
     std::lock_guard<std::mutex> lg(lock);
     if (current) {
-        current->addStats(cookie, add_stat);
+        current->addCollectionStats(cookie, add_stat);
     } else {
         add_casted_stat("manifest", "none", add_stat, cookie);
     }
@@ -166,9 +166,9 @@ public:
     }
 
     void visitBucket(VBucketPtr& vb) override {
-        success =
-                vb->lockCollections().addStats(vb->getId(), cookie, add_stat) ||
-                success;
+        success = vb->lockCollections().addCollectionStats(
+                          vb->getId(), cookie, add_stat) ||
+                  success;
     }
 
     bool getSuccess() const {
@@ -189,10 +189,11 @@ private:
 // collections
 //   - return top level stats (manager/manifest)
 //   - return per collection item counts from all active VBs
-ENGINE_ERROR_CODE Collections::Manager::doStats(KVBucket& bucket,
-                                                const void* cookie,
-                                                ADD_STAT add_stat,
-                                                const std::string& statKey) {
+ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
+        KVBucket& bucket,
+        const void* cookie,
+        ADD_STAT add_stat,
+        const std::string& statKey) {
     bool success = true;
     if (cb_isPrefix(statKey, "collections-details")) {
         // VB maybe encoded in statKey
@@ -202,21 +203,21 @@ ENGINE_ERROR_CODE Collections::Manager::doStats(KVBucket& bucket,
                 Vbid vbid = Vbid(std::stoi(statKey.substr(pos)));
                 VBucketPtr vb = bucket.getVBucket(vbid);
                 if (vb) {
-                    success = vb->lockCollections().addStats(
+                    success = vb->lockCollections().addCollectionStats(
                             vbid, cookie, add_stat);
                 }
             } catch (const std::exception&) {
                 return ENGINE_EINVAL;
             }
         } else {
-            bucket.getCollectionsManager().addStats(cookie, add_stat);
+            bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
             CollectionDetailedVBucketVisitor visitor(cookie, add_stat);
             bucket.visit(visitor);
             success = visitor.getSuccess();
         }
     } else {
         // Do the high level stats (includes global count)
-        bucket.getCollectionsManager().addStats(cookie, add_stat);
+        bucket.getCollectionsManager().addCollectionStats(cookie, add_stat);
         CollectionCountVBucketVisitor visitor;
         bucket.visit(visitor);
         for (const auto& entry : visitor.summary) {

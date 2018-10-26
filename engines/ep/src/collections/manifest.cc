@@ -243,11 +243,11 @@ std::string Manifest::toJson() const {
     return json.str();
 }
 
-void Manifest::addStats(const void* cookie, ADD_STAT add_stat) const {
+void Manifest::addCollectionStats(const void* cookie, ADD_STAT add_stat) const {
     try {
         const int bsize = 512;
         char buffer[bsize];
-        checked_snprintf(buffer, bsize, "manifest:entries");
+        checked_snprintf(buffer, bsize, "manifest:collections");
         add_casted_stat(buffer, collections.size(), add_stat, cookie);
         checked_snprintf(buffer, bsize, "manifest:default_exists");
         add_casted_stat(buffer, defaultCollectionExists, add_stat, cookie);
@@ -261,8 +261,10 @@ void Manifest::addStats(const void* cookie, ADD_STAT add_stat) const {
                              entry.first.to_string().c_str());
         }
     } catch (const std::exception& e) {
-        EP_LOG_WARN("Manifest::addStats failed to build stats exception:{}",
-                    e.what());
+        EP_LOG_WARN(
+                "Manifest::addCollectionStats failed to build stats "
+                "exception:{}",
+                e.what());
     }
 }
 
