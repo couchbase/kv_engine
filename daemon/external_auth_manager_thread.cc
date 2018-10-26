@@ -193,7 +193,8 @@ void ExternalAuthManagerThread::run() {
             // We need to wake up the next time we want to push the
             // new active users list
             const auto now = std::chrono::steady_clock::now();
-            const auto sleeptime = (now - activeUsersLastSent);
+            const auto sleeptime = activeUsersPushInterval.load() -
+                                   (now - activeUsersLastSent);
             condition_variable.wait_for(lock, sleeptime);
             if (!running) {
                 // We're supposed to terminate
