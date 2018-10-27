@@ -127,11 +127,18 @@ The provider should reply with status code Success or AuthContinue.
       }
     }
 
-`response` contains the base64 encoded data which should be returned
-to the client as part of the SASL command.
+`response` is an optional field which contains the base64 encoded
+data which should be returned to the client as part of the SASL command.
 
 `rbac` contains the RBAC entry in the same format as in
-[rbac.md](rbac.md#File-Format).
+[rbac.md](rbac.md#File-Format). This field is mandatory unless the request
+contained `"authentication-only" : true`. In that case it may or may not be
+present.
+
+If nothing is to be sent back to the client and `"authentication-only" : true`
+was set to true, the response looks like:
+
+    {}
 
 ### Packet dump example
 
