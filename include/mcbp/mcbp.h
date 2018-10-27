@@ -34,8 +34,6 @@
 
 #include <nlohmann/json_fwd.hpp>
 
-#include <cJSON_utils.h>
-
 #include <chrono>
 #include <ostream>
 #include <vector>
@@ -107,7 +105,6 @@ namespace sla {
  * @throws std::invalid_argument if there is a format error in the provided
  *                               document
  */
-void reconfigure(const cJSON& doc, bool apply = true);
 void reconfigure(const nlohmann::json& doc, bool apply = true);
 
 /**
@@ -131,7 +128,7 @@ void reconfigure(const std::string& root);
  * @param root The root directory of the couchbase installation
  * @param override The final override specification
  */
-void reconfigure(const std::string& root, const cJSON& override);
+void reconfigure(const std::string& root, const nlohmann::json& override);
 
 /**
  * Get the threshold for an opcode to be reported as a slow operation.
@@ -153,13 +150,7 @@ std::chrono::nanoseconds getSlowOpThreshold(cb::mcbp::ClientOpcode opcode);
  * the server and not intended to be used in production. It currently
  * always report the threshold for all operations in ms.
  */
-unique_cJSON_ptr to_json();
-
-/**
- * Get the slow operation threshold for the given doc (this should be
- * the per-opcode section of the full SLA entry
- */
-std::chrono::nanoseconds getSlowOpThreshold(const cJSON& doc);
+nlohmann::json to_json();
 
 /**
  * Get the slow operation threshold for the given doc (this should be

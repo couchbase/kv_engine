@@ -465,14 +465,15 @@ static void scramsha_fallback_salt_changed_listener(const std::string&,
 
 static void opcode_attributes_override_changed_listener(const std::string&,
                                                         Settings& s) {
-    unique_cJSON_ptr json(cJSON_Parse(s.getOpcodeAttributesOverride().c_str()));
-    if (json) {
-        cb::mcbp::sla::reconfigure(settings.getRoot(), *json);
-    } else {
+    try {
+        cb::mcbp::sla::reconfigure(
+                settings.getRoot(),
+                nlohmann::json::parse(s.getOpcodeAttributesOverride()));
+    } catch (const std::exception&) {
         cb::mcbp::sla::reconfigure(settings.getRoot());
     }
     LOG_INFO("SLA configuration changed to: {}",
-             to_string(cb::mcbp::sla::to_json(), false));
+             cb::mcbp::sla::to_json().dump());
 }
 
 static void interfaces_changed_listener(const std::string&, Settings &s) {
@@ -2257,8 +2258,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Logging available now extensions have been loaded. */
     LOG_INFO("Couchbase version {} starting.", get_server_version());
 
-    LOG_INFO("Using SLA configuration: {}",
-             to_string(cb::mcbp::sla::to_json(), false));
+    LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 
     if (settings.isStdinListenerEnabled()) {
         LOG_INFO("Enable standard input listener");

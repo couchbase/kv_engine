@@ -102,7 +102,7 @@ ENGINE_ERROR_CODE ioctlGetMcbpSla(Cookie& cookie,
         return ENGINE_EINVAL;
     }
 
-    value = to_string(cb::mcbp::sla::to_json(), false);
+    value = cb::mcbp::sla::to_json().dump();
     return ENGINE_SUCCESS;
 }
 
@@ -167,16 +167,11 @@ ENGINE_ERROR_CODE ioctl_get_property(Cookie& cookie,
 static ENGINE_ERROR_CODE ioctlSetMcbpSla(Cookie& cookie,
                                          const StrToStrMap&,
                                          const std::string& value) {
-    unique_cJSON_ptr doc(cJSON_Parse(value.c_str()));
-    if (!doc) {
-        return ENGINE_EINVAL;
-    }
-
     try {
-        cb::mcbp::sla::reconfigure(*doc);
+        cb::mcbp::sla::reconfigure(nlohmann::json::parse(value));
         LOG_INFO("SLA configuration changed to: {}",
-                 to_string(cb::mcbp::sla::to_json(), false));
-    } catch (const std::invalid_argument& e) {
+                 cb::mcbp::sla::to_json().dump());
+    } catch (const std::exception& e) {
         cookie.getEventId();
         auto& c = cookie.getConnection();
         LOG_INFO("{}: Failed to set MCBP SLA. UUID:[{}]: {}",

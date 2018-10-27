@@ -18,7 +18,6 @@
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/opcode.h>
 
-#include <cJSON_utils.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
@@ -28,6 +27,7 @@
 #include <atomic>
 #include <cctype>
 #include <gsl/gsl>
+#include <iostream>
 #include <unordered_map>
 
 namespace cb {
@@ -41,7 +41,7 @@ namespace sla {
  * @param doc1 the resulting document
  * @param doc2 the document to remove the values from
  */
-static void merge_docs(cJSON& doc1, const cJSON& doc2);
+static void merge_docs(nlohmann::json& doc1, const nlohmann::json& doc2);
 
 /**
  * The backing store for all of the thresholds. In order to make it easy
@@ -97,17 +97,14 @@ static std::chrono::nanoseconds getDefaultValue() {
     return std::chrono::nanoseconds(result->first);
 }
 
-unique_cJSON_ptr to_json() {
-    unique_cJSON_ptr ret(cJSON_CreateObject());
-    cJSON_AddNumberToObject(ret.get(), "version", 1);
-    cJSON_AddStringToObject(
-            ret.get(), "comment", "Current MCBP SLA configuration");
+nlohmann::json to_json() {
+    nlohmann::json ret;
+    ret["version"] = 1;
+    ret["comment"] = "Current MCBP SLA configuration";
 
     // Add a default entry:
     const auto def = getDefaultValue();
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "slow", time2text(def));
-    cJSON_AddItemToObject(ret.get(), "default", obj.release());
+    ret["default"]["slow"] = time2text(def);
 
     for (unsigned int ii = 0; ii < threshold.size(); ++ii) {
         try {
@@ -116,9 +113,7 @@ unique_cJSON_ptr to_json() {
             const auto ns = threshold[ii].load(std::memory_order_relaxed);
             if (ns != def) {
                 // It differs from the default value
-                obj.reset(cJSON_CreateObject());
-                cJSON_AddStringToObject(obj.get(), "slow", time2text(ns));
-                cJSON_AddItemToObject(ret.get(), cmd.c_str(), obj.release());
+                ret[cmd]["slow"] = time2text(ns);
             }
         } catch (const std::exception&) {
             // unknown command. ignore
@@ -149,23 +144,25 @@ std::chrono::nanoseconds getSlowOpThreshold(cb::mcbp::ClientOpcode opcode) {
  * @param root the root directory (prepend to the paths above)
  * @return The merged all of the on-disk files
  */
-static unique_cJSON_ptr mergeFilesOnDisk(const std::string& root) {
+static nlohmann::json mergeFilesOnDisk(const std::string& root) {
     // First try to read the system default
     std::string system = root + "/etc/couchbase/kv/opcode-attributes.json";
     cb::io::sanitizePath(system);
 
-    unique_cJSON_ptr configuration;
+    nlohmann::json configuration;
 
     if (cb::io::isFile(system)) {
         const auto content = cb::io::loadFile(system);
-        unique_cJSON_ptr doc(cJSON_Parse(content.c_str()));
-        if (!doc) {
+        nlohmann::json doc;
+        try {
+            doc = nlohmann::json::parse(content);
+        } catch (const nlohmann::json::exception&) {
             throw std::invalid_argument(
                     "cb::mcbp::sla::reconfigure: Invalid json in '" + system +
                     "'");
         }
-        reconfigure(*doc, false);
-        std::swap(configuration, doc);
+        reconfigure(doc, false);
+        configuration = std::move(doc);
     }
 
     // Replace .json with .d
@@ -182,17 +179,19 @@ static unique_cJSON_ptr mergeFilesOnDisk(const std::string& root) {
             }
 
             const auto content = cb::io::loadFile(file);
-            unique_cJSON_ptr doc(cJSON_Parse(content.c_str()));
-            if (!doc) {
+            nlohmann::json doc;
+            try {
+                doc = nlohmann::json::parse(content);
+            } catch (const nlohmann::json::exception&) {
                 throw std::invalid_argument(
-                        "cb::mcbp::sla::reconfigure: Invalid json in '" + file +
-                        "'");
+                        "cb::mcbp::sla::reconfigure: Invalid json in '" +
+                        system + "'");
             }
-            reconfigure(*doc, false);
-            if (!configuration) {
-                std::swap(configuration, doc);
+            reconfigure(doc, false);
+            if (configuration.empty()) {
+                configuration = std::move(doc);
             } else {
-                merge_docs(*configuration, *doc);
+                merge_docs(configuration, doc);
             }
         }
     }
@@ -203,17 +202,17 @@ static unique_cJSON_ptr mergeFilesOnDisk(const std::string& root) {
 void reconfigure(const std::string& root) {
     auto configuration = mergeFilesOnDisk(root);
 
-    if (configuration) {
-        reconfigure(*configuration);
+    if (!configuration.empty()) {
+        reconfigure(configuration);
     }
 }
 
-void reconfigure(const std::string& root, const cJSON& override) {
+void reconfigure(const std::string& root, const nlohmann::json& override) {
     auto configuration = mergeFilesOnDisk(root);
 
-    if (configuration) {
-        merge_docs(*configuration, override);
-        reconfigure(*configuration);
+    if (!configuration.empty()) {
+        merge_docs(configuration, override);
+        reconfigure(configuration);
     } else {
         reconfigure(override);
     }
@@ -241,31 +240,29 @@ void reconfigure(const std::string& root, const cJSON& override) {
  *       }
  *     }
  */
-void reconfigure(const cJSON& doc, bool apply) {
-    cJSON* root = const_cast<cJSON*>(&doc);
-
+void reconfigure(const nlohmann::json& doc, bool apply) {
     // Check the version!
-    const cJSON* version = cJSON_GetObjectItem(root, "version");
-    if (version == nullptr) {
+    auto version = doc.find("version");
+    if (version == doc.end()) {
         throw std::invalid_argument(
                 "cb::mcbp::sla::reconfigure: Missing mandatory element "
                 "'version'");
     }
 
-    if (version->type != cJSON_Number) {
+    if (!version->is_number()) {
         throw std::invalid_argument(
                 "cb::mcbp::sla::reconfigure: 'version' should be a number");
     }
 
-    if (version->valueint != 1) {
+    if (version->get<int>() != 1) {
         throw std::invalid_argument(
                 "cb::mcbp::sla::reconfigure: Unsupported version: " +
-                std::to_string(version->valueint));
+                std::to_string(version->get<int>()));
     }
 
     // Check if we've got a default entry:
-    cJSON* obj = cJSON_GetObjectItem(root, "default");
-    if (obj != nullptr) {
+    auto obj = doc.find("default");
+    if (obj != doc.end()) {
         // Handle default entry
         auto val = getSlowOpThreshold(*obj);
         if (apply) {
@@ -275,104 +272,75 @@ void reconfigure(const cJSON& doc, bool apply) {
         }
     }
 
-    // Time to look at each of the individual entries:
-    for (obj = root->child; obj != nullptr; obj = obj->next) {
-        if (strcmp(obj->string, "version") == 0 ||
-            strcmp(obj->string, "default") == 0 ||
-            strcmp(obj->string, "comment") == 0) {
+    for (auto it = doc.cbegin(); it != doc.cend(); ++it) {
+        if (it.key() == "version" || it.key() == "default" ||
+            it.key() == "comment") {
             // Ignore these entries
             continue;
         }
 
         cb::mcbp::ClientOpcode opcode;
         try {
-            opcode = to_opcode(obj->string);
+            opcode = to_opcode(it.key());
         } catch (const std::invalid_argument&) {
             throw std::invalid_argument(
                     std::string{
                             "cb::mcbp::sla::reconfigure: Unknown command '"} +
-                    obj->string + "'");
+                    it.key() + "'");
         }
-        auto value = getSlowOpThreshold(*obj);
+        auto value = getSlowOpThreshold(it.value());
         if (apply) {
             threshold[uint8_t(opcode)].store(value, std::memory_order_relaxed);
         }
     }
 }
 
-void reconfigure(const nlohmann::json& doc, bool apply) {
-    unique_cJSON_ptr json(cJSON_Parse(doc.dump().c_str()));
-    reconfigure(*json.get(), apply);
-}
-
-std::chrono::nanoseconds getSlowOpThreshold(const cJSON& doc) {
-    if (doc.type != cJSON_Object) {
+std::chrono::nanoseconds getSlowOpThreshold(const nlohmann::json& doc) {
+    if (!doc.is_object()) {
         throw std::invalid_argument(
-                "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
-                std::string{doc.string} + "' is not an object");
+                "cb::mcbp::sla::getSlowOpThreshold: Entry is not an object");
     }
 
-    cJSON* root = const_cast<cJSON*>(&doc);
-    auto* val = cJSON_GetObjectItem(root, "slow");
-    if (val == nullptr) {
+    auto val = doc.find("slow");
+    if (val == doc.end()) {
         throw std::invalid_argument(
-                "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
-                std::string{doc.string} +
-                "' does not contain a mandatory 'slow' entry");
+                "cb::mcbp::sla::getSlowOpThreshold: Entry does not contain a "
+                "mandatory 'slow' entry");
     }
 
-    if (val->type == cJSON_Number) {
-        return std::chrono::milliseconds(val->valueint);
+    if (val->is_number()) {
+        return std::chrono::milliseconds(val->get<uint64_t>());
     }
 
-    if (val->type != cJSON_String) {
+    if (!val->is_string()) {
         throw std::invalid_argument(
-                "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
-                std::string{doc.string} + "' is not a value or a string");
+                "cb::mcbp::sla::getSlowOpThreshold: Entry is not a value or a "
+                "string");
     }
 
     try {
-        return cb::text2time(val->valuestring);
+        return cb::text2time(val->get<std::string>());
     } catch (const std::invalid_argument&) {
         throw std::invalid_argument(
-                "cb::mcbp::sla::getSlowOpThreshold: Entry '" +
-                to_string(&doc, false) + "' contains an unknown time unit");
+                "cb::mcbp::sla::getSlowOpThreshold: Entry contains an unknown "
+                "time unit");
     }
 }
 
-std::chrono::nanoseconds getSlowOpThreshold(const nlohmann::json& doc) {
-    // Use the cJSON one until we've moved everything to nlohmann
-    unique_cJSON_ptr json(cJSON_Parse(doc.dump().c_str()));
-    return getSlowOpThreshold(*json.get());
-}
-
-static void merge_docs(cJSON& doc1, const cJSON& doc2) {
-    for (auto* obj = doc2.child; obj != nullptr; obj = obj->next) {
-        if (strcmp(obj->string, "version") == 0 ||
-            strcmp(obj->string, "comment") == 0) {
+static void merge_docs(nlohmann::json& doc1, const nlohmann::json& doc2) {
+    for (auto it = doc2.cbegin(); it != doc2.cend(); ++it) {
+        if (it.key() == "version" || it.key() == "comment") {
             // Ignore these entries
             continue;
         }
 
         // For some reason we don't have a slow entry!
-        auto* slow = cJSON_GetObjectItem(obj, "slow");
-        if (slow == nullptr) {
+        auto slow = it.value().find("slow");
+        if (slow == it.value().end()) {
             continue;
         }
 
-        // Try to nuke it from the first one.
-        auto* to_nuke = cJSON_DetachItemFromObject(&doc1, obj->string);
-        if (to_nuke) {
-            cJSON_Delete(to_nuke);
-        }
-
-        unique_cJSON_ptr entry(cJSON_CreateObject());
-        if (slow->type == cJSON_Number) {
-            cJSON_AddNumberToObject(entry.get(), "slow", slow->valueint);
-        } else {
-            cJSON_AddStringToObject(entry.get(), "slow", slow->valuestring);
-        }
-        cJSON_AddItemToObject(&doc1, obj->string, entry.release());
+        doc1[it.key()] = it.value();
     }
 }
 

@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include <nlohmann/json.hpp>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
@@ -741,15 +742,9 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
 void Settings::setOpcodeAttributesOverride(
         const std::string& opcode_attributes_override) {
     if (!opcode_attributes_override.empty()) {
-        unique_cJSON_ptr json(cJSON_Parse(opcode_attributes_override.c_str()));
-        if (!json) {
-            throw std::invalid_argument(
-                    "Settings::setOpcodeAttributesOverride: Invalid JSON "
-                    "provided");
-        }
-
         // Verify the content...
-        cb::mcbp::sla::reconfigure(*json, false);
+        cb::mcbp::sla::reconfigure(
+                nlohmann::json::parse(opcode_attributes_override), false);
     }
 
     {
