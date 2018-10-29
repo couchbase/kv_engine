@@ -27,6 +27,7 @@
 #include "memcached.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "runtime.h"
+#include "sendbuffer.h"
 #include "server_event.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -755,6 +756,57 @@ void Connection::addIov(const void* buf, size_t len) {
         throw std::bad_alloc();
     }
     totalSend += len;
+}
+
+void Connection::copyToOutputStream(cb::const_char_buffer data) {
+    if (data.empty()) {
+        return;
+    }
+
+    if (bufferevent_write(bev.get(), data.data(), data.size()) == -1) {
+        throw std::bad_alloc();
+    }
+
+    totalSend += data.size();
+}
+
+void Connection::chainDataToOutputStream(cb::const_char_buffer data,
+                                         evbuffer_ref_cleanup_cb cleanupfn,
+                                         void* cleanupfn_arg) {
+    if (data.empty()) {
+        throw std::invalid_argument(
+                "Connection::chainDataToOutputStream can't be called with an "
+                "empty data");
+    }
+
+    if (evbuffer_add_reference(bufferevent_get_output(bev.get()),
+                               data.data(),
+                               data.size(),
+                               cleanupfn,
+                               cleanupfn_arg) == -1) {
+        throw std::bad_alloc();
+    }
+    totalSend += data.size();
+}
+
+static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
+    delete reinterpret_cast<SendBuffer*>(extra);
+}
+
+void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
+    if (!buffer) {
+        throw std::logic_error(
+                "McbpConnection::chainDataToOutputStream: buffer must be set");
+    }
+
+    if (!buffer->getPayload().empty()) {
+        chainDataToOutputStream(
+                buffer->getPayload(), sendbuffer_cleanup_cb, buffer.get());
+        // Buffer successfully added to libevent and the callback
+        // (sendbuffer_cleanup_cb) will free the memory.
+        // Move the ownership of the buffer!
+        (void)buffer.release();
+    }
 }
 
 void Connection::releaseReservedItems() {

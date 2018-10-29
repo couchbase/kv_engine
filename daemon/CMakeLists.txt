@@ -172,6 +172,8 @@ ADD_LIBRARY(memcached_daemon STATIC
             runtime.h
             sasl_tasks.cc
             sasl_tasks.h
+            sendbuffer.cc
+            sendbuffer.h
             server_event.h
             session_cas.cc
             session_cas.h

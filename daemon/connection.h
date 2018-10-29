@@ -48,6 +48,7 @@ class ListeningPort;
 class ServerEvent;
 struct EngineIface;
 struct FrontEndThread;
+class SendBuffer;
 
 /**
  * The maximum number of character the core preserves for the
@@ -493,6 +494,38 @@ public:
      * @throws std::bad_alloc
      */
     void addIov(const void* buf, size_t len);
+
+    /**
+     * Copy the provided data to the end of the output stream
+     *
+     * @param data the data to send
+     * @throws std::bad_alloc if we failed to insert the data into the output
+     *                        stream.
+     */
+    void copyToOutputStream(cb::const_char_buffer data);
+
+    /**
+     * Add a reference to the data to the output stream.
+     *
+     * @param data The data to send
+     * @param cleanupfn The callback function to call when we're done with the
+     *                  data.
+     * @param cleanupfn_arg The argument to provide to the cleanup function
+     * @throws std::bad_alloc if we failed to insert the data into the output
+     *                        stream.
+     */
+    void chainDataToOutputStream(cb::const_char_buffer data,
+                                 evbuffer_ref_cleanup_cb cleanupfn,
+                                 void* cleanupfn_arg);
+
+    /**
+     * Add a reference to the data to the output stream.
+     *
+     * @param buffer the send buffer to send
+     * @throws std::bad_alloc if we failed to insert the data into the output
+     *                        stream.
+     */
+    void chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer);
 
     /**
      * Release all of the items we've saved a reference to
