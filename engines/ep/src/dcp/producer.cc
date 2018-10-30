@@ -363,7 +363,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(
 
     if (need_rollback.first) {
         logger->warn(
-                "({}) Stream request requires rollback to seqno:"
+                "({}) Stream request requires rollback to seqno:{} "
                 "because {}. Client requested seqnos:{{{},{}}} "
                 "snapshot:{{{},{}}} uuid:{}",
                 vbucket,
