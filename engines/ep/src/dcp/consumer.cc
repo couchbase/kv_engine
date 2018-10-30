@@ -1174,7 +1174,7 @@ std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
         ready.push_back(vbucket);
         return response;
     }
-    pause("ready list empty");
+    pause(PausedReason::ReadyListEmpty);
 
     return nullptr;
 }

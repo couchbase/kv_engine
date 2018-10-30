@@ -22,6 +22,22 @@
 #include "ep_time.h"
 #include <phosphor/phosphor.h>
 
+std::string to_string(ConnHandler::PausedReason r) {
+    switch (r) {
+    case ConnHandler::PausedReason::BufferLogFull:
+        return "PausedReason::BufferLogFull";
+    case ConnHandler::PausedReason::Initializing:
+        return "PausedReason::Initializing";
+    case ConnHandler::PausedReason::OutOfMemory:
+        return "PausedReason::OutOfMemory";
+    case ConnHandler::PausedReason::ReadyListEmpty:
+        return "PausedReason::ReadyListEmpty";
+    case ConnHandler::PausedReason::Unknown:
+        return "PausedReason::Unknown";
+    }
+    return "PausedReason::Invalid";
+}
+
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
                          const void* c,
                          const std::string& n)
@@ -263,4 +279,8 @@ void ConnHandler::setLogHeader(const std::string& header) {
 
 const char* ConnHandler::logHeader() {
     return logger->prefix.c_str();
+}
+
+std::string ConnHandler::getPausedReason() const {
+    return to_string(reason);
 }

@@ -77,6 +77,14 @@ struct ConnCounter {
 
 class ConnHandler {
 public:
+    enum class PausedReason {
+        BufferLogFull,
+        Initializing,
+        OutOfMemory,
+        ReadyListEmpty,
+        Unknown
+    };
+
     ConnHandler(EventuallyPersistentEngine& engine, const void* c,
                 const std::string& name);
 
@@ -254,16 +262,12 @@ public:
 
     // Pause the connection.
     // @param reason why the connection was paused - for debugging / diagnostic
-    void pause(std::string reason = "unknown") {
-        std::lock_guard<std::mutex> guard(pausedReason.mutex);
+    void pause(PausedReason r = PausedReason::Unknown) {
         paused.store(true);
-        pausedReason.string = reason;
+        reason = r;
     }
 
-    std::string getPausedReason() const {
-        std::lock_guard<std::mutex> guard(pausedReason.mutex);
-        return pausedReason.string;
-    }
+    std::string getPausedReason() const;
 
     bool isPaused() {
         return paused;
@@ -304,8 +308,7 @@ private:
     std::atomic<bool> paused;
 
     //! Description of why the connection is paused.
-    struct pausedReason {
-        mutable std::mutex mutex;
-        std::string string;
-    } pausedReason;
+    std::atomic<PausedReason> reason;
 };
+
+std::string to_string(ConnHandler::PausedReason r);

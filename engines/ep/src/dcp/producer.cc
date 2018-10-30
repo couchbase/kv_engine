@@ -86,7 +86,7 @@ void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
 bool DcpProducer::BufferLog::pauseIfFull() {
     ReaderLockHolder rlh(logLock);
     if (getState_UNLOCKED() == Full) {
-        producer.pause("bufferLog full");
+        producer.pause(PausedReason::BufferLogFull);
         return true;
     }
     return false;
@@ -166,7 +166,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       createChkPtProcessorTsk(startTask) {
     setSupportAck(true);
     setReserved(true);
-    pause("initializing");
+    pause(PausedReason::Initializing);
 
     logger->setConnectionId(
             e.getServerApi()->cookie->get_log_info(cookie).first);
@@ -1211,7 +1211,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
         }
 
         // flag we are paused
-        pause("ready queue empty");
+        pause(PausedReason::ReadyListEmpty);
 
         // re-check the ready queue.
         // A new vbucket could of became ready and the notifier could of seen
