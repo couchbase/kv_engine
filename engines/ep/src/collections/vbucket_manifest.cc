@@ -21,6 +21,7 @@
 #include "checkpoint_manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_serialised_manifest_entry_generated.h"
+#include "ep_time.h"
 #include "item.h"
 #include "statwriter.h"
 #include "vbucket.h"
@@ -432,6 +433,33 @@ boost::optional<CollectionID> Manifest::shouldCompleteDeletion(
         }
     }
     return {};
+}
+
+void Manifest::processExpiryTime(const container::const_iterator entry,
+                                 Item& itm,
+                                 std::chrono::seconds bucketTtl) const {
+    itm.setExpTime(processExpiryTime(entry, itm.getExptime(), bucketTtl));
+}
+
+time_t Manifest::processExpiryTime(const container::const_iterator entry,
+                                   time_t t,
+                                   std::chrono::seconds bucketTtl) const {
+    std::chrono::seconds enforcedTtl{0};
+
+    if (bucketTtl.count()) {
+        enforcedTtl = bucketTtl;
+    }
+
+    // If the collection has a TTL, it gets used
+    if (entry->second.getMaxTtl()) {
+        enforcedTtl = entry->second.getMaxTtl().get();
+    }
+
+    // Note: A ttl value of 0 means no max_ttl
+    if (enforcedTtl.count()) {
+        t = ep_limit_abstime(t, enforcedTtl);
+    }
+    return t;
 }
 
 std::string Manifest::makeCollectionIdIntoString(CollectionID collection) {

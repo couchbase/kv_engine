@@ -42,12 +42,20 @@ time_t ep_abs_time(rel_time_t rel_time) {
     throw std::logic_error("ep_abs_time called, but core API not set");
 }
 
-rel_time_t ep_reltime(rel_time_t exptime, cb::ExpiryLimit limit) {
+rel_time_t ep_reltime(rel_time_t exptime) {
     auto* iface = core.load(std::memory_order_acquire);
     if (iface) {
-        return iface->realtime(exptime, limit);
+        return iface->realtime(exptime);
     }
     throw std::logic_error("ep_reltime called, but core API not set");
+}
+
+time_t ep_limit_abstime(time_t t, std::chrono::seconds limit) {
+    auto* iface = core.load(std::memory_order_acquire);
+    if (iface) {
+        return iface->limit_abstime(t, limit);
+    }
+    throw std::logic_error("ep_limit_abstime called, but core API not set");
 }
 
 void initialize_time_functions(ServerCoreIface* core_api) {

@@ -109,8 +109,7 @@ protected:
         const std::string value(512, 'x'); // 512B value to use for documents.
         ENGINE_ERROR_CODE result;
         const auto expiry =
-                (ttl != 0) ? ep_abs_time(ep_reltime(ttl, cb::NoExpiryLimit))
-                           : time_t(0);
+                (ttl != 0) ? ep_abs_time(ep_reltime(ttl)) : time_t(0);
         for (result = ENGINE_SUCCESS; result == ENGINE_SUCCESS; count++) {
             auto key = makeStoredDocKey("xxx_" + std::to_string(count));
             auto item = make_item(vbid, key, value, expiry);

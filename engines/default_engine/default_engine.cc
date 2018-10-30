@@ -219,7 +219,7 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
                     key.data(),
                     key.size(),
                     flags,
-                    server.core->realtime(exptime, cb::NoExpiryLimit),
+                    server.core->realtime(exptime),
                     (uint32_t)nbytes,
                     cookie,
                     datatype);
@@ -381,13 +381,12 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
     }
 
     hash_item* it = nullptr;
-    auto ret = item_get_and_touch(
-            this,
-            cookie,
-            &it,
-            key.data(),
-            key.size(),
-            server.core->realtime(expiry_time, cb::NoExpiryLimit));
+    auto ret = item_get_and_touch(this,
+                                  cookie,
+                                  &it,
+                                  key.data(),
+                                  key.size(),
+                                  server.core->realtime(expiry_time));
 
     return cb::makeEngineErrorItemPair(
             cb::engine_errc(ret), reinterpret_cast<item*>(it), this);

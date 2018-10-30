@@ -2014,7 +2014,15 @@ static test_result max_ttl(EngineIface* h) {
 
     // Store will set 0 expiry, which results in 100 seconds of ttl
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key-abs", "somevalue"),
+            store(h,
+                  nullptr,
+                  OPERATION_SET,
+                  "key-abs",
+                  "somevalue",
+                  nullptr,
+                  0,
+                  Vbid(0),
+                  0 /*exp*/),
             "Failed set.");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -2042,7 +2050,15 @@ static test_result max_ttl(EngineIface* h) {
 
     // Store will set 0 expiry, which results in 100 seconds of ttl
     checkeq(ENGINE_SUCCESS,
-            store(h, nullptr, OPERATION_SET, "key-rel", "somevalue"),
+            store(h,
+                  nullptr,
+                  OPERATION_SET,
+                  "key-rel",
+                  "somevalue",
+                  nullptr,
+                  0,
+                  Vbid(0),
+                  0 /*exp*/),
             "Failed set.");
 
     check(get_meta(h, "key-rel", errorMetaPair), "Get meta failed");

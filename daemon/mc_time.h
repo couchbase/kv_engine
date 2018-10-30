@@ -45,11 +45,34 @@ void mc_time_clock_tick(void);
 time_t mc_time_convert_to_abs_time(const rel_time_t rel_time);
 
 /**
- * Convert a time stamp to an absolute time stamp.
+ * Convert a protocol encoded expiry time stamp to a relative time stamp
+ * (relative to the epoch time of memcached)
+ *
+ * Example 1: A relative expiry time (where t is less than 30days in seconds) of
+ * 1000s becomes epoch + 1000s
+ *
  * @param t a protocol expiry time-stamp
- * @oaram limit an optional limit, see server_api.h 'realtime' description
  */
-rel_time_t mc_time_convert_to_real_time(rel_time_t t, cb::ExpiryLimit limit);
+rel_time_t mc_time_convert_to_real_time(rel_time_t t);
+
+/**
+ * Apply a limit to an absolute timestamp (which represents an item's requested
+ * expiry time)
+ *
+ * For example if t represents 23:00 and the time we invoke this method is 22:00
+ * and the limit is 60s, then the returned value will be 22:01. The input of
+ * 23:00 exceeds 22:00 + 60s, so it is limited to 22:00 + 60s.
+ *
+ * If t == 0, then the returned value is now + limit
+ * If t < now, then the result is t, no limit needed.
+ * If t == 0 and now + limit overflows time_t, time_t::max is returned.
+ *
+ * @param t The expiry time to be limited, 0 means no expiry, 1 to time_t::max
+ *          are intepreted as the time absolute time of expiry
+ * @param limit The limit in seconds
+ * @return The expiry time after checking it against now + limit.
+ */
+time_t mc_time_limit_abstime(time_t t, std::chrono::seconds limit);
 
 #ifdef __cplusplus
 }

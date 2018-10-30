@@ -1355,12 +1355,16 @@ struct ServerCoreApi : public ServerCoreIface {
         return mc_time_get_current_time();
     }
 
-    rel_time_t realtime(rel_time_t exptime, cb::ExpiryLimit limit) override {
-        return mc_time_convert_to_real_time(exptime, limit);
+    rel_time_t realtime(rel_time_t exptime) override {
+        return mc_time_convert_to_real_time(exptime);
     }
 
     time_t abstime(rel_time_t exptime) override {
         return mc_time_convert_to_abs_time(exptime);
+    }
+
+    time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
+        return mc_time_limit_abstime(t, limit);
     }
 
     int parse_config(const char* str,

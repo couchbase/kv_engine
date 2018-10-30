@@ -1318,24 +1318,35 @@ public:
     }
 };
 
-// Test that item allocate with a limit stops 0 expiry
-TEST_F(ExpiryLimitTest, itemAllocate) {
-    item* itm;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              engine->itemAllocate(&itm,
-                                   {"key", DocKeyEncodesCollectionId::No},
-                                   5,
-                                   0,
-                                   0,
-                                   0 /*expiry*/,
-                                   0,
-                                   vbid));
+// Test add/set/replace gets an enforced expiry
+TEST_F(ExpiryLimitTest, add_set_replace) {
+    auto item1 = make_item(vbid, makeStoredDocKey("key1"), "value");
+    auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");
+    auto item3 = make_item(vbid, makeStoredDocKey("key2"), "value");
 
-    Item* i = reinterpret_cast<Item*>(itm);
-    auto info = engine->getItemInfo(*i);
-    EXPECT_NE(0, info.exptime);
+    ASSERT_EQ(0, item1.getExptime());
+    ASSERT_EQ(0, item2.getExptime());
 
-    engine->itemRelease(itm);
+    // add a key and set a key
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+
+    std::vector<cb::EngineErrorItemPair> results;
+
+    auto f = [](const item_info&) { return true; };
+    results.push_back(engine->getIfInner(cookie, item1.getKey(), vbid, f));
+    results.push_back(engine->getIfInner(cookie, item2.getKey(), vbid, f));
+
+    // finally replace key2
+    EXPECT_EQ(ENGINE_SUCCESS, store->replace(item3, cookie));
+    results.push_back(engine->getIfInner(cookie, item2.getKey(), vbid, f));
+
+    for (const auto& rval : results) {
+        ASSERT_EQ(cb::engine_errc::success, rval.first);
+        Item* i = reinterpret_cast<Item*>(rval.second.get());
+        auto info = engine->getItemInfo(*i);
+        EXPECT_NE(0, info.exptime);
+    }
 }
 
 // Test that GAT with a limit stops 0 expiry
@@ -1349,7 +1360,7 @@ TEST_F(ExpiryLimitTest, gat) {
     auto rval = engine->getAndTouchInner(
             cookie, {"key", DocKeyEncodesCollectionId::No}, vbid, 0);
 
-    EXPECT_EQ(cb::engine_errc::success, rval.first);
+    ASSERT_EQ(cb::engine_errc::success, rval.first);
 
     Item* i = reinterpret_cast<Item*>(rval.second.get());
     auto info = engine->getItemInfo(*i);

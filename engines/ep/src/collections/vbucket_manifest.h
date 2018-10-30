@@ -300,6 +300,34 @@ public:
         }
 
         /**
+         * Check the Item's exptime against its collection config.
+         * If the collection defines a max_ttl and the Item has no expiry or
+         * an exptime which exceeds the max_ttl, set the expiry of the Item
+         * based on the collection max_ttl.
+         *
+         * @param itm The reference to the Item to check and change if needed
+         * @param bucketTtl the value of the bucket's max_ttl, 0 being none
+         */
+        void processExpiryTime(Item& itm,
+                               std::chrono::seconds bucketTtl) const {
+            manifest.processExpiryTime(itr, itm, bucketTtl);
+        }
+
+        /**
+         * t represents an absolute expiry time and this method returns t or a
+         * limited expiry time, based on the values of the bucketTtl and the
+         * collection's max_ttl.
+         *
+         * @param t an expiry time to process
+         * @param bucketTtl the value of the bucket's max_ttl, 0 being none
+         * @returns t or now + appropriate limit
+         */
+        time_t processExpiryTime(time_t t,
+                                 std::chrono::seconds bucketTtl) const {
+            return manifest.processExpiryTime(itr, t, bucketTtl);
+        }
+
+        /**
          * Dump this VB::Manifest to std::cerr
          */
         void dump() {
@@ -710,6 +738,16 @@ protected:
             const DocKey& key,
             int64_t bySeqno,
             const container::const_iterator entry) const;
+
+    /// see comment on CachingReadHandle
+    void processExpiryTime(const container::const_iterator entry,
+                           Item& item,
+                           std::chrono::seconds bucketTtl) const;
+
+    /// see comment on CachingReadHandle
+    time_t processExpiryTime(const container::const_iterator entry,
+                             time_t t,
+                             std::chrono::seconds bucketTtl) const;
 
     /**
      * @returns true/false if $default exists

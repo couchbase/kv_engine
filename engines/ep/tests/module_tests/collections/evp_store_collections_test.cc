@@ -37,8 +37,6 @@
 class CollectionsTest : public SingleThreadedKVBucketTest {
 public:
     void SetUp() override {
-        // Enable collections (which will enable namespace persistence).
-        config_string += "collections_enabled=true";
         SingleThreadedKVBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active, false);
@@ -993,3 +991,149 @@ TEST_F(CollectionsTest, collections_expiry_after_drop_collection_pager) {
         EXPECT_NE(key, i->getKey());
     }
 }
+
+class CollectionsExpiryLimitTest : public CollectionsTest,
+                                   public ::testing::WithParamInterface<bool> {
+public:
+    void SetUp() override {
+        config_string += "max_ttl=86400";
+        CollectionsTest::SetUp();
+    }
+
+    void operation_test(
+            std::function<void(Vbid, DocKey, std::string)> storeFunc,
+            bool warmup);
+};
+
+void CollectionsExpiryLimitTest::operation_test(
+        std::function<void(Vbid, DocKey, std::string)> storeFunc, bool warmup) {
+    CollectionsManifest cm;
+    // meat collection defines no expiry (overriding bucket ttl)
+    cm.add(CollectionEntry::meat, std::chrono::seconds(0));
+    // fruit defines nothing, gets bucket ttl
+    cm.add(CollectionEntry::fruit);
+    // dairy has its own expiry, greater than bucket
+    cm.add(CollectionEntry::dairy, std::chrono::seconds(500000));
+    // vegetable has its own expiry, less than bucket
+    cm.add(CollectionEntry::vegetable, std::chrono::seconds(380));
+
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+        vb->updateFromManifest({cm});
+    }
+
+    flush_vbucket_to_disk(vbid, 4);
+
+    if (warmup) {
+        resetEngineAndWarmup();
+    }
+
+    StoredDocKey meaty{"lamb", CollectionEntry::meat};
+    StoredDocKey fruity{"apple", CollectionEntry::fruit};
+    StoredDocKey milky{"milk", CollectionEntry::dairy};
+    StoredDocKey potatoey{"potato", CollectionEntry::vegetable};
+
+    storeFunc(vbid, meaty, "meaty");
+    storeFunc(vbid, fruity, "fruit");
+    storeFunc(vbid, milky, "milky");
+    storeFunc(vbid, potatoey, "potatoey");
+
+    auto f = [](const item_info&) { return true; };
+
+    // verify meaty has 0 expiry
+    auto rval = engine->getIfInner(cookie, meaty, vbid, f);
+    ASSERT_EQ(cb::engine_errc::success, rval.first);
+    Item* i = reinterpret_cast<Item*>(rval.second.get());
+    auto info = engine->getItemInfo(*i);
+    EXPECT_EQ(0, info.exptime);
+
+    // Now the rest, we expect fruity to have the bucket ttl
+    // we can expect milky to be > fruity
+    // we can expect potatoey to be < fruity
+    auto fruityValue = engine->getIfInner(cookie, fruity, vbid, f);
+    auto milkyValue = engine->getIfInner(cookie, milky, vbid, f);
+    auto potatoeyValue = engine->getIfInner(cookie, potatoey, vbid, f);
+    ASSERT_EQ(cb::engine_errc::success, fruityValue.first);
+    ASSERT_EQ(cb::engine_errc::success, milkyValue.first);
+    ASSERT_EQ(cb::engine_errc::success, potatoeyValue.first);
+
+    auto fruityInfo = engine->getItemInfo(
+            *reinterpret_cast<Item*>(fruityValue.second.get()));
+    auto milkyInfo = engine->getItemInfo(
+            *reinterpret_cast<Item*>(milkyValue.second.get()));
+    auto potatoeyInfo = engine->getItemInfo(
+            *reinterpret_cast<Item*>(potatoeyValue.second.get()));
+
+    EXPECT_NE(0, fruityInfo.exptime);
+    EXPECT_NE(0, milkyInfo.exptime);
+    EXPECT_NE(0, potatoeyInfo.exptime);
+    EXPECT_GT(milkyInfo.exptime, fruityInfo.exptime);
+    EXPECT_LT(potatoeyInfo.exptime, fruityInfo.exptime);
+}
+
+TEST_P(CollectionsExpiryLimitTest, set) {
+    auto func = [this](Vbid vb, DocKey k, std::string v) {
+        auto item = make_item(vb, k, v);
+        EXPECT_EQ(0, item.getExptime());
+        EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+    };
+    operation_test(func, GetParam());
+}
+
+TEST_P(CollectionsExpiryLimitTest, add) {
+    auto func = [this](Vbid vb, DocKey k, std::string v) {
+        auto item = make_item(vb, k, v);
+        EXPECT_EQ(0, item.getExptime());
+        EXPECT_EQ(ENGINE_SUCCESS, store->add(item, cookie));
+    };
+    operation_test(func, GetParam());
+}
+
+TEST_P(CollectionsExpiryLimitTest, replace) {
+    auto func = [this](Vbid vb, DocKey k, std::string v) {
+        auto item = make_item(vb, k, v);
+        EXPECT_EQ(0, item.getExptime());
+        EXPECT_EQ(ENGINE_SUCCESS, store->add(item, cookie));
+        EXPECT_EQ(ENGINE_SUCCESS, store->replace(item, cookie));
+    };
+    operation_test(func, GetParam());
+}
+
+TEST_P(CollectionsExpiryLimitTest, set_with_meta) {
+    auto func = [this](Vbid vb, DocKey k, std::string v) {
+        auto item = make_item(vb, k, v);
+        item.setCas(1);
+        EXPECT_EQ(0, item.getExptime());
+        uint64_t cas = 0;
+        uint64_t seqno = 0;
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  store->setWithMeta(item,
+                                     cas,
+                                     &seqno,
+                                     cookie,
+                                     {vbucket_state_active},
+                                     CheckConflicts::No,
+                                     true,
+                                     GenerateBySeqno::Yes,
+                                     GenerateCas::No,
+                                     nullptr,
+                                     false));
+    };
+    operation_test(func, GetParam());
+}
+
+TEST_P(CollectionsExpiryLimitTest, gat) {
+    auto func = [this](Vbid vb, DocKey k, std::string v) {
+        Item item = store_item(vb, k, v, 0);
+
+        // re touch to 0
+        auto rval = engine->getAndTouchInner(cookie, k, vb, 0);
+        ASSERT_EQ(cb::engine_errc::success, rval.first);
+    };
+    operation_test(func, GetParam());
+}
+
+INSTANTIATE_TEST_CASE_P(CollectionsExpiryLimitTests,
+                        CollectionsExpiryLimitTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());

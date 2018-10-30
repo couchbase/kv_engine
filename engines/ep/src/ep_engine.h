@@ -964,23 +964,6 @@ protected:
                                      cb::const_byte_buffer emd);
 
     /**
-     * Get parameters for expiry calculation
-     * The function will return any limit which may be in-force (max_ttl is non
-     * zero) and also calculate an expiry if exptime is 0 and max_ttl is in-use.
-     * @param exptime for an incoming itemAllocate/GAT
-     * @return a pair, the ExpiryLimit and the exptime to apply to the update
-     */
-    std::pair<cb::ExpiryLimit, rel_time_t>
-    getExpiryParameters(rel_time_t exptime) const;
-
-    /**
-     * Process an expiry time to see if the maxTTL limit needs enforcing.
-     * @param in a document's expiry time
-     * @return the corrected expiry time (may return input)
-     */
-    time_t processExpiryTime(time_t in) const;
-
-    /**
      * Make a DocKey from the key buffer
      */
     DocKey makeDocKey(const void* cookie, cb::const_byte_buffer key);

@@ -95,19 +95,13 @@ static rel_time_t mock_get_current_time(void) {
     return result;
 }
 
-static rel_time_t mock_realtime(rel_time_t exptime, cb::ExpiryLimit limit) {
+static rel_time_t mock_realtime(rel_time_t exptime) {
     /* no. of seconds in 30 days - largest possible delta exptime */
 
     if (exptime == 0) return 0; /* 0 means never expire */
 
     rel_time_t rv = 0;
     if (exptime > REALTIME_MAXDELTA) {
-        if (limit &&
-            exptime > (process_started + time_travel_offset +
-                       limit.get().count())) {
-            exptime = gsl::narrow<rel_time_t>(
-                    process_started + time_travel_offset + limit.get().count());
-        }
         /* if item expiration is at/before the server started, give it an
            expiration time of 1 second after the server started.
            (because 0 means don't expire).  without this, we'd
@@ -120,22 +114,25 @@ static rel_time_t mock_realtime(rel_time_t exptime, cb::ExpiryLimit limit) {
             rv = (rel_time_t)(exptime - process_started);
         }
     } else {
-        if (limit && exptime > limit.get().count()) {
-            exptime = gsl::narrow<rel_time_t>(limit.get().count());
-        }
-
         rv = (rel_time_t)(exptime + mock_get_current_time());
     }
 
-    if (limit && rv > limit.get().count()) {
-        rv = gsl::narrow<rel_time_t>(limit.get().count());
-    }
     return rv;
 }
 
 static time_t mock_abstime(const rel_time_t exptime)
 {
     return process_started + exptime;
+}
+
+static time_t mock_limit_abstime(time_t t, std::chrono::seconds limit) {
+    auto upperbound = mock_abstime(mock_get_current_time()) + limit.count();
+
+    if (t == 0 || t > upperbound) {
+        t = upperbound;
+    }
+
+    return t;
 }
 
 void mock_time_travel(int by) {
@@ -162,11 +159,14 @@ struct MockServerCoreApi : public ServerCoreIface {
     rel_time_t get_current_time() override {
         return mock_get_current_time();
     }
-    rel_time_t realtime(rel_time_t exptime, cb::ExpiryLimit limit) override {
-        return mock_realtime(exptime, limit);
+    rel_time_t realtime(rel_time_t exptime) override {
+        return mock_realtime(exptime);
     }
     time_t abstime(rel_time_t exptime) override {
         return mock_abstime(exptime);
+    }
+    time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
+        return mock_limit_abstime(t, limit);
     }
     int parse_config(const char* str,
                      config_item* items,

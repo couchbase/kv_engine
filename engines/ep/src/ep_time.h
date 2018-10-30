@@ -33,5 +33,6 @@ void initialize_time_functions(ServerCoreIface* core_api);
 
 extern rel_time_t ep_current_time();
 extern time_t ep_abs_time(rel_time_t);
-extern rel_time_t ep_reltime(rel_time_t, cb::ExpiryLimit);
+extern rel_time_t ep_reltime(rel_time_t);
 extern time_t ep_real_time();
+extern time_t ep_limit_abstime(time_t t, std::chrono::seconds limit);
