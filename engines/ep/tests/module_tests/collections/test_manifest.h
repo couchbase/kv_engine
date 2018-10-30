@@ -143,6 +143,14 @@ public:
     CollectionsManifest& add(const ScopeEntry::Entry& entry);
 
     /// Add the collection entry to the given scope - allows duplicates
+    /// caller specifies the collection max_ttl
+    /// Adds the collection to the default scope if not are specified
+    CollectionsManifest& add(
+            const CollectionEntry::Entry& collectionEntry,
+            cb::ExpiryLimit maxTtl,
+            const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
+
+    /// Add the collection entry to the given scope - allows duplicates
     /// Adds the collection to the default scope if not are specified
     CollectionsManifest& add(
             const CollectionEntry::Entry& collectionEntry,

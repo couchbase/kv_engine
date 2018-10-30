@@ -41,11 +41,19 @@ static constexpr nlohmann::json::value_t NameType =
 static constexpr char const* UidKey = "uid";
 static constexpr nlohmann::json::value_t UidType =
         nlohmann::json::value_t::string;
+static constexpr char const* MaxTtlKey = "max_ttl";
+static constexpr nlohmann::json::value_t MaxTtlType =
+        nlohmann::json::value_t::number_unsigned;
 static const size_t MaxCollectionNameSize = 30;
+
+struct CollectionEntry {
+    CollectionID id;
+    cb::ExpiryLimit maxTtl;
+};
 
 struct Scope {
     std::string name;
-    std::vector<CollectionID> collections;
+    std::vector<CollectionEntry> collections;
 };
 
 /**
@@ -140,7 +148,7 @@ public:
         for (auto& scope : scopes) {
             if (scope.second.name == scopeName) {
                 for (auto& scopeCollection : scope.second.collections) {
-                    auto collection = collections.find(scopeCollection);
+                    auto collection = collections.find(scopeCollection.id);
 
                     if (collection != collections.end() &&
                         collection->second == collectionName) {

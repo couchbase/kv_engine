@@ -174,11 +174,14 @@ void Manifest::addCollection(::VBucket& vb,
 
     EP_LOG_INFO(
             "collections: {} adding collection:name:{},id:{:x} to scope:{:x}, "
+            "max_ttl:{} {}, "
             "replica:{}, backfill:{}, seqno:{}, manifest:{:x}",
             vb.getId(),
             cb::to_string(collectionName),
             identifiers.second,
             identifiers.first,
+            maxTtl.is_initialized(),
+            maxTtl ? maxTtl.get().count() : 0,
             optionalSeqno.is_initialized(),
             vb.isBackfillPhase(),
             seqno,
@@ -335,17 +338,18 @@ Manifest::ProcessResult Manifest::processManifest(
         }
 
         for (const auto& m : scopeItr->second.collections) {
-            auto mapItr = map.find(m);
+            auto mapItr = map.find(m.id);
 
             if (mapItr == map.end()) {
                 rv->collectionsToAdd.push_back(
-                        {std::make_pair(scopeItr->first, m),
-                         manifest.findCollection(m)->second});
+                        {std::make_pair(scopeItr->first, m.id),
+                         manifest.findCollection(m.id)->second,
+                         m.maxTtl});
             } else if (mapItr->second.isDeleting()) {
                 // trying to add a collection which is deleting, not allowed.
                 EP_LOG_WARN("Attempt to add a deleting collection:{}:{:x}",
-                            manifest.findCollection(m)->second,
-                            m);
+                            manifest.findCollection(m.id)->second,
+                            m.id);
                 return {};
             }
         }

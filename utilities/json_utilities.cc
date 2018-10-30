@@ -35,9 +35,7 @@ boost::optional<nlohmann::json> getOptionalJsonObject(
         nlohmann::json::value_t expectedType) {
     try {
         auto rv = object.at(key);
-        if (rv.type() != expectedType) {
-            return {};
-        }
+        throwIfWrongType(key, rv, expectedType, "");
         return rv;
     } catch (const nlohmann::json::exception&) {
         return {};

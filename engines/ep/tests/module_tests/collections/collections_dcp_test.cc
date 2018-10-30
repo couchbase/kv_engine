@@ -26,6 +26,8 @@ extern std::string dcp_last_key;
 extern cb::mcbp::ClientOpcode dcp_last_op;
 extern CollectionID dcp_last_collection_id;
 extern mcbp::systemevent::id dcp_last_system_event;
+extern std::vector<uint8_t> dcp_last_system_event_data;
+extern mcbp::systemevent::version dcp_last_system_event_version;
 
 CollectionsDcpTest::CollectionsDcpTest()
     : cookieC(create_mock_cookie()), cookieP(create_mock_cookie()) {
@@ -202,18 +204,30 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
     (void)vbucket; // ignored as we are connecting VBn to VBn+1
+    clear_dcp_data();
     dcp_last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
     dcp_last_system_event = event;
-    EXPECT_EQ(mcbp::systemevent::version::version0, version);
+    EXPECT_TRUE(mcbp::systemevent::validate_version(uint8_t(version)));
+    dcp_last_system_event_data.insert(dcp_last_system_event_data.begin(),
+                                      eventData.begin(),
+                                      eventData.end());
+    dcp_last_system_event_version = version;
+
     if (event == mcbp::systemevent::id::CreateCollection) {
         dcp_last_collection_id =
                 reinterpret_cast<const Collections::CreateEventDcpData*>(
                         eventData.data())
                         ->cid.to_host();
-        // Using the ::size directly in the EXPECT is failing to link on
-        // OSX build, but copying the value works.
-        const auto expectedSize = Collections::CreateEventDcpData::size;
-        EXPECT_EQ(expectedSize, eventData.size());
+        if (version == mcbp::systemevent::version::version0) {
+            // Using the ::size directly in the EXPECT is failing to link on
+            // OSX build, but copying the value works.
+            const auto expectedSize = Collections::CreateEventDcpData::size;
+            EXPECT_EQ(expectedSize, eventData.size());
+        } else {
+            const auto expectedSize =
+                    Collections::CreateWithMaxTtlEventDcpData::size;
+            EXPECT_EQ(expectedSize, eventData.size());
+        }
         dcp_last_key.assign(reinterpret_cast<const char*>(key.data()),
                             key.size());
     } else if (event == mcbp::systemevent::id::DeleteCollection) {

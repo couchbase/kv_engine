@@ -51,6 +51,8 @@ std::string dcp_last_key;
 vbucket_state_t dcp_last_vbucket_state;
 protocol_binary_datatype_t dcp_last_datatype;
 mcbp::systemevent::id dcp_last_system_event;
+std::vector<uint8_t> dcp_last_system_event_data;
+mcbp::systemevent::version dcp_last_system_event_version;
 
 static EngineIface* engine_handle = nullptr;
 static EngineIface* engine_handle_v1 = nullptr;
@@ -351,6 +353,11 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::system_event(
     clear_dcp_data();
     dcp_last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
     dcp_last_system_event = event;
+    dcp_last_system_event_data.insert(dcp_last_system_event_data.begin(),
+                                      eventData.begin(),
+                                      eventData.end());
+    dcp_last_system_event_version = version;
+
     if (event == mcbp::systemevent::id::CreateCollection) {
         dcp_last_collection_id =
                 reinterpret_cast<const Collections::CreateEventDcpData*>(
@@ -406,4 +413,6 @@ void clear_dcp_data() {
     dcp_last_vbucket_state = (vbucket_state_t)0;
     dcp_last_delete_time = 0;
     dcp_last_collection_id = 0;
+    dcp_last_system_event_data.clear();
+    dcp_last_system_event_version = mcbp::systemevent::version::version0;
 }

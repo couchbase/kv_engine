@@ -233,6 +233,23 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "0",
                 "scopes":[
                     {"name":"scope.name", "uid":"8", "collections":[]}]})",
+
+            // max_ttl invalid cases
+            // wrong type
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"},
+                               {"name":"brewery","uid":"9","max_ttl":"string"}]}]})",
+            // negative (doesn't make sense)
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"},
+                               {"name":"brewery","uid":"9","max_ttl":-700}]}]})",
+            // too big for 32-bit
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"},
+                               {"name":"brewery","uid":"9","max_ttl":4294967296}]}]})",
     };
 
     std::vector<std::string> validManifests = {
@@ -301,7 +318,23 @@ TEST(ManifestTest, validation) {
             // mix-case uid is fine
             R"({"uid" : "AbCd1",
                 "scopes":[{"name":"_default", "uid":"0",
-                "collections":[]}]})"};
+                "collections":[]}]})",
+
+            // max_ttl valid cases
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"},
+                               {"name":"brewery","uid":"9","max_ttl":0}]}]})",
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"},
+                               {"name":"brewery","uid":"9","max_ttl":1}]}]})",
+            // max u32int
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"},
+                               {"name":"brewery","uid":"9","max_ttl":4294967295}]}]})",
+    };
 
     for (auto& manifest : invalidManifests) {
         try {

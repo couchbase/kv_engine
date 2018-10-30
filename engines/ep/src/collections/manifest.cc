@@ -84,7 +84,7 @@ Manifest::Manifest(cb::const_char_buffer json,
                     uidValue.to_string() + ", name:" + nameValue);
         }
 
-        std::vector<CollectionID> scopeCollections = {};
+        std::vector<CollectionEntry> scopeCollections = {};
 
         // Read the collections within this scope
         auto collections =
@@ -106,6 +106,8 @@ Manifest::Manifest(cb::const_char_buffer json,
 
             auto cname = getJsonObject(collection, NameKey, NameType);
             auto cuid = getJsonObject(collection, UidKey, UidType);
+            auto cmaxttl = cb::getOptionalJsonObject(
+                    collection, MaxTtlKey, MaxTtlType);
 
             auto cnameValue = cname.get<std::string>();
             if (!validName(cnameValue)) {
@@ -137,9 +139,20 @@ Manifest::Manifest(cb::const_char_buffer json,
                         " not in the default scope");
             }
 
+            cb::ExpiryLimit maxTtl;
+            if (cmaxttl) {
+                // Don't exceed 32-bit max
+                auto value = cmaxttl.get().get<uint64_t>();
+                if (value > std::numeric_limits<uint32_t>::max()) {
+                    throw std::out_of_range("Manifest::Manifest max_ttl:" +
+                                            std::to_string(value));
+                }
+                maxTtl = std::chrono::seconds(value);
+            }
+
             enableDefaultCollection(cuidValue);
             this->collections.emplace(cuidValue, cnameValue);
-            scopeCollections.push_back(cuidValue);
+            scopeCollections.push_back({cuidValue, maxTtl});
         }
 
         this->scopes.emplace(uidValue,

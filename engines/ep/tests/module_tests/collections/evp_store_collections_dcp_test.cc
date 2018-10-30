@@ -41,6 +41,8 @@ extern std::string dcp_last_key;
 extern uint32_t dcp_last_flags;
 extern CollectionID dcp_last_collection_id;
 extern mcbp::systemevent::id dcp_last_system_event;
+extern std::vector<uint8_t> dcp_last_system_event_data;
+extern mcbp::systemevent::version dcp_last_system_event_version;
 
 TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     store->setVBucketState(vbid, vbucket_state_replica, false);
@@ -133,6 +135,10 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
     // Now step the producer to transfer the collection creation
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, dcp_last_op);
+    EXPECT_EQ(CollectionName::meat, dcp_last_key);
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection, dcp_last_system_event);
+    EXPECT_EQ(CollectionUid::meat, dcp_last_collection_id);
 
     // 2. Replica now knows the collection
     EXPECT_TRUE(replica->lockCollections().doesKeyContainValidCollection(
@@ -152,6 +158,65 @@ TEST_F(CollectionsDcpTest, test_dcp) {
 
     // Now step the producer, no more collection events
     EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+}
+
+/*
+ * test_dcp connects a producer and consumer to test that collections created
+ * on the producer are transferred to the consumer
+ *
+ * The test replicates VBn to VBn+1
+ */
+TEST_F(CollectionsDcpTest, test_dcp_with_ttl) {
+    auto checkDcp = [](MockDcpProducer* p,
+                       CollectionsDcpTestProducers* dcpCallBacks) {
+        // Now step the producer to transfer the collection creation and
+        // validate
+        // the data we would transfer to the consumer
+        EXPECT_EQ(ENGINE_SUCCESS, p->step(dcpCallBacks));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, dcp_last_op);
+        EXPECT_EQ(CollectionName::meat, dcp_last_key);
+        EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+                  dcp_last_system_event);
+        EXPECT_EQ(CollectionUid::meat, dcp_last_collection_id);
+
+        // Assert version1, i.e. a TTL is encoded
+        ASSERT_EQ(mcbp::systemevent::version::version1,
+                  dcp_last_system_event_version);
+
+        auto eventData = reinterpret_cast<
+                const Collections::CreateWithMaxTtlEventDcpData*>(
+                dcp_last_system_event_data.data());
+        EXPECT_EQ(100, ntohl(eventData->maxTtl));
+    };
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+
+        // Add a collection, then remove it. This adds events into the CP which
+        // we'll manually replicate with calls to step
+        CollectionsManifest cm;
+        cm.add(CollectionEntry::meat, std::chrono::seconds(100) /*maxttl*/);
+        vb->updateFromManifest({cm});
+
+        notifyAndStepToCheckpoint();
+
+        VBucketPtr replica = store->getVBucket(replicaVB);
+
+        // 1. Replica does not know about meat
+        EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
+                StoredDocKey{"meat:bacon", CollectionEntry::meat}));
+
+        checkDcp(producer.get(), producers.get());
+
+        // Finally validate the TTL comes back after a restart
+        flush_vbucket_to_disk(Vbid(0), 1);
+    }
+
+    resetEngineAndWarmup();
+    createDcpObjects({{nullptr, 0}}); // from disk
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              false /*backfill from disk*/);
+
+    checkDcp(producer.get(), producers.get());
 }
 
 /*

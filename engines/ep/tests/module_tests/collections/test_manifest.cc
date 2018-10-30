@@ -54,6 +54,7 @@ CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry) {
 
 CollectionsManifest& CollectionsManifest::add(
         const CollectionEntry::Entry& collectionEntry,
+        cb::ExpiryLimit maxTtl,
         const ScopeEntry::Entry& scopeEntry) {
     updateUid();
 
@@ -63,6 +64,10 @@ CollectionsManifest& CollectionsManifest::add(
 
     jsonEntry["name"] = collectionEntry.name;
     jsonEntry["uid"] = ss.str();
+
+    if (maxTtl) {
+        jsonEntry["max_ttl"] = maxTtl.get().count();
+    }
 
     // Add the new collection to the set of collections belonging to the
     // given scope
@@ -75,6 +80,12 @@ CollectionsManifest& CollectionsManifest::add(
     }
 
     return *this;
+}
+
+CollectionsManifest& CollectionsManifest::add(
+        const CollectionEntry::Entry& collectionEntry,
+        const ScopeEntry::Entry& scopeEntry) {
+    return add(collectionEntry, {/*no ttl*/}, scopeEntry);
 }
 
 CollectionsManifest& CollectionsManifest::remove(
