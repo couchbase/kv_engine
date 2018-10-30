@@ -181,37 +181,13 @@ const cb::mcbp::Header& Cookie::getHeader() const {
 
 const cb::mcbp::Request& Cookie::getRequest(PacketContent content) const {
     cb::const_byte_buffer packet = getPacket(content);
-    const auto* ret = reinterpret_cast<const cb::mcbp::Request*>(packet.data());
-    switch (ret->getMagic()) {
-    case cb::mcbp::Magic::ClientRequest:
-    case cb::mcbp::Magic::AltClientRequest:
-    case cb::mcbp::Magic::ServerRequest:
-        return *ret;
-    case cb::mcbp::Magic::AltClientResponse:
-    case cb::mcbp::Magic::ClientResponse:
-    case cb::mcbp::Magic::ServerResponse:
-        throw std::logic_error("Cookie::getRequest(): Packet is response");
-    }
-
-    throw std::invalid_argument("Cookie::getRequest(): Invalid packet type");
+    const auto* ret = reinterpret_cast<const cb::mcbp::Header*>(packet.data());
+    return ret->getRequest();
 }
 
 const cb::mcbp::Response& Cookie::getResponse(PacketContent content) const {
-    cb::const_byte_buffer packet = getPacket(content);
-    const auto* ret =
-            reinterpret_cast<const cb::mcbp::Response*>(packet.data());
-    switch (ret->getMagic()) {
-    case cb::mcbp::Magic::ClientRequest:
-    case cb::mcbp::Magic::AltClientRequest:
-    case cb::mcbp::Magic::ServerRequest:
-        throw std::logic_error("Cookie::getRequest(): Packet is resquest");
-    case cb::mcbp::Magic::AltClientResponse:
-    case cb::mcbp::Magic::ClientResponse:
-    case cb::mcbp::Magic::ServerResponse:
-        return *ret;
-    }
-
-    throw std::invalid_argument("Cookie::getResponse(): Invalid packet type");
+    const auto* ret = reinterpret_cast<const cb::mcbp::Header*>(packet.data());
+    return ret->getResponse();
 }
 
 ENGINE_ERROR_CODE Cookie::swapAiostat(ENGINE_ERROR_CODE value) {
