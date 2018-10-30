@@ -78,10 +78,20 @@ Manifest::Manifest(cb::const_char_buffer json,
         // Construction of ScopeID checks for invalid values
         ScopeID uidValue = makeScopeID(uid.get<std::string>());
 
+        // Scope uids must be unique
         if (this->scopes.count(uidValue) > 0) {
             throw std::invalid_argument(
                     "Manifest::Manifest duplicate scope uid:" +
                     uidValue.to_string() + ", name:" + nameValue);
+        }
+
+        // Scope names must be unique
+        for (const auto& itr : this->scopes) {
+            if (itr.second.name == nameValue) {
+                throw std::invalid_argument(
+                        "Manifest::Manifest duplicate scope name:" +
+                        uidValue.to_string() + ", name:" + nameValue);
+            }
         }
 
         std::vector<CollectionEntry> scopeCollections = {};
@@ -126,10 +136,25 @@ Manifest::Manifest(cb::const_char_buffer json,
                         cuidValue.to_string() + " is not valid.");
             }
 
+            // Collection uids must be unique
             if (this->collections.count(cuidValue) > 0) {
                 throw std::invalid_argument(
                         "Manifest::Manifest duplicate collection uid:" +
                         cuidValue.to_string() + ", name: " + cnameValue);
+            }
+
+            // Collection names must be unique within the scope
+            for (const auto& itr : scopeCollections) {
+                auto existingCollection = this->collections.find(itr.id);
+                if (existingCollection != this->collections.end()) {
+                    if (existingCollection->second == cnameValue) {
+                        throw std::invalid_argument(
+                                "Manifest::Manifest duplicate collection "
+                                "name:" +
+                                cuidValue.to_string() +
+                                ", name: " + cnameValue);
+                    }
+                }
             }
 
             // The default collection must be within the default scope

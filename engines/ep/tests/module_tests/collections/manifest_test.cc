@@ -250,6 +250,32 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","max_ttl":4294967296}]}]})",
+            // Test duplicate scope names
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                                "collections":[
+                                    {"name":"_default","uid":"0"},
+                                    {"name":"beer", "uid":"8"},
+                                    {"name":"brewery","uid":"9"}]},
+                          {"name":"brewerA", "uid":"8",
+                                "collections":[
+                                    {"name":"beer", "uid":"a"},
+                                    {"name":"brewery", "uid":"b"}]},
+                          {"name":"brewerA", "uid":"9",
+                                "collections":[
+                                    {"name":"beer", "uid":"c"},
+                                    {"name":"brewery", "uid":"d"}]}]})",
+            // Test duplicate collection names within the same scope
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                                "collections":[
+                                    {"name":"_default","uid":"0"},
+                                    {"name":"brewery", "uid":"8"},
+                                    {"name":"brewery","uid":"9"}]},
+                          {"name":"brewerA", "uid":"8",
+                                "collections":[
+                                    {"name":"beer", "uid":"a"},
+                                    {"name":"beer", "uid":"b"}]}]})",
     };
 
     std::vector<std::string> validManifests = {
