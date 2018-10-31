@@ -117,6 +117,14 @@ public:
     }
 
     /**
+     * Increment the vb count for the given state.
+     * @param state the state for which the vb count is to be incremented.
+     */
+    void incVBStateCount(vbucket_state_t state) {
+        ++vbStateCount[state];
+    }
+
+    /**
      * Get the state count for the given state.
      * @param state  the state for which the vb count is to be retrieved.
      * @rturn  the current vb count in the given state.
@@ -124,6 +132,18 @@ public:
     uint16_t getVBStateCount(vbucket_state_t state) const {
         return vbStateCount[state];
     }
+
+    /**
+     * Set the state of the vBucket and set VBucketMap invariants
+     * @param vb pointer to the vBucket to change
+     * @param newState desired state
+     * @param an optional lock (using nullptr) for the vBucket. Will be
+     *        acquired by this function if not supplied
+     * @return the old state of the vBucket
+     */
+    vbucket_state_t setState(VBucketPtr vb,
+                             vbucket_state_t newState,
+                             WriterLockHolder* vbStateLock);
 
 private:
 

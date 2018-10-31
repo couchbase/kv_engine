@@ -809,13 +809,7 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
     }
 
     if (vb) {
-        vbucket_state_t oldstate = vb->getState();
-        vbMap.decVBStateCount(oldstate);
-        if (vbStateLock) {
-            vb->setState_UNLOCKED(to, *vbStateLock);
-        } else {
-            vb->setState(to);
-        }
+        auto oldstate = vbMap.setState(vb, to, vbStateLock);
 
         if (oldstate != to && notify_dcp) {
             bool closeInboundStreams = false;

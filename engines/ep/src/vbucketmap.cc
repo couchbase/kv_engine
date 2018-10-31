@@ -180,3 +180,25 @@ void VBucketMap::VBucketConfigChangeListener::sizeValueChanged(const std::string
         map.setHLCDriftBehindThreshold(std::chrono::microseconds(value));
     }
 }
+
+vbucket_state_t VBucketMap::setState(VBucketPtr vb,
+                                     vbucket_state_t newState,
+                                     WriterLockHolder* vbStateLock) {
+    if (!vb) {
+        throw std::invalid_argument(
+                "VBucketMap::setState was passed an "
+                "invalid vBucket");
+    }
+
+    vbucket_state_t oldState = vb->getState();
+    if (vbStateLock) {
+        vb->setState_UNLOCKED(newState, *vbStateLock);
+    } else {
+        vb->setState(newState);
+    }
+
+    decVBStateCount(oldState);
+    incVBStateCount(newState);
+
+    return oldState;
+}
