@@ -20,13 +20,13 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <map>
 
-class StoredDocKeyTest : public ::testing::TestWithParam<DocNamespace> {};
+class StoredDocKeyTest : public ::testing::TestWithParam<CollectionID> {};
 
-class StoredDocKeyTestCombi : public ::testing::TestWithParam<
-                                      std::tuple<DocNamespace, DocNamespace>> {
+class StoredDocKeyTestCombi
+    : public ::testing::TestWithParam<std::tuple<CollectionID, CollectionID>> {
 };
 
-class SerialisedDocKeyTest : public ::testing::TestWithParam<DocNamespace> {};
+class SerialisedDocKeyTest : public ::testing::TestWithParam<CollectionID> {};
 
 TEST_P(StoredDocKeyTest, constructors) {
     // C-string/std::string
@@ -84,7 +84,7 @@ TEST_P(StoredDocKeyTest, copy_constructor) {
 
     // exterally check rather than just use ==
     EXPECT_EQ(key1.size(), key2.size());
-    EXPECT_EQ(key1.getDocNamespace(), key2.getDocNamespace());
+    EXPECT_EQ(key1.getCollectionID(), key2.getCollectionID());
     EXPECT_NE(key1.data(), key2.data()); // must be different pointers
     EXPECT_TRUE(std::memcmp(key1.data(), key2.data(), key1.size()) == 0);
     EXPECT_EQ(key1, key2);
@@ -98,7 +98,7 @@ TEST_P(StoredDocKeyTest, assignment) {
 
     // exterally check
     EXPECT_EQ(key1.size(), key2.size());
-    EXPECT_EQ(key1.getDocNamespace(), key2.getDocNamespace());
+    EXPECT_EQ(key1.getCollectionID(), key2.getCollectionID());
     EXPECT_NE(key1.data(), key2.data()); // must be different pointers
     EXPECT_TRUE(std::memcmp(key1.data(), key2.data(), key1.size()) == 0);
     EXPECT_EQ(key1, key2);
@@ -152,7 +152,7 @@ TEST_P(StoredDocKeyTestCombi, lessThan) {
     StoredDocKey key3_ns1("zza::thing", std::get<1>(GetParam()));
 
     if (std::get<0>(GetParam()) < std::get<1>(GetParam())) {
-        // DocNamespace is compared first, so if it is less all compares will
+        // CollectionID is compared first, so if it is less all compares will
         // be less
         EXPECT_TRUE(key3 < key1_ns1);
         EXPECT_TRUE(key3 < key2_ns1);
@@ -239,7 +239,7 @@ TEST_P(SerialisedDocKeyTest, constructor) {
     EXPECT_NE(0, std::memcmp("key", serialKey->data(), sizeof("key")));
 
     // But we can retrieve the CID
-    EXPECT_EQ(GetParam(), serialKey->getDocNamespace());
+    EXPECT_EQ(GetParam(), serialKey->getCollectionID());
 }
 
 TEST_P(SerialisedDocKeyTest, equals) {
@@ -267,7 +267,7 @@ TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
     for (size_t ii = 0; ii < key2.size(); ii++) {
         EXPECT_EQ(serialKey->data()[ii], key2.data()[ii]);
     }
-    EXPECT_EQ(serialKey->getDocNamespace(), key2.getDocNamespace());
+    EXPECT_EQ(serialKey->getCollectionID(), key2.getCollectionID());
 }
 
 TEST_P(StoredDocKeyTest, getObjectSize) {
@@ -280,11 +280,11 @@ TEST_P(StoredDocKeyTest, getObjectSize) {
 
 // Test params includes our labelled collections that have 'special meaning' and
 // one normal collection ID (100)
-static std::vector<DocNamespace> allDocNamespaces = {
-        {DocNamespace::Default, DocNamespace::System, 100}};
+static std::vector<CollectionID> allDocNamespaces = {
+        {CollectionID::Default, CollectionID::System, 100}};
 
 INSTANTIATE_TEST_CASE_P(
-        DocNamespace,
+        CollectionID,
         StoredDocKeyTestCombi,
         ::testing::Combine(::testing::ValuesIn(allDocNamespaces),
                            ::testing::ValuesIn(allDocNamespaces)), );
@@ -293,12 +293,12 @@ INSTANTIATE_TEST_CASE_P(
 // one normal collection ID (100)
 INSTANTIATE_TEST_CASE_P(DocNamespace,
                         StoredDocKeyTest,
-                        ::testing::Values(DocNamespace::Default,
-                                          DocNamespace::System,
+                        ::testing::Values(CollectionID::Default,
+                                          CollectionID::System,
                                           100), );
 
 INSTANTIATE_TEST_CASE_P(DocNamespace,
                         SerialisedDocKeyTest,
-                        ::testing::Values(DocNamespace::Default,
-                                          DocNamespace::System,
+                        ::testing::Values(CollectionID::Default,
+                                          CollectionID::System,
                                           100), );

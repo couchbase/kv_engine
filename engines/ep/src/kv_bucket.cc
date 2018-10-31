@@ -2531,7 +2531,7 @@ bool KVBucket::collectionsEraseKey(
 
             // Update item count for real collections (System is not a
             // collection)
-            if (key.getDocNamespace() != DocNamespace::System) {
+            if (key.getCollectionID() != CollectionID::System) {
                 vb->decrNumTotalItems();
             }
         } else {

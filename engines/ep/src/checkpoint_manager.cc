@@ -1038,7 +1038,7 @@ queued_item CheckpointManager::createCheckpointItem(uint64_t id,
                                                     Vbid vbid,
                                                     queue_op checkpoint_op) {
     uint64_t bySeqno;
-    StoredDocKey key(to_string(checkpoint_op), DocNamespace::System);
+    StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
 
     switch (checkpoint_op) {
     case queue_op::checkpoint_start:

@@ -28,7 +28,7 @@ std::unique_ptr<Item> SystemEventFactory::make(SystemEvent se,
                                                cb::const_byte_buffer data,
                                                OptionalSeqno seqno) {
     auto item = std::make_unique<Item>(
-            StoredDocKey(makeKey(se, keyExtra), DocNamespace::System),
+            StoredDocKey(makeKey(se, keyExtra), CollectionID::System),
             uint32_t(se) /*flags*/,
             0 /*exptime*/,
             data.data(),
@@ -88,7 +88,7 @@ cb::const_byte_buffer SystemEventFactory::getKeyExtra(const DocKey& key) {
                 gsl::narrow<uint8_t>(key.size() - (collection - key.data()))};
     } else {
         throw std::invalid_argument("DocKey::make incorrect namespace:" +
-                                    std::to_string(int(key.getDocNamespace())));
+                                    std::to_string(int(key.getCollectionID())));
     }
 }
 

@@ -972,7 +972,7 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
         auto rh = manifest.active.lock(key1);
         EXPECT_TRUE(rh.valid());
         EXPECT_EQ(CollectionEntry::vegetable.getId(),
-                  rh.getKey().getDocNamespace());
+                  rh.getKey().getCollectionID());
     }
 
     {
@@ -981,7 +981,7 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
 
         // cached the key
         EXPECT_EQ(CollectionEntry::fruit.getId(),
-                  rh.getKey().getDocNamespace());
+                  rh.getKey().getCollectionID());
     }
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::vegetable)));
 
@@ -990,13 +990,13 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
         EXPECT_FALSE(rh.valid());
 
         EXPECT_EQ(CollectionEntry::vegetable.getId(),
-                  rh.getKey().getDocNamespace());
+                  rh.getKey().getCollectionID());
     }
     {
         auto rh = manifest.active.lock(key2);
         EXPECT_FALSE(rh.valid());
         EXPECT_EQ(CollectionEntry::fruit.getId(),
-                  rh.getKey().getDocNamespace());
+                  rh.getKey().getCollectionID());
     }
 }
 

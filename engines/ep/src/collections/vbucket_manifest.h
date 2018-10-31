@@ -251,7 +251,7 @@ public:
          */
         void incrementDiskCount() const {
             // We don't include system events when counting
-            if (key.getDocNamespace() == DocNamespace::System) {
+            if (key.getCollectionID() == CollectionID::System) {
                 return;
             }
             return manifest.incrementDiskCount(itr);
@@ -268,7 +268,7 @@ public:
          */
         void decrementDiskCount() const {
             // We don't include system events when counting
-            if (key.getDocNamespace() == DocNamespace::System) {
+            if (key.getCollectionID() == CollectionID::System) {
                 return;
             }
             return manifest.decrementDiskCount(itr);

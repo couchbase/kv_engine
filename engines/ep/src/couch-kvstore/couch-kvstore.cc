@@ -1935,7 +1935,7 @@ bool CouchKVStore::commit2couchstore(Collections::VB::Flush& collectionsFlush) {
         }
     }
 
-    // The docinfo callback needs to know if the DocNamespace feature is on
+    // The docinfo callback needs to know if the CollectionID feature is on
     kvstats_ctx kvctx(configuration.shouldPersistDocNamespace(),
                       collectionsFlush);
     // flush all

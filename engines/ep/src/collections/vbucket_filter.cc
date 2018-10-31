@@ -149,7 +149,7 @@ void Filter::addCollection(const nlohmann::json& object,
 
 bool Filter::checkAndUpdateSlow(CollectionID cid, const Item& item) {
     bool allowed = false;
-    if (cid == DocNamespace::System) {
+    if (cid == CollectionID::System) {
         allowed = allowSystemEvent(item);
 
         if (item.isDeleted()) {

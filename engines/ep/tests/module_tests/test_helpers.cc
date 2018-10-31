@@ -27,7 +27,7 @@
 #include "checkpoint_manager.h"
 #include "vbucket.h"
 
-StoredDocKey makeStoredDocKey(const std::string& string, DocNamespace ns) {
+StoredDocKey makeStoredDocKey(const std::string& string, CollectionID ns) {
     return StoredDocKey(string, ns);
 }
 

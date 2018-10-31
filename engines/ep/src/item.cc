@@ -46,7 +46,7 @@ Item::Item(const DocKey& k,
       bySeqno(i),
       queuedTime(ep_current_time()),
       vbucketId(vbid),
-      op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
+      op(k.getCollectionID() == CollectionID::System ? queue_op::system_event
                                                      : queue_op::mutation),
       nru(INITIAL_NRU_VALUE),
       deleted(0), // false
@@ -76,7 +76,7 @@ Item::Item(const DocKey& k,
       bySeqno(i),
       queuedTime(ep_current_time()),
       vbucketId(vbid),
-      op(k.getDocNamespace() == DocNamespace::System ? queue_op::system_event
+      op(k.getCollectionID() == CollectionID::System ? queue_op::system_event
                                                      : queue_op::mutation),
       nru(nru),
       deleted(0), // false

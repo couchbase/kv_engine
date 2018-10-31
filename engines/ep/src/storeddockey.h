@@ -78,10 +78,6 @@ public:
         return keydata.size();
     }
 
-    DocNamespace getDocNamespace() const {
-        return getCollectionID();
-    }
-
     CollectionID getCollectionID() const;
 
     DocKeyEncodesCollectionId getEncoding() const {
@@ -175,10 +171,6 @@ public:
 
     size_t size() const {
         return length;
-    }
-
-    DocNamespace getDocNamespace() const {
-        return getCollectionID();
     }
 
     CollectionID getCollectionID() const;

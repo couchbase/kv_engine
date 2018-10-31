@@ -140,7 +140,7 @@ Item KVBucketTest::store_item(Vbid vbid,
                 std::string(reinterpret_cast<const char*>(key.data()),
                             key.size()) +
                         std::to_string(ii),
-                key.getDocNamespace());
+                key.getCollectionID());
         auto item = make_item(vbid, keyii, value, exptime, datatype);
         auto err = store->set(item, cookie);
         if (ENGINE_SUCCESS != err) {

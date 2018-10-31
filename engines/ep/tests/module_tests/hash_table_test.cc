@@ -983,11 +983,11 @@ TEST_F(HashTableTest, PauseResumeHashBucket) {
     HashTable ht(global_stats, makeFactory(true), 2, 1);
 
     // Store keys to both hash buckets - need keys which hash to bucket 0 and 1.
-    StoredDocKey key0("c", DocNamespace::Default);
+    StoredDocKey key0("c", CollectionID::Default);
     ASSERT_EQ(0, ht.getLockedBucket(key0).getBucketNum());
     store(ht, key0);
 
-    StoredDocKey key1("b", DocNamespace::Default);
+    StoredDocKey key1("b", CollectionID::Default);
     ASSERT_EQ(1, ht.getLockedBucket(key1).getBucketNum());
     store(ht, key1);
 

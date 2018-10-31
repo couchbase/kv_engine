@@ -590,7 +590,7 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
     std::unique_ptr<Item> i(std::move(val.item));
 
     // Don't attempt to load the system event documents.
-    if (i->getKey().getDocNamespace() == DocNamespace::System) {
+    if (i->getKey().getCollectionID() == CollectionID::System) {
         return;
     }
 

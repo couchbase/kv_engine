@@ -22,9 +22,9 @@
 #include "murmurhash3.h"
 #include "tests/module_tests/test_helpers.h"
 
-class BloomFilterDocKeyTest : public BloomFilter,
-                              public ::testing::TestWithParam<
-                                      std::tuple<DocNamespace, DocNamespace>> {
+class BloomFilterDocKeyTest
+    : public BloomFilter,
+      public ::testing::TestWithParam<std::tuple<CollectionID, CollectionID>> {
 public:
     BloomFilterDocKeyTest() : BloomFilter(10000, 0.01, BFILTER_ENABLED) {
     }
@@ -82,8 +82,8 @@ TEST_P(BloomFilterDocKeyTest, check_maybeKeyExist) {
 
 // Test params includes our labelled collections that have 'special meaning' and
 // one normal collection ID (100)
-static std::vector<DocNamespace> allDocNamespaces = {
-        {DocNamespace::Default, DocNamespace::System, 100}};
+static std::vector<CollectionID> allDocNamespaces = {
+        {CollectionID::Default, CollectionID::System, 100}};
 
 INSTANTIATE_TEST_CASE_P(
         DocNamespace,

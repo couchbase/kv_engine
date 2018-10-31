@@ -27,7 +27,7 @@ class CollectionIDNetworkOrder;
 class ScopeIDNetworkOrder;
 
 /**
- * DocNamespace "Document Namespace"
+ * CollectionID
  * Meta-data that applies to every document stored in an engine.
  *
  * A document "key" with the flag DefaultCollection is not the same document
@@ -45,8 +45,8 @@ class ScopeIDNetworkOrder;
  * special keys are interleaved in the users data stream to represent create
  * and delete events. In future more generic "system documents" maybe
  * created by the core but until such plans are more clear, ep-engine will
- * deny the core from performing operations in the System DocNamespace.
- * DocNamespace values are persisted ot the database and thus are fully
+ * deny the core from performing operations in the System Collection.
+ * CollectionID values are persisted to the database and thus are fully
  * described now ready for future use.
  */
 using CollectionIDType = uint32_t;
@@ -203,9 +203,6 @@ struct hash<ScopeID> {
 
 } // namespace std
 
-/// To allow manageable patches during updates to Collections, allow both names
-using DocNamespace = CollectionID;
-
 /**
  * A DocKey views a key (non-owning). It can view a key with or without
  * defined collection-ID. Keys with a collection-ID, encode the collection-ID
@@ -229,10 +226,6 @@ struct DocKeyInterface {
 
     CollectionID getCollectionID() const {
         return static_cast<const T*>(this)->getCollectionID();
-    }
-
-    DocNamespace getDocNamespace() const {
-        return static_cast<const T*>(this)->getDocNamespace();
     }
 
     DocKeyEncodesCollectionId getEncoding() const {
@@ -305,11 +298,6 @@ struct DocKey : DocKeyInterface<DocKey> {
 
     size_t size() const {
         return buffer.size();
-    }
-
-    // @todo remove DocNamespace methods
-    DocNamespace getDocNamespace() const {
-        return getCollectionID();
     }
 
     CollectionID getCollectionID() const;

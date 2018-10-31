@@ -50,10 +50,10 @@ std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
 /**
  * Create a StoredDocKey object from a std::string.
  * By default places the key in the default namespace,
- * DocNamespace::Default.
+ * CollectionID::Default.
  */
 StoredDocKey makeStoredDocKey(const std::string& string,
-                              DocNamespace ns = DocNamespace::Default);
+                              CollectionID ns = CollectionID::Default);
 
 // Creates a new item with the given key and queues it into the given VBucket.
 // manager.
