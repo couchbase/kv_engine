@@ -20,6 +20,7 @@
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
+#include "checkpoint_visitor.h"
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
@@ -28,68 +29,6 @@
 
 #include <phosphor/phosphor.h>
 #include <memory>
-
-/**
- * Remove all the closed unreferenced checkpoints for each vbucket.
- */
-class CheckpointVisitor : public VBucketVisitor {
-public:
-
-    /**
-     * Construct a CheckpointVisitor.
-     */
-    CheckpointVisitor(KVBucketIface* s, EPStats& st, std::atomic<bool>& sfin)
-        : store(s),
-          stats(st),
-          removed(0),
-          taskStart(std::chrono::steady_clock::now()),
-          wasHighMemoryUsage(s->isMemoryUsageTooHigh()),
-          stateFinalizer(sfin) {
-    }
-
-    void visitBucket(VBucketPtr &vb) override {
-        bool newCheckpointCreated = false;
-        removed = vb->checkpointManager->removeClosedUnrefCheckpoints(
-                *vb, newCheckpointCreated);
-        // If the new checkpoint is created, notify this event to the
-        // corresponding paused DCP connections.
-        if (newCheckpointCreated) {
-            store->getEPEngine().getDcpConnMap().notifyVBConnections(
-                    vb->getId(), vb->checkpointManager->getHighSeqno());
-        }
-
-        stats.itemsRemovedFromCheckpoints.fetch_add(removed);
-        if (removed > 0) {
-            EP_LOG_DEBUG("Removed {} closed unreferenced checkpoints from {}",
-                         removed,
-                         vb->getId());
-        }
-        removed = 0;
-    }
-
-    void complete() override {
-        bool inverse = false;
-        stateFinalizer.compare_exchange_strong(inverse, true);
-
-        stats.checkpointRemoverHisto.add(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - taskStart));
-
-        // Wake up any sleeping backfill tasks if the memory usage is lowered
-        // below the high watermark as a result of checkpoint removal.
-        if (wasHighMemoryUsage && !store->isMemoryUsageTooHigh()) {
-            store->getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
-        }
-    }
-
-private:
-    KVBucketIface* store;
-    EPStats                   &stats;
-    size_t                     removed;
-    std::chrono::steady_clock::time_point taskStart;
-    bool                       wasHighMemoryUsage;
-    std::atomic<bool>         &stateFinalizer;
-};
 
 void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
     /**
