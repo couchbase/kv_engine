@@ -169,6 +169,11 @@ public:
             manifest.updateSummary(summary);
         }
 
+        void populateWithSerialisedData(
+                flatbuffers::FlatBufferBuilder& builder) const {
+            manifest.populateWithSerialisedData(builder);
+        }
+
         /**
          * Dump this VB::Manifest to std::cerr
          */
@@ -228,6 +233,13 @@ public:
                 return itr->second.isOpen();
             }
             return false;
+        }
+
+        /**
+         * @return true if the key used is associated with a known collection
+         */
+        bool found() const {
+            return iteratorValid();
         }
 
         /**
@@ -915,6 +927,15 @@ protected:
     void populateWithSerialisedData(flatbuffers::FlatBufferBuilder& builder,
                                     ScopeCollectionPair identifiers,
                                     cb::const_char_buffer collectionName) const;
+
+    /**
+     * Populate a buffer with the serialised state of the manifest, a plain
+     * iterate of the map and copy into the builder
+     *
+     * @param builder FlatBuffer builder for serialisation.
+     */
+    void populateWithSerialisedData(
+            flatbuffers::FlatBufferBuilder& builder) const;
 
     /**
      * Update greatestEndSeqno if the seqno is larger

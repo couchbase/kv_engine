@@ -588,10 +588,10 @@ protected:
      * an Item crafted by the Collections::VB::Manifest class.
      *
      * @param db Handle to the open data store.
-     * @param item A SystemEvent which can generate the JSON data to write.
+     * @param serialisedManifest buffer of VB::Manifest data
      */
     couchstore_error_t saveCollectionsManifest(
-            Db& db, const Collections::VB::Flush& collectionsFlush);
+            Db& db, cb::const_byte_buffer serialisedManifest);
 
     /**
      * Read the collections manifest from the _local/collections_manifest

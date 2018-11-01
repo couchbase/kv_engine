@@ -677,48 +677,6 @@ TEST_F(CollectionsWarmupTest, warmup) {
                       CollectionEntry::meat));
 }
 
-// When a collection is deleted - an event enters the checkpoint which does not
-// enter the persisted seqno index - hence at the end of this test when we warm
-// up, expect the highSeqno to be less than before the warmup.
-TEST_F(CollectionsWarmupTest, MB_25381) {
-    int64_t highSeqno = 0;
-    {
-        auto vb = store->getVBucket(vbid);
-
-        // Add the dairy collection
-        CollectionsManifest cm(CollectionEntry::dairy);
-        vb->updateFromManifest({cm});
-
-        // Trigger a flush to disk. Flushes the dairy create event
-        flush_vbucket_to_disk(vbid, 1);
-
-        // Now we can write to dairy
-        store_item(vbid,
-                   StoredDocKey{"dairy:milk", CollectionEntry::dairy},
-                   "creamy");
-
-        // Now delete the dairy collection
-        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)
-                                        .add(CollectionEntry::fruit)});
-
-        flush_vbucket_to_disk(vbid, 3);
-
-        EXPECT_EQ(1,
-                  vb->lockCollections().getItemCount(CollectionEntry::dairy));
-
-        // This pushes an Item which doesn't flush but has consumed a seqno
-        vb->completeDeletion(CollectionEntry::dairy);
-
-        flush_vbucket_to_disk(vbid, 0); // 0 items but has written _local
-
-        highSeqno = vb->getHighSeqno();
-    } // VBucketPtr scope ends
-    resetEngineAndWarmup();
-
-    auto vb = store->getVBucket(vbid);
-    EXPECT_GT(highSeqno, vb->getHighSeqno());
-}
-
 //
 // Create a collection then create a second engine which will warmup from the
 // persisted collection state and should have the collection accessible.

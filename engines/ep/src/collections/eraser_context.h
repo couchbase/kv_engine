@@ -15,12 +15,9 @@
  *   limitations under the License.
  */
 
-#include "collections/collections_types.h"
-#include "collections/vbucket_manifest.h"
+#include "collections/scan_context.h"
 
 #pragma once
-
-struct DocKey;
 
 namespace Collections {
 namespace VB {
@@ -30,22 +27,31 @@ namespace VB {
  * e.g. collection erasing may iterate the index and use data with the
  * ScanContext for choosing which keys to erase.
  */
-class ScanContext {
+class EraserContext : public ScanContext {
 public:
-    ScanContext(const PersistedManifest& data) : manifest(data) {
+    EraserContext(const PersistedManifest& data) : ScanContext(data) {
     }
 
     /**
-     * Lock the manifest which is owned by the scan context
+     * Write lock the manifest which is owned by the scan context
      */
-    Collections::VB::Manifest::CachingReadHandle lockCollections(
-            const ::DocKey& key, bool allowSystem) const {
-        return manifest.lock(key, allowSystem);
+    Collections::VB::Manifest::WriteHandle wlockCollections() {
+        return manifest.wlock();
     }
 
-protected:
-    /// The manifest which collection erasing can compare keys.
-    Manifest manifest;
+    bool needToUpdateCollectionsManifest() const {
+        return collectionsErased > 0;
+    }
+
+    void incrementErasedCount() {
+        collectionsErased++;
+    }
+
+    void finaliseCollectionsManifest(
+            std::function<void(cb::const_byte_buffer)> saveManifestCb);
+
+private:
+    int collectionsErased = 0;
 };
 } // namespace VB
 } // namespace Collections

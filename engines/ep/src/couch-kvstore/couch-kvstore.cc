@@ -970,7 +970,7 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         return false;
     }
 
-    hook_ctx->eraserContext = std::make_unique<Collections::VB::ScanContext>(
+    hook_ctx->eraserContext = std::make_unique<Collections::VB::EraserContext>(
             readCollectionsManifest(*compactdb));
 
     uint64_t new_rev = compactdb.getFileRev() + 1;
@@ -1033,9 +1033,13 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
         return false;
     }
 
+    couchstore_open_flags openFlags =
+            hook_ctx->eraserContext->needToUpdateCollectionsManifest()
+                    ? 0
+                    : COUCHSTORE_OPEN_FLAG_RDONLY;
+
     // Open the newly compacted VBucket database file ...
-    errCode = openSpecificDB(
-            vbid, new_rev, targetDb, (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY);
+    errCode = openSpecificDB(vbid, new_rev, targetDb, (uint64_t)openFlags);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
                 "CouchKVStore::compactDB: openDB#2 error:{}, file:{}, "
@@ -1049,6 +1053,24 @@ bool CouchKVStore::compactDBInternal(compaction_ctx* hook_ctx,
                         new_file);
         }
         return false;
+    }
+
+    if (hook_ctx->eraserContext->needToUpdateCollectionsManifest()) {
+        // Finalise any collections metadata which may have changed during the
+        // compaction due to collection Deletion
+        hook_ctx->eraserContext->finaliseCollectionsManifest(
+                std::bind(&CouchKVStore::saveCollectionsManifest,
+                          this,
+                          std::ref(*targetDb.getDb()),
+                          std::placeholders::_1));
+
+        errCode = couchstore_commit(targetDb.getDb());
+        if (errCode != COUCHSTORE_SUCCESS) {
+            logger.warn(
+                    "CouchKVStore::compactDB: failed to commit collection "
+                    "manifest update errCode:{}",
+                    couchstore_strerror(errCode));
+        }
     }
 
     // Update the global VBucket file map so all operations use the new file
@@ -2082,7 +2104,14 @@ couchstore_error_t CouchKVStore::saveDocs(
         }
 
         if (collectionsFlush.getCollectionsManifestItem()) {
-            saveCollectionsManifest(*db, collectionsFlush);
+            auto data = collectionsFlush.getManifestData();
+            saveCollectionsManifest(*db, {data.data(), data.size()});
+            // Process any collection deletes (removing the item count docs)
+            collectionsFlush.saveDeletes(
+                    std::bind(&CouchKVStore::deleteItemCount,
+                              this,
+                              std::ref(*db),
+                              std::placeholders::_1));
         }
 
         auto cs_begin = std::chrono::steady_clock::now();
@@ -2432,15 +2461,14 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db,
 }
 
 couchstore_error_t CouchKVStore::saveCollectionsManifest(
-        Db& db, const Collections::VB::Flush& collectionsFlush) {
+        Db& db, cb::const_byte_buffer serialisedManifest) {
     LocalDoc lDoc;
     lDoc.id.buf = const_cast<char*>(Collections::CouchstoreManifest);
     lDoc.id.size = Collections::CouchstoreManifestLen;
 
-    auto state = collectionsFlush.getManifestData();
-
-    lDoc.json.buf = reinterpret_cast<char*>(state.data());
-    lDoc.json.size = state.size();
+    lDoc.json.buf = reinterpret_cast<char*>(
+            const_cast<uint8_t*>(serialisedManifest.data()));
+    lDoc.json.size = serialisedManifest.size();
     lDoc.deleted = 0;
     couchstore_error_t errCode = couchstore_save_local_document(&db, &lDoc);
 
@@ -2452,12 +2480,6 @@ couchstore_error_t CouchKVStore::saveCollectionsManifest(
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(&db, errCode));
     }
-
-    // Process any deletes of collections to delete their item-count data
-    collectionsFlush.saveDeletes(std::bind(&CouchKVStore::deleteItemCount,
-                                           this,
-                                           std::ref(db),
-                                           std::placeholders::_1));
 
     return errCode;
 }

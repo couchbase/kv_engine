@@ -294,6 +294,11 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         return false;
     }
 
+    // Should the item replicate?
+    if (SystemEventReplicate::process(*itm) == ProcessStatus::Skip) {
+        return true; // skipped, but return true as it's not a failure
+    }
+
     if (itm->shouldReplicate()) {
         std::unique_lock<std::mutex> lh(streamMutex);
         if (isBackfilling() && filter.checkAndUpdate(*itm)) {

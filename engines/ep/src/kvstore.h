@@ -20,7 +20,7 @@
 #include "config.h"
 
 #include "callbacks.h"
-#include "collections/scan_context.h"
+#include "collections/eraser_context.h"
 #include "storeddockey.h"
 
 #include <memcached/engine_common.h>
@@ -121,9 +121,9 @@ struct compaction_ctx {
     ExpiredItemsCBPtr expiryCallback;
     struct CompactionStats stats;
     /// pointer as context cannot be constructed until deeper inside storage
-    std::unique_ptr<Collections::VB::ScanContext> eraserContext;
+    std::unique_ptr<Collections::VB::EraserContext> eraserContext;
     std::function<bool(
-            const DocKey, int64_t, bool, Collections::VB::ScanContext&)>
+            const DocKey, int64_t, bool, Collections::VB::EraserContext&)>
             collectionsEraser;
 };
 

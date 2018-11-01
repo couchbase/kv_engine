@@ -41,7 +41,6 @@ static cb::const_char_buffer DefaultScopeIdentifier(_DefaultScopeIdentifier);
 const char* const SystemSeparator = ":"; // Note this never changes
 const char* const SystemEventPrefix = "_collections";
 const char* const SystemEventPrefixWithSeparator = "_collections:";
-const char* const DeleteKey = "_collections_delete:";
 
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";

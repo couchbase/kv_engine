@@ -278,9 +278,6 @@ bool Filter::checkAndUpdateSystemEvent(const Item& item) {
         }
         return false;
     }
-    case SystemEvent::DeleteCollectionHard: {
-        return false;
-    }
     default: {
         throw std::invalid_argument(
                 "Filter::allowSystemEvent:: event unknown:" +

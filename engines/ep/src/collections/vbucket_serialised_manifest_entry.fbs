@@ -40,12 +40,6 @@ table SerialisedManifestEntry {
 
 table SerialisedManifest {
     uid:ulong;
-    // We maintain our own count for the entries Vector.
-    // Why? In the case of 'DeleteCollectionHard' we are removing an entry from
-    // the manifest, as we 'patch' the manifest we cannot mutate the Vector, no
-    // pop_back exists, so we just adjust the entryCount so any warmup would
-    // ignore the dropped entry.
-    entryCount:uint;
 
     // Each entry of the collection manifest map is added to this vector
     // The final entry of the vector is added/dropped collection which triggered

@@ -2528,7 +2528,7 @@ bool KVBucket::collectionsEraseKey(
         const DocKey key,
         int64_t bySeqno,
         bool deleted,
-        Collections::VB::ScanContext& eraserContext) {
+        Collections::VB::EraserContext& eraserContext) {
     auto vb = getVBucket(vbid);
     boost::optional<CollectionID> completedCollection;
     if (!vb) {
@@ -2538,11 +2538,28 @@ bool KVBucket::collectionsEraseKey(
     { // collections read lock scope
         auto collectionsRHandle =
                 eraserContext.lockCollections(key, true /* allow system */);
+
+        // We should only find keys on disk which result in an invalid handle
+        // if the key is a system key. Primary example is a collection delete
+        // marker which has been left behind from a completed collection delete
+        // and will stay with us until tombstone purging removes it.
+        if (!collectionsRHandle.found()) {
+            if (key.getCollectionID() != CollectionID::System) {
+                throw std::logic_error(
+                        "KVBucket::collectionsEraseKey: given a key with an "
+                        "unknown collection id:" +
+                        key.getCollectionID().to_string() +
+                        " seqno:" + std::to_string(bySeqno));
+            }
+            return false;
+        }
+
+        // Next if the key is logically deleted...
         if (collectionsRHandle.isLogicallyDeleted(bySeqno)) {
+            // 1) remove it from the VB (hashtable)
             vb->removeKey(key, bySeqno, collectionsRHandle);
 
-            // Update item count for real collections (System is not a
-            // collection)
+            // 2) Update item count of the vbucket
             if (key.getCollectionID() != CollectionID::System) {
                 vb->decrNumTotalItems();
             }
@@ -2550,15 +2567,29 @@ bool KVBucket::collectionsEraseKey(
             return false;
         }
 
-        // Now determine if the key@seqno represents the end of a collection
+        // Finally determine if the key@seqno represents the end of collection
+        // the collections range, i.e. are we now at the end seqno?
         completedCollection =
                 collectionsRHandle.shouldCompleteDeletion(bySeqno);
     } // read lock dropped as we may need the write lock in next block
 
-    // If a collection was returned, notify that all keys have been removed
+    // If we've reached the end of the collection, all items are now erased...
     if (completedCollection.is_initialized()) {
-        // completeDeletion obtains write access to the in-memory manifest
+        if (!deleted) {
+            throw std::logic_error(
+                    "KVBucket::collectionsEraseKey attempt to complete "
+                    "deletion for a collection event which is not marked "
+                    "deleted.");
+        }
+
+        // Remove the collection's metadata from the in-memory manifest and from
+        // the eraser's context manifest, which in turn will be used to refresh
+        // the compacted datafiles persisted metadata.
         vb->completeDeletion(completedCollection.get());
+        eraserContext.wlockCollections().completeDeletion(
+                *vb, completedCollection.get());
+        eraserContext.incrementErasedCount();
+        return false;
     }
     return true;
 }

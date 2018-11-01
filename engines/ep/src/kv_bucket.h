@@ -869,7 +869,7 @@ public:
                              const DocKey key,
                              int64_t bySeqno,
                              bool deleted,
-                             Collections::VB::ScanContext& eraserContext);
+                             Collections::VB::EraserContext& eraserContext);
 
     /// return the buckets maxTtl value
     std::chrono::seconds getMaxTtl() const;

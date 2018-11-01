@@ -54,12 +54,12 @@ Collections::VB::PersistedManifest CollectionsDcpTest::getManifest(
 }
 
 void CollectionsDcpTest::createDcpStream(
-        boost::optional<cb::const_char_buffer> collections) {
+        boost::optional<cb::const_char_buffer> collections, Vbid id) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(ENGINE_SUCCESS,
               producer->streamRequest(0, // flags
                                       1, // opaque
-                                      vbid,
+                                      id,
                                       0, // start_seqno
                                       ~0ull, // end_seqno
                                       0, // vbucket_uuid,
@@ -107,8 +107,10 @@ void CollectionsDcpTest::TearDown() {
 void CollectionsDcpTest::teardown() {
     destroy_mock_cookie(cookieC);
     destroy_mock_cookie(cookieP);
-    consumer->closeAllStreams();
-    consumer->cancelTask();
+    if (consumer) {
+        consumer->closeAllStreams();
+        consumer->cancelTask();
+    }
     producer->closeAllStreams();
     producer->cancelCheckpointCreatorTask();
     producer.reset();
@@ -155,7 +157,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
                 createItr++;
                 break;
             case mcbp::systemevent::id::DeleteCollection:
-                if (deleteItr == expectedCreates.end()) {
+                if (deleteItr == expectedDeletes.end()) {
                     throw std::logic_error(
                             "Found a drop collection, but expected vector is "
                             "now at the end");

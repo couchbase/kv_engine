@@ -61,7 +61,6 @@ std::ostream& operator<<(std::ostream& os,
 
         auto entries = manifest->entries();
         os << "uid:" << manifest->uid()
-           << ", entryCount:" << manifest->entryCount()
            << ", entries:" << entries->size() << std::endl;
 
         for (const auto& entry : *entries) {

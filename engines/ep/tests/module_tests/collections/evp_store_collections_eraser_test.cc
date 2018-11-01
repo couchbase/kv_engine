@@ -252,6 +252,58 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
 }
 
+// Test that following a full drop (compaction completes the deletion), warmup
+// reloads the VB::Manifest and the dropped collection stays dropped.
+TEST_P(CollectionsEraserTest, erase_and_reset) {
+    // Add two collections
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm.add(CollectionEntry::fruit)});
+
+    flush_vbucket_to_disk(vbid, 2 /* 1x system */);
+
+    // add some items
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+    store_item(
+            vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid,
+               StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
+               "lovely");
+
+    flush_vbucket_to_disk(vbid, 4 /* 2x items */);
+
+    // delete the collections and re-add a new dairy
+    vb->updateFromManifest({cm.remove(CollectionEntry::fruit)
+                                    .remove(CollectionEntry::dairy)
+                                    .add(CollectionEntry::dairy2)});
+
+    // Deleted, but still exists in the manifest
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    flush_vbucket_to_disk(vbid, 3 /* 3x system (2 deletes, 1 create) */);
+
+    runEraser();
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    vb.reset();
+    resetEngineAndWarmup();
+
+    // Now reset and warmup and expect the manifest to come back with the same
+    // correct view of collections
+    vb = store->getVBucket(vbid);
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+}
+
 struct PrintTestName {
     std::string operator()(
             const ::testing::TestParamInfo<std::string>& info) const {

@@ -2626,6 +2626,12 @@ void VBucket::notifyNewSeqno(const VBNotifyCtx& notifyCtx) {
 int64_t VBucket::queueItem(Item* item, OptionalSeqno seqno) {
     item->setVBucketId(id);
     queued_item qi(item);
+
+    // Set the system events delete time if needed for tombstoning
+    if (qi->isDeleted() && qi->getDeleteTime() == 0) {
+        qi->setExpTime(ep_real_time());
+    }
+
     if (isBackfillPhase()) {
         queueBackfillItem(qi, getGenerateBySeqno(seqno));
     } else {

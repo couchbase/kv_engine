@@ -86,6 +86,13 @@ void CacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
+    // For system events, don't bother with the get, just return
+    if (lookup.getCollectionsHandle().getKey().getCollectionID() ==
+        CollectionID::System) {
+        setStatus(ENGINE_SUCCESS);
+        return;
+    }
+
     auto optionalGv = get(*vb, lookup, *stream_);
     if (optionalGv.is_initialized()) {
         auto& gv = optionalGv.get();

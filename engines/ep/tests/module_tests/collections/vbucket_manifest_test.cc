@@ -234,7 +234,9 @@ public:
 
     ::testing::AssertionResult completeDeletion(CollectionID identifier) {
         try {
+            // As no event is queued, we just call active/replica directly
             active.wlock().completeDeletion(vbA, identifier);
+            replica.wlock().completeDeletion(vbR, identifier);
             lastCompleteDeletionArgs = identifier;
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
@@ -242,26 +244,15 @@ public:
                    << e.what();
         }
 
-        queued_item manifest;
-        try {
-            manifest = applyCheckpointEventsToReplica();
-        } catch (std::exception& e) {
-            return ::testing::AssertionFailure()
-                   << "completeDeletion: Exception thrown for replica update, "
-                      "e.what:"
-                   << e.what();
-        }
-
-        // completeDeletion adds a new item without a seqno, which closes
-        // the snapshot, re-open the snapshot so tests can continue.
-        vbR.checkpointManager->updateCurrentSnapshotEnd(snapEnd);
+        // As no SystemEvent is generated, just compare the updated manifests
         if (active != replica) {
             return ::testing::AssertionFailure()
-                   << "completeDeletion: active doesn't match replica active:\n"
-                   << active << " replica:\n"
+                   << "completeDeletion manifest "
+                   << "mismatch (active vs replica)\n"
+                   << active << "\nvs\n"
                    << replica;
         }
-        return checkJson(*manifest);
+        return ::testing::AssertionSuccess();
     }
 
     ::testing::AssertionResult doesKeyContainValidCollection(DocKey key) {
@@ -418,18 +409,6 @@ public:
                     }
                     break;
                 }
-                case SystemEvent::DeleteCollectionHard:
-                    // DCP doesn't transmit these events, but to improve test
-                    // coverage call completeDeletion on the replica only in
-                    // response to these system events appearing in the
-                    // checkpoint. The data held in the system event isn't
-                    // suitable though for forming the arguments to the function
-                    // e.g. Delete hard, the serialised manifest doesn't have
-                    // the collection:rev we pass through, hence why we cache
-                    // the collection:rev data in lastCompleteDeletionArgs
-                    replica.wlock().completeDeletion(vbR,
-                                                     lastCompleteDeletionArgs);
-                    break;
                 }
             }
         }

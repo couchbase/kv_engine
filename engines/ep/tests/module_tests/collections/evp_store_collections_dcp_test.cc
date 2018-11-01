@@ -390,13 +390,14 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete) {
                             {CollectionEntry::dairy},
                             (2 * items));
     }
-
     resetEngineAndWarmup();
 
     createDcpObjects({{nullptr, 0}}); // from disk
 
     // Streamed from disk, one create (create of fruit) and items of fruit
-    testDcpCreateDelete({CollectionEntry::fruit}, {}, items, false);
+    // And the tombstone of dairy
+    testDcpCreateDelete(
+            {CollectionEntry::fruit}, {CollectionEntry::dairy}, items, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             CollectionEntry::fruit));
@@ -522,8 +523,10 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
     createDcpObjects({{nullptr, 0}});
 
     // Streamed from disk, we won't see the 2x create events or the intermediate
-    // delete. So check DCP sends only 1 collection create.
-    testDcpCreateDelete({CollectionEntry::dairy2}, {}, 0, false);
+    // delete. So check DCP sends only 1 collection create (of dairy2) and the
+    // tombstone of dairy
+    testDcpCreateDelete(
+            {CollectionEntry::dairy2}, {CollectionEntry::dairy}, 0, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             CollectionEntry::dairy2.getId()));
@@ -563,8 +566,10 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
 
     createDcpObjects({{nullptr, 0}});
 
-    // Streamed from disk, we won't see the first create or delete
-    testDcpCreateDelete({CollectionEntry::dairy2}, {}, 0, false);
+    // Streamed from disk, we won't see the first create (the first delete
+    // exists as a tombstone)
+    testDcpCreateDelete(
+            {CollectionEntry::dairy2}, {CollectionEntry::dairy}, 0, false);
 
     EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
             CollectionEntry::dairy2.getId()));
@@ -574,6 +579,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
 TEST_F(CollectionsDcpTest, MB_26455) {
     const int items = 3;
     uint32_t m = 7;
+    std::vector<CollectionEntry::Entry> dropped;
 
     {
         auto vb = store->getVBucket(vbid);
@@ -596,8 +602,10 @@ TEST_F(CollectionsDcpTest, MB_26455) {
             flush_vbucket_to_disk(vbid, 1 + items);
 
             if (n < m - 1) {
+                dropped.push_back(
+                        CollectionEntry::Entry{CollectionName::fruit, n + 10});
                 // Drop fruit, except for the last 'generation'
-                vb->updateFromManifest({cm.remove(CollectionEntry::fruit)});
+                vb->updateFromManifest({cm.remove(dropped.back())});
 
                 flush_vbucket_to_disk(vbid, 1);
             }
@@ -609,10 +617,11 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     // Stream again!
     createDcpObjects({{nullptr, 0}});
 
-    // Streamed from disk, one create (create of fruit) and items of fruit
+    // Streamed from disk, one create (create of fruit) and items of fruit and
+    // every delete (tombstones)
     testDcpCreateDelete(
             {CollectionEntry::Entry{CollectionName::fruit, (m - 1) + 10}},
-            {},
+            dropped,
             items,
             false /*fromMemory*/);
 
@@ -637,6 +646,95 @@ TEST_F(CollectionsDcpTest, collections_manifest_is_ahead) {
     }
 
     createDcpStream({{R"({"uid":"3"})"}});
+}
+
+// Test that create and delete (full deletion) keeps the collection drop marker
+// as a tombstone
+TEST_F(CollectionsDcpTest, test_dcp_create_delete_erase) {
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+        // Create dairy
+        CollectionsManifest cm(CollectionEntry::dairy);
+        vb->updateFromManifest({cm});
+
+        // Mutate dairy
+        const int items = 3;
+        for (int ii = 0; ii < items; ii++) {
+            std::string key = "dairy:" + std::to_string(ii);
+            store_item(
+                    vbid, StoredDocKey{key, CollectionEntry::dairy}, "value");
+        }
+
+        // Delete dairy/create dairy in *one* update
+        vb->updateFromManifest({cm.remove(CollectionEntry::dairy)
+                                        .add(CollectionEntry::dairy2)});
+
+        // Persist everything ready for warmup and check.
+        // Flush the items + 1 delete (dairy) and 1 create (dairy2)
+        flush_vbucket_to_disk(Vbid(0), items + 2);
+
+        // However DCP - Should see 2x create dairy and 1x delete dairy
+        testDcpCreateDelete({CollectionEntry::dairy, CollectionEntry::dairy2},
+                            {CollectionEntry::dairy},
+                            items);
+
+        runCompaction();
+    }
+
+    resetEngineAndWarmup();
+
+    createDcpObjects({{nullptr, 0}});
+
+    // Streamed from disk, we won't see the first create or delete
+    testDcpCreateDelete(
+            {CollectionEntry::dairy2}, {CollectionEntry::dairy}, 0, false);
+
+    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().isCollectionOpen(
+            CollectionEntry::dairy2.getId()));
+}
+
+// Test that following create scope/collection and drop, the tombstones left
+// are replicated to the replica and then finally test that the replica can
+// itself replicate those events
+TEST_F(CollectionsDcpTest, tombstone_replication) {
+    // Firstly, create and drop a scope with collections and flush it all
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+        // add scope and collection to scope
+        CollectionsManifest cm;
+        cm.add(ScopeEntry::shop1);
+        cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
+        vb->updateFromManifest({cm});
+        flush_vbucket_to_disk(Vbid(0), 1);
+
+        // remove the scope (and the collection)
+        cm.remove(ScopeEntry::shop1);
+        vb->updateFromManifest({cm});
+        flush_vbucket_to_disk(Vbid(0), 1);
+    }
+
+    resetEngineAndWarmup();
+
+    createDcpObjects({{nullptr, 0}});
+
+    testDcpCreateDelete({}, {CollectionEntry::fruit}, 0, false);
+
+    // We've just sent the events from vb0 to vb1, flush vb1
+    flush_vbucket_to_disk(Vbid(1), 1);
+
+    // Next reset ready to stream back vb1
+    resetEngineAndWarmup();
+
+    // Now manually create, we don't want a consumer
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+    producers->consumer = nullptr;
+
+    // We want to stream vbid(1)
+    createDcpStream({{nullptr, 0}}, Vbid(1));
+
+    // Expect the same data back from vb1 as when we streamed vb0
+    testDcpCreateDelete({}, {CollectionEntry::fruit}, 0, false);
 }
 
 class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {
@@ -1053,7 +1151,9 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     // Streamed from disk
     // 1x create - create of vegetable
     // 2x mutations - 2x mutations in vegetable
-    testDcpCreateDelete({CollectionEntry::vegetable}, {}, 2, false);
+    // 1x delete - the tombstone of dairy
+    testDcpCreateDelete(
+            {CollectionEntry::vegetable}, {CollectionEntry::dairy}, 2, false);
 }
 
 // Check that when filtering is on, we don't send snapshots for fully filtered

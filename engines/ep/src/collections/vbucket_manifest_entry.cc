@@ -21,15 +21,6 @@
 
 #include <platform/checked_snprintf.h>
 
-SystemEvent Collections::VB::ManifestEntry::completeDeletion() {
-    if (isDeleting()) {
-        // All items from any generation of the collection gone, so delete the
-        // collection metadata
-        return SystemEvent::DeleteCollectionHard;
-    }
-    throwException<std::logic_error>(__FUNCTION__, "invalid state");
-}
-
 std::string Collections::VB::ManifestEntry::getExceptionString(
         const std::string& thrower, const std::string& error) const {
     std::stringstream ss;

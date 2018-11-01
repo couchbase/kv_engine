@@ -84,9 +84,7 @@ the end of a collection is denoted by a deleted Collection event.
                            \           /
                              ─────────
                                   │
-                                  │┌────────────────────────┐
-                                  ├┤  DeleteCollectionHard  │
-                                  │└────────────────────────┘
+                                  │
                                   │
                                   │
                                   ●
@@ -150,8 +148,6 @@ Consider a collection with an id of 0x4c456771 (this is an ID deliberately in th
   * event = `SystemEvent::Collection`, key = `$collection:LEgq`, deleted = false
 * Logically deleting the fruit collection generates the following Item.
   * event = `SystemEvent::Collection`, key = `$collection:LEgq`, deleted = true
-* If all data of a collection is deleted
-  * event = `SystemEvent::DeleteCollectionHard`, key = `$collection:LEgq`, deleted = false
 
 ### SystemEvent flushing actions
 
@@ -160,8 +156,6 @@ SystemEvents are treated differently by the flusher.
 * `Collection`
   * Sets or Deletes a document called `$collection:LEgq` with a value that at least contains the UID
   * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest)
-* `DeleteCollectionHard`
-  * Updates the `_local/collections_manifest` (A JSON copy of the VB::Manifest) so that the collection's metadata is all gone
 
 ### SystemEvent DCP actions
 
@@ -170,8 +164,6 @@ SystemEvents are treated differently by the ActiveStream.
 * `Collection`
   * `!isDeleted` Sends DcpSystem event message containing mcbp::CreateCollection, `value="manifest-uid, collection-ID"`
   * `isDeleted` Sends DcpSystem event message containing mcbp::DeleteCollection, `value="manifest-uid, collection-ID"`
-* `DeleteCollectionHard`
-  * Ignored by DCP
 
 ## Examples
 
@@ -210,3 +202,39 @@ SystemEvents are treated differently by the ActiveStream.
   {"collections":[
       {"uid":"0","start_seqno":"1","end_seqno":"-6"}]}
    ```
+
+## Deleting a collection
+
+Deleting a collection begins by the VB::Manifest deleting the `SystemEvent::Collection`
+that was originally written when the collection was created. The seqno of this
+deletion is recorded in the collection's entry as the end seqno. The items of the
+collection still exist, but now they are termed 'logically deleted'.
+
+The items of the collection are now removed from the system by the compactor.
+
+The compactor initialises a VB::Manifest from the datafile's _local manifest, thus
+the compactor makes decisions about item deletion consistently with the datafile.
+
+As the kvstore compactor iterates the bySeqno index it will decide if the key@seqno
+should be discarded, this is asking it's VB::Manifest if the item `isLogicallyDeleted`.
+If a key has a seqno which is in the deleted range (less than the start or end seqno)
+it is discarded from the database.
+
+A collection is considered fully deleted when the compactor finally encounters
+the collection's deleted marker, the assumption being we must of visited all items
+that could of been in the collection, so the collection is now empty.
+
+On encountering the deleted marker the compactor updates:
+* The in-memory VB::Manifest to erase the collection entry (freeing a small amount of resource)
+* The compaction owned VB::Manifest to erase the collection entry, ready for the final stage
+
+The final stage of compaction is now to update the _local collection metadata by
+serialising the compaction owned VB::Manifest into a flatbuffer format, the serialised
+data will not contain any of the fully dropped collections, making the metadata
+consistent with the data.
+
+The actual delete marker will be removed by tombstone purging (e.g. 3 days later)
+this ensures any DCP clients which were disconnected can reconnect to the VB and
+for 3 days still discover that the collection was dropped After 3 days, the
+marker is purged and the purge-seqno blocks those clients who are now inconsistent
+with the database.

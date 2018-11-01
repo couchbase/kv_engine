@@ -48,24 +48,13 @@ enum class SystemEvent : uint32_t {
      * a value, the value is used to maintain a per vbucket JSON collection's
      * manifest (for persisted buckets).
      */
-    Collection,
-
-    /**
-     * The DeleteCollectionHard system event is generated when a VBucket has
-     * completed the deletion of all items of a collection. The hard delete
-     * carries data to the flusher so we can persist a JSON manifest that now
-     * fully removes the collection and also deleted the special marker document
-     * created by CreateCollection.
-     */
-    DeleteCollectionHard
+    Collection
 };
 
 static inline std::string to_string(const SystemEvent se) {
     switch (se) {
     case SystemEvent::Collection:
         return "Collection";
-    case SystemEvent::DeleteCollectionHard:
-        return "DeleteCollectionHard";
     }
     throw std::invalid_argument("to_string(SystemEvent) unknown " +
                                 std::to_string(int(se)));

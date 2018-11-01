@@ -50,11 +50,6 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
         // $collection:<collection-id>
         key = Collections::SystemEventPrefixWithSeparator + keyExtra;
         break;
-    case SystemEvent::DeleteCollectionHard: {
-        // $collections_delete:<collection-id>
-        key = Collections::DeleteKey + keyExtra;
-        break;
-    }
     }
     return key;
 }
@@ -104,9 +99,6 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
     case SystemEvent::Collection: {
         return ProcessStatus::Continue; // And flushes an item
     }
-    case SystemEvent::DeleteCollectionHard: {
-        return ProcessStatus::Skip; // But skips flushing the item
-    }
     }
 
     throw std::invalid_argument("SystemEventFlush::process unknown event " +
@@ -122,10 +114,6 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
             switch (SystemEvent(item.getFlags())) {
             case SystemEvent::Collection:
                 return ProcessStatus::Continue;
-            case SystemEvent::DeleteCollectionHard:
-                // DeleteHard does not replicate
-                return ProcessStatus::Skip;
-
             }
         }
     }
@@ -162,8 +150,6 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                                     {item->getData(), item->getNBytes()}))};
         }
     }
-    case SystemEvent::DeleteCollectionHard:
-        break;
     }
 
     throw std::logic_error("SystemEventProducerMessage::make not valid for " +
