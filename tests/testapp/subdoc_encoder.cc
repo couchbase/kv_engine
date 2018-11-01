@@ -135,7 +135,7 @@ void SubdocMultiCmd::addDocFlag(mcbp::subdoc::doc_flag flags_) {
 void SubdocMultiCmd::populate_header(protocol_binary_request_header& header,
                                      size_t bodylen) const {
     header.request.magic = PROTOCOL_BINARY_REQ;
-    header.request.opcode = command;
+    header.request.setOpcode(command);
     header.request.keylen = htons(gsl::narrow<uint16_t>(key.size()));
     header.request.extlen =
             ((expiry != 0 || encode_zero_expiry_on_wire) ? sizeof(uint32_t)

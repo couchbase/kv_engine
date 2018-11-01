@@ -37,7 +37,7 @@ void BinprotCommand::fillHeader(protocol_binary_request_header& header,
                                 size_t payload_len,
                                 size_t extlen) const {
     header.request.magic = PROTOCOL_BINARY_REQ;
-    header.request.opcode = opcode;
+    header.request.setOpcode(opcode);
     header.request.keylen = htons(gsl::narrow<uint16_t>(key.size()));
     header.request.extlen = gsl::narrow<uint8_t>(extlen);
     header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
@@ -67,13 +67,13 @@ BinprotCommand& BinprotCommand::setCas(uint64_t cas_) {
     return *this;
 }
 
-BinprotCommand& BinprotCommand::setOp(protocol_binary_command cmd_) {
+BinprotCommand& BinprotCommand::setOp(cb::mcbp::ClientOpcode cmd_) {
     opcode = cmd_;
     return *this;
 }
 
 void BinprotCommand::clear() {
-    opcode = PROTOCOL_BINARY_CMD_INVALID;
+    opcode = cb::mcbp::ClientOpcode::Invalid;
     key.clear();
     cas = 0;
     vbucket = Vbid(0);
@@ -87,7 +87,7 @@ const std::string& BinprotCommand::getKey() const {
     return key;
 }
 
-protocol_binary_command BinprotCommand::getOp() const {
+cb::mcbp::ClientOpcode BinprotCommand::getOp() const {
     return opcode;
 }
 
@@ -127,7 +127,7 @@ void BinprotGenericCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), value.begin(), value.end());
 }
 
-BinprotGenericCommand::BinprotGenericCommand(protocol_binary_command opcode,
+BinprotGenericCommand::BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
                                              const std::string& key_,
                                              const std::string& value_)
     : BinprotCommandT() {
@@ -136,20 +136,16 @@ BinprotGenericCommand::BinprotGenericCommand(protocol_binary_command opcode,
     setValue(value_);
 }
 
-BinprotGenericCommand::BinprotGenericCommand(protocol_binary_command opcode,
+BinprotGenericCommand::BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
                                              const std::string& key_)
     : BinprotCommandT() {
     setOp(opcode);
     setKey(key_);
 }
 
-BinprotGenericCommand::BinprotGenericCommand(protocol_binary_command opcode)
+BinprotGenericCommand::BinprotGenericCommand(cb::mcbp::ClientOpcode opcode)
     : BinprotCommandT() {
     setOp(opcode);
-}
-
-BinprotGenericCommand::BinprotGenericCommand(cb::mcbp::ClientOpcode opcode)
-    : BinprotGenericCommand(protocol_binary_command(opcode)) {
 }
 
 BinprotGenericCommand::BinprotGenericCommand() : BinprotCommandT() {
@@ -172,13 +168,14 @@ void BinprotGenericCommand::clear() {
     extras.clear();
 }
 
-BinprotSubdocCommand::BinprotSubdocCommand(protocol_binary_command cmd_,
-                                           const std::string& key_,
-                                           const std::string& path_,
-                                           const std::string& value_,
-                                           protocol_binary_subdoc_flag pathFlags_,
-                                           mcbp::subdoc::doc_flag docFlags_,
-                                           uint64_t cas_)
+BinprotSubdocCommand::BinprotSubdocCommand(
+        cb::mcbp::ClientOpcode cmd_,
+        const std::string& key_,
+        const std::string& path_,
+        const std::string& value_,
+        protocol_binary_subdoc_flag pathFlags_,
+        mcbp::subdoc::doc_flag docFlags_,
+        uint64_t cas_)
     : BinprotCommandT() {
     setOp(cmd_);
     setKey(key_);
@@ -247,10 +244,10 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
 }
 BinprotSubdocCommand::BinprotSubdocCommand() : BinprotCommandT() {
 }
-BinprotSubdocCommand::BinprotSubdocCommand(protocol_binary_command cmd_) {
+BinprotSubdocCommand::BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_) {
     setOp(cmd_);
 }
-BinprotSubdocCommand::BinprotSubdocCommand(protocol_binary_command cmd_,
+BinprotSubdocCommand::BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_,
                                            const std::string& key_,
                                            const std::string& path_)
     : BinprotSubdocCommand(cmd_,
@@ -339,8 +336,8 @@ boost::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
     return boost::optional<std::chrono::microseconds>{};
 }
 
-protocol_binary_command BinprotResponse::getOp() const {
-    return protocol_binary_command(getResponse().getClientOpcode());
+cb::mcbp::ClientOpcode BinprotResponse::getOp() const {
+    return cb::mcbp::ClientOpcode(getResponse().getClientOpcode());
 }
 
 cb::mcbp::Status BinprotResponse::getStatus() const {
@@ -524,10 +521,10 @@ BinprotGetAndTouchCommand::BinprotGetAndTouchCommand()
     : BinprotCommandT(), expirytime(0) {
 }
 bool BinprotGetAndTouchCommand::isQuiet() const {
-    return getOp() == PROTOCOL_BINARY_CMD_GATQ;
+    return getOp() == cb::mcbp::ClientOpcode::Gatq;
 }
 BinprotGetAndTouchCommand& BinprotGetAndTouchCommand::setQuiet(bool quiet) {
-    setOp(quiet ? PROTOCOL_BINARY_CMD_GATQ : PROTOCOL_BINARY_CMD_GAT);
+    setOp(quiet ? cb::mcbp::ClientOpcode::Gatq : cb::mcbp::ClientOpcode::Gat);
     return *this;
 }
 BinprotGetAndTouchCommand& BinprotGetAndTouchCommand::setExpirytime(
@@ -565,19 +562,19 @@ BinprotMutationCommand& BinprotMutationCommand::setMutationType(
     MutationType type) {
     switch (type) {
     case MutationType::Add:
-        setOp(PROTOCOL_BINARY_CMD_ADD);
+        setOp(cb::mcbp::ClientOpcode::Add);
         return *this;
     case MutationType::Set:
-        setOp(PROTOCOL_BINARY_CMD_SET);
+        setOp(cb::mcbp::ClientOpcode::Set);
         return *this;
     case MutationType::Replace:
-        setOp(PROTOCOL_BINARY_CMD_REPLACE);
+        setOp(cb::mcbp::ClientOpcode::Replace);
         return *this;
     case MutationType::Append:
-        setOp(PROTOCOL_BINARY_CMD_APPEND);
+        setOp(cb::mcbp::ClientOpcode::Append);
         return *this;
     case MutationType::Prepend:
-        setOp(PROTOCOL_BINARY_CMD_PREPEND);
+        setOp(cb::mcbp::ClientOpcode::Prepend);
         return *this;
     }
 
@@ -627,8 +624,8 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
     buf.resize(sizeof(header->bytes));
     header = reinterpret_cast<protocol_binary_request_header*>(buf.data());
 
-    if (getOp() == PROTOCOL_BINARY_CMD_APPEND ||
-        getOp() == PROTOCOL_BINARY_CMD_PREPEND) {
+    if (getOp() == cb::mcbp::ClientOpcode::Append ||
+        getOp() == cb::mcbp::ClientOpcode::Prepend) {
         if (expiry.getValue() != 0) {
             throw std::invalid_argument("BinprotMutationCommand::encode: Expiry invalid with append/prepend");
         }
@@ -792,8 +789,8 @@ const std::vector<cb::mcbp::Feature>& BinprotHelloResponse::getFeatures()
 
 void BinprotIncrDecrCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, 20);
-    if (getOp() != PROTOCOL_BINARY_CMD_DECREMENT &&
-        getOp() != PROTOCOL_BINARY_CMD_INCREMENT) {
+    if (getOp() != cb::mcbp::ClientOpcode::Decrement &&
+        getOp() != cb::mcbp::ClientOpcode::Increment) {
         throw std::invalid_argument(
                 "BinprotIncrDecrCommand::encode: Invalid opcode. Need INCREMENT or DECREMENT");
     }
@@ -898,7 +895,7 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
 }
 BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand()
     : BinprotCommandT<BinprotSubdocMultiMutationCommand,
-                      PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>(),
+                      cb::mcbp::ClientOpcode::SubdocMultiMutation>(),
       docFlags(mcbp::subdoc::doc_flag::None) {
 }
 BinprotSubdocMultiMutationCommand&
@@ -922,7 +919,7 @@ BinprotSubdocMultiMutationCommand::addMutation(
 }
 BinprotSubdocMultiMutationCommand&
 BinprotSubdocMultiMutationCommand::addMutation(
-        protocol_binary_command opcode,
+        cb::mcbp::ClientOpcode opcode,
         protocol_binary_subdoc_flag flags,
         const std::string& path,
         const std::string& value) {
@@ -1053,7 +1050,7 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
 }
 BinprotSubdocMultiLookupCommand::BinprotSubdocMultiLookupCommand()
     : BinprotCommandT<BinprotSubdocMultiLookupCommand,
-                      PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>(),
+                      cb::mcbp::ClientOpcode::SubdocMultiLookup>(),
       docFlags(mcbp::subdoc::doc_flag::None) {
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addLookup(
@@ -1063,21 +1060,21 @@ BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addLookup(
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addLookup(
         const std::string& path,
-        protocol_binary_command opcode,
+        cb::mcbp::ClientOpcode opcode,
         protocol_binary_subdoc_flag flags) {
     return addLookup({opcode, flags, path});
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addGet(
         const std::string& path, protocol_binary_subdoc_flag flags) {
-    return addLookup(path, PROTOCOL_BINARY_CMD_SUBDOC_GET, flags);
+    return addLookup(path, cb::mcbp::ClientOpcode::SubdocGet, flags);
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addExists(
         const std::string& path, protocol_binary_subdoc_flag flags) {
-    return addLookup(path, PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, flags);
+    return addLookup(path, cb::mcbp::ClientOpcode::SubdocExists, flags);
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addGetcount(
         const std::string& path, protocol_binary_subdoc_flag flags) {
-    return addLookup(path, PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, flags);
+    return addLookup(path, cb::mcbp::ClientOpcode::SubdocGetCount, flags);
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addDocFlag(
         mcbp::subdoc::doc_flag docFlag) {
@@ -1162,18 +1159,19 @@ void BinprotSubdocMultiLookupResponse::clear() {
 
 void BinprotGetCmdTimerCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, 1);
-    buf.push_back(opcode);
+    buf.push_back(std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode));
     buf.insert(buf.end(), key.begin(), key.end());
 }
-BinprotGetCmdTimerCommand::BinprotGetCmdTimerCommand(uint8_t opcode)
+BinprotGetCmdTimerCommand::BinprotGetCmdTimerCommand(
+        cb::mcbp::ClientOpcode opcode)
     : BinprotCommandT(), opcode(opcode) {
 }
-BinprotGetCmdTimerCommand::BinprotGetCmdTimerCommand(const std::string& bucket,
-                                                     uint8_t opcode)
+BinprotGetCmdTimerCommand::BinprotGetCmdTimerCommand(
+        const std::string& bucket, cb::mcbp::ClientOpcode opcode)
     : BinprotCommandT(), opcode(opcode) {
     setKey(bucket);
 }
-void BinprotGetCmdTimerCommand::setOpcode(uint8_t opcode) {
+void BinprotGetCmdTimerCommand::setOpcode(cb::mcbp::ClientOpcode opcode) {
     BinprotGetCmdTimerCommand::opcode = opcode;
 }
 void BinprotGetCmdTimerCommand::setBucket(const std::string& bucket) {
@@ -1272,7 +1270,7 @@ void BinprotDcpOpenCommand::encode(std::vector<uint8_t>& buf) const {
 BinprotDcpOpenCommand::BinprotDcpOpenCommand(const std::string& name,
                                              uint32_t seqno_,
                                              uint32_t flags_)
-    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_OPEN, name, {}),
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpOpen, name, {}),
       seqno(seqno_),
       flags(flags_) {
 }
@@ -1318,7 +1316,7 @@ void BinprotDcpStreamRequestCommand::encode(std::vector<uint8_t>& buf) const {
     append(buf, dcp_snap_end_seqno);
 }
 BinprotDcpStreamRequestCommand::BinprotDcpStreamRequestCommand()
-    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, {}, {}),
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpStreamReq, {}, {}),
       dcp_flags(0),
       dcp_reserved(0),
       dcp_start_seqno(std::numeric_limits<uint64_t>::min()),
@@ -1379,7 +1377,7 @@ void BinprotDcpMutationCommand::reset(const std::vector<uint8_t>& packet) {
     nmeta = ntohs(cmd->message.body.nmeta);
     nru = cmd->message.body.nru;
 
-    setOp(PROTOCOL_BINARY_CMD_DCP_MUTATION);
+    setOp(cb::mcbp::ClientOpcode::DcpMutation);
     setVBucket(cmd->message.header.request.vbucket);
     setCas(cmd->message.header.request.cas);
 
@@ -1401,7 +1399,7 @@ void BinprotDcpMutationCommand::encode(std::vector<uint8_t>& buf) const {
         "BinprotDcpMutationCommand::encode: not implemented");
 }
 BinprotDcpMutationCommand::BinprotDcpMutationCommand()
-    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_DCP_MUTATION, {}, {}),
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpMutation, {}, {}),
       by_seqno(0),
       rev_seqno(0),
       flags(0),
@@ -1424,7 +1422,7 @@ BinprotSetParamCommand::BinprotSetParamCommand(
         protocol_binary_engine_param_t type_,
         const std::string& key_,
         const std::string& value_)
-    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_PARAM),
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetParam),
       type(type_),
       value(value_) {
     setKey(key_);
@@ -1471,7 +1469,7 @@ BinprotSetWithMetaCommand::BinprotSetWithMetaCommand(const Document& doc,
                                                      uint64_t seqno,
                                                      uint32_t options,
                                                      std::vector<uint8_t> meta)
-    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_WITH_META),
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetWithMeta),
       doc(doc),
       seqno(seqno),
       operationCas(operationCas),
@@ -1484,9 +1482,9 @@ BinprotSetWithMetaCommand::BinprotSetWithMetaCommand(const Document& doc,
 }
 BinprotSetWithMetaCommand& BinprotSetWithMetaCommand::setQuiet(bool quiet) {
     if (quiet) {
-        setOp(PROTOCOL_BINARY_CMD_SETQ_WITH_META);
+        setOp(cb::mcbp::ClientOpcode::SetqWithMeta);
     } else {
-        setOp(PROTOCOL_BINARY_CMD_SET_WITH_META);
+        setOp(cb::mcbp::ClientOpcode::SetWithMeta);
     }
     return *this;
 }
@@ -1536,7 +1534,8 @@ void BinprotSetControlTokenCommand::encode(std::vector<uint8_t>& buf) const {
 }
 BinprotSetControlTokenCommand::BinprotSetControlTokenCommand(uint64_t token_,
                                                              uint64_t oldtoken)
-    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN), token(token_) {
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetCtrlToken),
+      token(token_) {
     setCas(htonll(cas));
 }
 
@@ -1546,13 +1545,13 @@ void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
 }
 BinprotSetClusterConfigCommand::BinprotSetClusterConfigCommand(
         uint64_t token_, const std::string& config_)
-    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG),
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetClusterConfig),
       config(config_) {
     setCas(htonll(token_));
 }
 
 BinprotObserveSeqnoCommand::BinprotObserveSeqnoCommand(Vbid vbid, uint64_t uuid)
-    : BinprotGenericCommand(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO), uuid(uuid) {
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::ObserveSeqno), uuid(uuid) {
     setVBucket(vbid);
 }
 

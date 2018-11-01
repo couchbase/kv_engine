@@ -171,11 +171,15 @@ TEST_P(AuditTest, AuditIllegalPacket) {
     } send, receive;
     uint64_t value = 0xdeadbeefdeadcafe;
     const std::string key("AuditTest::AuditIllegalPacket");
-    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                                      PROTOCOL_BINARY_CMD_SET,
-                                      key.c_str(), key.size(),
-                                      &value, sizeof(value),
-                                      0, 0);
+    size_t len = mcbp_storage_command(send.bytes,
+                                      sizeof(send.bytes),
+                                      cb::mcbp::ClientOpcode::Set,
+                                      key.c_str(),
+                                      key.size(),
+                                      &value,
+                                      sizeof(value),
+                                      0,
+                                      0);
 
     // Now make packet illegal. The validator for SET requires an extlen of
     // 8 bytes.. let's just include them in the key.
@@ -186,7 +190,7 @@ TEST_P(AuditTest, AuditIllegalPacket) {
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::Einval);
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_INVALID_PACKET));
@@ -213,15 +217,18 @@ TEST_P(AuditTest, AuditFailedAuth) {
     const char* chosenmech = "PLAIN";
     const char* data = "\0nouser\0nopassword";
 
-    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                   PROTOCOL_BINARY_CMD_SASL_AUTH,
-                                   chosenmech, strlen(chosenmech),
-                                   data, sizeof(data));
+    size_t plen = mcbp_raw_command(buffer.bytes,
+                                   sizeof(buffer.bytes),
+                                   cb::mcbp::ClientOpcode::SaslAuth,
+                                   chosenmech,
+                                   strlen(chosenmech),
+                                   data,
+                                   sizeof(data));
 
     safe_send(buffer.bytes, plen, false);
     safe_recv_packet(&buffer, sizeof(buffer));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_SASL_AUTH,
+                                  cb::mcbp::ClientOpcode::SaslAuth,
                                   cb::mcbp::Status::AuthError);
 
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,

@@ -80,52 +80,10 @@ std::string ValidatorTest::validate_error_context(cb::mcbp::ClientOpcode opcode,
     return cookie.getErrorContext();
 }
 
-enum class GetOpcodes : uint8_t {
-    Get = PROTOCOL_BINARY_CMD_GET,
-    GetQ = PROTOCOL_BINARY_CMD_GETQ,
-    GetK = PROTOCOL_BINARY_CMD_GETK,
-    GetKQ = PROTOCOL_BINARY_CMD_GETKQ,
-    GetMeta = PROTOCOL_BINARY_CMD_GET_META,
-    GetQMeta = PROTOCOL_BINARY_CMD_GETQ_META
-};
-
-std::string to_string(const GetOpcodes& opcode) {
-#ifdef JETBRAINS_CLION_IDE
-    // CLion don't properly parse the output when the
-    // output gets written as the string instead of the
-    // number. This makes it harder to debug the tests
-    // so let's just disable it while we're waiting
-    // for them to supply a fix.
-    // See https://youtrack.jetbrains.com/issue/CPP-6039
-    return std::to_string(static_cast<int>(opcode));
-#else
-    switch (opcode) {
-    case GetOpcodes::Get:
-        return "Get";
-    case GetOpcodes::GetQ:
-        return "GetQ";
-    case GetOpcodes::GetK:
-        return "GetK";
-    case GetOpcodes::GetKQ:
-        return "GetKQ";
-    case GetOpcodes::GetMeta:
-        return "GetMeta";
-    case GetOpcodes::GetQMeta:
-        return "GetQMeta";
-    }
-    throw std::invalid_argument("to_string(): unknown opcode");
-#endif
-}
-
-std::ostream& operator<<(std::ostream& os, const GetOpcodes& o) {
-    os << to_string(o);
-    return os;
-}
-
 // Test the validators for GET, GETQ, GETK, GETKQ, GET_META and GETQ_META
-class GetValidatorTest
-    : public ::testing::WithParamInterface<std::tuple<GetOpcodes, bool>>,
-      public ValidatorTest {
+class GetValidatorTest : public ::testing::WithParamInterface<
+                                 std::tuple<cb::mcbp::ClientOpcode, bool>>,
+                         public ValidatorTest {
 public:
     void SetUp() override {
         ValidatorTest::SetUp();
@@ -143,7 +101,7 @@ public:
         // empty
     }
 
-    GetOpcodes getGetOpcode() const {
+    cb::mcbp::ClientOpcode getGetOpcode() const {
         return std::get<0>(GetParam());
     }
 
@@ -178,46 +136,34 @@ TEST_P(GetValidatorTest, InvalidMagic) {
 
 TEST_P(GetValidatorTest, ExtendedExtlenV1) {
     switch (getGetOpcode()) {
-    case GetOpcodes::Get:
-    case GetOpcodes::GetQ:
-    case GetOpcodes::GetK:
-    case GetOpcodes::GetKQ:
         // Extended extlen is only supported for *Meta
-        return;
-    case GetOpcodes::GetMeta:
-    case GetOpcodes::GetQMeta:
+    case cb::mcbp::ClientOpcode::GetMeta:
+    case cb::mcbp::ClientOpcode::GetqMeta:
         EXPECT_EQ(cb::mcbp::Status::Success, validateExtendedExtlen(1));
         break;
+    default:;
     }
 }
 
 TEST_P(GetValidatorTest, ExtendedExtlenV2) {
     switch (getGetOpcode()) {
-    case GetOpcodes::Get:
-    case GetOpcodes::GetQ:
-    case GetOpcodes::GetK:
-    case GetOpcodes::GetKQ:
         // Extended extlen is only supported for *Meta
-        return;
-    case GetOpcodes::GetMeta:
-    case GetOpcodes::GetQMeta:
+    case cb::mcbp::ClientOpcode::GetMeta:
+    case cb::mcbp::ClientOpcode::GetqMeta:
         EXPECT_EQ(cb::mcbp::Status::Success, validateExtendedExtlen(2));
         break;
+    default:;
     }
 }
 
 TEST_P(GetValidatorTest, InvalidExtendedExtlenVersion) {
     switch (getGetOpcode()) {
-    case GetOpcodes::Get:
-    case GetOpcodes::GetQ:
-    case GetOpcodes::GetK:
-    case GetOpcodes::GetKQ:
         // Extended extlen is only supported for *Meta
-        return;
-    case GetOpcodes::GetMeta:
-    case GetOpcodes::GetQMeta:
+    case cb::mcbp::ClientOpcode::GetMeta:
+    case cb::mcbp::ClientOpcode::GetqMeta:
         EXPECT_EQ(cb::mcbp::Status::Einval, validateExtendedExtlen(3));
         break;
+    default:;
     }
 }
 
@@ -267,12 +213,12 @@ TEST_P(GetValidatorTest, InvalidCas) {
 INSTANTIATE_TEST_CASE_P(
         GetOpcodes,
         GetValidatorTest,
-        ::testing::Combine(::testing::Values(GetOpcodes::Get,
-                                             GetOpcodes::GetQ,
-                                             GetOpcodes::GetK,
-                                             GetOpcodes::GetKQ,
-                                             GetOpcodes::GetMeta,
-                                             GetOpcodes::GetQMeta),
+        ::testing::Combine(::testing::Values(cb::mcbp::ClientOpcode::Get,
+                                             cb::mcbp::ClientOpcode::Getq,
+                                             cb::mcbp::ClientOpcode::Getk,
+                                             cb::mcbp::ClientOpcode::Getkq,
+                                             cb::mcbp::ClientOpcode::GetMeta,
+                                             cb::mcbp::ClientOpcode::GetqMeta),
                            ::testing::Bool()), );
 
 // Test ADD & ADDQ

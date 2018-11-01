@@ -344,7 +344,7 @@ protected:
 
     /* Helpers for individual testcases */
     void test_set_huge_impl(const char* key,
-                            uint8_t cmd,
+                            cb::mcbp::ClientOpcode cmd,
                             cb::mcbp::Status result,
                             bool pipeline,
                             int iterations,

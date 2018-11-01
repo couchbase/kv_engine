@@ -167,11 +167,11 @@ inline std::string AssertHelper::formatArg(const cb::mcbp::Status& arg) const {
     return ss.str();
 }
 
-template<>
-inline std::string AssertHelper::formatArg(const protocol_binary_command& cmd) const {
+template <>
+inline std::string AssertHelper::formatArg(
+        const cb::mcbp::ClientOpcode& cmd) const {
     std::stringstream ss;
-    ss << to_string(cb::mcbp::ClientOpcode(cmd)) << "(0x" << std::hex << cmd
-       << ")";
+    ss << to_string(cmd) << "(0x" << std::hex << cmd << ")";
     return ss.str();
 }
 

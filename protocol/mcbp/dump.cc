@@ -614,12 +614,12 @@ protected:
 
 static void dump_request(const protocol_binary_request_header* req,
                          std::ostream& out) {
-    switch (req->request.opcode) {
-    case PROTOCOL_BINARY_CMD_HELLO:
+    switch (req->request.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::Hello:
         out << HelloRequest(*req) << std::endl;
         break;
-    case PROTOCOL_BINARY_CMD_SET_WITH_META:
-    case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
+    case cb::mcbp::ClientOpcode::SetWithMeta:
+    case cb::mcbp::ClientOpcode::SetqWithMeta:
         out << SetWithMetaRequest(*req) << std::endl;
         break;
     default:

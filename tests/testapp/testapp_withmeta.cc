@@ -37,7 +37,7 @@ public:
     void checkCas() {
         auto& conn = getConnection();
         BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+        cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
         cmd.setKey(name);
         cmd.setPath("$document");
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
@@ -97,7 +97,7 @@ INSTANTIATE_TEST_CASE_P(
         PrintToStringCombinedName());
 
 TEST_P(WithMetaTest, basicSet) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_SET_WITH_META);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
 
     MutationInfo resp;
     try {
@@ -117,7 +117,7 @@ TEST_P(WithMetaTest, basicSet) {
 }
 
 TEST_P(WithMetaTest, basicSetXattr) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_SET_WITH_META);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     makeDocumentXattrValue();
 
     MutationInfo resp;

@@ -34,7 +34,7 @@ public:
 
     virtual ~BinprotCommand() = default;
 
-    protocol_binary_command getOp() const;
+    cb::mcbp::ClientOpcode getOp() const;
 
     const std::string& getKey() const;
 
@@ -46,7 +46,7 @@ public:
 
     BinprotCommand& setCas(uint64_t cas_);
 
-    BinprotCommand& setOp(protocol_binary_command cmd_);
+    BinprotCommand& setOp(cb::mcbp::ClientOpcode cmd_);
 
     BinprotCommand& setVBucket(Vbid vbid);
 
@@ -132,7 +132,7 @@ protected:
                      size_t payload_len = 0,
                      size_t extlen = 0) const;
 
-    protocol_binary_command opcode = PROTOCOL_BINARY_CMD_INVALID;
+    cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::Invalid;
     std::string key;
     uint64_t cas = 0;
     Vbid vbucket = Vbid(0);
@@ -160,7 +160,7 @@ protected:
  * @endcode
  */
 template <typename T,
-          protocol_binary_command OpCode = PROTOCOL_BINARY_CMD_INVALID>
+          cb::mcbp::ClientOpcode OpCode = cb::mcbp::ClientOpcode::Invalid>
 class BinprotCommandT : public BinprotCommand {
 public:
     BinprotCommandT() {
@@ -174,12 +174,11 @@ public:
  */
 class BinprotGenericCommand : public BinprotCommandT<BinprotGenericCommand> {
 public:
-    BinprotGenericCommand(protocol_binary_command opcode,
+    BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
                           const std::string& key_,
                           const std::string& value_);
-    BinprotGenericCommand(protocol_binary_command opcode,
+    BinprotGenericCommand(cb::mcbp::ClientOpcode opcode,
                           const std::string& key_);
-    BinprotGenericCommand(protocol_binary_command opcode);
     BinprotGenericCommand(cb::mcbp::ClientOpcode opcode);
     BinprotGenericCommand();
     BinprotGenericCommand& setValue(std::string value_);
@@ -208,7 +207,7 @@ public:
     bool isSuccess() const;
 
     /** Get the opcode for the response */
-    protocol_binary_command getOp() const;
+    cb::mcbp::ClientOpcode getOp() const;
 
     /** Get the status code for the response */
     cb::mcbp::Status getStatus() const;
@@ -282,21 +281,21 @@ class BinprotSubdocCommand : public BinprotCommandT<BinprotSubdocCommand> {
 public:
     BinprotSubdocCommand();
 
-    explicit BinprotSubdocCommand(protocol_binary_command cmd_);
+    explicit BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_);
 
     // Old-style constructors. These are all used by testapp_subdoc.
-    BinprotSubdocCommand(protocol_binary_command cmd_,
+    BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_,
                          const std::string& key_,
                          const std::string& path_);
 
-    BinprotSubdocCommand(protocol_binary_command cmd,
-                         const std::string& key,
-                         const std::string& path,
-                         const std::string& value,
-                         protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE,
-                         mcbp::subdoc::doc_flag docFlags =
-                                 mcbp::subdoc::doc_flag::None,
-                         uint64_t cas = 0);
+    BinprotSubdocCommand(
+            cb::mcbp::ClientOpcode cmd,
+            const std::string& key,
+            const std::string& path,
+            const std::string& value,
+            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE,
+            mcbp::subdoc::doc_flag docFlags = mcbp::subdoc::doc_flag::None,
+            uint64_t cas = 0);
 
     BinprotSubdocCommand& setPath(std::string path_);
     BinprotSubdocCommand& setValue(std::string value_);
@@ -331,14 +330,14 @@ private:
     std::string value;
 };
 
-class BinprotSubdocMultiMutationCommand :
-    public BinprotCommandT<BinprotSubdocMultiMutationCommand,
-        PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION> {
+class BinprotSubdocMultiMutationCommand
+    : public BinprotCommandT<BinprotSubdocMultiMutationCommand,
+                             cb::mcbp::ClientOpcode::SubdocMultiMutation> {
 public:
     BinprotSubdocMultiMutationCommand();
 
     struct MutationSpecifier {
-        protocol_binary_command opcode;
+        cb::mcbp::ClientOpcode opcode;
         protocol_binary_subdoc_flag flags;
         std::string path;
         std::string value;
@@ -353,7 +352,7 @@ public:
             const MutationSpecifier& spec);
 
     BinprotSubdocMultiMutationCommand& addMutation(
-            protocol_binary_command opcode,
+            cb::mcbp::ClientOpcode opcode,
             protocol_binary_subdoc_flag flags,
             const std::string& path,
             const std::string& value);
@@ -397,13 +396,13 @@ protected:
 };
 
 class BinprotSubdocMultiLookupCommand
-        : public BinprotCommandT<BinprotSubdocMultiLookupCommand,
-                                 PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP> {
+    : public BinprotCommandT<BinprotSubdocMultiLookupCommand,
+                             cb::mcbp::ClientOpcode::SubdocMultiLookup> {
 public:
     BinprotSubdocMultiLookupCommand();
 
     struct LookupSpecifier {
-        protocol_binary_command opcode;
+        cb::mcbp::ClientOpcode opcode;
         protocol_binary_subdoc_flag flags;
         std::string path;
     };
@@ -414,7 +413,7 @@ public:
 
     BinprotSubdocMultiLookupCommand& addLookup(
             const std::string& path,
-            protocol_binary_command opcode = PROTOCOL_BINARY_CMD_SUBDOC_GET,
+            cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::SubdocGet,
             protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE);
 
     BinprotSubdocMultiLookupCommand& addGet(
@@ -469,8 +468,8 @@ protected:
 };
 
 class BinprotSaslAuthCommand
-        : public BinprotCommandT<BinprotSaslAuthCommand,
-                                 PROTOCOL_BINARY_CMD_SASL_AUTH> {
+    : public BinprotCommandT<BinprotSaslAuthCommand,
+                             cb::mcbp::ClientOpcode::SaslAuth> {
 public:
     void setMechanism(const std::string& mech_);
 
@@ -483,8 +482,8 @@ private:
 };
 
 class BinprotSaslStepCommand
-        : public BinprotCommandT<BinprotSaslStepCommand,
-                                 PROTOCOL_BINARY_CMD_SASL_STEP> {
+    : public BinprotCommandT<BinprotSaslStepCommand,
+                             cb::mcbp::ClientOpcode::SaslStep> {
 public:
     void setMechanism(const std::string& mech);
 
@@ -496,8 +495,9 @@ private:
     std::string challenge;
 };
 
-class BinprotHelloCommand : public BinprotCommandT<BinprotHelloCommand,
-                                                   PROTOCOL_BINARY_CMD_HELLO> {
+class BinprotHelloCommand
+    : public BinprotCommandT<BinprotHelloCommand,
+                             cb::mcbp::ClientOpcode::Hello> {
 public:
     explicit BinprotHelloCommand(const std::string& client_id);
     BinprotHelloCommand& enableFeature(cb::mcbp::Feature feature,
@@ -519,8 +519,8 @@ private:
 };
 
 class BinprotCreateBucketCommand
-        : public BinprotCommandT<BinprotCreateBucketCommand,
-                                 PROTOCOL_BINARY_CMD_CREATE_BUCKET> {
+    : public BinprotCommandT<BinprotCreateBucketCommand,
+                             cb::mcbp::ClientOpcode::CreateBucket> {
 public:
     explicit BinprotCreateBucketCommand(const char* name);
 
@@ -532,13 +532,14 @@ private:
 };
 
 class BinprotGetCommand
-        : public BinprotCommandT<BinprotGetCommand, PROTOCOL_BINARY_CMD_GET> {
+    : public BinprotCommandT<BinprotGetCommand, cb::mcbp::ClientOpcode::Get> {
 public:
     void encode(std::vector<uint8_t>& buf) const override;
 };
 
 class BinprotGetAndLockCommand
-    : public BinprotCommandT<BinprotGetAndLockCommand, PROTOCOL_BINARY_CMD_GET_LOCKED> {
+    : public BinprotCommandT<BinprotGetAndLockCommand,
+                             cb::mcbp::ClientOpcode::GetLocked> {
 public:
     BinprotGetAndLockCommand();
 
@@ -551,7 +552,8 @@ protected:
 };
 
 class BinprotGetAndTouchCommand
-    : public BinprotCommandT<BinprotGetAndTouchCommand, PROTOCOL_BINARY_CMD_GAT> {
+    : public BinprotCommandT<BinprotGetAndTouchCommand,
+                             cb::mcbp::ClientOpcode::Gat> {
 public:
     BinprotGetAndTouchCommand();
 
@@ -576,7 +578,8 @@ using BinprotGetAndLockResponse = BinprotGetResponse;
 using BinprotGetAndTouchResponse = BinprotGetResponse;
 
 class BinprotUnlockCommand
-    : public BinprotCommandT<BinprotGetCommand, PROTOCOL_BINARY_CMD_UNLOCK_KEY> {
+    : public BinprotCommandT<BinprotGetCommand,
+                             cb::mcbp::ClientOpcode::UnlockKey> {
 public:
     void encode(std::vector<uint8_t>& buf) const override;
 };
@@ -584,7 +587,8 @@ public:
 using BinprotUnlockResponse = BinprotResponse;
 
 class BinprotTouchCommand
-    : public BinprotCommandT<BinprotGetAndTouchCommand, PROTOCOL_BINARY_CMD_TOUCH> {
+    : public BinprotCommandT<BinprotGetAndTouchCommand,
+                             cb::mcbp::ClientOpcode::Touch> {
 public:
     void encode(std::vector<uint8_t>& buf) const override;
 
@@ -597,20 +601,22 @@ protected:
 using BinprotTouchResponse = BinprotResponse;
 
 class BinprotGetCmdTimerCommand
-    : public BinprotCommandT<BinprotGetCmdTimerCommand, PROTOCOL_BINARY_CMD_GET_CMD_TIMER> {
+    : public BinprotCommandT<BinprotGetCmdTimerCommand,
+                             cb::mcbp::ClientOpcode::GetCmdTimer> {
 public:
     BinprotGetCmdTimerCommand() = default;
-    explicit BinprotGetCmdTimerCommand(uint8_t opcode);
-    BinprotGetCmdTimerCommand(const std::string& bucket, uint8_t opcode);
+    explicit BinprotGetCmdTimerCommand(cb::mcbp::ClientOpcode opcode);
+    BinprotGetCmdTimerCommand(const std::string& bucket,
+                              cb::mcbp::ClientOpcode opcode);
 
     void encode(std::vector<uint8_t>& buf) const override;
 
-    void setOpcode(uint8_t opcode);
+    void setOpcode(cb::mcbp::ClientOpcode opcode);
 
     void setBucket(const std::string& bucket);
 
 protected:
-    uint8_t opcode = 0xff;
+    cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::Invalid;
 };
 
 class BinprotGetCmdTimerResponse : public BinprotResponse {
@@ -624,7 +630,8 @@ private:
 };
 
 class BinprotVerbosityCommand
-    : public BinprotCommandT<BinprotVerbosityCommand, PROTOCOL_BINARY_CMD_VERBOSITY> {
+    : public BinprotCommandT<BinprotVerbosityCommand,
+                             cb::mcbp::ClientOpcode::Verbosity> {
 public:
     void encode(std::vector<uint8_t>& buf) const override;
 
@@ -638,7 +645,7 @@ using BinprotVerbosityResponse = BinprotResponse;
 
 using BinprotIsaslRefreshCommand =
         BinprotCommandT<BinprotGenericCommand,
-                        uint8_t(cb::mcbp::ClientOpcode::IsaslRefresh)>;
+                        cb::mcbp::ClientOpcode::IsaslRefresh>;
 
 using BinprotIsaslRefreshResponse = BinprotResponse;
 
@@ -723,17 +730,17 @@ private:
 };
 
 class BinprotRemoveCommand
-    : public BinprotCommandT<BinprotRemoveCommand, PROTOCOL_BINARY_CMD_DELETE> {
+    : public BinprotCommandT<BinprotRemoveCommand,
+                             cb::mcbp::ClientOpcode::Delete> {
 public:
     void encode(std::vector<uint8_t>& buf) const override;
 };
 
 using BinprotRemoveResponse = BinprotMutationResponse;
 
-
 class BinprotGetErrorMapCommand
     : public BinprotCommandT<BinprotGetErrorMapCommand,
-                             PROTOCOL_BINARY_CMD_GET_ERROR_MAP> {
+                             cb::mcbp::ClientOpcode::GetErrorMap> {
 public:
     void setVersion(uint16_t version_);
 
@@ -856,7 +863,7 @@ private:
 class BinprotGetFailoverLogCommand : public BinprotGenericCommand {
 public:
     BinprotGetFailoverLogCommand()
-        : BinprotGenericCommand(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG){};
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetFailoverLog){};
 };
 
 class BinprotSetParamCommand
@@ -964,8 +971,8 @@ protected:
 
 using BinprotAuthProviderCommand =
         BinprotCommandT<BinprotGenericCommand,
-                        uint8_t(cb::mcbp::ClientOpcode::AuthProvider)>;
+                        cb::mcbp::ClientOpcode::AuthProvider>;
 
 using BinprotRbacRefreshCommand =
         BinprotCommandT<BinprotGenericCommand,
-                        uint8_t(cb::mcbp::ClientOpcode::RbacRefresh)>;
+                        cb::mcbp::ClientOpcode::RbacRefresh>;

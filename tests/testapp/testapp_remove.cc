@@ -62,7 +62,7 @@ void RemoveTest::verify_MB_22553(const std::string& config) {
     }
 
     // It should not be accessible over subdoc.
-    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_GET, name, "verbosity");
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocGet, name, "verbosity");
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus())
             << "MB-22553: doc with xattr is still accessible";
 }

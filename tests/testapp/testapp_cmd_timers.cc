@@ -34,16 +34,16 @@ public:
 
         // Reset the command timers before we start
         conn.executeCommand(
-                BinprotGenericCommand{PROTOCOL_BINARY_CMD_STAT, "reset"},
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "reset"},
                 response);
 
         // We just need to have a command we can check the numbers of
-        conn.executeCommand(BinprotGenericCommand{PROTOCOL_BINARY_CMD_SCRUB},
-                            response);
+        conn.executeCommand(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::Scrub}, response);
 
         conn.selectBucket("rbac_test");
-        conn.executeCommand(BinprotGenericCommand{PROTOCOL_BINARY_CMD_SCRUB},
-                            response);
+        conn.executeCommand(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::Scrub}, response);
         conn.reconnect();
     }
 
@@ -102,7 +102,8 @@ TEST_P(CmdTimerTest, AllBuckets) {
     // Admin should have full access
     for (const auto& bucket : {"", "/all/"}) {
         c.executeCommand(
-                BinprotGetCmdTimerCommand{bucket, PROTOCOL_BINARY_CMD_SCRUB},
+                BinprotGetCmdTimerCommand{bucket,
+                                          cb::mcbp::ClientOpcode::Scrub},
                 response);
         EXPECT_TRUE(response.isSuccess());
         EXPECT_EQ(2, getNumberOfOps(response.getDataString()));
@@ -112,7 +113,8 @@ TEST_P(CmdTimerTest, AllBuckets) {
     c.authenticate("smith", "smithpassword", "PLAIN");
     for (const auto& bucket : {"", "/all/"}) {
         c.executeCommand(
-                BinprotGetCmdTimerCommand{bucket, PROTOCOL_BINARY_CMD_SCRUB},
+                BinprotGetCmdTimerCommand{bucket,
+                                          cb::mcbp::ClientOpcode::Scrub},
                 response);
         EXPECT_TRUE(response.isSuccess());
         EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
@@ -131,7 +133,8 @@ TEST_P(CmdTimerTest, NoAccess) {
     for (const auto& bucket : {"", "/all/", "rbac_test", "default"}) {
         BinprotResponse response;
         c.executeCommand(
-                BinprotGetCmdTimerCommand{bucket, PROTOCOL_BINARY_CMD_SCRUB},
+                BinprotGetCmdTimerCommand{bucket,
+                                          cb::mcbp::ClientOpcode::Scrub},
                 response);
         EXPECT_FALSE(response.isSuccess());
         EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
@@ -140,8 +143,9 @@ TEST_P(CmdTimerTest, NoAccess) {
     // Make sure it doesn't work for the "current selected bucket"
     c.selectBucket("rbac_test");
     BinprotResponse response;
-    c.executeCommand(BinprotGetCmdTimerCommand{"", PROTOCOL_BINARY_CMD_SCRUB},
-                     response);
+    c.executeCommand(
+            BinprotGetCmdTimerCommand{"", cb::mcbp::ClientOpcode::Scrub},
+            response);
     EXPECT_FALSE(response.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
     c.reconnect();
@@ -154,7 +158,8 @@ TEST_P(CmdTimerTest, CurrentBucket) {
     BinprotResponse response;
     for (const auto& bucket : {"", "rbac_test"}) {
         c.executeCommand(
-                BinprotGetCmdTimerCommand{bucket, PROTOCOL_BINARY_CMD_SCRUB},
+                BinprotGetCmdTimerCommand{bucket,
+                                          cb::mcbp::ClientOpcode::Scrub},
                 response);
         EXPECT_TRUE(response.isSuccess());
         EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
@@ -169,7 +174,7 @@ TEST_P(CmdTimerTest, NonexistentBucket) {
     auto& c = getConnection();
     BinprotResponse response;
     c.executeCommand(BinprotGetCmdTimerCommand{"asdfasdfasdf",
-                                               PROTOCOL_BINARY_CMD_SCRUB},
+                                               cb::mcbp::ClientOpcode::Scrub},
                      response);
     EXPECT_FALSE(response.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
@@ -183,8 +188,9 @@ TEST_P(CmdTimerTest, DefaultBucket) {
     auto& c = getConnection();
     c.reconnect();
     BinprotResponse response;
-    c.executeCommand(BinprotGetCmdTimerCommand{"", PROTOCOL_BINARY_CMD_SCRUB},
-                     response);
+    c.executeCommand(
+            BinprotGetCmdTimerCommand{"", cb::mcbp::ClientOpcode::Scrub},
+            response);
     EXPECT_TRUE(response.isSuccess());
     EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
 }

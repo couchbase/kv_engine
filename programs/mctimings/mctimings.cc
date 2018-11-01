@@ -22,6 +22,7 @@
 #include <cJSON.h>
 #include <getopt.h>
 #include <memcached/protocol_binary.h>
+#include <platform/string_hex.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/terminate_handler.h>
@@ -257,19 +258,17 @@ private:
     uint64_t total;
 };
 
-std::string opcode2string(uint8_t opcode) {
+std::string opcode2string(cb::mcbp::ClientOpcode opcode) {
     try {
-        return to_string(cb::mcbp::ClientOpcode(opcode));
+        return to_string(opcode);
     } catch (const std::exception&) {
-        char opcode_buffer[8];
-        snprintf(opcode_buffer, sizeof(opcode_buffer), "0x%02x", opcode);
-        return std::string{opcode_buffer};
+        return cb::to_hex(uint8_t(opcode));
     }
 }
 
 static void request_cmd_timings(MemcachedConnection& connection,
                                 const std::string bucket,
-                                uint8_t opcode,
+                                cb::mcbp::ClientOpcode opcode,
                                 bool verbose,
                                 bool skip,
                                 bool json) {
@@ -544,13 +543,17 @@ int main(int argc, char** argv) {
 
         if (optind == argc) {
             for (int ii = 0; ii < 256; ++ii) {
-                request_cmd_timings(
-                        connection, bucket, (uint8_t)ii, verbose, true, json);
+                request_cmd_timings(connection,
+                                    bucket,
+                                    cb::mcbp::ClientOpcode(ii),
+                                    verbose,
+                                    true,
+                                    json);
             }
         } else {
             for (; optind < argc; ++optind) {
-                const uint8_t opcode = uint8_t(to_opcode(argv[optind]));
-                if (opcode != PROTOCOL_BINARY_CMD_INVALID) {
+                const auto opcode = to_opcode(argv[optind]);
+                if (opcode != cb::mcbp::ClientOpcode::Invalid) {
                     request_cmd_timings(
                             connection, bucket, opcode, verbose, false, json);
                 } else {

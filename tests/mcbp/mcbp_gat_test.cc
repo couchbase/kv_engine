@@ -25,43 +25,11 @@
 namespace mcbp {
 namespace test {
 
-enum class GATOpcodes : uint8_t {
-    GAT = PROTOCOL_BINARY_CMD_GAT,
-    GATQ = PROTOCOL_BINARY_CMD_GATQ,
-    TOUCH = PROTOCOL_BINARY_CMD_TOUCH
-};
-
-std::string to_string(const GATOpcodes& opcode) {
-#ifdef JETBRAINS_CLION_IDE
-    // CLion don't properly parse the output when the
-    // output GATs written as the string instead of the
-    // number. This makes it harder to debug the tests
-    // so let's just disable it while we're waiting
-    // for them to supply a fix.
-    // See https://youtrack.jetbrains.com/issue/CPP-6039
-    return std::to_string(static_cast<int>(opcode));
-#else
-    switch (opcode) {
-    case GATOpcodes::GAT:
-        return "GAT";
-    case GATOpcodes::GATQ:
-        return "GATQ";
-    case GATOpcodes::TOUCH:
-        return "TOUCH";
-    }
-    throw std::invalid_argument("to_string(): unknown opcode");
-#endif
-}
-
-std::ostream& operator<<(std::ostream& os, const GATOpcodes& o) {
-    os << to_string(o);
-    return os;
-}
 
 // Test the validators for GAT, GATQ, GATK, GATKQ, GAT_META and GATQ_META
 class GATValidatorTest
     : public ::testing::WithParamInterface<
-              std::tuple<GATOpcodes, bool /*collections on/off*/>>,
+              std::tuple<cb::mcbp::ClientOpcode, bool /*collections on/off*/>>,
       public ValidatorTest {
 public:
     void SetUp() override {
@@ -124,11 +92,12 @@ TEST_P(GATValidatorTest, InvalidCas) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-INSTANTIATE_TEST_CASE_P(GATOpcodes,
-                        GATValidatorTest,
-                        ::testing::Combine(::testing::Values(GATOpcodes::GAT,
-                                                             GATOpcodes::GATQ,
-                                                             GATOpcodes::TOUCH),
-                                           ::testing::Bool()), );
+INSTANTIATE_TEST_CASE_P(
+        GATOpcodes,
+        GATValidatorTest,
+        ::testing::Combine(::testing::Values(cb::mcbp::ClientOpcode::Gat,
+                                             cb::mcbp::ClientOpcode::Gatq,
+                                             cb::mcbp::ClientOpcode::Touch),
+                           ::testing::Bool()), );
 } // namespace test
 } // namespace mcbp

@@ -56,9 +56,9 @@ protected:
 #endif
     }
 
-    void subdoc_perf_test_array(protocol_binary_command cmd, size_t iterations);
+    void subdoc_perf_test_array(cb::mcbp::ClientOpcode cmd, size_t iterations);
 
-    void subdoc_perf_test_dict(protocol_binary_command cmd, size_t iterations);
+    void subdoc_perf_test_dict(cb::mcbp::ClientOpcode cmd, size_t iterations);
 
     size_t iterations;
 };
@@ -67,7 +67,7 @@ protected:
 /* Create a JSON document consisting of a flat array of N elements, using
  * the specified opcode.
  */
-void SubdocPerfTest::subdoc_perf_test_array(protocol_binary_command cmd,
+void SubdocPerfTest::subdoc_perf_test_array(cb::mcbp::ClientOpcode cmd,
                                             size_t iterations) {
     store_document("list", "[]");
 
@@ -86,17 +86,17 @@ void SubdocPerfTest::subdoc_perf_test_array(protocol_binary_command cmd,
  ****************************************************************************/
 
 TEST_P(SubdocPerfTest, Array_PushFirst) {
-    subdoc_perf_test_array(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    subdoc_perf_test_array(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
                            iterations);
 }
 
 TEST_P(SubdocPerfTest, Array_PushLast) {
-    subdoc_perf_test_array(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    subdoc_perf_test_array(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                            iterations);
 }
 
 TEST_P(SubdocPerfTest, Array_AddUnique) {
-    subdoc_perf_test_array(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    subdoc_perf_test_array(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                            iterations);
 }
 
@@ -129,8 +129,8 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst) {
     store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-                                    "list", "[0]"));
+        subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocDelete, "list", "[0]"));
     }
     delete_object("list");
 }
@@ -141,8 +141,8 @@ TEST_P(SubdocPerfTest, Array_RemoveLast) {
     store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-                                    "list", "[-1]"));
+        subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocDelete, "list", "[-1]"));
     }
     delete_object("list");
 }
@@ -153,8 +153,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceFirst) {
     store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-                                    "list", "[0]", "1"));
+        subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocReplace, "list", "[0]", "1"));
     }
     delete_object("list");
 }
@@ -165,8 +165,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceMiddle) {
 
     std::string path(std::string("[") + std::to_string(iterations / 2) + "]");
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-                                    "list", path, "1"));
+        subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocReplace, "list", path, "1"));
     }
     delete_object("list");
 }
@@ -176,8 +176,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceLast) {
     store_document("list", subdoc_create_array(iterations));
 
     for (size_t i = 0; i < iterations; i++) {
-        subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-                                    "list", "[-1]", "1"));
+        subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocReplace, "list", "[-1]", "1"));
     }
     delete_object("list");
 }
@@ -188,8 +188,8 @@ TEST_P(SubdocPerfTest, Dict_Add) {
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
-        subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                                    "dict", key, value));
+        subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocDictAdd, "dict", key, value));
     }
 
     delete_object("dict");
@@ -222,35 +222,36 @@ TEST_P(SubdocPerfTest, Dict_Remove) {
 
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
-        subdoc_verify_cmd(BinprotSubdocCommand(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-                                    "dict", key));
+        subdoc_verify_cmd(BinprotSubdocCommand(
+                cb::mcbp::ClientOpcode::SubdocDelete, "dict", key));
     }
     delete_object("dict");
 }
 
-void SubdocPerfTest::subdoc_perf_test_dict(protocol_binary_command cmd,
+void SubdocPerfTest::subdoc_perf_test_dict(cb::mcbp::ClientOpcode cmd,
                                            size_t iterations) {
     subdoc_create_dict("dict", iterations);
 
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
-        subdoc_verify_cmd(BinprotSubdocCommand(
-                                  PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", key),
-                          cb::mcbp::Status::Success,
-                          value);
+        subdoc_verify_cmd(
+                BinprotSubdocCommand(
+                        cb::mcbp::ClientOpcode::SubdocGet, "dict", key),
+                cb::mcbp::Status::Success,
+                value);
     }
     delete_object("dict");
 }
 
 // Measure GETing all keys in a dictionary.
 TEST_P(SubdocPerfTest, Dict_Get) {
-    subdoc_perf_test_dict(PROTOCOL_BINARY_CMD_SUBDOC_GET, iterations);
+    subdoc_perf_test_dict(cb::mcbp::ClientOpcode::SubdocGet, iterations);
 }
 
 // Measure checking for EXISTence of all keys in a dictionary.
 TEST_P(SubdocPerfTest, Dict_Exists) {
-    subdoc_perf_test_dict(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, iterations);
+    subdoc_perf_test_dict(cb::mcbp::ClientOpcode::SubdocExists, iterations);
 }
 
 
@@ -267,8 +268,10 @@ TEST_P(SubdocPerfTest, Array_PushFirst_Multipath) {
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
     for (size_t i = 0; i < iterations; i++) {
-        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                                  SUBDOC_FLAG_NONE, "", std::to_string(i)});
+        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                                  SUBDOC_FLAG_NONE,
+                                  "",
+                                  std::to_string(i)});
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
@@ -294,8 +297,9 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst_Multipath) {
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
     for (size_t i = 0; i < iterations; i++) {
-        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-                                  SUBDOC_FLAG_NONE, "[0]"});
+        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDelete,
+                                  SUBDOC_FLAG_NONE,
+                                  "[0]"});
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
@@ -321,8 +325,10 @@ TEST_P(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
     for (size_t i = 0; i < iterations; i++) {
-        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-                                  SUBDOC_FLAG_NONE, "[0]", "1"});
+        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocReplace,
+                                  SUBDOC_FLAG_NONE,
+                                  "[0]",
+                                  "1"});
 
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
@@ -347,8 +353,10 @@ TEST_P(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
     mutation.key = "list";
     std::string path(std::string("[") + std::to_string(iterations / 2) + "]");
     for (size_t i = 0; i < iterations; i++) {
-        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-                                  SUBDOC_FLAG_NONE, path, "1"});
+        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocReplace,
+                                  SUBDOC_FLAG_NONE,
+                                  path,
+                                  "1"});
 
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
@@ -373,8 +381,10 @@ TEST_P(SubdocPerfTest, Dict_Add_Multipath) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
 
-        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                                  SUBDOC_FLAG_NONE, key, value});
+        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDictAdd,
+                                  SUBDOC_FLAG_NONE,
+                                  key,
+                                  value});
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.

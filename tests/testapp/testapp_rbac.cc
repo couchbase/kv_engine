@@ -54,7 +54,7 @@ TEST_P(RbacTest, DontAllowUnknownUsers) {
 TEST_P(RbacTest, ReloadRbacData_HaveAccess) {
     auto& conn = getConnection();
     conn.authenticate("@admin", "password", "PLAIN");
-    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::RbacRefresh, {}, {});
     conn.sendCommand(cmd);
 
     BinprotResponse resp;
@@ -66,7 +66,7 @@ TEST_P(RbacTest, ReloadRbacData_NoAccess) {
     auto& conn = getConnection();
     conn.reconnect();
     conn.setXerrorSupport(true);
-    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::RbacRefresh, {}, {});
     conn.sendCommand(cmd);
 
     BinprotResponse resp;
@@ -76,7 +76,7 @@ TEST_P(RbacTest, ReloadRbacData_NoAccess) {
 
 TEST_P(RbacTest, ReloadSasl_HaveAccess) {
     auto& conn = getAdminConnection();
-    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_ISASL_REFRESH);
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::IsaslRefresh);
     BinprotResponse resp;
 
     conn.sendCommand(cmd);
@@ -86,7 +86,7 @@ TEST_P(RbacTest, ReloadSasl_HaveAccess) {
 
 TEST_P(RbacTest, ReloadSasl_NoAccess) {
     auto& conn = getConnection();
-    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_ISASL_REFRESH);
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::IsaslRefresh);
 
     conn.sendCommand(cmd);
     BinprotResponse resp;
@@ -98,7 +98,7 @@ TEST_P(RbacTest, ScrubNoAccess) {
     auto& c = getConnection();
     c.authenticate("larry", "larrypassword", "PLAIN");
 
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SCRUB);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
     BinprotResponse response;
 
     c.sendCommand(command);
@@ -107,11 +107,11 @@ TEST_P(RbacTest, ScrubNoAccess) {
 }
 
 TEST_P(RbacTest, Scrub) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_SCRUB);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Scrub);
     auto& c = getAdminConnection();
 
     c.selectBucket("default");
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SCRUB);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
     BinprotResponse response;
 
     do {
@@ -139,7 +139,7 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
     auto& conn = getConnection();
     conn.reconnect();
     conn.setXerrorSupport(true);
-    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_RBAC_REFRESH, {}, {});
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::RbacRefresh, {}, {});
     conn.sendCommand(cmd);
 
     BinprotResponse resp;
@@ -217,7 +217,7 @@ protected:
                                 const std::string& key,
                                 const std::string& value) {
         BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+        cmd.setOp(cb::mcbp::ClientOpcode::SubdocDictUpsert);
         cmd.setKey(name);
         cmd.setPath(key);
         cmd.setValue(value);
@@ -233,7 +233,7 @@ protected:
     BinprotResponse getXattr(MemcachedConnection& conn,
                              const std::string& key) {
         BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+        cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
         cmd.setKey(name);
         cmd.setPath(key);
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
@@ -519,7 +519,7 @@ TEST_P(RbacRoleTest, DontAutoselectBucket) {
 
     // If we try to run a get request it should return no bucket
     BinprotSubdocCommand cmd;
-    cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+    cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
     cmd.setKey("foo");
     cmd.setPath("doc.meta");
     conn.sendCommand(cmd);

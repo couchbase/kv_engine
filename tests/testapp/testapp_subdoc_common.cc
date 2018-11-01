@@ -53,7 +53,7 @@ static void recv_subdoc_response(const BinprotSubdocCommand& cmd,
     resp.assign(std::move(buf));
 }
 
-uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
+uint64_t recv_subdoc_response(cb::mcbp::ClientOpcode expected_cmd,
                               cb::mcbp::Status expected_status,
                               const std::string& expected_value) {
     union {
@@ -80,7 +80,7 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
             header->response.getBodylen() - header->response.getExtlen();
 
     if (!expected_value.empty() &&
-        (expected_cmd != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
+        (expected_cmd != cb::mcbp::ClientOpcode::SubdocExists)) {
         const std::string val(val_ptr, val_ptr + vallen);
         EXPECT_EQ(expected_value, val);
     } else {
@@ -95,7 +95,7 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
 
 // Overload for multi-lookup responses
 uint64_t recv_subdoc_response(
-        protocol_binary_command expected_cmd,
+        cb::mcbp::ClientOpcode expected_cmd,
         cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiLookupResult>& expected_results) {
     union {
@@ -181,7 +181,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<uint8_t>& v) {
 
 // Overload for multi-mutation responses
 uint64_t recv_subdoc_response(
-        protocol_binary_command expected_cmd,
+        cb::mcbp::ClientOpcode expected_cmd,
         cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiMutationResult>& expected_results) {
     union {
@@ -283,7 +283,7 @@ uint64_t recv_subdoc_response(
         return AssertionFailure();
     }
 
-    if (!value.empty() && cmd.getOp() != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS) {
+    if (!value.empty() && cmd.getOp() != cb::mcbp::ClientOpcode::SubdocExists) {
         if (value != resp.getValue()) {
             return AssertionFailure()
                    << "Value mismatch for " << cmd << std::endl
@@ -296,9 +296,12 @@ uint64_t recv_subdoc_response(
     // the connection has negotiated JSON.
     if (resp.isSuccess()) {
         switch (cmd.getOp()) {
-        case PROTOCOL_BINARY_CMD_SUBDOC_GET:
-        case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
-        case PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT:
+        default:
+            // ignore
+            break;
+        case cb::mcbp::ClientOpcode::SubdocGet:
+        case cb::mcbp::ClientOpcode::SubdocCounter:
+        case cb::mcbp::ClientOpcode::SubdocGetCount:
             if (cb::mcbp::Datatype(resp.getDatatype()) !=
                 expectedJSONDatatype()) {
                 return AssertionFailure()
@@ -332,7 +335,7 @@ uint64_t expect_subdoc_cmd(
     std::vector<char> payload = cmd.encode();
     safe_send(payload.data(), payload.size(), false);
 
-    return recv_subdoc_response(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP,
+    return recv_subdoc_response(cb::mcbp::ClientOpcode::SubdocMultiLookup,
                                 expected_status,
                                 expected_results);
 }

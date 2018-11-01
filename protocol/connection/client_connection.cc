@@ -787,7 +787,7 @@ void MemcachedConnection::createBucket(const std::string& name,
 }
 
 void MemcachedConnection::deleteBucket(const std::string& name) {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_DELETE_BUCKET, name);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::DeleteBucket, name);
     sendCommand(command);
     BinprotResponse response;
     recvResponse(response);
@@ -798,7 +798,7 @@ void MemcachedConnection::deleteBucket(const std::string& name) {
 }
 
 void MemcachedConnection::selectBucket(const std::string& name) {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SELECT_BUCKET, name);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::SelectBucket, name);
     sendCommand(command);
     BinprotResponse response;
     recvResponse(response);
@@ -829,7 +829,7 @@ std::string MemcachedConnection::to_string() {
 }
 
 std::vector<std::string> MemcachedConnection::listBuckets() {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_LIST_BUCKETS);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::ListBuckets);
     sendCommand(command);
 
     BinprotResponse response;
@@ -914,7 +914,7 @@ MutationInfo MemcachedConnection::store(const std::string& id,
 
 std::map<std::string, std::string> MemcachedConnection::statsMap(
         const std::string& subcommand) {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_STAT, subcommand);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Stat, subcommand);
     sendCommand(command);
 
     std::map<std::string, std::string> ret;
@@ -950,7 +950,8 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
     request_ewouldblock_ctl request;
     memset(request.bytes, 0, sizeof(request.bytes));
     request.message.header.request.magic = 0x80;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL;
+    request.message.header.request.setOpcode(
+            cb::mcbp::ClientOpcode::EwouldblockCtl);
     request.message.header.request.extlen = 12;
     request.message.header.request.keylen = ntohs((short)key.size());
     request.message.header.request.bodylen =
@@ -978,7 +979,7 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
 }
 
 void MemcachedConnection::reloadAuditConfiguration() {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::AuditConfigReload);
     sendCommand(command);
     BinprotResponse response;
     recvResponse(response);
@@ -1073,7 +1074,7 @@ void MemcachedConnection::setFeature(cb::mcbp::Feature feature, bool enabled) {
 }
 
 std::string MemcachedConnection::getSaslMechanisms() {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_SASL_LIST_MECHS);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::SaslListMechs);
     sendCommand(command);
 
     BinprotResponse response;
@@ -1086,7 +1087,7 @@ std::string MemcachedConnection::getSaslMechanisms() {
 }
 
 std::string MemcachedConnection::ioctl_get(const std::string& key) {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_IOCTL_GET, key);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::IoctlGet, key);
     sendCommand(command);
 
     BinprotResponse response;
@@ -1100,7 +1101,7 @@ std::string MemcachedConnection::ioctl_get(const std::string& key) {
 
 void MemcachedConnection::ioctl_set(const std::string& key,
                                     const std::string& value) {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_IOCTL_SET, key, value);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::IoctlSet, key, value);
     sendCommand(command);
 
     BinprotResponse response;
@@ -1115,8 +1116,12 @@ uint64_t MemcachedConnection::increment(const std::string& key,
                                         uint64_t initial,
                                         rel_time_t exptime,
                                         MutationInfo* info) {
-    return incr_decr(
-            PROTOCOL_BINARY_CMD_INCREMENT, key, delta, initial, exptime, info);
+    return incr_decr(cb::mcbp::ClientOpcode::Increment,
+                     key,
+                     delta,
+                     initial,
+                     exptime,
+                     info);
 }
 
 uint64_t MemcachedConnection::decrement(const std::string& key,
@@ -1124,18 +1129,22 @@ uint64_t MemcachedConnection::decrement(const std::string& key,
                                         uint64_t initial,
                                         rel_time_t exptime,
                                         MutationInfo* info) {
-    return incr_decr(
-            PROTOCOL_BINARY_CMD_DECREMENT, key, delta, initial, exptime, info);
+    return incr_decr(cb::mcbp::ClientOpcode::Decrement,
+                     key,
+                     delta,
+                     initial,
+                     exptime,
+                     info);
 }
 
-uint64_t MemcachedConnection::incr_decr(protocol_binary_command opcode,
+uint64_t MemcachedConnection::incr_decr(cb::mcbp::ClientOpcode opcode,
                                         const std::string& key,
                                         uint64_t delta,
                                         uint64_t initial,
                                         rel_time_t exptime,
                                         MutationInfo* info) {
     const char* opcode_name =
-            (opcode == PROTOCOL_BINARY_CMD_INCREMENT) ? "incr" : "decr";
+            (opcode == cb::mcbp::ClientOpcode::Increment) ? "incr" : "decr";
 
     BinprotIncrDecrCommand command;
     command.setOp(opcode).setKey(key);
@@ -1239,7 +1248,7 @@ void MemcachedConnection::unlock(const std::string& id,
 }
 
 void MemcachedConnection::dropPrivilege(cb::rbac::Privilege privilege) {
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_DROP_PRIVILEGE,
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::DropPrivilege,
                                   cb::rbac::to_string(privilege));
     sendCommand(command);
 
@@ -1291,7 +1300,8 @@ ObserveInfo MemcachedConnection::observeSeqno(Vbid vbid, uint64_t uuid) {
 }
 
 void MemcachedConnection::enablePersistence() {
-    sendCommand(BinprotGenericCommand(PROTOCOL_BINARY_CMD_START_PERSISTENCE));
+    sendCommand(
+            BinprotGenericCommand(cb::mcbp::ClientOpcode::StartPersistence));
 
     BinprotResponse response;
     recvResponse(response);
@@ -1302,7 +1312,7 @@ void MemcachedConnection::enablePersistence() {
 }
 
 void MemcachedConnection::disablePersistence() {
-    sendCommand(BinprotGenericCommand(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE));
+    sendCommand(BinprotGenericCommand(cb::mcbp::ClientOpcode::StopPersistence));
 
     BinprotResponse response;
     recvResponse(response);
@@ -1314,7 +1324,7 @@ void MemcachedConnection::disablePersistence() {
 
 std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
         const std::string& key, Vbid vbucket, GetMetaVersion version) {
-    BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_META, key};
+    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetMeta, key};
     const std::vector<uint8_t> extras = {uint8_t(version)};
     cmd.setExtras(extras);
     sendCommand(cmd);

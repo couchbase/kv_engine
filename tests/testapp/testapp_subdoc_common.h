@@ -46,33 +46,32 @@ protected:
 
     void test_subdoc_counter_simple();
 
-    void test_subdoc_dict_add_cas(bool compress, protocol_binary_command cmd);
+    void test_subdoc_dict_add_cas(bool compress, cb::mcbp::ClientOpcode cmd);
 
-    void test_subdoc_dict_add_simple(bool compress,
-                                     protocol_binary_command cmd);
+    void test_subdoc_dict_add_simple(bool compress, cb::mcbp::ClientOpcode cmd);
 
-    void test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd);
+    void test_subdoc_dict_add_upsert_deep(cb::mcbp::ClientOpcode cmd);
 
     void test_subdoc_delete_simple(bool compress);
 
-    void test_subdoc_fetch_array_deep(protocol_binary_command cmd);
+    void test_subdoc_fetch_array_deep(cb::mcbp::ClientOpcode cmd);
 
     void test_subdoc_fetch_array_simple(bool compressed,
-                                        protocol_binary_command cmd);
+                                        cb::mcbp::ClientOpcode cmd);
 
-    void test_subdoc_fetch_dict_deep(protocol_binary_command cmd);
+    void test_subdoc_fetch_dict_deep(cb::mcbp::ClientOpcode cmd);
 
     void test_subdoc_fetch_dict_nested(bool compressed,
-                                       protocol_binary_command cmd);
+                                       cb::mcbp::ClientOpcode cmd);
 
     void test_subdoc_fetch_dict_simple(bool compressed,
-                                       protocol_binary_command cmd);
+                                       cb::mcbp::ClientOpcode cmd);
 
     void test_subdoc_get_binary(bool compress,
-                                protocol_binary_command cmd,
+                                cb::mcbp::ClientOpcode cmd,
                                 MemcachedConnection& conn);
 
-    void test_subdoc_stats_command(protocol_binary_command cmd,
+    void test_subdoc_stats_command(cb::mcbp::ClientOpcode cmd,
                                    SubdocStatTraits traits,
                                    const std::string& doc,
                                    const std::string& path,
@@ -181,7 +180,7 @@ struct SubdocMultiMutationResult {
     std::string result;
 };
 
-uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
+uint64_t recv_subdoc_response(cb::mcbp::ClientOpcode expected_cmd,
                               cb::mcbp::Status expected_status,
                               const std::string& expected_value);
 

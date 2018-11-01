@@ -59,14 +59,18 @@ void test_noop(void) {
         char bytes[1024];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_NOOP,
-                                  NULL, 0, NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::Noop,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_NOOP,
+                                  cb::mcbp::ClientOpcode::Noop,
                                   cb::mcbp::Status::Success);
 }
 
@@ -74,7 +78,7 @@ TEST_P(McdTestappTest, Noop) {
     test_noop();
 }
 
-void test_quit_impl(uint8_t cmd) {
+void test_quit_impl(cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -84,10 +88,10 @@ void test_quit_impl(uint8_t cmd) {
                                   cmd, NULL, 0, NULL, 0);
 
     safe_send(buffer.bytes, len, false);
-    if (cmd == PROTOCOL_BINARY_CMD_QUIT) {
+    if (cmd == cb::mcbp::ClientOpcode::Quit) {
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_QUIT,
+                                      cb::mcbp::ClientOpcode::Quit,
                                       cb::mcbp::Status::Success);
     }
 
@@ -98,14 +102,14 @@ void test_quit_impl(uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Quit) {
-    test_quit_impl(PROTOCOL_BINARY_CMD_QUIT);
+    test_quit_impl(cb::mcbp::ClientOpcode::Quit);
 }
 
 TEST_P(McdTestappTest, QuitQ) {
-    test_quit_impl(PROTOCOL_BINARY_CMD_QUITQ);
+    test_quit_impl(cb::mcbp::ClientOpcode::Quitq);
 }
 
-void test_set_impl(const char *key, uint8_t cmd) {
+void test_set_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -120,20 +124,20 @@ void test_set_impl(const char *key, uint8_t cmd) {
     int ii;
     for (ii = 0; ii < 10; ++ii) {
         safe_send(send.bytes, len, false);
-        if (cmd == PROTOCOL_BINARY_CMD_SET) {
+        if (cmd == cb::mcbp::ClientOpcode::Set) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             mcbp_validate_response_header(
                     &receive.response, cmd, cb::mcbp::Status::Success);
         }
     }
 
-    if (cmd == PROTOCOL_BINARY_CMD_SETQ) {
+    if (cmd == cb::mcbp::ClientOpcode::Setq) {
         return test_noop();
     }
 
     send.request.message.header.request.cas = receive.response.message.header.response.cas;
     safe_send(send.bytes, len, false);
-    if (cmd == PROTOCOL_BINARY_CMD_SET) {
+    if (cmd == cb::mcbp::ClientOpcode::Set) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         mcbp_validate_response_header(
                 &receive.response, cmd, cb::mcbp::Status::Success);
@@ -145,14 +149,14 @@ void test_set_impl(const char *key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Set) {
-    test_set_impl("test_set", PROTOCOL_BINARY_CMD_SET);
+    test_set_impl("test_set", cb::mcbp::ClientOpcode::Set);
 }
 
 TEST_P(McdTestappTest, SetQ) {
-    test_set_impl("test_setq", PROTOCOL_BINARY_CMD_SETQ);
+    test_set_impl("test_setq", cb::mcbp::ClientOpcode::Setq);
 }
 
-static void test_add_impl(const char *key, uint8_t cmd) {
+static void test_add_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     uint64_t value = 0xdeadbeefdeadcafe;
     union {
         protocol_binary_request_no_extras request;
@@ -168,7 +172,7 @@ static void test_add_impl(const char *key, uint8_t cmd) {
     for (ii = 0; ii < 10; ++ii) {
         safe_send(send.bytes, len, false);
         if (ii == 0) {
-            if (cmd == PROTOCOL_BINARY_CMD_ADD) {
+            if (cmd == cb::mcbp::ClientOpcode::Add) {
                 safe_recv_packet(receive.bytes, sizeof(receive.bytes));
                 mcbp_validate_response_header(
                         &receive.response, cmd, cb::mcbp::Status::Success);
@@ -192,14 +196,14 @@ static void test_add_impl(const char *key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Add) {
-    test_add_impl("test_add", PROTOCOL_BINARY_CMD_ADD);
+    test_add_impl("test_add", cb::mcbp::ClientOpcode::Add);
 }
 
 TEST_P(McdTestappTest, AddQ) {
-    test_add_impl("test_addq", PROTOCOL_BINARY_CMD_ADDQ);
+    test_add_impl("test_addq", cb::mcbp::ClientOpcode::Addq);
 }
 
-static void test_replace_impl(const char* key, uint8_t cmd) {
+static void test_replace_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     uint64_t value = 0xdeadbeefdeadcafe;
     union {
         protocol_binary_request_no_extras request;
@@ -214,28 +218,34 @@ static void test_replace_impl(const char* key, uint8_t cmd) {
     ASSERT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
     mcbp_validate_response_header(
             &receive.response, cmd, cb::mcbp::Status::KeyEnoent);
-    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                               PROTOCOL_BINARY_CMD_ADD,
-                               key, strlen(key), &value, sizeof(value), 0, 0);
+    len = mcbp_storage_command(send.bytes,
+                               sizeof(send.bytes),
+                               cb::mcbp::ClientOpcode::Add,
+                               key,
+                               strlen(key),
+                               &value,
+                               sizeof(value),
+                               0,
+                               0);
     safe_send(send.bytes, len, false);
     ASSERT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_ADD,
+                                  cb::mcbp::ClientOpcode::Add,
                                   cb::mcbp::Status::Success);
 
     len = mcbp_storage_command(send.bytes, sizeof(send.bytes), cmd,
                                key, strlen(key), &value, sizeof(value), 0, 0);
     for (ii = 0; ii < 10; ++ii) {
         safe_send(send.bytes, len, false);
-        if (cmd == PROTOCOL_BINARY_CMD_REPLACE) {
+        if (cmd == cb::mcbp::ClientOpcode::Replace) {
             ASSERT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
             mcbp_validate_response_header(&receive.response,
-                                          PROTOCOL_BINARY_CMD_REPLACE,
+                                          cb::mcbp::ClientOpcode::Replace,
                                           cb::mcbp::Status::Success);
         }
     }
 
-    if (cmd == PROTOCOL_BINARY_CMD_REPLACEQ) {
+    if (cmd == cb::mcbp::ClientOpcode::Replaceq) {
         test_noop();
     }
 
@@ -243,14 +253,14 @@ static void test_replace_impl(const char* key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Replace) {
-    test_replace_impl("test_replace", PROTOCOL_BINARY_CMD_REPLACE);
+    test_replace_impl("test_replace", cb::mcbp::ClientOpcode::Replace);
 }
 
 TEST_P(McdTestappTest, ReplaceQ) {
-    test_replace_impl("test_replaceq", PROTOCOL_BINARY_CMD_REPLACEQ);
+    test_replace_impl("test_replaceq", cb::mcbp::ClientOpcode::Replaceq);
 }
 
-static void test_delete_impl(const char *key, uint8_t cmd) {
+static void test_delete_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -263,23 +273,29 @@ static void test_delete_impl(const char *key, uint8_t cmd) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(
             &receive.response, cmd, cb::mcbp::Status::KeyEnoent);
-    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                               PROTOCOL_BINARY_CMD_ADD,
-                               key, strlen(key), NULL, 0, 0, 0);
+    len = mcbp_storage_command(send.bytes,
+                               sizeof(send.bytes),
+                               cb::mcbp::ClientOpcode::Add,
+                               key,
+                               strlen(key),
+                               NULL,
+                               0,
+                               0,
+                               0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_ADD,
+                                  cb::mcbp::ClientOpcode::Add,
                                   cb::mcbp::Status::Success);
 
     len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
                            cmd, key, strlen(key), NULL, 0);
     safe_send(send.bytes, len, false);
 
-    if (cmd == PROTOCOL_BINARY_CMD_DELETE) {
+    if (cmd == cb::mcbp::ClientOpcode::Delete) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         mcbp_validate_response_header(&receive.response,
-                                      PROTOCOL_BINARY_CMD_DELETE,
+                                      cb::mcbp::ClientOpcode::Delete,
                                       cb::mcbp::Status::Success);
     }
 
@@ -290,11 +306,11 @@ static void test_delete_impl(const char *key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Delete) {
-    test_delete_impl("test_delete", PROTOCOL_BINARY_CMD_DELETE);
+    test_delete_impl("test_delete", cb::mcbp::ClientOpcode::Delete);
 }
 
 TEST_P(McdTestappTest, DeleteQ) {
-    test_delete_impl("test_deleteq", PROTOCOL_BINARY_CMD_DELETEQ);
+    test_delete_impl("test_deleteq", cb::mcbp::ClientOpcode::Deleteq);
 }
 
 static void test_delete_cas_impl(const char *key, bool bad) {
@@ -304,16 +320,26 @@ static void test_delete_cas_impl(const char *key, bool bad) {
         char bytes[1024];
     } send, receive;
     size_t len;
-    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                               PROTOCOL_BINARY_CMD_SET,
-                               key, strlen(key), NULL, 0, 0, 0);
+    len = mcbp_storage_command(send.bytes,
+                               sizeof(send.bytes),
+                               cb::mcbp::ClientOpcode::Set,
+                               key,
+                               strlen(key),
+                               NULL,
+                               0,
+                               0,
+                               0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::Success);
-    len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
-                           PROTOCOL_BINARY_CMD_DELETE, key, strlen(key), NULL,
+    len = mcbp_raw_command(send.bytes,
+                           sizeof(send.bytes),
+                           cb::mcbp::ClientOpcode::Delete,
+                           key,
+                           strlen(key),
+                           NULL,
                            0);
 
     send.request.message.header.request.cas = receive.response.message.header.response.cas;
@@ -324,11 +350,11 @@ static void test_delete_cas_impl(const char *key, bool bad) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     if (bad) {
         mcbp_validate_response_header(&receive.response,
-                                      PROTOCOL_BINARY_CMD_DELETE,
+                                      cb::mcbp::ClientOpcode::Delete,
                                       cb::mcbp::Status::KeyEexists);
     } else {
         mcbp_validate_response_header(&receive.response,
-                                      PROTOCOL_BINARY_CMD_DELETE,
+                                      cb::mcbp::ClientOpcode::Delete,
                                       cb::mcbp::Status::Success);
     }
 }
@@ -345,11 +371,12 @@ TEST_P(McdTestappTest, DeleteBadCAS) {
 TEST_P(McdTestappTest, DeleteMutationSeqno) {
     /* Enable mutation seqno support, then call the normal delete test. */
     set_mutation_seqno_feature(true);
-    test_delete_impl("test_delete_mutation_seqno", PROTOCOL_BINARY_CMD_DELETE);
+    test_delete_impl("test_delete_mutation_seqno",
+                     cb::mcbp::ClientOpcode::Delete);
     set_mutation_seqno_feature(false);
 }
 
-static void test_get_impl(const char *key, uint8_t cmd) {
+static void test_get_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -364,14 +391,19 @@ static void test_get_impl(const char *key, uint8_t cmd) {
     mcbp_validate_response_header(
             &receive.response, cmd, cb::mcbp::Status::KeyEnoent);
 
-    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                               PROTOCOL_BINARY_CMD_ADD,
-                               key, strlen(key), NULL, 0,
-                               0, 0);
+    len = mcbp_storage_command(send.bytes,
+                               sizeof(send.bytes),
+                               cb::mcbp::ClientOpcode::Add,
+                               key,
+                               strlen(key),
+                               NULL,
+                               0,
+                               0,
+                               0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_ADD,
+                                  cb::mcbp::ClientOpcode::Add,
                                   cb::mcbp::Status::Success);
 
     /* run a little pipeline test ;-) */
@@ -398,24 +430,29 @@ static void test_get_impl(const char *key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Get) {
-    test_get_impl("test_get", PROTOCOL_BINARY_CMD_GET);
+    test_get_impl("test_get", cb::mcbp::ClientOpcode::Get);
 }
 
 TEST_P(McdTestappTest, GetK) {
-    test_get_impl("test_getk", PROTOCOL_BINARY_CMD_GETK);
+    test_get_impl("test_getk", cb::mcbp::ClientOpcode::Getk);
 }
 
-static void test_getq_impl(const char *key, uint8_t cmd) {
+static void test_getq_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     const char *missing = "test_getq_missing";
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, temp, receive;
-    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                                      PROTOCOL_BINARY_CMD_ADD,
-                                      key, strlen(key), NULL, 0,
-                                      0, 0);
+    size_t len = mcbp_storage_command(send.bytes,
+                                      sizeof(send.bytes),
+                                      cb::mcbp::ClientOpcode::Add,
+                                      key,
+                                      strlen(key),
+                                      NULL,
+                                      0,
+                                      0,
+                                      0);
     size_t len2 = mcbp_raw_command(temp.bytes, sizeof(temp.bytes), cmd,
                                    missing, strlen(missing), NULL, 0);
     /* I need to change the first opaque so that I can separate the two
@@ -432,7 +469,7 @@ static void test_getq_impl(const char *key, uint8_t cmd) {
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_ADD,
+                                  cb::mcbp::ClientOpcode::Add,
                                   cb::mcbp::Status::Success);
     /* The first GETQ shouldn't return anything */
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
@@ -443,14 +480,14 @@ static void test_getq_impl(const char *key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, GetQ) {
-    test_getq_impl("test_getq", PROTOCOL_BINARY_CMD_GETQ);
+    test_getq_impl("test_getq", cb::mcbp::ClientOpcode::Getq);
 }
 
 TEST_P(McdTestappTest, GetKQ) {
-    test_getq_impl("test_getkq", PROTOCOL_BINARY_CMD_GETKQ);
+    test_getq_impl("test_getkq", cb::mcbp::ClientOpcode::Getkq);
 }
 
-static void test_incr_impl(const char* key, uint8_t cmd) {
+static void test_incr_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -463,7 +500,7 @@ static void test_incr_impl(const char* key, uint8_t cmd) {
     int ii;
     for (ii = 0; ii < 10; ++ii) {
         safe_send(send.bytes, len, false);
-        if (cmd == PROTOCOL_BINARY_CMD_INCREMENT) {
+        if (cmd == cb::mcbp::ClientOpcode::Increment) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             mcbp_validate_response_header(
                     &receive.response_header, cmd, cb::mcbp::Status::Success);
@@ -471,7 +508,7 @@ static void test_incr_impl(const char* key, uint8_t cmd) {
         }
     }
 
-    if (cmd == PROTOCOL_BINARY_CMD_INCREMENTQ) {
+    if (cmd == cb::mcbp::ClientOpcode::Incrementq) {
         test_noop();
     }
 
@@ -479,14 +516,15 @@ static void test_incr_impl(const char* key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Incr) {
-    test_incr_impl("test_incr", PROTOCOL_BINARY_CMD_INCREMENT);
+    test_incr_impl("test_incr", cb::mcbp::ClientOpcode::Increment);
 }
 
 TEST_P(McdTestappTest, IncrQ) {
-    test_incr_impl("test_incrq", PROTOCOL_BINARY_CMD_INCREMENTQ);
+    test_incr_impl("test_incrq", cb::mcbp::ClientOpcode::Incrementq);
 }
 
-static void test_incr_invalid_cas_impl(const char* key, uint8_t cmd) {
+static void test_incr_invalid_cas_impl(const char* key,
+                                       cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -504,22 +542,24 @@ static void test_incr_invalid_cas_impl(const char* key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, InvalidCASIncr) {
-    test_incr_invalid_cas_impl("test_incr", PROTOCOL_BINARY_CMD_INCREMENT);
+    test_incr_invalid_cas_impl("test_incr", cb::mcbp::ClientOpcode::Increment);
 }
 
 TEST_P(McdTestappTest, InvalidCASIncrQ) {
-    test_incr_invalid_cas_impl("test_incrq", PROTOCOL_BINARY_CMD_INCREMENTQ);
+    test_incr_invalid_cas_impl("test_incrq",
+                               cb::mcbp::ClientOpcode::Incrementq);
 }
 
 TEST_P(McdTestappTest, InvalidCASDecr) {
-    test_incr_invalid_cas_impl("test_decr", PROTOCOL_BINARY_CMD_DECREMENT);
+    test_incr_invalid_cas_impl("test_decr", cb::mcbp::ClientOpcode::Decrement);
 }
 
 TEST_P(McdTestappTest, InvalidCASDecrQ) {
-    test_incr_invalid_cas_impl("test_decrq", PROTOCOL_BINARY_CMD_DECREMENTQ);
+    test_incr_invalid_cas_impl("test_decrq",
+                               cb::mcbp::ClientOpcode::Decrementq);
 }
 
-static void test_decr_impl(const char* key, uint8_t cmd) {
+static void test_decr_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
@@ -532,7 +572,7 @@ static void test_decr_impl(const char* key, uint8_t cmd) {
     int ii;
     for (ii = 9; ii >= 0; --ii) {
         safe_send(send.bytes, len, false);
-        if (cmd == PROTOCOL_BINARY_CMD_DECREMENT) {
+        if (cmd == cb::mcbp::ClientOpcode::Decrement) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             mcbp_validate_response_header(
                     &receive.response_header, cmd, cb::mcbp::Status::Success);
@@ -542,7 +582,7 @@ static void test_decr_impl(const char* key, uint8_t cmd) {
 
     /* decr on 0 should not wrap */
     safe_send(send.bytes, len, false);
-    if (cmd == PROTOCOL_BINARY_CMD_DECREMENT) {
+    if (cmd == cb::mcbp::ClientOpcode::Decrement) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         mcbp_validate_response_header(
                 &receive.response_header, cmd, cb::mcbp::Status::Success);
@@ -555,24 +595,26 @@ static void test_decr_impl(const char* key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Decr) {
-    test_decr_impl("test_decr",PROTOCOL_BINARY_CMD_DECREMENT);
+    test_decr_impl("test_decr", cb::mcbp::ClientOpcode::Decrement);
 }
 
 TEST_P(McdTestappTest, DecrQ) {
-    test_decr_impl("test_decrq", PROTOCOL_BINARY_CMD_DECREMENTQ);
+    test_decr_impl("test_decrq", cb::mcbp::ClientOpcode::Decrementq);
 }
 
 TEST_P(McdTestappTest, IncrMutationSeqno) {
     /* Enable mutation seqno support, then call the normal incr test. */
     set_mutation_seqno_feature(true);
-    test_incr_impl("test_incr_mutation_seqno", PROTOCOL_BINARY_CMD_INCREMENT);
+    test_incr_impl("test_incr_mutation_seqno",
+                   cb::mcbp::ClientOpcode::Increment);
     set_mutation_seqno_feature(false);
 }
 
 TEST_P(McdTestappTest, DecrMutationSeqno) {
     /* Enable mutation seqno support, then call the normal decr test. */
     set_mutation_seqno_feature(true);
-    test_decr_impl("test_decr_mutation_seqno", PROTOCOL_BINARY_CMD_DECREMENT);
+    test_decr_impl("test_decr_mutation_seqno",
+                   cb::mcbp::ClientOpcode::Decrement);
     set_mutation_seqno_feature(false);
 }
 
@@ -583,14 +625,18 @@ TEST_P(McdTestappTest, Version) {
         char bytes[1024];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_VERSION,
-                                  NULL, 0, NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::Version,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_VERSION,
+                                  cb::mcbp::ClientOpcode::Version,
                                   cb::mcbp::Status::Success);
 }
 
@@ -601,43 +647,49 @@ TEST_P(McdTestappTest, CAS) {
         char bytes[1024];
     } send, receive;
     uint64_t value = 0xdeadbeefdeadcafe;
-    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                                      PROTOCOL_BINARY_CMD_SET,
-                                      "FOO", 3, &value, sizeof(value), 0, 0);
+    size_t len = mcbp_storage_command(send.bytes,
+                                      sizeof(send.bytes),
+                                      cb::mcbp::ClientOpcode::Set,
+                                      "FOO",
+                                      3,
+                                      &value,
+                                      sizeof(value),
+                                      0,
+                                      0);
 
     send.request.message.header.request.cas = 0x7ffffff;
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::KeyEnoent);
 
     send.request.message.header.request.cas = 0x0;
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::Success);
 
     send.request.message.header.request.cas = receive.response.message.header.response.cas;
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::Success);
 
     send.request.message.header.request.cas = receive.response.message.header.response.cas - 1;
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::KeyEexists);
 
     // Cleanup
     delete_object("FOO");
 }
 
-void test_concat_impl(const char *key, uint8_t cmd) {
+void test_concat_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -654,42 +706,57 @@ void test_concat_impl(const char *key, uint8_t cmd) {
     mcbp_validate_response_header(
             &receive.response, cmd, cb::mcbp::Status::NotStored);
 
-    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                               PROTOCOL_BINARY_CMD_ADD,
-                               key, strlen(key), value, strlen(value), 0, 0);
+    len = mcbp_storage_command(send.bytes,
+                               sizeof(send.bytes),
+                               cb::mcbp::ClientOpcode::Add,
+                               key,
+                               strlen(key),
+                               value,
+                               strlen(value),
+                               0,
+                               0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_ADD,
+                                  cb::mcbp::ClientOpcode::Add,
                                   cb::mcbp::Status::Success);
 
     len = mcbp_raw_command(send.bytes, sizeof(send.bytes), cmd,
                            key, strlen(key), value, strlen(value));
     safe_send(send.bytes, len, false);
 
-    if (cmd == PROTOCOL_BINARY_CMD_APPEND || cmd == PROTOCOL_BINARY_CMD_PREPEND) {
+    if (cmd == cb::mcbp::ClientOpcode::Append ||
+        cmd == cb::mcbp::ClientOpcode::Prepend) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         mcbp_validate_response_header(
                 &receive.response, cmd, cb::mcbp::Status::Success);
     } else {
-        len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
-                               PROTOCOL_BINARY_CMD_NOOP,
-                               NULL, 0, NULL, 0);
+        len = mcbp_raw_command(send.bytes,
+                               sizeof(send.bytes),
+                               cb::mcbp::ClientOpcode::Noop,
+                               NULL,
+                               0,
+                               NULL,
+                               0);
         safe_send(send.bytes, len, false);
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         mcbp_validate_response_header(&receive.response,
-                                      PROTOCOL_BINARY_CMD_NOOP,
+                                      cb::mcbp::ClientOpcode::Noop,
                                       cb::mcbp::Status::Success);
     }
 
-    len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
-                           PROTOCOL_BINARY_CMD_GETK,
-                           key, strlen(key), NULL, 0);
+    len = mcbp_raw_command(send.bytes,
+                           sizeof(send.bytes),
+                           cb::mcbp::ClientOpcode::Getk,
+                           key,
+                           strlen(key),
+                           NULL,
+                           0);
 
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_GETK,
+                                  cb::mcbp::ClientOpcode::Getk,
                                   cb::mcbp::Status::Success);
 
     EXPECT_EQ(strlen(key),
@@ -712,19 +779,19 @@ void test_concat_impl(const char *key, uint8_t cmd) {
 }
 
 TEST_P(McdTestappTest, Append) {
-    test_concat_impl("test_append", PROTOCOL_BINARY_CMD_APPEND);
+    test_concat_impl("test_append", cb::mcbp::ClientOpcode::Append);
 }
 
 TEST_P(McdTestappTest, Prepend) {
-    test_concat_impl("test_prepend", PROTOCOL_BINARY_CMD_PREPEND);
+    test_concat_impl("test_prepend", cb::mcbp::ClientOpcode::Prepend);
 }
 
 TEST_P(McdTestappTest, AppendQ) {
-    test_concat_impl("test_appendq", PROTOCOL_BINARY_CMD_APPENDQ);
+    test_concat_impl("test_appendq", cb::mcbp::ClientOpcode::Appendq);
 }
 
 TEST_P(McdTestappTest, PrependQ) {
-    test_concat_impl("test_prependq", PROTOCOL_BINARY_CMD_PREPENDQ);
+    test_concat_impl("test_prependq", cb::mcbp::ClientOpcode::Prependq);
 }
 
 TEST_P(McdTestappTest, Stat) {
@@ -734,15 +801,19 @@ TEST_P(McdTestappTest, Stat) {
         char bytes[1024];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_STAT,
-                                  NULL, 0, NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::Stat,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  0);
 
     safe_send(buffer.bytes, len, false);
     do {
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_STAT,
+                                      cb::mcbp::ClientOpcode::Stat,
                                       cb::mcbp::Status::Success);
     } while (buffer.response.message.header.response.getKeylen() != 0);
 }
@@ -754,15 +825,19 @@ TEST_P(McdTestappTest, StatConnections) {
         char bytes[2048];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_STAT,
-                                  "connections", strlen("connections"), NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::Stat,
+                                  "connections",
+                                  strlen("connections"),
+                                  NULL,
+                                  0);
 
     safe_send(buffer.bytes, len, false);
     do {
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_STAT,
+                                      cb::mcbp::ClientOpcode::Stat,
                                       cb::mcbp::Status::Success);
     } while (buffer.response.message.header.response.getKeylen() != 0);
 }
@@ -777,8 +852,7 @@ static void binary_hickup_recv_verification_thread(void *arg) {
             /* Just validate the packet format */
             mcbp_validate_response_header(
                     response,
-                    uint8_t(response->message.header.response
-                                    .getClientOpcode()),
+                    response->message.header.response.getClientOpcode(),
                     response->message.header.response.getStatus());
         }
         cb_free(response);
@@ -802,58 +876,97 @@ static void test_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
         size_t len;
         size_t keylen = (rand() % 250) + 1;
 
-        switch (cmd) {
-        case PROTOCOL_BINARY_CMD_ADD:
-        case PROTOCOL_BINARY_CMD_ADDQ:
-        case PROTOCOL_BINARY_CMD_REPLACE:
-        case PROTOCOL_BINARY_CMD_REPLACEQ:
-        case PROTOCOL_BINARY_CMD_SET:
-        case PROTOCOL_BINARY_CMD_SETQ:
-            len = mcbp_storage_command(command.bytes, sizeof(command.bytes),
-                                       cmd, key, keylen, &value, sizeof(value),
-                                       0, 0);
+        switch (cb::mcbp::ClientOpcode(cmd)) {
+        case cb::mcbp::ClientOpcode::Add:
+        case cb::mcbp::ClientOpcode::Addq:
+        case cb::mcbp::ClientOpcode::Replace:
+        case cb::mcbp::ClientOpcode::Replaceq:
+        case cb::mcbp::ClientOpcode::Set:
+        case cb::mcbp::ClientOpcode::Setq:
+            len = mcbp_storage_command(command.bytes,
+                                       sizeof(command.bytes),
+                                       cb::mcbp::ClientOpcode(cmd),
+                                       key,
+                                       keylen,
+                                       &value,
+                                       sizeof(value),
+                                       0,
+                                       0);
             break;
-        case PROTOCOL_BINARY_CMD_APPEND:
-        case PROTOCOL_BINARY_CMD_APPENDQ:
-        case PROTOCOL_BINARY_CMD_PREPEND:
-        case PROTOCOL_BINARY_CMD_PREPENDQ:
-            len = mcbp_raw_command(command.bytes, sizeof(command.bytes), cmd,
-                                   key, keylen, &value, sizeof(value));
+        case cb::mcbp::ClientOpcode::Append:
+        case cb::mcbp::ClientOpcode::Appendq:
+        case cb::mcbp::ClientOpcode::Prepend:
+        case cb::mcbp::ClientOpcode::Prependq:
+            len = mcbp_raw_command(command.bytes,
+                                   sizeof(command.bytes),
+                                   cb::mcbp::ClientOpcode(cmd),
+                                   key,
+                                   keylen,
+                                   &value,
+                                   sizeof(value));
             break;
-        case PROTOCOL_BINARY_CMD_NOOP:
-            len = mcbp_raw_command(command.bytes, sizeof(command.bytes), cmd,
-                                   NULL, 0, NULL, 0);
+        case cb::mcbp::ClientOpcode::Noop:
+            len = mcbp_raw_command(command.bytes,
+                                   sizeof(command.bytes),
+                                   cb::mcbp::ClientOpcode(cmd),
+                                   NULL,
+                                   0,
+                                   NULL,
+                                   0);
             break;
-        case PROTOCOL_BINARY_CMD_DELETE:
-        case PROTOCOL_BINARY_CMD_DELETEQ:
-            len = mcbp_raw_command(command.bytes, sizeof(command.bytes), cmd,
-                                   key, keylen, NULL, 0);
+        case cb::mcbp::ClientOpcode::Delete:
+        case cb::mcbp::ClientOpcode::Deleteq:
+            len = mcbp_raw_command(command.bytes,
+                                   sizeof(command.bytes),
+                                   cb::mcbp::ClientOpcode(cmd),
+                                   key,
+                                   keylen,
+                                   NULL,
+                                   0);
             break;
-        case PROTOCOL_BINARY_CMD_DECREMENT:
-        case PROTOCOL_BINARY_CMD_DECREMENTQ:
-        case PROTOCOL_BINARY_CMD_INCREMENT:
-        case PROTOCOL_BINARY_CMD_INCREMENTQ:
-            len = mcbp_arithmetic_command(command.bytes, sizeof(command.bytes),
-                                          cmd,
-                                          key, keylen, 1, 0, 0);
+        case cb::mcbp::ClientOpcode::Decrement:
+        case cb::mcbp::ClientOpcode::Decrementq:
+        case cb::mcbp::ClientOpcode::Increment:
+        case cb::mcbp::ClientOpcode::Incrementq:
+            len = mcbp_arithmetic_command(command.bytes,
+                                          sizeof(command.bytes),
+                                          cb::mcbp::ClientOpcode(cmd),
+                                          key,
+                                          keylen,
+                                          1,
+                                          0,
+                                          0);
             break;
-        case PROTOCOL_BINARY_CMD_VERSION:
-            len = mcbp_raw_command(command.bytes, sizeof(command.bytes),
-                                   PROTOCOL_BINARY_CMD_VERSION,
-                                   NULL, 0, NULL, 0);
+        case cb::mcbp::ClientOpcode::Version:
+            len = mcbp_raw_command(command.bytes,
+                                   sizeof(command.bytes),
+                                   cb::mcbp::ClientOpcode::Version,
+                                   NULL,
+                                   0,
+                                   NULL,
+                                   0);
             break;
-        case PROTOCOL_BINARY_CMD_GET:
-        case PROTOCOL_BINARY_CMD_GETK:
-        case PROTOCOL_BINARY_CMD_GETKQ:
-        case PROTOCOL_BINARY_CMD_GETQ:
-            len = mcbp_raw_command(command.bytes, sizeof(command.bytes), cmd,
-                                   key, keylen, NULL, 0);
+        case cb::mcbp::ClientOpcode::Get:
+        case cb::mcbp::ClientOpcode::Getk:
+        case cb::mcbp::ClientOpcode::Getkq:
+        case cb::mcbp::ClientOpcode::Getq:
+            len = mcbp_raw_command(command.bytes,
+                                   sizeof(command.bytes),
+                                   cb::mcbp::ClientOpcode(cmd),
+                                   key,
+                                   keylen,
+                                   NULL,
+                                   0);
             break;
 
-        case PROTOCOL_BINARY_CMD_STAT:
-            len = mcbp_raw_command(command.bytes, sizeof(command.bytes),
-                                   PROTOCOL_BINARY_CMD_STAT,
-                                   NULL, 0, NULL, 0);
+        case cb::mcbp::ClientOpcode::Stat:
+            len = mcbp_raw_command(command.bytes,
+                                   sizeof(command.bytes),
+                                   cb::mcbp::ClientOpcode::Stat,
+                                   NULL,
+                                   0,
+                                   NULL,
+                                   0);
             break;
 
         default:
@@ -898,9 +1011,13 @@ TEST_P(McdTestappTest, PipelineHickup)
     }
 
     /* send quit to shut down the read thread ;-) */
-    len = mcbp_raw_command(buffer.data(), buffer.size(),
-                           PROTOCOL_BINARY_CMD_QUIT,
-                           NULL, 0, NULL, 0);
+    len = mcbp_raw_command(buffer.data(),
+                           buffer.size(),
+                           cb::mcbp::ClientOpcode::Quit,
+                           NULL,
+                           0,
+                           NULL,
+                           0);
     safe_send(buffer.data(), len, false);
 
     cb_join_thread(tid);
@@ -918,14 +1035,18 @@ TEST_P(McdTestappTest, IOCTL_Get) {
     sasl_auth("@admin", "password");
 
     /* NULL key is invalid. */
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_IOCTL_GET, NULL, 0, NULL,
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::IoctlGet,
+                                  NULL,
+                                  0,
+                                  NULL,
                                   0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_IOCTL_GET,
+                                  cb::mcbp::ClientOpcode::IoctlGet,
                                   cb::mcbp::Status::Einval);
 }
 
@@ -938,14 +1059,18 @@ TEST_P(McdTestappTest, IOCTL_Set) {
     sasl_auth("@admin", "password");
 
     /* NULL key is invalid. */
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_IOCTL_SET, NULL, 0, NULL,
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::IoctlSet,
+                                  NULL,
+                                  0,
+                                  NULL,
                                   0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_IOCTL_SET,
+                                  cb::mcbp::ClientOpcode::IoctlSet,
                                   cb::mcbp::Status::Einval);
     reconnect_to_server();
     sasl_auth("@admin", "password");
@@ -953,14 +1078,18 @@ TEST_P(McdTestappTest, IOCTL_Set) {
     /* Very long (> IOCTL_KEY_LENGTH) is invalid. */
     {
         char long_key[128 + 1] = {0};
-        len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                               PROTOCOL_BINARY_CMD_IOCTL_SET, long_key,
-                               sizeof(long_key), NULL, 0);
+        len = mcbp_raw_command(buffer.bytes,
+                               sizeof(buffer.bytes),
+                               cb::mcbp::ClientOpcode::IoctlSet,
+                               long_key,
+                               sizeof(long_key),
+                               NULL,
+                               0);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
+                                      cb::mcbp::ClientOpcode::IoctlSet,
                                       cb::mcbp::Status::Einval);
         reconnect_to_server();
         sasl_auth("@admin", "password");
@@ -969,14 +1098,18 @@ TEST_P(McdTestappTest, IOCTL_Set) {
     /* release_free_memory always returns OK, regardless of how much was freed.*/
     {
         char cmd[] = "release_free_memory";
-        len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                               PROTOCOL_BINARY_CMD_IOCTL_SET, cmd, strlen(cmd),
-                               NULL, 0);
+        len = mcbp_raw_command(buffer.bytes,
+                               sizeof(buffer.bytes),
+                               cb::mcbp::ClientOpcode::IoctlSet,
+                               cmd,
+                               strlen(cmd),
+                               NULL,
+                               0);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
+                                      cb::mcbp::ClientOpcode::IoctlSet,
                                       cb::mcbp::Status::Success);
     }
 }
@@ -1047,7 +1180,7 @@ TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
     const auto config_string = memcached_cfg.dump();
     size_t len = mcbp_raw_command(buffer.bytes,
                                   sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
                                   NULL,
                                   0,
                                   config_string.data(),
@@ -1056,7 +1189,7 @@ TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
                                   cb::mcbp::Status::Success);
 }
 
@@ -1069,14 +1202,18 @@ TEST_P(McdTestappTest, Config_Validate_Empty) {
     sasl_auth("@admin", "password");
 
     /* empty config is invalid */
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                                  NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
                                   cb::mcbp::Status::Einval);
 }
 
@@ -1090,14 +1227,18 @@ TEST_P(McdTestappTest, Config_ValidateInvalidJSON) {
 
     /* non-JSON config is invalid */
     char non_json[] = "[something which isn't JSON]";
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                                  non_json, strlen(non_json));
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
+                                  NULL,
+                                  0,
+                                  non_json,
+                                  strlen(non_json));
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
                                   cb::mcbp::Status::Einval);
 }
 
@@ -1115,7 +1256,7 @@ TEST_P(McdTestappTest, Config_ValidateThreadsNotDynamic) {
     const auto dyn_string = json.dump();
     size_t len = mcbp_raw_command(buffer.bytes,
                                   sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
                                   NULL,
                                   0,
                                   dyn_string.data(),
@@ -1124,7 +1265,7 @@ TEST_P(McdTestappTest, Config_ValidateThreadsNotDynamic) {
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
                                   cb::mcbp::Status::Einval);
 }
 
@@ -1142,7 +1283,7 @@ TEST_P(McdTestappTest, Config_ValidateInterface) {
     const auto dyn_string = dynamic.dump();
     size_t len = mcbp_raw_command(buffer.bytes,
                                   sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
                                   NULL,
                                   0,
                                   dyn_string.data(),
@@ -1151,7 +1292,7 @@ TEST_P(McdTestappTest, Config_ValidateInterface) {
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                                  cb::mcbp::ClientOpcode::ConfigValidate,
                                   cb::mcbp::Status::Success);
 }
 
@@ -1169,15 +1310,18 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* reload identity config */
     {
-        size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
+        size_t len = mcbp_raw_command(buffer.bytes,
+                                      sizeof(buffer.bytes),
+                                      cb::mcbp::ClientOpcode::ConfigReload,
+                                      NULL,
                                       0,
-                                      NULL, 0);
+                                      NULL,
+                                      0);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                      cb::mcbp::ClientOpcode::ConfigReload,
                                       cb::mcbp::Status::Success);
     }
 
@@ -1189,15 +1333,18 @@ TEST_P(McdTestappTest, Config_Reload) {
 
         write_config_to_file(dyn_string, config_file);
 
-        size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
+        size_t len = mcbp_raw_command(buffer.bytes,
+                                      sizeof(buffer.bytes),
+                                      cb::mcbp::ClientOpcode::ConfigReload,
+                                      NULL,
                                       0,
-                                      NULL, 0);
+                                      NULL,
+                                      0);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                      cb::mcbp::ClientOpcode::ConfigReload,
                                       cb::mcbp::Status::Success);
     }
 
@@ -1208,15 +1355,18 @@ TEST_P(McdTestappTest, Config_Reload) {
         const auto dyn_string = dynamic.dump();
         write_config_to_file(dyn_string, config_file);
 
-        size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
+        size_t len = mcbp_raw_command(buffer.bytes,
+                                      sizeof(buffer.bytes),
+                                      cb::mcbp::ClientOpcode::ConfigReload,
+                                      NULL,
                                       0,
-                                      NULL, 0);
+                                      NULL,
+                                      0);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                      cb::mcbp::ClientOpcode::ConfigReload,
                                       cb::mcbp::Status::Success);
     }
 
@@ -1228,15 +1378,18 @@ TEST_P(McdTestappTest, Config_Reload) {
 
         write_config_to_file(dyn_string, config_file);
 
-        size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
+        size_t len = mcbp_raw_command(buffer.bytes,
+                                      sizeof(buffer.bytes),
+                                      cb::mcbp::ClientOpcode::ConfigReload,
+                                      NULL,
                                       0,
-                                      NULL, 0);
+                                      NULL,
+                                      0);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                      cb::mcbp::ClientOpcode::ConfigReload,
                                       cb::mcbp::Status::Success);
     }
 
@@ -1251,15 +1404,18 @@ TEST_P(McdTestappTest, Config_Reload) {
 
         write_config_to_file(dyn_string, config_file);
 
-        size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL,
+        size_t len = mcbp_raw_command(buffer.bytes,
+                                      sizeof(buffer.bytes),
+                                      cb::mcbp::ClientOpcode::ConfigReload,
+                                      NULL,
                                       0,
-                                      NULL, 0);
+                                      NULL,
+                                      0);
 
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                      cb::mcbp::ClientOpcode::ConfigReload,
                                       cb::mcbp::Status::Success);
     }
 
@@ -1269,14 +1425,18 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     write_config_to_file(dyn_string, config_file);
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
-                                  NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::ConfigReload,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                  cb::mcbp::ClientOpcode::ConfigReload,
                                   cb::mcbp::Status::Success);
 }
 
@@ -1302,14 +1462,18 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     const auto dyn_string = dynamic.dump();
     write_config_to_file(dyn_string, config_file);
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
-                                  NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::ConfigReload,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                  cb::mcbp::ClientOpcode::ConfigReload,
                                   cb::mcbp::Status::Success);
 }
 
@@ -1323,14 +1487,18 @@ TEST_P(McdTestappTest, Audit_Put) {
 
     buffer.request.message.body.id = 0;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_AUDIT_PUT, NULL, 0,
-                                  "{}", 2);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::AuditPut,
+                                  NULL,
+                                  0,
+                                  "{}",
+                                  2);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_AUDIT_PUT,
+                                  cb::mcbp::ClientOpcode::AuditPut,
                                   cb::mcbp::Status::Success);
 }
 
@@ -1342,14 +1510,18 @@ TEST_P(McdTestappTest, Audit_ConfigReload) {
     }buffer;
     sasl_auth("@admin", "password");
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
-                                  NULL, 0, NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::AuditConfigReload,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
+                                  cb::mcbp::ClientOpcode::AuditConfigReload,
                                   cb::mcbp::Status::Success);
 }
 
@@ -1364,16 +1536,20 @@ TEST_P(McdTestappTest, Verbosity) {
 
     int ii;
     for (ii = 10; ii > -1; --ii) {
-        size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                      PROTOCOL_BINARY_CMD_VERBOSITY,
-                                      NULL, 0, NULL, 0);
+        size_t len = mcbp_raw_command(buffer.bytes,
+                                      sizeof(buffer.bytes),
+                                      cb::mcbp::ClientOpcode::Verbosity,
+                                      NULL,
+                                      0,
+                                      NULL,
+                                      0);
         buffer.request.message.header.request.extlen = 4;
         buffer.request.message.header.request.bodylen = ntohl(4);
         buffer.request.message.body.level = (uint32_t)ntohl(ii);
         safe_send(buffer.bytes, len + sizeof(4), false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_VERBOSITY,
+                                      cb::mcbp::ClientOpcode::Verbosity,
                                       cb::mcbp::Status::Success);
     }
 }
@@ -1398,15 +1574,18 @@ TEST_P(McdTestappTest, Hello) {
 
     memset(buffer.bytes, 0, sizeof(buffer.bytes));
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_HELLO,
-                           useragent, strlen(useragent), features,
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::Hello,
+                           useragent,
+                           strlen(useragent),
+                           features,
                            sizeof(features));
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_HELLO,
+                                  cb::mcbp::ClientOpcode::Hello,
                                   cb::mcbp::Status::Success);
 
     EXPECT_EQ(12u, buffer.response.message.header.response.getBodylen());
@@ -1445,27 +1624,33 @@ TEST_P(McdTestappTest, Hello) {
                         cb::mcbp::Feature::SELECT_BUCKET));
 
     features[0] = 0xffff;
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_HELLO,
-                           useragent, strlen(useragent), features,
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::Hello,
+                           useragent,
+                           strlen(useragent),
+                           features,
                            2);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_HELLO,
+                                  cb::mcbp::ClientOpcode::Hello,
                                   cb::mcbp::Status::Success);
     EXPECT_EQ(0u, buffer.response.message.header.response.getBodylen());
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_HELLO,
-                           useragent, strlen(useragent), features,
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::Hello,
+                           useragent,
+                           strlen(useragent),
+                           features,
                            sizeof(features) - 1);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_HELLO,
+                                  cb::mcbp::ClientOpcode::Hello,
                                   cb::mcbp::Status::Einval);
 }
 
@@ -1479,16 +1664,20 @@ TEST_P(McdTestappTest, TapConnect) {
     } buffer;
 
     memset(buffer.bytes, 0, sizeof(buffer.bytes));
-    auto len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                PROTOCOL_BINARY_CMD_TAP_CONNECT,
-                                NULL, 0, NULL,0);
+    auto len = mcbp_raw_command(buffer.bytes,
+                                sizeof(buffer.bytes),
+                                cb::mcbp::ClientOpcode::TapConnect,
+                                NULL,
+                                0,
+                                NULL,
+                                0);
 
-     safe_send(buffer.bytes, len, false);
-     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-     mcbp_validate_response_header(&buffer.response,
-                                   PROTOCOL_BINARY_CMD_TAP_CONNECT,
-                                   cb::mcbp::Status::NotSupported);
-     EXPECT_EQ(0u, buffer.response.message.header.response.getBodylen());
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    mcbp_validate_response_header(&buffer.response,
+                                  cb::mcbp::ClientOpcode::TapConnect,
+                                  cb::mcbp::Status::NotSupported);
+    EXPECT_EQ(0u, buffer.response.message.header.response.getBodylen());
 }
 
 enum class Conversion { Yes, No };
@@ -1504,7 +1693,7 @@ static void get_object_w_datatype(const std::string& key,
 
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET;
+    request.message.header.request.setOpcode(cb::mcbp::ClientOpcode::Get);
     request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     request.message.header.request.keylen = htons((uint16_t)key.size());
     request.message.header.request.bodylen = htonl((uint32_t)key.size());
@@ -1602,7 +1791,7 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
 
     memset(request.bytes, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_NOOP;
+    request.message.header.request.setOpcode(cb::mcbp::ClientOpcode::Noop);
     request.message.header.request.datatype = 1;
 
     safe_send(&request.bytes, sizeof(request.bytes), false);
@@ -1633,7 +1822,8 @@ static uint64_t get_session_ctrl_token(void) {
 
     memset(buffer.bytes, 0, sizeof(buffer));
     buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN;
+    buffer.request.message.header.request.setOpcode(
+            cb::mcbp::ClientOpcode::GetCtrlToken);
 
     safe_send(buffer.bytes, sizeof(buffer.request), false);
     safe_recv_packet(&buffer.response, sizeof(buffer.bytes));
@@ -1652,7 +1842,7 @@ static void prepare_set_session_ctrl_token(protocol_binary_request_set_ctrl_toke
 {
     memset(req, 0, sizeof(*req));
     req->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    req->message.header.request.opcode = PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN;
+    req->message.header.request.setOpcode(cb::mcbp::ClientOpcode::SetCtrlToken);
     req->message.header.request.extlen = sizeof(uint64_t);
     req->message.header.request.bodylen = htonl(sizeof(uint64_t));
     req->message.header.request.cas = htonll(old);
@@ -1727,9 +1917,13 @@ TEST_P(McdTestappTest, MB_10114) {
 
     store_document(key, "world");
     do {
-        len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
-                               PROTOCOL_BINARY_CMD_APPEND,
-                               key, strlen(key), value, sizeof(value));
+        len = mcbp_raw_command(send.bytes,
+                               sizeof(send.bytes),
+                               cb::mcbp::ClientOpcode::Append,
+                               key,
+                               strlen(key),
+                               value,
+                               sizeof(value));
         safe_send(send.bytes, len, false);
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     } while (receive.response.message.header.response.getStatus() ==
@@ -1739,20 +1933,24 @@ TEST_P(McdTestappTest, MB_10114) {
               receive.response.message.header.response.getStatus());
 
     /* We should be able to delete it */
-    len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
-                           PROTOCOL_BINARY_CMD_DELETE,
-                           key, strlen(key), NULL, 0);
+    len = mcbp_raw_command(send.bytes,
+                           sizeof(send.bytes),
+                           cb::mcbp::ClientOpcode::Delete,
+                           key,
+                           strlen(key),
+                           NULL,
+                           0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_DELETE,
+                                  cb::mcbp::ClientOpcode::Delete,
                                   cb::mcbp::Status::Success);
 }
 
 TEST_P(McdTestappTest, DCP_Noop) {
     // TODO: For ep-engine (which supports DCP), actualy test it (instead of
     // skipping the default-engine style test).
-    TESTAPP_SKIP_IF_SUPPORTED(PROTOCOL_BINARY_CMD_DCP_NOOP);
+    TESTAPP_SKIP_IF_SUPPORTED(cb::mcbp::ClientOpcode::DcpNoop);
 
     union {
         protocol_binary_request_dcp_noop request;
@@ -1760,9 +1958,13 @@ TEST_P(McdTestappTest, DCP_Noop) {
         char bytes[1024];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_DCP_NOOP,
-                                  NULL, 0, NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::DcpNoop,
+                                  NULL,
+                                  0,
+                                  NULL,
+                                  0);
 
     /*
      * Default engine don't support DCP, so just check that
@@ -1771,25 +1973,29 @@ TEST_P(McdTestappTest, DCP_Noop) {
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_DCP_NOOP,
+                                  cb::mcbp::ClientOpcode::DcpNoop,
                                   cb::mcbp::Status::NotSupported);
     reconnect_to_server();
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_DCP_NOOP,
-                           "d", 1, "f", 1);
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::DcpNoop,
+                           "d",
+                           1,
+                           "f",
+                           1);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_DCP_NOOP,
+                                  cb::mcbp::ClientOpcode::DcpNoop,
                                   cb::mcbp::Status::Einval);
 }
 
 TEST_P(McdTestappTest, DCP_BufferAck) {
     // TODO: For ep-engine (which supports DCP), actualy test it (instead of
     // skipping the default-engine style test).
-    TESTAPP_SKIP_IF_SUPPORTED(PROTOCOL_BINARY_CMD_DCP_NOOP);
+    TESTAPP_SKIP_IF_SUPPORTED(cb::mcbp::ClientOpcode::DcpNoop);
 
     union {
         protocol_binary_request_dcp_buffer_acknowledgement request;
@@ -1797,9 +2003,14 @@ TEST_P(McdTestappTest, DCP_BufferAck) {
         char bytes[1024];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
-                                  NULL, 0, "asdf", 4);
+    size_t len =
+            mcbp_raw_command(buffer.bytes,
+                             sizeof(buffer.bytes),
+                             cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                             NULL,
+                             0,
+                             "asdf",
+                             4);
     buffer.request.message.header.request.extlen = 4;
 
     /*
@@ -1810,38 +2021,46 @@ TEST_P(McdTestappTest, DCP_BufferAck) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(
             &buffer.response,
-            PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
+            cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
             cb::mcbp::Status::NotSupported);
     reconnect_to_server();
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
-                           "d", 1, "ffff", 4);
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                           "d",
+                           1,
+                           "ffff",
+                           4);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(
             &buffer.response,
-            PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
+            cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
             cb::mcbp::Status::Einval);
     reconnect_to_server();
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
-                           NULL, 0, "fff", 3);
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                           NULL,
+                           0,
+                           "fff",
+                           3);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(
             &buffer.response,
-            PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
+            cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
             cb::mcbp::Status::Einval);
 }
 
 TEST_P(McdTestappTest, DCP_Control) {
     // TODO: For ep-engine (which supports DCP), actualy test it (instead of
     // skipping the default-engine style test).
-    TESTAPP_SKIP_IF_SUPPORTED(PROTOCOL_BINARY_CMD_DCP_NOOP);
+    TESTAPP_SKIP_IF_SUPPORTED(cb::mcbp::ClientOpcode::DcpNoop);
 
     union {
         protocol_binary_request_dcp_control request;
@@ -1851,9 +2070,13 @@ TEST_P(McdTestappTest, DCP_Control) {
 
     size_t len;
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_DCP_CONTROL,
-                           "foo", 3, "bar", 3);
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::DcpControl,
+                           "foo",
+                           3,
+                           "bar",
+                           3);
 
     /*
      * Default engine don't support DCP, so just check that
@@ -1862,40 +2085,52 @@ TEST_P(McdTestappTest, DCP_Control) {
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_DCP_CONTROL,
+                                  cb::mcbp::ClientOpcode::DcpControl,
                                   cb::mcbp::Status::NotSupported);
     reconnect_to_server();
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_DCP_CONTROL,
-                           NULL, 0, NULL, 0);
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::DcpControl,
+                           NULL,
+                           0,
+                           NULL,
+                           0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_DCP_CONTROL,
+                                  cb::mcbp::ClientOpcode::DcpControl,
                                   cb::mcbp::Status::Einval);
     reconnect_to_server();
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_DCP_CONTROL,
-                           NULL, 0, "fff", 3);
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::DcpControl,
+                           NULL,
+                           0,
+                           "fff",
+                           3);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_DCP_CONTROL,
+                                  cb::mcbp::ClientOpcode::DcpControl,
                                   cb::mcbp::Status::Einval);
     reconnect_to_server();
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_DCP_CONTROL,
-                           "foo", 3, NULL, 0);
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::DcpControl,
+                           "foo",
+                           3,
+                           NULL,
+                           0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_DCP_CONTROL,
+                                  cb::mcbp::ClientOpcode::DcpControl,
                                   cb::mcbp::Status::Einval);
 }
 
@@ -1913,28 +2148,37 @@ static void test_expiry(const char* key, time_t expiry,
 
     uint64_t value = 0xdeadbeefdeadcafe;
     size_t len = 0;
-    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                               PROTOCOL_BINARY_CMD_SET,
-                               key, strlen(key), &value, sizeof(value),
-                               0, (uint32_t)expiry);
+    len = mcbp_storage_command(send.bytes,
+                               sizeof(send.bytes),
+                               cb::mcbp::ClientOpcode::Set,
+                               key,
+                               strlen(key),
+                               &value,
+                               sizeof(value),
+                               0,
+                               (uint32_t)expiry);
 
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::Success);
 
     adjust_memcached_clock(clock_shift, TimeType::TimeOfDay);
 
     memset(send.bytes, 0, 1024);
-    len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
-                           PROTOCOL_BINARY_CMD_GET,
-                           key, strlen(key), NULL, 0);
+    len = mcbp_raw_command(send.bytes,
+                           sizeof(send.bytes),
+                           cb::mcbp::ClientOpcode::Get,
+                           key,
+                           strlen(key),
+                           NULL,
+                           0);
 
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_GET,
+                                  cb::mcbp::ClientOpcode::Get,
                                   cb::mcbp::Status::Success);
 }
 
@@ -1952,7 +2196,7 @@ TEST_P(McdTestappTest, ExpiryRelativeWithClockChangeBackwards) {
 }
 
 void McdTestappTest::test_set_huge_impl(const char* key,
-                                        uint8_t cmd,
+                                        cb::mcbp::ClientOpcode cmd,
                                         cb::mcbp::Status result,
                                         bool pipeline,
                                         int iterations,
@@ -1976,7 +2220,7 @@ void McdTestappTest::test_set_huge_impl(const char* key,
     for (ii = 0; ii < iterations; ++ii) {
         safe_send(set_message.data(), len, false);
         if (!pipeline) {
-            if (cmd == PROTOCOL_BINARY_CMD_SET) {
+            if (cmd == cb::mcbp::ClientOpcode::Set) {
                 safe_recv_packet(&receive, sizeof(receive));
                 mcbp_validate_response_header(
                     (protocol_binary_response_no_extras*)receive, cmd, result);
@@ -1984,7 +2228,7 @@ void McdTestappTest::test_set_huge_impl(const char* key,
         }
     }
 
-    if (pipeline && cmd == PROTOCOL_BINARY_CMD_SET) {
+    if (pipeline && cmd == cb::mcbp::ClientOpcode::Set) {
         for (ii = 0; ii < iterations; ++ii) {
             safe_recv_packet(&receive, sizeof(receive));
             mcbp_validate_response_header(
@@ -1995,7 +2239,7 @@ void McdTestappTest::test_set_huge_impl(const char* key,
 
 TEST_P(McdTestappTest, SetHuge) {
     test_set_huge_impl("test_set_huge",
-                       PROTOCOL_BINARY_CMD_SET,
+                       cb::mcbp::ClientOpcode::Set,
                        cb::mcbp::Status::Success,
                        false,
                        10,
@@ -2005,7 +2249,7 @@ TEST_P(McdTestappTest, SetHuge) {
 TEST_P(McdTestappTest, SetE2BIG) {
     test_set_huge_impl(
             "test_set_e2big",
-            PROTOCOL_BINARY_CMD_SET,
+            cb::mcbp::ClientOpcode::Set,
             cb::mcbp::Status::E2big,
             false,
             1,
@@ -2014,7 +2258,7 @@ TEST_P(McdTestappTest, SetE2BIG) {
 
 TEST_P(McdTestappTest, SetQHuge) {
     test_set_huge_impl("test_setq_huge",
-                       PROTOCOL_BINARY_CMD_SETQ,
+                       cb::mcbp::ClientOpcode::Setq,
                        cb::mcbp::Status::Success,
                        false,
                        10,
@@ -2023,7 +2267,7 @@ TEST_P(McdTestappTest, SetQHuge) {
 
 TEST_P(McdTestappTest, PipelineHuge) {
     test_set_huge_impl("test_pipeline_huge",
-                       PROTOCOL_BINARY_CMD_SET,
+                       cb::mcbp::ClientOpcode::Set,
                        cb::mcbp::Status::Success,
                        true,
                        200,
@@ -2035,7 +2279,7 @@ TEST_P(McdTestappTest, PipelineHuge) {
 // of time and don't really expose any new features in the server
 
 /* support set, get, delete */
-void test_pipeline_impl(int cmd,
+void test_pipeline_impl(cb::mcbp::ClientOpcode cmd,
                         cb::mcbp::Status result,
                         const char* key_root,
                         uint32_t messages_in_stream,
@@ -2056,12 +2300,12 @@ void test_pipeline_impl(int cmd,
     cb_assert(messages_in_stream <= 99999);
 
     /* now figure out the correct send and receive lengths */
-    if (cmd == PROTOCOL_BINARY_CMD_SET) {
+    if (cmd == cb::mcbp::ClientOpcode::Set) {
         /* set, sends key and a value */
         out_message_len = sizeof(protocol_binary_request_set) + key_root_len + key_digit_len + value_size;
         /* receives a plain response, no extra */
         in_message_len = sizeof(protocol_binary_response_no_extras);
-    } else if (cmd == PROTOCOL_BINARY_CMD_GET) {
+    } else if (cmd == cb::mcbp::ClientOpcode::Get) {
         /* get sends key */
         out_message_len = sizeof(protocol_binary_request_get) + key_root_len + key_digit_len;
 
@@ -2072,13 +2316,14 @@ void test_pipeline_impl(int cmd,
             /* receives a response + string error */
             in_message_len = sizeof(protocol_binary_response_no_extras) + 9;
         }
-    } else if (cmd == PROTOCOL_BINARY_CMD_DELETE) {
+    } else if (cmd == cb::mcbp::ClientOpcode::Delete) {
         /* delete sends key */
         out_message_len = sizeof(protocol_binary_request_get) + key_root_len + key_digit_len;
         /* receives a plain response, no extra */
         in_message_len = sizeof(protocol_binary_response_no_extras);
     } else {
-        FAIL() << "invalid cmd (" << cmd << ") in test_pipeline_impl";
+        FAIL() << "invalid cmd (" << to_string(cmd)
+               << ") in test_pipeline_impl";
     }
 
     send_len    = out_message_len * messages_in_stream;
@@ -2089,7 +2334,7 @@ void test_pipeline_impl(int cmd,
 
     for (uint32_t ii = 0; ii < messages_in_stream; ii++) {
         snprintf(key.data(), key_root_len + key_digit_len + 1, "%s%05d", key_root, ii);
-        if (PROTOCOL_BINARY_CMD_SET == cmd) {
+        if (cb::mcbp::ClientOpcode::Set == cmd) {
             protocol_binary_request_set* this_req = (protocol_binary_request_set*)current_message;
             current_message += mcbp_storage_command((char*)current_message,
                                                     out_message_len, cmd,
@@ -2156,12 +2401,12 @@ TEST_P(McdTestappTest, PipelineSet) {
       this triggered some edge cases in our SSL recv code.
     */
     for (int ii = 1; ii < 1000; ii++) {
-        test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+        test_pipeline_impl(cb::mcbp::ClientOpcode::Set,
                            cb::mcbp::Status::Success,
                            "key_set_pipe",
                            100,
                            ii);
-        test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+        test_pipeline_impl(cb::mcbp::ClientOpcode::Delete,
                            cb::mcbp::Status::Success,
                            "key_set_pipe",
                            100,
@@ -2180,19 +2425,19 @@ TEST_P(McdTestappTest, PipelineSetGetDel) {
     // running it to speed it up.
     ewouldblock_engine_disable();
 
-    test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+    test_pipeline_impl(cb::mcbp::ClientOpcode::Set,
                        cb::mcbp::Status::Success,
                        key_root,
                        5000,
                        256);
 
-    test_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
+    test_pipeline_impl(cb::mcbp::ClientOpcode::Get,
                        cb::mcbp::Status::Success,
                        key_root,
                        5000,
                        256);
 
-    test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+    test_pipeline_impl(cb::mcbp::ClientOpcode::Delete,
                        cb::mcbp::Status::Success,
                        key_root,
                        5000,
@@ -2208,13 +2453,13 @@ TEST_P(McdTestappTest, PipelineSetDel) {
     // running it to speed it up.
     ewouldblock_engine_disable();
 
-    test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+    test_pipeline_impl(cb::mcbp::ClientOpcode::Set,
                        cb::mcbp::Status::Success,
                        "key_root",
                        5000,
                        256);
 
-    test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+    test_pipeline_impl(cb::mcbp::ClientOpcode::Delete,
                        cb::mcbp::Status::Success,
                        "key_root",
                        5000,
@@ -2287,15 +2532,21 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize)
     } send, receive;
     memset(send.bytes, 0, sizeof(send.bytes));
 
-    mcbp_storage_command(send.bytes, sizeof(send.bytes),
-                         PROTOCOL_BINARY_CMD_SET,
-                         "key", 3, NULL, 0, 0, 0);
+    mcbp_storage_command(send.bytes,
+                         sizeof(send.bytes),
+                         cb::mcbp::ClientOpcode::Set,
+                         "key",
+                         3,
+                         NULL,
+                         0,
+                         0,
+                         0);
     send.request.message.header.request.bodylen = ntohl(31*1024*1024);
     safe_send(send.bytes, sizeof(send.bytes), false);
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response,
-                                  PROTOCOL_BINARY_CMD_SET,
+                                  cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::Einval);
 
     reconnect_to_server();
@@ -2313,10 +2564,13 @@ int get_topkeys_legacy_value(const std::string& wanted_key) {
         char bytes[8192];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_STAT,
-                                  "topkeys", strlen("topkeys"),
-                                  NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::Stat,
+                                  "topkeys",
+                                  strlen("topkeys"),
+                                  NULL,
+                                  0);
     safe_send(buffer.bytes, len, false);
 
     // We expect a variable number of response packets (one per top key);
@@ -2329,7 +2583,7 @@ int get_topkeys_legacy_value(const std::string& wanted_key) {
             return -1;
         }
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_STAT,
+                                      cb::mcbp::ClientOpcode::Stat,
                                       cb::mcbp::Status::Success);
 
         const char* key_ptr(
@@ -2394,10 +2648,13 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
         char bytes[10000];
     } buffer;
 
-    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_STAT,
-                                  "topkeys_json", strlen("topkeys_json"),
-                                  NULL, 0);
+    size_t len = mcbp_raw_command(buffer.bytes,
+                                  sizeof(buffer.bytes),
+                                  cb::mcbp::ClientOpcode::Stat,
+                                  "topkeys_json",
+                                  strlen("topkeys_json"),
+                                  NULL,
+                                  0);
     safe_send(buffer.bytes, len, false);
 
     // Expect 1 valid packet followed by 1 null
@@ -2406,7 +2663,7 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
         return false;
     }
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_STAT,
+                                  cb::mcbp::ClientOpcode::Stat,
                                   cb::mcbp::Status::Success);
 
     EXPECT_NE(0, buffer.response.message.header.response.getKeylen());
@@ -2424,7 +2681,7 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     // Consume NULL stats packet.
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_STAT,
+                                  cb::mcbp::ClientOpcode::Stat,
                                   cb::mcbp::Status::Success);
     EXPECT_EQ(0, buffer.response.message.header.response.getKeylen());
 
@@ -2471,16 +2728,21 @@ static void test_set_topkeys(const std::string& key, const int operations) {
     /* Send CMD_SET for current key 'sum' number of times (and validate
      * response). */
     for (ii = 0; ii < operations; ii++) {
-        len = mcbp_storage_command(buffer.bytes, sizeof(buffer.bytes),
-                                   PROTOCOL_BINARY_CMD_SET, key.c_str(),
+        len = mcbp_storage_command(buffer.bytes,
+                                   sizeof(buffer.bytes),
+                                   cb::mcbp::ClientOpcode::Set,
+                                   key.c_str(),
                                    key.length(),
-                                   "foo", strlen("foo"), 0, 0);
+                                   "foo",
+                                   strlen("foo"),
+                                   0,
+                                   0);
 
         safe_send(buffer.bytes, len, false);
 
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_SET,
+                                      cb::mcbp::ClientOpcode::Set,
                                       cb::mcbp::Status::Success);
     }
 
@@ -2509,15 +2771,18 @@ static void test_get_topkeys(const std::string& key, int operations) {
     memset(buffer.bytes, 0, sizeof(buffer));
 
     for (ii = 0; ii < operations; ii++) {
-        len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                               PROTOCOL_BINARY_CMD_GET, key.c_str(),
+        len = mcbp_raw_command(buffer.bytes,
+                               sizeof(buffer.bytes),
+                               cb::mcbp::ClientOpcode::Get,
+                               key.c_str(),
                                key.length(),
-                               NULL, 0);
+                               NULL,
+                               0);
         safe_send(buffer.bytes, len, false);
 
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_GET,
+                                      cb::mcbp::ClientOpcode::Get,
                                       cb::mcbp::Status::Success);
     }
 
@@ -2545,15 +2810,18 @@ static void test_delete_topkeys(const std::string& key) {
     } buffer;
     memset(buffer.bytes, 0, sizeof(buffer));
 
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_DELETE, key.c_str(),
+    len = mcbp_raw_command(buffer.bytes,
+                           sizeof(buffer.bytes),
+                           cb::mcbp::ClientOpcode::Delete,
+                           key.c_str(),
                            key.length(),
-                           NULL, 0);
+                           NULL,
+                           0);
     safe_send(buffer.bytes, len, false);
 
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_DELETE,
+                                  cb::mcbp::ClientOpcode::Delete,
                                   cb::mcbp::Status::Success);
 
     EXPECT_EQ(initial_count + 1, get_topkeys_legacy_value(key))
@@ -2591,13 +2859,19 @@ TEST_P(McdTestappTest, test_MB_16333) {
     } buffer;
     memset(buffer.bytes, 0, sizeof(buffer));
 
-    auto len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                255, NULL, 0, NULL, 0);
+    auto len = mcbp_raw_command(buffer.bytes,
+                                sizeof(buffer.bytes),
+                                cb::mcbp::ClientOpcode(255),
+                                NULL,
+                                0,
+                                NULL,
+                                0);
     safe_send(buffer.bytes, len, false);
 
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(
-            &buffer.response, 255, cb::mcbp::Status::UnknownCommand);
+    mcbp_validate_response_header(&buffer.response,
+                                  cb::mcbp::ClientOpcode(255),
+                                  cb::mcbp::Status::UnknownCommand);
 }
 
 /**
@@ -2618,15 +2892,18 @@ TEST_P(McdTestappTest, test_MB_16197) {
 
     // Bodylen deliberatley set to less than keylen.
     // This packet should be rejected.
-    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                   PROTOCOL_BINARY_CMD_SASL_AUTH,
-                                   chosenmech, strlen(chosenmech)/*keylen*/,
-                                   data, 1/*bodylen*/);
+    size_t plen = mcbp_raw_command(buffer.bytes,
+                                   sizeof(buffer.bytes),
+                                   cb::mcbp::ClientOpcode::SaslAuth,
+                                   chosenmech,
+                                   strlen(chosenmech) /*keylen*/,
+                                   data,
+                                   1 /*bodylen*/);
 
     safe_send(buffer.bytes, plen, false);
     safe_recv_packet(&buffer, sizeof(buffer));
     mcbp_validate_response_header(&buffer.response,
-                                  PROTOCOL_BINARY_CMD_SASL_AUTH,
+                                  cb::mcbp::ClientOpcode::SaslAuth,
                                   cb::mcbp::Status::Einval);
 }
 

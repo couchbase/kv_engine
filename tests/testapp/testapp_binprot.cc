@@ -24,11 +24,11 @@
  * Set the read/write commands differently than the default values
  * so that we can verify that the override works
  */
-static uint8_t read_command = 0xe1;
-static uint8_t write_command = 0xe2;
+static cb::mcbp::ClientOpcode read_command = cb::mcbp::ClientOpcode::Invalid;
+static cb::mcbp::ClientOpcode write_command = cb::mcbp::ClientOpcode::Invalid;
 
 off_t mcbp_raw_command(Frame& frame,
-                       uint8_t cmd,
+                       cb::mcbp::ClientOpcode cmd,
                        const void* key,
                        size_t keylen,
                        const void* data,
@@ -47,7 +47,7 @@ off_t mcbp_raw_command(Frame& frame,
 
 off_t mcbp_raw_command(char* buf,
                        size_t bufsz,
-                       uint8_t cmd,
+                       cb::mcbp::ClientOpcode cmd,
                        const void* key,
                        size_t keylen,
                        const void* dta,
@@ -61,15 +61,15 @@ off_t mcbp_raw_command(char* buf,
     memset(request, 0, sizeof(*request));
     if (cmd == read_command || cmd == write_command) {
         request->message.header.request.extlen = 8;
-    } else if (cmd == PROTOCOL_BINARY_CMD_AUDIT_PUT) {
+    } else if (cmd == cb::mcbp::ClientOpcode::AuditPut) {
         request->message.header.request.extlen = 4;
-    } else if (cmd == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
+    } else if (cmd == cb::mcbp::ClientOpcode::EwouldblockCtl) {
         request->message.header.request.extlen = 12;
-    } else if (cmd == PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN) {
+    } else if (cmd == cb::mcbp::ClientOpcode::SetCtrlToken) {
         request->message.header.request.extlen = 8;
     }
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request->message.header.request.opcode = cmd;
+    request->message.header.request.setOpcode(cmd);
     request->message.header.request.keylen = htons((uint16_t)keylen);
     request->message.header.request.bodylen = htonl(
         (uint32_t)(keylen + dtalen + request->message.header.request.extlen));
@@ -89,7 +89,10 @@ off_t mcbp_raw_command(char* buf,
                    request->message.header.request.extlen);
 }
 
-off_t mcbp_flush_command(char* buf, size_t bufsz, uint8_t cmd, uint32_t exptime,
+off_t mcbp_flush_command(char* buf,
+                         size_t bufsz,
+                         cb::mcbp::ClientOpcode cmd,
+                         uint32_t exptime,
                          bool use_extra) {
     off_t size;
     protocol_binary_request_flush* request =
@@ -98,7 +101,7 @@ off_t mcbp_flush_command(char* buf, size_t bufsz, uint8_t cmd, uint32_t exptime,
 
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request->message.header.request.opcode = cmd;
+    request->message.header.request.setOpcode(cmd);
 
     size = sizeof(protocol_binary_request_no_extras);
     if (use_extra) {
@@ -115,7 +118,7 @@ off_t mcbp_flush_command(char* buf, size_t bufsz, uint8_t cmd, uint32_t exptime,
 
 off_t mcbp_arithmetic_command(char* buf,
                               size_t bufsz,
-                              uint8_t cmd,
+                              cb::mcbp::ClientOpcode cmd,
                               const void* key,
                               size_t keylen,
                               uint64_t delta,
@@ -128,7 +131,7 @@ off_t mcbp_arithmetic_command(char* buf,
 
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request->message.header.request.opcode = cmd;
+    request->message.header.request.setOpcode(cmd);
     request->message.header.request.keylen = htons((uint16_t)keylen);
     request->message.header.request.extlen = 20;
     request->message.header.request.bodylen = htonl((uint32_t)(keylen + 20));
@@ -143,10 +146,10 @@ off_t mcbp_arithmetic_command(char* buf,
     return (off_t)(key_offset + keylen);
 }
 
-size_t mcbp_storage_command(Frame &frame,
-                            uint8_t cmd,
-                            const std::string &id,
-                            const std::vector<uint8_t> &value,
+size_t mcbp_storage_command(Frame& frame,
+                            cb::mcbp::ClientOpcode cmd,
+                            const std::string& id,
+                            const std::vector<uint8_t>& value,
                             uint32_t flags,
                             uint32_t exp) {
     frame.reset();
@@ -162,7 +165,7 @@ size_t mcbp_storage_command(Frame &frame,
 
 size_t mcbp_storage_command(char* buf,
                             size_t bufsz,
-                            uint8_t cmd,
+                            cb::mcbp::ClientOpcode cmd,
                             const void* key,
                             size_t keylen,
                             const void* dta,
@@ -177,12 +180,13 @@ size_t mcbp_storage_command(char* buf,
 
     memset(request, 0, sizeof(*request));
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request->message.header.request.opcode = cmd;
+    request->message.header.request.setOpcode(cmd);
     request->message.header.request.keylen = htons((uint16_t)keylen);
     request->message.header.request.opaque = 0xdeadbeef;
     key_offset = sizeof(protocol_binary_request_no_extras);
 
-    if (cmd != PROTOCOL_BINARY_CMD_APPEND && cmd != PROTOCOL_BINARY_CMD_PREPEND) {
+    if (cmd != cb::mcbp::ClientOpcode::Append &&
+        cmd != cb::mcbp::ClientOpcode::Prepend) {
         request->message.header.request.extlen = 8;
         request->message.header.request.bodylen = htonl(
             (uint32_t)(keylen + 8 + dtalen));
@@ -205,7 +209,7 @@ size_t mcbp_storage_command(char* buf,
 /* Validate the specified response header against the expected cmd and status.
  */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
-                                   uint8_t cmd,
+                                   cb::mcbp::ClientOpcode cmd,
                                    cb::mcbp::Status status) {
     auto* header = &response->message.header;
     if (status == cb::mcbp::Status::UnknownCommand) {
@@ -215,10 +219,8 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
     }
     bool mutation_seqno_enabled =
             enabled_hello_features.count(cb::mcbp::Feature::MUTATION_SEQNO) > 0;
-    EXPECT_TRUE(mcbp_validate_response_header(header,
-                                              protocol_binary_command(cmd),
-                                              status,
-                                              mutation_seqno_enabled));
+    EXPECT_TRUE(mcbp_validate_response_header(
+            header, cmd, status, mutation_seqno_enabled));
 }
 
 void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
@@ -237,32 +239,29 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
 
 ::testing::AssertionResult mcbp_validate_response_header(
         const protocol_binary_response_header* header,
-        protocol_binary_command cmd,
+        cb::mcbp::ClientOpcode cmd,
         cb::mcbp::Status status,
         bool mutation_seqno_enabled) {
     AssertHelper result;
 
     TESTAPP_EXPECT_EQ(
             result, PROTOCOL_BINARY_RES, uint8_t(header->response.getMagic()));
-    TESTAPP_EXPECT_EQ(
-            result,
-            static_cast<protocol_binary_command>(cmd),
-            protocol_binary_command(header->response.getClientOpcode()));
+    TESTAPP_EXPECT_EQ(result, cmd, header->response.getClientOpcode());
     TESTAPP_EXPECT_EQ(result, status, header->response.getStatus());
     TESTAPP_EXPECT_EQ(result, 0xdeadbeef, header->response.getOpaque());
 
     if (status == cb::mcbp::Status::Success) {
         switch (cmd) {
-        case PROTOCOL_BINARY_CMD_ADDQ:
-        case PROTOCOL_BINARY_CMD_APPENDQ:
-        case PROTOCOL_BINARY_CMD_DECREMENTQ:
-        case PROTOCOL_BINARY_CMD_DELETEQ:
-        case PROTOCOL_BINARY_CMD_FLUSHQ:
-        case PROTOCOL_BINARY_CMD_INCREMENTQ:
-        case PROTOCOL_BINARY_CMD_PREPENDQ:
-        case PROTOCOL_BINARY_CMD_QUITQ:
-        case PROTOCOL_BINARY_CMD_REPLACEQ:
-        case PROTOCOL_BINARY_CMD_SETQ:
+        case cb::mcbp::ClientOpcode::Addq:
+        case cb::mcbp::ClientOpcode::Appendq:
+        case cb::mcbp::ClientOpcode::Decrementq:
+        case cb::mcbp::ClientOpcode::Deleteq:
+        case cb::mcbp::ClientOpcode::Flushq:
+        case cb::mcbp::ClientOpcode::Incrementq:
+        case cb::mcbp::ClientOpcode::Prependq:
+        case cb::mcbp::ClientOpcode::Quitq:
+        case cb::mcbp::ClientOpcode::Replaceq:
+        case cb::mcbp::ClientOpcode::Setq:
             result.fail("Quiet command shouldn't return on success");
             break;
         default:
@@ -270,11 +269,11 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
         }
 
         switch (cmd) {
-        case PROTOCOL_BINARY_CMD_ADD:
-        case PROTOCOL_BINARY_CMD_REPLACE:
-        case PROTOCOL_BINARY_CMD_SET:
-        case PROTOCOL_BINARY_CMD_APPEND:
-        case PROTOCOL_BINARY_CMD_PREPEND:
+        case cb::mcbp::ClientOpcode::Add:
+        case cb::mcbp::ClientOpcode::Replace:
+        case cb::mcbp::ClientOpcode::Set:
+        case cb::mcbp::ClientOpcode::Append:
+        case cb::mcbp::ClientOpcode::Prepend:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
@@ -291,9 +290,9 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             }
             TESTAPP_EXPECT_NE(result, header->response.cas, 0u);
             break;
-        case PROTOCOL_BINARY_CMD_FLUSH:
-        case PROTOCOL_BINARY_CMD_NOOP:
-        case PROTOCOL_BINARY_CMD_QUIT:
+        case cb::mcbp::ClientOpcode::Flush:
+        case cb::mcbp::ClientOpcode::Noop:
+        case cb::mcbp::ClientOpcode::Quit:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.getExtlen());
             TESTAPP_EXPECT_EQ(result,
@@ -301,7 +300,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
                               uint8_t(header->response.getDatatype()));
             TESTAPP_EXPECT_EQ(result, 0u, header->response.getBodylen());
             break;
-        case PROTOCOL_BINARY_CMD_DELETE:
+        case cb::mcbp::ClientOpcode::Delete:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
@@ -317,8 +316,8 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
                 TESTAPP_EXPECT_EQ(result, 0u, header->response.getBodylen());
             }
             break;
-        case PROTOCOL_BINARY_CMD_DECREMENT:
-        case PROTOCOL_BINARY_CMD_INCREMENT:
+        case cb::mcbp::ClientOpcode::Decrement:
+        case cb::mcbp::ClientOpcode::Increment:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
@@ -335,13 +334,13 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
-        case PROTOCOL_BINARY_CMD_STAT:
+        case cb::mcbp::ClientOpcode::Stat:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getExtlen());
             /* key and value exists in all packets except in the terminating */
             TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);
             break;
 
-        case PROTOCOL_BINARY_CMD_VERSION:
+        case cb::mcbp::ClientOpcode::Version:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.getExtlen());
             TESTAPP_EXPECT_EQ(result,
@@ -351,8 +350,8 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);
             break;
 
-        case PROTOCOL_BINARY_CMD_GET:
-        case PROTOCOL_BINARY_CMD_GETQ:
+        case cb::mcbp::ClientOpcode::Get:
+        case cb::mcbp::ClientOpcode::Getq:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 4, header->response.getExtlen());
             // Datatype depends on the document fetched / if Hello::JSON
@@ -360,15 +359,15 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
-        case PROTOCOL_BINARY_CMD_GETK:
-        case PROTOCOL_BINARY_CMD_GETKQ:
+        case cb::mcbp::ClientOpcode::Getk:
+        case cb::mcbp::ClientOpcode::Getkq:
             TESTAPP_EXPECT_NE(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 4, header->response.getExtlen());
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
-        case PROTOCOL_BINARY_CMD_SUBDOC_GET:
+        case cb::mcbp::ClientOpcode::SubdocGet:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.getExtlen());
             // Datatype depends on the document fetched / if Hello::JSON
@@ -376,7 +375,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             TESTAPP_EXPECT_NE(result, 0u, header->response.getBodylen());
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
-        case PROTOCOL_BINARY_CMD_SUBDOC_EXISTS:
+        case cb::mcbp::ClientOpcode::SubdocExists:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.getExtlen());
             TESTAPP_EXPECT_EQ(result,
@@ -385,12 +384,12 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             TESTAPP_EXPECT_EQ(result, 0u, header->response.getBodylen());
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
-        case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
-        case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
-        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST:
-        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
-        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT:
-        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
+        case cb::mcbp::ClientOpcode::SubdocDictAdd:
+        case cb::mcbp::ClientOpcode::SubdocDictUpsert:
+        case cb::mcbp::ClientOpcode::SubdocArrayPushLast:
+        case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
+        case cb::mcbp::ClientOpcode::SubdocArrayInsert:
+        case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result,
                               PROTOCOL_BINARY_RAW_BYTES,
@@ -408,7 +407,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             }
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
-        case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
+        case cb::mcbp::ClientOpcode::SubdocCounter:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             // Datatype depends on the document fetched / if Hello::JSON
             // negotiated - should be checked by caller.
@@ -423,7 +422,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
-        case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP:
+        case cb::mcbp::ClientOpcode::SubdocMultiLookup:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             TESTAPP_EXPECT_EQ(result, 0, header->response.getExtlen());
             // Datatype of a multipath body is RAW_BYTES, as the body is
@@ -435,7 +434,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
             TESTAPP_EXPECT_NE(result, 0u, header->response.cas);
             break;
 
-        case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION:
+        case cb::mcbp::ClientOpcode::SubdocMultiMutation:
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
             // Datatype of a multipath body is RAW_BYTES, as the body is
             // a binary structure packing multiple results.
@@ -466,7 +465,7 @@ void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
     } else {
         TESTAPP_EXPECT_EQ(result, 0u, header->response.cas);
         TESTAPP_EXPECT_EQ(result, 0, header->response.getExtlen());
-        if (cmd != PROTOCOL_BINARY_CMD_GETK) {
+        if (cmd != cb::mcbp::ClientOpcode::Getk) {
             TESTAPP_EXPECT_EQ(result, 0, header->response.getKeylen());
         }
     }

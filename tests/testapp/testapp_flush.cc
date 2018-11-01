@@ -70,8 +70,8 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 TEST_P(FlushTest, Flush) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSH);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flush);
     BinprotResponse response;
     conn->executeCommand(command, response);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
@@ -79,16 +79,16 @@ TEST_P(FlushTest, Flush) {
 }
 
 TEST_P(FlushTest, FlushQ) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSHQ);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flushq);
     BinprotResponse response;
     conn->sendCommand(command);
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, get(response));
 }
 
 TEST_P(FlushTest, FlushWithExtlen) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSH);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flush);
     command.setExtrasValue(uint32_t(htonl(0)));
 
     // Ensure it still works
@@ -99,8 +99,8 @@ TEST_P(FlushTest, FlushWithExtlen) {
 }
 
 TEST_P(FlushTest, FlushQWithExtlen) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
-    BinprotGenericCommand command(PROTOCOL_BINARY_CMD_FLUSHQ);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Flushq);
     BinprotResponse response;
     command.setExtrasValue(static_cast<uint32_t>(htonl(0)));
     conn->sendCommand(command);
@@ -109,15 +109,14 @@ TEST_P(FlushTest, FlushQWithExtlen) {
 }
 
 TEST_P(FlushTest, DISABLED_DelayedFlushNotSupported) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_FLUSH);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Flush);
     BinprotGenericCommand command;
     BinprotResponse response;
 
     command.setExtrasValue(static_cast<uint32_t>(htonl(2)));
 
-    std::array<protocol_binary_command, 2> commands{{
-        PROTOCOL_BINARY_CMD_FLUSH, PROTOCOL_BINARY_CMD_FLUSHQ
-    }};
+    std::array<cb::mcbp::ClientOpcode, 2> commands{
+            {cb::mcbp::ClientOpcode::Flush, cb::mcbp::ClientOpcode::Flushq}};
     for (auto op : commands) {
         conn->executeCommand(command.setOp(op), response);
         ASSERT_EQ(cb::mcbp::Status::NotSupported, response.getStatus());

@@ -24,37 +24,9 @@
 namespace mcbp {
 namespace test {
 
-enum class Opcodes : uint8_t {
-    SetWithMeta = PROTOCOL_BINARY_CMD_SET_WITH_META,
-    SetQWithMeta = PROTOCOL_BINARY_CMD_SETQ_WITH_META,
-    AddWithMeta = PROTOCOL_BINARY_CMD_ADD_WITH_META,
-    AddQWithMeta = PROTOCOL_BINARY_CMD_ADDQ_WITH_META,
-    DelWithMeta = PROTOCOL_BINARY_CMD_DEL_WITH_META,
-    DelQWithMeta = PROTOCOL_BINARY_CMD_DELQ_WITH_META
-};
-
-std::string to_string(const Opcodes& opcode) {
-#ifdef JETBRAINS_CLION_IDE
-    // CLion don't properly parse the output when the
-    // output gets written as the string instead of the
-    // number. This makes it harder to debug the tests
-    // so let's just disable it while we're waiting
-    // for them to supply a fix.
-    // See https://youtrack.jetbrains.com/issue/CPP-6039
-    return std::to_string(static_cast<int>(opcode));
-#else
-    return ::to_string(cb::mcbp::ClientOpcode(opcode));
-#endif
-}
-
-std::ostream& operator<<(std::ostream& os, const Opcodes& o) {
-    os << to_string(o);
-    return os;
-}
-
-class MutationWithMetaTest
-        : public ::testing::WithParamInterface<std::tuple<Opcodes, bool>>,
-          public ValidatorTest {
+class MutationWithMetaTest : public ::testing::WithParamInterface<
+                                     std::tuple<cb::mcbp::ClientOpcode, bool>>,
+                             public ValidatorTest {
 public:
     MutationWithMetaTest() : ValidatorTest(std::get<1>(GetParam())) {
     }
@@ -122,12 +94,13 @@ TEST_P(MutationWithMetaTest, InvalidDatatype) {
 INSTANTIATE_TEST_CASE_P(
         Opcodes,
         MutationWithMetaTest,
-        ::testing::Combine(::testing::Values(Opcodes::SetWithMeta,
-                                             Opcodes::SetQWithMeta,
-                                             Opcodes::AddWithMeta,
-                                             Opcodes::AddQWithMeta,
-                                             Opcodes::DelWithMeta,
-                                             Opcodes::DelQWithMeta),
-                           ::testing::Bool()), );
+        ::testing::Combine(
+                ::testing::Values(cb::mcbp::ClientOpcode::SetWithMeta,
+                                  cb::mcbp::ClientOpcode::SetqWithMeta,
+                                  cb::mcbp::ClientOpcode::AddWithMeta,
+                                  cb::mcbp::ClientOpcode::AddqWithMeta,
+                                  cb::mcbp::ClientOpcode::DelWithMeta,
+                                  cb::mcbp::ClientOpcode::DelqWithMeta),
+                ::testing::Bool()), );
 } // namespace test
 } // namespace mcbp

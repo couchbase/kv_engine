@@ -40,18 +40,24 @@ public:
 
 protected:
     void doArrayInsertTest(const std::string& path) {
-        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                           name, path, "\"Smith\"",
+        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                           name,
+                           path,
+                           "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
-                      name, path + "[0]", "\"Bart\"",
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                      name,
+                      path + "[0]",
+                      "\"Bart\"",
                       SUBDOC_FLAG_XATTR_PATH);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
-                      name, path + "[1]", "\"Jones\"",
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                      name,
+                      path + "[1]",
+                      "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -61,8 +67,10 @@ protected:
     }
 
     void doArrayPushLastTest(const std::string& path) {
-        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                           name, path, "\"Smith\"",
+        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                           name,
+                           path,
+                           "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -71,8 +79,10 @@ protected:
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
         // Add a second one so we know it was added last ;-)
-        resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                      name, path, "\"Jones\"",
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                      name,
+                      path,
+                      "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -82,8 +92,10 @@ protected:
     }
 
     void doArrayPushFirstTest(const std::string& path) {
-        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                           name, path, "\"Smith\"",
+        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                           name,
+                           path,
+                           "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -92,8 +104,10 @@ protected:
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
         // Add a second one so we know it was added first ;-)
-        resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                      name, path, "\"Jones\"",
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                      name,
+                      path,
+                      "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -103,8 +117,10 @@ protected:
     }
 
     void doAddUniqueTest(const std::string& path) {
-        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
-                           name, path, "\"Smith\"",
+        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                           name,
+                           path,
+                           "\"Smith\"",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -112,8 +128,10 @@ protected:
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
-        resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
-                      name, path, "\"Jones\"",
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                      name,
+                      path,
+                      "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -121,8 +139,10 @@ protected:
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
 
-        resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
-                      name, path, "\"Jones\"",
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                      name,
+                      path,
+                      "\"Jones\"",
                       SUBDOC_FLAG_XATTR_PATH);
         ASSERT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 
@@ -133,8 +153,10 @@ protected:
     }
 
     void doCounterTest(const std::string& path) {
-        auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
-                           name, path, "1",
+        auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocCounter,
+                           name,
+                           path,
+                           "1",
                            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -142,8 +164,10 @@ protected:
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("1", resp.getValue());
 
-        resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
-                      name, path, "1",
+        resp = subdoc(cb::mcbp::ClientOpcode::SubdocCounter,
+                      name,
+                      path,
+                      "1",
                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -183,8 +207,12 @@ protected:
             const std::string& path,
             protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag docFlag = mcbp::subdoc::doc_flag::None) {
-        return subdoc(
-                PROTOCOL_BINARY_CMD_SUBDOC_GET, name, path, {}, flag, docFlag);
+        return subdoc(cb::mcbp::ClientOpcode::SubdocGet,
+                      name,
+                      path,
+                      {},
+                      flag,
+                      docFlag);
     }
 
     /**
@@ -223,7 +251,7 @@ protected:
         BinprotSubdocMultiLookupCommand cmd;
         cmd.setKey(name);
         cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-        cmd.addLookup("", PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE);
+        cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
 
         auto& conn = getConnection();
         conn.sendCommand(cmd);

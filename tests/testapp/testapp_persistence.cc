@@ -102,7 +102,7 @@ protected:
             break;
         case ShutdownMode::Clean: {
             auto& admin = getAdminConnection();
-            BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_SHUTDOWN);
+            BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Shutdown);
             cmd.setCas(token);
             admin.sendCommand(cmd);
 

@@ -293,7 +293,7 @@ TEST_P(ExternalAuthTest, TestReloadRbacDbDontNukeExternalUsers) {
 
     // Verify that the user is still there...
     response = conn.execute(BinprotGenericCommand{
-            PROTOCOL_BINARY_CMD_IOCTL_GET, "rbac.db.dump?domain=external"});
+            cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
     ASSERT_TRUE(response.isSuccess());
     auto json = nlohmann::json::parse(response.getDataString());
     EXPECT_EQ("external", json["osbourne"]["domain"])

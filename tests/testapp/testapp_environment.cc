@@ -47,7 +47,7 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
     // Encode a set_flush_param (like cbepctl)
     BinprotGenericCommand cmd;
     BinprotResponse resp;
-    cmd.setOp(PROTOCOL_BINARY_CMD_SET_PARAM);
+    cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("xattr_enabled");
     cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
     if (value) {
@@ -68,7 +68,7 @@ void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
     // Encode a set_flush_param (like cbepctl)
     BinprotGenericCommand cmd;
     BinprotResponse resp;
-    cmd.setOp(PROTOCOL_BINARY_CMD_SET_PARAM);
+    cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("compression_mode");
     cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
     cmd.setValue(value);
@@ -85,7 +85,7 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
     // Encode a set_flush_param (like cbepctl)
     BinprotGenericCommand cmd;
     BinprotResponse resp;
-    cmd.setOp(PROTOCOL_BINARY_CMD_SET_PARAM);
+    cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("min_compression_ratio");
     cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
     cmd.setValue(value);
@@ -117,35 +117,35 @@ public:
         return "default_engine";
     }
 
-    bool supportsOp(protocol_binary_command cmd) const override {
+    bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
         switch (cmd) {
-            case PROTOCOL_BINARY_CMD_DCP_OPEN:
-            case PROTOCOL_BINARY_CMD_DCP_ADD_STREAM:
-            case PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM:
-            case PROTOCOL_BINARY_CMD_DCP_STREAM_REQ:
-            case PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG:
-            case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
-            case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-            case PROTOCOL_BINARY_CMD_DCP_MUTATION:
-            case PROTOCOL_BINARY_CMD_DCP_DELETION:
-            case PROTOCOL_BINARY_CMD_DCP_EXPIRATION:
-            case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
-            case PROTOCOL_BINARY_CMD_DCP_NOOP:
-            case PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT:
-            case PROTOCOL_BINARY_CMD_DCP_CONTROL:
-            case PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT:
-            case PROTOCOL_BINARY_CMD_SET_WITH_META:
-            case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
-            case PROTOCOL_BINARY_CMD_ADD_WITH_META:
-            case PROTOCOL_BINARY_CMD_ADDQ_WITH_META:
-            case PROTOCOL_BINARY_CMD_DEL_WITH_META:
-            case PROTOCOL_BINARY_CMD_DELQ_WITH_META:
-            case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
-            case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
-            case PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG:
-                return false;
-            default:
-                return true;
+        case cb::mcbp::ClientOpcode::DcpOpen:
+        case cb::mcbp::ClientOpcode::DcpAddStream:
+        case cb::mcbp::ClientOpcode::DcpCloseStream:
+        case cb::mcbp::ClientOpcode::DcpStreamReq:
+        case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
+        case cb::mcbp::ClientOpcode::DcpStreamEnd:
+        case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+        case cb::mcbp::ClientOpcode::DcpMutation:
+        case cb::mcbp::ClientOpcode::DcpDeletion:
+        case cb::mcbp::ClientOpcode::DcpExpiration:
+        case cb::mcbp::ClientOpcode::DcpSetVbucketState:
+        case cb::mcbp::ClientOpcode::DcpNoop:
+        case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
+        case cb::mcbp::ClientOpcode::DcpControl:
+        case cb::mcbp::ClientOpcode::DcpSystemEvent:
+        case cb::mcbp::ClientOpcode::SetWithMeta:
+        case cb::mcbp::ClientOpcode::SetqWithMeta:
+        case cb::mcbp::ClientOpcode::AddWithMeta:
+        case cb::mcbp::ClientOpcode::AddqWithMeta:
+        case cb::mcbp::ClientOpcode::DelWithMeta:
+        case cb::mcbp::ClientOpcode::DelqWithMeta:
+        case cb::mcbp::ClientOpcode::EnableTraffic:
+        case cb::mcbp::ClientOpcode::DisableTraffic:
+        case cb::mcbp::ClientOpcode::GetFailoverLog:
+            return false;
+        default:
+            return true;
         }
     }
 
@@ -205,7 +205,7 @@ public:
         BinprotGenericCommand cmd;
         BinprotResponse resp;
 
-        cmd.setOp(PROTOCOL_BINARY_CMD_SELECT_BUCKET);
+        cmd.setOp(cb::mcbp::ClientOpcode::SelectBucket);
         cmd.setKey(name);
         conn.executeCommand(cmd, resp);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
@@ -213,7 +213,7 @@ public:
         cmd.clear();
         resp.clear();
 
-        cmd.setOp(PROTOCOL_BINARY_CMD_SET_VBUCKET);
+        cmd.setOp(cb::mcbp::ClientOpcode::SetVbucket);
         cmd.setExtrasValue<uint32_t>(htonl(1));
 
         conn.executeCommand(cmd, resp);
@@ -222,7 +222,7 @@ public:
         do {
             cmd.clear();
             resp.clear();
-            cmd.setOp(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
+            cmd.setOp(cb::mcbp::ClientOpcode::EnableTraffic);
             // Enable traffic
             conn.executeCommand(cmd, resp);
         } while (resp.getStatus() == cb::mcbp::Status::Etmpfail);
@@ -234,13 +234,13 @@ public:
         return "ep_engine";
     }
 
-    bool supportsOp(protocol_binary_command cmd ) const override {
+    bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
         switch (cmd) {
-        case PROTOCOL_BINARY_CMD_FLUSH:
-        case PROTOCOL_BINARY_CMD_FLUSHQ:
+        case cb::mcbp::ClientOpcode::Flush:
+        case cb::mcbp::ClientOpcode::Flushq:
             // TODO: Flush *is* supported by ep-engine, but it needs traffic
             // disabling before it's permitted.
-        case PROTOCOL_BINARY_CMD_SCRUB:
+        case cb::mcbp::ClientOpcode::Scrub:
             return false;
 
         default:

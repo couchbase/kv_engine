@@ -37,7 +37,7 @@ TEST_P(RegressionTest, MB_26196) {
 
     conn.authenticate("jones", "jonespassword", "PLAIN");
 
-    BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, "", ""};
+    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig, "", ""};
     BinprotResponse response;
     conn.executeCommand(cmd, response);
     EXPECT_FALSE(response.isSuccess());
@@ -79,7 +79,7 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
 
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
     cmd.addMutation(
-            PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast,
             SUBDOC_FLAG_MKDIR_P,
             "cron_timers",
             R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
@@ -120,7 +120,7 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
     cmd.addDocFlag(mcbp::subdoc::doc_flag::Mkdoc);
 
     cmd.addMutation(
-            PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast,
             SUBDOC_FLAG_MKDIR_P,
             "cron_timers",
             R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");

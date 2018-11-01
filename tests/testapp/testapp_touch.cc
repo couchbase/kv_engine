@@ -105,7 +105,7 @@ void TouchTest::testMiss(bool quiet) {
 
     if (quiet) {
         // Send a noop command as not found shoudn't return anything...
-        conn.sendCommand(BinprotGenericCommand{PROTOCOL_BINARY_CMD_NOOP});
+        conn.sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
     }
 
     BinprotResponse rsp;
@@ -113,11 +113,11 @@ void TouchTest::testMiss(bool quiet) {
 
     if (quiet) {
         // this should be the NOOP
-        EXPECT_EQ(PROTOCOL_BINARY_CMD_NOOP, rsp.getOp());
+        EXPECT_EQ(cb::mcbp::ClientOpcode::Noop, rsp.getOp());
         EXPECT_TRUE(rsp.isSuccess());
     } else {
         // this should be a ENOENT
-        EXPECT_EQ(PROTOCOL_BINARY_CMD_GAT, rsp.getOp());
+        EXPECT_EQ(cb::mcbp::ClientOpcode::Gat, rsp.getOp());
         EXPECT_FALSE(rsp.isSuccess());
         EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     }

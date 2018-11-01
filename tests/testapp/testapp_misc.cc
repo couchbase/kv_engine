@@ -30,7 +30,7 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         ::testing::PrintToStringParamName());
 
 TEST_P(MiscTest, GetFailoverLog) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG);
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::GetFailoverLog);
 
     auto& connection = getConnection();
 
@@ -116,13 +116,13 @@ TEST_P(MiscTest, UpdateUserPermissionsInvalidPayload) {
 TEST_P(MiscTest, GetRbacDatabase) {
     auto& conn = getAdminConnection();
     auto response = conn.execute(BinprotGenericCommand{
-            PROTOCOL_BINARY_CMD_IOCTL_GET, "rbac.db.dump?domain=external"});
+            cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
     ASSERT_TRUE(response.isSuccess());
     ASSERT_FALSE(response.getDataString().empty());
 
     conn = getConnection();
     response = conn.execute(BinprotGenericCommand{
-            PROTOCOL_BINARY_CMD_IOCTL_GET, "rbac.db.dump?domain=external"});
+            cb::mcbp::ClientOpcode::IoctlGet, "rbac.db.dump?domain=external"});
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
 }

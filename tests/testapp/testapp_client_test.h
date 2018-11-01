@@ -133,7 +133,7 @@ protected:
 
     /// Perform the specified subdoc command; returning the response.
     BinprotSubdocResponse subdoc(
-            protocol_binary_command opcode,
+            cb::mcbp::ClientOpcode opcode,
             const std::string& key,
             const std::string& path,
             const std::string& value = {},

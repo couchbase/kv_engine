@@ -141,8 +141,9 @@ public:
 
         // Setup basic, correct header.
         request.setKey("multi_lookup");
-        request.addLookup(
-            {PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, SUBDOC_FLAG_NONE, "[0]"});
+        request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
+                           SUBDOC_FLAG_NONE,
+                           "[0]"});
     }
 
 protected:
@@ -247,7 +248,7 @@ TEST_P(SubdocMultiLookupTest, NumPaths) {
     request.clearLookups();
     // Add maximum number of paths.
     BinprotSubdocMultiLookupCommand::LookupSpecifier spec{
-        PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, SUBDOC_FLAG_NONE, "[0]"};
+            cb::mcbp::ClientOpcode::SubdocExists, SUBDOC_FLAG_NONE, "[0]"};
     for (unsigned int i = 0; i < 16; i++) {
         request.addLookup(spec);
     }
@@ -265,7 +266,7 @@ TEST_P(SubdocMultiLookupTest, ValidLocationOpcodes) {
     // Check that GET is supported.
     request.clearLookups();
     request.addLookup(
-        {PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_NONE, "[0]"});
+            {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "[0]"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request));
 }
@@ -274,12 +275,12 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationOpcodes) {
     // Check that all opcodes apart from the two lookup ones are not supported.
 
     for (uint8_t ii = 0; ii < std::numeric_limits<uint8_t>::max(); ii++) {
-        auto cmd = protocol_binary_command(ii);
+        auto cmd = cb::mcbp::ClientOpcode(ii);
         // Skip over lookup opcodes
-        if ((cmd == PROTOCOL_BINARY_CMD_GET) ||
-            (cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
-            (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS) ||
-            (cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT)) {
+        if ((cmd == cb::mcbp::ClientOpcode::Get) ||
+            (cmd == cb::mcbp::ClientOpcode::SubdocGet) ||
+            (cmd == cb::mcbp::ClientOpcode::SubdocExists) ||
+            (cmd == cb::mcbp::ClientOpcode::SubdocGetCount)) {
             continue;
         }
         request.at(0) = {cmd, SUBDOC_FLAG_NONE, "[0]"};
@@ -308,8 +309,8 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationPaths) {
 
 TEST_P(SubdocMultiLookupTest, InvalidLocationFlags) {
     // Both GET and EXISTS do not accept any flags.
-    for (auto& opcode :
-        {PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, PROTOCOL_BINARY_CMD_SUBDOC_GET}) {
+    for (auto& opcode : {cb::mcbp::ClientOpcode::SubdocExists,
+                         cb::mcbp::ClientOpcode::SubdocGet}) {
         request.at(0).opcode = opcode;
         request.at(0).flags = SUBDOC_FLAG_MKDIR_P;
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -347,7 +348,7 @@ public:
 
         // Setup basic, correct header.
         request.setKey("multi_mutation");
-        request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+        request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
                              protocol_binary_subdoc_flag(0),
                              "key",
                              "value"});
@@ -513,10 +514,10 @@ TEST_P(SubdocMultiMutationTest, NumPaths) {
     request.clearMutations();
     // Add maximum number of paths.
     BinprotSubdocMultiMutationCommand::MutationSpecifier spec{
-        PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-        protocol_binary_subdoc_flag(0),
-        "",
-        "0"};
+            cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+            protocol_binary_subdoc_flag(0),
+            "",
+            "0"};
     for (unsigned int i = 0; i < 16; i++) {
         request.addMutation(spec);
     }
@@ -533,7 +534,7 @@ TEST_P(SubdocMultiMutationTest, NumPaths) {
 TEST_P(SubdocMultiMutationTest, ValidDictAdd) {
     // Only allowed empty flags or
     // SUBDOC_FLAG_MKDIR_P/mcbp::subdoc::doc_flag::Mkdoc
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -546,7 +547,7 @@ TEST_P(SubdocMultiMutationTest, ValidDictAdd) {
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidDictAdd) {
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
                          protocol_binary_subdoc_flag(0xff),
                          "path",
                          "value"});
@@ -554,7 +555,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictAdd) {
     EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have path.
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocDictAdd,
                      protocol_binary_subdoc_flag(0),
                      "",
                      ""};
@@ -562,7 +563,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictAdd) {
     EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Must have value.
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocDictAdd,
                      protocol_binary_subdoc_flag(0),
                      "path",
                      ""};
@@ -572,7 +573,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictAdd) {
 
 TEST_P(SubdocMultiMutationTest, ValidDictUpsert) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P(0x01)/MKDOC(0x02)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocDictUpsert,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -586,7 +587,7 @@ TEST_P(SubdocMultiMutationTest, ValidDictUpsert) {
 
 TEST_P(SubdocMultiMutationTest, InvalidDictUpsert) {
     // Only allowed empty flags SUBDOC_FLAG_{MKDIR_P (0x1), MKDOC (0x2)}
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocDictUpsert,
                          protocol_binary_subdoc_flag(0xff),
                          "path",
                          "value"});
@@ -594,7 +595,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictUpsert) {
     EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have path.
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocDictUpsert,
                      protocol_binary_subdoc_flag(0),
                      "",
                      ""};
@@ -602,7 +603,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictUpsert) {
     EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Must have value.
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocDictUpsert,
                      protocol_binary_subdoc_flag(0),
                      "path",
                      ""};
@@ -612,7 +613,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictUpsert) {
 }
 
 TEST_P(SubdocMultiMutationTest, ValidDelete) {
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocDelete,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          ""});
@@ -622,7 +623,7 @@ TEST_P(SubdocMultiMutationTest, ValidDelete) {
 
 TEST_P(SubdocMultiMutationTest, InvalidDelete) {
     // Shouldn't have value.
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocDelete,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -637,7 +638,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDelete) {
               1);
 
     // Must have path.
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocDelete,
                      protocol_binary_subdoc_flag(0),
                      "",
                      ""};
@@ -646,7 +647,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDelete) {
 }
 
 TEST_P(SubdocMultiMutationTest, ValidReplace) {
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "new_value"});
@@ -656,7 +657,7 @@ TEST_P(SubdocMultiMutationTest, ValidReplace) {
 
 TEST_P(SubdocMultiMutationTest, InvalidReplace) {
     // Must have path.
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          protocol_binary_subdoc_flag(0),
                          "",
                          "new_value"});
@@ -664,7 +665,7 @@ TEST_P(SubdocMultiMutationTest, InvalidReplace) {
     EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Must have value
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocReplace,
                      protocol_binary_subdoc_flag(0),
                      "path",
                      ""};
@@ -672,7 +673,7 @@ TEST_P(SubdocMultiMutationTest, InvalidReplace) {
     EXPECT_EQ("Request must include value", validate_error_context(request));
 
     // Shouldn't have flags.
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocReplace,
                      SUBDOC_FLAG_NONE,
                      "path",
                      "new_value"};
@@ -684,7 +685,7 @@ TEST_P(SubdocMultiMutationTest, InvalidReplace) {
 
 TEST_P(SubdocMultiMutationTest, ValidArrayPushLast) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -705,7 +706,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayPushLast) {
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayPushLast) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                          protocol_binary_subdoc_flag(0xff),
                          "",
                          "value"});
@@ -713,7 +714,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayPushLast) {
     EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have value
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                      protocol_binary_subdoc_flag(0),
                      "",
                      ""};
@@ -723,7 +724,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayPushLast) {
 
 TEST_P(SubdocMultiMutationTest, ValidArrayPushFirst) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -744,7 +745,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayPushFirst) {
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayPushFirst) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
                          protocol_binary_subdoc_flag(0xff),
                          "",
                          "value"});
@@ -752,7 +753,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayPushFirst) {
     EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have value
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
                      protocol_binary_subdoc_flag(0),
                      "",
                      ""};
@@ -762,7 +763,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayPushFirst) {
 
 TEST_P(SubdocMultiMutationTest, ValidArrayInsert) {
     // Only allowed empty flags.
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayInsert,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -776,7 +777,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
         request.addMutation({});
     }
 
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayInsert,
                      SUBDOC_FLAG_NONE,
                      "path",
                      "value"};
@@ -786,7 +787,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
               1);
 
     // Must have path
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayInsert,
                      protocol_binary_subdoc_flag(0),
                      "",
                      "value"};
@@ -794,7 +795,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
     EXPECT_EQ("Request must include path", validate_error_context(request));
 
     // Must have value
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayInsert,
                      protocol_binary_subdoc_flag(0),
                      "path",
                      ""};
@@ -804,7 +805,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
 
 TEST_P(SubdocMultiMutationTest, ValidArrayAddUnique) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -817,7 +818,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayAddUnique) {
               1);
 
     // Allowed empty path.
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                      protocol_binary_subdoc_flag(0),
                      "",
                      "value"};
@@ -827,7 +828,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayAddUnique) {
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayAddUnique) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                          protocol_binary_subdoc_flag(0xff),
                          "path",
                          "value"});
@@ -835,7 +836,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayAddUnique) {
     EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have value
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                      protocol_binary_subdoc_flag(0),
                      "path",
                      ""};
@@ -845,7 +846,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayAddUnique) {
 
 TEST_P(SubdocMultiMutationTest, ValidArrayCounter) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocCounter,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -858,7 +859,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayCounter) {
               1);
 
     // Empty path invalid
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocCounter,
                      protocol_binary_subdoc_flag(0),
                      "",
                      "value"};
@@ -868,7 +869,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayCounter) {
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayCounter) {
     // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocCounter,
                          protocol_binary_subdoc_flag(0xff),
                          "path",
                          "value"});
@@ -876,7 +877,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayCounter) {
     EXPECT_EQ("Request flags invalid", validate_error_context(request));
 
     // Must have value
-    request.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+    request.at(1) = {cb::mcbp::ClientOpcode::SubdocCounter,
                      protocol_binary_subdoc_flag(0),
                      "path",
                      ""};
@@ -887,20 +888,20 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayCounter) {
 TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
     // Check that all opcodes apart from the mutation ones are not supported.
     for (uint8_t ii = 0; ii < std::numeric_limits<uint8_t>::max(); ii++) {
-        auto cmd = protocol_binary_command(ii);
+        auto cmd = cb::mcbp::ClientOpcode(ii);
         // Skip over mutation opcodes.
         switch (cmd) {
-        case PROTOCOL_BINARY_CMD_SET:
-        case PROTOCOL_BINARY_CMD_DELETE:
-        case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
-        case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
-        case PROTOCOL_BINARY_CMD_SUBDOC_DELETE:
-        case PROTOCOL_BINARY_CMD_SUBDOC_REPLACE:
-        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST:
-        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
-        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT:
-        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
-        case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
+        case cb::mcbp::ClientOpcode::Set:
+        case cb::mcbp::ClientOpcode::Delete:
+        case cb::mcbp::ClientOpcode::SubdocDictAdd:
+        case cb::mcbp::ClientOpcode::SubdocDictUpsert:
+        case cb::mcbp::ClientOpcode::SubdocDelete:
+        case cb::mcbp::ClientOpcode::SubdocReplace:
+        case cb::mcbp::ClientOpcode::SubdocArrayPushLast:
+        case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
+        case cb::mcbp::ClientOpcode::SubdocArrayInsert:
+        case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+        case cb::mcbp::ClientOpcode::SubdocCounter:
             continue;
         default:
             break;
@@ -914,7 +915,7 @@ TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
 
 TEST_P(SubdocMultiMutationTest, InvalidCas) {
     // Check that a non 0 CAS is rejected
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocDictUpsert,
                          protocol_binary_subdoc_flag(0),
                          "path",
                          "value"});
@@ -928,7 +929,7 @@ TEST_P(SubdocMultiMutationTest, InvalidCas) {
 TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidValue) {
     request.clearMutations();
     // Shouldn't have value.
-    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+    request.addMutation({cb::mcbp::ClientOpcode::Delete,
                          protocol_binary_subdoc_flag(0),
                          "",
                          "value"});
@@ -940,7 +941,7 @@ TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidValue) {
 TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidPath) {
     request.clearMutations();
     // Must not have path.
-    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+    request.addMutation({cb::mcbp::ClientOpcode::Delete,
                          protocol_binary_subdoc_flag(0),
                          "_sync",
                          ""});
@@ -953,14 +954,14 @@ TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidXattrFlag) {
     request.clearMutations();
     // Can't use CMD_DELETE to delete Xattr
     request.addMutation(
-        {PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_XATTR_PATH, "", ""});
+            {cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_XATTR_PATH, "", ""});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
     EXPECT_EQ("Request flags invalid", validate_error_context(request));
 }
 
 TEST_P(SubdocMultiMutationTest, ValidWholeDocDeleteFlags) {
     request.clearMutations();
-    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+    request.addMutation({cb::mcbp::ClientOpcode::Delete,
                          protocol_binary_subdoc_flag(0),
                          "",
                          ""});
@@ -973,7 +974,7 @@ TEST_P(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
     // Doing a delete and another subdoc/wholedoc command on the body in
     // the same multi mutation is invalid
     // Note that the setup of this test adds an initial mutation
-    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+    request.addMutation({cb::mcbp::ClientOpcode::Delete,
                          protocol_binary_subdoc_flag(0),
                          "",
                          ""});
@@ -983,11 +984,11 @@ TEST_P(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
 
     // Now try the delete first
     request.clearMutations();
-    request.addMutation({PROTOCOL_BINARY_CMD_DELETE,
+    request.addMutation({cb::mcbp::ClientOpcode::Delete,
                          protocol_binary_subdoc_flag(0),
                          "",
                          ""});
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
                          protocol_binary_subdoc_flag(0),
                          "key",
                          "value"});

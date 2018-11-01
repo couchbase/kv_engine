@@ -289,7 +289,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
     // Add an xattr
     {
         BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+        cmd.setOp(cb::mcbp::ClientOpcode::SubdocDictAdd);
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.setValue("\"Trond Norbye\"");
@@ -307,7 +307,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
     // The xattr should have been preserved!
     {
         BinprotSubdocCommand cmd;
-        cmd.setOp(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+        cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);

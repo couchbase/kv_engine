@@ -44,7 +44,7 @@ public:
 
         auto& conn = getAdminConnection();
 
-        BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN);
+        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::SetCtrlToken);
         cmd.setExtrasValue(token);
         conn.sendCommand(cmd);
 

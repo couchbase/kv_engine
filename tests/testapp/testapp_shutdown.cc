@@ -20,7 +20,7 @@
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
     auto& conn = getAdminConnection();
-    BinprotGenericCommand cmd(PROTOCOL_BINARY_CMD_SHUTDOWN);
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Shutdown);
     cmd.setCas(token);
     conn.sendCommand(cmd);
 

@@ -27,48 +27,12 @@
 namespace mcbp {
 namespace test {
 
-enum class SubdocOpcodes : uint8_t {
-    Get = PROTOCOL_BINARY_CMD_SUBDOC_GET,
-    Exists = PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
-    DictAdd = PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-    Upsert = PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
-    Delete = PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-    Replace = PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-    PushLast = PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-    PushFirst = PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-    Insert = PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
-    AddUnique = PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
-    Counter = PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
-    MultiLookup = PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP,
-    MultiMutation = PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION,
-    GetCount = PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT
-};
-
-std::string to_string(const SubdocOpcodes& opcode) {
-#ifdef JETBRAINS_CLION_IDE
-    // CLion don't properly parse the output when the
-    // output gets written as the string instead of the
-    // number. This makes it harder to debug the tests
-    // so let's just disable it while we're waiting
-    // for them to supply a fix.
-    // See https://youtrack.jetbrains.com/issue/CPP-6039
-    return std::to_string(static_cast<int>(opcode));
-#else
-    return ::to_string(cb::mcbp::ClientOpcode(opcode));
-#endif
-}
-
-std::ostream& operator<<(std::ostream& os, const SubdocOpcodes& o) {
-    os << to_string(o);
-    return os;
-}
-
 /**
  * Test the extra checks needed for XATTR access in subdoc
  */
-class SubdocXattrSingleTest
-    : public ::testing::WithParamInterface<std::tuple<SubdocOpcodes, bool>>,
-      public ValidatorTest {
+class SubdocXattrSingleTest : public ::testing::WithParamInterface<
+                                      std::tuple<cb::mcbp::ClientOpcode, bool>>,
+                              public ValidatorTest {
 public:
     SubdocXattrSingleTest()
         : ValidatorTest(std::get<1>(GetParam())),
@@ -126,52 +90,55 @@ protected:
 
     bool needPayload() {
         switch (std::get<0>(GetParam())) {
-        case SubdocOpcodes::Get:
-        case SubdocOpcodes::Exists:
-        case SubdocOpcodes::GetCount:
-        case SubdocOpcodes::Delete:
+        case cb::mcbp::ClientOpcode::SubdocGet:
+        case cb::mcbp::ClientOpcode::SubdocExists:
+        case cb::mcbp::ClientOpcode::SubdocGetCount:
+        case cb::mcbp::ClientOpcode::SubdocDelete:
             return false;
 
-        case SubdocOpcodes::MultiMutation:
-        case SubdocOpcodes::MultiLookup:
-            throw std::logic_error("allowMacroExpansion: Multi* is not valid");
+        case cb::mcbp::ClientOpcode::SubdocMultiLookup:
+        case cb::mcbp::ClientOpcode::SubdocMultiMutation:
+            throw std::logic_error("needPayload: Multi* is not valid");
 
-        case SubdocOpcodes::Counter:
-        case SubdocOpcodes::AddUnique:
-        case SubdocOpcodes::Insert:
-        case SubdocOpcodes::PushFirst:
-        case SubdocOpcodes::PushLast:
-        case SubdocOpcodes::Replace:
-        case SubdocOpcodes::Upsert:
-        case SubdocOpcodes::DictAdd:
+        case cb::mcbp::ClientOpcode::SubdocDictAdd:
+        case cb::mcbp::ClientOpcode::SubdocDictUpsert:
+        case cb::mcbp::ClientOpcode::SubdocReplace:
+        case cb::mcbp::ClientOpcode::SubdocArrayPushLast:
+        case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
+        case cb::mcbp::ClientOpcode::SubdocArrayInsert:
+        case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+        case cb::mcbp::ClientOpcode::SubdocCounter:
             return true;
+
+        default:
+            throw std::logic_error("needPayload: Unknown parameter");
         }
-        throw std::logic_error("needPayload: Unknown parameter");
     }
 
     bool allowMacroExpansion() {
         switch (std::get<0>(GetParam())) {
-        case SubdocOpcodes::Get:
-        case SubdocOpcodes::Exists:
-        case SubdocOpcodes::GetCount:
-        case SubdocOpcodes::Delete:
-        case SubdocOpcodes::Counter:
-        case SubdocOpcodes::AddUnique:
+        case cb::mcbp::ClientOpcode::SubdocGet:
+        case cb::mcbp::ClientOpcode::SubdocExists:
+        case cb::mcbp::ClientOpcode::SubdocGetCount:
+        case cb::mcbp::ClientOpcode::SubdocDelete:
+        case cb::mcbp::ClientOpcode::SubdocCounter:
+        case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
             return false;
 
-        case SubdocOpcodes::MultiMutation:
-        case SubdocOpcodes::MultiLookup:
+        case cb::mcbp::ClientOpcode::SubdocMultiLookup:
+        case cb::mcbp::ClientOpcode::SubdocMultiMutation:
             throw std::logic_error("allowMacroExpansion: Multi* is not valid");
 
-        case SubdocOpcodes::Insert:
-        case SubdocOpcodes::PushFirst:
-        case SubdocOpcodes::PushLast:
-        case SubdocOpcodes::Replace:
-        case SubdocOpcodes::Upsert:
-        case SubdocOpcodes::DictAdd:
+        case cb::mcbp::ClientOpcode::SubdocArrayInsert:
+        case cb::mcbp::ClientOpcode::SubdocArrayPushLast:
+        case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
+        case cb::mcbp::ClientOpcode::SubdocReplace:
+        case cb::mcbp::ClientOpcode::SubdocDictAdd:
+        case cb::mcbp::ClientOpcode::SubdocDictUpsert:
             return true;
+        default:
+            throw std::logic_error("allowMacroExpansion: Unknown parameter");
         }
-        throw std::logic_error("allowMacroExpansion: Unknown parameter");
     }
 
     const std::string doc;
@@ -184,19 +151,20 @@ protected:
 INSTANTIATE_TEST_CASE_P(
         SubdocOpcodes,
         SubdocXattrSingleTest,
-        ::testing::Combine(::testing::Values(SubdocOpcodes::Get,
-                                             SubdocOpcodes::Exists,
-                                             SubdocOpcodes::DictAdd,
-                                             SubdocOpcodes::Upsert,
-                                             SubdocOpcodes::Delete,
-                                             SubdocOpcodes::Replace,
-                                             SubdocOpcodes::PushLast,
-                                             SubdocOpcodes::PushFirst,
-                                             SubdocOpcodes::Insert,
-                                             SubdocOpcodes::AddUnique,
-                                             SubdocOpcodes::Counter,
-                                             SubdocOpcodes::GetCount),
-                           ::testing::Bool()), );
+        ::testing::Combine(
+                ::testing::Values(cb::mcbp::ClientOpcode::SubdocGet,
+                                  cb::mcbp::ClientOpcode::SubdocExists,
+                                  cb::mcbp::ClientOpcode::SubdocDictAdd,
+                                  cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                                  cb::mcbp::ClientOpcode::SubdocDelete,
+                                  cb::mcbp::ClientOpcode::SubdocReplace,
+                                  cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                                  cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                                  cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                                  cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                                  cb::mcbp::ClientOpcode::SubdocCounter,
+                                  cb::mcbp::ClientOpcode::SubdocGetCount),
+                ::testing::Bool()), );
 
 TEST_P(SubdocXattrSingleTest, PathTest) {
     path = "superduperlongpath";
@@ -279,20 +247,20 @@ protected:
 };
 
 TEST_P(SubdocXattrMultiLookupTest, XAttrMayBeFirst) {
-    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync.cas"});
-    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                        SUBDOC_FLAG_NONE,
                        "meta.author"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(SubdocXattrMultiLookupTest, XAttrCantBeLast) {
-    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                        SUBDOC_FLAG_NONE,
                        "meta.author"});
-    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync.cas"});
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidXattrOrder, validate());
@@ -302,14 +270,14 @@ TEST_P(SubdocXattrMultiLookupTest, XAttrKeyIsChecked) {
     // We got other unit tests that tests all of the different restrictions
     // for the subdoc key.. just make sure that it is actually called..
     // Check that we can't insert a key > 16 chars
-    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                        SUBDOC_FLAG_XATTR_PATH,
                        "ThisIsASuperDuperLongPath"});
     EXPECT_EQ(cb::mcbp::Status::XattrEinval, validate());
 }
 
 TEST_P(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
-    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync.cas"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
@@ -334,16 +302,17 @@ TEST_P(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
 }
 
 TEST_P(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
-    request.addLookup(
-        {PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_XATTR_PATH, "_sync"});
-    request.addLookup({PROTOCOL_BINARY_CMD_GET, SUBDOC_FLAG_NONE, ""});
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocGet,
+                       SUBDOC_FLAG_XATTR_PATH,
+                       "_sync"});
+    request.addLookup({cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""});
     request.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(SubdocXattrMultiLookupTest, AllowMultipleLookups) {
     for (int ii = 0; ii < 10; ii++) {
-        request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+        request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                            SUBDOC_FLAG_XATTR_PATH,
                            "_sync.cas"});
     }
@@ -351,10 +320,10 @@ TEST_P(SubdocXattrMultiLookupTest, AllowMultipleLookups) {
 }
 
 TEST_P(SubdocXattrMultiLookupTest, AllLookupsMustBeOnTheSamePath) {
-    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync.cas"});
-    request.addLookup({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
                        SUBDOC_FLAG_XATTR_PATH,
                        "foo.bar"});
     EXPECT_EQ(cb::mcbp::Status::SubdocXattrInvalidKeyCombo, validate());
@@ -388,11 +357,11 @@ protected:
 };
 
 TEST_P(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
                          "{\"foo\" : \"bar\"}"});
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_NONE,
                          "meta.author",
                          "{\"name\" : \"Bubba\"}"});
@@ -400,11 +369,11 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
 }
 
 TEST_P(SubdocXattrMultiMutationTest, XAttrCantBeLast) {
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_NONE,
                          "meta.author",
                          "{\"name\" : \"Bubba\"}"});
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
                          "{\"foo\" : \"bar\"}"});
@@ -415,7 +384,7 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
     // We got other unit tests that tests all of the different restrictions
     // for the subdoc key.. just make sure that it is actually called..
     // Check that we can't insert a key > 16 chars
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "ThisIsASuperDuperLongPath",
                          "{\"foo\" : \"bar\"}"});
@@ -423,7 +392,7 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
 }
 
 TEST_P(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
                          "\"${Mutation.CAS}\""});
@@ -455,7 +424,7 @@ TEST_P(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
 
 TEST_P(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
     for (int ii = 0; ii < 10; ii++) {
-        request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+        request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                              SUBDOC_FLAG_XATTR_PATH,
                              "_sync.cas",
                              "{\"foo\" : \"bar\"}"});
@@ -464,11 +433,11 @@ TEST_P(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
 }
 
 TEST_P(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
                          "{\"foo\" : \"bar\"}"});
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "foo.bar",
                          "{\"foo\" : \"bar\"}"});
@@ -476,11 +445,12 @@ TEST_P(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
 }
 
 TEST_P(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {
-    request.addMutation({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
                          SUBDOC_FLAG_XATTR_PATH,
                          "_sync.cas",
                          "{\"foo\" : \"bar\"}"});
-    request.addMutation({PROTOCOL_BINARY_CMD_DELETE, SUBDOC_FLAG_NONE, "", ""});
+    request.addMutation(
+            {cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, "", ""});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 

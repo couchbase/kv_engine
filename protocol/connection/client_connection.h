@@ -788,7 +788,7 @@ protected:
 
     typedef std::unordered_set<uint16_t> Featureset;
 
-    uint64_t incr_decr(protocol_binary_command opcode,
+    uint64_t incr_decr(cb::mcbp::ClientOpcode opcode,
                        const std::string& key,
                        uint64_t delta,
                        uint64_t initial,

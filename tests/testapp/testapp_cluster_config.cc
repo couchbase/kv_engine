@@ -118,7 +118,7 @@ TEST_P(ClusterConfigTest, GetClusterConfig) {
     auto response = setClusterConfig(token, config);
     ASSERT_TRUE(response.isSuccess());
 
-    BinprotGenericCommand cmd{PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, "", ""};
+    BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig, "", ""};
     auto& conn = getConnection();
     conn.executeCommand(cmd, response);
     EXPECT_TRUE(response.isSuccess());

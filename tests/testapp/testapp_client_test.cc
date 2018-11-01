@@ -41,7 +41,7 @@ void TestappXattrClientTest::setBodyAndXattr(
     document.info.id = name;
 
     if (mcd_env->getTestBucket().supportsOp(
-                PROTOCOL_BINARY_CMD_SET_WITH_META)) {
+                cb::mcbp::ClientOpcode::SetWithMeta)) {
         // Combine the body and Extended Attribute into a single value -
         // this allows us to store already compressed documents which
         // have XATTRs.
@@ -114,7 +114,7 @@ void TestappXattrClientTest::setClusterSessionToken(uint64_t nval) {
 }
 
 BinprotSubdocResponse TestappXattrClientTest::subdoc(
-        protocol_binary_command opcode,
+        cb::mcbp::ClientOpcode opcode,
         const std::string& key,
         const std::string& path,
         const std::string& value,
@@ -140,7 +140,7 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
 
 cb::mcbp::Status TestappXattrClientTest::xattr_upsert(
         const std::string& path, const std::string& value) {
-    auto resp = subdoc(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+    auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                        name,
                        path,
                        value,
