@@ -475,14 +475,15 @@ void Cookie::maybeLogSlowCommand(
 
         const std::string traceData = to_string(tracer);
         LOG_WARNING(
-                R"({}: Slow operation. {{"cid":"{}/{:x}","duration":"{}","trace":"{}","command":"{}","peer":"{}"}})",
+                R"({}: Slow operation. {{"cid":"{}/{:x}","duration":"{}","trace":"{}","command":"{}","peer":"{}","bucket":"{}"}})",
                 c.getId(),
                 c.getConnectionId().data(),
                 ntohl(getHeader().getOpaque()),
                 cb::time2text(timings),
                 traceData,
                 command,
-                c.getPeername());
+                c.getPeername(),
+                c.getBucket().name);
     }
 }
 
