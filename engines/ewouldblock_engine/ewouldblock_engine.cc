@@ -42,7 +42,7 @@
  *
  * See the 'Modes' enum below for the possible modes for a connection. The mode
  * can be selected by sending a `request_ewouldblock_ctl` command
- *  (opcode PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL).
+ *  (opcode cb::mcbp::ClientOpcode::EwouldblockCtl).
  *
  * DCP:
  *    There is a special DCP stream named "ewb_internal" which is an
@@ -532,7 +532,8 @@ public:
             const void* cookie,
             gsl::not_null<protocol_binary_request_header*> request,
             ADD_RESPONSE response) override {
-        if (request->request.opcode == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
+        const auto opcode = request->request.getClientOpcode();
+        if (opcode == cb::mcbp::ClientOpcode::EwouldblockCtl) {
             auto* req =
                     reinterpret_cast<request_ewouldblock_ctl*>(request.get());
             const EWBEngineMode mode = static_cast<EWBEngineMode>(ntohl(req->message.body.mode));

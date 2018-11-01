@@ -1145,11 +1145,11 @@ static ENGINE_ERROR_CODE processUnknownCommand(
      * Session validation
      * (For ns_server commands only)
      */
-    switch (request->request.opcode) {
-    case PROTOCOL_BINARY_CMD_SET_PARAM:
-    case PROTOCOL_BINARY_CMD_SET_VBUCKET:
-    case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
-    case PROTOCOL_BINARY_CMD_COMPACT_DB: {
+    switch (request->request.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::SetParam:
+    case cb::mcbp::ClientOpcode::SetVbucket:
+    case cb::mcbp::ClientOpcode::DelVbucket:
+    case cb::mcbp::ClientOpcode::CompactDb: {
         if (h->getEngineSpecific(cookie) == NULL) {
             uint64_t cas = ntohll(request->request.cas);
             if (!h->validateSessionCas(cas)) {
@@ -1173,16 +1173,16 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         break;
     }
 
-    switch (request->request.opcode) {
-    case PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS:
+    switch (request->request.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
         return h->getAllVBucketSequenceNumbers(cookie, request, response);
 
-    case PROTOCOL_BINARY_CMD_GET_VBUCKET: {
+    case cb::mcbp::ClientOpcode::GetVbucket: {
         BlockTimer timer(&stats.getVbucketCmdHisto);
         rv = getVBucket(h, cookie, request, response);
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_DEL_VBUCKET: {
+    case cb::mcbp::ClientOpcode::DelVbucket: {
         BlockTimer timer(&stats.delVbucketCmdHisto);
         rv = delVBucket(h, cookie, request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
@@ -1191,19 +1191,19 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         }
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_SET_VBUCKET: {
+    case cb::mcbp::ClientOpcode::SetVbucket: {
         BlockTimer timer(&stats.setVbucketCmdHisto);
         rv = setVBucket(h, cookie, request, response);
         h->decrementSessionCtr();
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_STOP_PERSISTENCE:
+    case cb::mcbp::ClientOpcode::StopPersistence:
         res = h->stopFlusher(&msg, &msg_size);
         break;
-    case PROTOCOL_BINARY_CMD_START_PERSISTENCE:
+    case cb::mcbp::ClientOpcode::StartPersistence:
         res = h->startFlusher(&msg, &msg_size);
         break;
-    case PROTOCOL_BINARY_CMD_SET_PARAM:
+    case cb::mcbp::ClientOpcode::SetParam:
         res = h->setParam(
                 reinterpret_cast<protocol_binary_request_set_param*>(request),
                 dynamic_msg);
@@ -1211,27 +1211,27 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         msg_size = dynamic_msg.length();
         h->decrementSessionCtr();
         break;
-    case PROTOCOL_BINARY_CMD_EVICT_KEY:
+    case cb::mcbp::ClientOpcode::EvictKey:
         res = h->evictKey(cookie, request, &msg, &msg_size);
         break;
-    case PROTOCOL_BINARY_CMD_OBSERVE:
+    case cb::mcbp::ClientOpcode::Observe:
         return h->observe(cookie, request, response);
-    case PROTOCOL_BINARY_CMD_OBSERVE_SEQNO:
+    case cb::mcbp::ClientOpcode::ObserveSeqno:
         return h->observe_seqno(cookie, request, response);
-    case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
-    case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
-    case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE: {
+    case cb::mcbp::ClientOpcode::LastClosedCheckpoint:
+    case cb::mcbp::ClientOpcode::CreateCheckpoint:
+    case cb::mcbp::ClientOpcode::CheckpointPersistence: {
         rv = h->handleCheckpointCmds(cookie, request, response);
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE: {
+    case cb::mcbp::ClientOpcode::SeqnoPersistence: {
         rv = h->handleSeqnoCmds(cookie, request, response);
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_SET_WITH_META:
-    case PROTOCOL_BINARY_CMD_SETQ_WITH_META:
-    case PROTOCOL_BINARY_CMD_ADD_WITH_META:
-    case PROTOCOL_BINARY_CMD_ADDQ_WITH_META: {
+    case cb::mcbp::ClientOpcode::SetWithMeta:
+    case cb::mcbp::ClientOpcode::SetqWithMeta:
+    case cb::mcbp::ClientOpcode::AddWithMeta:
+    case cb::mcbp::ClientOpcode::AddqWithMeta: {
         rv = h->setWithMeta(
                 cookie,
                 reinterpret_cast<protocol_binary_request_set_with_meta*>(
@@ -1239,8 +1239,8 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                 response);
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_DEL_WITH_META:
-    case PROTOCOL_BINARY_CMD_DELQ_WITH_META: {
+    case cb::mcbp::ClientOpcode::DelWithMeta:
+    case cb::mcbp::ClientOpcode::DelqWithMeta: {
         rv = h->deleteWithMeta(
                 cookie,
                 reinterpret_cast<protocol_binary_request_delete_with_meta*>(
@@ -1248,24 +1248,24 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                 response);
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_RETURN_META: {
+    case cb::mcbp::ClientOpcode::ReturnMeta: {
         return h->returnMeta(
                 cookie,
                 reinterpret_cast<protocol_binary_request_return_meta*>(request),
                 response);
     }
-    case PROTOCOL_BINARY_CMD_GET_REPLICA:
+    case cb::mcbp::ClientOpcode::GetReplica:
         rv = h->getReplicaCmd(request, cookie, &itm, &msg, &res);
         if (rv != ENGINE_SUCCESS && rv != ENGINE_NOT_MY_VBUCKET) {
             return rv;
         }
         break;
-    case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
-    case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC: {
+    case cb::mcbp::ClientOpcode::EnableTraffic:
+    case cb::mcbp::ClientOpcode::DisableTraffic: {
         rv = h->handleTrafficControlCmd(cookie, request, response);
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_COMPACT_DB: {
+    case cb::mcbp::ClientOpcode::CompactDb: {
         rv = compactDB(h, cookie,
                        (protocol_binary_request_compact_db*)(request),
                        response);
@@ -1275,7 +1275,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         }
         return rv;
     }
-    case PROTOCOL_BINARY_CMD_GET_RANDOM_KEY: {
+    case cb::mcbp::ClientOpcode::GetRandomKey: {
         if (request->request.extlen != 0 ||
             request->request.keylen != 0 ||
             request->request.bodylen != 0) {
@@ -1283,15 +1283,15 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         }
         return h->getRandomKey(cookie, response);
     }
-    case PROTOCOL_BINARY_CMD_GET_KEYS: {
+    case cb::mcbp::ClientOpcode::GetKeys: {
         return h->getAllKeys(
                 cookie,
                 reinterpret_cast<protocol_binary_request_get_keys*>(request),
                 response);
     }
         // MB-21143: Remove adjusted time/drift API, but return NOT_SUPPORTED
-    case PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME:
-    case PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE: {
+    case cb::mcbp::ClientOpcode::GetAdjustedTime:
+    case cb::mcbp::ClientOpcode::SetDriftCounterState: {
         return sendResponse(response,
                             NULL,
                             0,
@@ -1304,6 +1304,18 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                             0,
                             cookie);
     }
+    default:
+        return sendResponse(response,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            NULL,
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cb::mcbp::Status::UnknownCommand,
+                            0,
+                            cookie);
     }
 
     if (itm) {
@@ -1889,11 +1901,10 @@ bool EventuallyPersistentEngine::isCollectionsSupported(const void* cookie) {
     return isSupported;
 }
 
-uint8_t EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
+cb::mcbp::ClientOpcode EventuallyPersistentEngine::getOpcodeIfEwouldblockSet(
         const void* cookie) {
     NonBucketAllocationGuard guard;
-    uint8_t opcode = serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);
-    return opcode;
+    return serverApi->cookie->get_opcode_if_ewouldblock_set(cookie);
 }
 
 bool EventuallyPersistentEngine::validateSessionCas(const uint64_t cas) {
@@ -4488,9 +4499,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
 
     auto status = cb::mcbp::Status::Success;
 
-    switch (req->request.opcode) {
-    case PROTOCOL_BINARY_CMD_LAST_CLOSED_CHECKPOINT:
-        {
+    switch (req->request.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::LastClosedCheckpoint: {
         uint64_t checkpointId =
                 vb->checkpointManager->getLastClosedCheckpointId();
         checkpointId = htonll(checkpointId);
@@ -4505,9 +4515,8 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                             cb::mcbp::Status::Success,
                             0,
                             cookie);
-        }
-        break;
-    case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
+    } break;
+    case cb::mcbp::ClientOpcode::CreateCheckpoint:
         if (vb->getState() != vbucket_state_active) {
             return ENGINE_NOT_MY_VBUCKET;
 
@@ -4541,8 +4550,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
             }
         }
         break;
-    case PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE:
-        {
+    case cb::mcbp::ClientOpcode::CheckpointPersistence: {
         uint16_t keylen = ntohs(req->request.keylen);
         uint32_t bodylen = ntohl(req->request.bodylen);
         if ((bodylen - keylen) == 0) {
@@ -4597,8 +4605,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                             "Checkpoint {} persisted for {}", chk_id, vbucket);
                 }
             }
-        }
-        break;
+    } break;
     default:
         {
         status = cb::mcbp::Status::UnknownCommand;
@@ -4606,7 +4613,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                         "Unknown checkpoint command opcode: " +
                                 std::to_string(req->request.opcode));
         }
-    }
+        }
 
     return sendResponse(response,
                         NULL,
@@ -4824,7 +4831,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
                 response, cb::mcbp::Status::Etmpfail, 0, cookie);
     }
 
-    uint8_t opcode = request->message.header.request.opcode;
+    const auto opcode = request->message.header.request.getClientOpcode();
     uint8_t* key = request->bytes + sizeof(request->bytes);
     Vbid vbucket = request->message.header.request.vbucket.ntoh();
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
@@ -4897,8 +4904,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
     }
     TRACE_BEGIN(cookie, TraceCode::SETWITHMETA, startTime);
 
-    bool allowExisting = (opcode == PROTOCOL_BINARY_CMD_SET_WITH_META ||
-                          opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META);
+    bool allowExisting = (opcode == cb::mcbp::ClientOpcode::SetWithMeta ||
+                          opcode == cb::mcbp::ClientOpcode::SetqWithMeta);
 
     uint64_t bySeqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -4954,8 +4961,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         storeEngineSpecific(cookie, startTimeC);
     }
 
-    if ((opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META ||
-         opcode == PROTOCOL_BINARY_CMD_ADDQ_WITH_META) &&
+    if ((opcode == cb::mcbp::ClientOpcode::SetqWithMeta ||
+         opcode == cb::mcbp::ClientOpcode::AddqWithMeta) &&
         rc == cb::mcbp::Status::Success) {
         return ENGINE_SUCCESS;
     }
@@ -5100,7 +5107,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                             cookie);
     }
 
-    uint8_t opcode = request->message.header.request.opcode;
+    const auto opcode = request->message.header.request.getClientOpcode();
     Vbid vbucket = request->message.header.request.vbucket.ntoh();
     uint64_t cas = ntohll(request->message.header.request.cas);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
@@ -5203,7 +5210,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
 
     auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
 
-    if (opcode == PROTOCOL_BINARY_CMD_DELQ_WITH_META &&
+    if (opcode == cb::mcbp::ClientOpcode::DelqWithMeta &&
         rc == cb::mcbp::Status::Success) {
         return ENGINE_SUCCESS;
     }
@@ -5263,8 +5270,8 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
 {
     auto status = cb::mcbp::Status::Success;
 
-    switch (request->request.opcode) {
-    case PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC:
+    switch (request->request.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::EnableTraffic:
         if (kvBucket->isWarmingUp()) {
             // engine is still warming up, do not turn on data traffic yet
             status = cb::mcbp::Status::Etmpfail;
@@ -5290,7 +5297,7 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
             }
         }
         break;
-    case PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC:
+    case cb::mcbp::ClientOpcode::DisableTraffic:
         if (enableTraffic(false)) {
             setErrorContext(cookie,
                             "Data traffic to persistence engine is disabled");
@@ -5864,18 +5871,16 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
      * Commands to be considered: DEL_VBUCKET, COMPACT_DB
      */
     if (getEngineSpecific(cookie) != NULL) {
-        uint8_t opcode = getOpcodeIfEwouldblockSet(cookie);
-        switch(opcode) {
-            case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
-            case PROTOCOL_BINARY_CMD_COMPACT_DB:
-                {
-                    decrementSessionCtr();
-                    storeEngineSpecific(cookie, NULL);
-                    break;
-                }
+        switch (getOpcodeIfEwouldblockSet(cookie)) {
+        case cb::mcbp::ClientOpcode::DelVbucket:
+        case cb::mcbp::ClientOpcode::CompactDb: {
+            decrementSessionCtr();
+            storeEngineSpecific(cookie, NULL);
+            break;
+        }
             default:
                 break;
-        }
+            }
     }
 }
 

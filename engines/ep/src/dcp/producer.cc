@@ -862,9 +862,9 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         return false;
     }
 
-    const auto opcode = uint8_t(resp->response.getClientOpcode());
-    if (opcode == PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE ||
-        opcode == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER) {
+    const auto opcode = resp->response.getClientOpcode();
+    if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState ||
+        opcode == cb::mcbp::ClientOpcode::DcpSnapshotMarker) {
         const auto* pkt = reinterpret_cast<
                 const protocol_binary_response_dcp_stream_req*>(resp);
         const auto opaque = pkt->message.header.response.getOpaque();
@@ -884,21 +884,21 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
 
         if (itr.second) {
             ActiveStream *as = static_cast<ActiveStream*>(itr.first.get());
-            if (opcode == PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE) {
+            if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState) {
                 as->setVBucketStateAckRecieved();
-            } else if (opcode == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER) {
+            } else if (opcode == cb::mcbp::ClientOpcode::DcpSnapshotMarker) {
                 as->snapshotMarkerAckReceived();
             }
         }
 
         return true;
-    } else if (opcode == PROTOCOL_BINARY_CMD_DCP_MUTATION ||
-        opcode == PROTOCOL_BINARY_CMD_DCP_DELETION ||
-        opcode == PROTOCOL_BINARY_CMD_DCP_EXPIRATION ||
-        opcode == PROTOCOL_BINARY_CMD_DCP_STREAM_END) {
+    } else if (opcode == cb::mcbp::ClientOpcode::DcpMutation ||
+               opcode == cb::mcbp::ClientOpcode::DcpDeletion ||
+               opcode == cb::mcbp::ClientOpcode::DcpExpiration ||
+               opcode == cb::mcbp::ClientOpcode::DcpStreamEnd) {
         // TODO: When nacking is implemented we need to handle these responses
         return true;
-    } else if (opcode == PROTOCOL_BINARY_CMD_DCP_NOOP) {
+    } else if (opcode == cb::mcbp::ClientOpcode::DcpNoop) {
         if (noopCtx.opaque == resp->response.getOpaque()) {
             noopCtx.pendingRecv = false;
             return true;

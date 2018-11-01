@@ -1467,14 +1467,15 @@ struct ServerCookieApi : public ServerCookieIface {
         return cookie->getConnection().isCollectionsSupported();
     }
 
-    uint8_t get_opcode_if_ewouldblock_set(
+    cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             gsl::not_null<const void*> void_cookie) override {
         auto* cookie = reinterpret_cast<const Cookie*>(void_cookie.get());
 
-        uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
+        cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::Invalid;
         if (cookie->isEwouldblock()) {
             try {
-                opcode = cookie->getHeader().getOpcode();
+                opcode =
+                        cb::mcbp::ClientOpcode(cookie->getHeader().getOpcode());
             } catch (...) {
                 // Don't barf out if the header isn't there
             }

@@ -485,7 +485,7 @@ public:
 
     bool isCollectionsSupported(const void* cookie);
 
-    uint8_t getOpcodeIfEwouldblockSet(const void* cookie);
+    cb::mcbp::ClientOpcode getOpcodeIfEwouldblockSet(const void* cookie);
 
     bool validateSessionCas(const uint64_t cas);
 

@@ -869,14 +869,14 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
         ADD_RESPONSE response) {
     bool sent;
 
-    switch(request->request.opcode) {
-    case PROTOCOL_BINARY_CMD_SCRUB:
+    switch (request->request.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::Scrub:
         sent = scrub_cmd(this, cookie, request, response);
         break;
-    case PROTOCOL_BINARY_CMD_DEL_VBUCKET:
+    case cb::mcbp::ClientOpcode::DelVbucket:
         sent = rm_vbucket(this, cookie, request, response);
         break;
-    case PROTOCOL_BINARY_CMD_SET_VBUCKET:
+    case cb::mcbp::ClientOpcode::SetVbucket:
         sent = set_vbucket(
                 this,
                 cookie,
@@ -884,7 +884,7 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
                         request.get()),
                 response);
         break;
-    case PROTOCOL_BINARY_CMD_GET_VBUCKET:
+    case cb::mcbp::ClientOpcode::GetVbucket:
         sent = get_vbucket(
                 this,
                 cookie,
@@ -892,7 +892,7 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
                         request.get()),
                 response);
         break;
-    case PROTOCOL_BINARY_CMD_SET_PARAM:
+    case cb::mcbp::ClientOpcode::SetParam:
         sent = set_param(this,
                          cookie,
                          reinterpret_cast<protocol_binary_request_set_param*>(

@@ -95,7 +95,7 @@ public:
     bool is_collections_supported(gsl::not_null<const void*> cookie) override {
         return wrapped->is_collections_supported(cookie);
     }
-    uint8_t get_opcode_if_ewouldblock_set(
+    cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             gsl::not_null<const void*> cookie) override {
         return wrapped->get_opcode_if_ewouldblock_set(cookie);
     }

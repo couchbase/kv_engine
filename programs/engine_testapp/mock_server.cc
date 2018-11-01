@@ -262,11 +262,11 @@ struct MockServerCookieApi : public ServerCookieIface {
         return c->handle_collections_support;
     }
 
-    uint8_t get_opcode_if_ewouldblock_set(
+    cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             gsl::not_null<const void*> cookie) override {
         const auto* c = reinterpret_cast<const mock_connstruct*>(cookie.get());
         cb_assert(c->magic == CONN_MAGIC);
-        return 0x00;
+        return cb::mcbp::ClientOpcode::Invalid;
     }
 
     bool validate_session_cas(uint64_t cas) override {

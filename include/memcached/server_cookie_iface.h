@@ -22,6 +22,7 @@
 #include "rbac.h"
 #include "types.h"
 
+#include <mcbp/protocol/opcode.h>
 #include <gsl/gsl>
 #include <string>
 
@@ -98,7 +99,7 @@ struct ServerCookieIface {
      * @return the opcode from the binary_header saved in the
      * connection.
      */
-    virtual uint8_t get_opcode_if_ewouldblock_set(
+    virtual cb::mcbp::ClientOpcode get_opcode_if_ewouldblock_set(
             gsl::not_null<const void*> cookie) = 0;
 
     /**
