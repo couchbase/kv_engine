@@ -19,9 +19,14 @@
 
 #include "couchfile.h"
 
+#include <engines/ep/src/collections/collections_types.h>
 #include <include/memcached/dockey.h>
 
 namespace Collections {
+
+namespace VB {
+struct PersistedStats;
+}
 
 class InputCouchFile;
 
@@ -70,7 +75,8 @@ protected:
     /**
      * Update item of the new file, this creates the _local counter doc
      */
-    void setItemCount(CollectionID cid, uint64_t count) const;
+    void setCollectionStats(CollectionID cid,
+                            Collections::VB::PersistedStats stats) const;
 
     /// The destination collection to use in the upgrade
     CollectionID collection;

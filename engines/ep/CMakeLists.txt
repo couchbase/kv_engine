@@ -191,10 +191,16 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      src/collections/vbucket_serialised_manifest_entry_raw_schema.in
                   COMMENT "Generating flatbuffers serialied_manifest_entry_generated")
 
-ADD_LIBRARY(ep-engine_collections_flatbuffers
-  ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_raw_schema.cc)
+# Collections library for things required outside of ep-engine
+ADD_LIBRARY(ep-engine_collections STATIC
+  ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_raw_schema.cc
+  src/collections/collection_persisted_stats.cc)
 
-TARGET_INCLUDE_DIRECTORIES(ep-engine_collections_flatbuffers
+SET_PROPERTY(TARGET ep-engine_collections PROPERTY POSITION_INDEPENDENT_CODE 1)
+
+TARGET_LINK_LIBRARIES(ep-engine_collections platform)
+
+TARGET_INCLUDE_DIRECTORIES(ep-engine_collections
                            PUBLIC
                            ${CMAKE_CURRENT_BINARY_DIR}/src/)
 
@@ -328,9 +334,9 @@ ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
-                      engine_utilities dirutils cbcompress hdr_histogram_static
-                      mcbp mcd_util platform phosphor xattr mcd_tracing
-                      ${LIBEVENT_LIBRARIES})
+                      engine_utilities ep-engine_collections dirutils cbcompress
+                      hdr_histogram_static mcbp mcd_util platform phosphor
+                      xattr mcd_tracing ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep)
 
 ADD_LIBRARY(mock_dcp OBJECT tests/mock/mock_dcp.cc)
@@ -431,8 +437,9 @@ if (NOT EP_BYPASS_TESTS)
                                ${Couchstore_SOURCE_DIR})
 
     TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests ${EP_STORAGE_LIBS} cJSON
-                          dirutils engine_utilities gtest gmock hdr_histogram_static
-                          JSON_checker memcached_logger mcbp mcd_util mcd_tracing platform
+                          dirutils engine_utilities ep-engine_collections gtest
+                          gmock hdr_histogram_static JSON_checker
+                          memcached_logger mcbp mcd_util mcd_tracing platform
                           phosphor xattr cbcompress ${MALLOC_LIBRARIES})
     add_sanitizers(ep-engine_ep_unit_tests)
 
@@ -489,6 +496,7 @@ if (NOT EP_BYPASS_TESTS)
             cJSON
             dirutils
             engine_utilities
+            ep-engine_collections
             gtest
             gmock
             hdr_histogram_static
@@ -521,7 +529,8 @@ if (NOT EP_BYPASS_TESTS)
     ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
     TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker hdr_histogram_static
-                          engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform mcbp mcd_util
+                          engine_utilities ep-engine_collections ${EP_STORAGE_LIBS}
+                          dirutils cbcompress platform mcbp mcd_util
                           mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 
@@ -592,7 +601,8 @@ if (NOT EP_BYPASS_TESTS)
                 tests/ep_testsuite_xdcr.cc
                 $<TARGET_OBJECTS:ep_testsuite_objs>)
     SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
-    TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities mcbp JSON_checker dirutils platform xattr
+    TARGET_LINK_LIBRARIES(ep_testsuite_xdcr mcd_util engine_utilities
+            mcbp JSON_checker dirutils platform xattr
                           ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
     ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 

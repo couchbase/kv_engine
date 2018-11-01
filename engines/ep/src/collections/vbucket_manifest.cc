@@ -982,6 +982,16 @@ uint64_t Manifest::getItemCount(CollectionID collection) const {
     return itr->second.getDiskCount();
 }
 
+uint64_t Manifest::getPersistedHighSeqno(CollectionID collection) const {
+    auto itr = map.find(collection);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__,
+                "failed find of collection:" + collection.to_string());
+    }
+    return itr->second.getPersistedHighSeqno();
+}
+
 bool Manifest::addCollectionStats(Vbid vbid,
                                   const void* cookie,
                                   ADD_STAT add_stat) const {

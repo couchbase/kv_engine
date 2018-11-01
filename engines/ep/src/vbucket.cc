@@ -22,6 +22,7 @@
 #include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
+#include "collections/collection_persisted_stats.h"
 #include "conflict_resolution.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -2132,10 +2133,13 @@ void VBucket::collectionsRolledBack(KVStore& kvstore) {
             kvstore.getCollectionsManifest(getId()));
     auto kvstoreContext = kvstore.makeFileHandle(getId());
     auto wh = manifest->wlock();
-    // For each collection in the VB, reload the item count to the rollback
+    // For each collection in the VB, reload the stats to the point before
+    // the rollback seqno
     for (auto& collection : wh) {
-        collection.second.setDiskCount(kvstore.getCollectionItemCount(
-                *kvstoreContext, collection.first));
+        collection.second.setDiskCount(kvstore.getCollectionStats(
+                *kvstoreContext, collection.first).itemCount);
+        collection.second.resetPersistedHighSeqno(kvstore.getCollectionStats(
+                *kvstoreContext, collection.first).highSeqno);
     }
 }
 

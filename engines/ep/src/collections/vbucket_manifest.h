@@ -159,6 +159,10 @@ public:
             return manifest.getItemCount(collection);
         }
 
+        uint64_t getPersistedHighSeqno(CollectionID collection) const {
+            return manifest.getPersistedHighSeqno(collection);
+        }
+
         bool addCollectionStats(Vbid vbid,
                                 const void* cookie,
                                 ADD_STAT add_stat) const {
@@ -301,6 +305,34 @@ public:
                 return;
             }
             return manifest.decrementDiskCount(itr);
+        }
+
+        /**
+         * This set is possible via this CachingReadHandle, which has shared
+         * access to the Manifest, because the read-lock only ensures that
+         * the underlying collection map doesn't change. Data inside the
+         * collection entry maybe mutable, such as the item count, hence this
+         * method is marked const because the manifest is const.
+         *
+         * set the persisted high seqno of the collection if the new value is
+         * higher
+         */
+        void setPersistedHighSeqno(uint64_t value) const {
+            manifest.setPersistedHighSeqno(itr, value);
+        }
+
+        /**
+         * This set is possible via this CachingReadHandle, which has shared
+         * access to the Manifest, because the read-lock only ensures that
+         * the underlying collection map doesn't change. Data inside the
+         * collection entry maybe mutable, such as the item count, hence this
+         * method is marked const because the manifest is const.
+         *
+         * reset the persisted high seqno of the collection to the new value,
+         * regardless of if it is greater than the current value
+         */
+        void resetPersistedHighSeqno(uint64_t value) const {
+            manifest.resetPersistedHighSeqno(itr, value);
         }
 
         /**
@@ -832,6 +864,26 @@ protected:
         entry->second.decrementDiskCount();
     }
 
+    void setPersistedHighSeqno(const container::const_iterator entry,
+                               uint64_t value) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.setPersistedHighSeqno(value);
+    }
+
+    void resetPersistedHighSeqno(const container::const_iterator entry,
+                                 uint64_t value) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__FUNCTION__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.resetPersistedHighSeqno(value);
+    }
+
     /**
      * Function intended for use by the collection eraser code, checking
      * keys@seqno status as we walk the by-seqno index.
@@ -899,6 +951,11 @@ protected:
      * @return the number of items stored for collection
      */
     uint64_t getItemCount(CollectionID collection) const;
+
+    /**
+     * @return the highest seqno that has been persisted for this collection
+     */
+    uint64_t getPersistedHighSeqno(CollectionID collection) const;
 
     container::const_iterator end() const {
         return map.end();

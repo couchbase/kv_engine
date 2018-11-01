@@ -18,6 +18,7 @@
 #pragma once
 
 #include "../objectregistry.h"
+#include "collections/collection_persisted_stats.h"
 #include "kvstore.h"
 #include "vbucket_bgfetch_item.h"
 
@@ -201,10 +202,11 @@ public:
         delete kvFileHandle;
     }
 
-    uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
-                                    CollectionID collection) override {
+    Collections::VB::PersistedStats getCollectionStats(
+            const KVFileHandle& kvFileHandle,
+            CollectionID collection) override {
         // TODO magma collection item count implementation
-        return 0;
+        return {};
     }
 
     void incrementRevision(Vbid vbid) override {

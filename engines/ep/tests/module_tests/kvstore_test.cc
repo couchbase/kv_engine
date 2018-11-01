@@ -27,6 +27,7 @@
 #ifdef EP_USE_ROCKSDB
 #include "rocksdb-kvstore/rocksdb-kvstore_config.h"
 #endif
+#include "collections/collection_persisted_stats.h"
 #include "src/internal.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/test_fileops.h"
@@ -34,6 +35,7 @@
 #include "tools/couchfile_upgrade/input_couchfile.h"
 #include "tools/couchfile_upgrade/output_couchfile.h"
 #include "vbucket_bgfetch_item.h"
+
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -493,7 +495,9 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgade) {
 
     // Check item count
     auto kvstoreContext = kvstore2.rw->makeFileHandle(Vbid(0));
-    EXPECT_EQ(keys, kvstore2.rw->getCollectionItemCount(*kvstoreContext, cid));
+    auto stats = kvstore2.rw->getCollectionStats(*kvstoreContext, cid);
+    EXPECT_EQ(keys, stats.itemCount);
+    EXPECT_EQ(keys, stats.highSeqno);
 }
 
 /**

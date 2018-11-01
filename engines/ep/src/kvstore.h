@@ -55,8 +55,9 @@ class Request;
 
 namespace Collections {
 namespace VB {
+struct PersistedStats;
 class Flush;
-}
+} // namespace VB
 } // namespace Collections
 
 struct vb_bgfetch_item_ctx_t;
@@ -853,11 +854,11 @@ public:
      * Retrieve the stored item count for the given collection, does not error
      * for collection not found as that's a legitimate state (and returns 0)
      * @param kvFileHandle a handle into a KV data file
-     * @param collection the name of the collection to lookup
-     * @return the count (which can be 0 for not found)
+     * @param collection the id of the collection to lookup
+     * @return the persisted stats for the collection
      */
-    virtual uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
-                                            CollectionID collection) = 0;
+    virtual Collections::VB::PersistedStats getCollectionStats(
+            const KVFileHandle& kvFileHandle, CollectionID collection) = 0;
 
     /**
      * Increment the revision number of the vbucket.

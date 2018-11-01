@@ -16,6 +16,7 @@
  */
 
 #include "collections/flush.h"
+#include "collections/collection_persisted_stats.h"
 #include "collections/vbucket_manifest.h"
 #include "item.h"
 
@@ -43,10 +44,16 @@ void Collections::VB::Flush::saveDeletes(
     }
 }
 
-void Collections::VB::Flush::saveItemCounts(
-        std::function<void(CollectionID, uint64_t)> cb) const {
+void Collections::VB::Flush::saveCollectionStats(
+        std::function<void(CollectionID, PersistedStats)> cb) const {
     for (const auto c : mutated) {
-        cb(c, manifest.lock().getItemCount(c));
+        uint64_t itemCount, highSeqno;
+        {
+            auto lock = manifest.lock();
+            itemCount = lock.getItemCount(c);
+            highSeqno = lock.getPersistedHighSeqno(c);
+        }
+        cb(c, {itemCount, highSeqno});
     }
 }
 
@@ -67,5 +74,13 @@ void Collections::VB::Flush::decrementDiskCount(const DocKey& key) {
     if (key.getCollectionID() != CollectionID::System) {
         mutated.insert(key.getCollectionID());
         manifest.lock(key).decrementDiskCount();
+    }
+}
+
+void Collections::VB::Flush::setPersistedHighSeqno(const DocKey& key,
+                                                   uint64_t value) {
+    if (key.getCollectionID() != CollectionID::System) {
+        mutated.insert(key.getCollectionID());
+        manifest.lock(key).setPersistedHighSeqno(value);
     }
 }

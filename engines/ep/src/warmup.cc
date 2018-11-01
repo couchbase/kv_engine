@@ -19,6 +19,7 @@
 
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "collections/collection_persisted_stats.h"
 #include "collections/collections_callbacks.h"
 #include "common.h"
 #include "connmap.h"
@@ -1331,10 +1332,12 @@ void Warmup::loadCollectionCountsForShard(uint16_t shardId) {
 
         auto wh = vb->getManifest().wlock();
         auto kvstoreContext = kvstore->makeFileHandle(vbid);
-        // For each collection in the VB, get its item count
+        // For each collection in the VB, get its stats
         for (auto& collection : wh) {
-            collection.second.setDiskCount(kvstore->getCollectionItemCount(
-                    *kvstoreContext, collection.first));
+            auto stats = kvstore->getCollectionStats(*kvstoreContext,
+                                                     collection.first);
+            collection.second.setDiskCount(stats.itemCount);
+            collection.second.setPersistedHighSeqno(stats.highSeqno);
         }
     }
 

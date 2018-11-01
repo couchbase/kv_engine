@@ -27,6 +27,7 @@ namespace Collections {
 namespace VB {
 
 class Manifest;
+struct PersistedStats;
 
 /**
  * The Collections::VB::Flush object maintains data used in a single run of the
@@ -69,7 +70,8 @@ public:
      * Run the specified callback against the set of collections which have
      * changed their item count during the run of the flusher.
      */
-    void saveItemCounts(std::function<void(CollectionID, uint64_t)> cb) const;
+    void saveCollectionStats(
+            std::function<void(CollectionID, PersistedStats)> cb) const;
 
     /**
      * Increment the 'disk' count for the collection associated with the key
@@ -80,6 +82,11 @@ public:
      * Decrement the 'disk' count for the collection associated with the key
      */
     void decrementDiskCount(const DocKey& key);
+
+    /**
+     * Set the highest seqno that needs to be persisted for this collection
+     */
+    void setPersistedHighSeqno(const DocKey& key, uint64_t value);
 
 private:
     /**

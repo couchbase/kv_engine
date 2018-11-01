@@ -16,6 +16,8 @@
  */
 
 #include "output_couchfile.h"
+
+#include "collections/collection_persisted_stats.h"
 #include "input_couchfile.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
@@ -93,12 +95,10 @@ void OutputCouchFile::writeDocuments() {
     bufferedOutput.reset();
 }
 
-void OutputCouchFile::setItemCount(CollectionID cid, uint64_t count) const {
+void OutputCouchFile::setCollectionStats(
+        CollectionID cid, Collections::VB::PersistedStats stats) const {
     std::string docName = "|" + cid.to_string() + "|";
-    cb::mcbp::unsigned_leb128<uint64_t> leb128(count);
-    std::string value(reinterpret_cast<const char*>(leb128.data()),
-                      leb128.size());
-    writeLocalDocument(docName, value);
+    writeLocalDocument(docName, stats.getLebEncodedStats());
 }
 
 void OutputCouchFile::writeLocalDocument(const std::string& documentName,
@@ -135,7 +135,7 @@ void OutputCouchFile::writeUpgradeComplete(const InputCouchFile& input) const {
                 "couchstore_db_info errcode:" +
                 std::to_string(errcode));
     }
-    setItemCount(collection, info.doc_count);
+    setCollectionStats(collection, {info.doc_count, info.last_sequence});
 
     writeSupportsCollections(input.getLocalDocument("_local/vbstate"), true);
 }

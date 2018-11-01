@@ -389,6 +389,131 @@ TEST_F(CollectionsTest, get_collection_id) {
               rv.extras.data.collectionId.to_host());
 }
 
+// Test persistingHighSeqno value
+TEST_F(CollectionsTest, PersistingHighSeqno) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Add the dairy collection
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(vbid, 1);
+
+    // We don't set the persisted high seqno for system events
+    EXPECT_EQ(0,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    auto item1 = make_item(vbid,
+                           StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(2,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Mock a change in this document incrementing the high seqno
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item1, cookie));
+    flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(3,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Check the set of a new item in the same collection increments the high
+    // seqno for this collection
+    auto item2 = make_item(vbid,
+                           StoredDocKey{"dairy:cream", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+    flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(4,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Finally, check a deletion
+    item2.setDeleted();
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(5,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+}
+
+// Test persistingHighSeqno value with multiple collections
+TEST_F(CollectionsTest, PersistingHighSeqnoMultipleCollections) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Add the dairy collection
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest({cm});
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(vbid, 1);
+
+    // We don't set the persisted high seqno for system events
+    EXPECT_EQ(0,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    auto item1 = make_item(vbid,
+                           StoredDocKey{"dairy:milk", CollectionEntry::dairy},
+                           "creamy",
+                           0,
+                           0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item1, cookie));
+    flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(2,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Add the meat collection
+    cm.add(CollectionEntry::meat);
+    vb->updateFromManifest({cm});
+    // Trigger a flush to disk. Flushes the dairy create event.
+    flush_vbucket_to_disk(vbid, 1);
+
+    // We don't set the persisted high seqno for system events
+    EXPECT_EQ(0,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::meat.getId()));
+
+    // Dairy should remain unchanged
+    EXPECT_EQ(2,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Set a new item in meat
+    auto item2 = make_item(vbid,
+                           StoredDocKey{"meat:beef", CollectionEntry::meat},
+                           "beefy",
+                           0,
+                           0);
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item2, cookie));
+    flush_vbucket_to_disk(vbid, 1);
+    // Skip 1 seqno for creation of meat
+    EXPECT_EQ(4,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::meat.getId()));
+
+    // Dairy should remain unchanged
+    EXPECT_EQ(2,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+
+    // Now, set a new high seqno in both collections in a single flush
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item1, cookie));
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item2, cookie));
+    flush_vbucket_to_disk(vbid, 2);
+    EXPECT_EQ(5,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::dairy.getId()));
+    EXPECT_EQ(6,
+              vb->getManifest().lock().getPersistedHighSeqno(
+                      CollectionEntry::meat.getId()));
+}
+
 class CollectionsFlushTest : public CollectionsTest {
 public:
     void SetUp() override {
@@ -670,6 +795,9 @@ TEST_F(CollectionsWarmupTest, warmup) {
         flush_vbucket_to_disk(vbid, 1);
 
         EXPECT_EQ(1, vb->lockCollections().getItemCount(CollectionEntry::meat));
+        EXPECT_EQ(2,
+                  vb->lockCollections().getPersistedHighSeqno(
+                          CollectionEntry::meat));
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -678,9 +806,12 @@ TEST_F(CollectionsWarmupTest, warmup) {
     EXPECT_EQ(0xface2,
               store->getVBucket(vbid)->lockCollections().getManifestUid());
 
-    // validate we warmup the item count
+    // validate we warmup the item count and high seqno
     EXPECT_EQ(1,
               store->getVBucket(vbid)->lockCollections().getItemCount(
+                      CollectionEntry::meat));
+    EXPECT_EQ(2,
+              store->getVBucket(vbid)->lockCollections().getPersistedHighSeqno(
                       CollectionEntry::meat));
 
     {
@@ -787,6 +918,9 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         EXPECT_EQ(
                 nitems,
                 vb->lockCollections().getItemCount(CollectionEntry::defaultC));
+        EXPECT_EQ(nitems + 1 /* +1 for collection creation*/,
+                  vb->lockCollections().getPersistedHighSeqno(
+                          CollectionEntry::defaultC));
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -796,6 +930,9 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
     // the stat document being removed
     EXPECT_EQ(0,
               store->getVBucket(vbid)->lockCollections().getItemCount(
+                      CollectionEntry::defaultC));
+    EXPECT_EQ(0,
+              store->getVBucket(vbid)->lockCollections().getPersistedHighSeqno(
                       CollectionEntry::defaultC));
 }
 

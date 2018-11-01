@@ -16,6 +16,7 @@
  */
 
 #include "config.h"
+#include "collections/collection_persisted_stats.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -2003,19 +2004,26 @@ static void saveDocsCallback(const DocInfo* oldInfo,
                              const DocInfo* newInfo,
                              void* context) {
     kvstats_ctx* cbCtx = static_cast<kvstats_ctx*>(context);
-    // Replacing a document
-    if (oldInfo && newInfo) {
-        // Old is not deleted
-        if (!oldInfo->deleted) {
-            auto itr = cbCtx->keyStats.find(
-                    makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
-            if (itr != cbCtx->keyStats.end()) {
-                itr->second = true; // mark this key as replaced
-            }
 
-            // New is deleted, so decrement count
-            if (newInfo->deleted && cbCtx->persistDocNamespace) {
-                cbCtx->collectionsFlush.decrementDiskCount(
+    if (newInfo) {
+        // Replacing a document
+        if (oldInfo) {
+            // Old is not deleted
+            if (!oldInfo->deleted) {
+                auto itr = cbCtx->keyStats.find(
+                        makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
+                if (itr != cbCtx->keyStats.end()) {
+                    itr->second = true; // mark this key as replaced
+                }
+
+                // New is deleted, so decrement count
+                if (newInfo->deleted && cbCtx->persistDocNamespace) {
+                    cbCtx->collectionsFlush.decrementDiskCount(makeDocKey(
+                            newInfo->id, cbCtx->persistDocNamespace));
+                }
+            } else if (!newInfo->deleted && cbCtx->persistDocNamespace) {
+                // Adding an item
+                cbCtx->collectionsFlush.incrementDiskCount(
                         makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
             }
         } else if (!newInfo->deleted && cbCtx->persistDocNamespace) {
@@ -2024,10 +2032,11 @@ static void saveDocsCallback(const DocInfo* oldInfo,
                     makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
         }
 
-    } else if (newInfo && !newInfo->deleted && cbCtx->persistDocNamespace) {
-        // Adding an item
-        cbCtx->collectionsFlush.incrementDiskCount(
-                makeDocKey(newInfo->id, cbCtx->persistDocNamespace));
+        // Set the highest seqno that we are persisting regardless of if it
+        // is a mutation or deletion
+        cbCtx->collectionsFlush.setPersistedHighSeqno(
+                makeDocKey(newInfo->id, cbCtx->persistDocNamespace),
+                newInfo->db_seq);
     }
 }
 
@@ -2099,8 +2108,8 @@ couchstore_error_t CouchKVStore::saveDocs(
 
         // Only saving collection stats if collections enabled
         if (configuration.shouldPersistDocNamespace()) {
-            collectionsFlush.saveItemCounts(
-                    std::bind(&CouchKVStore::saveItemCount,
+            collectionsFlush.saveCollectionStats(
+                    std::bind(&CouchKVStore::saveCollectionStats,
                               this,
                               std::ref(*db),
                               std::placeholders::_1,
@@ -2120,7 +2129,7 @@ couchstore_error_t CouchKVStore::saveDocs(
             saveCollectionsManifest(*db, {data.data(), data.size()});
             // Process any collection deletes (removing the item count docs)
             collectionsFlush.saveDeletes(
-                    std::bind(&CouchKVStore::deleteItemCount,
+                    std::bind(&CouchKVStore::deleteCollectionStats,
                               this,
                               std::ref(*db),
                               std::placeholders::_1));
@@ -2522,35 +2531,36 @@ Collections::VB::PersistedManifest CouchKVStore::readCollectionsManifest(
             lDoc.getLocalDoc()->json.buf + lDoc.getLocalDoc()->json.size};
 }
 
-void CouchKVStore::saveItemCount(Db& db, CollectionID cid, uint64_t count) {
-    // Write out the count in BE to a local doc named after the collection
+void CouchKVStore::saveCollectionStats(Db& db,
+                                       CollectionID cid,
+                                       Collections::VB::PersistedStats stats) {
+    // Write out the stats in BE to a local doc named after the collection
     // Using set-notation cardinality - |cid| which helps keep the keys small
     std::string docName = "|" + cid.to_string() + "|";
-    cb::mcbp::unsigned_leb128<uint64_t> leb128(count);
+
     LocalDoc lDoc;
     lDoc.id.buf = const_cast<char*>(docName.c_str());
     lDoc.id.size = docName.size();
 
-    lDoc.json.buf =
-            const_cast<char*>(reinterpret_cast<const char*>(leb128.data()));
-    lDoc.json.size = leb128.size();
+    auto encodedStats = stats.getLebEncodedStats();
+    lDoc.json.buf = const_cast<char*>(encodedStats.data());
+    lDoc.json.size = encodedStats.size();
     lDoc.deleted = 0;
 
     auto errCode = couchstore_save_local_document(&db, &lDoc);
 
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::saveCollectionCount cid:{} count:{} "
+                "CouchKVStore::saveCollectionStats cid:{} "
                 "couchstore_save_local_document "
                 "error:{} [{}]",
                 cid.to_string(),
-                count,
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(&db, errCode));
     }
 }
 
-void CouchKVStore::deleteItemCount(Db& db, CollectionID cid) {
+void CouchKVStore::deleteCollectionStats(Db& db, CollectionID cid) {
     std::string docName = "|" + cid.to_string() + "|";
     LocalDoc lDoc;
     lDoc.id.buf = (char*)docName.c_str();
@@ -2561,7 +2571,7 @@ void CouchKVStore::deleteItemCount(Db& db, CollectionID cid) {
 
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.warn(
-                "CouchKVStore::deleteCollectionCount cid:{}"
+                "CouchKVStore::deleteCollectionStats cid:{}"
                 "couchstore_save_local_document "
                 "error:{} [{}]",
                 cid.to_string(),
@@ -2570,35 +2580,34 @@ void CouchKVStore::deleteItemCount(Db& db, CollectionID cid) {
     }
 }
 
-uint64_t CouchKVStore::getCollectionItemCount(const KVFileHandle& kvFileHandle,
-                                              CollectionID collection) {
+Collections::VB::PersistedStats CouchKVStore::getCollectionStats(
+        const KVFileHandle& kvFileHandle, CollectionID collection) {
+    std::string docName = "|" + collection.to_string() + "|";
+
     const auto& db = static_cast<const CouchKVFileHandle&>(kvFileHandle);
     sized_buf id;
-    std::string docName = "|" + collection.to_string() + "|";
     id.buf = const_cast<char*>(docName.c_str());
     id.size = docName.size();
 
     LocalDocHolder lDoc;
     auto errCode = couchstore_open_local_document(
             db.getDb(), (void*)id.buf, id.size, lDoc.getLocalDocAddress());
+
     if (errCode != COUCHSTORE_SUCCESS) {
         // Could be a deleted collection, so not found not an issue
         if (errCode != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
             logger.warn(
-                    "CouchKVStore::getCollectionCount cid:{}"
+                    "CouchKVStore::getCollectionStats cid:{}"
                     "couchstore_open_local_document error:{}",
                     collection.to_string(),
                     couchstore_strerror(errCode));
         }
 
-        return 0;
+        return {};
     }
 
-    return cb::mcbp::decode_unsigned_leb128<uint64_t>(
-                   {reinterpret_cast<const uint8_t*>(
-                            lDoc.getLocalDoc()->json.buf),
-                    lDoc.getLocalDoc()->json.size})
-            .first;
+    return Collections::VB::PersistedStats(lDoc.getLocalDoc()->json.buf,
+                                           lDoc.getLocalDoc()->json.size);
 }
 
 int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {

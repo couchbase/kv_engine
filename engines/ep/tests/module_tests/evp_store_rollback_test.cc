@@ -272,9 +272,9 @@ protected:
         }
     }
 
-    // Check the doc counts after rolling back
-    void rollback_doc_count_test(int expectedDifference,
-                                 std::function<void()> test) {
+    // Check the stats after rolling back
+    void rollback_stat_test(int expectedDifference,
+                            std::function<void()> test) {
         // Everything will be in the default collection
         auto vb = store->getVBucket(vbid);
 
@@ -282,18 +282,25 @@ protected:
         auto startDefaultCollectionCount =
                 vb->getManifest().lock().getItemCount(CollectionID::Default);
         auto startVBCount = vb->getNumItems();
+
+        auto startHighSeqno = vb->getManifest().lock().getPersistedHighSeqno(
+                CollectionID::Default);
 
         test();
 
         EXPECT_EQ(startDefaultCollectionCount + expectedDifference,
                   vb->getManifest().lock().getItemCount(CollectionID::Default));
         EXPECT_EQ(startVBCount + expectedDifference, vb->getNumItems());
+
+        EXPECT_EQ(startHighSeqno + expectedDifference,
+                  vb->getManifest().lock().getPersistedHighSeqno(
+                          CollectionID::Default));
     }
 
-    // Check the doc counts after rolling back a creation and deletion
-    void rollback_create_delete_doc_count_test(bool deleteLast,
-                                               bool flushOnce,
-                                               int expectedDifference) {
+    // Check the stats after rolling back a creation and deletion
+    void rollback_create_delete_stat_test(bool deleteLast,
+                                          bool flushOnce,
+                                          int expectedDifference) {
         // Everything will be in the default collection
         auto vb = store->getVBucket(vbid);
 
@@ -301,6 +308,9 @@ protected:
         auto startDefaultCollectionCount =
                 vb->getManifest().lock().getItemCount(CollectionID::Default);
         auto startVBCount = vb->getNumItems();
+
+        auto startHighSeqno = vb->getManifest().lock().getPersistedHighSeqno(
+                CollectionID::Default);
 
         rollback_after_creation_and_deletion_test(deleteLast, flushOnce);
 
@@ -308,6 +318,10 @@ protected:
         EXPECT_EQ(startDefaultCollectionCount + expectedDifference,
                   vb->getManifest().lock().getItemCount(CollectionID::Default));
         EXPECT_EQ(startVBCount + expectedDifference, vb->getNumItems());
+
+        EXPECT_EQ(startHighSeqno + expectedDifference,
+                  vb->getManifest().lock().getPersistedHighSeqno(
+                          CollectionID::Default));
     }
 
     void rollback_to_middle_test(bool flush_before_rollback,
@@ -469,7 +483,7 @@ TEST_P(RollbackTest, RollbackCollectionCreate2) {
 // Test what happens when we rollback the creation and the mutation of
 // different documents that are persisted
 TEST_P(RollbackTest, RollbackMutationDocCounts) {
-    rollback_doc_count_test(
+    rollback_stat_test(
             1,
             std::bind(&RollbackTest::rollback_after_mutation_test, this, true));
 }
@@ -477,7 +491,7 @@ TEST_P(RollbackTest, RollbackMutationDocCounts) {
 // Test what happens when we rollback the creation and the mutation of
 // different documents that are not persisted
 TEST_P(RollbackTest, RollbackMutationDocCountsNoFlush) {
-    rollback_doc_count_test(
+    rollback_stat_test(
             1,
             std::bind(
                     &RollbackTest::rollback_after_mutation_test, this, false));
@@ -486,7 +500,7 @@ TEST_P(RollbackTest, RollbackMutationDocCountsNoFlush) {
 // Test what happens when we rollback a deletion of a document that existed
 // before rollback that has been persisted
 TEST_P(RollbackTest, RollbackDeletionDocCounts) {
-    rollback_doc_count_test(
+    rollback_stat_test(
             1,
             std::bind(&RollbackTest::rollback_after_deletion_test, this, true));
 }
@@ -494,7 +508,7 @@ TEST_P(RollbackTest, RollbackDeletionDocCounts) {
 // Test what happens when we rollback a deletion of a document that existed
 // before rollback that has not been persisted
 TEST_P(RollbackTest, RollbackDeletionDocCountsNoFlush) {
-    rollback_doc_count_test(
+    rollback_stat_test(
             1,
             std::bind(
                     &RollbackTest::rollback_after_deletion_test, this, false));
@@ -504,28 +518,28 @@ TEST_P(RollbackTest, RollbackDeletionDocCountsNoFlush) {
 // when we flush them separately
 TEST_P(RollbackTest, RollbackCreationAndDeletionDocCountsSeparateFlushes) {
     // Doc count should not change
-    rollback_create_delete_doc_count_test(true, false, 0);
+    rollback_create_delete_stat_test(true, false, 0);
 }
 
 // Test what happens if we rollback the creation and deletion of a document
 // when we flush them in one go
 TEST_P(RollbackTest, RollbackCreationAndDeletionDocCountsOneFlush) {
     // Doc count should not change
-    rollback_create_delete_doc_count_test(true, true, 0);
+    rollback_create_delete_stat_test(true, true, 0);
 }
 
 // Test what happens if we rollback the creation + deletion + creation of a
 // document when we flush them separately
 TEST_P(RollbackTest, RollbackDeletionAndCreationDocCountsSeparateFlushes) {
     // Doc count should not change
-    rollback_create_delete_doc_count_test(false, false, 0);
+    rollback_create_delete_stat_test(false, false, 0);
 }
 
 // Test what happens if we rollback the creation + deletion + creation of a
 // document when we flush them in one go
 TEST_P(RollbackTest, RollbackDeletionAndCreationDocCountsOneFlush) {
     // Doc count should not change
-    rollback_create_delete_doc_count_test(false, true, 0);
+    rollback_create_delete_stat_test(false, true, 0);
 }
 
 // Test what happens to the doc counts if we rollback the vBucket completely
@@ -542,7 +556,13 @@ TEST_P(RollbackTest, RollbackFromZeroDocCounts) {
 
     // No items at all
     ASSERT_EQ(0, store->getVBucket(vbid)->getHighSeqno());
-    EXPECT_EQ(0, store->getVBucket(vbid)->getManifest().lock().getItemCount(0));
+    EXPECT_EQ(0,
+              store->getVBucket(vbid)->getManifest().lock().getItemCount(
+                      CollectionID::Default));
+    EXPECT_EQ(
+            0,
+            store->getVBucket(vbid)->getManifest().lock().getPersistedHighSeqno(
+                    CollectionID::Default));
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
 }
 

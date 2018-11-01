@@ -23,6 +23,10 @@
 
 #pragma once
 
+#include "../objectregistry.h"
+#include "collections/collection_persisted_stats.h"
+#include "vbucket_bgfetch_item.h"
+
 #include <platform/dirutils.h>
 #include <platform/non_negative_counter.h>
 #include <map>
@@ -35,8 +39,6 @@
 #include <rocksdb/utilities/memory_util.h>
 #include <string>
 
-#include "../objectregistry.h"
-#include "vbucket_bgfetch_item.h"
 
 // Local tests have showed that skipping the call to
 // `ObjectRegistry::onSwitchThread` from the RocksDB background Flush
@@ -308,10 +310,11 @@ public:
         delete kvFileHandle;
     }
 
-    uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
-                                    CollectionID collection) override {
+    Collections::VB::PersistedStats getCollectionStats(
+            const KVFileHandle& kvFileHandle,
+            CollectionID collection) override {
         // TODO JWW 2018-07-30 implement this
-        return 0;
+        return {};
     }
 
     void incrementRevision(Vbid vbid) override {

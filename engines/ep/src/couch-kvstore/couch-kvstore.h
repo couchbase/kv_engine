@@ -440,9 +440,6 @@ public:
     Collections::VB::PersistedManifest getCollectionsManifest(
             Vbid vbid) override;
 
-    uint64_t getCollectionItemCount(const KVFileHandle& kvFileHandle,
-                                    CollectionID collection) override;
-
     std::unique_ptr<KVFileHandle, KVFileHandleDeleter> makeFileHandle(
             Vbid vbid) override;
 
@@ -602,19 +599,24 @@ protected:
     Collections::VB::PersistedManifest readCollectionsManifest(Db& db);
 
     /**
-     * Save count for collection cid into the file referenced by db
+     * Save stats for collection cid into the file referenced by db
      * @param db The Db to write to
      * @param cid The collection to update
-     * @param count The value to write
+     * @param stats The stats that should be persisted
      */
-    void saveItemCount(Db& db, CollectionID cid, uint64_t count);
+    void saveCollectionStats(Db& db,
+                             CollectionID cid,
+                             Collections::VB::PersistedStats stats);
 
     /**
      * Delete the count for collection cid
      * @param db The Db to write to
      * @param cid The collection to delete
      */
-    void deleteItemCount(Db& db, CollectionID cid);
+    void deleteCollectionStats(Db& db, CollectionID cid);
+
+    Collections::VB::PersistedStats getCollectionStats(
+            const KVFileHandle& kvFileHandle, CollectionID collection) override;
 
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);

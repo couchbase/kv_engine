@@ -41,16 +41,17 @@ class ManifestEntry {
 public:
     ManifestEntry(ScopeID scopeID,
                   cb::ExpiryLimit maxTtl,
-                  int64_t _startSeqno,
-                  int64_t _endSeqno)
-        : diskCount(0),
-          startSeqno(-1),
+                  int64_t startSeqno,
+                  int64_t endSeqno)
+        : startSeqno(-1),
           endSeqno(-1),
           scopeID(scopeID),
-          maxTtl(maxTtl) {
+          maxTtl(maxTtl),
+          diskCount(0),
+          persistedHighSeqno(0) {
         // Setters validate the start/end range is valid
-        setStartSeqno(_startSeqno);
-        setEndSeqno(_endSeqno);
+        setStartSeqno(startSeqno);
+        setEndSeqno(endSeqno);
     }
 
     bool operator==(const ManifestEntry& other) const {
@@ -143,6 +144,24 @@ public:
         return diskCount;
     }
 
+    /// set the highest persisted seqno for this collection if the new value
+    /// is greater than the previous one
+    void setPersistedHighSeqno(uint64_t value) const {
+        if (value > persistedHighSeqno) {
+            persistedHighSeqno = value;
+        }
+    }
+
+    /// reset the highest persisted seqno for this collection to the given value
+    void resetPersistedHighSeqno(uint64_t value = 0) const {
+        persistedHighSeqno = value;
+    }
+
+    /// @return the highest seqno of any persisted item in this collection
+    uint64_t getPersistedHighSeqno() const {
+        return persistedHighSeqno;
+    }
+
     /// @return true if successfully added stats, false otherwise
     bool addStats(const std::string& cid,
                   Vbid vbid,
@@ -176,14 +195,6 @@ private:
     }
 
     /**
-     * The count of items in this collection
-     * mutable - the VB:Manifest read/write lock protects this object and
-     *           we can do stats updates as long as the read lock is held.
-     *           The write lock is really for the Manifest map being changed.
-     */
-    mutable cb::NonNegativeCounter<uint64_t,
-                                   cb::ThrowExceptionUnderflowPolicy> diskCount;
-    /**
      * Collection life-time is recorded as the seqno the collection was added
      * to the seqno of the point we started to delete it.
      *
@@ -198,6 +209,27 @@ private:
 
     /// The max_ttl of the collection
     cb::ExpiryLimit maxTtl;
+
+    /**
+     * The count of items in this collection
+     * mutable - the VB:Manifest read/write lock protects this object and
+     *           we can do stats updates as long as the read lock is held.
+     *           The write lock is really for the Manifest map being changed.
+     */
+    mutable cb::NonNegativeCounter<uint64_t, cb::ThrowExceptionUnderflowPolicy>
+            diskCount;
+
+    /**
+     * The highest seqno of any item that has been/is currently being persisted.
+     *
+     * Not Monotonic as couchstore does not necessarily call the saveDocs
+     * callback on items in the same order that we queued them.
+     *
+     * mutable - the VB:Manifest read/write lock protects this object and
+     *           we can do stats updates as long as the read lock is held.
+     *           The write lock is really for the Manifest map being changed.
+     */
+    mutable uint64_t persistedHighSeqno;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

@@ -56,6 +56,12 @@ bool Collections::VB::ManifestEntry::addStats(const std::string& cid,
         add_casted_stat(buffer, getEndSeqno(), add_stat, cookie);
         checked_snprintf(buffer,
                          bsize,
+                         "vb_%d:collection:%s:entry:persisted_high_seqno",
+                         vbid.get(),
+                         cid.c_str());
+        add_casted_stat(buffer, getPersistedHighSeqno(), add_stat, cookie);
+        checked_snprintf(buffer,
+                         bsize,
                          "vb_%d:collection:%s:entry:items",
                          vbid.get(),
                          cid.c_str());
@@ -86,6 +92,7 @@ std::ostream& Collections::VB::operator<<(
     os << "ManifestEntry: scope:" << manifestEntry.getScopeID()
        << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", endSeqno:" << manifestEntry.getEndSeqno()
+       << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
        << ", diskCount:" << manifestEntry.getDiskCount();
 
     if (manifestEntry.getMaxTtl()) {
