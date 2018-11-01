@@ -409,6 +409,12 @@ public:
                     }
                     break;
                 }
+                case SystemEvent::Scope: {
+                    // @todo: coming soon, no code generates this yet.
+                }
+                default:
+                    throw std::invalid_argument("Unknown event " +
+                                                std::to_string(qi->getFlags()));
                 }
             }
         }

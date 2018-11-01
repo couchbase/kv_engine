@@ -3464,7 +3464,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpSystemEvent) {
     header.setBodylen(extlen);
     auto* req =
             reinterpret_cast<protocol_binary_request_dcp_system_event*>(blob);
-    req->message.body.event = htonl(3);
+    req->message.body.event = htonl(10);
     EXPECT_EQ("Invalid system event id",
               validate_error_context(cb::mcbp::ClientOpcode::DcpSystemEvent));
 }

@@ -39,8 +39,8 @@ static cb::const_char_buffer DefaultScopeIdentifier(_DefaultScopeIdentifier);
 
 // SystemEvent keys or parts which will be made into keys
 const char* const SystemSeparator = ":"; // Note this never changes
-const char* const SystemEventPrefix = "_collections";
-const char* const SystemEventPrefixWithSeparator = "_collections:";
+const char* const CollectionEventPrefixWithSeparator = "_collection:";
+const char* const ScopeEventPrefixWithSeparator = "_scope:";
 
 // Couchstore private file name for manifest data
 const char CouchstoreManifest[] = "_local/collections_manifest";

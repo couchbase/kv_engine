@@ -47,10 +47,15 @@ std::string SystemEventFactory::makeKey(SystemEvent se,
     std::string key;
     switch (se) {
     case SystemEvent::Collection:
-        // $collection:<collection-id>
-        key = Collections::SystemEventPrefixWithSeparator + keyExtra;
+        // _collection:<collection-id>
+        key = Collections::CollectionEventPrefixWithSeparator + keyExtra;
+        break;
+    case SystemEvent::Scope:
+        // _scope:<scope-id>
+        key = Collections::ScopeEventPrefixWithSeparator + keyExtra;
         break;
     }
+
     return key;
 }
 
@@ -96,9 +101,9 @@ ProcessStatus SystemEventFlush::process(const queued_item& item) {
     collectionsFlush.processManifestChange(item);
 
     switch (SystemEvent(item->getFlags())) {
-    case SystemEvent::Collection: {
+    case SystemEvent::Collection:
+    case SystemEvent::Scope:
         return ProcessStatus::Continue; // And flushes an item
-    }
     }
 
     throw std::invalid_argument("SystemEventFlush::process unknown event " +
@@ -113,6 +118,7 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
         } else {
             switch (SystemEvent(item.getFlags())) {
             case SystemEvent::Collection:
+            case SystemEvent::Scope:
                 return ProcessStatus::Continue;
             }
         }
@@ -123,7 +129,8 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         uint32_t opaque, const queued_item& item) {
     switch (SystemEvent(item->getFlags())) {
-    case SystemEvent::Collection: {
+    case SystemEvent::Collection:
+    case SystemEvent::Scope: {
         if (!item->isDeleted()) {
             // Note: constructor is private and make_unique is a pain to make
             // friend

@@ -1379,7 +1379,9 @@ namespace systemevent {
 enum class id : uint32_t {
     CreateCollection = 0,
     DeleteCollection = 1,
-    FlushCollection = 2
+    FlushCollection = 2,
+    CreateScope = 3,
+    DropScope = 4
 };
 
 enum class version : uint8_t { version0 = 0, version1 = 1 };
@@ -1392,6 +1394,8 @@ static inline bool validate_id(uint32_t event) {
         case id::CreateCollection:
         case id::DeleteCollection:
         case id::FlushCollection:
+        case id::CreateScope:
+        case id::DropScope:
             return true;
     }
     return false;

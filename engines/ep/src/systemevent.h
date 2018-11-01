@@ -38,7 +38,7 @@ enum class SystemEvent : uint32_t {
     /**
      * The Collection system event represents the beginning or end of a
      * collection. Each Collection system event has a key which contains the
-     * collection name. When the event is queued in a checkpoint or stored on
+     * collection ID. When the event is queued in a checkpoint or stored on
      * disk the seqno of that item states that this is the point when that
      * collection became accessible unless that queued/stored item is deleted,
      * then it represent when that collection became inaccesible (logically
@@ -48,13 +48,26 @@ enum class SystemEvent : uint32_t {
      * a value, the value is used to maintain a per vbucket JSON collection's
      * manifest (for persisted buckets).
      */
-    Collection
+    Collection,
+
+    /**
+     * The Scope system event represents the beginning or end of a
+     * scope. Each Scope system event has a key which contains the
+     * Scope ID. When the event is queued in a checkpoint or stored on
+     * disk the seqno of that item states that this is the point when that
+     * scope became accessible unless that queued/stored item is deleted,
+     * then it represent when that scope became inaccessible
+     *
+     */
+    Scope
 };
 
 static inline std::string to_string(const SystemEvent se) {
     switch (se) {
     case SystemEvent::Collection:
         return "Collection";
+    case SystemEvent::Scope:
+        return "Scope";
     }
     throw std::invalid_argument("to_string(SystemEvent) unknown " +
                                 std::to_string(int(se)));
