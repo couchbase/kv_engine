@@ -315,7 +315,7 @@ void encodeWithMetaExt(char* buffer, ItemMetaData* meta) {
     encodeWithMetaExt(buffer, cas, seqno, flags, exp);
 }
 
-protocol_binary_request_header* createPacket(uint8_t opcode,
+protocol_binary_request_header* createPacket(cb::mcbp::ClientOpcode opcode,
                                              Vbid vbid,
                                              uint64_t cas,
                                              const char* ext,
@@ -332,7 +332,8 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
     pkt_raw = static_cast<char*>(cb_calloc(1, headerlen + extlen + keylen + vallen + nmeta));
     cb_assert(pkt_raw);
     auto* req = reinterpret_cast<protocol_binary_request_header*>(pkt_raw);
-    req->request.opcode = opcode;
+    req->request.setMagic(cb::mcbp::Magic::ClientRequest);
+    req->request.setOpcode(opcode);
     req->request.keylen = htons(keylen);
     req->request.extlen = extlen;
     req->request.vbucket = vbid.hton();
@@ -362,7 +363,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 }
 
 void createCheckpoint(EngineIface* h) {
-    auto* request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
+    auto* request = createPacket(cb::mcbp::ClientOpcode::CreateCheckpoint);
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(nullptr, request, add_response),
             "Failed to create a new checkpoint.");
@@ -486,7 +487,7 @@ void del_with_meta(EngineIface* h,
     }
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_DEL_WITH_META,
+    pkt = createPacket(cb::mcbp::ClientOpcode::DelWithMeta,
                        vb,
                        cas_for_delete,
                        ext.get(),
@@ -513,7 +514,7 @@ void evict_key(EngineIface* h,
     int nonResidentItems = get_int_stat(h, "ep_num_non_resident");
     int numEjectedItems = get_int_stat(h, "ep_num_value_ejects");
     protocol_binary_request_header* pkt =
-            createPacket(PROTOCOL_BINARY_CMD_EVICT_KEY,
+            createPacket(cb::mcbp::ClientOpcode::EvictKey,
                          Vbid(0),
                          0,
                          NULL,
@@ -558,8 +559,15 @@ ENGINE_ERROR_CODE checkpointPersistence(EngineIface* h,
                                         Vbid vb) {
     checkpoint_id = htonll(checkpoint_id);
     protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, vb, 0, NULL, 0, NULL, 0,
-                           (const char *)&checkpoint_id, sizeof(uint64_t));
+    request = createPacket(cb::mcbp::ClientOpcode::CheckpointPersistence,
+                           vb,
+                           0,
+                           NULL,
+                           0,
+                           NULL,
+                           0,
+                           (const char*)&checkpoint_id,
+                           sizeof(uint64_t));
     ENGINE_ERROR_CODE rv = h->unknown_command(nullptr, request, add_response);
     cb_free(request);
     return rv;
@@ -572,8 +580,8 @@ ENGINE_ERROR_CODE seqnoPersistence(EngineIface* h,
     seqno = htonll(seqno);
     char buffer[8];
     memcpy(buffer, &seqno, sizeof(uint64_t));
-    protocol_binary_request_header* request =
-        createPacket(PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE, vbucket, 0, buffer, 8);
+    protocol_binary_request_header* request = createPacket(
+            cb::mcbp::ClientOpcode::SeqnoPersistence, vbucket, 0, buffer, 8);
 
     ENGINE_ERROR_CODE rv = h->unknown_command(cookie, request, add_response);
     cb_free(request);
@@ -674,7 +682,7 @@ ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys) {
     }
 
     protocol_binary_request_header *request;
-    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE,
+    request = createPacket(cb::mcbp::ClientOpcode::Observe,
                            Vbid(0),
                            0,
                            NULL,
@@ -695,15 +703,22 @@ ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
     std::stringstream data;
     data.write((char *) &vb_uuid, sizeof(uint64_t));
 
-    request = createPacket(PROTOCOL_BINARY_CMD_OBSERVE_SEQNO, vb_id, 0, NULL, 0,
-                           NULL, 0, data.str().data(), data.str().length());
+    request = createPacket(cb::mcbp::ClientOpcode::ObserveSeqno,
+                           vb_id,
+                           0,
+                           NULL,
+                           0,
+                           NULL,
+                           0,
+                           data.str().data(),
+                           data.str().length());
     auto ret = h->unknown_command(nullptr, request, add_response);
     cb_free(request);
     return ret;
 }
 
 void get_replica(EngineIface* h, const char* key, Vbid vbid) {
-    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA,
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::GetReplica,
                              vbid,
                              0,
                              NULL,
@@ -721,8 +736,13 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
                                                     bool makeinvalidkey) {
     Vbid id(0);
     const char *key = "k0";
-    auto* pkt = createPacket(
-            PROTOCOL_BINARY_CMD_GET_REPLICA, id, 0, NULL, 0, key, strlen(key));
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::GetReplica,
+                             id,
+                             0,
+                             NULL,
+                             0,
+                             key,
+                             strlen(key));
 
     if (!makeinvalidkey) {
         checkeq(ENGINE_SUCCESS,
@@ -751,8 +771,15 @@ bool set_param(EngineIface* h,
     char ext[4];
     protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(paramtype));
-    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_PARAM, vb, 0, ext, sizeof(protocol_binary_engine_param_t), param,
-                       strlen(param), val, strlen(val));
+    pkt = createPacket(cb::mcbp::ClientOpcode::SetParam,
+                       vb,
+                       0,
+                       ext,
+                       sizeof(protocol_binary_engine_param_t),
+                       param,
+                       strlen(param),
+                       val,
+                       strlen(val));
 
     if (h->unknown_command(nullptr, pkt, add_response) != ENGINE_SUCCESS) {
         cb_free(pkt);
@@ -767,7 +794,7 @@ bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state) {
     char ext[4];
     protocol_binary_request_header *pkt;
     encodeExt(ext, static_cast<uint32_t>(state));
-    pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, vb, 0, ext, 4);
+    pkt = createPacket(cb::mcbp::ClientOpcode::SetVbucket, vb, 0, ext, 4);
 
     if (h->unknown_command(nullptr, pkt, add_response) != ENGINE_SUCCESS) {
         return false;
@@ -784,13 +811,13 @@ bool get_all_vb_seqnos(EngineIface* h,
     if (state) {
         char ext[sizeof(vbucket_state_t)];
         encodeExt(ext, static_cast<uint32_t>(state));
-        pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS,
+        pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
                            Vbid(0),
                            0,
                            ext,
                            sizeof(vbucket_state_t));
     } else {
-        pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS);
+        pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos);
     }
 
     checkeq(ENGINE_SUCCESS,
@@ -831,7 +858,7 @@ void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end) {
 }
 
 static void store_with_meta(EngineIface* h,
-                            protocol_binary_command cmd,
+                            cb::mcbp::ClientOpcode cmd,
                             const char* key,
                             const size_t keylen,
                             const char* val,
@@ -893,7 +920,7 @@ void set_with_meta(EngineIface* h,
                    const void* cookie,
                    const std::vector<char>& nmeta) {
     store_with_meta(h,
-                    PROTOCOL_BINARY_CMD_SET_WITH_META,
+                    cb::mcbp::ClientOpcode::SetWithMeta,
                     key,
                     keylen,
                     val,
@@ -920,7 +947,7 @@ void add_with_meta(EngineIface* h,
                    const void* cookie,
                    const std::vector<char>& nmeta) {
     store_with_meta(h,
-                    PROTOCOL_BINARY_CMD_ADD_WITH_META,
+                    cb::mcbp::ClientOpcode::AddWithMeta,
                     key,
                     keylen,
                     val,
@@ -951,8 +978,16 @@ static ENGINE_ERROR_CODE return_meta(EngineIface* h,
     encodeExt(ext + 4, flags);
     encodeExt(ext + 8, exp);
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, vb, cas, ext, 12, key, keylen, val,
-                       vallen, datatype);
+    pkt = createPacket(cb::mcbp::ClientOpcode::ReturnMeta,
+                       vb,
+                       cas,
+                       ext,
+                       12,
+                       key,
+                       keylen,
+                       val,
+                       vallen,
+                       datatype);
     auto ret = h->unknown_command(cookie, pkt, add_response_ret_meta);
     cb_free(pkt);
 
@@ -1030,7 +1065,7 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
 }
 
 void disable_traffic(EngineIface* h) {
-    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "Failed to send data traffic command to the server");
@@ -1041,7 +1076,7 @@ void disable_traffic(EngineIface* h) {
 }
 
 void enable_traffic(EngineIface* h) {
-    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "Failed to send data traffic command to the server");
@@ -1057,7 +1092,7 @@ void start_persistence(EngineIface* h) {
         return;
     }
 
-    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(nullptr, pkt, add_response),
             "Failed to stop persistence.");
@@ -1081,7 +1116,7 @@ void stop_persistence(EngineIface* h) {
         decayingSleep(&sleepTime);
     }
 
-    auto* pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(nullptr, pkt, add_response),
             "Failed to stop persistence.");
@@ -1248,7 +1283,7 @@ void compact_db(EngineIface* h,
     uint32_t argslen = 24;
 
     protocol_binary_request_header* pkt =
-            createPacket(PROTOCOL_BINARY_CMD_COMPACT_DB,
+            createPacket(cb::mcbp::ClientOpcode::CompactDb,
                          vbucket_id,
                          0,
                          args,
@@ -1265,9 +1300,16 @@ void compact_db(EngineIface* h,
 
 ENGINE_ERROR_CODE vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
     uint32_t argslen = args ? strlen(args) : 0;
-    protocol_binary_request_header *pkt =
-        createPacket(PROTOCOL_BINARY_CMD_DEL_VBUCKET, vb, 0, NULL, 0, NULL, 0,
-                     args, argslen);
+    protocol_binary_request_header* pkt =
+            createPacket(cb::mcbp::ClientOpcode::DelVbucket,
+                         vb,
+                         0,
+                         NULL,
+                         0,
+                         NULL,
+                         0,
+                         args,
+                         argslen);
 
     auto ret = h->unknown_command(NULL, pkt, add_response);
     cb_free(pkt);
@@ -1331,7 +1373,7 @@ bool verify_vbucket_state(EngineIface* h,
                           vbucket_state_t expected,
                           bool mute) {
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, vb, 0);
+    pkt = createPacket(cb::mcbp::ClientOpcode::GetVbucket, vb, 0);
 
     ENGINE_ERROR_CODE errcode = h->unknown_command(NULL, pkt, add_response);
     cb_free(pkt);
@@ -1359,12 +1401,12 @@ bool verify_vbucket_state(EngineIface* h,
 
 void sendDcpAck(EngineIface* h,
                 const void* cookie,
-                protocol_binary_command opcode,
+                cb::mcbp::ClientOpcode opcode,
                 cb::mcbp::Status status,
                 uint32_t opaque) {
     protocol_binary_response_header pkt;
     pkt.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt.response.setOpcode(cb::mcbp::ClientOpcode(opcode));
+    pkt.response.setOpcode(opcode);
     pkt.response.setStatus(status);
     pkt.response.setOpaque(opaque);
 

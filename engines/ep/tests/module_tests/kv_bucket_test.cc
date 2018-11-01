@@ -236,7 +236,7 @@ void KVBucketTest::runBGFetcherTask() {
  * Create a del_with_meta packet with the key/body (body can be empty)
  */
 std::vector<char> KVBucketTest::buildWithMetaPacket(
-        protocol_binary_command opcode,
+        cb::mcbp::ClientOpcode opcode,
         protocol_binary_datatype_t datatype,
         Vbid vbucket,
         uint32_t opaque,
@@ -271,7 +271,7 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
 
     protocol_binary_request_set_with_meta header;
     header.message.header.request.magic = PROTOCOL_BINARY_REQ;
-    header.message.header.request.opcode = opcode;
+    header.message.header.request.setOpcode(opcode);
     header.message.header.request.keylen = htons(key.size());
     header.message.header.request.extlen = uint8_t(extlen);
     header.message.header.request.datatype = datatype;

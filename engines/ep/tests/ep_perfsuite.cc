@@ -976,48 +976,49 @@ static void perf_dcp_client(EngineIface* h,
 
         case ENGINE_SUCCESS:
             switch (dcp_last_op) {
-                case PROTOCOL_BINARY_CMD_DCP_MUTATION:
-                case PROTOCOL_BINARY_CMD_DCP_DELETION:
-                    // Check for sentinel (before adding to timings).
-                    if (dcp_last_key == SENTINEL_KEY) {
-                        done = true;
-                        break;
-                    }
-                    recv_timings.push_back(std::chrono::steady_clock::now()
-                                                   .time_since_epoch()
-                                                   .count());
-                    bytes_received.push_back(dcp_last_value.length());
-                    bytes_read += dcp_last_packet_size;
-                    if (pending_marker_ack && dcp_last_byseqno == marker_end) {
-                        sendDcpAck(h,
-                                   cookie,
-                                   PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   cb::mcbp::Status::Success,
-                                   dcp_last_opaque);
-                    }
-
+            case cb::mcbp::ClientOpcode::DcpMutation:
+            case cb::mcbp::ClientOpcode::DcpDeletion:
+                // Check for sentinel (before adding to timings).
+                if (dcp_last_key == SENTINEL_KEY) {
+                    done = true;
                     break;
+                }
+                recv_timings.push_back(std::chrono::steady_clock::now()
+                                               .time_since_epoch()
+                                               .count());
+                bytes_received.push_back(dcp_last_value.length());
+                bytes_read += dcp_last_packet_size;
+                if (pending_marker_ack && dcp_last_byseqno == marker_end) {
+                    sendDcpAck(h,
+                               cookie,
+                               cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                               cb::mcbp::Status::Success,
+                               dcp_last_opaque);
+                }
 
-                case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-                    if (dcp_last_flags & 8) {
-                        pending_marker_ack = true;
-                        marker_end = dcp_last_snap_end_seqno;
-                    }
-                    bytes_read += dcp_last_packet_size;
-                    break;
+                break;
 
-                case 0:
-                    /* Consider case where no messages were ready on the last
-                     * step call so we will just ignore this case. Note that we
-                     * check for 0 because we clear the dcp_last_op value below.
-                     */
-                    break;
-                default:
-                    fprintf(stderr, "Unexpected DCP event type received: %d\n",
-                            dcp_last_op);
-                    abort();
+            case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+                if (dcp_last_flags & 8) {
+                    pending_marker_ack = true;
+                    marker_end = dcp_last_snap_end_seqno;
+                }
+                bytes_read += dcp_last_packet_size;
+                break;
+
+            case cb::mcbp::ClientOpcode::Invalid:
+                /* Consider case where no messages were ready on the last
+                 * step call so we will just ignore this case. Note that we
+                 * check for 0 because we clear the dcp_last_op value below.
+                 */
+                break;
+            default:
+                fprintf(stderr,
+                        "Unexpected DCP event type received: %s\n",
+                        to_string(dcp_last_op).c_str());
+                abort();
             }
-            dcp_last_op = 0;
+            dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
             break;
 
         default:

@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <ostream>
 #include <string>
 
 namespace cb {
@@ -414,3 +415,6 @@ std::string to_string(cb::mcbp::ServerOpcode opcode);
  * @throws std::invalid_argument for unknown opcodes
  */
 cb::mcbp::ClientOpcode to_opcode(const std::string& string);
+
+std::ostream& operator<<(std::ostream& out, cb::mcbp::ClientOpcode opcode);
+std::ostream& operator<<(std::ostream& out, cb::mcbp::ServerOpcode opcode);

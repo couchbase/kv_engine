@@ -869,7 +869,7 @@ public:
     VBucketPtr vb;
 };
 
-extern uint8_t dcp_last_op;
+extern cb::mcbp::ClientOpcode dcp_last_op;
 
 TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     /* MB-21682: Confirm that producer DCP streams from a replica VB are closed
@@ -938,10 +938,10 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
 
     // snapshot marker
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
 
     auto kvb = engine->getKVBucket();
 
@@ -952,7 +952,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     EXPECT_FALSE(stream->isActive()) << "Stream should be dead";
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op)
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op)
             << "stream should have received a STREAM_END";
 
     // Stop Producer checkpoint processor task

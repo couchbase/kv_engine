@@ -54,7 +54,7 @@
 
 #include <thread>
 
-extern uint8_t dcp_last_op;
+extern cb::mcbp::ClientOpcode dcp_last_op;
 extern uint32_t dcp_last_flags;
 
 /**
@@ -2325,7 +2325,7 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
     /* Expect a stream end message */
     MockDcpMessageProducers producers(handle);
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op);
     EXPECT_EQ(END_STREAM_CLOSED, dcp_last_flags);
 
     /* Re-open stream for the same vbucket on the conn */

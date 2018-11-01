@@ -339,142 +339,142 @@ void TestDcpConsumer::run(bool openConn) {
             const Vbid vbid = dcp_last_vbucket;
             auto &stats = vb_stats[vbid];
             switch (dcp_last_op) {
-                case PROTOCOL_BINARY_CMD_DCP_MUTATION:
-                    cb_assert(vbid != static_cast<Vbid>(-1));
-                    checklt(stats.last_by_seqno,
-                            dcp_last_byseqno.load(),
-                            "Expected bigger seqno");
-                    stats.last_by_seqno = dcp_last_byseqno;
-                    stats.num_mutations++;
-                    bytes_read += dcp_last_packet_size;
-                    all_bytes += dcp_last_packet_size;
-                    if (stats.pending_marker_ack &&
-                        dcp_last_byseqno == stats.marker_end) {
-                        sendDcpAck(h,
-                                   cookie,
-                                   PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   cb::mcbp::Status::Success,
-                                   dcp_last_opaque);
-                    }
-
-                    if (dcp_last_nru > 0) {
-                        nruCounter[1]++;
-                    } else {
-                        nruCounter[0]++;
-                    }
-                    if (!dcp_last_value.empty()) {
-                        stats.num_values++;
-                    }
-
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_DELETION:
-                    cb_assert(vbid != static_cast<Vbid>(-1));
-                    checklt(stats.last_by_seqno,
-                            dcp_last_byseqno.load(),
-                            "Expected bigger seqno");
-                    stats.last_by_seqno = dcp_last_byseqno;
-                    stats.num_deletions++;
-                    bytes_read += dcp_last_packet_size;
-                    all_bytes += dcp_last_packet_size;
-                    if (stats.pending_marker_ack &&
-                        dcp_last_byseqno == stats.marker_end) {
-                        sendDcpAck(h,
-                                   cookie,
-                                   PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   cb::mcbp::Status::Success,
-                                   dcp_last_opaque);
-                    }
-
-                    if (!dcp_last_value.empty()) {
-                        stats.num_values++;
-                    }
-
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
-                    cb_assert(vbid != static_cast<Vbid>(-1));
-                    if (++num_stream_ends_received == stream_ctxs.size()) {
-                        done = true;
-                    }
-                    bytes_read += dcp_last_packet_size;
-                    all_bytes += dcp_last_packet_size;
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-                    cb_assert(vbid != static_cast<Vbid>(-1));
-                    if (stats.exp_disk_snapshot &&
-                        stats.num_snapshot_markers == 0) {
-                        checkeq(uint32_t{1},
-                                dcp_last_flags,
-                                "Expected disk snapshot");
-                    }
-
-                    if (dcp_last_flags & 8) {
-                        stats.pending_marker_ack = true;
-                        stats.marker_end = dcp_last_snap_end_seqno;
-                    }
-
-                    stats.num_snapshot_markers++;
-                    bytes_read += dcp_last_packet_size;
-                    all_bytes += dcp_last_packet_size;
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
-                    cb_assert(vbid != static_cast<Vbid>(-1));
-                    if (dcp_last_vbucket_state == vbucket_state_pending) {
-                        stats.num_set_vbucket_pending++;
-                        for (size_t j = 0; j < stats.extra_takeover_ops; ++j) {
-                            std::string key("key" + std::to_string(j));
-                            checkeq(ENGINE_SUCCESS,
-                                    store(h,
-                                          NULL,
-                                          OPERATION_SET,
-                                          key.c_str(),
-                                          "data",
-                                          nullptr,
-                                          0,
-                                          vbid),
-                                    "Failed to store a value");
-                        }
-                    } else if (dcp_last_vbucket_state == vbucket_state_active) {
-                        stats.num_set_vbucket_active++;
-                    }
-                    bytes_read += dcp_last_packet_size;
-                    all_bytes += dcp_last_packet_size;
+            case cb::mcbp::ClientOpcode::DcpMutation:
+                cb_assert(vbid != static_cast<Vbid>(-1));
+                checklt(stats.last_by_seqno,
+                        dcp_last_byseqno.load(),
+                        "Expected bigger seqno");
+                stats.last_by_seqno = dcp_last_byseqno;
+                stats.num_mutations++;
+                bytes_read += dcp_last_packet_size;
+                all_bytes += dcp_last_packet_size;
+                if (stats.pending_marker_ack &&
+                    dcp_last_byseqno == stats.marker_end) {
                     sendDcpAck(h,
                                cookie,
-                               PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
+                               cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                                cb::mcbp::Status::Success,
                                dcp_last_opaque);
-                    break;
-                case 0:
-                    if (disable_ack && flow_control_buf_size &&
-                        (bytes_read >= flow_control_buf_size)) {
-                        /* If there is no acking and if flow control is enabled
-                           we are done because producer should not send us any
-                           more items. We need this to test that producer stops
-                           sending items correctly when there are no acks while
-                           flow control is enabled */
-                        done = true;
-                        exp_all_items_streamed = false;
-                    } else {
-                        /* No messages were ready on the last step call, so we
-                         * wait till the conn is notified of new item.
-                         * Note that we check for 0 because we clear the
-                         * dcp_last_op value below.
-                         */
-                        testHarness->lock_cookie(cookie);
-                        /* waitfor_cookie() waits on a condition variable. But
-                           the api expects the cookie to be locked before
-                           calling it */
-                        testHarness->waitfor_cookie(cookie);
-                        testHarness->unlock_cookie(cookie);
+                }
+
+                if (dcp_last_nru > 0) {
+                    nruCounter[1]++;
+                } else {
+                    nruCounter[0]++;
+                }
+                if (!dcp_last_value.empty()) {
+                    stats.num_values++;
+                }
+
+                break;
+            case cb::mcbp::ClientOpcode::DcpDeletion:
+                cb_assert(vbid != static_cast<Vbid>(-1));
+                checklt(stats.last_by_seqno,
+                        dcp_last_byseqno.load(),
+                        "Expected bigger seqno");
+                stats.last_by_seqno = dcp_last_byseqno;
+                stats.num_deletions++;
+                bytes_read += dcp_last_packet_size;
+                all_bytes += dcp_last_packet_size;
+                if (stats.pending_marker_ack &&
+                    dcp_last_byseqno == stats.marker_end) {
+                    sendDcpAck(h,
+                               cookie,
+                               cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                               cb::mcbp::Status::Success,
+                               dcp_last_opaque);
+                }
+
+                if (!dcp_last_value.empty()) {
+                    stats.num_values++;
+                }
+
+                break;
+            case cb::mcbp::ClientOpcode::DcpStreamEnd:
+                cb_assert(vbid != static_cast<Vbid>(-1));
+                if (++num_stream_ends_received == stream_ctxs.size()) {
+                    done = true;
+                }
+                bytes_read += dcp_last_packet_size;
+                all_bytes += dcp_last_packet_size;
+                break;
+            case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+                cb_assert(vbid != static_cast<Vbid>(-1));
+                if (stats.exp_disk_snapshot &&
+                    stats.num_snapshot_markers == 0) {
+                    checkeq(uint32_t{1},
+                            dcp_last_flags,
+                            "Expected disk snapshot");
+                }
+
+                if (dcp_last_flags & 8) {
+                    stats.pending_marker_ack = true;
+                    stats.marker_end = dcp_last_snap_end_seqno;
+                }
+
+                stats.num_snapshot_markers++;
+                bytes_read += dcp_last_packet_size;
+                all_bytes += dcp_last_packet_size;
+                break;
+            case cb::mcbp::ClientOpcode::DcpSetVbucketState:
+                cb_assert(vbid != static_cast<Vbid>(-1));
+                if (dcp_last_vbucket_state == vbucket_state_pending) {
+                    stats.num_set_vbucket_pending++;
+                    for (size_t j = 0; j < stats.extra_takeover_ops; ++j) {
+                        std::string key("key" + std::to_string(j));
+                        checkeq(ENGINE_SUCCESS,
+                                store(h,
+                                      NULL,
+                                      OPERATION_SET,
+                                      key.c_str(),
+                                      "data",
+                                      nullptr,
+                                      0,
+                                      vbid),
+                                "Failed to store a value");
                     }
-                    break;
-                default:
-                    // Aborting ...
-                    std::stringstream ss;
-                    ss << "Unknown DCP operation: " << dcp_last_op;
-                    check(false, ss.str().c_str());
+                } else if (dcp_last_vbucket_state == vbucket_state_active) {
+                    stats.num_set_vbucket_active++;
+                }
+                bytes_read += dcp_last_packet_size;
+                all_bytes += dcp_last_packet_size;
+                sendDcpAck(h,
+                           cookie,
+                           cb::mcbp::ClientOpcode::DcpSetVbucketState,
+                           cb::mcbp::Status::Success,
+                           dcp_last_opaque);
+                break;
+            case cb::mcbp::ClientOpcode::Invalid:
+                if (disable_ack && flow_control_buf_size &&
+                    (bytes_read >= flow_control_buf_size)) {
+                    /* If there is no acking and if flow control is enabled
+                       we are done because producer should not send us any
+                       more items. We need this to test that producer stops
+                       sending items correctly when there are no acks while
+                       flow control is enabled */
+                    done = true;
+                    exp_all_items_streamed = false;
+                } else {
+                    /* No messages were ready on the last step call, so we
+                     * wait till the conn is notified of new item.
+                     * Note that we check for 0 because we clear the
+                     * dcp_last_op value below.
+                     */
+                    testHarness->lock_cookie(cookie);
+                    /* waitfor_cookie() waits on a condition variable. But
+                       the api expects the cookie to be locked before
+                       calling it */
+                    testHarness->waitfor_cookie(cookie);
+                    testHarness->unlock_cookie(cookie);
+                }
+                break;
+            default:
+                // Aborting ...
+                std::stringstream ss;
+                ss << "Unknown DCP operation: " << to_string(dcp_last_op);
+                check(false, ss.str().c_str());
             }
-            dcp_last_op = 0;
+            dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
             dcp_last_nru = 0;
             dcp_last_vbucket = Vbid(-1);
         }
@@ -909,41 +909,41 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
             done = true;
         } else {
             switch (dcp_last_op) {
-                case PROTOCOL_BINARY_CMD_DCP_MUTATION:
-                    bytes_read += dcp_last_packet_size;
-                    if (pending_marker_ack && dcp_last_byseqno == marker_end) {
-                        sendDcpAck(h,
-                                   cookie,
-                                   PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   cb::mcbp::Status::Success,
-                                   dcp_last_opaque);
-                    }
-                    num_mutations++;
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
-                    done = true;
-                    bytes_read += dcp_last_packet_size;
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-                    if (dcp_last_flags & 8) {
-                        pending_marker_ack = true;
-                        marker_end = dcp_last_snap_end_seqno;
-                    }
-                    bytes_read += dcp_last_packet_size;
-                    last_snap_start_seqno = dcp_last_snap_start_seqno;
-                    break;
-                case 0:
-                    break;
-                default:
-                    // Aborting ...
-                    std::string err_string("Unexpected DCP operation: " +
-                                           std::to_string(dcp_last_op));
-                    check(false, err_string.c_str());
+            case cb::mcbp::ClientOpcode::DcpMutation:
+                bytes_read += dcp_last_packet_size;
+                if (pending_marker_ack && dcp_last_byseqno == marker_end) {
+                    sendDcpAck(h,
+                               cookie,
+                               cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                               cb::mcbp::Status::Success,
+                               dcp_last_opaque);
+                }
+                num_mutations++;
+                break;
+            case cb::mcbp::ClientOpcode::DcpStreamEnd:
+                done = true;
+                bytes_read += dcp_last_packet_size;
+                break;
+            case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+                if (dcp_last_flags & 8) {
+                    pending_marker_ack = true;
+                    marker_end = dcp_last_snap_end_seqno;
+                }
+                bytes_read += dcp_last_packet_size;
+                last_snap_start_seqno = dcp_last_snap_start_seqno;
+                break;
+            case cb::mcbp::ClientOpcode::Invalid:
+                break;
+            default:
+                // Aborting ...
+                std::string err_string("Unexpected DCP operation: " +
+                                       to_string(dcp_last_op));
+                check(false, err_string.c_str());
             }
             if (dcp_last_byseqno >= end) {
                 done = true;
             }
-            dcp_last_op = 0;
+            dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
         }
     } while (!done);
 
@@ -1148,52 +1148,52 @@ static void dcp_waiting_step(EngineIface* h,
             done = true;
         } else {
             switch (dcp_last_op) {
-                case PROTOCOL_BINARY_CMD_DCP_MUTATION:
-                    bytes_read += dcp_last_packet_size;
-                    if (pending_marker_ack && dcp_last_byseqno == marker_end) {
-                        sendDcpAck(h,
-                                   cookie,
-                                   PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
-                                   cb::mcbp::Status::Success,
-                                   dcp_last_opaque);
-                    }
-                    ++num_mutations;
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
-                    done = true;
-                    bytes_read += dcp_last_packet_size;
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-                    if (dcp_last_flags & 8) {
-                        pending_marker_ack = true;
-                        marker_end = dcp_last_snap_end_seqno;
-                    }
-                    bytes_read += dcp_last_packet_size;
-                    break;
-                case 0:
-                    /* No messages were ready on the last step call, so we
-                     * wait till the conn is notified of new item.
-                     * Note that we check for 0 because we clear the
-                     * dcp_last_op value below.
-                     */
-                    testHarness->lock_cookie(cookie);
-                    /* waitfor_cookie() waits on a condition variable. But
-                       the api expects the cookie to be locked before
-                       calling it */
-                    wait_started = true;
-                    testHarness->waitfor_cookie(cookie);
-                    testHarness->unlock_cookie(cookie);
-                    break;
-                default:
-                    // Aborting ...
-                    std::string err_string("Unexpected DCP operation: " +
-                                           std::to_string(dcp_last_op));
-                    check(false, err_string.c_str());
+            case cb::mcbp::ClientOpcode::DcpMutation:
+                bytes_read += dcp_last_packet_size;
+                if (pending_marker_ack && dcp_last_byseqno == marker_end) {
+                    sendDcpAck(h,
+                               cookie,
+                               cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                               cb::mcbp::Status::Success,
+                               dcp_last_opaque);
+                }
+                ++num_mutations;
+                break;
+            case cb::mcbp::ClientOpcode::DcpStreamEnd:
+                done = true;
+                bytes_read += dcp_last_packet_size;
+                break;
+            case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+                if (dcp_last_flags & 8) {
+                    pending_marker_ack = true;
+                    marker_end = dcp_last_snap_end_seqno;
+                }
+                bytes_read += dcp_last_packet_size;
+                break;
+            case cb::mcbp::ClientOpcode::Invalid:
+                /* No messages were ready on the last step call, so we
+                 * wait till the conn is notified of new item.
+                 * Note that we check for 0 because we clear the
+                 * dcp_last_op value below.
+                 */
+                testHarness->lock_cookie(cookie);
+                /* waitfor_cookie() waits on a condition variable. But
+                   the api expects the cookie to be locked before
+                   calling it */
+                wait_started = true;
+                testHarness->waitfor_cookie(cookie);
+                testHarness->unlock_cookie(cookie);
+                break;
+            default:
+                // Aborting ...
+                std::string err_string("Unexpected DCP operation: " +
+                                       to_string(dcp_last_op));
+                check(false, err_string.c_str());
             }
             if (num_mutations >= exp_mutations) {
                 done = true;
             }
-            dcp_last_op = 0;
+            dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
         }
     } while (!done);
 
@@ -1279,14 +1279,16 @@ static enum test_result test_dcp_notifier(EngineIface* h) {
     // Get notification for an old item
     notifier_request(h, cookie, ++opaque, vbucket, start, true);
     dcp_step(h, cookie);
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
-            dcp_last_op, "Expected stream end");
+    checkeq(cb::mcbp::ClientOpcode::DcpStreamEnd,
+            dcp_last_op,
+            "Expected stream end");
     // Get notification when we're slightly behind
     start += 9;
     notifier_request(h, cookie, ++opaque, vbucket, start, true);
     dcp_step(h, cookie);
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
-            dcp_last_op, "Expected stream end");
+    checkeq(cb::mcbp::ClientOpcode::DcpStreamEnd,
+            dcp_last_op,
+            "Expected stream end");
     // Wait for notification of a future item
     start += 11;
     notifier_request(h, cookie, ++opaque, vbucket, start, true);
@@ -1304,7 +1306,8 @@ static enum test_result test_dcp_notifier(EngineIface* h) {
     }
     // Shouldn't get a stream end yet
     dcp_step(h, cookie);
-    checkne(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op,
+    checkne(cb::mcbp::ClientOpcode::DcpStreamEnd,
+            dcp_last_op,
             "Wasn't expecting a stream end");
     for (auto j = 0; j < 6; ++j) {
         const auto key = "key" + std::to_string(j);
@@ -1319,8 +1322,9 @@ static enum test_result test_dcp_notifier(EngineIface* h) {
     }
     // Should get a stream end
     dcp_step(h, cookie);
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
-            dcp_last_op, "Expected stream end");
+    checkeq(cb::mcbp::ClientOpcode::DcpStreamEnd,
+            dcp_last_op,
+            "Expected stream end");
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
@@ -1360,14 +1364,16 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
     // Should not get a stream end
     notifier_request(h, cookie, ++opaque, vbucket, start, true);
     dcp_step(h, cookie);
-    checkne(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op,
-          "Wasn't expecting a stream end");
+    checkne(cb::mcbp::ClientOpcode::DcpStreamEnd,
+            dcp_last_op,
+            "Wasn't expecting a stream end");
     checkeq(ENGINE_SUCCESS,
             store(h, nullptr, OPERATION_SET, "key0", "data"),
             "Failed to store a value");
     dcp_step(h, cookie);
-    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
-            dcp_last_op, "Expected stream end");
+    checkeq(cb::mcbp::ClientOpcode::DcpStreamEnd,
+            dcp_last_op,
+            "Expected stream end");
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
@@ -1615,7 +1621,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
         checkeq(ENGINE_SUCCESS,
                 dcp->step(cookie[i], &producers),
                 "Pending flow control buffer change not processed");
-        checkeq((uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_last_op,
+        checkeq(cb::mcbp::ClientOpcode::DcpControl,
+                dcp_last_op,
                 "Flow ctl buf size change control message not received");
         checkeq(0, dcp_last_key.compare("connection_buffer_size"),
                 "Flow ctl buf size change control message key error");
@@ -1745,7 +1752,7 @@ static enum test_result test_dcp_noop(EngineIface* h) {
     while (!done) {
         if (dcp->step(cookie, &producers) == ENGINE_DISCONNECT) {
             done = true;
-        } else if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
+        } else if (dcp_last_op == cb::mcbp::ClientOpcode::DcpNoop) {
             done = true;
             // Producer opaques are hard coded to start from 10M
             checkeq(10000001, (int)dcp_last_opaque,
@@ -1756,16 +1763,16 @@ static enum test_result test_dcp_noop(EngineIface* h) {
                     "Didn't send noop");
             sendDcpAck(h,
                        cookie,
-                       PROTOCOL_BINARY_CMD_DCP_NOOP,
+                       cb::mcbp::ClientOpcode::DcpNoop,
                        cb::mcbp::Status::Success,
                        dcp_last_opaque);
             checkeq(0,
                     get_int_stat(h, stat_name.c_str(), "dcp"),
                     "Didn't ack noop");
-        } else if (dcp_last_op != 0) {
+        } else if (dcp_last_op != cb::mcbp::ClientOpcode::Invalid) {
             abort();
         }
-        dcp_last_op = 0;
+        dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
     }
     testHarness->destroy_cookie(cookie);
 
@@ -1807,7 +1814,7 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
 
     MockDcpMessageProducers producers(h);
     while (dcp->step(cookie, &producers) != ENGINE_DISCONNECT) {
-        if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
+        if (dcp_last_op == cb::mcbp::ClientOpcode::DcpNoop) {
             // Producer opaques are hard coded to start from 10M
             checkeq(10000001, (int)dcp_last_opaque,
                     "dcp_last_opaque != 10,000,001");
@@ -1816,7 +1823,7 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
                     get_int_stat(h, stat_name.c_str(), "dcp"),
                     "Didn't send noop");
             testHarness->time_travel(201);
-        } else if (dcp_last_op != 0) {
+        } else if (dcp_last_op != cb::mcbp::ClientOpcode::Invalid) {
             abort();
         }
     }
@@ -3122,31 +3129,31 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
             done = true;
         } else {
             switch (dcp_last_op) {
-                case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
-                    done = true;
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-                    num_snapshot_markers++;
-                    break;
-                case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
-                    if (dcp_last_vbucket_state == vbucket_state_pending) {
-                        num_set_vbucket_pending++;
-                    } else if (dcp_last_vbucket_state == vbucket_state_active) {
-                        num_set_vbucket_active++;
-                    }
-                    sendDcpAck(h,
-                               cookie,
-                               PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE,
-                               cb::mcbp::Status::Success,
-                               dcp_last_opaque);
-                    break;
-                case 0:
-                     break;
-                default:
-                    break;
-                    abort();
+            case cb::mcbp::ClientOpcode::DcpStreamEnd:
+                done = true;
+                break;
+            case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
+                num_snapshot_markers++;
+                break;
+            case cb::mcbp::ClientOpcode::DcpSetVbucketState:
+                if (dcp_last_vbucket_state == vbucket_state_pending) {
+                    num_set_vbucket_pending++;
+                } else if (dcp_last_vbucket_state == vbucket_state_active) {
+                    num_set_vbucket_active++;
+                }
+                sendDcpAck(h,
+                           cookie,
+                           cb::mcbp::ClientOpcode::DcpSetVbucketState,
+                           cb::mcbp::Status::Success,
+                           dcp_last_opaque);
+                break;
+            case cb::mcbp::ClientOpcode::Invalid:
+                break;
+            default:
+                break;
+                abort();
             }
-            dcp_last_op = 0;
+            dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
         }
     } while (!done);
 
@@ -3170,14 +3177,14 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                                         uint64_t exp_snap_start,
                                         uint64_t exp_snap_end) {
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
     cb_assert(dcp_last_key.compare("connection_buffer_size") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     if (get_bool_stat(h, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
         dcp_step(h, cookie);
-        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_GET_ERROR_MAP);
+        cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::GetErrorMap);
         cb_assert(dcp_last_key.empty());
         // Simulate that the GetErrorMap response has been received.
         // This step is necessary, as a pending GetErrorMap response would
@@ -3191,39 +3198,39 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
 
         // Check that the enable noop message is sent
         dcp_step(h, cookie);
-        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+        cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
         cb_assert(dcp_last_key.compare("enable_noop") == 0);
         cb_assert(dcp_last_opaque != opaque);
 
         // Check that the set noop interval message is sent
         dcp_step(h, cookie);
-        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+        cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
         cb_assert(dcp_last_key.compare("set_noop_interval") == 0);
         cb_assert(dcp_last_opaque != opaque);
     }
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
     cb_assert(dcp_last_key.compare("set_priority") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
     cb_assert(dcp_last_key.compare("enable_ext_metadata") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
     cb_assert(dcp_last_key.compare("supports_cursor_dropping_vulcan") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
     cb_assert(dcp_last_key.compare("supports_hifi_MFU") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
     cb_assert(dcp_last_key.compare("send_stream_end_on_client_close_stream") ==
               0);
     cb_assert(dcp_last_opaque != opaque);
@@ -3235,7 +3242,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
 
     dcp_step(h, cookie);
     uint32_t stream_opaque = dcp_last_opaque;
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(dcp_last_opaque != opaque);
 
     if (exp_snap_start != 0) {
@@ -3289,7 +3296,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         return stream_opaque;
     }
 
-    if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ) {
+    if (dcp_last_op == cb::mcbp::ClientOpcode::DcpStreamReq) {
         cb_assert(dcp_last_opaque != opaque);
         verify_curr_items(h, 0, "Wrong amount of items");
 
@@ -3312,12 +3319,12 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                 "Expected success");
         dcp_step(h, cookie);
 
-        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
+        cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpAddStream);
         cb_assert(dcp_last_status == cb::mcbp::Status::Success);
         cb_assert(dcp_last_stream_opaque == stream_opaque);
         cb_free(pkt);
     } else {
-        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
+        cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpAddStream);
         cb_assert(dcp_last_status == response);
         cb_assert(dcp_last_stream_opaque == stream_opaque);
     }
@@ -3520,12 +3527,12 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
     wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     cb_assert(dcp_last_status == cb::mcbp::Status::Success);
     cb_assert(dcp_last_opaque != opaque);
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     cb_assert(dcp_last_status == cb::mcbp::Status::Success);
     cb_assert(dcp_last_opaque != opaque);
 
@@ -3873,7 +3880,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
 
     do {
         dcp_step(h, cookie);
-    } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    } while (dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, ++opaque, vbid, 0),
@@ -3881,7 +3888,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
 
     dcp_step(h, cookie);
     uint32_t stream_opaque = dcp_last_opaque;
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(dcp_last_opaque != opaque);
 
     uint64_t rollbackSeqno = htonll(40);
@@ -3902,7 +3909,7 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     do {
         dcp_step(h, cookie);
         usleep(100);
-    } while (dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    } while (dcp_last_op != cb::mcbp::ClientOpcode::DcpStreamReq);
 
     stream_opaque = dcp_last_opaque;
     cb_free(pkt);
@@ -3969,14 +3976,14 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
 
     do {
         dcp_step(h, cookie);
-    } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    } while (dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, Vbid(0), 0),
             "Add stream request failed");
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(dcp_last_opaque != opaque);
 
     uint32_t headerlen = sizeof(protocol_binary_response_header);
@@ -4021,7 +4028,7 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
             "Expected success");
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpAddStream);
 
     cb_free(pkt1);
     cb_free(pkt2);
@@ -4088,14 +4095,14 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
 
     do {
         dcp_step(h, cookie);
-    } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    } while (dcp_last_op == cb::mcbp::ClientOpcode::DcpControl);
 
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, Vbid(0), 0),
             "Add stream request failed");
 
     dcp_step(h, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
+    cb_assert(dcp_last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(dcp_last_opaque != opaque);
 
     uint32_t headerlen = sizeof(protocol_binary_response_header);

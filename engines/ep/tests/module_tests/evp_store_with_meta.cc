@@ -47,7 +47,7 @@ public:
      * Build a *_with_meta packet, defaulting a number of arguments (keeping
      * some of the test bodies smaller)
      */
-    std::vector<char> buildWithMeta(protocol_binary_command op,
+    std::vector<char> buildWithMeta(cb::mcbp::ClientOpcode op,
                                     ItemMetaData itemMeta,
                                     const std::string& key,
                                     const std::string& value) const {
@@ -96,10 +96,10 @@ public:
     /**
      * Call the correct engine function for the op (set vs delete)
      */
-    ENGINE_ERROR_CODE callEngine(protocol_binary_command op,
+    ENGINE_ERROR_CODE callEngine(cb::mcbp::ClientOpcode op,
                                  std::vector<char>& wm) {
-        if (op == PROTOCOL_BINARY_CMD_DEL_WITH_META ||
-            op == PROTOCOL_BINARY_CMD_DELQ_WITH_META) {
+        if (op == cb::mcbp::ClientOpcode::DelWithMeta ||
+            op == cb::mcbp::ClientOpcode::DelqWithMeta) {
             return engine->deleteWithMeta(
                     cookie,
                     reinterpret_cast<protocol_binary_request_delete_with_meta*>(
@@ -142,7 +142,7 @@ public:
         }
     }
 
-    void oneOp(protocol_binary_command op,
+    void oneOp(cb::mcbp::ClientOpcode op,
                ItemMetaData itemMeta,
                int options,
                cb::mcbp::Status expectedResponseStatus,
@@ -170,7 +170,7 @@ public:
     /**
      * Run one op and check the result
      */
-    void oneOpAndCheck(protocol_binary_command op,
+    void oneOpAndCheck(cb::mcbp::ClientOpcode op,
                        ItemMetaData itemMeta,
                        int options,
                        bool withValue,
@@ -196,7 +196,7 @@ public:
      * The conflict_win test is reused by seqno/lww and is intended to
      * test each winning op/meta input
      */
-    void conflict_win(protocol_binary_command op,
+    void conflict_win(cb::mcbp::ClientOpcode op,
                       int options,
                       const std::array<TestData, 4>& testData,
                       const ItemMetaData& itemMeta);
@@ -204,7 +204,7 @@ public:
      * The conflict_lose test is reused by seqno/lww and is intended to
      * test each winning op/meta input
      */
-    void conflict_lose(protocol_binary_command op,
+    void conflict_lose(cb::mcbp::ClientOpcode op,
                        int options,
                        bool withValue,
                        const std::array<TestData, 4>& testData,
@@ -214,7 +214,7 @@ public:
      * The conflict_del_lose_xattr test demonstrates how a delete never gets
      * to compare xattrs when in conflict.
      */
-    void conflict_del_lose_xattr(protocol_binary_command op,
+    void conflict_del_lose_xattr(cb::mcbp::ClientOpcode op,
                                  int options,
                                  bool withValue);
 
@@ -222,7 +222,7 @@ public:
      * The conflict_lose_xattr test demonstrates how a set gets
      * to compare xattrs when in conflict, and the server doc would win.
      */
-    void conflict_lose_xattr(protocol_binary_command op,
+    void conflict_lose_xattr(cb::mcbp::ClientOpcode op,
                              int options,
                              bool withValue);
     /**
@@ -241,9 +241,9 @@ public:
 };
 
 class DelWithMetaTest
-        : public WithMetaTest,
-          public ::testing::WithParamInterface<
-                  ::testing::tuple<bool, protocol_binary_command>> {
+    : public WithMetaTest,
+      public ::testing::WithParamInterface<
+              ::testing::tuple<bool, cb::mcbp::ClientOpcode>> {
 public:
     void SetUp() override {
         withValue = ::testing::get<0>(GetParam());
@@ -251,14 +251,14 @@ public:
         WithMetaTest::SetUp();
     }
 
-    protocol_binary_command op;
+    cb::mcbp::ClientOpcode op;
     bool withValue;
 };
 
 class DelWithMetaLwwTest
-        : public WithMetaTest,
-          public ::testing::WithParamInterface<
-                  ::testing::tuple<bool, protocol_binary_command>> {
+    : public WithMetaTest,
+      public ::testing::WithParamInterface<
+              ::testing::tuple<bool, cb::mcbp::ClientOpcode>> {
 public:
     void SetUp() override {
         withValue = ::testing::get<0>(GetParam());
@@ -267,21 +267,21 @@ public:
         WithMetaTest::SetUp();
     }
 
-    protocol_binary_command op;
+    cb::mcbp::ClientOpcode op;
     bool withValue;
 };
 
 class AllWithMetaTest
-        : public WithMetaTest,
-          public ::testing::WithParamInterface<protocol_binary_command> {};
+    : public WithMetaTest,
+      public ::testing::WithParamInterface<cb::mcbp::ClientOpcode> {};
 
 class AddSetWithMetaTest
-        : public WithMetaTest,
-          public ::testing::WithParamInterface<protocol_binary_command> {};
+    : public WithMetaTest,
+      public ::testing::WithParamInterface<cb::mcbp::ClientOpcode> {};
 
 class AddSetWithMetaLwwTest
-        : public WithMetaTest,
-          public ::testing::WithParamInterface<protocol_binary_command> {
+    : public WithMetaTest,
+      public ::testing::WithParamInterface<cb::mcbp::ClientOpcode> {
 public:
     void SetUp() override {
         enableLww();
@@ -290,9 +290,9 @@ public:
 };
 
 class XattrWithMetaTest
-        : public WithMetaTest,
-          public ::testing::WithParamInterface<
-                  ::testing::tuple<bool, protocol_binary_command>> {};
+    : public WithMetaTest,
+      public ::testing::WithParamInterface<
+              ::testing::tuple<bool, cb::mcbp::ClientOpcode>> {};
 
 class SnappyWithMetaTest : public WithMetaTest,
                            public ::testing::WithParamInterface<bool> {};
@@ -309,14 +309,14 @@ TEST_P(AddSetWithMetaTest, basic) {
 
 TEST_F(WithMetaTest, basicAdd) {
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
-    oneOpAndCheck(PROTOCOL_BINARY_CMD_ADD_WITH_META,
+    oneOpAndCheck(cb::mcbp::ClientOpcode::AddWithMeta,
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
                   cb::mcbp::Status::Success,
                   ENGINE_SUCCESS);
 
-    oneOpAndCheck(PROTOCOL_BINARY_CMD_ADD_WITH_META,
+    oneOpAndCheck(cb::mcbp::ClientOpcode::AddWithMeta,
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
@@ -532,17 +532,19 @@ TEST_F(WithMetaTest, storeUncompressedInOffMode) {
 
     mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
-    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
-                                   item->getDataType() /*datatype*/,
-                                   vbid /*vbucket*/,
-                                   0 /*opaque*/,
-                                   0 /*cas*/,
-                                   itemMeta,
-                                   std::string("key"),
-                                   std::string(item->getData(), item->getNBytes()),
-                                   {},
-                                   SKIP_CONFLICT_RESOLUTION_FLAG);
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
+    auto swm =
+            buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
+                                item->getDataType() /*datatype*/,
+                                vbid /*vbucket*/,
+                                0 /*opaque*/,
+                                0 /*cas*/,
+                                itemMeta,
+                                std::string("key"),
+                                std::string(item->getData(), item->getNBytes()),
+                                {},
+                                SKIP_CONFLICT_RESOLUTION_FLAG);
+    EXPECT_EQ(ENGINE_SUCCESS,
+              callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
 
     VBucketPtr vb = store->getVBucket(vbid);
     StoredValue* v(vb->ht.find(makeStoredDocKey("key"), TrackReference::No,
@@ -627,7 +629,7 @@ TEST_P(AllWithMetaTest, degraded) {
                   ENGINE_KEY_ENOENT);
 }
 
-void WithMetaTest::conflict_lose(protocol_binary_command op,
+void WithMetaTest::conflict_lose(cb::mcbp::ClientOpcode op,
                                  int options,
                                  bool withValue,
                                  const std::array<TestData, 4>& testData,
@@ -638,7 +640,7 @@ void WithMetaTest::conflict_lose(protocol_binary_command op,
     }
     std::string key = "mykey";
     // First add a document so we have something to conflict with
-    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_ADD_WITH_META,
+    auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::AddWithMeta,
                                    0,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
@@ -650,7 +652,7 @@ void WithMetaTest::conflict_lose(protocol_binary_command op,
                                    options);
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              callEngine(PROTOCOL_BINARY_CMD_ADD_WITH_META, swm));
+              callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     for (const auto& td : testData) {
@@ -659,7 +661,7 @@ void WithMetaTest::conflict_lose(protocol_binary_command op,
 }
 
 // store a document then <op>_with_meta with equal ItemMeta but xattr on
-void WithMetaTest::conflict_del_lose_xattr(protocol_binary_command op,
+void WithMetaTest::conflict_del_lose_xattr(cb::mcbp::ClientOpcode op,
                                            int options,
                                            bool withValue) {
     ItemMetaData itemMeta{
@@ -670,7 +672,7 @@ void WithMetaTest::conflict_del_lose_xattr(protocol_binary_command op,
     }
     std::string key = "mykey";
     // First add a document so we have something to conflict with
-    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_ADD_WITH_META,
+    auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::AddWithMeta,
                                    0 /*xattr off*/,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
@@ -682,7 +684,7 @@ void WithMetaTest::conflict_del_lose_xattr(protocol_binary_command op,
                                    options);
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              callEngine(PROTOCOL_BINARY_CMD_ADD_WITH_META, swm));
+              callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // revSeqno/cas/exp/flags equal, xattr on, conflict (a set would win)
@@ -700,7 +702,7 @@ void WithMetaTest::conflict_del_lose_xattr(protocol_binary_command op,
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, getAddResponseStatus());
 }
 
-void WithMetaTest::conflict_lose_xattr(protocol_binary_command op,
+void WithMetaTest::conflict_lose_xattr(cb::mcbp::ClientOpcode op,
                                        int options,
                                        bool withValue) {
     ItemMetaData itemMeta{
@@ -711,7 +713,7 @@ void WithMetaTest::conflict_lose_xattr(protocol_binary_command op,
     }
     std::string key = "mykey";
     // First add a document so we have something to conflict with
-    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_ADD_WITH_META,
+    auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::AddWithMeta,
                                    PROTOCOL_BINARY_DATATYPE_XATTR,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
@@ -723,7 +725,7 @@ void WithMetaTest::conflict_lose_xattr(protocol_binary_command op,
                                    options);
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              callEngine(PROTOCOL_BINARY_CMD_ADD_WITH_META, swm));
+              callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // revSeqno/cas/exp/flags equal, xattr off, conflict (a set would win)
@@ -838,24 +840,24 @@ TEST_P(AddSetWithMetaLwwTest, conflict_xattr_lose) {
 
 // This test will store an item with this meta data then store again
 // using the testData entries
-void WithMetaTest::conflict_win(protocol_binary_command op,
+void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
                                 int options,
                                 const std::array<TestData, 4>& testData,
                                 const ItemMetaData& itemMeta) {
-    EXPECT_NE(op, PROTOCOL_BINARY_CMD_ADD_WITH_META);
-    EXPECT_NE(op, PROTOCOL_BINARY_CMD_ADDQ_WITH_META);
-    bool isDelete = op == PROTOCOL_BINARY_CMD_DEL_WITH_META ||
-                    op == PROTOCOL_BINARY_CMD_DELQ_WITH_META;
-    bool isSet = op == PROTOCOL_BINARY_CMD_SET_WITH_META ||
-                 op == PROTOCOL_BINARY_CMD_SETQ_WITH_META;
+    EXPECT_NE(op, cb::mcbp::ClientOpcode::AddWithMeta);
+    EXPECT_NE(op, cb::mcbp::ClientOpcode::AddqWithMeta);
+    bool isDelete = op == cb::mcbp::ClientOpcode::DelWithMeta ||
+                    op == cb::mcbp::ClientOpcode::DelqWithMeta;
+    bool isSet = op == cb::mcbp::ClientOpcode::SetWithMeta ||
+                 op == cb::mcbp::ClientOpcode::SetqWithMeta;
 
     int counter = 0;
     for (auto& td : testData) {
-        // Set our "target" (new key each iteration)
-        std::string key = "mykey" + std::to_string(counter);
-        key.push_back(op); // and the op for test uniqueness
+        // Set our "target" (new key each iteration) and the op for test
+        // uniqueness
+        std::string key = "mykey" + std::to_string(counter) + to_string(op);
         std::string value = "newvalue" + std::to_string(counter);
-        auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
+        auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
                                        0 /*datatype*/,
                                        vbid /*vbucket*/,
                                        0 /*opaque*/,
@@ -867,7 +869,7 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
                                        options);
 
         EXPECT_EQ(ENGINE_SUCCESS,
-                  callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
+                  callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
         EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus())
                 << "Failed to set the target key:" << key;
 
@@ -902,10 +904,11 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
         counter++;
     }
 
-    // ... Finally give an Item with a datatype (not xattr)
-    std::string key = "mykey" + std::to_string(counter);
-    key.push_back(op); // and the op for test uniqueness
-    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_ADD_WITH_META,
+    // ... Finally give an Item with a datatype (not xattr) and the op for test
+    // uniqueness
+    std::string key = "mykey" + std::to_string(counter) + to_string(op);
+    ;
+    auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::AddWithMeta,
                                    PROTOCOL_BINARY_DATATYPE_JSON,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
@@ -917,7 +920,7 @@ void WithMetaTest::conflict_win(protocol_binary_command op,
                                    options);
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              callEngine(PROTOCOL_BINARY_CMD_ADD_WITH_META, swm));
+              callEngine(cb::mcbp::ClientOpcode::AddWithMeta, swm));
     EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
 
     // And test same cas/seq/exp/flags but marked with xattr
@@ -965,11 +968,11 @@ TEST_F(WithMetaLwwTest, mutate_conflict_resolve_skipped) {
     data[3] = {{100, 100, 99, expiry}, cb::mcbp::Status::Success};
 
     // Run with SKIP_CONFLICT_RESOLUTION_FLAG
-    conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::SetWithMeta,
                  FORCE_ACCEPT_WITH_META_OPS | SKIP_CONFLICT_RESOLUTION_FLAG,
                  data,
                  itemMeta);
-    conflict_win(PROTOCOL_BINARY_CMD_SETQ_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::SetqWithMeta,
                  FORCE_ACCEPT_WITH_META_OPS | SKIP_CONFLICT_RESOLUTION_FLAG,
                  data,
                  itemMeta);
@@ -993,11 +996,11 @@ TEST_F(WithMetaTest, mutate_conflict_resolve_skipped) {
     data[3] = {{100, 100, 99, expiry}, cb::mcbp::Status::Success};
 
     // Run with SKIP_CONFLICT_RESOLUTION_FLAG
-    conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::SetWithMeta,
                  SKIP_CONFLICT_RESOLUTION_FLAG,
                  data,
                  itemMeta);
-    conflict_win(PROTOCOL_BINARY_CMD_SETQ_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::SetqWithMeta,
                  SKIP_CONFLICT_RESOLUTION_FLAG,
                  data,
                  itemMeta);
@@ -1023,11 +1026,11 @@ TEST_F(WithMetaLwwTest, del_conflict_resolve_skipped) {
     data[3] = {{100, 100, 200, expiry}, cb::mcbp::Status::Success};
 
     // Run with SKIP_CONFLICT_RESOLUTION_FLAG
-    conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::DelWithMeta,
                  FORCE_ACCEPT_WITH_META_OPS | SKIP_CONFLICT_RESOLUTION_FLAG,
                  data,
                  itemMeta);
-    conflict_win(PROTOCOL_BINARY_CMD_DELQ_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::DelqWithMeta,
                  FORCE_ACCEPT_WITH_META_OPS | SKIP_CONFLICT_RESOLUTION_FLAG,
                  data,
                  itemMeta);
@@ -1053,11 +1056,11 @@ TEST_F(WithMetaTest, del_conflict_resolve_skipped) {
     data[3] = {{100, 100, 200, expiry}, cb::mcbp::Status::Success};
 
     // Run with SKIP_CONFLICT_RESOLUTION_FLAG
-    conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::DelWithMeta,
                  SKIP_CONFLICT_RESOLUTION_FLAG,
                  data,
                  itemMeta);
-    conflict_win(PROTOCOL_BINARY_CMD_DELQ_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::DelqWithMeta,
                  SKIP_CONFLICT_RESOLUTION_FLAG,
                  data,
                  itemMeta);
@@ -1077,8 +1080,8 @@ TEST_F(WithMetaTest, set_conflict_win) {
              {{100, 100, 101, expiry}, // ... mutate with same but higher flags
               cb::mcbp::Status::Success}}};
 
-    conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META, 0, data, itemMeta);
-    conflict_win(PROTOCOL_BINARY_CMD_SETQ_WITH_META, 0, data, itemMeta);
+    conflict_win(cb::mcbp::ClientOpcode::SetWithMeta, 0, data, itemMeta);
+    conflict_win(cb::mcbp::ClientOpcode::SetqWithMeta, 0, data, itemMeta);
 }
 
 TEST_F(WithMetaTest, del_conflict_win) {
@@ -1095,8 +1098,8 @@ TEST_F(WithMetaTest, del_conflict_win) {
              cb::mcbp::Status::KeyEexists} // delete ignores flags
     }};
 
-    conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META, 0, data, itemMeta);
-    conflict_win(PROTOCOL_BINARY_CMD_DELQ_WITH_META, 0, data, itemMeta);
+    conflict_win(cb::mcbp::ClientOpcode::DelWithMeta, 0, data, itemMeta);
+    conflict_win(cb::mcbp::ClientOpcode::DelqWithMeta, 0, data, itemMeta);
 }
 
 TEST_F(WithMetaLwwTest, set_conflict_win) {
@@ -1113,11 +1116,11 @@ TEST_F(WithMetaLwwTest, set_conflict_win) {
              {{100, 100, 101, expiry}, // ... mutate with same but higher flags
               cb::mcbp::Status::Success}}};
 
-    conflict_win(PROTOCOL_BINARY_CMD_SET_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::SetWithMeta,
                  FORCE_ACCEPT_WITH_META_OPS,
                  data,
                  itemMeta);
-    conflict_win(PROTOCOL_BINARY_CMD_SETQ_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::SetqWithMeta,
                  FORCE_ACCEPT_WITH_META_OPS,
                  data,
                  itemMeta);
@@ -1137,11 +1140,11 @@ TEST_F(WithMetaLwwTest, del_conflict_win) {
              cb::mcbp::Status::KeyEexists} // delete ignores flags
     }};
 
-    conflict_win(PROTOCOL_BINARY_CMD_DEL_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::DelWithMeta,
                  FORCE_ACCEPT_WITH_META_OPS,
                  data,
                  itemMeta);
-    conflict_win(PROTOCOL_BINARY_CMD_DELQ_WITH_META,
+    conflict_win(cb::mcbp::ClientOpcode::DelqWithMeta,
                  FORCE_ACCEPT_WITH_META_OPS,
                  data,
                  itemMeta);
@@ -1183,7 +1186,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     ItemMetaData itemMeta{1, 1, 0, expiry};
     std::string mykey = "mykey";
     DocKey key{mykey, DocKeyEncodesCollectionId::No};
-    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
+    auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
                                    PROTOCOL_BINARY_DATATYPE_XATTR | snappy,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
@@ -1195,15 +1198,15 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
+              callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
     EXPECT_EQ(std::make_pair(false, size_t(1)),
               getEPBucket().flushVBucket(vbid));
 
     itemMeta.revSeqno++; // make delete succeed
     auto dwm = buildWithMeta(
-            PROTOCOL_BINARY_CMD_DEL_WITH_META, itemMeta, mykey, {});
+            cb::mcbp::ClientOpcode::DelWithMeta, itemMeta, mykey, {});
     EXPECT_EQ(ENGINE_SUCCESS,
-              callEngine(PROTOCOL_BINARY_CMD_DEL_WITH_META, dwm));
+              callEngine(cb::mcbp::ClientOpcode::DelWithMeta, dwm));
 
     EXPECT_EQ(std::make_pair(false, size_t(1)),
               getEPBucket().flushVBucket(vbid));
@@ -1245,7 +1248,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
     ItemMetaData itemMeta{1, 1, 0, expiry};
     std::string mykey = "mykey";
     DocKey key{mykey, DocKeyEncodesCollectionId::No};
-    auto swm = buildWithMetaPacket(PROTOCOL_BINARY_CMD_SET_WITH_META,
+    auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
                                    PROTOCOL_BINARY_DATATYPE_XATTR | snappy,
                                    vbid /*vbucket*/,
                                    0 /*opaque*/,
@@ -1257,15 +1260,15 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
     mock_set_datatype_support(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     EXPECT_EQ(ENGINE_SUCCESS,
-              callEngine(PROTOCOL_BINARY_CMD_SET_WITH_META, swm));
+              callEngine(cb::mcbp::ClientOpcode::SetWithMeta, swm));
     EXPECT_EQ(std::make_pair(false, size_t(1)),
               getEPBucket().flushVBucket(vbid));
 
     itemMeta.revSeqno++; // make delete succeed
     auto dwm = buildWithMeta(
-            PROTOCOL_BINARY_CMD_DEL_WITH_META, itemMeta, mykey, {});
+            cb::mcbp::ClientOpcode::DelWithMeta, itemMeta, mykey, {});
     EXPECT_EQ(ENGINE_SUCCESS,
-              callEngine(PROTOCOL_BINARY_CMD_DEL_WITH_META, dwm));
+              callEngine(cb::mcbp::ClientOpcode::DelWithMeta, dwm));
 
     EXPECT_EQ(std::make_pair(false, size_t(1)),
               getEPBucket().flushVBucket(vbid));
@@ -1398,25 +1401,27 @@ TEST_P(AddSetWithMetaTest, MB_31141) {
     EXPECT_EQ(275, result.item->getNBytes());
 }
 
-auto opcodeValues = ::testing::Values(PROTOCOL_BINARY_CMD_SET_WITH_META,
-                                      PROTOCOL_BINARY_CMD_SETQ_WITH_META,
-                                      PROTOCOL_BINARY_CMD_ADD_WITH_META,
-                                      PROTOCOL_BINARY_CMD_ADDQ_WITH_META,
-                                      PROTOCOL_BINARY_CMD_DEL_WITH_META,
-                                      PROTOCOL_BINARY_CMD_DELQ_WITH_META);
+auto opcodeValues = ::testing::Values(cb::mcbp::ClientOpcode::SetWithMeta,
+                                      cb::mcbp::ClientOpcode::SetqWithMeta,
+                                      cb::mcbp::ClientOpcode::AddWithMeta,
+                                      cb::mcbp::ClientOpcode::AddqWithMeta,
+                                      cb::mcbp::ClientOpcode::DelWithMeta,
+                                      cb::mcbp::ClientOpcode::DelqWithMeta);
 
-auto addSetOpcodeValues = ::testing::Values(PROTOCOL_BINARY_CMD_SET_WITH_META,
-                                            PROTOCOL_BINARY_CMD_SETQ_WITH_META,
-                                            PROTOCOL_BINARY_CMD_ADD_WITH_META,
-                                            PROTOCOL_BINARY_CMD_ADDQ_WITH_META);
+auto addSetOpcodeValues =
+        ::testing::Values(cb::mcbp::ClientOpcode::SetWithMeta,
+                          cb::mcbp::ClientOpcode::SetqWithMeta,
+                          cb::mcbp::ClientOpcode::AddWithMeta,
+                          cb::mcbp::ClientOpcode::AddqWithMeta);
 
-auto deleteOpcodeValues = ::testing::Values(PROTOCOL_BINARY_CMD_DEL_WITH_META,
-                                            PROTOCOL_BINARY_CMD_DELQ_WITH_META);
+auto deleteOpcodeValues =
+        ::testing::Values(cb::mcbp::ClientOpcode::DelWithMeta,
+                          cb::mcbp::ClientOpcode::DelqWithMeta);
 
 struct PrintToStringCombinedName {
     std::string
     operator()(const ::testing::TestParamInfo<
-               ::testing::tuple<bool, protocol_binary_command>>& info) const {
+               ::testing::tuple<bool, cb::mcbp::ClientOpcode>>& info) const {
         std::string rv = to_string(
                 cb::mcbp::ClientOpcode(::testing::get<1>(info.param)));
         if (::testing::get<0>(info.param)) {
@@ -1429,7 +1434,7 @@ struct PrintToStringCombinedName {
 struct PrintToStringCombinedNameSnappyOnOff {
     std::string
     operator()(const ::testing::TestParamInfo<
-               ::testing::tuple<bool, protocol_binary_command>>& info) const {
+               ::testing::tuple<bool, cb::mcbp::ClientOpcode>>& info) const {
         std::string rv = to_string(
                 cb::mcbp::ClientOpcode(::testing::get<1>(info.param)));
         if (::testing::get<0>(info.param)) {
@@ -1441,7 +1446,7 @@ struct PrintToStringCombinedNameSnappyOnOff {
 
 struct PrintOpcode {
     std::string operator()(
-            const ::testing::TestParamInfo<protocol_binary_command>& info)
+            const ::testing::TestParamInfo<cb::mcbp::ClientOpcode>& info)
             const {
         return to_string(cb::mcbp::ClientOpcode(info.param));
     }

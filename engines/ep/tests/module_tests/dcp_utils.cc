@@ -22,7 +22,7 @@
 
 #include <gtest/gtest.h>
 
-extern uint8_t dcp_last_op;
+extern cb::mcbp::ClientOpcode dcp_last_op;
 
 void handleProducerResponseIfStepBlocked(DcpConsumer& consumer) {
     // MB-29441: Added a call to DcpConsumer::handleGetErrorMap() in
@@ -30,7 +30,7 @@ void handleProducerResponseIfStepBlocked(DcpConsumer& consumer) {
     // We need to call DcpConsumer::handleResponse() to notify (set a flag)
     // that the GetErrorMap response has been received. The next calls to
     // step() would block forever in DcpConsumer::handleGetErrorMap() otherwise
-    if (dcp_last_op == PROTOCOL_BINARY_CMD_GET_ERROR_MAP) {
+    if (dcp_last_op == cb::mcbp::ClientOpcode::GetErrorMap) {
         protocol_binary_response_header resp{};
         resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
         resp.response.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);

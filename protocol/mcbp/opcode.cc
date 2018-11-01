@@ -375,3 +375,13 @@ cb::mcbp::ClientOpcode to_opcode(const std::string& string) {
     throw std::invalid_argument("to_opcode(): unknown opcode: \"" + string +
                                 "\"");
 }
+
+std::ostream& operator<<(std::ostream& out, cb::mcbp::ClientOpcode opcode) {
+    out << to_string(opcode);
+    return out;
+}
+
+std::ostream& operator<<(std::ostream& out, cb::mcbp::ServerOpcode opcode) {
+    out << to_string(opcode);
+    return out;
+}

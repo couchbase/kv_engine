@@ -199,7 +199,7 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
     return newProducer;
 }
 
-extern uint8_t dcp_last_op;
+extern cb::mcbp::ClientOpcode dcp_last_op;
 void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
         MockDcpProducer& producer,
         dcp_message_producers& producers,
@@ -228,7 +228,7 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
     // should now be able to step through the checkpoint
     if (expectedOp != cb::mcbp::ClientOpcode::Invalid) {
         EXPECT_EQ(ENGINE_SUCCESS, producer.step(&producers));
-        EXPECT_EQ(uint8_t(expectedOp), dcp_last_op);
+        EXPECT_EQ(expectedOp, dcp_last_op);
     } else {
         EXPECT_EQ(ENGINE_EWOULDBLOCK, producer.step(&producers));
     }
@@ -2707,7 +2707,7 @@ TEST_F(WarmupTest, produce_delete_times) {
     EXPECT_NE(0, dcp_last_delete_time);
     EXPECT_GE(dcp_last_delete_time, t1);
     EXPECT_LE(dcp_last_delete_time, t2);
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, dcp_last_op);
     EXPECT_EQ("KEY1", dcp_last_key);
     size_t expectedBytes = SnapshotMarker::baseMsgBytes +
                            MutationResponse::deletionV2BaseMsgBytes +
@@ -2724,7 +2724,7 @@ TEST_F(WarmupTest, produce_delete_times) {
     EXPECT_NE(0, dcp_last_delete_time);
     EXPECT_GE(dcp_last_delete_time, t1);
     EXPECT_LE(dcp_last_delete_time, t2);
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, dcp_last_op);
     EXPECT_EQ("KEY2", dcp_last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
                      MutationResponse::deletionV2BaseMsgBytes +
@@ -2743,7 +2743,7 @@ TEST_F(WarmupTest, produce_delete_times) {
                      (sizeof("value") - 1) + (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
 
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
     TimeTraveller arron(64000);
 
     // Trigger expiry on a GET
@@ -2754,7 +2754,7 @@ TEST_F(WarmupTest, produce_delete_times) {
     step(true);
 
     EXPECT_EQ(expiryTime, dcp_last_delete_time);
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_DELETION, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpDeletion, dcp_last_op);
     EXPECT_EQ("KEY3", dcp_last_key);
     expectedBytes += SnapshotMarker::baseMsgBytes +
                      MutationResponse::deletionV2BaseMsgBytes +
@@ -2825,7 +2825,6 @@ TEST_P(XattrSystemUserTest, MB_29040) {
             << "The meta attribute should be gone";
 }
 
-extern uint8_t dcp_last_op;
 class MB_29287 : public SingleThreadedEPBucketTest {
 public:
     void SetUp() override {
@@ -2859,7 +2858,7 @@ public:
 
         for (int i = 0; i < 3; i++) { // 1, 2 and 3
             EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-            EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
         }
 
         store_item(vbid, makeStoredDocKey("4"), "value4");
@@ -2917,13 +2916,13 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
 
     EXPECT_TRUE(stream->isTakeoverSend());
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
-    dcp_last_op = 0;
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
     EXPECT_EQ("4", dcp_last_key);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
-    dcp_last_op = 0;
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
     EXPECT_EQ("5", dcp_last_key);
 
     // Snapshot received
@@ -2931,7 +2930,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
 
     // set-vb-state now underway
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
 
     // Move stream to pending and vb to dead
     as->setVBucketStateAckRecieved();
@@ -2944,7 +2943,7 @@ TEST_F(MB_29287, DISABLED_dataloss_end) {
                {cb::engine_errc::not_my_vbucket});
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
     as->setVBucketStateAckRecieved();
     EXPECT_TRUE(!stream->isActive());
 
@@ -2963,13 +2962,13 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
 
     EXPECT_TRUE(stream->isTakeoverSend());
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
-    dcp_last_op = 0;
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
     EXPECT_EQ("4", dcp_last_key);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
-    dcp_last_op = 0;
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
+    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
     EXPECT_EQ("5", dcp_last_key);
 
     // Snapshot received
@@ -2984,7 +2983,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
     notifyAndStepToCheckpoint(*producer, *producers);
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
     EXPECT_EQ("6", dcp_last_key);
 
     // Snapshot received
@@ -2995,8 +2994,8 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
 
     // set-vb-state now underway
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
-    dcp_last_op = 0;
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
+    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
 
     // Move stream to pending and vb to dead
     as->setVBucketStateAckRecieved();
@@ -3009,7 +3008,7 @@ TEST_F(MB_29287, DISABLED_dataloss_hole) {
                {cb::engine_errc::not_my_vbucket});
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(producers.get()));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
     as->setVBucketStateAckRecieved();
     EXPECT_TRUE(!stream->isActive());
 
@@ -3210,9 +3209,9 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     notifyAndStepToCheckpoint(*producer, producers);
     for (const auto& key : initialKeys) {
         EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-        EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
         EXPECT_EQ(key, dcp_last_key);
-        dcp_last_op = 0;
+        dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
     }
 
     auto stream = producer->findStream(vbid);
@@ -3254,7 +3253,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29480) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op);
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
@@ -3337,7 +3336,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29512) {
     EXPECT_FALSE(vb0Stream->isActive());
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op);
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
@@ -3398,10 +3397,10 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
 
     // Now drain all items before we proceed to complete
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
     for (const auto& key : keys) {
         EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-        EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
         EXPECT_EQ(key, dcp_last_key);
     }
 
@@ -3410,7 +3409,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     // backfill:finished()
     runNextTask(lpAuxioQ);
 
-    dcp_last_op = 0;
+    dcp_last_op = cb::mcbp::ClientOpcode::Invalid;
 
     // Next the backfill should switch to takeover-send and progress to close
     // with the correct sequence of step/ack
@@ -3421,7 +3420,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     // the front-end thread should sleep until notified the stream is ready.
     // However no notify will ever come if MB-29541 is not applied
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
 
     EXPECT_TRUE(vb0Stream->isTakeoverWait());
 
@@ -3434,7 +3433,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     EXPECT_TRUE(producer->handleResponse(&message));
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSetVbucketState, dcp_last_op);
 
     EXPECT_TRUE(producer->handleResponse(&message));
     EXPECT_FALSE(vb0Stream->isActive());
@@ -3509,10 +3508,10 @@ TEST_F(SingleThreadedEPBucketTest, MB_31481) {
     // Now drain all items before we proceed to complete, which triggers disk
     // snapshot.
     ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    ASSERT_EQ(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, dcp_last_op);
+    ASSERT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
     for (const auto& key : keys) {
         ASSERT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-        ASSERT_EQ(PROTOCOL_BINARY_CMD_DCP_MUTATION, dcp_last_op);
+        ASSERT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
         ASSERT_EQ(key, dcp_last_key);
     }
 
@@ -3532,7 +3531,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_31481) {
     // keep the "ENGINE_EWOULDBLOCK" response due to the itemsReady flag,
     // which is not expected with that message already being in the readyQ.
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
-    EXPECT_EQ(PROTOCOL_BINARY_CMD_DCP_STREAM_END, dcp_last_op);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, dcp_last_op);
 
     // Stepping forward should now show that stream end message has been
     // completed and no more messages are needed to send.

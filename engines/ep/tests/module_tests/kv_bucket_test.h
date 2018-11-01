@@ -162,7 +162,7 @@ public:
      * begins with a packet
      */
     static std::vector<char> buildWithMetaPacket(
-            protocol_binary_command opcode,
+            cb::mcbp::ClientOpcode opcode,
             protocol_binary_datatype_t datatype,
             Vbid vbucket,
             uint32_t opaque,

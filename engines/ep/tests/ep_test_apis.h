@@ -86,7 +86,7 @@ extern std::atomic<uint64_t> last_uuid;
 extern std::atomic<uint64_t> last_seqno;
 extern ItemMetaData last_meta;
 
-extern uint8_t dcp_last_op;
+extern cb::mcbp::ClientOpcode dcp_last_op;
 extern cb::mcbp::Status dcp_last_status;
 extern uint8_t dcp_last_nru;
 extern Vbid dcp_last_vbucket;
@@ -187,7 +187,7 @@ public:
 
 void decayingSleep(useconds_t *sleepTime);
 
-protocol_binary_request_header* createPacket(uint8_t opcode,
+protocol_binary_request_header* createPacket(cb::mcbp::ClientOpcode opcode,
                                              Vbid vbid = Vbid(0),
                                              uint64_t cas = 0,
                                              const char* ext = NULL,
@@ -358,7 +358,7 @@ bool verify_vbucket_state(EngineIface* h,
 
 void sendDcpAck(EngineIface* h,
                 const void* cookie,
-                protocol_binary_command opcode,
+                cb::mcbp::ClientOpcode opcode,
                 cb::mcbp::Status status,
                 uint32_t opaque);
 

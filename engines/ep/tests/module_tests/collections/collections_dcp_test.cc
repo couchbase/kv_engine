@@ -22,7 +22,7 @@
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 
-extern uint8_t dcp_last_op;
+extern cb::mcbp::ClientOpcode dcp_last_op;
 extern CollectionID dcp_last_collection_id;
 extern mcbp::systemevent::id dcp_last_system_event;
 
@@ -133,7 +133,7 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
     int creates = 0, deletes = 0, mutations = 0;
     // step until done
     while (producer->step(producers.get()) == ENGINE_SUCCESS) {
-        if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT) {
+        if (dcp_last_op == cb::mcbp::ClientOpcode::DcpSystemEvent) {
             switch (dcp_last_system_event) {
             case mcbp::systemevent::id::CreateCollection:
                 creates++;
@@ -147,7 +147,7 @@ void CollectionsDcpTest::testDcpCreateDelete(int expectedCreates,
                         "event:" +
                         std::to_string(int(dcp_last_system_event)));
             }
-        } else if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_MUTATION) {
+        } else if (dcp_last_op == cb::mcbp::ClientOpcode::DcpMutation) {
             mutations++;
         }
     }
@@ -182,7 +182,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
         cb::const_byte_buffer key,
         cb::const_byte_buffer eventData) {
     (void)vbucket; // ignored as we are connecting VBn to VBn+1
-    dcp_last_op = PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
+    dcp_last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
     dcp_last_system_event = event;
     if (event == mcbp::systemevent::id::CreateCollection ||
         event == mcbp::systemevent::id::DeleteCollection) {
