@@ -1556,11 +1556,12 @@ ENGINE_ERROR_CODE Connection::add_packet_to_send_pipe(
 
 ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque, Vbid vbucket) {
     protocol_binary_request_dcp_get_failover_log packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = vbucket.hton();
+    auto& req = packet.message.header.request;
+
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpGetFailoverLog);
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
 
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
 }
@@ -1574,13 +1575,13 @@ ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
                                          uint64_t snap_start_seqno,
                                          uint64_t snap_end_seqno) {
     protocol_binary_request_dcp_stream_req packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-    packet.message.header.request.extlen = 48;
-    packet.message.header.request.bodylen = htonl(48);
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = vbucket.hton();
+    auto& req = packet.message.header.request;
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    req.setExtlen(48);
+    req.setBodylen(48);
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
     packet.message.body.flags = ntohl(flags);
     packet.message.body.start_seqno = ntohll(start_seqno);
     packet.message.body.end_seqno = ntohll(end_seqno);
@@ -1639,13 +1640,13 @@ ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
                                          Vbid vbucket,
                                          uint32_t flags) {
     protocol_binary_request_dcp_stream_end packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_STREAM_END;
-    packet.message.header.request.extlen = 4;
-    packet.message.header.request.bodylen = htonl(4);
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = vbucket.hton();
+    auto& req = packet.message.header.request;
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    req.setExtlen(4);
+    req.setBodylen(4);
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
     packet.message.body.flags = ntohl(flags);
 
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
@@ -1657,13 +1658,14 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
                                      uint64_t end_seqno,
                                      uint32_t flags) {
     protocol_binary_request_dcp_snapshot_marker packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = vbucket.hton();
-    packet.message.header.request.extlen = 20;
-    packet.message.header.request.bodylen = htonl(20);
+
+    auto& req = packet.message.header.request;
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    req.setExtlen(20);
+    req.setBodylen(20);
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
     packet.message.body.start_seqno = htonll(start_seqno);
     packet.message.body.end_seqno = htonll(end_seqno);
     packet.message.body.flags = htonl(flags);
@@ -1932,13 +1934,13 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
         return ENGINE_EINVAL;
     }
 
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
-    packet.message.header.request.extlen = 1;
-    packet.message.header.request.bodylen = htonl(1);
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = vbucket.hton();
+    auto& req = packet.message.header.request;
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    req.setExtlen(1);
+    req.setBodylen(1);
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
     packet.message.body.state = uint8_t(state);
 
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
@@ -1946,10 +1948,10 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
     protocol_binary_request_dcp_noop packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_NOOP;
-    packet.message.header.request.opaque = opaque;
+    auto& req = packet.message.header.request;
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpNoop);
+    req.setOpaque(opaque);
 
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
 }
@@ -1958,13 +1960,13 @@ ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
                                                      Vbid vbucket,
                                                      uint32_t buffer_bytes) {
     protocol_binary_request_dcp_buffer_acknowledgement packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT;
-    packet.message.header.request.extlen = 4;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.vbucket = vbucket.hton();
-    packet.message.header.request.bodylen = ntohl(4);
+    auto& req = packet.message.header.request;
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
+    req.setExtlen(4);
+    req.setBodylen(4);
+    req.setOpaque(opaque);
+    req.setVBucket(vbucket);
     packet.message.body.buffer_bytes = ntohl(buffer_bytes);
 
     return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
@@ -1977,12 +1979,12 @@ ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
                                       uint32_t nvalue) {
     auto& c = *this;
     protocol_binary_request_dcp_control packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.keylen = ntohs(nkey);
-    packet.message.header.request.bodylen = ntohl(nvalue + nkey);
+    auto& req = packet.message.header.request;
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    req.setKeylen(nkey);
+    req.setBodylen(nvalue + nkey);
+    req.setOpaque(opaque);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     c.write->produce([&c, &packet, &key, &nkey, &value, &nvalue, &ret](
@@ -2059,13 +2061,11 @@ ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {
     auto& c = *this;
 
     protocol_binary_request_get_errmap packet = {};
-    packet.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-    packet.message.header.request.opcode =
-            (uint8_t)PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
-    packet.message.header.request.opaque = opaque;
-    packet.message.header.request.extlen = 0;
-    packet.message.header.request.keylen = 0;
-    packet.message.header.request.bodylen = htonl(2);
+    auto& req = packet.message.header.request;
+    req.setMagic(cb::mcbp::Magic::ClientRequest);
+    req.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
+    req.setBodylen(2);
+    req.setOpaque(opaque);
     packet.message.body.version = htons(version);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;

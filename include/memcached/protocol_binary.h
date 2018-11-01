@@ -1442,15 +1442,17 @@ union protocol_binary_request_dcp_mutation {
                                          uint16_t nmeta,
                                          uint8_t nru) {
         auto& req = message.header.request;
-        req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-        req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_MUTATION;
-        req.opaque = opaque;
-        req.vbucket = vbucket.hton();
-        req.cas = htonll(cas);
-        req.keylen = htons(keyLen);
-        req.extlen = gsl::narrow<uint8_t>(getExtrasLength());
-        req.bodylen = ntohl(req.extlen + keyLen + nmeta + valueLen);
-        req.datatype = datatype;
+
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setOpcode(cb::mcbp::ClientOpcode::DcpMutation);
+        req.setExtlen(gsl::narrow<uint8_t>(getExtrasLength()));
+        req.setKeylen(keyLen);
+        req.setBodylen(gsl::narrow<uint8_t>(getExtrasLength()) + keyLen +
+                       nmeta + valueLen);
+        req.setOpaque(opaque);
+        req.setVBucket(vbucket);
+        req.setCas(cas);
+        req.setDatatype(cb::mcbp::Datatype(datatype));
 
         auto& body = message.body;
         body.by_seqno = htonll(bySeqno);
@@ -1498,15 +1500,16 @@ union protocol_binary_request_dcp_deletion {
                                          uint64_t revSeqno,
                                          uint16_t nmeta) {
         auto& req = message.header.request;
-        req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-        req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
-        req.opaque = opaque;
-        req.vbucket = vbucket.hton();
-        req.cas = htonll(cas);
-        req.keylen = htons(keyLen);
-        req.extlen = extlen;
-        req.bodylen = ntohl(req.extlen + keyLen + nmeta + valueLen);
-        req.datatype = datatype;
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+        req.setExtlen(extlen);
+        req.setKeylen(keyLen);
+        req.setBodylen(
+                gsl::narrow<uint32_t>(extlen + keyLen + nmeta + valueLen));
+        req.setOpaque(opaque);
+        req.setVBucket(vbucket);
+        req.setCas(cas);
+        req.setDatatype(cb::mcbp::Datatype(datatype));
 
         auto& body = message.body;
         body.by_seqno = htonll(bySeqno);
@@ -1537,15 +1540,15 @@ union protocol_binary_request_dcp_deletion_v2 {
                                             uint32_t deleteTime,
                                             uint8_t collectionLen) {
         auto& req = message.header.request;
-        req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-        req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_DELETION;
-        req.opaque = opaque;
-        req.vbucket = vbucket.hton();
-        req.cas = htonll(cas);
-        req.keylen = htons(keyLen);
-        req.extlen = extlen;
-        req.bodylen = ntohl(req.extlen + keyLen + valueLen);
-        req.datatype = datatype;
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+        req.setExtlen(extlen);
+        req.setKeylen(keyLen);
+        req.setBodylen(extlen + keyLen + valueLen);
+        req.setOpaque(opaque);
+        req.setVBucket(vbucket);
+        req.setCas(cas);
+        req.setDatatype(cb::mcbp::Datatype(datatype));
 
         auto& body = message.body;
         body.by_seqno = htonll(bySeqno);
@@ -1577,15 +1580,16 @@ union protocol_binary_request_dcp_expiration {
                                            uint64_t revSeqno,
                                            uint16_t nmeta) {
         auto& req = message.header.request;
-        req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-        req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_EXPIRATION;
-        req.opaque = opaque;
-        req.vbucket = vbucket.hton();
-        req.cas = htonll(cas);
-        req.keylen = htons(keyLen);
-        req.extlen = gsl::narrow<uint8_t>(getExtrasLength());
-        req.bodylen = ntohl(req.extlen + keyLen + nmeta + valueLen);
-        req.datatype = datatype;
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setOpcode(cb::mcbp::ClientOpcode::DcpExpiration);
+        req.setExtlen(gsl::narrow<uint8_t>(getExtrasLength()));
+        req.setKeylen(keyLen);
+        req.setBodylen(gsl::narrow<uint8_t>(getExtrasLength()) + keyLen +
+                       nmeta + valueLen);
+        req.setOpaque(opaque);
+        req.setVBucket(vbucket);
+        req.setCas(cas);
+        req.setDatatype(cb::mcbp::Datatype(datatype));
 
         auto& body = message.body;
         body.by_seqno = htonll(bySeqno);
@@ -1707,15 +1711,15 @@ union protocol_binary_request_dcp_system_event {
             uint64_t bySeqno,
             mcbp::systemevent::version version) {
         auto& req = message.header.request;
-        req.magic = (uint8_t)PROTOCOL_BINARY_REQ;
-        req.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT;
-        req.opaque = opaque;
-        req.vbucket = vbucket.hton();
-        req.keylen = htons(keyLen);
-        req.extlen = getExtrasLength();
-        req.bodylen =
-                htonl(gsl::narrow<uint32_t>(req.extlen + valueLen + keyLen));
-        req.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setOpcode(cb::mcbp::ClientOpcode::DcpSystemEvent);
+        req.setExtlen(getExtrasLength());
+        req.setKeylen(keyLen);
+        req.setBodylen(
+                gsl::narrow<uint32_t>(getExtrasLength() + keyLen + valueLen));
+        req.setOpaque(opaque);
+        req.setVBucket(vbucket);
+        req.setDatatype(cb::mcbp::Datatype::Raw);
         message.body.event = htonl(uint32_t(event));
         message.body.by_seqno = htonll(bySeqno);
         message.body.version = uint8_t(version);
