@@ -430,8 +430,8 @@ protected:
         out << "        Total " << sizeof(response) + bodylen << " bytes";
         if (bodylen > 0) {
             out << " (" << sizeof(response) << " bytes header";
-            if (response.response.extlen != 0) {
-                out << ", " << (unsigned int)response.response.extlen
+            if (response.response.getExtlen() != 0) {
+                out << ", " << (unsigned int)response.response.getExtlen()
                     << " byte extras ";
             }
             uint16_t keylen = response.response.getKeylen();
@@ -439,7 +439,7 @@ protected:
                 out << ", " << keylen << " bytes key";
             }
             bodylen -= keylen;
-            bodylen -= response.response.extlen;
+            bodylen -= response.response.getExtlen();
             if (bodylen > 0) {
                 out << " and " << bodylen << " value";
             }
@@ -469,12 +469,12 @@ protected:
         out << "    Data type    (5)    : 0x" << std::setw(2)
             << (uint32_t(response.bytes[5]) & 0xff) << std::endl;
         out << "    Status       (6,7)  : 0x" << std::setw(4)
-            << (ntohs(response.response.status) & 0xffff) << " ("
+            << (uint16_t(response.response.getStatus()) & 0xffff) << " ("
             << to_string(response.response.getStatus()) << ")" << std::endl;
         out << "    Total body   (8-11) : 0x" << std::setw(8)
             << (uint64_t(response.response.getBodylen()) & 0xffff) << std::endl;
         out << "    Opaque       (12-15): 0x" << std::setw(8)
-            << response.response.opaque << std::endl;
+            << response.response.getOpaque() << std::endl;
         out << "    CAS          (16-23): 0x" << std::setw(16)
             << response.response.cas << std::endl;
         out << std::setfill(' ');
@@ -483,13 +483,13 @@ protected:
 
     void dumpExtras(std::ostream& out) const override {
         McbpFrame::dumpExtras(response.bytes + sizeof(response.bytes),
-                              response.response.extlen,
+                              response.response.getExtlen(),
                               out);
     }
 
     void dumpKey(std::ostream& out) const override {
         McbpFrame::dumpKey(response.bytes + sizeof(response.bytes) +
-                                   response.response.extlen,
+                                   response.response.getExtlen(),
                            response.response.getKeylen(),
                            out);
     }
@@ -507,7 +507,7 @@ public:
 
 protected:
     void dumpExtras(std::ostream& out) const override {
-        if (response.response.extlen != 0) {
+        if (response.response.getExtlen() != 0) {
             throw std::logic_error(
                     "HelloResponse::dumpExtras(): extlen must be 0");
         }
@@ -578,7 +578,7 @@ public:
 
 protected:
     void dumpExtras(std::ostream& out) const override {
-        if (response.response.extlen != 0) {
+        if (response.response.getExtlen() != 0) {
             throw std::logic_error(
                     "ListBucketsResponse::dumpExtras(): extlen must be 0");
         }
@@ -629,11 +629,11 @@ static void dump_request(const protocol_binary_request_header* req,
 
 static void dump_response(const protocol_binary_response_header* res,
                           std::ostream& out) {
-    switch (res->response.opcode) {
-    case PROTOCOL_BINARY_CMD_HELLO:
+    switch (res->response.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::Hello:
         out << HelloResponse(*res) << std::endl;
         break;
-    case PROTOCOL_BINARY_CMD_LIST_BUCKETS:
+    case cb::mcbp::ClientOpcode::ListBuckets:
         out << ListBucketsResponse(*res) << std::endl;
         break;
     default:

@@ -777,7 +777,8 @@ static void binary_hickup_recv_verification_thread(void *arg) {
             /* Just validate the packet format */
             mcbp_validate_response_header(
                     response,
-                    response->message.header.response.opcode,
+                    uint8_t(response->message.header.response
+                                    .getClientOpcode()),
                     response->message.header.response.getStatus());
         }
         cb_free(response);
@@ -1528,12 +1529,12 @@ static void get_object_w_datatype(const std::string& key,
     safe_recv(body.data(), len);
 
     if (conversion == Conversion::Yes) {
-        ASSERT_EQ(PROTOCOL_BINARY_RAW_BYTES,
-                  response.message.header.response.datatype);
+        ASSERT_EQ(cb::mcbp::Datatype::Raw,
+                  response.message.header.response.getDatatype());
     } else {
-        ASSERT_EQ(
-                datatype,
-                cb::mcbp::Datatype(response.message.header.response.datatype));
+        ASSERT_EQ(datatype,
+                  cb::mcbp::Datatype(
+                          response.message.header.response.getDatatype()));
     }
 
     ASSERT_EQ(len, data.size());
@@ -2121,9 +2122,9 @@ void test_pipeline_impl(int cmd,
         auto* message = (protocol_binary_response_no_extras*)current_message;
 
         uint32_t bodylen = message->message.header.response.getBodylen();
-        uint8_t extlen = message->message.header.response.extlen;
+        uint8_t extlen = message->message.header.response.getExtlen();
         auto status = message->message.header.response.getStatus();
-        uint32_t opq = ntohl(message->message.header.response.opaque);
+        uint32_t opq = ntohl(message->message.header.response.getOpaque());
 
         cb_assert(status == result);
         cb_assert(opq == ((session << 8)|ii));
@@ -2331,8 +2332,9 @@ int get_topkeys_legacy_value(const std::string& wanted_key) {
                                       PROTOCOL_BINARY_CMD_STAT,
                                       cb::mcbp::Status::Success);
 
-        const char* key_ptr(buffer.bytes + sizeof(buffer.response) +
-                            buffer.response.message.header.response.extlen);
+        const char* key_ptr(
+                buffer.bytes + sizeof(buffer.response) +
+                buffer.response.message.header.response.getExtlen());
         size_t key_len(buffer.response.message.header.response.getKeylen());
 
         // A packet with key length zero indicates end of the stats.
@@ -2350,7 +2352,8 @@ int get_topkeys_legacy_value(const std::string& wanted_key) {
             const char* val_ptr(key_ptr + key_len);
             const size_t val_len(
                     buffer.response.message.header.response.getBodylen() -
-                    key_len - buffer.response.message.header.response.extlen);
+                    key_len -
+                    buffer.response.message.header.response.getExtlen());
             EXPECT_GT(val_len, 0u);
             value = std::string(val_ptr, val_len);
         }
@@ -2411,10 +2414,10 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     const char* val_ptr = buffer.bytes +
                           (sizeof(buffer.response) +
                            buffer.response.message.header.response.getKeylen() +
-                           buffer.response.message.header.response.extlen);
+                           buffer.response.message.header.response.getExtlen());
     const size_t vallen(buffer.response.message.header.response.getBodylen() -
                         buffer.response.message.header.response.getKeylen() -
-                        buffer.response.message.header.response.extlen);
+                        buffer.response.message.header.response.getExtlen());
     EXPECT_GT(vallen, 0u);
     const std::string value(val_ptr, vallen);
 

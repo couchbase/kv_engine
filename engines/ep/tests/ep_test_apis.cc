@@ -1363,10 +1363,10 @@ void sendDcpAck(EngineIface* h,
                 cb::mcbp::Status status,
                 uint32_t opaque) {
     protocol_binary_response_header pkt;
-    pkt.response.magic = PROTOCOL_BINARY_RES;
-    pkt.response.opcode = opcode;
+    pkt.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    pkt.response.setOpcode(cb::mcbp::ClientOpcode(opcode));
     pkt.response.setStatus(status);
-    pkt.response.opaque = opaque;
+    pkt.response.setOpaque(opaque);
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
     checkeq(ENGINE_SUCCESS, dcp.response_handler(cookie, &pkt),

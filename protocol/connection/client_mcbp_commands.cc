@@ -340,7 +340,7 @@ boost::optional<std::chrono::microseconds> BinprotResponse::getTracingData()
 }
 
 protocol_binary_command BinprotResponse::getOp() const {
-    return protocol_binary_command(getResponse().opcode);
+    return protocol_binary_command(getResponse().getClientOpcode());
 }
 
 cb::mcbp::Status BinprotResponse::getStatus() const {
@@ -369,7 +369,7 @@ uint64_t BinprotResponse::getCas() const {
 }
 
 protocol_binary_datatype_t BinprotResponse::getDatatype() const {
-    return getResponse().datatype;
+    return protocol_binary_datatype_t(getResponse().getDatatype());
 }
 
 const uint8_t* BinprotResponse::getPayload() const {

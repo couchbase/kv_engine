@@ -852,13 +852,12 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         return false;
     }
 
-    uint8_t opcode = resp->response.opcode;
+    const auto opcode = uint8_t(resp->response.getClientOpcode());
     if (opcode == PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE ||
         opcode == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER) {
         const auto* pkt = reinterpret_cast<
                 const protocol_binary_response_dcp_stream_req*>(resp);
-        uint32_t opaque = pkt->message.header.response.opaque;
-
+        const auto opaque = pkt->message.header.response.getOpaque();
 
         // Search for an active stream with the same opaque as the response.
         auto itr = streams.find_if(
@@ -890,7 +889,7 @@ bool DcpProducer::handleResponse(const protocol_binary_response_header* resp) {
         // TODO: When nacking is implemented we need to handle these responses
         return true;
     } else if (opcode == PROTOCOL_BINARY_CMD_DCP_NOOP) {
-        if (noopCtx.opaque == resp->response.opaque) {
+        if (noopCtx.opaque == resp->response.getOpaque()) {
             noopCtx.pendingRecv = false;
             return true;
         }

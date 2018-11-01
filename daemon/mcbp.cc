@@ -43,12 +43,12 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
     auto wbuf = pipe.wdata();
     auto* header = (protocol_binary_response_header*)wbuf.data();
 
-    header->response.opcode = opcode;
-    header->response.extlen = ext_len;
-    header->response.datatype = datatype;
+    header->response.setOpcode(cb::mcbp::ClientOpcode(opcode));
+    header->response.setExtlen(ext_len);
+    header->response.setDatatype(cb::mcbp::Datatype(datatype));
     header->response.setStatus(status);
-    header->response.opaque = opaque;
-    header->response.cas = htonll(cas);
+    header->response.setOpaque(opaque);
+    header->response.setCas(cas);
 
     if (cookie.isTracingEnabled()) {
         // When tracing is enabled we'll be using the alternative
@@ -61,7 +61,7 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
         // something so that we have a better understanding on how
         // we need to do that (it could be that we need to modify
         // an already existing section etc).
-        header->response.magic = uint8_t(cb::mcbp::Magic::AltClientResponse);
+        header->response.setMagic(cb::mcbp::Magic::AltClientResponse);
         // The framing extras when we just include the tracing information
         // is 3 bytes. 1 byte with id and length, then the 2 bytes
         // containing the actual data.
@@ -81,7 +81,7 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
         pipe.produced(sizeof(header->bytes) + framing_extras_size);
         return {wbuf.data(), sizeof(header->bytes) + framing_extras_size};
     } else {
-        header->response.magic = (uint8_t)PROTOCOL_BINARY_RES;
+        header->response.setMagic(cb::mcbp::Magic::ClientResponse);
         header->response.setKeylen(key_len);
         header->response.setFrameExtlen(0);
         header->response.setBodylen(body_len);

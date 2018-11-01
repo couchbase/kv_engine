@@ -2597,7 +2597,8 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         // producer. I simulate the producer's response with a call to
         // handleResponse()
         protocol_binary_response_header resp{};
-        resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
+        resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.response.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
         resp.response.setStatus(
                 prodIsV5orHigher
                         ? cb::mcbp::Status::Success

@@ -75,9 +75,9 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
             &receive.response.message.header;
 
     const char* val_ptr =
-            receive.bytes + sizeof(*header) + header->response.extlen;
+            receive.bytes + sizeof(*header) + header->response.getExtlen();
     const size_t vallen =
-            header->response.getBodylen() - header->response.extlen;
+            header->response.getBodylen() - header->response.getExtlen();
 
     if (!expected_value.empty() &&
         (expected_cmd != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
@@ -113,8 +113,9 @@ uint64_t recv_subdoc_response(
     // Decode body and check against expected_results
     const auto& header = receive.response.message.header;
     const char* val_ptr =
-            receive.bytes + sizeof(header) + header.response.extlen;
-    const size_t vallen = header.response.getBodylen() + header.response.extlen;
+            receive.bytes + sizeof(header) + header.response.getExtlen();
+    const size_t vallen =
+            header.response.getBodylen() + header.response.getExtlen();
 
     size_t offset = 0;
     for (unsigned int ii = 0; ii < expected_results.size(); ii++) {
@@ -200,16 +201,17 @@ uint64_t recv_subdoc_response(
     // Decode body and check against expected_results
     const auto& header = receive.response.message.header;
     const char* val_ptr =
-            receive.bytes + sizeof(header) + header.response.extlen;
-    const size_t vallen = header.response.getBodylen() - header.response.extlen;
+            receive.bytes + sizeof(header) + header.response.getExtlen();
+    const size_t vallen =
+            header.response.getBodylen() - header.response.getExtlen();
     std::string value(val_ptr, val_ptr + vallen);
 
     if (expected_status == cb::mcbp::Status::Success) {
         if (enabled_hello_features.count(cb::mcbp::Feature::MUTATION_SEQNO) >
             0) {
-            EXPECT_EQ(16, header.response.extlen);
+            EXPECT_EQ(16, header.response.getExtlen());
         } else {
-            EXPECT_EQ(0u, header.response.extlen);
+            EXPECT_EQ(0u, header.response.getExtlen());
         }
 
         for (const auto& result : expected_results) {

@@ -273,12 +273,12 @@ cb::mcbp::Status TestappTest::sasl_auth(const char* username,
         stepped = true;
         size_t datalen = buffer.response.message.header.response.getBodylen() -
                          buffer.response.message.header.response.getKeylen() -
-                         buffer.response.message.header.response.extlen;
+                         buffer.response.message.header.response.getExtlen();
 
         size_t dataoffset =
                 sizeof(buffer.response.bytes) +
                 buffer.response.message.header.response.getKeylen() +
-                buffer.response.message.header.response.extlen;
+                buffer.response.message.header.response.getExtlen();
 
         client_data = client.step(
                 cb::const_char_buffer{buffer.bytes + dataoffset, datalen});
@@ -1563,8 +1563,9 @@ stats_response_t request_stats() {
                                       PROTOCOL_BINARY_CMD_STAT,
                                       cb::mcbp::Status::Success);
 
-        const char* key_ptr(buffer.bytes + sizeof(buffer.response) +
-                            buffer.response.message.header.response.extlen);
+        const char* key_ptr(
+                buffer.bytes + sizeof(buffer.response) +
+                buffer.response.message.header.response.getExtlen());
         const size_t key_len(
                 buffer.response.message.header.response.getKeylen());
 
@@ -1576,7 +1577,7 @@ stats_response_t request_stats() {
         const char* val_ptr(key_ptr + key_len);
         const size_t val_len(
                 buffer.response.message.header.response.getBodylen() - key_len -
-                buffer.response.message.header.response.extlen);
+                buffer.response.message.header.response.getExtlen());
 
         result.insert(std::make_pair(std::string(key_ptr, key_len),
                                      std::string(val_ptr, val_len)));

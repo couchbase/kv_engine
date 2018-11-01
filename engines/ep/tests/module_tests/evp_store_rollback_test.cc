@@ -612,10 +612,12 @@ public:
         auto* p = reinterpret_cast<protocol_binary_response_dcp_stream_req*>(
                 msg.get());
 
-        p->message.header.response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
-        p->message.header.response.setStatus(cb::mcbp::Status::Rollback);
-        p->message.header.response.opaque = opaque;
-        p->message.header.response.setBodylen(sizeof(uint64_t));
+        auto& res = p->message.header.response;
+        res.setMagic(cb::mcbp::Magic::ClientResponse);
+        res.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+        res.setStatus(cb::mcbp::Status::Rollback);
+        res.setOpaque(opaque);
+        res.setBodylen(sizeof(uint64_t));
 
         auto* seq = reinterpret_cast<uint64_t*>(p + 1);
         *seq = htonll(rollbackSeq);

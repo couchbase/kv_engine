@@ -37,28 +37,28 @@ TEST_P(MiscTest, GetFailoverLog) {
     // Test existing VBucket
     auto response = connection.getFailoverLog(Vbid(0));
     auto header = response.getResponse();
-    EXPECT_EQ(header.magic, PROTOCOL_BINARY_RES);
-    EXPECT_EQ(header.opcode, PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG);
-    EXPECT_EQ(header.keylen, 0);
-    EXPECT_EQ(header.extlen, 0);
-    EXPECT_EQ(header.datatype, 0);
+    EXPECT_EQ(PROTOCOL_BINARY_RES, uint8_t(header.getMagic()));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::GetFailoverLog, header.getClientOpcode());
+    EXPECT_EQ(0, header.getKeylen());
+    EXPECT_EQ(0, header.getExtlen());
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, header.getDatatype());
     EXPECT_EQ(header.getStatus(), cb::mcbp::Status::Success);
     // Note: We expect 1 entry in the failover log, which is the entry created
     // at VBucket creation (8 bytes for UUID + 8 bytes for SEQNO)
-    EXPECT_EQ(ntohl(header.bodylen), 0x10);
+    EXPECT_EQ(0x10, header.getBodylen());
     EXPECT_EQ(header.cas, 0);
     EXPECT_EQ(response.getData().len, 0x10);
 
     // Test non-existing VBucket
     response = connection.getFailoverLog(Vbid(1));
     header = response.getResponse();
-    EXPECT_EQ(header.magic, PROTOCOL_BINARY_RES);
-    EXPECT_EQ(header.opcode, PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG);
-    EXPECT_EQ(header.keylen, 0);
-    EXPECT_EQ(header.extlen, 0);
-    EXPECT_EQ(header.datatype, 0);
+    EXPECT_EQ(PROTOCOL_BINARY_RES, uint8_t(header.getMagic()));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::GetFailoverLog, header.getClientOpcode());
+    EXPECT_EQ(0, header.getKeylen());
+    EXPECT_EQ(0, header.getExtlen());
+    EXPECT_EQ(cb::mcbp::Datatype::Raw, header.getDatatype());
     EXPECT_EQ(header.getStatus(), cb::mcbp::Status::NotMyVbucket);
-    EXPECT_EQ(ntohl(header.bodylen), 0);
+    EXPECT_EQ(0, header.getBodylen());
     EXPECT_EQ(header.cas, 0);
 }
 

@@ -822,10 +822,10 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
         return false;
     }
 
-    uint8_t opcode = resp->response.opcode;
-    uint32_t opaque = resp->response.opaque;
+    const auto opcode = resp->response.getClientOpcode();
+    const auto opaque = resp->response.getOpaque();
 
-    if (opcode == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ) {
+    if (opcode == cb::mcbp::ClientOpcode::DcpStreamReq) {
         opaque_map::iterator oitr = opaqueMap_.find(opaque);
         if (oitr == opaqueMap_.end()) {
             EP_LOG_WARN(
@@ -877,10 +877,10 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
 
         streamAccepted(opaque, status, body, bodylen);
         return true;
-    } else if (opcode == PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT ||
-               opcode == PROTOCOL_BINARY_CMD_DCP_CONTROL) {
+    } else if (opcode == cb::mcbp::ClientOpcode::DcpBufferAcknowledgement ||
+               opcode == cb::mcbp::ClientOpcode::DcpControl) {
         return true;
-    } else if (opcode == PROTOCOL_BINARY_CMD_GET_ERROR_MAP) {
+    } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
         auto status = resp->response.getStatus();
         // GetErrorMap is supported on versions >= 5.0.0.
         // "Unknown Command" is returned on pre-5.0.0 versions.
@@ -890,7 +890,7 @@ bool DcpConsumer::handleResponse(const protocol_binary_response_header* resp) {
     }
 
     logger->warn("Trying to handle an unknown response {}, disconnecting",
-                 opcode);
+                 to_string(opcode));
 
     return false;
 }

@@ -32,7 +32,8 @@ void handleProducerResponseIfStepBlocked(DcpConsumer& consumer) {
     // step() would block forever in DcpConsumer::handleGetErrorMap() otherwise
     if (dcp_last_op == PROTOCOL_BINARY_CMD_GET_ERROR_MAP) {
         protocol_binary_response_header resp{};
-        resp.response.opcode = PROTOCOL_BINARY_CMD_GET_ERROR_MAP;
+        resp.response.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.response.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
         resp.response.setStatus(cb::mcbp::Status::Success);
         consumer.handleResponse(&resp);
     }

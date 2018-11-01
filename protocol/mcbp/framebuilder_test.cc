@@ -85,7 +85,7 @@ TEST(ResponseBuilder, SetFields) {
 
     const std::string extras{"extras"};
     builder.setExtras(buffer(extras));
-    EXPECT_EQ(extras.size(), response->extlen);
+    EXPECT_EQ(extras.size(), response->getExtlen());
     EXPECT_EQ(key.size(), response->getKeylen());
     EXPECT_EQ(value.size() + key.size() + extras.size(),
               response->getBodylen());
@@ -165,7 +165,7 @@ TEST(RequestBuilder, SetFields) {
 
     const std::string extras{"extras"};
     builder.setExtras(buffer(extras));
-    EXPECT_EQ(extras.size(), request->extlen);
+    EXPECT_EQ(extras.size(), request->getExtlen());
     EXPECT_EQ(key.size(), request->getKeylen());
     EXPECT_EQ(value.size() + key.size() + extras.size(), request->getBodylen());
 

@@ -312,7 +312,7 @@ ADD_LIBRARY(ep SHARED $<TARGET_OBJECTS:ep_objs>)
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker ${EP_STORAGE_LIBS}
                       engine_utilities dirutils cbcompress hdr_histogram_static
-                      mcd_util platform phosphor xattr mcd_tracing
+                      mcbp mcd_util platform phosphor xattr mcd_tracing
                       ${LIBEVENT_LIBRARIES})
 add_sanitizers(ep)
 
@@ -474,6 +474,7 @@ if (NOT EP_BYPASS_TESTS)
             gmock
             hdr_histogram_static
             JSON_checker
+	    mcbp
             mcd_util
             mcd_tracing
             memcached_logger
@@ -501,7 +502,7 @@ if (NOT EP_BYPASS_TESTS)
     ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc
                    $<TARGET_OBJECTS:ep_objs>)
     TARGET_LINK_LIBRARIES(ep-engine_sizes cJSON JSON_checker hdr_histogram_static
-                          engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform mcd_util
+                          engine_utilities ${EP_STORAGE_LIBS} dirutils cbcompress platform mcbp mcd_util
                           mcd_tracing phosphor xattr ${LIBEVENT_LIBRARIES})
     add_sanitizers(ep-engine_sizes)
 

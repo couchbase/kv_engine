@@ -312,7 +312,7 @@ static void arithmetic_executor(Cookie& cookie) {
 static void set_ctrl_token_executor(Cookie& cookie) {
     auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(
             cookie.getPacketAsVoidPtr());
-    uint64_t casval = ntohll(req->message.header.request.cas);
+    const auto casval = req->message.header.request.getCas();
     uint64_t newval = ntohll(req->message.body.new_cas);
     uint64_t value;
 
@@ -858,14 +858,15 @@ void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
 
 static void execute_client_response_packet(Cookie& cookie,
                                            const cb::mcbp::Response& response) {
-    auto handler = response_handlers[response.opcode];
+    const auto opcode = uint8_t(response.getClientOpcode());
+    auto handler = response_handlers[opcode];
     if (handler) {
         handler(cookie);
     } else {
         auto& c = cookie.getConnection();
         LOG_INFO("{}: Unsupported response packet received with opcode: {:x}",
                  c.getId(),
-                 uint32_t(response.opcode));
+                 uint32_t(opcode));
         c.setState(StateMachine::State::closing);
     }
 }
@@ -889,7 +890,7 @@ static void execute_server_response_packet(Cookie& cookie,
             "{}: Ignoring unsupported server response packet received with "
             "opcode: {:x}",
             c.getId(),
-            uint32_t(response.opcode));
+            uint32_t(response.getServerOpcode()));
 }
 
 /**

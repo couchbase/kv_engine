@@ -378,7 +378,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     const uint16_t keylen = ntohs(header->request.keylen);
     const uint32_t bodylen = ntohl(header->request.bodylen);
     const Vbid vbucket = header->request.vbucket.ntoh();
-    const uint64_t cas = ntohll(header->request.cas);
+    const auto cas = header->request.getCas();
 
     const char* key = (char*)packet.data() + sizeof(*header) + extlen;
 

@@ -30,7 +30,7 @@ static ENGINE_ERROR_CODE dcp_deletion_v1_executor(
 
     const auto opaque = request.message.header.request.opaque;
     const auto datatype = request.message.header.request.datatype;
-    const uint64_t cas = ntohll(request.message.header.request.cas);
+    const auto cas = request.message.header.request.getCas();
     const Vbid vbucket = request.message.header.request.vbucket.ntoh();
     const uint64_t by_seqno = ntohll(request.message.body.by_seqno);
     const uint64_t rev_seqno = ntohll(request.message.body.rev_seqno);
@@ -75,7 +75,7 @@ static ENGINE_ERROR_CODE dcp_deletion_v2_executor(
 
     const auto opaque = request.message.header.request.opaque;
     const auto datatype = request.message.header.request.datatype;
-    const uint64_t cas = ntohll(request.message.header.request.cas);
+    const auto cas = request.message.header.request.getCas();
     const Vbid vbucket = request.message.header.request.vbucket.ntoh();
     const uint64_t by_seqno = ntohll(request.message.body.by_seqno);
     const uint64_t rev_seqno = ntohll(request.message.body.rev_seqno);

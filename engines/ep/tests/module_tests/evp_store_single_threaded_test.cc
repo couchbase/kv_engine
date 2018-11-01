@@ -3428,8 +3428,9 @@ TEST_F(SingleThreadedEPBucketTest, MB_29541) {
     // For completeness step to end
     // we must ack the VB state
     protocol_binary_response_header message;
-    message.response.opcode = PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
-    message.response.opaque = 1;
+    message.response.setMagic(cb::mcbp::Magic::ClientResponse);
+    message.response.setOpcode(cb::mcbp::ClientOpcode::DcpSetVbucketState);
+    message.response.setOpaque(1);
     EXPECT_TRUE(producer->handleResponse(&message));
 
     EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
