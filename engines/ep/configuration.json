@@ -349,7 +349,7 @@
             }
         },
         "disk_backfill_queue": {
-            "default": "true",
+            "default": "false",
             "descr": "True if we want to use the dedicated backfill queue for the first disk snapshot",
             "dynamic": true,
             "type": "bool"
