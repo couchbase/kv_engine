@@ -703,6 +703,36 @@ public:
     }
 
     /**
+     * Add a scope to this vbucket with a pre-assigned seqno. I.e. this VB is a
+     * replica.
+     *
+     * @param uid the uid of the manifest which made the change
+     * @param sid ScopeID of the scope
+     * @param scopeName name of the added scope
+     * @param bySeqno The seqno assigned to the scope create event.
+     */
+    void replicaAddScope(Collections::ManifestUid uid,
+                         ScopeID sid,
+                         cb::const_char_buffer scopeName,
+                         int64_t bySeqno) {
+        manifest->wlock().replicaAddScope(*this, uid, sid, scopeName, bySeqno);
+    }
+
+    /**
+     * Drop a scope from this vbucket with a pre-assigned seqno. I.e. this VB
+     * is a replica.
+     *
+     * @param uid the uid of the manifest which made the change
+     * @param sid ScopeID to drop
+     * @param bySeqno The seqno assigned to the scope drop event.
+     */
+    void replicaDropScope(Collections::ManifestUid uid,
+                          ScopeID sid,
+                          int64_t bySeqno) {
+        manifest->wlock().replicaDropScope(*this, uid, sid, bySeqno);
+    }
+
+    /**
      * Get the collection manifest
      *
      * @return const reference to the manifest

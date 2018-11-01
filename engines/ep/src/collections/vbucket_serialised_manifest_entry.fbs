@@ -46,6 +46,10 @@ table SerialisedManifest {
     // a serialisation of the manifest
     entries:[SerialisedManifestEntry];
 
+    // Each known scope. We could have an empty manifest in the scope, so we
+    // explicitly store the known scopes here.
+    scopes:[uint];
+
     // This stores the name of the created collection, but only when a creation
     // triggered the serialisation of the manifest
     mutatedName:string;

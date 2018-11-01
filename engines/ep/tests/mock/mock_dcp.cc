@@ -44,6 +44,7 @@ uint64_t dcp_last_snap_end_seqno;
 Couchbase::RelaxedAtomic<uint64_t> dcp_last_byseqno;
 uint64_t dcp_last_revseqno;
 CollectionID dcp_last_collection_id;
+ScopeID dcp_last_scope_id;
 uint32_t dcp_last_delete_time;
 std::string dcp_last_meta;
 std::string dcp_last_value;

@@ -115,6 +115,24 @@ protected:
     ENGINE_ERROR_CODE processBeginDeleteCollection(
             VBucket& vb, const DropCollectionEvent& event);
 
+    /**
+     * Process a create scope event, creating the collection on vb
+     *
+     * @param vb Vbucket onto which the collection is created.
+     * @param event The event data for the create
+     */
+    ENGINE_ERROR_CODE processCreateScope(VBucket& vb,
+                                         const CreateScopeEvent& event);
+
+    /**
+     * Process a drop scope event
+     *
+     * @param vb Vbucket which we apply the drop to
+     * @param event The event data for the drop
+     */
+    ENGINE_ERROR_CODE processDropScope(VBucket& vb,
+                                       const DropScopeEvent& event);
+
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 
     virtual void processMarker(SnapshotMarker* marker);

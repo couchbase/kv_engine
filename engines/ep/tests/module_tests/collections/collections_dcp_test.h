@@ -75,7 +75,9 @@ public:
             const std::vector<CollectionEntry::Entry>& expectedCreates,
             const std::vector<CollectionEntry::Entry>& expectedDeletes,
             int expectedMutations,
-            bool fromMemory = true);
+            bool fromMemory = true,
+            const std::vector<ScopeEntry::Entry>& expectedScopeCreates = {},
+            const std::vector<ScopeEntry::Entry>& expectedScopeDrops = {});
 
     void resetEngineAndWarmup(std::string new_config = "");
 

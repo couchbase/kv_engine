@@ -613,6 +613,14 @@ ENGINE_ERROR_CODE PassiveStream::processSystemEvent(
         rv = processBeginDeleteCollection(*vb, {event});
         break;
     }
+    case mcbp::systemevent::id::CreateScope: {
+        rv = processCreateScope(*vb, {event});
+        break;
+    }
+    case mcbp::systemevent::id::DropScope: {
+        rv = processDropScope(*vb, {event});
+        break;
+    }
     default: {
         rv = ENGINE_EINVAL;
         break;
@@ -657,6 +665,32 @@ ENGINE_ERROR_CODE PassiveStream::processBeginDeleteCollection(
     } catch (std::exception& e) {
         EP_LOG_WARN("PassiveStream::processBeginDeleteCollection exception {}",
                     e.what());
+        return ENGINE_EINVAL;
+    }
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE PassiveStream::processCreateScope(
+        VBucket& vb, const CreateScopeEvent& event) {
+    try {
+        vb.replicaAddScope(event.getManifestUid(),
+                           event.getScopeID(),
+                           event.getKey(),
+                           event.getBySeqno());
+    } catch (std::exception& e) {
+        EP_LOG_WARN("PassiveStream::processCreateScope exception {}", e.what());
+        return ENGINE_EINVAL;
+    }
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE PassiveStream::processDropScope(VBucket& vb,
+                                                  const DropScopeEvent& event) {
+    try {
+        vb.replicaDropScope(
+                event.getManifestUid(), event.getScopeID(), event.getBySeqno());
+    } catch (std::exception& e) {
+        EP_LOG_WARN("PassiveStream::processDropScope exception {}", e.what());
         return ENGINE_EINVAL;
     }
     return ENGINE_SUCCESS;

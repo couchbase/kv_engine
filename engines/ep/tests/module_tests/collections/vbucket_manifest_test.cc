@@ -86,6 +86,25 @@ public:
             }
         }
 
+        if (rhs.getGreatestEndSeqno() != getGreatestEndSeqno()) {
+            return false;
+        }
+
+        if (rhs.getNumDeletingCollections() != getNumDeletingCollections()) {
+            return false;
+        }
+
+        if (scopes.size() != rhs.scopes.size()) {
+            return false;
+        }
+        // Check all scopes can be found
+        for (const auto s : scopes) {
+            if (std::find(rhs.scopes.begin(), rhs.scopes.end(), s) ==
+                rhs.scopes.end()) {
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -122,8 +141,8 @@ public:
     }
 
     // Wire through to private method
-    boost::optional<Manifest::Addition> public_applyCreates(
-            ::VBucket& vb, std::vector<Addition>& changes) {
+    boost::optional<Manifest::CollectionAddition> public_applyCreates(
+            ::VBucket& vb, std::vector<CollectionAddition>& changes) {
         return applyCreates(vb, changes);
     }
 
@@ -410,7 +429,26 @@ public:
                     break;
                 }
                 case SystemEvent::Scope: {
-                    // @todo: coming soon, no code generates this yet.
+                    if (qi->isDeleted()) {
+                        auto dcpData = Collections::VB::Manifest::
+                                getDropScopeEventData(
+                                        {qi->getData(), qi->getNBytes()});
+                        // A deleted create means beginDelete collection
+                        replica.wlock().replicaDropScope(vbR,
+                                                         dcpData.manifestUid,
+                                                         dcpData.sid,
+                                                         qi->getBySeqno());
+                    } else {
+                        auto dcpData = Collections::VB::Manifest::
+                                getCreateScopeEventData(
+                                        {qi->getData(), qi->getNBytes()});
+                        replica.wlock().replicaAddScope(vbR,
+                                                        dcpData.manifestUid,
+                                                        dcpData.sid,
+                                                        dcpData.name,
+                                                        qi->getBySeqno());
+                    }
+                    break;
                 }
                 default:
                     throw std::invalid_argument("Unknown event " +
@@ -428,15 +466,22 @@ public:
      *
      * @returns gtest assertion fail (with details) or success
      */
-    ::testing::AssertionResult checkJson(const Item& manifest) {
-        MockVBManifest newManifest(
-                Collections::VB::Manifest::patchSerialisedData(manifest));
-        if (active != newManifest) {
-            return ::testing::AssertionFailure() << "manifest mismatch\n"
-                                                 << "generated\n"
-                                                 << newManifest << "\nvs\n"
-                                                 << active;
+    ::testing::AssertionResult checkJson(const Item& manifestItem) {
+        try {
+            MockVBManifest newManifest(
+                    Collections::VB::Manifest::getPersistedManifest(
+                            manifestItem));
+            if (active != newManifest) {
+                return ::testing::AssertionFailure() << "manifest mismatch\n"
+                                                     << "generated\n"
+                                                     << newManifest << "\nvs\n"
+                                                     << active;
+            }
+        } catch (const std::exception& e) {
+            return ::testing::AssertionFailure()
+                   << "checkMetaData exception caught what:" << e.what();
         }
+
         return ::testing::AssertionSuccess();
     }
 
@@ -568,6 +613,23 @@ TEST_F(VBucketManifestTest, add_to_empty_scope) {
     EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
 }
 
+/**
+ * Test that all collections in a scope get deleted just by the scope drop
+ */
+TEST_F(VBucketManifestTest, drop_scope) {
+    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.update(
+            cm.add(CollectionEntry::fruit, ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy, ScopeEntry::shop1)
+                    .add(CollectionEntry::meat, ScopeEntry::shop1)));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::fruit));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_TRUE(manifest.isOpen(CollectionEntry::meat));
+    EXPECT_TRUE(manifest.update(cm.remove(ScopeEntry::shop1)));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::fruit));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::dairy));
+    EXPECT_FALSE(manifest.isOpen(CollectionEntry::meat));
+}
 /**
  * Test that we can drop a scope (simulate this by dropping all the
  * collections within it) then add it back.
@@ -936,7 +998,8 @@ TEST_F(VBucketManifestTest, replica_add_remove_completeDelete) {
 }
 
 TEST_F(VBucketManifestTest, check_applyChanges) {
-    std::vector<Collections::VB::Manifest::Addition> changes; // start out empty
+    std::vector<Collections::VB::Manifest::CollectionAddition>
+            changes; // start out empty
     auto value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     EXPECT_FALSE(value.is_initialized());

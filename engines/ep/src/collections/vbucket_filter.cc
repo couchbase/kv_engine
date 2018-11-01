@@ -222,20 +222,27 @@ bool Filter::remove(const Item& item) {
 }
 
 bool Filter::empty() const {
-    return filter.empty() && !defaultAllowed;
+    if (scopeID) {
+        return scopeIsDropped;
+    }
+
+    return (filter.empty() && !defaultAllowed);
 }
 
 bool Filter::checkAndUpdateSystemEvent(const Item& item) {
-    // Remove the corresponding collection from this filter if it has been
-    // deleted. In the case of:
-    // a) a legacy filter - remove will set defaultAllowed to false and
-    //                      subsequently collapse the stream provided the
-    //                      item is part of the default collection. Remove will
-    //                      do nothing if the item belongs to a non-default
-    //                      collection
-    // b) a passthrough filter - remove will do nothing
-    // c) a collection filter - remove will remove the collection for this item
-    // d) a scope filter - remove will remove the collection for this item
+    switch (SystemEvent(item.getFlags())) {
+    case SystemEvent::Collection:
+        return processCollectionEvent(item);
+    case SystemEvent::Scope:
+        return processScopeEvent(item);
+    default:
+        throw std::invalid_argument(
+                "Filter::checkAndUpdateSystemEvent:: event unknown:" +
+                std::to_string(int(item.getFlags())));
+    }
+}
+
+bool Filter::processCollectionEvent(const Item& item) {
     bool deleted = false;
     if (item.isDeleted()) {
         // Save the return value (indicating if something has actually been
@@ -247,47 +254,78 @@ bool Filter::checkAndUpdateSystemEvent(const Item& item) {
         // Legacy filters do not support system events
         return false;
     }
-    switch (SystemEvent(item.getFlags())) {
-    case SystemEvent::Collection: {
-        CollectionID cid;
+
+    CollectionID cid;
+    ManifestUid manifestUid = 0;
+    boost::optional<ScopeID> sid;
+    if (!item.isDeleted()) {
+        auto dcpData = VB::Manifest::getCreateEventData(
+                {item.getData(), item.getNBytes()});
+        manifestUid = dcpData.manifestUid;
+        sid = dcpData.sid;
+        cid = dcpData.cid;
+    } else {
+        auto dcpData = VB::Manifest::getDropEventData(
+                {item.getData(), item.getNBytes()});
+        manifestUid = dcpData.manifestUid;
+        cid = dcpData.cid;
+    }
+
+    // Only consider this if it is an event the client hasn't observed
+    if (!uid || (manifestUid > *uid)) {
+        if (passthrough || deleted ||
+            (cid.isDefaultCollection() && defaultAllowed)) {
+            return true;
+        }
+
+        // If scopeID is initialized then we are filtering on a scope
+        if (sid && scopeID && (sid == scopeID)) {
+            // update the filter set as this collection is in our scope
+            filter.insert(cid);
+        }
+
+        // When filtered allow only if there is a match
+        return filter.count(cid) > 0;
+    }
+    return false;
+}
+
+bool Filter::processScopeEvent(const Item& item) {
+    if (!systemEventsAllowed) {
+        // Legacy filters do not support system events
+        return false;
+    }
+
+    // scope filter we check if event matches our scope
+    // passthrough we check if the event manifest-id is greater than the clients
+    if (scopeID || passthrough) {
+        ScopeID sid = 0;
         ManifestUid manifestUid = 0;
-        boost::optional<ScopeID> sid;
+
         if (!item.isDeleted()) {
-            auto dcpData = VB::Manifest::getCreateEventData(
+            auto dcpData = VB::Manifest::getCreateScopeEventData(
                     {item.getData(), item.getNBytes()});
             manifestUid = dcpData.manifestUid;
             sid = dcpData.sid;
-            cid = dcpData.cid;
         } else {
-            auto dcpData = VB::Manifest::getDropEventData(
+            auto dcpData = VB::Manifest::getDropScopeEventData(
                     {item.getData(), item.getNBytes()});
             manifestUid = dcpData.manifestUid;
-            cid = dcpData.cid;
+            sid = dcpData.sid;
+
+            if (sid == scopeID) {
+                // Scope dropped - ::empty must now return true
+                scopeIsDropped = true;
+            }
         }
 
         // Only consider this if it is an event the client hasn't observed
         if (!uid || (manifestUid > *uid)) {
-            if (passthrough || deleted ||
-                (cid.isDefaultCollection() && defaultAllowed)) {
-                return true;
-            }
-
-            // If scopeID is not uninitialized then we are filtering on a scope
-            if (sid && scopeID && (sid == scopeID)) {
-                filter.insert(cid);
-            }
-
-            // When filtered allow only if there is a match
-            return filter.count(cid) > 0;
+            return sid == scopeID || passthrough;
         }
-        return false;
     }
-    default: {
-        throw std::invalid_argument(
-                "Filter::allowSystemEvent:: event unknown:" +
-                std::to_string(int(item.getFlags())));
-    }
-    }
+
+    return false;
 }
 
 void Filter::addStats(ADD_STAT add_stat,
@@ -317,6 +355,21 @@ void Filter::addStats(ADD_STAT add_stat,
                          prefix.c_str(),
                          vb.get());
         add_casted_stat(buffer, systemEventsAllowed, add_stat, c);
+
+        if (scopeID) {
+            checked_snprintf(buffer,
+                             bsize,
+                             "%s:filter_%d_scope_id",
+                             prefix.c_str(),
+                             vb.get());
+            add_casted_stat(buffer, *scopeID, add_stat, c);
+            checked_snprintf(buffer,
+                             bsize,
+                             "%s:filter_%d_scope_dropped",
+                             prefix.c_str(),
+                             vb.get());
+            add_casted_stat(buffer, scopeIsDropped, add_stat, c);
+        }
 
         checked_snprintf(
                 buffer, bsize, "%s:filter_%d_uid", prefix.c_str(), vb.get());
@@ -355,7 +408,8 @@ std::ostream& operator<<(std::ostream& os, const Filter& filter) {
     os << "VBucket::Filter"
        << ": defaultAllowed:" << filter.defaultAllowed
        << ", passthrough:" << filter.passthrough
-       << ", systemEventsAllowed:" << filter.systemEventsAllowed;
+       << ", systemEventsAllowed:" << filter.systemEventsAllowed
+       << ", scopeIsDropped:" << filter.scopeIsDropped;
     if (filter.uid) {
         os << ", uid:" << *filter.uid;
     }

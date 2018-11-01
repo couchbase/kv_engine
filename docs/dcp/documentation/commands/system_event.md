@@ -1,15 +1,8 @@
-### System Event (0x5f)
+# System Event (0x5f)
 
 Tells the consumer that the message contains a system event. The system event
 message encodes event information that relates to the user's data, but is not
 necessarily something they directly control.
-
-The primary use-case for system events is collections, and thus the following
-system events can occur:
-
-* Collection creation.
-* Collection drop.
-* Collection flush (not yet supported).
 
 A system event always encodes in the extras the seqno of the event and an
 identifier for the event, the following events are defined (values shown).
@@ -17,18 +10,29 @@ identifier for the event, the following events are defined (values shown).
 * 0 - A collection has been created
 * 1 - A collection has been dropped
 * 2 - A collection has been flushed (not yet supported)
+* 3 - A scope has been created
+* 4 - A scope has been droppped
 
 Each event is free to define if a key or value is present, and the format of each.
-
 
 The request:
 * Must have extras
 * May have key
 * May have value
 
+The receiver does not reply to this message.
 
-Extra data for system event:
 
+## Extra data for system event:
+
+The extras of a system event encodes
+
+* The seqno at which the event occurred
+* The id of the event
+* A version for the event data - clients must read the version before assuming
+  the value and key
+
+```
      Byte/     0       |       1       |       2       |       3       |
         /              |               |               |               |
        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
@@ -42,10 +46,9 @@ Extra data for system event:
      12| version       |
        +---------------+
        Total 13 bytes
+```
 
-The consumer should not send a reply to this command.
-
-### Example
+## Example Create Collection Event
 
 The following example is showing a system event for the creation of
 "mycollection" with a collection-uid of 8.
@@ -135,65 +138,89 @@ This would occur in response to set_collections receiving a JSON manifest as:
                  (65-68): 0x00011940 # max_ttl
 
 
+## Key and Value Data Definition
 
-### Extras
+The Key and Value of the message are defined differently for each event.
 
-The extras of a system event encodes
+### Create Collection
 
-* The seqno at which the event occurred
-* The id of the event
-* A version for the event data - clients must read the version before assuming
-  the value and key format.
+__Key__: A create collection system event with version 0 or 1 has a key which is the
+name of the created collection.
 
-### Value Data Definition
+__Value__: version 0 and version 1 values are defined.
 
-#### Create Collection
-
-A create collection system event with version 0 or 1 has a key which is the name of
-the created collection.
-
-A create collection system event with version 0 contains a 16 byte value.
-A create collection system event with version 1 contains a 20 byte value.
-
-
-version 0:
+#### version 0
 * The ID of the manifest which generated the collection as a 8-byte integer (network endian)
 * The ID of the new collection as a 4-byte integer (network endian)
 * The Scope-ID that the new collection belongs to as a 4-byte integer (network endian)
 
-version 1:
-Contains version 0 +
+```
+    struct collection_create_event_data_version0 {
+        uint64_t manifest_uid;
+        uint32_t scope_id;
+        uint32_t collection_id;
+    }
+```
 
+#### version 1
+
+* The same data as version 0 and
 * The max_ttl value of the collection as 4-byte integer  (network endian)
 
 ```
-    struct collection_create_event_data_version0 {
-       uint64_t manifest_uid;
-       uint32_t scope_id;
-       uint32_t collection_id;
-    }
-
     struct collection_create_event_data_version1 {
-       uint64_t manifest_uid;
-       uint32_t scope_id;
-       uint32_t collection_id;
-       uint32_t max_ttl;
+        uint64_t manifest_uid;
+        uint32_t scope_id;
+        uint32_t collection_id;
+        uint32_t max_ttl;
     }
 ```
 
-#### Drop/Flush Collection
+### Drop/Flush Collection
 
-A drop or flush collection system event with version 0 contains:
+__Key__: A drop collection system event has no key.
+
+__Value__: A drop or flush collection system event with version 0 contains:
 
 * The ID of the manifest which dropped the collection as a 8-byte integer (network endian)
 * The ID of the dropped collection as a 4-byte integer (network endian)
 
-Note drop collection does not encode a collection name.
-
 ```
     struct collection_drop_event_data_version0 {
+        uint64_t manifest_uid;
+        uint32_t collection_id;
+    }
+```
+
+### Create Scope
+
+__Key__: A create scope system event has a key which is the name of the new scope.
+
+__Value__: Only version 0 value is defined.
+
+* The ID of the manifest which generated the collection as a 8-byte integer (network endian)
+* The ID of the new scope as a 4-byte integer (network endian)
+
+```
+    struct scope_create_event_data_version0 {
+        uint64_t manifest_uid;
+        uint32_t scope_id;
+    }
+```
+
+### Drop Scope
+
+__Key__: A drop scope system event has no key.
+
+__Value__: Only version 0 value is defined.
+
+* The ID of the manifest which dropped the collection as a 8-byte integer (network endian)
+* The ID of the dropped scope as a 4-byte integer (network endian)
+
+```
+    struct scope_drop_event_data_version0 {
        uint64_t manifest_uid;
-       uint32_t collection_id;
+       uint32_t scope_id;
     }
 ```
 

@@ -149,6 +149,17 @@ struct DropEventData {
     CollectionID cid; // The collection the event belongs to
 };
 
+struct CreateScopeEventData {
+    ManifestUid manifestUid; // The Manifest which generated the event
+    ScopeID sid; // The scope id
+    std::string name; // The scope name
+};
+
+struct DropScopeEventData {
+    ManifestUid manifestUid; // The Manifest which generated the event
+    ScopeID sid; // The scope the event belongs to
+};
+
 /**
  * All of the data a DCP create event message will transmit in the value of the
  * message. This is the layout to be used on the wire and is in the correct
@@ -210,6 +221,39 @@ struct DropEventDcpData {
     CollectionIDNetworkOrder cid;
     // The size is sizeof(manifestUid) + sizeof(cid) (msvc won't allow that
     // expression)
+    constexpr static size_t size{12};
+};
+
+/**
+ * All of the data a DCP create scope event message will transmit in the value
+ * of the message. This is the layout to be used on the wire and is in the
+ * correct byte order
+ */
+struct CreateScopeEventDcpData {
+    CreateScopeEventDcpData(const CreateScopeEventData& data)
+        : manifestUid(data.manifestUid), sid(data.sid) {
+    }
+    /// The manifest uid stored in network byte order ready for sending
+    ManifestUidNetworkOrder manifestUid;
+    /// The scope id stored in network byte order ready for sending
+    ScopeIDNetworkOrder sid;
+    constexpr static size_t size{12};
+};
+
+/**
+ * All of the data a DCP drop scope event message will transmit in the value of
+ * the message. This is the layout to be used on the wire and is in the correct
+ * byte order
+ */
+struct DropScopeEventDcpData {
+    DropScopeEventDcpData(const DropScopeEventData& data)
+        : manifestUid(data.manifestUid), sid(data.sid) {
+    }
+
+    /// The manifest uid stored in network byte order ready for sending
+    ManifestUidNetworkOrder manifestUid;
+    /// The collection id stored in network byte order ready for sending
+    ScopeIDNetworkOrder sid;
     constexpr static size_t size{12};
 };
 

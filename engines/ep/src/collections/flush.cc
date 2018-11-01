@@ -52,7 +52,7 @@ void Collections::VB::Flush::saveItemCounts(
 
 Collections::VB::PersistedManifest Collections::VB::Flush::getManifestData()
         const {
-    return Collections::VB::Manifest::patchSerialisedData(
+    return Collections::VB::Manifest::getPersistedManifest(
             *getCollectionsManifestItem());
 }
 

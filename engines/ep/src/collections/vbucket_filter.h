@@ -208,9 +208,20 @@ protected:
      */
     bool remove(const Item& item);
 
+    /**
+     * Called Item represents a collection system event
+     */
+    bool processCollectionEvent(const Item& item);
+
+    /**
+     * Called Item represents a scope system event
+     */
+    bool processScopeEvent(const Item& item);
+
     using Container = ::std::unordered_set<CollectionID>;
     Container filter;
     boost::optional<ScopeID> scopeID;
+    bool scopeIsDropped = false;
 
     bool defaultAllowed = false;
     bool passthrough = false;

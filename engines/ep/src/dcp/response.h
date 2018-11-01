@@ -622,6 +622,9 @@ public:
         if (SystemEvent(item->getFlags()) == SystemEvent::Collection) {
             rv = item->isDeleted() ? mcbp::systemevent::id::DeleteCollection
                                    : mcbp::systemevent::id::CreateCollection;
+        } else if (SystemEvent(item->getFlags()) == SystemEvent::Scope) {
+            rv = item->isDeleted() ? mcbp::systemevent::id::DropScope
+                                   : mcbp::systemevent::id::CreateScope;
         } else {
             throw std::logic_error("getSystemEvent incorrect event:" +
                                    std::to_string(item->getFlags()));
@@ -653,11 +656,11 @@ protected:
     queued_item item;
 };
 
-class CollectionsCreateProducerMessage : public SystemEventProducerMessage {
+class CollectionCreateProducerMessage : public SystemEventProducerMessage {
 public:
-    CollectionsCreateProducerMessage(uint32_t opaque,
-                                     const queued_item& itm,
-                                     const Collections::CreateEventData& data)
+    CollectionCreateProducerMessage(uint32_t opaque,
+                                    const queued_item& itm,
+                                    const Collections::CreateEventData& data)
         : SystemEventProducerMessage(opaque, itm),
           key(data.name),
           eventData{data} {
@@ -681,10 +684,10 @@ private:
     Collections::CreateEventDcpData eventData;
 };
 
-class CollectionsCreateWithMaxTtlProducerMessage
+class CollectionCreateWithMaxTtlProducerMessage
     : public SystemEventProducerMessage {
 public:
-    CollectionsCreateWithMaxTtlProducerMessage(
+    CollectionCreateWithMaxTtlProducerMessage(
             uint32_t opaque,
             const queued_item& itm,
             const Collections::CreateEventData& data)
@@ -711,11 +714,11 @@ private:
     Collections::CreateWithMaxTtlEventDcpData eventData;
 };
 
-class CollectionsDropProducerMessage : public SystemEventProducerMessage {
+class CollectionDropProducerMessage : public SystemEventProducerMessage {
 public:
-    CollectionsDropProducerMessage(uint32_t opaque,
-                                   const queued_item& itm,
-                                   const Collections::DropEventData& data)
+    CollectionDropProducerMessage(uint32_t opaque,
+                                  const queued_item& itm,
+                                  const Collections::DropEventData& data)
         : SystemEventProducerMessage(opaque, itm), eventData{data} {
     }
 
@@ -735,6 +738,60 @@ public:
 private:
     std::string key;
     Collections::DropEventDcpData eventData;
+};
+
+class ScopeCreateProducerMessage : public SystemEventProducerMessage {
+public:
+    ScopeCreateProducerMessage(uint32_t opaque,
+                               const queued_item& itm,
+                               const Collections::CreateScopeEventData& data)
+        : SystemEventProducerMessage(opaque, itm),
+          key(data.name),
+          eventData{data} {
+    }
+
+    cb::const_char_buffer getKey() const override {
+        return {key.data(), key.size()};
+    }
+
+    cb::const_byte_buffer getEventData() const override {
+        return {reinterpret_cast<const uint8_t*>(&eventData),
+                Collections::CreateScopeEventDcpData::size};
+    }
+
+    mcbp::systemevent::version getVersion() const override {
+        return mcbp::systemevent::version::version0;
+    }
+
+private:
+    std::string key;
+    Collections::CreateScopeEventDcpData eventData;
+};
+
+class ScopeDropProducerMessage : public SystemEventProducerMessage {
+public:
+    ScopeDropProducerMessage(uint32_t opaque,
+                             const queued_item& itm,
+                             const Collections::DropScopeEventData& data)
+        : SystemEventProducerMessage(opaque, itm), eventData{data} {
+    }
+
+    cb::const_char_buffer getKey() const override {
+        return {/* no key value for a drop event*/};
+    }
+
+    cb::const_byte_buffer getEventData() const override {
+        return {reinterpret_cast<const uint8_t*>(&eventData),
+                Collections::DropScopeEventDcpData::size};
+    }
+
+    mcbp::systemevent::version getVersion() const override {
+        return mcbp::systemevent::version::version0;
+    }
+
+private:
+    std::string key;
+    Collections::DropScopeEventDcpData eventData;
 };
 
 /**
@@ -797,7 +854,7 @@ public:
     }
 
     /**
-     * @return manifest uid which triggered the create or delete
+     * @return manifest uid which triggered the create
      */
     Collections::ManifestUid getManifestUid() const {
         const auto* dcpData =
@@ -828,11 +885,11 @@ public:
     }
 
     /**
-     * @return manifest uid which triggered the create or delete
+     * @return manifest uid which triggered the drop
      */
     Collections::ManifestUid getManifestUid() const {
         const auto* dcpData =
-                reinterpret_cast<const Collections::CreateEventDcpData*>(
+                reinterpret_cast<const Collections::DropEventDcpData*>(
                         event.getEventData().data());
         return dcpData->manifestUid.to_host();
     }
@@ -845,6 +902,58 @@ public:
                 reinterpret_cast<const Collections::DropEventDcpData*>(
                         event.getEventData().data());
         return dcpData->cid.to_host();
+    }
+};
+
+class CreateScopeEvent : public CollectionsEvent {
+public:
+    CreateScopeEvent(const SystemEventMessage& e)
+        : CollectionsEvent(e, Collections::CreateScopeEventDcpData::size) {
+    }
+
+    cb::const_char_buffer getKey() const {
+        return event.getKey();
+    }
+
+    ScopeID getScopeID() const {
+        const auto* dcpData =
+                reinterpret_cast<const Collections::CreateScopeEventDcpData*>(
+                        event.getEventData().data());
+        return dcpData->sid.to_host();
+    }
+
+    /**
+     * @return manifest uid which triggered the create
+     */
+    Collections::ManifestUid getManifestUid() const {
+        const auto* dcpData =
+                reinterpret_cast<const Collections::CreateScopeEventDcpData*>(
+                        event.getEventData().data());
+        return dcpData->manifestUid.to_host();
+    }
+};
+
+class DropScopeEvent : public CollectionsEvent {
+public:
+    DropScopeEvent(const SystemEventMessage& e)
+        : CollectionsEvent(e, Collections::DropScopeEventDcpData::size) {
+    }
+
+    /**
+     * @return manifest uid which triggered the drop
+     */
+    Collections::ManifestUid getManifestUid() const {
+        const auto* dcpData =
+                reinterpret_cast<const Collections::DropScopeEventDcpData*>(
+                        event.getEventData().data());
+        return dcpData->manifestUid.to_host();
+    }
+
+    ScopeID getScopeID() const {
+        const auto* dcpData =
+                reinterpret_cast<const Collections::DropScopeEventDcpData*>(
+                        event.getEventData().data());
+        return dcpData->sid.to_host();
     }
 };
 

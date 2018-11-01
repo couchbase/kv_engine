@@ -128,9 +128,10 @@ ProcessStatus SystemEventReplicate::process(const Item& item) {
 
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         uint32_t opaque, const queued_item& item) {
+    // Always ensure decompressed as we are about to use the value
+    item->decompressValue();
     switch (SystemEvent(item->getFlags())) {
-    case SystemEvent::Collection:
-    case SystemEvent::Scope: {
+    case SystemEvent::Collection: {
         if (!item->isDeleted()) {
             // Note: constructor is private and make_unique is a pain to make
             // friend
@@ -138,22 +139,39 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                     {item->getData(), item->getNBytes()});
             if (data.maxTtl) {
                 return std::unique_ptr<
-                        CollectionsCreateWithMaxTtlProducerMessage>{
-                        new CollectionsCreateWithMaxTtlProducerMessage(
+                        CollectionCreateWithMaxTtlProducerMessage>{
+                        new CollectionCreateWithMaxTtlProducerMessage(
                                 opaque, item, data)};
             } else {
-                return std::unique_ptr<CollectionsCreateProducerMessage>{
-                        new CollectionsCreateProducerMessage(
+                return std::unique_ptr<CollectionCreateProducerMessage>{
+                        new CollectionCreateProducerMessage(
                                 opaque, item, data)};
             }
         } else {
             // Note: constructor is private and make_unique is a pain to make
             // friend
-            return std::unique_ptr<CollectionsDropProducerMessage>{
-                    new CollectionsDropProducerMessage(
+            return std::unique_ptr<CollectionDropProducerMessage>{
+                    new CollectionDropProducerMessage(
                             opaque,
                             item,
                             Collections::VB::Manifest::getDropEventData(
+                                    {item->getData(), item->getNBytes()}))};
+        }
+    }
+    case SystemEvent::Scope: {
+        if (!item->isDeleted()) {
+            return std::unique_ptr<ScopeCreateProducerMessage>{
+                    new ScopeCreateProducerMessage(
+                            opaque,
+                            item,
+                            Collections::VB::Manifest::getCreateScopeEventData(
+                                    {item->getData(), item->getNBytes()}))};
+        } else {
+            return std::unique_ptr<ScopeDropProducerMessage>{
+                    new ScopeDropProducerMessage(
+                            opaque,
+                            item,
+                            Collections::VB::Manifest::getDropScopeEventData(
                                     {item->getData(), item->getNBytes()}))};
         }
     }

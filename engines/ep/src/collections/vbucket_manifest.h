@@ -28,8 +28,8 @@
 
 #include <functional>
 #include <mutex>
+#include <set>
 #include <unordered_map>
-#include <unordered_set>
 
 class VBucket;
 
@@ -177,7 +177,7 @@ public:
 
         void populateWithSerialisedData(
                 flatbuffers::FlatBufferBuilder& builder) const {
-            manifest.populateWithSerialisedData(builder);
+            manifest.populateWithSerialisedData(builder, {});
         }
 
         /**
@@ -458,6 +458,39 @@ public:
                     vb, manifestUid, cid, OptionalSeqno{endSeqno});
         }
 
+        /**
+         * Add a scope for a replica VB
+         *
+         * @param vb The vbucket to add the scope to
+         * @param manifestUid the uid of the manifest which made the change
+         * @param sid ScopeID of the new scope
+         * @param scopeName name of the added scope
+         * @param startSeqno The start-seqno assigned to the scope
+         */
+        void replicaAddScope(::VBucket& vb,
+                             ManifestUid manifestUid,
+                             ScopeID sid,
+                             cb::const_char_buffer scopeName,
+                             int64_t startSeqno) {
+            manifest.addScope(
+                    vb, manifestUid, sid, scopeName, OptionalSeqno{startSeqno});
+        }
+
+        /**
+         * Drop a scope for a replica VB
+         *
+         * @param vb The vbucket to drop the scope from
+         * @param manifestUid the uid of the manifest which made the change
+         * @param sid ScopeID to drop
+         * @param endSeqno The end-seqno assigned to the scope drop
+         */
+        void replicaDropScope(::VBucket& vb,
+                              ManifestUid manifestUid,
+                              ScopeID sid,
+                              int64_t endSeqno) {
+            manifest.dropScope(vb, manifestUid, sid, OptionalSeqno{endSeqno});
+        }
+
         /// @return iterator to the beginning of the underlying collection map
         container::iterator begin() {
             return manifest.begin();
@@ -522,20 +555,14 @@ public:
     }
 
     /**
-     * Return a patched PersistedManifest object cloned and mutated from the
-     * specified Item.
+     * Retrieve the data that can be used to recreate a VB::Manifest from the
+     * item, the item should be a collection system event (Collection/Scope)
      *
-     * The reason this is done is because when the Item was created and assigned
-     * flatbuffer data, the seqno for the start/end of the collection was not
-     * known, this call will patch the correct seqno into the created or dropped
-     * collection entry.
-     *
-     * @param collectionsEventItem an Item created to represent a collection
-     *        event. .
-     * @return The patched PersistedManifest which can be stored to disk.
+     * @param item An item representing a collection system event
+     * @return A PersistedManifest object which can be stored to disk for later
+     *         warmup or rollback purposes.
      */
-    static PersistedManifest patchSerialisedData(
-            const Item& collectionsEventItem);
+    static PersistedManifest getPersistedManifest(const Item& item);
 
     /**
      * Get the system event collection create data from a SystemEvent
@@ -563,6 +590,32 @@ public:
      *          serialisedManifest.
      */
     static DropEventData getDropEventData(
+            cb::const_char_buffer serialisedManifest);
+
+    /**
+     * Get the system event scope create data from a SystemEvent Item's value.
+     *
+     * @param serialisedManifest Serialised manifest data created by
+     *        ::populateWithSerialisedData
+     * @returns SystemEventData which carries all of the data which needs to be
+     *          marshalled into a DCP system event message. Inside the returned
+     *          object maybe sized_buffer objects which point into
+     *          serialisedManifest.
+     */
+    static CreateScopeEventData getCreateScopeEventData(
+            cb::const_char_buffer serialisedManifest);
+
+    /**
+     * Get the system event scope drop data from a SystemEvent Item's value.
+     *
+     * @param serialisedManifest Serialised manifest data created by
+     *        ::populateWithSerialisedData
+     * @returns SystemEventData which carries all of the data which needs to be
+     *          marshalled into a DCP system event message. Inside the returned
+     *          object maybe sized_buffer objects which point into
+     *          serialisedManifest.
+     */
+    static DropScopeEventData getDropScopeEventData(
             cb::const_char_buffer serialisedManifest);
 
     /**
@@ -598,10 +651,16 @@ public:
             OptionalSeqno seqno) const;
 
     // local struct for managing collection addition
-    struct Addition {
+    struct CollectionAddition {
         ScopeCollectionPair identifiers;
         std::string name;
         cb::ExpiryLimit maxTtl;
+    };
+
+    // local struct for managing scope addition
+    struct ScopeAddition {
+        ScopeID sid;
+        std::string name;
     };
 
 protected:
@@ -632,11 +691,17 @@ protected:
      * @param changes a vector of CollectionIDs to add/delete (based on update)
      * @return the last element of the changes vector
      */
-    boost::optional<Addition> applyCreates(::VBucket& vb,
-                                           std::vector<Addition>& changes);
+    boost::optional<CollectionAddition> applyCreates(
+            ::VBucket& vb, std::vector<CollectionAddition>& changes);
 
     boost::optional<CollectionID> applyDeletions(
             ::VBucket& vb, std::vector<CollectionID>& changes);
+
+    boost::optional<ScopeAddition> applyScopeCreates(
+            ::VBucket& vb, std::vector<ScopeAddition>& changes);
+
+    boost::optional<ScopeID> applyScopeDrops(::VBucket& vb,
+                                             std::vector<ScopeID>& changes);
 
     /**
      * Add a collection to the manifest.
@@ -662,7 +727,6 @@ protected:
      * @param vb The vbucket to begin collection deletion on.
      * @param manifestUid the uid of the manifest which made the change
      * @param cid CollectionID to begin delete
-     * @param revision manifest revision which started the deletion.
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
@@ -679,6 +743,36 @@ protected:
      * @param identifier The collection that has finished being deleted.
      */
     void completeDeletion(::VBucket& vb, CollectionID identifier);
+
+    /**
+     * Add a scope to the manifest.
+     *
+     * @param vb The vbucket to add the collection to.
+     * @param manifestUid the uid of the manifest which made the change
+     * @param sid ScopeID
+     * @param scopeName Name of the added scope
+     * @param optionalSeqno Either a seqno to assign to the new collection or
+     *        none (none means the checkpoint will assign a seqno).
+     */
+    void addScope(::VBucket& vb,
+                  ManifestUid manifestUid,
+                  ScopeID sid,
+                  cb::const_char_buffer scopeName,
+                  OptionalSeqno optionalSeqno);
+
+    /**
+     * Drop a scope
+     *
+     * @param vb The vbucket to drop the scope from
+     * @param manifestUid the uid of the manifest which made the change
+     * @param sid ScopeID to drop
+     * @param optionalSeqno Either a seqno to assign to the drop of the
+     *        scope or none (none means the checkpoint will assign the seqno)
+     */
+    void dropScope(::VBucket& vb,
+                   ManifestUid manifestUid,
+                   ScopeID sid,
+                   OptionalSeqno optionalSeqno);
 
     /**
      * Does the key contain a valid collection?
@@ -884,9 +978,9 @@ protected:
      * the bucket manifest.
      */
     struct ManifestChanges {
-        std::vector<ScopeID> scopesToAdd;
+        std::vector<ScopeAddition> scopesToAdd;
         std::vector<ScopeID> scopesToRemove;
-        std::vector<Addition> collectionsToAdd;
+        std::vector<CollectionAddition> collectionsToAdd;
         std::vector<CollectionID> collectionsToRemove;
     };
 
@@ -934,7 +1028,7 @@ protected:
      * @param builder FlatBuffer builder for serialisation.
      * @param identifiers ScopeID/CollectionID pair of the mutated collection
      * @param collectionName The name of the collection, valid for create
-     * collection only
+     *        collection only
      */
     void populateWithSerialisedData(flatbuffers::FlatBufferBuilder& builder,
                                     ScopeCollectionPair identifiers,
@@ -945,9 +1039,11 @@ protected:
      * iterate of the map and copy into the builder
      *
      * @param builder FlatBuffer builder for serialisation.
+     * @param mutatedName A string to serialise into the flatbuffer mutatedName
+     *        field(can be empty)
      */
-    void populateWithSerialisedData(
-            flatbuffers::FlatBufferBuilder& builder) const;
+    void populateWithSerialisedData(flatbuffers::FlatBufferBuilder& builder,
+                                    cb::const_char_buffer mutatedName) const;
 
     /**
      * Update greatestEndSeqno if the seqno is larger
@@ -964,6 +1060,49 @@ protected:
      * @return the keyExtra parameter to be passed to SystemEventFactory
      */
     static std::string makeCollectionIdIntoString(CollectionID collection);
+
+    /**
+     * For creation of scope SystemEvents - The SystemEventFactory
+     * glues the ScopeID into the event key (so create of x doesn't
+     * collide with create of y). This method yields the 'keyExtra' parameter
+     *
+     * @param sid The ScopeId to turn into a string
+     * @return the keyExtra parameter to be passed to SystemEventFactory
+     */
+    static std::string makeScopeIdIntoString(ScopeID sid);
+
+    /**
+     * Return a patched PersistedManifest object cloned and mutated from the
+     * specified Item, the Item must represent a Collection event (a create or
+     * drop)
+     *
+     * The reason this is done is because when the Item was created and assigned
+     * flatbuffer data, the seqno for the start/end of the collection was not
+     * known, this call will patch the correct seqno into the created or dropped
+     * collection entry.
+     *
+     * @param item an Item created by manifest changes.
+     * @return The patched PersistedManifest which can be stored to disk.
+     */
+    static PersistedManifest patchSerialisedDataForCollectionEvent(
+            const Item& item);
+
+    /**
+     * Return a patched PersistedManifest object cloned and mutated from the
+     * specified Item, the Item must represent a Scope event (a create or drop)
+     *
+     * The data in the item still contains the ID of the dropped scope, which
+     * is used by DCP, however when using that same data for the vbucket
+     * persisted metadata, it may need a tweak.
+     *
+     * If the item represents a Scope drop, we need to ensure the metadata no
+     * longer contains the dropped scope, so warmup from this metadata doesn't
+     * bring the scope back to life.
+     *
+     * @param item an Item created by manifest changes.
+     * @return The patched PersistedManifest which can be stored to disk.
+     */
+    static PersistedManifest patchSerialisedDataForScopeEvent(const Item& item);
 
     /**
      * Return a string for use in throwException, returns:
@@ -996,9 +1135,18 @@ protected:
     container map;
 
     /**
-     * The current set of scopes
+     * The current scopes.
+     *
+     * A std::list is chosen as we need insertion order and reasonably easy
+     * way to remove elements, overall the list should never exceed the
+     * scopes_max_size config variable so we can tolerate a few O(n) operations
+     * when working with create/drop scope.
+     *
+     * Note the insertion order is assumed by populateWithSerialisedData (and
+     * readers of the serialised data). The assumption is that the last mutated
+     * (created or dropped) scope is at the back().
      */
-    std::unordered_set<ScopeID> scopes;
+    std::list<ScopeID> scopes;
 
     /**
      * Does the current set contain the default collection?
