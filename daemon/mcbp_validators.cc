@@ -600,11 +600,6 @@ static Status verbosity_validator(Cookie& cookie) {
 }
 
 static Status hello_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_no_extras*>(
-            cookie.getPacketAsVoidPtr());
-    uint32_t len = ntohl(req->message.header.request.bodylen);
-    len -= ntohs(req->message.header.request.keylen);
-
     if (!verify_header(cookie,
                        0,
                        ExpectedKeyLen::Any,
@@ -613,7 +608,10 @@ static Status hello_validator(Cookie& cookie) {
                        PROTOCOL_BINARY_RAW_BYTES)) {
         return Status::Einval;
     }
-    if ((len % 2) != 0) {
+
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto value = req.getValue();
+    if ((value.size() % 2) != 0) {
         cookie.setErrorContext("Request value must be of even length");
         return Status::Einval;
     }

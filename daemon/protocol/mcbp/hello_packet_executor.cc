@@ -129,19 +129,18 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
 
 void process_hello_packet_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_hello*>(
-            cookie.getPacketAsVoidPtr());
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     std::string log_buffer;
     log_buffer.reserve(512);
     log_buffer.append("HELO ");
 
+    auto keybuf = req.getKey();
     const cb::const_char_buffer key{
-        reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes)),
-        ntohs(req->message.header.request.keylen)};
-
+            reinterpret_cast<const char*>(keybuf.data()), keybuf.size()};
+    auto valuebuf = req.getValue();
     const cb::sized_buffer<const uint16_t> input{
-        reinterpret_cast<const uint16_t*>(key.data() + key.size()),
-        (ntohl(req->message.header.request.bodylen) - key.size()) / 2};
+            reinterpret_cast<const uint16_t*>(valuebuf.data()),
+            valuebuf.size() / 2};
 
     std::vector<uint16_t> out;
 
