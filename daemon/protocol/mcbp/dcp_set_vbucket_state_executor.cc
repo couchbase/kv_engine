@@ -27,12 +27,12 @@ void dcp_set_vbucket_state_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
-        const auto* req = reinterpret_cast<
-                const protocol_binary_request_dcp_set_vbucket_state*>(&request);
-        auto state = (vbucket_state_t)req->message.body.state;
-        ret = dcpSetVbucketState(
-                cookie, request.getOpaque(), request.getVBucket(), state);
+        auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        auto state = request.getExtdata()[0];
+        ret = dcpSetVbucketState(cookie,
+                                 request.getOpaque(),
+                                 request.getVBucket(),
+                                 vbucket_state_t(state));
     }
 
     ret = connection.remapErrorCode(ret);
