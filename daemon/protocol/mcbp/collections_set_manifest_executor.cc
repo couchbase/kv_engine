@@ -26,13 +26,10 @@ void collections_set_manifest_executor(Cookie& cookie) {
 
     if (ret == ENGINE_SUCCESS) {
         auto& connection = cookie.getConnection();
-        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-        const auto* req = reinterpret_cast<
-                const protocol_binary_collections_set_manifest*>(packet.data());
-        const uint32_t valuelen = ntohl(req->message.header.request.bodylen);
+        auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        auto val = req.getValue();
         cb::const_char_buffer jsonBuffer{
-                reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes)),
-                valuelen};
+                reinterpret_cast<const char*>(val.data()), val.size()};
         ret = ENGINE_ERROR_CODE(
                 connection.getBucketEngine()
                         ->collections
