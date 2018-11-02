@@ -697,9 +697,8 @@ static Status noop_validator(Cookie& cookie) {
 }
 
 static Status flush_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_no_extras*>(
-            cookie.getPacketAsVoidPtr());
-    uint8_t extlen = req->message.header.request.extlen;
+    auto& header = cookie.getHeader();
+    uint8_t extlen = header.getExtlen();
 
     if (extlen != 0 && extlen != 4) {
         cookie.setErrorContext("Request extras must be of length 0 or 4");
@@ -716,9 +715,9 @@ static Status flush_validator(Cookie& cookie) {
     }
 
     if (extlen == 4) {
-        auto* req = reinterpret_cast<protocol_binary_request_flush*>(
-                cookie.getPacketAsVoidPtr());
-        if (req->message.body.expiration != 0) {
+        auto& req = header.getRequest();
+        auto extdata = req.getExtdata();
+        if (*reinterpret_cast<const uint32_t*>(extdata.data()) != 0) {
             cookie.setErrorContext("Delayed flush no longer supported");
             return Status::NotSupported;
         }
