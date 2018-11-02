@@ -239,10 +239,8 @@ struct mock_engine : public EngineIface, public DcpIface {
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
                               uint32_t opaque,
-                              const void* key,
-                              uint16_t nkey,
-                              const void* value,
-                              uint32_t nvalue) override;
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
 
     ENGINE_ERROR_CODE response_handler(
             gsl::not_null<const void*> cookie,
@@ -837,11 +835,9 @@ ENGINE_ERROR_CODE mock_engine::noop(gsl::not_null<const void*> cookie,
 
 ENGINE_ERROR_CODE mock_engine::control(gsl::not_null<const void*> cookie,
                                        uint32_t opaque,
-                                       const void* key,
-                                       uint16_t nkey,
-                                       const void* value,
-                                       uint32_t nvalue) {
-    return the_engine_dcp->control(cookie, opaque, key, nkey, value, nvalue);
+                                       cb::const_char_buffer key,
+                                       cb::const_char_buffer value) {
+    return the_engine_dcp->control(cookie, opaque, key, value);
 }
 
 ENGINE_ERROR_CODE mock_engine::buffer_acknowledgement(

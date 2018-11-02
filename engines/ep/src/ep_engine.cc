@@ -1669,14 +1669,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::buffer_acknowledgement(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::control(
         gsl::not_null<const void*> cookie,
         uint32_t opaque,
-        const void* key,
-        uint16_t nkey,
-        const void* value,
-        uint32_t nvalue) {
+        cb::const_char_buffer key,
+        cb::const_char_buffer value) {
     auto engine = acquireEngine(this);
     ConnHandler* conn = engine->getConnHandler(cookie);
     if (conn) {
-        return conn->control(opaque, key, nkey, value, nvalue);
+        return conn->control(opaque, key, value);
     }
     return ENGINE_DISCONNECT;
 }

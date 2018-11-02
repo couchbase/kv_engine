@@ -731,15 +731,15 @@ ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
-                                       uint16_t nkey, const void* value,
-                                       uint32_t nvalue) {
+ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque,
+                                       cb::const_char_buffer key,
+                                       cb::const_char_buffer value) {
     lastReceiveTime = ep_current_time();
-    const char* param = static_cast<const char*>(key);
-    std::string keyStr(static_cast<const char*>(key), nkey);
-    std::string valueStr(static_cast<const char*>(value), nvalue);
+    const char* param = key.data();
+    std::string keyStr(key.data(), key.size());
+    std::string valueStr(value.data(), value.size());
 
-    if (strncmp(param, "connection_buffer_size", nkey) == 0) {
+    if (strncmp(param, "connection_buffer_size", key.size()) == 0) {
         uint32_t size;
         if (parseUint32(valueStr.c_str(), &size)) {
             /* Size 0 implies the client (DCP consumer) does not support
@@ -747,26 +747,26 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             log.setBufferSize(size);
             return ENGINE_SUCCESS;
         }
-    } else if (strncmp(param, "stream_buffer_size", nkey) == 0) {
+    } else if (strncmp(param, "stream_buffer_size", key.size()) == 0) {
         logger->warn(
                 "The ctrl parameter stream_buffer_size is"
                 "not supported by this engine");
         return ENGINE_ENOTSUP;
-    } else if (strncmp(param, "enable_noop", nkey) == 0) {
+    } else if (strncmp(param, "enable_noop", key.size()) == 0) {
         if (valueStr == "true") {
             noopCtx.enabled = true;
         } else {
             noopCtx.enabled = false;
         }
         return ENGINE_SUCCESS;
-    } else if (strncmp(param, "enable_ext_metadata", nkey) == 0) {
+    } else if (strncmp(param, "enable_ext_metadata", key.size()) == 0) {
         if (valueStr == "true") {
             enableExtMetaData = true;
         } else {
             enableExtMetaData = false;
         }
         return ENGINE_SUCCESS;
-    } else if (strncmp(param, "force_value_compression", nkey) == 0) {
+    } else if (strncmp(param, "force_value_compression", key.size()) == 0) {
         if (!engine_.isDatatypeSupported(getCookie(),
                                PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
             engine_.setErrorContext(getCookie(), "The ctrl parameter "
@@ -789,10 +789,10 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             supportsCursorDropping = false;
         }
         return ENGINE_SUCCESS;
-    } else if (strncmp(param, "supports_hifi_MFU", nkey) == 0) {
+    } else if (strncmp(param, "supports_hifi_MFU", key.size()) == 0) {
         supportsHifiMFU = (valueStr == "true");
         return ENGINE_SUCCESS;
-    } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
+    } else if (strncmp(param, "set_noop_interval", key.size()) == 0) {
         uint32_t noopInterval;
         if (parseUint32(valueStr.c_str(), &noopInterval)) {
             /*
@@ -818,7 +818,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
                 return ENGINE_EINVAL;
             }
         }
-    } else if(strncmp(param, "set_priority", nkey) == 0) {
+    } else if (strncmp(param, "set_priority", key.size()) == 0) {
         if (valueStr == "high") {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_HIGH);
             return ENGINE_SUCCESS;
@@ -838,7 +838,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
            This is a one time setting and there is no point giving the client an
            option to toggle it back mid way during the connection */
         return ENGINE_SUCCESS;
-    } else if (strncmp(param, "enable_expiry_opcode", nkey) == 0) {
+    } else if (strncmp(param, "enable_expiry_opcode", key.size()) == 0) {
         if (valueStr == "true") {
             // Expiry opcode uses the same encoding as deleteV2 (includes
             // delete time); therefore a client enabling expiry_opcode also

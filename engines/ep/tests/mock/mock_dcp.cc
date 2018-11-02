@@ -319,16 +319,15 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::buffer_acknowledgement(
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE MockDcpMessageProducers::control(uint32_t opaque,
-                                                   const void* key,
-                                                   uint16_t nkey,
-                                                   const void* value,
-                                                   uint32_t nvalue) {
+ENGINE_ERROR_CODE MockDcpMessageProducers::control(
+        uint32_t opaque,
+        cb::const_char_buffer key,
+        cb::const_char_buffer value) {
     clear_dcp_data();
     dcp_last_op = cb::mcbp::ClientOpcode::DcpControl;
     dcp_last_opaque = opaque;
-    dcp_last_key.assign(static_cast<const char*>(key), nkey);
-    dcp_last_value.assign(static_cast<const char*>(value), nvalue);
+    dcp_last_key.assign(key.data(), key.size());
+    dcp_last_value.assign(value.data(), value.size());
     return ENGINE_SUCCESS;
 }
 

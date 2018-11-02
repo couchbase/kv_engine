@@ -2015,41 +2015,39 @@ ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE Connection::control(uint32_t opaque,
-                                      const void* key,
-                                      uint16_t nkey,
-                                      const void* value,
-                                      uint32_t nvalue) {
+                                      cb::const_char_buffer key,
+                                      cb::const_char_buffer value) {
     auto& c = *this;
     protocol_binary_request_dcp_control packet = {};
     auto& req = packet.message.header.request;
     req.setMagic(cb::mcbp::Magic::ClientRequest);
     req.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-    req.setKeylen(nkey);
-    req.setBodylen(nvalue + nkey);
+    req.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    req.setBodylen(gsl::narrow<uint32_t>(value.size() + key.size()));
     req.setOpaque(opaque);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c.write->produce([&c, &packet, &key, &nkey, &value, &nvalue, &ret](
-                             void* ptr, size_t size) -> size_t {
-        if (size < (sizeof(packet.bytes) + nkey + nvalue)) {
+    c.write->produce([&c, &packet, &key, &value, &ret](void* ptr,
+                                                       size_t size) -> size_t {
+        if (size < (sizeof(packet.bytes) + key.size() + value.size())) {
             ret = ENGINE_E2BIG;
             return 0;
         }
 
         std::copy(packet.bytes,
                   packet.bytes + sizeof(packet.bytes),
-                  static_cast<uint8_t*>(ptr));
+                  static_cast<char*>(ptr));
 
-        std::copy(static_cast<const uint8_t*>(key),
-                  static_cast<const uint8_t*>(key) + nkey,
-                  static_cast<uint8_t*>(ptr) + sizeof(packet.bytes));
+        std::copy(key.begin(),
+                  key.end(),
+                  static_cast<char*>(ptr) + sizeof(packet.bytes));
 
-        std::copy(static_cast<const uint8_t*>(value),
-                  static_cast<const uint8_t*>(value) + nvalue,
-                  static_cast<uint8_t*>(ptr) + sizeof(packet.bytes) + nkey);
+        std::copy(value.begin(),
+                  value.end(),
+                  static_cast<char*>(ptr) + sizeof(packet.bytes) + key.size());
 
-        c.addIov(ptr, sizeof(packet.bytes) + nkey + nvalue);
-        return sizeof(packet.bytes) + nkey + nvalue;
+        c.addIov(ptr, sizeof(packet.bytes) + key.size() + value.size());
+        return sizeof(packet.bytes) + key.size() + value.size();
     });
 
     return ret;

@@ -281,12 +281,7 @@ private:
 ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
         const std::string& name, const std::string& value) {
     auto dcp = requireDcpIface(h);
-    return dcp->control(cookie,
-                        ++opaque,
-                        name.c_str(),
-                        name.size(),
-                        value.c_str(),
-                        value.size());
+    return dcp->control(cookie, ++opaque, name, value);
 }
 
 void TestDcpConsumer::run(bool openConn) {
@@ -599,9 +594,7 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
             dcp->control(cookie,
                          ++opaque,
                          "connection_buffer_size",
-                         22,
-                         flow_control_buf_sz.c_str(),
-                         flow_control_buf_sz.length()),
+                         flow_control_buf_sz),
             "Failed to establish connection buffer");
     char stats_buffer[50] = {0};
     if (flow_control_buf_size) {
@@ -619,8 +612,7 @@ void TestDcpConsumer::openConnection(uint32_t flags) {
     }
 
     checkeq(ENGINE_SUCCESS,
-            dcp->control(
-                    cookie, ++opaque, "enable_ext_metadata", 19, "true", 4),
+            dcp->control(cookie, ++opaque, "enable_ext_metadata", "true"),
             "Failed to enable xdcr extras");
 }
 
@@ -1727,22 +1719,12 @@ static enum test_result test_dcp_noop(EngineIface* h) {
     const std::string param1_name("connection_buffer_size");
     const std::string param1_value("1024");
     checkeq(ENGINE_SUCCESS,
-            dcp->control(cookie,
-                         ++opaque,
-                         param1_name.c_str(),
-                         param1_name.size(),
-                         param1_value.c_str(),
-                         param1_value.size()),
+            dcp->control(cookie, ++opaque, param1_name, param1_value),
             "Failed to establish connection buffer");
     const std::string param2_name("enable_noop");
     const std::string param2_value("true");
     checkeq(ENGINE_SUCCESS,
-            dcp->control(cookie,
-                         ++opaque,
-                         param2_name.c_str(),
-                         param2_name.size(),
-                         param2_value.c_str(),
-                         param2_value.size()),
+            dcp->control(cookie, ++opaque, param2_name, param2_value),
             "Failed to enable no-ops");
 
     testHarness->time_travel(201);
@@ -1792,22 +1774,12 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
     const std::string param1_name("connection_buffer_size");
     const std::string param1_value("1024");
     checkeq(ENGINE_SUCCESS,
-            dcp->control(cookie,
-                         ++opaque,
-                         param1_name.c_str(),
-                         param1_name.size(),
-                         param1_value.c_str(),
-                         param1_value.size()),
+            dcp->control(cookie, ++opaque, param1_name, param1_value),
             "Failed to establish connection buffer");
     const std::string param2_name("enable_noop");
     const std::string param2_value("true");
     checkeq(ENGINE_SUCCESS,
-            dcp->control(cookie,
-                         ++opaque,
-                         param2_name.c_str(),
-                         param2_name.size(),
-                         param2_value.c_str(),
-                         param2_value.size()),
+            dcp->control(cookie, ++opaque, param2_name, param2_value),
             "Failed to enable no-ops");
 
     testHarness->time_travel(201);
@@ -4197,8 +4169,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->control(
-                    cookie, ++opaque, "connection_buffer_size", 22, "0", 1),
+            dcp->control(cookie, ++opaque, "connection_buffer_size", "0"),
             "Failed to establish connection buffer");
     snprintf(status_buffer, sizeof(status_buffer),
              "eq_dcpq:%s:flow_control", name);
@@ -4206,8 +4177,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->control(
-                    cookie, ++opaque, "connection_buffer_size", 22, "512", 4),
+            dcp->control(cookie, ++opaque, "connection_buffer_size", "512"),
             "Failed to establish connection buffer");
 
     snprintf(stats_buffer, sizeof(stats_buffer),
@@ -4218,8 +4188,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
             "Buffer Size did not get set");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->control(
-                    cookie, ++opaque, "connection_buffer_size", 22, "1024", 4),
+            dcp->control(cookie, ++opaque, "connection_buffer_size", "1024"),
             "Failed to establish connection buffer");
 
     checkeq(1024,
@@ -4228,8 +4197,7 @@ static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
 
     /* Set flow control buffer size to zero which implies disable it */
     checkeq(ENGINE_SUCCESS,
-            dcp->control(
-                    cookie, ++opaque, "connection_buffer_size", 22, "0", 1),
+            dcp->control(cookie, ++opaque, "connection_buffer_size", "0"),
             "Failed to establish connection buffer");
     status = get_str_stat(h, status_buffer, "dcp");
     checkeq(0, status.compare("disabled"), "Flow control enabled!");
@@ -5641,13 +5609,8 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     checkeq(ENGINE_SUCCESS,
-            dcp->control(cookie,
-                         ++opaque,
-                         "connection_buffer_size",
-                         strlen("connection_buffer_size"),
-                         "1024",
-                         4),
-          "Failed to establish connection buffer");
+            dcp->control(cookie, ++opaque, "connection_buffer_size", "1024"),
+            "Failed to establish connection buffer");
 
     MockDcpMessageProducers producers(h);
     for (int i = 0; i < streams; i++) {

@@ -105,10 +105,8 @@ public:
                                              Vbid vbucket,
                                              uint32_t buffer_bytes) override;
     ENGINE_ERROR_CODE control(uint32_t opaque,
-                              const void* key,
-                              uint16_t nkey,
-                              const void* value,
-                              uint32_t nvalue) override;
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
     ENGINE_ERROR_CODE get_error_map(uint32_t opaque, uint16_t version) override;
     // Change the status code returned from mutation() to the specified value.
     void setMutationStatus(ENGINE_ERROR_CODE code);

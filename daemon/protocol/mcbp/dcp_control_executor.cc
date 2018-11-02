@@ -31,15 +31,15 @@ void dcp_control_executor(Cookie& cookie) {
         ret = mcbp::haveDcpPrivilege(cookie);
 
         if (ret == ENGINE_SUCCESS) {
-            const auto& header = cookie.getHeader();
-            const auto* req = reinterpret_cast<
-                    const protocol_binary_request_dcp_control*>(&header);
-            const uint8_t* key = req->bytes + sizeof(req->bytes);
-            uint16_t nkey = ntohs(req->message.header.request.keylen);
-            const uint8_t* value = key + nkey;
-            uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
+            const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+            const auto key = req.getKey();
+            const auto val = req.getValue();
+
             ret = dcpControl(
-                    cookie, header.getOpaque(), key, nkey, value, nvalue);
+                    cookie,
+                    req.getOpaque(),
+                    {reinterpret_cast<const char*>(key.data()), key.size()},
+                    {reinterpret_cast<const char*>(val.data()), val.size()});
         }
     }
 

@@ -60,11 +60,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
             uint64_t opaque = consumerConn->incrOpaqueCounter();
             const std::string &controlMsgKey = consumerConn->getControlMsgKey();
             NonBucketAllocationGuard guard;
-            ret = producers->control(opaque,
-                                     controlMsgKey.c_str(),
-                                     controlMsgKey.length(),
-                                     buf_size.c_str(),
-                                     buf_size.length());
+            ret = producers->control(opaque, controlMsgKey, buf_size);
             return ret;
         } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
             lh.unlock();

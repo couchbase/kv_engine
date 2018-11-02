@@ -216,11 +216,7 @@ protected:
         // Now set any controls before creating any streams
         for (const auto& control : controls) {
             EXPECT_EQ(ENGINE_SUCCESS,
-                      producer->control(0,
-                                        control.first.c_str(),
-                                        control.first.size(),
-                                        control.second.c_str(),
-                                        control.second.size()));
+                      producer->control(0, control.first, control.second));
         }
     }
 
@@ -490,11 +486,7 @@ TEST_P(StreamTest, validate_compression_control_message_denied) {
 
     // Sending a control message without actually enabling SNAPPY must fail
     EXPECT_EQ(ENGINE_EINVAL,
-              producer->control(0,
-                                compressCtrlMsg.c_str(),
-                                compressCtrlMsg.size(),
-                                compressCtrlValue.c_str(),
-                                compressCtrlValue.size()));
+              producer->control(0, compressCtrlMsg, compressCtrlValue));
     destroy_dcp_stream();
 }
 
@@ -509,11 +501,7 @@ TEST_P(StreamTest, validate_compression_control_message_allowed) {
 
     // Sending a control message after enabling SNAPPY should succeed
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->control(0,
-                                compressCtrlMsg.c_str(),
-                                compressCtrlMsg.size(),
-                                compressCtrlValue.c_str(),
-                                compressCtrlValue.size()));
+              producer->control(0, compressCtrlMsg, compressCtrlValue));
     destroy_dcp_stream();
 }
 
@@ -841,10 +829,8 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
 
     mock_set_datatype_support(producer->getCookie(), PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
-    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
-                                                compressCtrlMsg.size(),
-                                                compressCtrlValue.c_str(),
-                                                compressCtrlValue.size()));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->control(0, compressCtrlMsg, compressCtrlValue));
     ASSERT_TRUE(producer->isForceValueCompressionEnabled());
 
     store_item(vbid, "key1", compressibleValue.c_str());
@@ -922,10 +908,8 @@ TEST_P(StreamTest, test_verifyProducerCompressionStats) {
      * by exactly the same amount
      */
     compressCtrlValue.assign("false");
-    ASSERT_EQ(ENGINE_SUCCESS, producer->control(0, compressCtrlMsg.c_str(),
-                                                compressCtrlMsg.size(),
-                                                compressCtrlValue.c_str(),
-                                                compressCtrlValue.size()));
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->control(0, compressCtrlMsg, compressCtrlValue));
     mock_set_datatype_support(producer->getCookie(),
                               PROTOCOL_BINARY_RAW_BYTES);
 
@@ -1950,12 +1934,7 @@ TEST_P(ConnectionTest, test_mb19955) {
                                                       "test_producer",
                                                       /*flags*/ 0);
     // "1" is not a multiple of "2" and so we should return ENGINE_EINVAL
-    EXPECT_EQ(ENGINE_EINVAL,
-              producer->control(0,
-                                "set_noop_interval",
-                                sizeof("set_noop_interval"),
-                                "1",
-                                sizeof("1")))
+    EXPECT_EQ(ENGINE_EINVAL, producer->control(0, "set_noop_interval", "1"))
             << "Expected producer.control to return ENGINE_EINVAL";
     destroy_mock_cookie(cookie);
 }
@@ -2283,12 +2262,9 @@ TEST_P(ConnectionTest, test_producer_stream_end_on_client_close_stream) {
             "send_stream_end_on_client_close_stream");
     const std::string sendStreamEndOnClientStreamCloseCtrlValue("true");
     EXPECT_EQ(ENGINE_SUCCESS,
-              producer->control(
-                      0,
-                      sendStreamEndOnClientStreamCloseCtrlMsg.c_str(),
-                      sendStreamEndOnClientStreamCloseCtrlMsg.size(),
-                      sendStreamEndOnClientStreamCloseCtrlValue.c_str(),
-                      sendStreamEndOnClientStreamCloseCtrlValue.size()));
+              producer->control(0,
+                                sendStreamEndOnClientStreamCloseCtrlMsg,
+                                sendStreamEndOnClientStreamCloseCtrlValue));
 
     /* Open stream */
     uint64_t rollbackSeqno = 0;
@@ -2415,11 +2391,7 @@ TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
     const std::string unkownCtrlMsg("unknown");
     const std::string unkownCtrlValue("blah");
     EXPECT_EQ(ENGINE_EINVAL,
-              producer->control(0,
-                                unkownCtrlMsg.c_str(),
-                                unkownCtrlMsg.size(),
-                                unkownCtrlValue.c_str(),
-                                unkownCtrlValue.size()));
+              producer->control(0, unkownCtrlMsg, unkownCtrlValue));
     destroy_mock_cookie(cookie);
 }
 

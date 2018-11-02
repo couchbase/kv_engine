@@ -82,8 +82,9 @@ public:
                                             Vbid vbucket,
                                             uint32_t buffer_bytes) override;
 
-    ENGINE_ERROR_CODE control(uint32_t opaque, const void* key, uint16_t nkey,
-                              const void* value, uint32_t nvalue) override;
+    ENGINE_ERROR_CODE control(uint32_t opaque,
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
 
     /**
      * Sub-classes must implement a method that processes a response

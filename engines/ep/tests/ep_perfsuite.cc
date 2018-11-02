@@ -908,12 +908,8 @@ static void perf_dcp_client(EngineIface* h,
             ENGINE_SUCCESS,
             "Failed dcp producer open connection");
 
-    checkeq(dcp.control(cookie,
-                        ++streamOpaque,
-                        "connection_buffer_size",
-                        strlen("connection_buffer_size"),
-                        "1024",
-                        4),
+    checkeq(dcp.control(
+                    cookie, ++streamOpaque, "connection_buffer_size", "1024"),
             ENGINE_SUCCESS,
             "Failed to establish connection buffer");
 
@@ -924,9 +920,7 @@ static void perf_dcp_client(EngineIface* h,
         checkeq(dcp.control(cookie,
                             ++streamOpaque,
                             "force_value_compression",
-                            strlen("force_value_compression"),
-                            "true",
-                            4),
+                            "true"),
                 ENGINE_SUCCESS,
                 "Failed to force value compression");
     }

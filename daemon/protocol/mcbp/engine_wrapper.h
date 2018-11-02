@@ -166,17 +166,13 @@ ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie, uint32_t opaque, Vbid vbid);
  * @param cookie The cookie representing the connection
  * @param opaque The opaque field in the received message
  * @param key The parameter to set
- * @param keySize The size of the key
  * @param value The value to set
- * @param valueSize The size of the value
  * @return ENGINE_ERROR_CODE
  */
 ENGINE_ERROR_CODE dcpControl(Cookie& cookie,
                              uint32_t opaque,
-                             const void* key,
-                             uint16_t keySize,
-                             const void* value,
-                             uint32_t valueSize);
+                             cb::const_char_buffer key,
+                             cb::const_char_buffer val);
 
 /**
  * Calls the underlying engine DCP deletion

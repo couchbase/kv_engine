@@ -834,10 +834,8 @@ public:
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
                               uint32_t opaque,
-                              const void* key,
-                              uint16_t nkey,
-                              const void* value,
-                              uint32_t nvalue) override;
+                              cb::const_char_buffer key,
+                              cb::const_char_buffer value) override;
 
     ENGINE_ERROR_CODE response_handler(
             gsl::not_null<const void*> cookie,
@@ -1594,15 +1592,12 @@ ENGINE_ERROR_CODE EWB_Engine::buffer_acknowledgement(
 
 ENGINE_ERROR_CODE EWB_Engine::control(gsl::not_null<const void*> cookie,
                                       uint32_t opaque,
-                                      const void* key,
-                                      uint16_t nkey,
-                                      const void* value,
-                                      uint32_t nvalue) {
+                                      cb::const_char_buffer key,
+                                      cb::const_char_buffer value) {
     if (!real_engine_dcp) {
         return ENGINE_ENOTSUP;
     } else {
-        return real_engine_dcp->control(
-                cookie, opaque, key, nkey, value, nvalue);
+        return real_engine_dcp->control(cookie, opaque, key, value);
     }
 }
 

@@ -337,10 +337,8 @@ public:
 
     ENGINE_ERROR_CODE control(gsl::not_null<const void*>,
                               uint32_t,
-                              const void*,
-                              uint16_t,
-                              const void*,
-                              uint32_t) override {
+                              cb::const_char_buffer,
+                              cb::const_char_buffer) override {
         return ENGINE_NO_BUCKET;
     }
 

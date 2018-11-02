@@ -232,18 +232,14 @@ struct dcp_message_producers {
      *
      * @param opaque what to use as the opaque in the buffer
      * @param key the identifier for the property to set
-     * @param nkey the number of bytes in the key
      * @param value The value for the property (the layout of the
      *              value is defined for the key)
-     * @paran nvalue The size of the value
      *
      * @return ENGINE_SUCCESS upon success
      */
     virtual ENGINE_ERROR_CODE control(uint32_t opaque,
-                                      const void* key,
-                                      uint16_t nkey,
-                                      const void* value,
-                                      uint32_t nvalue) = 0;
+                                      cb::const_char_buffer key,
+                                      cb::const_char_buffer value) = 0;
 
     /**
      * Send a system event message to the other end
@@ -556,18 +552,14 @@ struct MEMCACHED_PUBLIC_CLASS DcpIface {
      *
      * @param cookie The cookie representing the connection
      * @param opaque The opaque field in the message (identifying the stream)
-     * @param key The control message name (ptr)
-     * @param nkey The control message name length
-     * @param value The control message value (ptr)
-     * @param nvalue The control message value length
+     * @param key The control message name
+     * @param value The control message value
      * @return Standard engine error code.
      */
     virtual ENGINE_ERROR_CODE control(gsl::not_null<const void*> cookie,
                                       uint32_t opaque,
-                                      const void* key,
-                                      uint16_t nkey,
-                                      const void* value,
-                                      uint32_t nvalue) = 0;
+                                      cb::const_char_buffer key,
+                                      cb::const_char_buffer value) = 0;
 
     /**
      * Callback to the engine that a response message has been received.

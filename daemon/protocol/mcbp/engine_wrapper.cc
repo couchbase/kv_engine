@@ -357,13 +357,11 @@ ENGINE_ERROR_CODE dcpCloseStream(Cookie& cookie, uint32_t opaque, Vbid vbid) {
 
 ENGINE_ERROR_CODE dcpControl(Cookie& cookie,
                              uint32_t opaque,
-                             const void* key,
-                             uint16_t keySize,
-                             const void* value,
-                             uint32_t valueSize) {
+                             cb::const_char_buffer key,
+                             cb::const_char_buffer val) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
-    auto ret = dcp->control(&cookie, opaque, key, keySize, value, valueSize);
+    auto ret = dcp->control(&cookie, opaque, key, val);
     if (ret == ENGINE_DISCONNECT) {
         LOG_WARNING("{}: {} dcp.control returned ENGINE_DISCONNECT",
                     connection.getId(),

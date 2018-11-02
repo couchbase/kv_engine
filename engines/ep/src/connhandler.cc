@@ -183,9 +183,9 @@ ENGINE_ERROR_CODE ConnHandler::bufferAcknowledgement(uint32_t opaque,
     return ENGINE_DISCONNECT;
 }
 
-ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque, const void* key,
-                                       uint16_t nkey, const void* value,
-                                       uint32_t nvalue) {
+ENGINE_ERROR_CODE ConnHandler::control(uint32_t opaque,
+                                       cb::const_char_buffer key,
+                                       cb::const_char_buffer value) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the control API");
