@@ -77,9 +77,8 @@ void set_cluster_config_executor(Cookie& cookie) {
     }
 
     // First validate that the provided configuration is a valid payload
-    const auto* req = reinterpret_cast<const cb::mcbp::Request*>(
-            cookie.getPacketAsVoidPtr());
-    auto cas = req->getCas();
+    const auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto cas = req.getCas();
 
     // verify that this is a legal session cas:
     if (!session_cas.increment_session_counter(cas)) {
@@ -88,7 +87,7 @@ void set_cluster_config_executor(Cookie& cookie) {
     }
 
     try {
-        auto payload = req->getValue();
+        auto payload = req.getValue();
         cb::const_char_buffer conf{
                 reinterpret_cast<const char*>(payload.data()), payload.size()};
         bucket.clusterConfiguration.setConfiguration(conf);
