@@ -23,20 +23,14 @@
 #include <memcached/protocol_binary.h>
 
 void dcp_add_stream_executor(Cookie& cookie) {
-    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_dcp_add_stream*>(
-                    packet.data());
-
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
-    uint32_t flags = ntohl(req->message.body.flags);
-
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        ret = dcpAddStream(cookie,
-                           req->message.header.request.opaque,
-                           req->message.header.request.vbucket.ntoh(),
-                           flags);
+        auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        auto extras = req.getExtdata();
+        const uint32_t flags =
+                ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
+        ret = dcpAddStream(cookie, req.getOpaque(), req.getVBucket(), flags);
     }
 
     ret = connection.remapErrorCode(ret);

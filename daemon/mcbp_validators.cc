@@ -241,9 +241,6 @@ static Status dcp_open_validator(Cookie& cookie) {
 }
 
 static Status dcp_add_stream_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_dcp_add_stream*>(
-            cookie.getPacketAsVoidPtr());
-
     if (!verify_header(cookie,
                        4,
                        ExpectedKeyLen::Zero,
@@ -253,7 +250,10 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    const auto flags = ntohl(req->message.body.flags);
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto extras = req.getExtdata();
+    const uint32_t flags =
+            ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
     const auto mask = DCP_ADD_STREAM_FLAG_TAKEOVER |
                       DCP_ADD_STREAM_FLAG_DISKONLY |
                       DCP_ADD_STREAM_FLAG_LATEST |
