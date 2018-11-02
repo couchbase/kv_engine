@@ -883,10 +883,9 @@ static Status set_ctrl_token_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    auto req = static_cast<protocol_binary_request_set_ctrl_token*>(
-            cookie.getPacketAsVoidPtr());
-
-    if (req->message.body.new_cas == 0) {
+    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
+    auto new_cas = ntohll(*reinterpret_cast<const uint64_t*>(extras.data()));
+    if (new_cas == 0) {
         cookie.setErrorContext("New CAS must be set");
         return Status::Einval;
     }

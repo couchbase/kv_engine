@@ -309,10 +309,10 @@ static void arithmetic_executor(Cookie& cookie) {
 }
 
 static void set_ctrl_token_executor(Cookie& cookie) {
-    auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(
-            cookie.getPacketAsVoidPtr());
-    const auto casval = req->message.header.request.getCas();
-    uint64_t newval = ntohll(req->message.body.new_cas);
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto extras = req.getExtdata();
+    auto newval = ntohll(*reinterpret_cast<const uint64_t*>(extras.data()));
+    const auto casval = req.getCas();
     uint64_t value;
 
     auto ret = cb::engine_errc(session_cas.cas(newval, casval, value));
