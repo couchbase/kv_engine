@@ -384,17 +384,13 @@ static void ioctl_set_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
-                cookie.getPacketAsVoidPtr());
-
-        const auto* key_ptr =
-                reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
-        size_t keylen = ntohs(req->message.header.request.keylen);
-        const std::string key(key_ptr, keylen);
-
-        const char* val_ptr = key_ptr + keylen;
-        size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
-        const std::string value(val_ptr, vallen);
+        auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        auto key_data = req.getKey();
+        auto val_data = req.getValue();
+        const std::string key(reinterpret_cast<const char*>(key_data.data()),
+                              key_data.size());
+        const std::string value(reinterpret_cast<const char*>(val_data.data()),
+                                val_data.size());
 
         ret = ioctl_set_property(cookie, key, value);
     }
