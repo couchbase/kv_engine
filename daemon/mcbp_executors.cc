@@ -210,14 +210,13 @@ static void ssl_certs_refresh_executor(Cookie& cookie) {
 }
 
 static void verbosity_executor(Cookie& cookie) {
-    auto* req = reinterpret_cast<protocol_binary_request_verbosity*>(
-            cookie.getPacketAsVoidPtr());
-    uint32_t level = (uint32_t)ntohl(req->message.body.level);
-    if (level > MAX_VERBOSITY_LEVEL) {
+    auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
+    int level = ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
+    if (level < 0 || level > MAX_VERBOSITY_LEVEL) {
         level = MAX_VERBOSITY_LEVEL;
     }
-    settings.setVerbose(static_cast<int>(level));
-    perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
+    settings.setVerbose(level);
+    perform_callbacks(ON_LOG_LEVEL, nullptr, nullptr);
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
