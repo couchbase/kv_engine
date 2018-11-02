@@ -64,9 +64,9 @@ protected:
      * @return true if we should add the key as part of the response
      */
     bool shouldSendKey() {
-        const auto opcode = cookie.getHeader().getOpcode();
-        return opcode == PROTOCOL_BINARY_CMD_GETK ||
-               opcode == PROTOCOL_BINARY_CMD_GETKQ;
+        const auto opcode = cookie.getHeader().getRequest().getClientOpcode();
+        return opcode == cb::mcbp::ClientOpcode::Getk ||
+               opcode == cb::mcbp::ClientOpcode::Getkq;
     }
 
     /**

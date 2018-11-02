@@ -66,7 +66,7 @@ enum class ResponseValue : uint8_t {
 struct SubdocCmdTraits {
     CommandScope scope;
     Subdoc::Command subdocCommand;
-    protocol_binary_command mcbpCommand;
+    cb::mcbp::ClientOpcode mcbpCommand;
     protocol_binary_subdoc_flag valid_flags : 8;
     mcbp::subdoc::doc_flag valid_doc_flags;
     bool request_has_value;
@@ -95,16 +95,16 @@ struct SubdocMultiCmdTraits {
  * Dynamic lookup of a Sub-document commands' traits for the specified binary
  * protocol command.
  */
-SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd);
+SubdocCmdTraits get_subdoc_cmd_traits(cb::mcbp::ClientOpcode cmd);
 
-template <protocol_binary_command CMD>
+template <cb::mcbp::ClientOpcode CMD>
 SubdocCmdTraits get_traits();
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_GET>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::Get>() {
     return {CommandScope::WholeDoc,
             Subdoc::Command::INVALID,
-            PROTOCOL_BINARY_CMD_GET,
+            cb::mcbp::ClientOpcode::Get,
             SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
@@ -115,10 +115,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_GET>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SET>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::Set>() {
     return {CommandScope::WholeDoc,
             Subdoc::Command::INVALID,
-            PROTOCOL_BINARY_CMD_SET,
+            cb::mcbp::ClientOpcode::Set,
             SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag::Mkdoc | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
@@ -129,10 +129,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SET>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_DELETE>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::Delete>() {
     return {CommandScope::WholeDoc,
             Subdoc::Command::INVALID,
-            PROTOCOL_BINARY_CMD_DELETE,
+            cb::mcbp::ClientOpcode::Delete,
             SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
@@ -143,10 +143,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_DELETE>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGet>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::GET,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
@@ -157,10 +157,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocExists>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::EXISTS,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
@@ -171,11 +171,11 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>() {
     using namespace mcbp::subdoc;
     return {CommandScope::SubJSON,
             Subdoc::Command::DICT_ADD,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
@@ -187,11 +187,11 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>() {
     using namespace mcbp::subdoc;
     return {CommandScope::SubJSON,
             Subdoc::Command::DICT_UPSERT,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
@@ -203,10 +203,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDelete>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::REMOVE,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
@@ -217,10 +217,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocReplace>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::REPLACE,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
             mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add,
@@ -232,12 +232,15 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() {
+inline SubdocCmdTraits
+get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushLast>() {
     using namespace mcbp::subdoc;
-    return SubdocCmdTraits{CommandScope::SubJSON,
+    return SubdocCmdTraits{
+            CommandScope::SubJSON,
             Subdoc::Command::ARRAY_APPEND,
-            PROTOCOL_BINARY_CMD_INVALID,
-            SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+            cb::mcbp::ClientOpcode::Invalid,
+            SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
+                    SUBDOC_FLAG_EXPAND_MACROS,
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
@@ -247,12 +250,15 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() 
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>() {
+inline SubdocCmdTraits
+get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushFirst>() {
     using namespace mcbp::subdoc;
-    return SubdocCmdTraits{CommandScope::SubJSON,
+    return SubdocCmdTraits{
+            CommandScope::SubJSON,
             Subdoc::Command::ARRAY_PREPEND,
-            PROTOCOL_BINARY_CMD_INVALID,
-            SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+            cb::mcbp::ClientOpcode::Invalid,
+            SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
+                    SUBDOC_FLAG_EXPAND_MACROS,
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
             /*allow_empty_path*/ true,
@@ -262,10 +268,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>()
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocArrayInsert>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::ARRAY_INSERT,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH |
                     SUBDOC_FLAG_EXPAND_MACROS,
             mcbp::subdoc::doc_flag::AccessDeleted | mcbp::subdoc::doc_flag::Add,
@@ -277,11 +283,12 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>() {
+inline SubdocCmdTraits
+get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>() {
     using namespace mcbp::subdoc;
     return {CommandScope::SubJSON,
             Subdoc::Command::ARRAY_ADD_UNIQUE,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH,
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
@@ -292,11 +299,11 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>()
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocCounter>() {
     using namespace mcbp::subdoc;
     return {CommandScope::SubJSON,
             Subdoc::Command::COUNTER,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH,
             doc_flag::Mkdoc | doc_flag::AccessDeleted | doc_flag::Add,
             /*request_has_value*/ true,
@@ -307,10 +314,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::GET_COUNT,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ false,
@@ -321,10 +328,10 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
+inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocMultiLookup>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::INVALID,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
             mcbp::subdoc::doc_flag::AccessDeleted,
             /*request_has_value*/ true,
@@ -335,10 +342,11 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
 }
 
 template <>
-inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>() {
+inline SubdocCmdTraits
+get_traits<cb::mcbp::ClientOpcode::SubdocMultiMutation>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::INVALID,
-            PROTOCOL_BINARY_CMD_INVALID,
+            cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE,
             mcbp::subdoc::doc_flag::Mkdoc | mcbp::subdoc::doc_flag::Add,
             /*request_has_value*/ true,
@@ -348,18 +356,20 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>() {
             SubdocPath::MULTI};
 }
 
-template <protocol_binary_command CMD>
+template <cb::mcbp::ClientOpcode CMD>
 SubdocMultiCmdTraits get_multi_traits();
 
 template <>
-inline SubdocMultiCmdTraits get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
+inline SubdocMultiCmdTraits
+get_multi_traits<cb::mcbp::ClientOpcode::SubdocMultiLookup>() {
     // Header + 1byte path.
     return {sizeof(protocol_binary_subdoc_multi_lookup_spec) + 1,
             /*is_mutator*/false};
 }
 
 template <>
-inline SubdocMultiCmdTraits get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>() {
+inline SubdocMultiCmdTraits
+get_multi_traits<cb::mcbp::ClientOpcode::SubdocMultiMutation>() {
     // Header + 1byte path (not all mutations need a value - e.g. delete).
     return {sizeof(protocol_binary_subdoc_multi_mutation_spec) + 1,
             /*is_mutator*/true};

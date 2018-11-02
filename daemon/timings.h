@@ -19,6 +19,8 @@
 #include "timing_histogram.h"
 #include "timing_interval.h"
 
+#include <mcbp/protocol/opcode.h>
+
 #include <array>
 #include <string>
 #include <mutex>
@@ -36,9 +38,9 @@ public:
     Timings(const Timings&) = delete;
 
     void reset();
-    void collect(uint8_t opcode, std::chrono::nanoseconds nsec);
+    void collect(cb::mcbp::ClientOpcode opcode, std::chrono::nanoseconds nsec);
     void sample(std::chrono::seconds sample_interval);
-    std::string generate(uint8_t opcode);
+    std::string generate(cb::mcbp::ClientOpcode opcode);
     uint64_t get_aggregated_mutation_stats();
     uint64_t get_aggregated_retrival_stats();
 

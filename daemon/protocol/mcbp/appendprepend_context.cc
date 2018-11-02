@@ -25,8 +25,8 @@
 AppendPrependCommandContext::AppendPrependCommandContext(
         Cookie& cookie, const cb::mcbp::Request& req)
     : SteppableCommandContext(cookie),
-      mode((req.opcode == PROTOCOL_BINARY_CMD_APPEND ||
-            req.opcode == PROTOCOL_BINARY_CMD_APPENDQ)
+      mode((req.getClientOpcode() == cb::mcbp::ClientOpcode::Append ||
+            req.getClientOpcode() == cb::mcbp::ClientOpcode::Appendq)
                    ? Mode::Append
                    : Mode::Prepend),
       key(cookie.getRequestKey()),

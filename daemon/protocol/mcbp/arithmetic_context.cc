@@ -32,8 +32,8 @@ ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
       request(reinterpret_cast<const protocol_binary_request_incr&>(req)),
       cas(req.getCas()),
       vbucket(req.getVBucket()),
-      increment(req.opcode == PROTOCOL_BINARY_CMD_INCREMENT ||
-                req.opcode == PROTOCOL_BINARY_CMD_INCREMENTQ) {
+      increment(req.getClientOpcode() == cb::mcbp::ClientOpcode::Increment ||
+                req.getClientOpcode() == cb::mcbp::ClientOpcode::Incrementq) {
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
@@ -215,9 +215,9 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::storeItem() {
 ENGINE_ERROR_CODE ArithmeticCommandContext::sendResult() {
     update_topkeys(cookie);
     state = State::Done;
-    const auto opcode = cookie.getHeader().getOpcode();
-    if ((opcode == PROTOCOL_BINARY_CMD_INCREMENT) ||
-        (opcode == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
+    const auto opcode = cookie.getHeader().getRequest().getClientOpcode();
+    if ((opcode == cb::mcbp::ClientOpcode::Increment) ||
+        (opcode == cb::mcbp::ClientOpcode::Incrementq)) {
         STATS_INCR(&connection, incr_hits);
     } else {
         STATS_INCR(&connection, decr_hits);

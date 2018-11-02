@@ -74,7 +74,7 @@ static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
 
 // Debug - print details of the specified subdocument command.
 static void subdoc_print_command(Connection& c,
-                                 protocol_binary_command cmd,
+                                 cb::mcbp::ClientOpcode cmd,
                                  const char* key,
                                  const uint16_t keylen,
                                  const char* path,
@@ -126,8 +126,7 @@ static void create_single_path_context(SubdocCmdContext& context,
 
     auto flags = static_cast<protocol_binary_subdoc_flag>(
             req->message.extras.subdoc_flags);
-    const protocol_binary_command mcbp_cmd =
-        protocol_binary_command(req->message.header.request.opcode);
+    const auto mcbp_cmd = req->message.header.request.getClientOpcode();
     const uint16_t pathlen = ntohs(req->message.extras.pathlen);
 
     // Path is the first thing in the value; remainder is the operation
@@ -206,7 +205,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
     context.setMutationSemantics(doc_flags);
     size_t offset = 0;
     while (offset < value.len) {
-        protocol_binary_command binprot_cmd;
+        cb::mcbp::ClientOpcode binprot_cmd = cb::mcbp::ClientOpcode::Invalid;
         protocol_binary_subdoc_flag flags;
         size_t headerlen;
         cb::const_char_buffer path;
@@ -215,7 +214,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
             auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
                 (value.buf + offset);
             headerlen = sizeof(*spec);
-            binprot_cmd = protocol_binary_command(spec->opcode);
+            binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
             flags = protocol_binary_subdoc_flag(spec->flags);
             path = {value.buf + offset + headerlen,
                     htons(spec->pathlen)};
@@ -226,7 +225,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
             auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
                 (value.buf + offset);
             headerlen = sizeof(*spec);
-            binprot_cmd = protocol_binary_command(spec->opcode);
+            binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
             flags = protocol_binary_subdoc_flag(spec->flags);
             path = {value.buf + offset + headerlen,
                     htons(spec->pathlen)};
@@ -266,7 +265,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         if (impliesMkdir_p(doc_flags)) {
             flags = flags | SUBDOC_FLAG_MKDIR_P;
         }
-        if (traits.mcbpCommand == PROTOCOL_BINARY_CMD_DELETE) {
+        if (traits.mcbpCommand == cb::mcbp::ClientOpcode::Delete) {
             context.do_delete_doc = true;
         }
         ops.emplace_back(SubdocCmdContext::OperationSpec{traits, flags, path,
@@ -278,9 +277,7 @@ static void create_multi_path_context(SubdocCmdContext& context,
         const protocol_binary_request_subdocument *req =
             reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
 
-        const protocol_binary_command mcbp_cmd =
-            protocol_binary_command(req->message.header.request.opcode);
-
+        const auto mcbp_cmd = req->message.header.request.getClientOpcode();
         const uint8_t extlen = req->message.header.request.extlen;
         const char* key = (char*)packet + sizeof(req->message.header) + extlen;
         const uint16_t keylen = ntohs(req->message.header.request.keylen);
@@ -689,7 +686,7 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
         SubdocCmdContext::OperationSpec& spec,
         cb::const_char_buffer& doc) {
     switch (spec.traits.mcbpCommand) {
-    case PROTOCOL_BINARY_CMD_GET:
+    case cb::mcbp::ClientOpcode::Get:
         if (doc.size() == 0) {
             // Size of zero indicates the document body ("path") doesn't exist.
             return cb::mcbp::Status::SubdocPathEnoent;
@@ -697,11 +694,11 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
         spec.result.set_matchloc({doc.buf, doc.len});
         return cb::mcbp::Status::Success;
 
-    case PROTOCOL_BINARY_CMD_SET:
+    case cb::mcbp::ClientOpcode::Set:
         spec.result.push_newdoc({spec.value.buf, spec.value.len});
         return cb::mcbp::Status::Success;
 
-    case PROTOCOL_BINARY_CMD_DELETE:
+    case cb::mcbp::ClientOpcode::Delete:
         context.in_datatype &= ~BODY_ONLY_DATATYPE_MASK;
         spec.result.push_newdoc({nullptr, 0});
         return cb::mcbp::Status::Success;
@@ -1716,70 +1713,70 @@ static void subdoc_response(Cookie& cookie, SubdocCmdContext& context) {
 
 void subdoc_get_executor(Cookie& cookie) {
     return subdoc_executor(cookie,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>());
+                           get_traits<cb::mcbp::ClientOpcode::SubdocGet>());
 }
 
 void subdoc_exists_executor(Cookie& cookie) {
     return subdoc_executor(cookie,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>());
+                           get_traits<cb::mcbp::ClientOpcode::SubdocExists>());
 }
 
 void subdoc_dict_add_executor(Cookie& cookie) {
     return subdoc_executor(cookie,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>());
+                           get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>());
 }
 
 void subdoc_dict_upsert_executor(Cookie& cookie) {
     return subdoc_executor(
-            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>());
 }
 
 void subdoc_delete_executor(Cookie& cookie) {
     return subdoc_executor(cookie,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>());
+                           get_traits<cb::mcbp::ClientOpcode::SubdocDelete>());
 }
 
 void subdoc_replace_executor(Cookie& cookie) {
     return subdoc_executor(cookie,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>());
+                           get_traits<cb::mcbp::ClientOpcode::SubdocReplace>());
 }
 
 void subdoc_array_push_last_executor(Cookie& cookie) {
     return subdoc_executor(
-            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushLast>());
 }
 
 void subdoc_array_push_first_executor(Cookie& cookie) {
     return subdoc_executor(
-            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushFirst>());
 }
 
 void subdoc_array_insert_executor(Cookie& cookie) {
     return subdoc_executor(
-            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayInsert>());
 }
 
 void subdoc_array_add_unique_executor(Cookie& cookie) {
     return subdoc_executor(
-            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>());
 }
 
 void subdoc_counter_executor(Cookie& cookie) {
     return subdoc_executor(cookie,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
+                           get_traits<cb::mcbp::ClientOpcode::SubdocCounter>());
 }
 
 void subdoc_get_count_executor(Cookie& cookie) {
-    return subdoc_executor(cookie,
-                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>());
+    return subdoc_executor(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>());
 }
 
 void subdoc_multi_lookup_executor(Cookie& cookie) {
     return subdoc_executor(
-            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocMultiLookup>());
 }
 
 void subdoc_multi_mutation_executor(Cookie& cookie) {
     return subdoc_executor(
-            cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocMultiMutation>());
 }

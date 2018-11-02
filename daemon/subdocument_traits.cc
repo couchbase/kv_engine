@@ -35,57 +35,57 @@ cb::mcbp::Datatype SubdocCmdTraits::responseDatatype(
                            std::to_string(int(response_type)));
 }
 
-SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd) {
+SubdocCmdTraits get_subdoc_cmd_traits(cb::mcbp::ClientOpcode cmd) {
     switch (cmd) {
-    case PROTOCOL_BINARY_CMD_GET:
-        return get_traits<PROTOCOL_BINARY_CMD_GET>();
+    case cb::mcbp::ClientOpcode::Get:
+        return get_traits<cb::mcbp::ClientOpcode::Get>();
 
-    case PROTOCOL_BINARY_CMD_SET:
-        return get_traits<PROTOCOL_BINARY_CMD_SET>();
+    case cb::mcbp::ClientOpcode::Set:
+        return get_traits<cb::mcbp::ClientOpcode::Set>();
 
-    case PROTOCOL_BINARY_CMD_DELETE:
-        return get_traits<PROTOCOL_BINARY_CMD_DELETE>();
+    case cb::mcbp::ClientOpcode::Delete:
+        return get_traits<cb::mcbp::ClientOpcode::Delete>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_GET:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>();
+    case cb::mcbp::ClientOpcode::SubdocGet:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocGet>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_EXISTS:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>();
+    case cb::mcbp::ClientOpcode::SubdocExists:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocExists>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>();
+    case cb::mcbp::ClientOpcode::SubdocDictAdd:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>();
+    case cb::mcbp::ClientOpcode::SubdocDictUpsert:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_DELETE:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>();
+    case cb::mcbp::ClientOpcode::SubdocDelete:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocDelete>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_REPLACE:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>();
+    case cb::mcbp::ClientOpcode::SubdocReplace:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocReplace>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>();
+    case cb::mcbp::ClientOpcode::SubdocArrayPushLast:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushLast>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>();
+    case cb::mcbp::ClientOpcode::SubdocArrayPushFirst:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushFirst>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>();
+    case cb::mcbp::ClientOpcode::SubdocArrayInsert:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocArrayInsert>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>();
+    case cb::mcbp::ClientOpcode::SubdocArrayAddUnique:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>();
+    case cb::mcbp::ClientOpcode::SubdocCounter:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocCounter>();
 
-    case PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT:
-        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>();
+    case cb::mcbp::ClientOpcode::SubdocGetCount:
+        return get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>();
 
     default:
         return {CommandScope::SubJSON,
                 Subdoc::Command::INVALID,
-                PROTOCOL_BINARY_CMD_INVALID,
+                cb::mcbp::ClientOpcode::Invalid,
                 SUBDOC_FLAG_NONE,
                 mcbp::subdoc::doc_flag::None,
                 false,

@@ -597,170 +597,203 @@ static void process_bin_dcp_response(Cookie& cookie) {
     }
 }
 
-void initialize_mbcp_lookup_map() {
-    response_handlers[PROTOCOL_BINARY_CMD_NOOP] = process_bin_noop_response;
+static void setup_response_handler(cb::mcbp::ClientOpcode opcode,
+                                   HandlerFunction function) {
+    response_handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(
+            opcode)] = std::move(function);
+}
 
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_OPEN] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_REQ] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_END] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_MUTATION] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_DELETION] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_NOOP] = process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_CONTROL] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] =
-            process_bin_dcp_response;
-    response_handlers[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] =
-            process_bin_dcp_response;
+static void setup_handler(cb::mcbp::ClientOpcode opcode,
+                          HandlerFunction function) {
+    handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)] =
+            std::move(function);
+}
+
+void initialize_mbcp_lookup_map() {
+    setup_response_handler(cb::mcbp::ClientOpcode::Noop,
+                           process_bin_noop_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpOpen,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpAddStream,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpCloseStream,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpStreamReq,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpGetFailoverLog,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpStreamEnd,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpMutation,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpDeletion,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpExpiration,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpSetVbucketState,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpNoop,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpControl,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                           process_bin_dcp_response);
+    setup_response_handler(cb::mcbp::ClientOpcode::GetErrorMap,
+                           process_bin_dcp_response);
 
     for (auto& handler : handlers) {
         handler = process_bin_unknown_packet;
     }
 
-    handlers[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM] = dcp_close_stream_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER] =
-            dcp_snapshot_marker_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_DELETION] = dcp_deletion_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_EXPIRATION] = dcp_expiration_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG] =
-            dcp_get_failover_log_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_MUTATION] = dcp_mutation_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE] =
-            dcp_set_vbucket_state_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_NOOP] = dcp_noop_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT] =
-            dcp_buffer_acknowledgement_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_CONTROL] = dcp_control_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_END] = dcp_stream_end_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_STREAM_REQ] = dcp_stream_req_executor;
-    handlers[PROTOCOL_BINARY_CMD_DCP_SYSTEM_EVENT] = dcp_system_event_executor;
-    handlers[PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST] =
-            collections_set_manifest_executor;
-    handlers[PROTOCOL_BINARY_CMD_COLLECTIONS_GET_MANIFEST] =
-            collections_get_manifest_executor;
-    handlers[PROTOCOL_BINARY_CMD_ISASL_REFRESH] = isasl_refresh_executor;
-    handlers[PROTOCOL_BINARY_CMD_SSL_CERTS_REFRESH] =
-            ssl_certs_refresh_executor;
-    handlers[PROTOCOL_BINARY_CMD_VERBOSITY] = verbosity_executor;
-    handlers[PROTOCOL_BINARY_CMD_HELLO] = process_hello_packet_executor;
-    handlers[PROTOCOL_BINARY_CMD_VERSION] = version_executor;
-    handlers[PROTOCOL_BINARY_CMD_QUIT] = quit_executor;
-    handlers[PROTOCOL_BINARY_CMD_QUITQ] = quitq_executor;
-    handlers[PROTOCOL_BINARY_CMD_SASL_LIST_MECHS] = sasl_list_mech_executor;
-    handlers[PROTOCOL_BINARY_CMD_SASL_AUTH] = sasl_auth_executor;
-    handlers[PROTOCOL_BINARY_CMD_SASL_STEP] = sasl_auth_executor;
-    handlers[PROTOCOL_BINARY_CMD_NOOP] = noop_executor;
-    handlers[PROTOCOL_BINARY_CMD_FLUSH] = flush_executor;
-    handlers[PROTOCOL_BINARY_CMD_FLUSHQ] = flush_executor;
-    handlers[PROTOCOL_BINARY_CMD_SETQ] = set_executor;
-    handlers[PROTOCOL_BINARY_CMD_SET] = set_executor;
-    handlers[PROTOCOL_BINARY_CMD_ADDQ] = add_executor;
-    handlers[PROTOCOL_BINARY_CMD_ADD] = add_executor;
-    handlers[PROTOCOL_BINARY_CMD_REPLACEQ] = replace_executor;
-    handlers[PROTOCOL_BINARY_CMD_REPLACE] = replace_executor;
-    handlers[PROTOCOL_BINARY_CMD_APPENDQ] = append_prepend_executor;
-    handlers[PROTOCOL_BINARY_CMD_APPEND] = append_prepend_executor;
-    handlers[PROTOCOL_BINARY_CMD_PREPENDQ] = append_prepend_executor;
-    handlers[PROTOCOL_BINARY_CMD_PREPEND] = append_prepend_executor;
-    handlers[PROTOCOL_BINARY_CMD_GET] = get_executor;
-    handlers[PROTOCOL_BINARY_CMD_GETQ] = get_executor;
-    handlers[PROTOCOL_BINARY_CMD_GETK] = get_executor;
-    handlers[PROTOCOL_BINARY_CMD_GETKQ] = get_executor;
-    handlers[PROTOCOL_BINARY_CMD_GET_META] = get_meta_executor;
-    handlers[PROTOCOL_BINARY_CMD_GETQ_META] = get_meta_executor;
-    handlers[PROTOCOL_BINARY_CMD_GAT] = gat_executor;
-    handlers[PROTOCOL_BINARY_CMD_GATQ] = gat_executor;
-    handlers[PROTOCOL_BINARY_CMD_TOUCH] = gat_executor;
-    handlers[PROTOCOL_BINARY_CMD_DELETE] = delete_executor;
-    handlers[PROTOCOL_BINARY_CMD_DELETEQ] = delete_executor;
-    handlers[PROTOCOL_BINARY_CMD_STAT] = stat_executor;
-    handlers[PROTOCOL_BINARY_CMD_INCREMENT] = arithmetic_executor;
-    handlers[PROTOCOL_BINARY_CMD_INCREMENTQ] = arithmetic_executor;
-    handlers[PROTOCOL_BINARY_CMD_DECREMENT] = arithmetic_executor;
-    handlers[PROTOCOL_BINARY_CMD_DECREMENTQ] = arithmetic_executor;
-    handlers[PROTOCOL_BINARY_CMD_GET_CMD_TIMER] = get_cmd_timer_executor;
-    handlers[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_executor;
-    handlers[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_executor;
-    handlers[PROTOCOL_BINARY_CMD_IOCTL_GET] = ioctl_get_executor;
-    handlers[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
-    handlers[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
-    handlers[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
-    handlers[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_executor;
-    handlers[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] =
-            audit_config_reload_executor;
-    handlers[PROTOCOL_BINARY_CMD_SHUTDOWN] = shutdown_executor;
-    handlers[PROTOCOL_BINARY_CMD_CREATE_BUCKET] = create_remove_bucket_executor;
-    handlers[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_executor;
-    handlers[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = create_remove_bucket_executor;
-    handlers[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_executor;
-    handlers[PROTOCOL_BINARY_CMD_GET_ERROR_MAP] = get_errmap_executor;
-    handlers[PROTOCOL_BINARY_CMD_GET_LOCKED] = get_locked_executor;
-    handlers[PROTOCOL_BINARY_CMD_UNLOCK_KEY] = unlock_executor;
-    handlers[PROTOCOL_BINARY_CMD_GET_FAILOVER_LOG] =
-            dcp_get_failover_log_executor;
-    handlers[PROTOCOL_BINARY_CMD_DROP_PRIVILEGE] = drop_privilege_executor;
-    handlers[uint8_t(cb::mcbp::ClientOpcode::UpdateExternalUserPermissions)] =
-            update_user_permissions_executor;
-    handlers[PROTOCOL_BINARY_CMD_RBAC_REFRESH] = rbac_refresh_executor;
-    handlers[uint8_t(cb::mcbp::ClientOpcode::AuthProvider)] =
-            auth_provider_executor;
-    handlers[PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG] =
-            get_cluster_config_executor;
-    handlers[PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG] =
-            set_cluster_config_executor;
+    setup_handler(cb::mcbp::ClientOpcode::DcpOpen, dcp_open_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpAddStream,
+                  dcp_add_stream_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpCloseStream,
+                  dcp_close_stream_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                  dcp_snapshot_marker_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpDeletion, dcp_deletion_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpExpiration,
+                  dcp_expiration_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpGetFailoverLog,
+                  dcp_get_failover_log_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpMutation, dcp_mutation_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpSetVbucketState,
+                  dcp_set_vbucket_state_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpNoop, dcp_noop_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+                  dcp_buffer_acknowledgement_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpControl, dcp_control_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpStreamEnd,
+                  dcp_stream_end_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpStreamReq,
+                  dcp_stream_req_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DcpSystemEvent,
+                  dcp_system_event_executor);
+    setup_handler(cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                  collections_set_manifest_executor);
+    setup_handler(cb::mcbp::ClientOpcode::CollectionsGetManifest,
+                  collections_get_manifest_executor);
+    setup_handler(cb::mcbp::ClientOpcode::IsaslRefresh, isasl_refresh_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SslCertsRefresh,
+                  ssl_certs_refresh_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Verbosity, verbosity_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Hello, process_hello_packet_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Version, version_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Quit, quit_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Quitq, quitq_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SaslListMechs,
+                  sasl_list_mech_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SaslAuth, sasl_auth_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SaslStep, sasl_auth_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Noop, noop_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Flush, flush_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Flushq, flush_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Setq, set_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Set, set_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Addq, add_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Add, add_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Replaceq, replace_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Replace, replace_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Appendq, append_prepend_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Append, append_prepend_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Prependq, append_prepend_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Prepend, append_prepend_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Get, get_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Getq, get_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Getk, get_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Getkq, get_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetMeta, get_meta_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetqMeta, get_meta_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Gat, gat_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Gatq, gat_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Touch, gat_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Delete, delete_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Deleteq, delete_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Stat, stat_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Increment, arithmetic_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Incrementq, arithmetic_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Decrement, arithmetic_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Decrementq, arithmetic_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetCmdTimer, get_cmd_timer_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetCtrlToken,
+                  set_ctrl_token_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetCtrlToken,
+                  get_ctrl_token_executor);
+    setup_handler(cb::mcbp::ClientOpcode::IoctlGet, ioctl_get_executor);
+    setup_handler(cb::mcbp::ClientOpcode::IoctlSet, ioctl_set_executor);
+    setup_handler(cb::mcbp::ClientOpcode::ConfigValidate,
+                  config_validate_executor);
+    setup_handler(cb::mcbp::ClientOpcode::ConfigReload, config_reload_executor);
+    setup_handler(cb::mcbp::ClientOpcode::AuditPut, audit_put_executor);
+    setup_handler(cb::mcbp::ClientOpcode::AuditConfigReload,
+                  audit_config_reload_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Shutdown, shutdown_executor);
+    setup_handler(cb::mcbp::ClientOpcode::CreateBucket,
+                  create_remove_bucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::ListBuckets, list_bucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DeleteBucket,
+                  create_remove_bucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SelectBucket, select_bucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetErrorMap, get_errmap_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetLocked, get_locked_executor);
+    setup_handler(cb::mcbp::ClientOpcode::UnlockKey, unlock_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetFailoverLog,
+                  dcp_get_failover_log_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DropPrivilege,
+                  drop_privilege_executor);
+    setup_handler(cb::mcbp::ClientOpcode::UpdateExternalUserPermissions,
+                  update_user_permissions_executor);
+    setup_handler(cb::mcbp::ClientOpcode::RbacRefresh, rbac_refresh_executor);
+    setup_handler(cb::mcbp::ClientOpcode::AuthProvider, auth_provider_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetClusterConfig,
+                  get_cluster_config_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetClusterConfig,
+                  set_cluster_config_executor);
 
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD] = subdoc_dict_add_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT] =
-            subdoc_dict_upsert_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_DELETE] = subdoc_delete_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_REPLACE] = subdoc_replace_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST] =
-            subdoc_array_push_last_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST] =
-            subdoc_array_push_first_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT] =
-            subdoc_array_insert_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE] =
-            subdoc_array_add_unique_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_COUNTER] = subdoc_counter_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP] =
-            subdoc_multi_lookup_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION] =
-            subdoc_multi_mutation_executor;
-    handlers[PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT] = subdoc_get_count_executor;
+    setup_handler(cb::mcbp::ClientOpcode::SubdocGet, subdoc_get_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocExists, subdoc_exists_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocDictAdd,
+                  subdoc_dict_add_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                  subdoc_dict_upsert_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocDelete, subdoc_delete_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocReplace,
+                  subdoc_replace_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                  subdoc_array_push_last_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                  subdoc_array_push_first_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                  subdoc_array_insert_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                  subdoc_array_add_unique_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocCounter,
+                  subdoc_counter_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocMultiLookup,
+                  subdoc_multi_lookup_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocMultiMutation,
+                  subdoc_multi_mutation_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SubdocGetCount,
+                  subdoc_get_count_executor);
 
-    handlers[PROTOCOL_BINARY_CMD_TAP_CONNECT] = no_support_executor;
-    handlers[PROTOCOL_BINARY_CMD_TAP_MUTATION] = no_support_executor;
-    handlers[PROTOCOL_BINARY_CMD_TAP_DELETE] = no_support_executor;
-    handlers[PROTOCOL_BINARY_CMD_TAP_FLUSH] = no_support_executor;
-    handlers[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = no_support_executor;
-    handlers[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = no_support_executor;
-    handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = no_support_executor;
-    handlers[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = no_support_executor;
+    setup_handler(cb::mcbp::ClientOpcode::TapConnect, no_support_executor);
+    setup_handler(cb::mcbp::ClientOpcode::TapMutation, no_support_executor);
+    setup_handler(cb::mcbp::ClientOpcode::TapDelete, no_support_executor);
+    setup_handler(cb::mcbp::ClientOpcode::TapFlush, no_support_executor);
+    setup_handler(cb::mcbp::ClientOpcode::TapOpaque, no_support_executor);
+    setup_handler(cb::mcbp::ClientOpcode::TapVbucketSet, no_support_executor);
+    setup_handler(cb::mcbp::ClientOpcode::TapCheckpointStart,
+                  no_support_executor);
+    setup_handler(cb::mcbp::ClientOpcode::TapCheckpointEnd,
+                  no_support_executor);
 
-    handlers[PROTOCOL_BINARY_CMD_ADJUST_TIMEOFDAY] = adjust_timeofday_executor;
+    setup_handler(cb::mcbp::ClientOpcode::AdjustTimeofday,
+                  adjust_timeofday_executor);
 }
 
 void execute_client_request_packet(Cookie& cookie,

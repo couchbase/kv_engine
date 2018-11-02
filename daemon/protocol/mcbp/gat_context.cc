@@ -62,7 +62,8 @@ ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
 
         bool need_inflate = false;
         if (mcbp::datatype::is_snappy(info.datatype) &&
-            cookie.getHeader().getOpcode() != PROTOCOL_BINARY_CMD_TOUCH) {
+            cookie.getHeader().getRequest().getClientOpcode() !=
+                    cb::mcbp::ClientOpcode::Touch) {
             need_inflate = mcbp::datatype::is_xattr(info.datatype) ||
                            !connection.isSnappyEnabled();
         }
@@ -103,7 +104,8 @@ ENGINE_ERROR_CODE GatCommandContext::sendResponse() {
     // Audit the modification to the document (change of EXP)
     cb::audit::document::add(cookie, cb::audit::document::Operation::Modify);
 
-    if (cookie.getHeader().getOpcode() == PROTOCOL_BINARY_CMD_TOUCH) {
+    if (cookie.getHeader().getRequest().getClientOpcode() ==
+        cb::mcbp::ClientOpcode::Touch) {
         cookie.sendResponse(cb::mcbp::Status::Success);
         state = State::Done;
         return ENGINE_SUCCESS;

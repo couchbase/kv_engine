@@ -283,51 +283,63 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
 }
 
 cb::mcbp::Status subdoc_get_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>());
+    return subdoc_validator(cookie,
+                            get_traits<cb::mcbp::ClientOpcode::SubdocGet>());
 }
 
 cb::mcbp::Status subdoc_exists_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>());
+    return subdoc_validator(cookie,
+                            get_traits<cb::mcbp::ClientOpcode::SubdocExists>());
 }
 
 cb::mcbp::Status subdoc_dict_add_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>());
 }
 
 cb::mcbp::Status subdoc_dict_upsert_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>());
 }
 
 cb::mcbp::Status subdoc_delete_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>());
+    return subdoc_validator(cookie,
+                            get_traits<cb::mcbp::ClientOpcode::SubdocDelete>());
 }
 
 cb::mcbp::Status subdoc_replace_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocReplace>());
 }
 
 cb::mcbp::Status subdoc_array_push_last_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushLast>());
 }
 
 cb::mcbp::Status subdoc_array_push_first_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayPushFirst>());
 }
 
 cb::mcbp::Status subdoc_array_insert_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayInsert>());
 }
 
 cb::mcbp::Status subdoc_array_add_unique_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocArrayAddUnique>());
 }
 
 cb::mcbp::Status subdoc_counter_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocCounter>());
 }
 
 cb::mcbp::Status subdoc_get_count_validator(Cookie& cookie) {
-    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>());
+    return subdoc_validator(
+            cookie, get_traits<cb::mcbp::ClientOpcode::SubdocGetCount>());
 }
 
 /**
@@ -359,7 +371,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
         bool& is_singleton) {
     // Decode the operation spec from the body. Slightly different struct
     // depending on LOOKUP/MUTATION.
-    protocol_binary_command opcode;
+    cb::mcbp::ClientOpcode opcode;
     protocol_binary_subdoc_flag flags;
     size_t headerlen;
     size_t pathlen;
@@ -368,7 +380,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
         auto* spec =reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
             (ptr);
         headerlen = sizeof(*spec);
-        opcode = protocol_binary_command(spec->opcode);
+        opcode = cb::mcbp::ClientOpcode(spec->opcode);
         flags = protocol_binary_subdoc_flag(spec->flags);
         pathlen = ntohs(spec->pathlen);
         valuelen = ntohl(spec->valuelen);
@@ -377,7 +389,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
         auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
             (ptr);
         headerlen = sizeof(*spec);
-        opcode = protocol_binary_command(spec->opcode);
+        opcode = cb::mcbp::ClientOpcode(spec->opcode);
         flags = protocol_binary_subdoc_flag(spec->flags);
         pathlen = ntohs(spec->pathlen);
         valuelen = 0;
@@ -388,7 +400,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
     SubdocCmdTraits op_traits = get_subdoc_cmd_traits(opcode);
 
     if (op_traits.subdocCommand == Subdoc::Command::INVALID &&
-        op_traits.mcbpCommand == PROTOCOL_BINARY_CMD_INVALID) {
+        op_traits.mcbpCommand == cb::mcbp::ClientOpcode::Invalid) {
         cookie.setErrorContext(
                 "Subdoc and MCBP command must not both be invalid");
         return cb::mcbp::Status::SubdocInvalidCombo;
@@ -460,7 +472,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
         }
     }
 
-    is_singleton = (op_traits.mcbpCommand == PROTOCOL_BINARY_CMD_DELETE);
+    is_singleton = (op_traits.mcbpCommand == cb::mcbp::ClientOpcode::Delete);
 
     spec_len = headerlen + pathlen + valuelen;
     return cb::mcbp::Status::Success;
@@ -615,11 +627,15 @@ static cb::mcbp::Status subdoc_multi_validator(
 }
 
 cb::mcbp::Status subdoc_multi_lookup_validator(Cookie& cookie) {
-    return subdoc_multi_validator(cookie, get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
+    return subdoc_multi_validator(
+            cookie,
+            get_multi_traits<cb::mcbp::ClientOpcode::SubdocMultiLookup>());
 }
 
 cb::mcbp::Status subdoc_multi_mutation_validator(Cookie& cookie) {
-    return subdoc_multi_validator(cookie, get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
+    return subdoc_multi_validator(
+            cookie,
+            get_multi_traits<cb::mcbp::ClientOpcode::SubdocMultiMutation>());
 }
 
 using namespace mcbp::subdoc;
