@@ -340,16 +340,14 @@ static void get_ctrl_token_executor(Cookie& cookie) {
 
 static void ioctl_get_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(
-            cookie.getPacketAsVoidPtr());
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     std::string value;
     if (ret == ENGINE_SUCCESS) {
-        const auto* key_ptr =
-                reinterpret_cast<const char*>(req->bytes + sizeof(req->bytes));
-        size_t keylen = ntohs(req->message.header.request.keylen);
-        const std::string key(key_ptr, keylen);
+        auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+        auto key_data = req.getKey();
+        const std::string key(reinterpret_cast<const char*>(key_data.data()),
+                              key_data.size());
         ret = ioctl_get_property(cookie, key, value);
     }
 
