@@ -30,17 +30,12 @@ void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
         ret = mcbp::haveDcpPrivilege(cookie);
 
         if (ret == ENGINE_SUCCESS) {
-            const auto& header = cookie.getRequest();
-            const auto* req = reinterpret_cast<
-                    const protocol_binary_request_dcp_buffer_acknowledgement*>(
-                    &header);
-
-            uint32_t bbytes;
-            memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
-            ret = dcpBufferAcknowledgement(cookie,
-                                           header.getOpaque(),
-                                           header.getVBucket(),
-                                           ntohl(bbytes));
+            auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+            auto extras = req.getExtdata();
+            uint32_t bytes =
+                    ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
+            ret = dcpBufferAcknowledgement(
+                    cookie, req.getOpaque(), req.getVBucket(), bytes);
         }
     }
 
