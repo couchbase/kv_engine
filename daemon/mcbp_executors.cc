@@ -469,17 +469,16 @@ static void create_remove_bucket_executor(Cookie& cookie) {
 }
 
 static void get_errmap_executor(Cookie& cookie) {
-    auto const* req = reinterpret_cast<protocol_binary_request_get_errmap*>(
-            cookie.getPacketAsVoidPtr());
-    uint16_t version = ntohs(req->message.body.version);
-    auto const& ss = settings.getErrorMap(version);
-    if (ss.empty()) {
+    auto value = cookie.getRequest(Cookie::PacketContent::Full).getValue();
+    auto version = ntohs(*reinterpret_cast<const uint16_t*>(value.data()));
+    auto const& errormap = settings.getErrorMap(version);
+    if (errormap.empty()) {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     } else {
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
-                            {ss.data(), ss.size()},
+                            {errormap.data(), errormap.size()},
                             cb::mcbp::Datatype::JSON,
                             0);
     }
