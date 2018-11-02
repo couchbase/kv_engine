@@ -124,7 +124,8 @@ Item KVBucketTest::store_item(Vbid vbid,
     EXPECT_NE(expected.end(),
               std::find(expected.begin(),
                         expected.end(),
-                        cb::engine_errc(returnCode)));
+                        cb::engine_errc(returnCode)))
+            << returnCode;
     return item;
 }
 

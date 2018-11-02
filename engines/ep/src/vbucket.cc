@@ -199,7 +199,8 @@ VBucket::VBucket(Vbid i,
       deferredDeletion(false),
       deferredDeletionCookie(nullptr),
       newSeqnoCb(std::move(newSeqnoCb)),
-      manifest(collectionsManifest),
+      manifest(
+              std::make_unique<Collections::VB::Manifest>(collectionsManifest)),
       mayContainXattrs(mightContainXattrs) {
     if (config.getConflictResolutionType().compare("lww") == 0) {
         conflictResolver.reset(new LastWriteWinsResolution());
@@ -1562,7 +1563,7 @@ void VBucket::deleteExpiredItem(const Item& it,
 
     // Must obtain collection handle and hold it to ensure any queued item is
     // interlocked with collection membership changes.
-    auto rHandle = manifest.lock(key);
+    auto rHandle = manifest->lock(key);
     if (!rHandle.valid()) {
         // The collection has now been dropped, no action required
         return;
@@ -2095,7 +2096,7 @@ GetValue VBucket::getLocked(
 }
 
 void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
-    auto handle = manifest.lock(queuedItem.getKey());
+    auto handle = manifest->lock(queuedItem.getKey());
     auto hbl = ht.getLockedBucket(queuedItem.getKey());
     StoredValue* v = nullptr;
 
@@ -2163,6 +2164,18 @@ void VBucket::postProcessRollback(const RollbackResult& rollbackResult,
     incrRollbackItemCount(prevHighSeqno - rollbackResult.highSeqno);
     checkpointManager->setOpenCheckpointId(1);
     setReceivingInitialDiskSnapshot(false);
+}
+
+void VBucket::collectionsRolledBack(KVStore& kvstore) {
+    manifest = std::make_unique<Collections::VB::Manifest>(
+            kvstore.getCollectionsManifest(getId()));
+    auto kvstoreContext = kvstore.makeFileHandle(getId());
+    auto wh = manifest->wlock();
+    // For each collection in the VB, reload the item count to the rollback
+    for (auto& collection : wh) {
+        collection.second.setDiskCount(kvstore.getCollectionItemCount(
+                *kvstoreContext, collection.first));
+    }
 }
 
 void VBucket::dump() const {

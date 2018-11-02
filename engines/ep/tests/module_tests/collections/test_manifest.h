@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 
+#pragma once
+
 /**
  * Predefined data to help build collections tests
  *

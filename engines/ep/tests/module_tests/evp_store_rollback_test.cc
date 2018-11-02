@@ -31,6 +31,7 @@
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include "tests/module_tests/collections/test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 
@@ -308,30 +309,63 @@ protected:
         EXPECT_EQ(startVBCount + expectedDifference, vb->getNumItems());
     }
 
-    void rollback_to_middle_test(bool flush_before_rollback) {
+    void rollback_to_middle_test(bool flush_before_rollback,
+                                 bool rollbackCollectionCreate = false) {
         // create some more checkpoints just to see a few iterations
         // of parts of the rollback function.
 
         // need to store a certain number of keys because rollback
         // 'bails' if the rollback is too much.
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 7; i++) {
             store_item(vbid, makeStoredDocKey("key_" + std::to_string(i)), "dontcare");
         }
-        // the roll back function will rewind disk to key7.
-        auto rollback_item = store_item(vbid, makeStoredDocKey("key7"), "dontcare");
+
+        // rollbackCollectionCreate==true and the roll back function will
+        // rewind disk to here, with dairy collection unknown
+        auto seqno1 = store->getVBucket(vbid)->getHighSeqno();
         ASSERT_EQ(std::make_pair(false, size_t(7)),
+                  getEPBucket().flushVBucket(vbid));
+
+        auto vb = store->getVBucket(vbid);
+        CollectionsManifest cm;
+        // the roll back function will rewind disk to this collection state
+        vb->updateFromManifest({cm.add(CollectionEntry::dairy)});
+
+        // rollbackCollectionCreate==false and the roll back function will
+        // rewind disk to key7, with dairy collection open
+        auto rollback_item =
+                store_item(vbid,
+                           makeStoredDocKey("key7", CollectionEntry::dairy),
+                           "key7 in the dairy collection");
+        ASSERT_EQ(std::make_pair(false, size_t(2)),
                   getEPBucket().flushVBucket(vbid));
 
         // every key past this point will be lost from disk in a mid-point.
         auto item_v1 = store_item(vbid, makeStoredDocKey("rollback-cp-1"), "keep-me");
         auto item_v2 = store_item(vbid, makeStoredDocKey("rollback-cp-2"), "rollback to me");
         store_item(vbid, makeStoredDocKey("rollback-cp-3"), "i'm gone");
-        auto rollback = item_v2.getBySeqno(); // ask to rollback to here.
+
+        // Select the rollback seqno
+        auto rollback = rollbackCollectionCreate
+                                ? rollback_item.getBySeqno() - 1
+                                : item_v2.getBySeqno();
         ASSERT_EQ(std::make_pair(false, size_t(3)),
                   getEPBucket().flushVBucket(vbid));
 
-        for (int i = 0; i < 3; i++) {
-            store_item(vbid, makeStoredDocKey("anotherkey_" + std::to_string(i)), "dontcare");
+        cm.remove(CollectionEntry::dairy);
+        vb->updateFromManifest({cm});
+
+        // Expect failure to store
+        store_item(vbid,
+                   makeStoredDocKey("fail", CollectionEntry::dairy),
+                   "unknown collection",
+                   0,
+                   {cb::engine_errc::unknown_collection});
+
+        for (int i = 0; i < 2; i++) {
+            store_item(vbid,
+                       makeStoredDocKey("anotherkey_" + std::to_string(i)),
+                       "default collection");
         }
 
         if (flush_before_rollback) {
@@ -339,28 +373,55 @@ protected:
                       getEPBucket().flushVBucket(vbid));
         }
 
-
         // Rollback should succeed, but rollback to 0
         store->setVBucketState(vbid, vbStateAtRollback, false);
         EXPECT_EQ(TaskStatus::Complete, store->rollback(vbid, rollback));
 
         // These keys should be gone after the rollback
         for (int i = 0; i < 3; i++) {
-            auto result = store->get(makeStoredDocKey("rollback-cp-" + std::to_string(i)), vbid, nullptr, {});
+            auto result = store->get(
+                    makeStoredDocKey("rollback-cp-" + std::to_string(i)),
+                    vbid,
+                    nullptr,
+                    {});
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
         }
 
         // These keys should be gone after the rollback
-        for (int i = 0; i < 3; i++) {
-            auto result = store->get(makeStoredDocKey("anotherkey_" + std::to_string(i)), vbid, nullptr, {});
+        for (int i = 0; i < 2; i++) {
+            auto result = store->get(
+                    makeStoredDocKey("anotherkey_" + std::to_string(i)),
+                    vbid,
+                    nullptr,
+                    {});
             EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus())
                 << "A key set after the rollback point was found";
         }
 
-        // Rolled back to the previous checkpoint
-        EXPECT_EQ(rollback_item.getBySeqno(),
-                  store->getVBucket(vbid)->getHighSeqno());
+        if (rollbackCollectionCreate) {
+            // Dairy collection should of been rolled away
+            auto result =
+                    store->get(makeStoredDocKey("key7", CollectionEntry::dairy),
+                               vbid,
+                               nullptr,
+                               {});
+            EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, result.getStatus());
+            // Rolled back to the previous checkpoint before dairy
+            EXPECT_EQ(seqno1, store->getVBucket(vbid)->getHighSeqno());
+        } else {
+            // And key7 from dairy collection, can I GET it?
+            auto result =
+                    store->get(makeStoredDocKey("key7", CollectionEntry::dairy),
+                               vbid,
+                               nullptr,
+                               {});
+            EXPECT_EQ(ENGINE_SUCCESS, result.getStatus())
+                    << "Failed to find key7"; // Yes you can!
+            // Rolled back to the previous checkpoint
+            EXPECT_EQ(rollback_item.getBySeqno(),
+                      store->getVBucket(vbid)->getHighSeqno());
+        }
     }
 
 protected:
@@ -390,6 +451,18 @@ TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshot) {
 
 TEST_P(RollbackTest, RollbackToMiddleOfAPersistedSnapshotNoFlush) {
     rollback_to_middle_test(false);
+}
+
+TEST_P(RollbackTest, RollbackCollectionCreate1) {
+    // run the middle test but request the rollback is to before a collection
+    // create
+    rollback_to_middle_test(true, true);
+}
+
+TEST_P(RollbackTest, RollbackCollectionCreate2) {
+    // run the middle test but request the rollback is to before a collection
+    // create
+    rollback_to_middle_test(false, true);
 }
 
 // Test what happens when we rollback the creation and the mutation of

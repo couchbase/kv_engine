@@ -615,7 +615,7 @@ public:
      * exposed by the ReadHandle
      */
     Collections::VB::Manifest::ReadHandle lockCollections() const {
-        return manifest.lock();
+        return manifest->lock();
     }
 
     /**
@@ -634,11 +634,7 @@ public:
      */
     Collections::VB::Manifest::CachingReadHandle lockCollections(
             const DocKey& key, bool allowSystem = false) const {
-        return manifest.lock(key, allowSystem);
-    }
-
-    Collections::VB::Manifest& getManifest() {
-        return manifest;
+        return manifest->lock(key, allowSystem);
     }
 
     /**
@@ -650,7 +646,7 @@ public:
      * @param true if the update was successful
      */
     bool updateFromManifest(const Collections::Manifest& m) {
-        return manifest.wlock().update(*this, m);
+        return manifest->wlock().update(*this, m);
     }
 
     /**
@@ -659,7 +655,7 @@ public:
      * @param identifier ID of the collection that has completed deleting
      */
     void completeDeletion(CollectionID identifier) {
-        manifest.wlock().completeDeletion(*this, identifier);
+        manifest->wlock().completeDeletion(*this, identifier);
     }
 
     /**
@@ -677,7 +673,7 @@ public:
                               cb::const_char_buffer collectionName,
                               cb::ExpiryLimit maxTtl,
                               int64_t bySeqno) {
-        manifest.wlock().replicaAdd(
+        manifest->wlock().replicaAdd(
                 *this, uid, identifiers, collectionName, maxTtl, bySeqno);
     }
 
@@ -692,7 +688,16 @@ public:
     void replicaBeginDeleteCollection(Collections::ManifestUid uid,
                                       CollectionID cid,
                                       int64_t bySeqno) {
-        manifest.wlock().replicaBeginDelete(*this, uid, cid, bySeqno);
+        manifest->wlock().replicaBeginDelete(*this, uid, cid, bySeqno);
+    }
+
+    /**
+     * Get the collection manifest
+     *
+     * @return reference to the manifest
+     */
+    Collections::VB::Manifest& getManifest() {
+        return *manifest;
     }
 
     /**
@@ -701,7 +706,7 @@ public:
      * @return const reference to the manifest
      */
     const Collections::VB::Manifest& getManifest() const {
-        return manifest;
+        return *manifest;
     }
 
     void incrementCollectionDiskCount(const DocKey& key) {
@@ -1195,6 +1200,13 @@ public:
      */
     void postProcessRollback(const RollbackResult& rollbackResult,
                              uint64_t prevHighSeqno);
+
+    /**
+     * Update collections following a rollback
+     *
+     * @param kvstore A KVStore that is used for retrieving stored metadata
+     */
+    void collectionsRolledBack(KVStore& kvstore);
 
     /**
      * Debug - print a textual description of the VBucket to stderr.
@@ -1840,7 +1852,7 @@ private:
     NewSeqnoCallback newSeqnoCb;
 
     /// The VBucket collection state
-    Collections::VB::Manifest manifest;
+    std::unique_ptr<Collections::VB::Manifest> manifest;
 
     /**
      * records if the vbucket has had xattrs documents written to it, note that
