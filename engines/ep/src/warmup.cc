@@ -924,6 +924,13 @@ void Warmup::createVBuckets(uint16_t shardId) {
                 } else {
                     vb->failovers->createEntry(vbs.lastSnapStart);
                 }
+                auto entry = vb->failovers->getLatestEntry();
+                EP_LOG_INFO(
+                        "Warmup::createVBuckets: {} created new failover entry "
+                        "with uuid:{} and seqno:{} due to unclean shutdown",
+                        vbid,
+                        entry.vb_uuid,
+                        entry.by_seqno);
             }
             KVBucket* bucket = &this->store;
             vb->setFreqSaturatedCallback(
