@@ -87,12 +87,14 @@ Entry_(dairy2);
 namespace ScopeName {
 constexpr char defaultS[] = "_default";
 constexpr char shop1[] = "supermarket";
+constexpr char shop2[] = "minimart";
 }
 
 // For building ScopeEntry we need a UID
 namespace ScopeUid {
 const ScopeID defaultS = 0;
 const ScopeID shop1 = 8;
+const ScopeID shop2 = 9;
 } // namespace ScopeUid
 
 namespace ScopeEntry {
@@ -121,6 +123,7 @@ struct Entry {
                          std::vector<CollectionEntry::Entry>{}}
 Entry_(defaultS);
 Entry_(shop1);
+Entry_(shop2);
 #undef Entry_
 } // namespace ScopeEntry
 

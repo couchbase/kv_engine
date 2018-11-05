@@ -22,6 +22,7 @@
 
 #include <cctype>
 #include <limits>
+#include <unordered_set>
 
 TEST(ManifestTest, validation) {
     std::vector<std::string> invalidManifests = {
@@ -440,68 +441,115 @@ TEST(ManifestTest, findCollection) {
 // validate we can construct from JSON, call toJSON and get back valid JSON
 // containing what went in.
 TEST(ManifestTest, toJson) {
-    std::vector<std::pair<std::string, std::vector<CollectionEntry::Entry>>>
-            input = {
-                    {"abcd", {}},
-                    {"abcd",
-                     {{CollectionEntry::defaultC},
-                      {CollectionEntry::fruit},
-                      {CollectionEntry::vegetable}}},
-                    {"abcd",
-                     {{CollectionEntry::fruit}, {CollectionEntry::vegetable}}},
-
-            };
+    struct TestInput {
+        CollectionEntry::Entry collection;
+        ScopeEntry::Entry scope;
+        cb::ExpiryLimit maxTtl;
+    };
+    std::vector<std::pair<std::string, std::vector<TestInput>>> input = {
+            {"abc0", {}},
+            {"abc1",
+             {{CollectionEntry::defaultC,
+               ScopeEntry::defaultS,
+               cb::ExpiryLimit{}},
+              {CollectionEntry::fruit, ScopeEntry::defaultS, cb::ExpiryLimit{}},
+              {CollectionEntry::vegetable,
+               ScopeEntry::defaultS,
+               cb::ExpiryLimit{}}}},
+            {"abc2",
+             {{CollectionEntry::fruit, ScopeEntry::defaultS, cb::ExpiryLimit{}},
+              {CollectionEntry::vegetable,
+               ScopeEntry::defaultS,
+               cb::ExpiryLimit{}}}},
+            {"abc3",
+             {{CollectionEntry::fruit, ScopeEntry::shop1, cb::ExpiryLimit{}},
+              {CollectionEntry::vegetable,
+               ScopeEntry::defaultS,
+               cb::ExpiryLimit{}}}},
+            {"abc4",
+             {{CollectionEntry::dairy, ScopeEntry::shop1, cb::ExpiryLimit{}},
+              {CollectionEntry::dairy2, ScopeEntry::shop2, cb::ExpiryLimit{}}}},
+            {"abc5",
+             {{{CollectionEntry::dairy,
+                ScopeEntry::shop1,
+                std::chrono::seconds(100)},
+               {CollectionEntry::dairy2,
+                ScopeEntry::shop2,
+                std::chrono::seconds(0)}}}}};
 
     for (auto& manifest : input) {
         CollectionsManifest cm(NoDefault{});
+        std::unordered_set<ScopeID> scopesAdded;
+        scopesAdded.insert(ScopeID::Default); // always the default scope
         for (auto& collection : manifest.second) {
-            cm.add(collection);
+            if (scopesAdded.count(collection.scope.uid) == 0) {
+                cm.add(collection.scope);
+                scopesAdded.insert(collection.scope.uid);
+            }
+            cm.add(collection.collection, collection.maxTtl, collection.scope);
         }
         cm.setUid(manifest.first);
 
         Collections::Manifest m(cm);
-        nlohmann::json json;
+
+        nlohmann::json output, input;
         try {
-            json = nlohmann::json::parse(m.toJson());
-        } catch (nlohmann::json::exception& e) {
-            // Throw test failure instead of the exception so that we can
-            // print the failing JSON
-            std::stringstream ss;
-            ss << "nlohmann could not parse the manifest: \"";
-            ss << m.toJson();
-            ss << "\" e.what(): ";
-            ss << e.what();
-            ASSERT_TRUE(false) << ss.str();
+            output = nlohmann::json::parse(m.toJson());
+        } catch (const nlohmann::json::exception& e) {
+            FAIL() << "Cannot nlohmann::json::parse output " << m.toJson()
+                   << " " << e.what();
         }
-        ASSERT_NE(json.end(), json.find("uid"));
-        EXPECT_TRUE(json["uid"].is_string());
-        EXPECT_EQ(manifest.first, json["uid"].get<std::string>());
+        std::string s(cm);
+        try {
+            input = nlohmann::json::parse(s);
+        } catch (const nlohmann::json::exception& e) {
+            FAIL() << "Cannot nlohmann::json::parse input " << s << " "
+                   << e.what();
+        }
 
-        auto scopes = json.find("scopes");
+        EXPECT_EQ(input.size(), output.size());
+        EXPECT_EQ(input["uid"].dump(), output["uid"].dump());
+        EXPECT_EQ(input["scopes"].size(), output["scopes"].size());
+        for (const auto& scope1 : output["scopes"]) {
+            auto scope2 = std::find_if(
+                    input["scopes"].begin(),
+                    input["scopes"].end(),
+                    [scope1](const nlohmann::json& scopeEntry) {
+                        return scopeEntry["name"] == scope1["name"] &&
+                               scopeEntry["uid"] == scope1["uid"];
+                    });
+            ASSERT_NE(scope2, input["scopes"].end());
+            // If we are here we know scope1 and scope2 have name, uid fields
+            // and they match, check the overall size, should be 3 fields
+            // name, uid and collections
+            EXPECT_EQ(3, scope1.size());
+            EXPECT_EQ(scope1.size(), scope2->size());
 
-        if (scopes != json.end()) {
-            auto defaultScope = scopes->find("_default");
-            if (defaultScope != scopes->end()) {
-                auto collections = defaultScope->find("collections");
-                if (collections != defaultScope->end()) {
-                    for (auto& entry : *collections) {
-                        EXPECT_NE(
-                                manifest.second.end(),
-                                std::find_if(
-                                        manifest.second.begin(),
-                                        manifest.second.end(),
-                                        [entry](const CollectionEntry::Entry&
-                                                        e) {
-                                            if (e.name == entry["name"]) {
-                                                return std::to_string(e.uid) ==
-                                                       entry["uid"]
-                                                               .get<std::string>();
-                                            }
-                                            return false;
-                                        }));
-                    }
+            for (const auto& collection1 : scope1["collections"]) {
+                // Find the collection from scope in the output
+                auto collection2 = std::find_if(
+                        (*scope2)["collections"].begin(),
+                        (*scope2)["collections"].end(),
+                        [collection1](const nlohmann::json& collectionEntry) {
+                            return collectionEntry["name"] ==
+                                           collection1["name"] &&
+                                   collectionEntry["uid"] == collection1["uid"];
+                        });
+                ASSERT_NE(collection2, (*scope2)["collections"].end());
+                // If we are here we know collection1 and collection2 have
+                // matching name and uid fields, check the other fields.
+                // max_ttl is optional
+
+                EXPECT_EQ(collection1.size(), collection2->size());
+
+                auto ttl1 = collection1.find("max_ttl");
+                if (ttl1 != collection1.end()) {
+                    ASSERT_EQ(3, collection1.size());
+                    auto ttl2 = collection2->find("max_ttl");
+                    ASSERT_NE(ttl2, collection2->end());
+                    EXPECT_EQ(*ttl1, *ttl2);
                 } else {
-                    EXPECT_EQ(0, manifest.second.size());
+                    EXPECT_EQ(2, collection1.size());
                 }
             }
         }

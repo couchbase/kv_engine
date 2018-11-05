@@ -248,15 +248,22 @@ std::string Manifest::toJson() const {
             json << R"(,"collections":[)";
             // Add all collections
             size_t nCollections = 0;
-            for (const auto& collection : collections) {
-                json << R"({"name":")" << collection.second << R"(","uid":")"
-                     << std::hex << collection.first << R"("})";
-                if (nCollections != collections.size() - 1) {
+            for (const auto& collection : scope.second.collections) {
+                json << R"({"name":")" << collections.at(collection.id)
+                     << R"(","uid":")" << std::hex << collection.id << "\"";
+                if (collection.maxTtl) {
+                    json << R"(,"max_ttl":)" << std::dec
+                         << collection.maxTtl.get().count();
+                }
+                json << "}";
+                if (nCollections != scope.second.collections.size() - 1) {
                     json << ",";
                 }
                 nCollections++;
             }
             json << "]";
+        } else {
+            json << R"(,"collections":[])";
         }
         json << R"(})";
         if (nScopes != scopes.size() - 1) {
@@ -303,13 +310,13 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
        << ", collections.size:" << manifest.collections.size() << std::endl;
     for (const auto& entry : manifest.scopes) {
-        os << "scope:{" << std::hex << entry.first << "," << entry.second.name
-           << ",collections:{";
-        for (const auto& entry : manifest.collections) {
-            os << "collection:{" << std::hex << entry.first << ","
-               << entry.second << "}\n";
+        os << "scope:{" << std::hex << entry.first << ", " << entry.second.name
+           << ", collections:[";
+        for (const auto& collection : entry.second.collections) {
+            os << "{" << std::hex << collection.id << ", "
+               << manifest.collections.at(collection.id) << "}";
         }
-        os << "}\n";
+        os << "]\n";
     }
     return os;
 }
