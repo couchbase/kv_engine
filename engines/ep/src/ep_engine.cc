@@ -828,52 +828,30 @@ static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
 
 static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
-                                    protocol_binary_request_header* request,
+                                    cb::mcbp::Request& request,
                                     ADD_RESPONSE response) {
-
-    protocol_binary_request_set_vbucket* req =
-        reinterpret_cast<protocol_binary_request_set_vbucket*>(request);
-
-    uint64_t cas = ntohll(req->message.header.request.cas);
-
-    size_t bodylen = ntohl(req->message.header.request.bodylen)
-                     - ntohs(req->message.header.request.keylen);
-    if (bodylen != sizeof(vbucket_state_t)) {
-        e->setErrorContext(cookie, "Body too short");
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Einval,
-                            cas,
-                            cookie);
+    static_assert(sizeof(vbucket_state_t) == 4,
+                  "Unexpected size for vbucket_state_t");
+    auto extras = request.getExtdata();
+    if (extras.size() != sizeof(vbucket_state_t)) {
+        e->setErrorContext(
+                cookie, "Expected 4 bytes of extras containing the new state");
+        return ENGINE_EINVAL;
     }
 
-    vbucket_state_t state;
-    memcpy(&state, &req->message.body.state, sizeof(state));
-    state = static_cast<vbucket_state_t>(ntohl(state));
-
+    auto state = static_cast<vbucket_state_t>(
+            ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
     if (!is_valid_vbucket_state_t(state)) {
         e->setErrorContext(cookie, "Invalid vbucket state");
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Einval,
-                            cas,
-                            cookie);
+        return ENGINE_EINVAL;
     }
 
-    Vbid vb = req->message.header.request.vbucket.ntoh();
-    return e->setVBucketState(cookie, response, vb, state, false, cas);
+    return e->setVBucketState(cookie,
+                              response,
+                              request.getVBucket(),
+                              state,
+                              false,
+                              request.getCas());
 }
 
 static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
@@ -1193,7 +1171,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     }
     case cb::mcbp::ClientOpcode::SetVbucket: {
         BlockTimer timer(&stats.setVbucketCmdHisto);
-        rv = setVBucket(h, cookie, request, response);
+        rv = setVBucket(h, cookie, request->request, response);
         h->decrementSessionCtr();
         return rv;
     }
