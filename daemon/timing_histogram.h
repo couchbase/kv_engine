@@ -43,16 +43,15 @@ public:
     void reset();
     void add(std::chrono::nanoseconds nsec);
     std::string to_string();
-    uint32_t get_ns();
-    uint32_t get_usec(uint8_t index);
-    uint32_t get_msec(uint8_t index);
-    uint32_t get_halfsec(uint8_t index);
-    uint32_t get_wayout(uint8_t index);
     uint64_t get_total();
 
-    uint32_t aggregate_wayout();
 
 private:
+    uint32_t get_ns();
+    uint32_t get_msec(uint8_t index);
+    uint32_t get_wayout(uint8_t index);
+    uint32_t aggregate_wayout();
+
     // This helper is used for operator overloads. It is supplied a
     // class such as std::plus, std::minus; with the first argument (of
     // the class's function) being the current value and the second being

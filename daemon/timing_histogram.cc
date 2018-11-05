@@ -191,16 +191,8 @@ uint32_t TimingHistogram::get_ns() {
     return ns;
 }
 
-uint32_t TimingHistogram::get_usec(uint8_t index) {
-    return usec[index];
-}
-
 uint32_t TimingHistogram::get_msec(uint8_t index) {
     return msec[index];
-}
-
-uint32_t TimingHistogram::get_halfsec(uint8_t index) {
-    return halfsec[index];
 }
 
 uint32_t TimingHistogram::get_wayout(uint8_t index) {
