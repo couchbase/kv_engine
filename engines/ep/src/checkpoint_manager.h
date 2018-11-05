@@ -73,14 +73,19 @@ public:
     }
 
     /**
-     * Remove closed unreferenced checkpoints and return them through the vector.
+     * Remove closed unreferenced checkpoints and return them through the
+     * vector.
      * @param vbucket the vbucket that this checkpoint manager belongs to.
-     * @param newOpenCheckpointCreated the flag indicating if the new open checkpoint was created
-     * as a result of running this function.
+     * @param newOpenCheckpointCreated the flag indicating if the new open
+     * checkpoint was created as a result of running this function.
      * @return the number of items that are purged from checkpoint
+     * @param limit Max number of checkpoint that can be removed.
+     *     No limit by default, overidden only for testing.
      */
-    size_t removeClosedUnrefCheckpoints(VBucket& vbucket,
-                                        bool& newOpenCheckpointCreated);
+    size_t removeClosedUnrefCheckpoints(
+            VBucket& vbucket,
+            bool& newOpenCheckpointCreated,
+            size_t limit = std::numeric_limits<size_t>::max());
 
     /**
      * Register the cursor for getting items whose bySeqno values are between

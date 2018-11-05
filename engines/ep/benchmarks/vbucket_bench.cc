@@ -253,149 +253,39 @@ BENCHMARK_DEFINE_F(VBucketBench, CreateDeleteStoredValue)
 }
 
 /*
- * Measures resource contention between a mc::worker (front-end thread) adding
- * incoming mutations to the CheckpointManager (CM) and the
- * ClosedUnrefCheckpointRemoverTask (RemTask) when the number of checkpoint
+ * MB-31834: Load throughput degradation when the number of checkpoints
  * eligible for removing is high.
+ * At both checkpoint-removing and CM:queueDirty we acquire the CM::queueLock.
+ * If the number of checkpoints eligible for removing is high, then any slow
+ * operation under lock in CheckpointRemover delays frontend operations.
+ * Note that the CheckpointRemover is O(N) in the size of the
+ * CM::checkpointList. The regression is caused by a change in MB-30916 where we
+ * started with deallocating checkpoint memory under lock.
+ *
+ * This benchmark measures resource contention between a mc:worker (frontend
+ * thread) executing CM::queueDirty and the ClosedUnrefCheckpointRemoverTask
+ * when the number of checkpoint eligible for removing is high.
  */
 BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
 (benchmark::State& state) {
-    const auto itemCount = state.range(0);
-    size_t itemsQueuedTotal = 0;
+    // Test approach:
+    // - Fix the number of checkpoints to be removed and run the
+    //     CheckpointRemover in a background thread.
+    // - Fix the number of checkpoint to be removed at each CheckpointRemover
+    //     run (must be in the order of 10^3 to catch the regression scenario).
+    // - Enqueue items into the CheckpointMaanager in the frontend thread.
+    //     Break when the CheckpointRemover has done. Measure (A) the number
+    //     of items enqueued and (B) the runtime of the frontend thread.
+    // - Output the average runtime of frontend operations (B/A), which is the
+    //     measured metric for this benchmark
+
+    ASSERT_EQ(1, state.max_iterations);
+
+    const size_t numCheckpoints = state.range(0);
+    const size_t numCkptToRemovePerIteration = state.range(1);
 
     auto* vb = engine->getKVBucket()->getVBucket(vbid).get();
     auto* ckptMgr = vb->checkpointManager.get();
-
-    // I need 3 threads running in parallel for simulating the scenarios above:
-    // 1) a FrontEnd thread enqueues items into the CM
-    // 2) a Flusher thread moves the persistence cursor onward. This will make
-    //     closed checkpoints unreferenced and eligible for removing
-    // 3) a RemTask running in a dedicated thread
-    //
-    // Also, I need to keep the number of checkpoint constantly high by
-    // pre-filling the CheckpointManager::checkpointList. Details about this
-    // in comments below.
-
-    ThreadGate tg(3);
-    std::atomic<bool> bgRun{true};
-
-    // TODO: flusherApproxLimit should be const, but if I do that then:
-    //     - if I capture it explicitly, then Clang compilation
-    //         gives the "lambda capture is not required to be captured for
-    //         this use" warning. That's because Clang implements the new
-    //         C++14 lambda-capture specs where const and constexpr
-    //         variables are implicitly captured
-    //     - if I don't capture it explicitly, MSVC gives compilation error
-    //         C3493 ("<variable> cannot be implicitly captured because no
-    //         default capture mode has been specified")
-    size_t flusherApproxLimit = 2000;
-    // Just perform the flusher steps required for moving the persistence
-    // cursor and creating preconditions for checkpoint removal.
-    auto flush = [&tg, &bgRun, ckptMgr, flusherApproxLimit]() {
-        tg.threadUp();
-        while (bgRun) {
-            std::vector<queued_item> items;
-            // I want the Flusher to make 'flusherApproxLimit' unreferenced
-            // checkpoints at every run. Given that:
-            //     - in our scenario we have 1 item per checkpoint, so every
-            //       checkpoint: [ckpt-start    mutation    ckpt-end]
-            //     - we account also metaitems in the 'approxLimit' in
-            //       CheckpointManager::getItemsForPersistence
-            // then I have to pass 'approxLimit = flusherApproxLimit * 3'
-            ckptMgr->getItemsForPersistence(items, flusherApproxLimit * 3);
-            ckptMgr->itemsPersisted();
-        }
-    };
-
-    size_t numUnrefItems = 0;
-    size_t numCkptRemoverRuns = 0;
-    auto removeCkpt =
-            [&tg, &bgRun, ckptMgr, vb, &numUnrefItems, &numCkptRemoverRuns]() {
-                tg.threadUp();
-                bool newOpenCheckpointCreated;
-                while (bgRun) {
-                    auto removed = ckptMgr->removeClosedUnrefCheckpoints(
-                            *vb, newOpenCheckpointCreated);
-                    numUnrefItems += removed;
-                    numCkptRemoverRuns++;
-                }
-            };
-
-    // I /need/ to perform front-end operations in a situation where the
-    // number of the closed-unref-checkpoints is constantly high
-    // (thousands).
-    // Given that all threads (FrontEnd, Flusher, CkptRem) run concurrently,
-    // the CkptRem will remove a checkpoint as soon as it becomes closed
-    // and unreferenced, so we will not accumulate enough checkpoint to
-    // create the test scenario that I need.
-    //
-    // One (wrong) approach is to put a delay in the CkptRem task, so that
-    // we accumulate checkpoints before the remover performs its operations.
-    // Obviously the "right" sleep time is machine-dependent, so that's a
-    // bad idea.
-    // Another approach is to fork many FrontEnd threads, so that we will
-    // add some checkpoints before the CkptRem runs. In this latter case
-    // the problem is that it's almost impossible to reach the desired
-    // number (thousands) of closed-unref-checkpoints (tested locally, with
-    // 8 FrontEnd threads we accumulate 8 checkpoint on average, as
-    // expected).
-    // Also, in both cases only a small percentage of FrontEnd executions
-    // will be affected by the few slow runs of CkptRem. So the impact on
-    // the final measurement will be irrelevant.
-    //
-    // What I actually do is to pre-fill the CheckpointManager with many
-    // checkpoints. The definition of 'many' is:
-    //
-    //     "the number of checkpoints so that the CkptRem thread will find
-    //     thousands of checkpoints to remove at every run, while the
-    //     FrontEnd thread is still running"
-    //
-    // To determine that number I have to consider that:
-    // 1) We have 3 tasks (FrontEnd, Flusher, CkptRem) running concurrently
-    //     on 3 threads
-    // 2) Even if we run on multi-CPUs, all the 3 threads synchronize
-    //     on the same CM::queueLock
-    // 3) Point 2) implies that it is very likely that we end up with a
-    //     kind of Round-Robin execution of the 3 threads
-    // 4) The Flusher moves the persistence cursor onward. The number of
-    //     movements is limited by the 'approxLimit' param.
-    //     In this setup we have 1 item per checkpoint, so the 'approxLimit'
-    //     param is the upper-bound for the number of checkpoints that will
-    //     become unreferenced at every Flusher run.
-    // 5) So, given that I want to measure the perf of the FrontEnd thread
-    //     performing CM::queueDirty() 'itemCount' times, then I need to
-    //     pre-fill the CheckpointManager with 'itemCount * approxLimit'
-    //     checkpoints to ensure a busy CkptRem task during the entire
-    //     FrontEnd perf measurement.
-    //
-    // One final note.
-    // Our test Flusher performs:
-    //     a) CM::getItemsForPersistence
-    //     b) CM::itemsPersisted
-    // Both the functions above acquire and release the CM::queueLock, but
-    // new closed-unref-checkpoints will be ready for removing only after
-    // both functions have executed.
-    // The consequence is that in the worst case (at regression) it is very
-    // likely to end up with the following execution interleaving:
-    //
-    //     1) Flusher - getItemsForCursor
-    //     2) CkptRem - closed-unref-checkpoints: 0, runtime: 1 us
-    //     3) FrontEnd - queueDirty - runtime: 12868 us
-    //     4) Flusher - itemsPersisted
-    //     5) CkptRem - closed-unref-checkpoints: 10000, runtime: 17001 us
-    //     6) FrontEnd - queueDirty - runtime: 19666 us
-    //
-    // So, actually "only" half of the FrontEnd runs will be affected by
-    // slow runtime of the CkptRem.
-    // Also, that cuts the required number of checkpoints for pre-filling
-    // to approximately 'itemCount * approxLimit / 2'.
-    // To help in verifying that the reasoning above is correct, I add the
-    // 'AvgNumCheckpointRemoved' counter to the benchmark output,
-    // which should be in the order of 10^3 to consider the test valid.
-    //
-    // As last adjustment, I need to add a number of checkpoints to cover
-    // all the iterations performed by the benchmark, so I need to multiply
-    // by 'state.max_iteration'.
 
     // Same queued_item used for both checkpointList pre-filling and
     // front-end queueDirty().
@@ -416,9 +306,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
                      /*bySeq*/ 0)};
 
     // Pre-fill CM with the defined number of checkpoints
-    const size_t nCheckpoints =
-            itemCount * flusherApproxLimit / 2 * state.max_iterations;
-    for (size_t i = 0; i < nCheckpoints; ++i) {
+    for (size_t i = 0; i < numCheckpoints; ++i) {
         ckptMgr->queueDirty(*vb,
                             qi,
                             GenerateBySeqno::Yes,
@@ -426,36 +314,72 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
                             /*preLinkDocCtx*/ nullptr);
     }
 
-    // Start background threads
-    bgRun = true;
-    std::thread ckptRemover(removeCkpt);
-    std::thread flusher(flush);
+    // Simulate the Flusher, this makes all checkpoints eligible for removing
+    std::vector<queued_item> items;
+    ckptMgr->getAllItemsForPersistence(items);
+    ckptMgr->itemsPersisted();
 
-    tg.threadUp();
+    ThreadGate tg(2);
 
+    // Note: numUnrefItems is also the number of removed checkpoints as
+    //     we have 1 item per checkpoint.
+    size_t numUnrefItems = 0;
+    size_t numCkptRemoverRuns = 0;
+    std::atomic<bool> bgDone{false};
+    auto removeCkpt = [&tg,
+                       ckptMgr,
+                       vb,
+                       numCkptToRemovePerIteration,
+                       &numUnrefItems,
+                       &numCheckpoints,
+                       &numCkptRemoverRuns,
+                       &bgDone]() {
+        tg.threadUp();
+        bool newOpenCheckpointCreated;
+        while (true) {
+            auto removed = ckptMgr->removeClosedUnrefCheckpoints(
+                    *vb, newOpenCheckpointCreated, numCkptToRemovePerIteration);
+            numUnrefItems += removed;
+            numCkptRemoverRuns++;
+
+            if (numUnrefItems >= numCheckpoints) {
+                break;
+            }
+        }
+        // Done, exit frontend thread
+        bgDone = true;
+    };
+
+    // Note: thread started but still blocked on ThreadGate
+    std::thread bgThread(removeCkpt);
+
+    size_t itemsQueuedTotal = 0;
+    size_t runtime = 0;
     while (state.KeepRunning()) {
-        // Benchmark: Add the given number of items to checkpoint manager
-        for (int i = 0; i < itemCount; ++i) {
+        tg.threadUp();
+        auto begin = std::chrono::steady_clock::now();
+        while (!bgDone) {
             ckptMgr->queueDirty(*vb,
                                 qi,
                                 GenerateBySeqno::Yes,
                                 GenerateCas::Yes,
                                 /*preLinkDocCtx*/ nullptr);
-            ++itemsQueuedTotal;
+            itemsQueuedTotal++;
         }
+
+        runtime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          std::chrono::steady_clock::now() - begin)
+                          .count();
     }
+    ASSERT_TRUE(itemsQueuedTotal);
 
-    // Cleanup CheckpointManager
-    ckptMgr->clear(*vb, 0);
-    // Destroy background threads
-    bgRun = false;
-    ckptRemover.join();
-    flusher.join();
+    state.counters["NumCheckpointsRemoverRuns"] = numCkptRemoverRuns;
+    state.counters["NumCheckpointsRemovedPerIteration"] =
+            numUnrefItems / numCkptRemoverRuns;
+    state.counters["ItemsEnqueued"] = itemsQueuedTotal;
+    state.counters["AvgQueueDirtyRuntime"] = runtime / itemsQueuedTotal;
 
-    state.SetItemsProcessed(itemsQueuedTotal);
-    state.counters["AvgNumCheckpointRemoved"] =
-            numCkptRemoverRuns > 0 ? numUnrefItems / numCkptRemoverRuns : 0;
-    state.counters["NumCheckpointRemoverRuns"] = numCkptRemoverRuns;
+    bgThread.join();
 }
 
 // Run with item counts from 1..10,000,000.
@@ -476,8 +400,6 @@ static void FlushArguments(benchmark::internal::Benchmark* b) {
 BENCHMARK_REGISTER_F(MemTrackingVBucketBench, FlushVBucket)
         ->Apply(FlushArguments);
 
-// Note: In this benchmark we need to set the number of iterations manually.
-//     Details in comments in the test body.
 BENCHMARK_REGISTER_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
-        ->Args({100})
-        ->Iterations(50);
+        ->Args({1000000, 1000})
+        ->Iterations(1);
