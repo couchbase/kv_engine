@@ -1108,7 +1108,8 @@ static ENGINE_ERROR_CODE processUnknownCommand(
 
     switch (request->request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
-        return h->getAllVBucketSequenceNumbers(cookie, request, response);
+        return h->getAllVBucketSequenceNumbers(
+                cookie, request->request, response);
 
     case cb::mcbp::ClientOpcode::GetVbucket: {
         BlockTimer timer(&stats.getVbucketCmdHisto);
@@ -5871,20 +5872,21 @@ bool EventuallyPersistentEngine::resetVBucket(Vbid vbid) {
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
-                                    const void *cookie,
-                                    protocol_binary_request_header *request,
-                                    ADD_RESPONSE response) {
-    protocol_binary_request_get_all_vb_seqnos *req =
-        reinterpret_cast<protocol_binary_request_get_all_vb_seqnos*>(request);
+        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+    static_assert(sizeof(vbucket_state_t) == 4,
+                  "Unexpected size for vbucket_state_t");
+    auto extras = request.getExtdata();
+    auto reqState = static_cast<vbucket_state_t>(0);
+    ;
 
-    // if extlen (hence bodylen) is non-zero, it limits the result to only
-    // include the vbuckets in the specified vbucket state.
-    size_t bodylen = ntohl(req->message.header.request.bodylen);
-
-    vbucket_state_t reqState = static_cast<vbucket_state_t>(0);;
-    if (bodylen != 0) {
-        memcpy(&reqState, &req->message.body.state, sizeof(reqState));
-        reqState = static_cast<vbucket_state_t>(ntohl(reqState));
+    // if extlen is non-zero, it limits the result to only include the
+    // vbuckets in the specified vbucket state.
+    if (extras.size() > 0) {
+        if (extras.size() != sizeof(vbucket_state_t)) {
+            return ENGINE_EINVAL;
+        }
+        reqState = static_cast<vbucket_state_t>(
+                ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
     }
 
     std::vector<uint8_t> payload;
@@ -5896,7 +5898,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
      */
     try {
         payload.reserve(vbuckets.size() * (sizeof(uint16_t) + sizeof(uint64_t)));
-    } catch (std::bad_alloc) {
+    } catch (const std::bad_alloc&) {
         return sendResponse(response,
                             0,
                             0,
@@ -5947,7 +5949,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                         0,
                         0, /* ext field */
                         payload.data(),
-                        payload.size(), /* value */
+                        gsl::narrow<uint32_t>(payload.size()), /* value */
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
