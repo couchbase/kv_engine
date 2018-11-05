@@ -399,7 +399,6 @@ public:
      * @param svFactory Factory to use for constructing stored values
      * @param initialSize the number of hash table buckets to initially create.
      * @param locks the number of locks in the hash table
-     * @param the eviction policy to use for the hash table
      */
     HashTable(EPStats& st,
               std::unique_ptr<AbstractStoredValueFactory> svFactory,
@@ -1110,6 +1109,25 @@ public:
      * @return true if visiting should continue, false if it should terminate.
      */
     virtual bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) = 0;
+
+    /**
+     * Function called before we visit the elements of a HashBucket. Allows
+     * the derived HashTableVisitors to perform some action before iterating
+     * on the HashBucket by overriding this function. For example, getting a
+     * collections read lock before iterating on some HashBucket.
+     */
+    virtual void setUpHashBucketVisit() {
+        return;
+    };
+
+    /**
+     * Function called after we visit the elements of a HashBucket. Lets the
+     * derived HashTableVisitors cleanup any state that may have been set
+     * before iterating on some HashBucket by overriding this function.
+     */
+    virtual void tearDownHashBucketVisit() {
+        return;
+    };
 };
 
 /**

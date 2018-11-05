@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "collections/vbucket_manifest.h"
 #include "hash_table.h"
 #include "item.h"
 #include "item_eviction.h"
@@ -82,6 +83,20 @@ public:
     bool pauseVisitor() override;
 
     void complete() override;
+
+    /**
+     * Override the setUpHashBucketVisit method so that we can acquire a
+     * Collections::VB::Manifest::ReadHandle. Required if we evict any items in
+     * Ephemeral buckets (i.e. delete them) and need to update the collection
+     * high seqno.
+     */
+    void setUpHashBucketVisit() override;
+
+    /**
+     * Override the tearDownHasBucketVisit method to release the
+     * Collections::VB::Manifest::ReadHandle that we previously acquired.
+     */
+    void tearDownHashBucketVisit() override;
 
     /**
      * Get the number of items ejected during the visit.
@@ -155,4 +170,8 @@ private:
 
     // The policy used to evict items from the hash table.
     EvictionPolicy evictionPolicy;
+
+    // The VB::Manifest read handle that we use to lock around HashBucket
+    // visits. Will contain a nullptr if we aren't currently locking anything.
+    Collections::VB::Manifest::ReadHandle readHandle;
 };

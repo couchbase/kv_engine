@@ -737,14 +737,23 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
         // Note: we don't record how far into the bucket linked-list we
         // pause at; so any restart will begin from the next bucket.
         for (; !paused && hash_bucket < size; hash_bucket += mutexes.size()) {
-            HashBucketLock lh(hash_bucket, mutexes[lock]);
+            visitor.setUpHashBucketVisit();
 
-            StoredValue* v = values[hash_bucket].get().get();
-            while (!paused && v) {
-                StoredValue* tmp = v->getNext().get().get();
-                paused = !visitor.visit(lh, *v);
-                v = tmp;
+            // HashBucketLock scope. If a visitor needs additional locking
+            // around the HashBucket visit then we need to release it before
+            // tearDownHashBucketVisit() is called.
+            {
+                HashBucketLock lh(hash_bucket, mutexes[lock]);
+
+                StoredValue* v = values[hash_bucket].get().get();
+                while (!paused && v) {
+                    StoredValue* tmp = v->getNext().get().get();
+                    paused = !visitor.visit(lh, *v);
+                    v = tmp;
+                }
             }
+
+            visitor.tearDownHashBucketVisit();
         }
 
         // If the visitor paused us before we visited all hash buckets owned

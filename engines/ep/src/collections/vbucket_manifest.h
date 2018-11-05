@@ -77,12 +77,29 @@ public:
      */
     class ReadHandle {
     public:
-        ReadHandle(const Manifest& m, cb::RWLock& lock)
+        /**
+         * To keep the RAII style locking but also allow us to avoid extra
+         * memory allocations we can provide a default constructor giving us
+         * an unlocked ReadHandle and assign locked/default constructed
+         * ReadHandles where required to lock/unlock a given manifest. Note,
+         * a default constructed ReadHandle doesn't point to any manifest so
+         * no other function in the ReadHandle should be called.
+         */
+        ReadHandle() = default;
+
+        ReadHandle(const Manifest* m, cb::RWLock& lock)
             : readLock(lock), manifest(m) {
         }
 
         ReadHandle(ReadHandle&& rhs)
             : readLock(std::move(rhs.readLock)), manifest(rhs.manifest) {
+        }
+
+        ReadHandle& operator=(ReadHandle&& other) {
+            readLock = std::move(other.readLock);
+            manifest = std::move(other.manifest);
+
+            return *this;
         }
 
         /**
@@ -95,7 +112,7 @@ public:
          *   must not be in the process of deletion.
          */
         bool doesKeyContainValidCollection(DocKey key) const {
-            return manifest.doesKeyContainValidCollection(key);
+            return manifest->doesKeyContainValidCollection(key);
         }
 
         /**
@@ -106,7 +123,7 @@ public:
          * @return true if it belongs to the given scope, false if not
          */
         bool doesKeyBelongToScope(DocKey key, ScopeID scopeID) const {
-            return manifest.doesKeyBelongToScope(key, scopeID);
+            return manifest->doesKeyBelongToScope(key, scopeID);
         }
 
         /**
@@ -117,21 +134,21 @@ public:
          * @return true if the key belongs to a deleted collection.
          */
         bool isLogicallyDeleted(DocKey key, int64_t seqno) const {
-            return manifest.isLogicallyDeleted(key, seqno);
+            return manifest->isLogicallyDeleted(key, seqno);
         }
 
         /**
          * @returns true/false if $default exists
          */
         bool doesDefaultCollectionExist() const {
-            return manifest.doesDefaultCollectionExist();
+            return manifest->doesDefaultCollectionExist();
         }
 
         /**
          * @returns true if collection is open, false if not or unknown
          */
         bool isCollectionOpen(CollectionID identifier) const {
-            return manifest.isCollectionOpen(identifier);
+            return manifest->isCollectionOpen(identifier);
         }
 
         /**
@@ -140,48 +157,48 @@ public:
          */
         boost::optional<std::vector<CollectionID>> getCollectionsForScope(
                 ScopeID identifier) const {
-            return manifest.getCollectionsForScope(identifier);
+            return manifest->getCollectionsForScope(identifier);
         }
 
         /**
          * @return true if the collection exists in the internal container
          */
         bool exists(CollectionID identifier) const {
-            return manifest.exists(identifier);
+            return manifest->exists(identifier);
         }
 
         /// @return the manifest UID that last updated this vb::manifest
         ManifestUid getManifestUid() const {
-            return manifest.getManifestUid();
+            return manifest->getManifestUid();
         }
 
         uint64_t getItemCount(CollectionID collection) const {
-            return manifest.getItemCount(collection);
+            return manifest->getItemCount(collection);
         }
 
         uint64_t getPersistedHighSeqno(CollectionID collection) const {
-            return manifest.getPersistedHighSeqno(collection);
+            return manifest->getPersistedHighSeqno(collection);
         }
 
         bool addCollectionStats(Vbid vbid,
                                 const void* cookie,
                                 ADD_STAT add_stat) const {
-            return manifest.addCollectionStats(vbid, cookie, add_stat);
+            return manifest->addCollectionStats(vbid, cookie, add_stat);
         }
 
         bool addScopeStats(Vbid vbid,
                            const void* cookie,
                            ADD_STAT add_stat) const {
-            return manifest.addScopeStats(vbid, cookie, add_stat);
+            return manifest->addScopeStats(vbid, cookie, add_stat);
         }
 
         void updateSummary(Summary& summary) const {
-            manifest.updateSummary(summary);
+            manifest->updateSummary(summary);
         }
 
         void populateWithSerialisedData(
                 flatbuffers::FlatBufferBuilder& builder) const {
-            manifest.populateWithSerialisedData(builder, {});
+            manifest->populateWithSerialisedData(builder, {});
         }
 
         /**
@@ -191,11 +208,23 @@ public:
             std::cerr << manifest << std::endl;
         }
 
+        /**
+         * We may wish to keep hold of a ReadHandle without actually keeping
+         * hold of the lock to avoid unnecessary locking, in particular in
+         * the PagingVisitor. To make the code more explicit (rather than
+         * simply assigning a default constructed, unlocked ReadHandle, allow a
+         * user to manually unlock the ReadHandle, after which it should not
+         * be used.
+         */
+        void unlock() {
+            readLock.unlock();
+        }
+
     protected:
         friend std::ostream& operator<<(std::ostream& os,
                                         const Manifest::ReadHandle& readHandle);
         std::unique_lock<cb::ReaderLock> readLock;
-        const Manifest& manifest;
+        const Manifest* manifest;
     };
 
     /**
@@ -225,12 +254,12 @@ public:
          *        internal keys like create collection). A frontend operation
          *        should not be allowed, whereas a disk backfill is allowed
          */
-        CachingReadHandle(const Manifest& m,
+        CachingReadHandle(const Manifest* m,
                           cb::RWLock& lock,
                           DocKey key,
                           bool allowSystem)
             : ReadHandle(m, lock),
-              itr(m.getManifestEntry(key, allowSystem)),
+              itr(m->getManifestEntry(key, allowSystem)),
               key(key) {
         }
 
@@ -265,12 +294,12 @@ public:
          * @return true if the key@seqno is logically deleted.
          */
         bool isLogicallyDeleted(int64_t seqno) const {
-            return manifest.isLogicallyDeleted(itr, seqno);
+            return manifest->isLogicallyDeleted(itr, seqno);
         }
 
         /// @return the manifest UID that last updated this vb::manifest
         ManifestUid getManifestUid() const {
-            return manifest.getManifestUid();
+            return manifest->getManifestUid();
         }
 
         /**
@@ -287,7 +316,7 @@ public:
             if (key.getCollectionID() == CollectionID::System) {
                 return;
             }
-            return manifest.incrementDiskCount(itr);
+            return manifest->incrementDiskCount(itr);
         }
 
         /**
@@ -304,7 +333,7 @@ public:
             if (key.getCollectionID() == CollectionID::System) {
                 return;
             }
-            return manifest.decrementDiskCount(itr);
+            return manifest->decrementDiskCount(itr);
         }
 
         /**
@@ -318,7 +347,7 @@ public:
          * higher
          */
         void setPersistedHighSeqno(uint64_t value) const {
-            manifest.setPersistedHighSeqno(itr, value);
+            manifest->setPersistedHighSeqno(itr, value);
         }
 
         /**
@@ -332,7 +361,7 @@ public:
          * regardless of if it is greater than the current value
          */
         void resetPersistedHighSeqno(uint64_t value) const {
-            manifest.resetPersistedHighSeqno(itr, value);
+            manifest->resetPersistedHighSeqno(itr, value);
         }
 
         /**
@@ -346,7 +375,7 @@ public:
          */
         boost::optional<CollectionID> shouldCompleteDeletion(
                 int64_t bySeqno) const {
-            return manifest.shouldCompleteDeletion(key, bySeqno, itr);
+            return manifest->shouldCompleteDeletion(key, bySeqno, itr);
         }
 
         /**
@@ -360,7 +389,7 @@ public:
          */
         void processExpiryTime(Item& itm,
                                std::chrono::seconds bucketTtl) const {
-            manifest.processExpiryTime(itr, itm, bucketTtl);
+            manifest->processExpiryTime(itr, itm, bucketTtl);
         }
 
         /**
@@ -374,7 +403,7 @@ public:
          */
         time_t processExpiryTime(time_t t,
                                  std::chrono::seconds bucketTtl) const {
-            return manifest.processExpiryTime(itr, t, bucketTtl);
+            return manifest->processExpiryTime(itr, t, bucketTtl);
         }
 
         /**
@@ -386,7 +415,7 @@ public:
 
     protected:
         bool iteratorValid() const {
-            return itr != manifest.end();
+            return itr != manifest->end();
         }
 
         friend std::ostream& operator<<(
@@ -568,11 +597,11 @@ public:
     Manifest(const PersistedManifest& data);
 
     ReadHandle lock() const {
-        return {*this, rwlock};
+        return {this, rwlock};
     }
 
     CachingReadHandle lock(DocKey key, bool allowSystem = false) const {
-        return {*this, rwlock, key, allowSystem};
+        return {this, rwlock, key, allowSystem};
     }
 
     // Explictly delete rvalue StoredDocKey usage. A CachingReadHandle wants to

@@ -403,3 +403,14 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
     // did not perform eviction so return false
     return false;
 }
+
+void PagingVisitor::setUpHashBucketVisit() {
+    // Grab a locked ReadHandle
+    readHandle = currentBucket->lockCollections();
+}
+
+void PagingVisitor::tearDownHashBucketVisit() {
+    // Unlock the readHandle. It can now never be locked again, and should
+    // not be used until overwriting with a locked ReadHandle.
+    readHandle.unlock();
+}
