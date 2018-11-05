@@ -847,16 +847,35 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
 
 static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
-                                    protocol_binary_request_header* req,
+                                    cb::mcbp::Request& req,
                                     ADD_RESPONSE response) {
-
-    uint64_t cas = ntohll(req->request.cas);
-
-    auto res = cb::mcbp::Status::Success;
-    Vbid vbucket = req->request.vbucket.ntoh();
-
-    if (ntohs(req->request.keylen) > 0 || req->request.extlen > 0) {
+    if (req.getKeylen() > 0 || req.getExtlen() > 0) {
         e->setErrorContext(cookie, "Key and extras required");
+        return ENGINE_EINVAL;
+    }
+
+    Vbid vbucket = req.getVBucket();
+    auto value = req.getValue();
+    bool sync = value.size() == 7 && memcmp(value.data(), "async=0", 7) == 0;
+
+    ENGINE_ERROR_CODE err;
+    void* es = e->getEngineSpecific(cookie);
+    if (sync) {
+        if (es == nullptr) {
+            err = e->deleteVBucket(vbucket, cookie);
+            e->storeEngineSpecific(cookie, e);
+        } else {
+            e->storeEngineSpecific(cookie, nullptr);
+            EP_LOG_DEBUG("Completed sync deletion of {}", vbucket);
+            err = ENGINE_SUCCESS;
+        }
+    } else {
+        err = e->deleteVBucket(vbucket);
+    }
+
+    switch (err) {
+    case ENGINE_SUCCESS:
+        EP_LOG_INFO("Deletion of {} was completed.", vbucket);
         return sendResponse(response,
                             NULL,
                             0,
@@ -865,45 +884,14 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
                             NULL,
                             0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Einval,
-                            cas,
+                            cb::mcbp::Status::Success,
+                            req.getCas(),
                             cookie);
-    }
-
-    bool sync = false;
-    uint32_t bodylen = ntohl(req->request.bodylen);
-    if (bodylen > 0) {
-        const char* ptr = reinterpret_cast<const char*>(req->bytes) +
-                          sizeof(req->bytes);
-        if (bodylen == 7 && strncmp(ptr, "async=0", bodylen) == 0) {
-            sync = true;
-        }
-    }
-
-    ENGINE_ERROR_CODE err;
-    void* es = e->getEngineSpecific(cookie);
-    if (sync) {
-        if (es == NULL) {
-            err = e->deleteVBucket(vbucket, cookie);
-            e->storeEngineSpecific(cookie, e);
-        } else {
-            e->storeEngineSpecific(cookie, NULL);
-            EP_LOG_DEBUG("Completed sync deletion of {}", vbucket);
-            err = ENGINE_SUCCESS;
-        }
-    } else {
-        err = e->deleteVBucket(vbucket);
-    }
-    switch (err) {
-    case ENGINE_SUCCESS:
-        EP_LOG_INFO("Deletion of {} was completed.", vbucket);
-        break;
     case ENGINE_NOT_MY_VBUCKET:
         EP_LOG_WARN(
                 "Deletion of {} failed because the vbucket doesn't exist!!!",
                 vbucket);
-        res = cb::mcbp::Status::NotMyVbucket;
-        break;
+        return ENGINE_NOT_MY_VBUCKET;
     case ENGINE_EINVAL:
         EP_LOG_WARN(
                 "Deletion of {} failed "
@@ -912,37 +900,20 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
         e->setErrorContext(
                 cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
-        res = cb::mcbp::Status::Einval;
-        break;
+        return ENGINE_EINVAL;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
                 "Request for {} deletion is in"
                 " EWOULDBLOCK until the database file is removed from disk",
                 vbucket);
-        e->storeEngineSpecific(cookie, req);
+        e->storeEngineSpecific(cookie, &req);
         return ENGINE_EWOULDBLOCK;
     default:
         EP_LOG_WARN("Deletion of {} failed because of unknown reasons",
                     vbucket);
         e->setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
-        res = cb::mcbp::Status::Einternal;
+        return ENGINE_FAILED;
     }
-
-    if (err == ENGINE_NOT_MY_VBUCKET) {
-        return err;
-    }
-
-    return sendResponse(response,
-                        NULL,
-                        0,
-                        NULL,
-                        0,
-                        NULL,
-                        0,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        res,
-                        cas,
-                        cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
@@ -1153,7 +1124,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     }
     case cb::mcbp::ClientOpcode::DelVbucket: {
         BlockTimer timer(&stats.delVbucketCmdHisto);
-        rv = delVBucket(h, cookie, request, response);
+        rv = delVBucket(h, cookie, request->request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             h->decrementSessionCtr();
             h->storeEngineSpecific(cookie, NULL);
