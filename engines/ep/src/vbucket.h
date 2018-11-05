@@ -754,7 +754,7 @@ public:
     static const vbucket_state_t PENDING;
     static const vbucket_state_t DEAD;
 
-    HashTable         ht;
+    HashTable ht;
 
     /// Manager of this vBucket's checkpoints. unique_ptr for pimpl.
     std::unique_ptr<CheckpointManager> checkpointManager;
@@ -776,7 +776,7 @@ public:
      * @param wantsDeleted
      * @param trackReference
      * @param queueExpired Delete an expired item
-     * @param cHandle Collections manifest readhandle (caching mode)
+     * @param cHandle Collections readhandle (caching mode) for this key
      */
     StoredValue* fetchValidValue(
             HashTable::HashBucketLock& hbl,
@@ -865,7 +865,7 @@ public:
      * @param engine Reference to ep engine
      * @param predicate a function to call which if returns true, the replace
      *        will succeed. The function is called against any existing item.
-     * @param readHandle Reader access to the Item's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
@@ -874,7 +874,7 @@ public:
             const void* cookie,
             EventuallyPersistentEngine& engine,
             cb::StoreIfPredicate predicate,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Add an item directly into its vbucket rather than putting it on a
@@ -883,6 +883,7 @@ public:
      *
      * @param itm Item to be added/updated from DCP backfill. Upon
      *            success, the itm revSeqno is updated
+     *
      * @return the result of the operation
      */
     ENGINE_ERROR_CODE addBackfillItem(Item& itm);
@@ -900,7 +901,7 @@ public:
      *                      item exists already
      * @param genBySeqno whether or not to generate sequence number
      * @param genCas
-     * @param readHandle Reader access to the Item's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return the result of the store operation
      */
@@ -914,7 +915,7 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno,
             GenerateCas genCas,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Delete an item in the vbucket
@@ -928,7 +929,7 @@ public:
      * @param[out] mutInfo Info to uniquely identify (and order) the delete
      *                     seq. A NULL pointer indicates no info needs to be
      *                     returned.
-     * @param readHandle Reader access to the affected key's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return the result of the operation
      */
@@ -938,7 +939,7 @@ public:
             EventuallyPersistentEngine& engine,
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Delete an item in the vbucket from a non-front end operation (DCP, XDCR)
@@ -955,7 +956,7 @@ public:
      * @param genBySeqno whether or not to generate sequence number
      * @param generateCas whether or not to generate cas
      * @param bySeqno seqno of the key being deleted
-     * @param readHandle Reader access to the key's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      * @param deleteSource The source of the deletion, which if TTL triggers the
      *                     expiration path.
      *
@@ -972,7 +973,7 @@ public:
             GenerateBySeqno genBySeqno,
             GenerateCas generateCas,
             uint64_t bySeqno,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle,
             DeleteSource deleteSource);
 
     /**
@@ -992,7 +993,7 @@ public:
      * @param key Key to evict
      * @param[out] msg Updated to point to a string (with static duration)
      *                 describing the result of the operation.
-     * @param cHandle A collections CachingReadHandle for the key
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return SUCCESS if key was successfully evicted (or was already
      *                 evicted), or the reason why the request failed.
@@ -1040,7 +1041,7 @@ public:
      *            CAS updated.
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
-     * @param readHandle Reader access to the Item's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return the result of the operation
      */
@@ -1048,7 +1049,7 @@ public:
             Item& itm,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -1056,7 +1057,7 @@ public:
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param exptime the new expiry time for the object
-     * @param readHandle Reader access to the key's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return a GetValue representing the result of the request
      */
@@ -1064,9 +1065,13 @@ public:
             const void* cookie,
             EventuallyPersistentEngine& engine,
             time_t exptime,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
     /**
-     * Queue an Item to the checkpoint and return its seqno
+     * Queue a system event Item to the checkpoint and return its seqno. Does
+     * not set the collection high seqno of the item as that requires a read
+     * lock but this is called from within a write lock scope. Also, it does not
+     * make sense to update the collection high seqno for certain events,
+     * such as scope creations and deletions.
      *
      * @param item an Item object to queue, can be any kind of item and will be
      *        given a CAS and seqno by this function.
@@ -1083,7 +1088,7 @@ public:
      * @param options flags indicating some retrieval related info
      * @param diskFlushAll
      * @param getKeyOnly if GetKeyOnly::Yes we want only the key
-     * @param readHandle Reader access to the requested key's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return the result of the operation
      */
@@ -1093,14 +1098,14 @@ public:
             get_options_t options,
             bool diskFlushAll,
             GetKeyOnly getKeyOnly,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Retrieve the meta data for given key
      *
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
-     * @param readHandle Reader access to the key's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      * @param[out] metadata meta information returned to the caller
      * @param[out] deleted specifies the caller whether or not the key is
      *                     deleted
@@ -1111,7 +1116,7 @@ public:
     ENGINE_ERROR_CODE getMetaData(
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle,
+            const Collections::VB::Manifest::CachingReadHandle& cHandle,
             ItemMetaData& metadata,
             uint32_t& deleted,
             uint8_t& datatype);
@@ -1125,7 +1130,7 @@ public:
      * @param wantsDeleted If yes then return keystats even if the item is
      *                     marked as deleted. If no then will return
      *                     ENGINE_KEY_ENOENT for deleted items.
-     * @param readHandle Reader access to the key's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return the result of the operation
      */
@@ -1134,7 +1139,7 @@ public:
             EventuallyPersistentEngine& engine,
             struct key_stats& kstats,
             WantsDeleted wantsDeleted,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * Gets a locked item for a given key.
@@ -1144,7 +1149,7 @@ public:
      * @param lockTimeout Timeout for the lock on the item
      * @param cookie The client's cookie
      * @param engine Reference to ep engine
-     * @param readHandle Reader access to the key's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return the result of the operation (contains locked item on success)
      */
@@ -1153,7 +1158,7 @@ public:
             uint32_t lockTimeout,
             const void* cookie,
             EventuallyPersistentEngine& engine,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
     /**
      * Update in memory data structures after an item is deleted on disk
      *
@@ -1260,17 +1265,17 @@ public:
      *
      * @param key The key to look for
      * @param bySeqno The seqno of the key to remove
-     * @param cHandle A collections CachingReadHandle for the key
+     * @param cHandle Collections readhandle (caching mode) for this key
      */
     void removeKey(const DocKey& key,
                    int64_t bySeqno,
                    Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
-     * Get the number of deleted items that are "persisted". 
+     * Get the number of deleted items that are "persisted".
      * Note1: This stat is used by ns_server during takeover.
      *
-     * Note2: the virtual method allows ephemeral vb to return something 
+     * Note2: the virtual method allows ephemeral vb to return something
      * logically equivalent
      *
      * @returns the number of deletes which are persisted
@@ -1293,13 +1298,13 @@ public:
      * or doesn't exist
      *
      * @param v StoredValue to check
-     * @param readHandle a ReadHandle for safe reading of collection data
+     * @param cHandle Collections readhandle (caching mode) for this key
      * @return true if the item is logically non-existent,
      *         false otherwise
      */
     static bool isLogicallyNonExistent(
             const StoredValue& v,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     std::queue<queued_item> rejectQueue;
     std::unique_ptr<FailoverTable> failovers;
@@ -1350,7 +1355,7 @@ protected:
             HashTable::HashBucketLock& hbl,
             StoredValue* v,
             time_t exptime,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
     /**
      * This function checks cas, expiry and other partition (vbucket) related
      * rules before setting an item into other in-memory structure like HT,
@@ -1395,7 +1400,7 @@ protected:
      * @param itm Item to be added/updated. On success, its revSeqno is updated
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue
-     * @param readHandle Reader access to the Item's collection data.
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return Result indicating the status of the operation and notification
      *                info (if the operation was successful).
@@ -1406,7 +1411,7 @@ protected:
             Item& itm,
             bool maybeKeyExists,
             const VBQueueItemCtx& queueItmCtx,
-            const Collections::VB::Manifest::CachingReadHandle& readHandle);
+            const Collections::VB::Manifest::CachingReadHandle& cHandle);
 
     /**
      * This function checks cas, eviction policy and other partition
@@ -1483,7 +1488,7 @@ protected:
      * partition that contains the StoredValue being Queued.
      *
      * @param v the dirty item. The cas and seqno maybe updated based on the
-     *          flags passed
+     *        flags passed
      * @param generateBySeqno request that the seqno is generated by this call
      * @param generateCas request that the CAS is generated by this call
      * @param isBackfillItem indicates if the item must be put onto vb queue or
@@ -1618,7 +1623,7 @@ private:
      * Updates an existing StoredValue in in-memory data structures like HT.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table lock that must be held
      * @param v Reference to the StoredValue to be updated.
      * @param itm Item to be updated.
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
@@ -1694,7 +1699,7 @@ private:
      *
      * @param hbl Hash table bucket lock that must be held
      * @param v Reference to the StoredValue to be soft deleted
-     * @param cHandle A collections CachingReadHandle for the expired key
+     * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return status of the operation.
      *         pointer to the updated StoredValue. It can be same as that of

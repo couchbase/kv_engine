@@ -507,12 +507,12 @@ cb::mcbp::Status KVBucket::evictKey(const DocKey& key,
     }
 
     { // collections read-lock scope
-        auto collectionsRHandle = vb->lockCollections(key);
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(key);
+        if (!cHandle.valid()) {
             return cb::mcbp::Status::UnknownCollection;
         } // now hold collections read access for the duration of the evict
 
-        return vb->evictKey(key, msg, collectionsRHandle);
+        return vb->evictKey(key, msg, cHandle);
     }
 }
 
@@ -641,13 +641,14 @@ ENGINE_ERROR_CODE KVBucket::set(Item& itm,
     }
 
     { // collections read-lock scope
-        auto collectionsRHandle = vb->lockCollections(itm.getKey());
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(itm.getKey());
+        if (!cHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the set
 
         // maybe need to adjust expiry of item
-        collectionsRHandle.processExpiryTime(itm, getMaxTtl());
+        cHandle.processExpiryTime(itm, getMaxTtl());
+
         return vb->set(itm, cookie, engine, predicate);
     }
 }
@@ -685,14 +686,14 @@ ENGINE_ERROR_CODE KVBucket::add(Item &itm, const void *cookie)
     }
 
     { // collections read-lock scope
-        auto collectionsRHandle = vb->lockCollections(itm.getKey());
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(itm.getKey());
+        if (!cHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the add
 
         // maybe need to adjust expiry of item
-        collectionsRHandle.processExpiryTime(itm, getMaxTtl());
-        return vb->add(itm, cookie, engine, collectionsRHandle);
+        cHandle.processExpiryTime(itm, getMaxTtl());
+        return vb->add(itm, cookie, engine, cHandle);
     }
 }
 
@@ -719,18 +720,14 @@ ENGINE_ERROR_CODE KVBucket::replace(Item& itm,
     }
 
     { // collections read-lock scope
-        auto collectionsRHandle = vb->lockCollections(itm.getKey());
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(itm.getKey());
+        if (!cHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         } // now hold collections read access for the duration of the set
 
         // maybe need to adjust expiry of item
-        collectionsRHandle.processExpiryTime(itm, getMaxTtl());
-        return vb->replace(itm,
-                           cookie,
-                           engine,
-                           predicate,
-                           collectionsRHandle);
+        cHandle.processExpiryTime(itm, getMaxTtl());
+        return vb->replace(itm, cookie, engine, predicate, cHandle);
     }
 }
 
@@ -1349,9 +1346,9 @@ GetValue KVBucket::getInternal(const DocKey& key,
         }
     }
 
-    { // collections read scope
-        auto collectionsRHandle = vb->lockCollections(key);
-        if (!collectionsRHandle.valid()) {
+    { // hold collections read handle for duration of get
+        auto cHandle = vb->lockCollections(key);
+        if (!cHandle.valid()) {
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
@@ -1360,7 +1357,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
                                options,
                                diskDeleteAll,
                                VBucket::GetKeyOnly::No,
-                               collectionsRHandle);
+                               cHandle);
     }
 }
 
@@ -1412,17 +1409,13 @@ ENGINE_ERROR_CODE KVBucket::getMetaData(const DocKey& key,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections(key);
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(key);
+        if (!cHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->getMetaData(cookie,
-                               engine,
-                               collectionsRHandle,
-                               metadata,
-                               deleted,
-                               datatype);
+        return vb->getMetaData(
+                cookie, engine, cHandle, metadata, deleted, datatype);
     }
 }
 
@@ -1466,13 +1459,13 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
     }
 
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    { // collections read scope
+    { // hold collections read lock for duration of set
 
-        auto collectionsRHandle = vb->lockCollections(itm.getKey());
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(itm.getKey());
+        if (!cHandle.valid()) {
             rv = ENGINE_UNKNOWN_COLLECTION;
         } else {
-            collectionsRHandle.processExpiryTime(itm, getMaxTtl());
+            cHandle.processExpiryTime(itm, getMaxTtl());
             rv = vb->setWithMeta(itm,
                                  cas,
                                  seqno,
@@ -1482,7 +1475,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
                                  allowExisting,
                                  genBySeqno,
                                  genCas,
-                                 collectionsRHandle);
+                                 cHandle);
         }
     }
 
@@ -1516,16 +1509,16 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections(key);
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(key);
+        if (!cHandle.valid()) {
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
         return vb->getAndUpdateTtl(
                 cookie,
                 engine,
-                collectionsRHandle.processExpiryTime(exptime, getMaxTtl()),
-                collectionsRHandle);
+                cHandle.processExpiryTime(exptime, getMaxTtl()),
+                cHandle);
     }
 }
 
@@ -1541,16 +1534,12 @@ GetValue KVBucket::getLocked(const DocKey& key,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections(key);
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(key);
+        if (!cHandle.valid()) {
             return GetValue(NULL, ENGINE_UNKNOWN_COLLECTION);
         }
 
-        return vb->getLocked(currentTime,
-                             lockTimeout,
-                             cookie,
-                             engine,
-                             collectionsRHandle);
+        return vb->getLocked(currentTime, lockTimeout, cookie, engine, cHandle);
     }
 }
 
@@ -1564,8 +1553,8 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    auto collectionsRHandle = vb->lockCollections(key);
-    if (!collectionsRHandle.valid()) {
+    auto cHandle = vb->lockCollections(key);
+    if (!cHandle.valid()) {
         return ENGINE_UNKNOWN_COLLECTION;
     }
 
@@ -1575,10 +1564,10 @@ ENGINE_ERROR_CODE KVBucket::unlockKey(const DocKey& key,
                                          WantsDeleted::Yes,
                                          TrackReference::Yes,
                                          QueueExpired::Yes,
-                                         collectionsRHandle);
+                                         cHandle);
 
     if (v) {
-        if (VBucket::isLogicallyNonExistent(*v, collectionsRHandle)) {
+        if (VBucket::isLogicallyNonExistent(*v, cHandle)) {
             vb->ht.cleanupIfTemporaryItem(hbl, *v);
             return ENGINE_KEY_ENOENT;
         }
@@ -1616,16 +1605,12 @@ ENGINE_ERROR_CODE KVBucket::getKeyStats(const DocKey& key,
     }
 
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections(key);
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(key);
+        if (!cHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->getKeyStats(cookie,
-                               engine,
-                               kstats,
-                               wantsDeleted,
-                               collectionsRHandle);
+        return vb->getKeyStats(cookie, engine, kstats, wantsDeleted, cHandle);
 }
 }
 
@@ -1634,8 +1619,8 @@ std::string KVBucket::validateKey(const DocKey& key,
                                   Item& diskItem) {
     VBucketPtr vb = getVBucket(vbucket);
 
-    auto collectionsRHandle = vb->lockCollections(key);
-    if (!collectionsRHandle.valid()) {
+    auto cHandle = vb->lockCollections(key);
+    if (!cHandle.valid()) {
         return "collection_unknown";
     }
 
@@ -1645,10 +1630,10 @@ std::string KVBucket::validateKey(const DocKey& key,
                                          WantsDeleted::Yes,
                                          TrackReference::No,
                                          QueueExpired::Yes,
-                                         collectionsRHandle);
+                                         cHandle);
 
     if (v) {
-        if (VBucket::isLogicallyNonExistent(*v, collectionsRHandle)) {
+        if (VBucket::isLogicallyNonExistent(*v, cHandle)) {
             vb->ht.cleanupIfTemporaryItem(hbl, *v);
             return "item_deleted";
         }
@@ -1692,17 +1677,12 @@ ENGINE_ERROR_CODE KVBucket::deleteItem(const DocKey& key,
         return ENGINE_TMPFAIL;
     }
     { // collections read scope
-        auto collectionsRHandle = vb->lockCollections(key);
-        if (!collectionsRHandle.valid()) {
+        auto cHandle = vb->lockCollections(key);
+        if (!cHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
-        return vb->deleteItem(cas,
-                              cookie,
-                              engine,
-                              itemMeta,
-                              mutInfo,
-                              collectionsRHandle);
+        return vb->deleteItem(cas, cookie, engine, itemMeta, mutInfo, cHandle);
     }
 }
 
@@ -1750,9 +1730,9 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
         return ENGINE_KEY_EEXISTS;
     }
 
-    { // collections read scope
-        auto collectionsRHandle = vb->lockCollections(key);
-        if (!collectionsRHandle.valid()) {
+    { // hold collections read lock for duration of delete
+        auto cHandle = vb->lockCollections(key);
+        if (!cHandle.valid()) {
             return ENGINE_UNKNOWN_COLLECTION;
         }
 
@@ -1766,7 +1746,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                   genBySeqno,
                                   generateCas,
                                   bySeqno,
-                                  collectionsRHandle,
+                                  cHandle,
                                   deleteSource);
     }
 }
@@ -2497,14 +2477,14 @@ bool KVBucket::collectionsEraseKey(
     }
 
     { // collections read lock scope
-        auto collectionsRHandle =
+        auto cHandle =
                 eraserContext.lockCollections(key, true /* allow system */);
 
         // We should only find keys on disk which result in an invalid handle
         // if the key is a system key. Primary example is a collection delete
         // marker which has been left behind from a completed collection delete
         // and will stay with us until tombstone purging removes it.
-        if (!collectionsRHandle.found()) {
+        if (!cHandle.found()) {
             if (key.getCollectionID() != CollectionID::System) {
                 throw std::logic_error(
                         "KVBucket::collectionsEraseKey: given a key with an "
@@ -2516,9 +2496,9 @@ bool KVBucket::collectionsEraseKey(
         }
 
         // Next if the key is logically deleted...
-        if (collectionsRHandle.isLogicallyDeleted(bySeqno)) {
+        if (cHandle.isLogicallyDeleted(bySeqno)) {
             // 1) remove it from the VB (hashtable)
-            vb->removeKey(key, bySeqno, collectionsRHandle);
+            vb->removeKey(key, bySeqno, cHandle);
 
             // 2) Update item count of the vbucket
             if (key.getCollectionID() != CollectionID::System) {
@@ -2530,8 +2510,7 @@ bool KVBucket::collectionsEraseKey(
 
         // Finally determine if the key@seqno represents the end of collection
         // the collections range, i.e. are we now at the end seqno?
-        completedCollection =
-                collectionsRHandle.shouldCompleteDeletion(bySeqno);
+        completedCollection = cHandle.shouldCompleteDeletion(bySeqno);
     } // read lock dropped as we may need the write lock in next block
 
     // If we've reached the end of the collection, all items are now erased...
