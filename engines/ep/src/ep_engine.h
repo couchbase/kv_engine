@@ -513,9 +513,8 @@ public:
     bool resetVBucket(Vbid vbid);
 
     cb::mcbp::Status evictKey(const void* cookie,
-                              protocol_binary_request_header* request,
-                              const char** msg,
-                              size_t* msg_size);
+                              cb::mcbp::Request& request,
+                              const char** msg);
 
     ENGINE_ERROR_CODE observe(const void* cookie,
                               protocol_binary_request_header* request,

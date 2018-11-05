@@ -716,22 +716,13 @@ cb::mcbp::Status EventuallyPersistentEngine::setVbucketParam(Vbid vbucket,
 }
 
 cb::mcbp::Status EventuallyPersistentEngine::evictKey(
-        const void* cookie,
-        protocol_binary_request_header* request,
-        const char** msg,
-        size_t* msg_size) {
-    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(request);
-
-    const uint8_t* keyPtr = reinterpret_cast<const uint8_t*>(request) +
-                            sizeof(*request);
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    Vbid vbucket = request->request.vbucket.ntoh();
-
+        const void* cookie, cb::mcbp::Request& request, const char** msg) {
+    const auto key = request.getKey();
     EP_LOG_DEBUG("Manually evicting object with key {}",
-                 cb::UserDataView(keyPtr, keylen));
-    msg_size = 0;
-    auto rv = kvBucket->evictKey(
-            makeDocKey(cookie, {keyPtr, keylen}), vbucket, msg);
+                 cb::UserDataView(key.data(), key.size()));
+    auto rv = kvBucket->evictKey(makeDocKey(cookie, {key.data(), key.size()}),
+                                 request.getVBucket(),
+                                 msg);
     if (rv == cb::mcbp::Status::NotMyVbucket ||
         rv == cb::mcbp::Status::KeyEnoent) {
         if (isDegradedMode()) {
@@ -1190,7 +1181,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         h->decrementSessionCtr();
         break;
     case cb::mcbp::ClientOpcode::EvictKey:
-        res = h->evictKey(cookie, request, &msg, &msg_size);
+        res = h->evictKey(cookie, request->request, &msg);
         break;
     case cb::mcbp::ClientOpcode::Observe:
         return h->observe(cookie, request, response);
