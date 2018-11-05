@@ -6,6 +6,10 @@ if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
                                 ${CB_GNU_CXX11_OPTION})
 endif ()
 
+# Mark third-party libraries as 'system' so we skip any warnings they
+# generate.
+INCLUDE_DIRECTORIES(BEFORE SYSTEM ${hdr_histogram_SOURCE_DIR}/src)
+
 add_library(mcd_util STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/config_parser.h
             ${PROJECT_SOURCE_DIR}/include/memcached/vbucket.h
@@ -18,6 +22,8 @@ add_library(mcd_util STATIC
             dockey.cc
             engine_loader.cc
             engine_loader.h
+            hdrhistogram.cc
+            hdrhistogram.h
             json_utilities.cc
             json_utilities.h
             logtags.cc
@@ -30,8 +36,8 @@ add_library(mcd_util STATIC
             util.cc
             vbucket.cc )
 set_property(TARGET mcd_util PROPERTY POSITION_INDEPENDENT_CODE 1)
-target_link_libraries(mcd_util memcached_logger engine_utilities platform
-                      ${BREAKPAD_LIBRARIES})
+target_link_libraries(mcd_util memcached_logger engine_utilities
+                      hdr_histogram_static platform ${BREAKPAD_LIBRARIES})
 add_sanitizers(mcd_util)
 
 generate_export_header(mcd_util
