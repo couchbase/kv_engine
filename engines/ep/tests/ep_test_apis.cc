@@ -334,12 +334,12 @@ protocol_binary_request_header* createPacket(cb::mcbp::ClientOpcode opcode,
     auto* req = reinterpret_cast<protocol_binary_request_header*>(pkt_raw);
     req->request.setMagic(cb::mcbp::Magic::ClientRequest);
     req->request.setOpcode(opcode);
-    req->request.keylen = htons(keylen);
-    req->request.extlen = extlen;
-    req->request.vbucket = vbid.hton();
-    req->request.bodylen = htonl(keylen + vallen + extlen + nmeta);
-    req->request.cas = htonll(cas);
-    req->request.datatype = datatype;
+    req->request.setKeylen(keylen);
+    req->request.setExtlen(extlen);
+    req->request.setVBucket(vbid);
+    req->request.setBodylen(keylen + vallen + extlen + nmeta);
+    req->request.setCas(cas);
+    req->request.setDatatype(cb::mcbp::Datatype(datatype));
 
     if (extlen > 0) {
         memcpy(pkt_raw + headerlen, ext, extlen);
@@ -515,14 +515,12 @@ void evict_key(EngineIface* h,
     int numEjectedItems = get_int_stat(h, "ep_num_value_ejects");
     protocol_binary_request_header* pkt =
             createPacket(cb::mcbp::ClientOpcode::EvictKey,
-                         Vbid(0),
+                         vbucketId,
                          0,
                          NULL,
                          0,
                          key,
                          strlen(key));
-    pkt->request.vbucket = vbucketId.hton();
-
     checkeq(ENGINE_SUCCESS,
             h->unknown_command(NULL, pkt, add_response),
             "Failed to perform CMD_EVICT_KEY.");

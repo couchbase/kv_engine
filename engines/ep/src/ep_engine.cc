@@ -338,17 +338,17 @@ void EventuallyPersistentEngine::reset_stats(
 }
 
 cb::mcbp::Status EventuallyPersistentEngine::setReplicationParam(
-        const char* keyz, const char* valz, std::string& msg) {
+        const std::string& key, const std::string& val, std::string& msg) {
     auto rv = cb::mcbp::Status::Success;
 
     try {
-        if (strcmp(keyz, "replication_throttle_threshold") == 0) {
+        if (key == "replication_throttle_threshold") {
             getConfiguration().setReplicationThrottleThreshold(
-                    std::stoull(valz));
-        } else if (strcmp(keyz, "replication_throttle_queue_cap") == 0) {
-            getConfiguration().setReplicationThrottleQueueCap(std::stoll(valz));
-        } else if (strcmp(keyz, "replication_throttle_cap_pcnt") == 0) {
-            getConfiguration().setReplicationThrottleCapPcnt(std::stoull(valz));
+                    std::stoull(val));
+        } else if (key == "replication_throttle_queue_cap") {
+            getConfiguration().setReplicationThrottleQueueCap(std::stoll(val));
+        } else if (key == "replication_throttle_cap_pcnt") {
+            getConfiguration().setReplicationThrottleCapPcnt(std::stoull(val));
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;
@@ -376,39 +376,37 @@ cb::mcbp::Status EventuallyPersistentEngine::setReplicationParam(
 }
 
 cb::mcbp::Status EventuallyPersistentEngine::setCheckpointParam(
-        const char* keyz, const char* valz, std::string& msg) {
+        const std::string& key, const std::string& val, std::string& msg) {
     auto rv = cb::mcbp::Status::Success;
 
     try {
-        if (strcmp(keyz, "chk_max_items") == 0) {
-            size_t v = std::stoull(valz);
+        if (key == "chk_max_items") {
+            size_t v = std::stoull(val);
             validate(v, size_t(MIN_CHECKPOINT_ITEMS),
                      size_t(MAX_CHECKPOINT_ITEMS));
             getConfiguration().setChkMaxItems(v);
-        } else if (strcmp(keyz, "chk_period") == 0) {
-            size_t v = std::stoull(valz);
+        } else if (key == "chk_period") {
+            size_t v = std::stoull(val);
             validate(v, size_t(MIN_CHECKPOINT_PERIOD),
                      size_t(MAX_CHECKPOINT_PERIOD));
             getConfiguration().setChkPeriod(v);
-        } else if (strcmp(keyz, "max_checkpoints") == 0) {
-            size_t v = std::stoull(valz);
+        } else if (key == "max_checkpoints") {
+            size_t v = std::stoull(val);
             validate(v, size_t(DEFAULT_MAX_CHECKPOINTS),
                      size_t(MAX_CHECKPOINTS_UPPER_BOUND));
             getConfiguration().setMaxCheckpoints(v);
-        } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
-            getConfiguration().setItemNumBasedNewChk(cb_stob(valz));
-        } else if (strcmp(keyz, "keep_closed_chks") == 0) {
-            getConfiguration().setKeepClosedChks(cb_stob(valz));
-        } else if (strcmp(keyz, "cursor_dropping_checkpoint_mem_upper_mark") ==
-                   0) {
-            size_t v = std::stoull(valz);
+        } else if (key == "item_num_based_new_chk") {
+            getConfiguration().setItemNumBasedNewChk(cb_stob(val));
+        } else if (key == "keep_closed_chks") {
+            getConfiguration().setKeepClosedChks(cb_stob(val));
+        } else if (key == "cursor_dropping_checkpoint_mem_upper_mark") {
+            size_t v = std::stoull(val);
             validate(v,
                      getConfiguration().getCursorDroppingCheckpointMemLowerMark(),
                      size_t(100));
             getConfiguration().setCursorDroppingCheckpointMemUpperMark(v);
-        } else if (strcmp(keyz, "cursor_dropping_checkpoint_mem_lower_mark") ==
-                   0) {
-            size_t v = std::stoull(valz);
+        } else if (key == "cursor_dropping_checkpoint_mem_lower_mark") {
+            size_t v = std::stoull(val);
             validate(
                     v, size_t(0), getConfiguration().getCursorDroppingCheckpointMemUpperMark());
             getConfiguration().setCursorDroppingCheckpointMemLowerMark(v);
@@ -444,17 +442,16 @@ cb::mcbp::Status EventuallyPersistentEngine::setCheckpointParam(
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(const char* keyz,
-                                                           const char* valz,
-                                                           std::string& msg) {
+cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(
+        const std::string& key, const std::string& val, std::string& msg) {
     auto rv = cb::mcbp::Status::Success;
 
     // Handle the actual mutation.
     try {
-        if (strcmp(keyz, "bg_fetch_delay") == 0) {
-            getConfiguration().setBgFetchDelay(std::stoull(valz));
-        } else if (strcmp(keyz, "max_size") == 0) {
-            size_t vsize = std::stoull(valz);
+        if (key == "bg_fetch_delay") {
+            getConfiguration().setBgFetchDelay(std::stoull(val));
+        } else if (key == "max_size") {
+            size_t vsize = std::stoull(val);
 
             getConfiguration().setMaxSize(vsize);
             EPStats& st = getEpStats();
@@ -462,157 +459,155 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(const char* keyz,
                     percentOf(vsize, st.mem_low_wat_percent));
             getConfiguration().setMemHighWat(
                     percentOf(vsize, st.mem_high_wat_percent));
-        } else if (strcmp(keyz, "mem_low_wat") == 0) {
-            getConfiguration().setMemLowWat(std::stoull(valz));
-        } else if (strcmp(keyz, "mem_high_wat") == 0) {
-            getConfiguration().setMemHighWat(std::stoull(valz));
-        } else if (strcmp(keyz, "backfill_mem_threshold") == 0) {
-            getConfiguration().setBackfillMemThreshold(std::stoull(valz));
-        } else if (strcmp(keyz, "compaction_exp_mem_threshold") == 0) {
-            getConfiguration().setCompactionExpMemThreshold(std::stoull(valz));
-        } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
-            getConfiguration().setMutationMemThreshold(std::stoull(valz));
-        } else if (strcmp(keyz, "timing_log") == 0) {
+        } else if (key == "mem_low_wat") {
+            getConfiguration().setMemLowWat(std::stoull(val));
+        } else if (key == "mem_high_wat") {
+            getConfiguration().setMemHighWat(std::stoull(val));
+        } else if (key == "backfill_mem_threshold") {
+            getConfiguration().setBackfillMemThreshold(std::stoull(val));
+        } else if (key == "compaction_exp_mem_threshold") {
+            getConfiguration().setCompactionExpMemThreshold(std::stoull(val));
+        } else if (key == "mutation_mem_threshold") {
+            getConfiguration().setMutationMemThreshold(std::stoull(val));
+        } else if (key == "timing_log") {
             EPStats& stats = getEpStats();
             std::ostream* old = stats.timingLog;
-            stats.timingLog = NULL;
+            stats.timingLog = nullptr;
             delete old;
-            if (strcmp(valz, "off") == 0) {
+            if (val == "off") {
                 EP_LOG_DEBUG("Disabled timing log.");
             } else {
-                std::ofstream* tmp(new std::ofstream(valz));
+                auto* tmp(new std::ofstream(val));
                 if (tmp->good()) {
-                    EP_LOG_DEBUG("Logging detailed timings to ``{}''.", valz);
+                    EP_LOG_DEBUG("Logging detailed timings to ``{}''.", val);
                     stats.timingLog = tmp;
                 } else {
                     EP_LOG_WARN(
                             "Error setting detailed timing log to ``{}'':  {}",
-                            valz,
+                            val,
                             strerror(errno));
                     delete tmp;
                 }
             }
-        } else if (strcmp(keyz, "exp_pager_enabled") == 0) {
-            getConfiguration().setExpPagerEnabled(cb_stob(valz));
-        } else if (strcmp(keyz, "exp_pager_stime") == 0) {
-            getConfiguration().setExpPagerStime(std::stoull(valz));
-        } else if (strcmp(keyz, "exp_pager_initial_run_time") == 0) {
-            getConfiguration().setExpPagerInitialRunTime(std::stoll(valz));
-        } else if (strcmp(keyz, "access_scanner_enabled") == 0) {
+        } else if (key == "exp_pager_enabled") {
+            getConfiguration().setExpPagerEnabled(cb_stob(val));
+        } else if (key == "exp_pager_stime") {
+            getConfiguration().setExpPagerStime(std::stoull(val));
+        } else if (key == "exp_pager_initial_run_time") {
+            getConfiguration().setExpPagerInitialRunTime(std::stoll(val));
+        } else if (key == "access_scanner_enabled") {
             getConfiguration().requirementsMetOrThrow("access_scanner_enabled");
-            getConfiguration().setAccessScannerEnabled(cb_stob(valz));
-        } else if (strcmp(keyz, "alog_sleep_time") == 0) {
+            getConfiguration().setAccessScannerEnabled(cb_stob(val));
+        } else if (key == "alog_sleep_time") {
             getConfiguration().requirementsMetOrThrow("alog_sleep_time");
-            getConfiguration().setAlogSleepTime(std::stoull(valz));
-        } else if (strcmp(keyz, "alog_task_time") == 0) {
+            getConfiguration().setAlogSleepTime(std::stoull(val));
+        } else if (key == "alog_task_time") {
             getConfiguration().requirementsMetOrThrow("alog_task_time");
-            getConfiguration().setAlogTaskTime(std::stoull(valz));
+            getConfiguration().setAlogTaskTime(std::stoull(val));
             /* Start of ItemPager parameters */
-        } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
-            getConfiguration().setPagerActiveVbPcnt(std::stoull(valz));
-        } else if (strcmp(keyz, "pager_sleep_time_ms") == 0) {
-            getConfiguration().setPagerSleepTimeMs(std::stoull(valz));
-        } else if (strcmp(keyz, "ht_eviction_policy") == 0) {
-            getConfiguration().setHtEvictionPolicy(valz);
-        } else if (strcmp(keyz, "item_eviction_age_percentage") == 0) {
-            getConfiguration().setItemEvictionAgePercentage(std::stoull(valz));
-        } else if (strcmp(keyz, "item_eviction_freq_counter_age_threshold") ==
-                   0) {
+        } else if (key == "pager_active_vb_pcnt") {
+            getConfiguration().setPagerActiveVbPcnt(std::stoull(val));
+        } else if (key == "pager_sleep_time_ms") {
+            getConfiguration().setPagerSleepTimeMs(std::stoull(val));
+        } else if (key == "ht_eviction_policy") {
+            getConfiguration().setHtEvictionPolicy(val);
+        } else if (key == "item_eviction_age_percentage") {
+            getConfiguration().setItemEvictionAgePercentage(std::stoull(val));
+        } else if (key == "item_eviction_freq_counter_age_threshold") {
             getConfiguration().setItemEvictionFreqCounterAgeThreshold(
-                    std::stoull(valz));
-        } else if (strcmp(keyz, "item_freq_decayer_chunk_duration") == 0) {
+                    std::stoull(val));
+        } else if (key == "item_freq_decayer_chunk_duration") {
             getConfiguration().setItemFreqDecayerChunkDuration(
-                    std::stoull(valz));
-        } else if (strcmp(keyz, "item_freq_decayer_percent") == 0) {
-            getConfiguration().setItemFreqDecayerPercent(std::stoull(valz));
+                    std::stoull(val));
+        } else if (key == "item_freq_decayer_percent") {
+            getConfiguration().setItemFreqDecayerPercent(std::stoull(val));
             /* End of ItemPager parameters */
-        } else if (strcmp(keyz, "warmup_min_memory_threshold") == 0) {
-            getConfiguration().setWarmupMinMemoryThreshold(std::stoull(valz));
-        } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
-            getConfiguration().setWarmupMinItemsThreshold(std::stoull(valz));
-        } else if (strcmp(keyz, "num_reader_threads") == 0) {
-            size_t value = std::stoull(valz);
+        } else if (key == "warmup_min_memory_threshold") {
+            getConfiguration().setWarmupMinMemoryThreshold(std::stoull(val));
+        } else if (key == "warmup_min_items_threshold") {
+            getConfiguration().setWarmupMinItemsThreshold(std::stoull(val));
+        } else if (key == "num_reader_threads") {
+            size_t value = std::stoull(val);
             getConfiguration().setNumReaderThreads(value);
             ExecutorPool::get()->setNumReaders(value);
-        } else if (strcmp(keyz, "num_writer_threads") == 0) {
-            size_t value = std::stoull(valz);
+        } else if (key == "num_writer_threads") {
+            size_t value = std::stoull(val);
             getConfiguration().setNumWriterThreads(value);
             ExecutorPool::get()->setNumWriters(value);
-        } else if (strcmp(keyz, "num_auxio_threads") == 0) {
-            size_t value = std::stoull(valz);
+        } else if (key == "num_auxio_threads") {
+            size_t value = std::stoull(val);
             getConfiguration().setNumAuxioThreads(value);
             ExecutorPool::get()->setNumAuxIO(value);
-        } else if (strcmp(keyz, "num_nonio_threads") == 0) {
-            size_t value = std::stoull(valz);
+        } else if (key == "num_nonio_threads") {
+            size_t value = std::stoull(val);
             getConfiguration().setNumNonioThreads(value);
             ExecutorPool::get()->setNumNonIO(value);
-        } else if (strcmp(keyz, "bfilter_enabled") == 0) {
-            getConfiguration().setBfilterEnabled(cb_stob(valz));
-        } else if (strcmp(keyz, "bfilter_residency_threshold") == 0) {
-            getConfiguration().setBfilterResidencyThreshold(std::stof(valz));
-        } else if (strcmp(keyz, "defragmenter_enabled") == 0) {
-            getConfiguration().setDefragmenterEnabled(cb_stob(valz));
-        } else if (strcmp(keyz, "defragmenter_interval") == 0) {
-            auto v = std::stod(valz);
+        } else if (key == "bfilter_enabled") {
+            getConfiguration().setBfilterEnabled(cb_stob(val));
+        } else if (key == "bfilter_residency_threshold") {
+            getConfiguration().setBfilterResidencyThreshold(std::stof(val));
+        } else if (key == "defragmenter_enabled") {
+            getConfiguration().setDefragmenterEnabled(cb_stob(val));
+        } else if (key == "defragmenter_interval") {
+            auto v = std::stod(val);
             getConfiguration().setDefragmenterInterval(v);
-        } else if (strcmp(keyz, "item_compressor_interval") == 0) {
-            size_t v = std::stoull(valz);
+        } else if (key == "item_compressor_interval") {
+            size_t v = std::stoull(val);
             // Adding separate validation as external limit is minimum 1
             // to prevent setting item compressor to constantly run
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setItemCompressorInterval(v);
-        } else if (strcmp(keyz, "item_compressor_chunk_duration") == 0) {
-            getConfiguration().setItemCompressorChunkDuration(
-                    std::stoull(valz));
-        } else if (strcmp(keyz, "defragmenter_age_threshold") == 0) {
-            getConfiguration().setDefragmenterAgeThreshold(std::stoull(valz));
-        } else if (strcmp(keyz, "defragmenter_chunk_duration") == 0) {
-            getConfiguration().setDefragmenterChunkDuration(std::stoull(valz));
-        } else if (strcmp(keyz, "defragmenter_run") == 0) {
+        } else if (key == "item_compressor_chunk_duration") {
+            getConfiguration().setItemCompressorChunkDuration(std::stoull(val));
+        } else if (key == "defragmenter_age_threshold") {
+            getConfiguration().setDefragmenterAgeThreshold(std::stoull(val));
+        } else if (key == "defragmenter_chunk_duration") {
+            getConfiguration().setDefragmenterChunkDuration(std::stoull(val));
+        } else if (key == "defragmenter_run") {
             runDefragmenterTask();
-        } else if (strcmp(keyz, "compaction_write_queue_cap") == 0) {
-            getConfiguration().setCompactionWriteQueueCap(std::stoull(valz));
-        } else if (strcmp(keyz, "dcp_min_compression_ratio") == 0) {
-            getConfiguration().setDcpMinCompressionRatio(std::stof(valz));
-        } else if (strcmp(keyz, "dcp_noop_mandatory_for_v5_features") == 0) {
-            getConfiguration().setDcpNoopMandatoryForV5Features(cb_stob(valz));
-        } else if (strcmp(keyz, "access_scanner_run") == 0) {
+        } else if (key == "compaction_write_queue_cap") {
+            getConfiguration().setCompactionWriteQueueCap(std::stoull(val));
+        } else if (key == "dcp_min_compression_ratio") {
+            getConfiguration().setDcpMinCompressionRatio(std::stof(val));
+        } else if (key == "dcp_noop_mandatory_for_v5_features") {
+            getConfiguration().setDcpNoopMandatoryForV5Features(cb_stob(val));
+        } else if (key == "access_scanner_run") {
             if (!(runAccessScannerTask())) {
                 rv = cb::mcbp::Status::Etmpfail;
             }
-        } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
-            runVbStatePersistTask(Vbid(std::stoi(valz)));
-        } else if (strcmp(keyz, "ephemeral_full_policy") == 0) {
+        } else if (key == "vb_state_persist_run") {
+            runVbStatePersistTask(Vbid(std::stoi(val)));
+        } else if (key == "ephemeral_full_policy") {
             getConfiguration().requirementsMetOrThrow("ephemeral_full_policy");
-            getConfiguration().setEphemeralFullPolicy(valz);
-        } else if (strcmp(keyz, "ephemeral_metadata_purge_age") == 0) {
+            getConfiguration().setEphemeralFullPolicy(val);
+        } else if (key == "ephemeral_metadata_purge_age") {
             getConfiguration().requirementsMetOrThrow(
                     "ephemeral_metadata_purge_age");
-            getConfiguration().setEphemeralMetadataPurgeAge(std::stoull(valz));
-        } else if (strcmp(keyz, "ephemeral_metadata_purge_interval") == 0) {
+            getConfiguration().setEphemeralMetadataPurgeAge(std::stoull(val));
+        } else if (key == "ephemeral_metadata_purge_interval") {
             getConfiguration().requirementsMetOrThrow("ephemeral_metadata_purge_interval");
             getConfiguration().setEphemeralMetadataPurgeInterval(
-                    std::stoull(valz));
-        } else if (strcmp(keyz, "fsync_after_every_n_bytes_written") == 0) {
+                    std::stoull(val));
+        } else if (key == "fsync_after_every_n_bytes_written") {
             getConfiguration().setFsyncAfterEveryNBytesWritten(
-                    std::stoull(valz));
-        } else if (strcmp(keyz, "xattr_enabled") == 0) {
-            getConfiguration().setXattrEnabled(cb_stob(valz));
-        } else if (strcmp(keyz, "compression_mode") == 0) {
-            getConfiguration().setCompressionMode(valz);
-        } else if (strcmp(keyz, "min_compression_ratio") == 0) {
+                    std::stoull(val));
+        } else if (key == "xattr_enabled") {
+            getConfiguration().setXattrEnabled(cb_stob(val));
+        } else if (key == "compression_mode") {
+            getConfiguration().setCompressionMode(val);
+        } else if (key == "min_compression_ratio") {
             float min_comp_ratio;
-            if (safe_strtof(valz, min_comp_ratio)) {
+            if (safe_strtof(val.c_str(), min_comp_ratio)) {
                 getConfiguration().setMinCompressionRatio(min_comp_ratio);
             } else {
                 rv = cb::mcbp::Status::Einval;
             }
-        } else if (strcmp(keyz, "max_ttl") == 0) {
-            getConfiguration().setMaxTtl(std::stoull(valz));
-        } else if (strcmp(keyz, "mem_used_merge_threshold_percent") == 0) {
-            getConfiguration().setMemUsedMergeThresholdPercent(std::stof(valz));
-        } else if (strcmp(keyz, "retain_erroneous_tombstones") == 0) {
-            getConfiguration().setRetainErroneousTombstones(cb_stob(valz));
+        } else if (key == "max_ttl") {
+            getConfiguration().setMaxTtl(std::stoull(val));
+        } else if (key == "mem_used_merge_threshold_percent") {
+            getConfiguration().setMemUsedMergeThresholdPercent(std::stof(val));
+        } else if (key == "retain_erroneous_tombstones") {
+            getConfiguration().setRetainErroneousTombstones(cb_stob(val));
         } else {
             msg = "Unknown config param";
             rv = cb::mcbp::Status::KeyEnoent;
@@ -644,30 +639,26 @@ cb::mcbp::Status EventuallyPersistentEngine::setFlushParam(const char* keyz,
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const char* keyz,
-                                                         const char* valz,
+cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const std::string& key,
+                                                         const std::string& val,
                                                          std::string& msg) {
     auto rv = cb::mcbp::Status::Success;
     try {
-
-        if (strcmp(keyz,
-                   "dcp_consumer_process_buffered_messages_yield_limit") == 0) {
-            size_t v = atoi(valz);
-            checkNumeric(valz);
+        if (key == "dcp_consumer_process_buffered_messages_yield_limit") {
+            size_t v = size_t(std::stoul(val));
+            checkNumeric(val.c_str());
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(
                     v);
-        } else if (
-            strcmp(keyz, "dcp_consumer_process_buffered_messages_batch_size") ==
-            0) {
-            size_t v = atoi(valz);
-            checkNumeric(valz);
+        } else if (key == "dcp_consumer_process_buffered_messages_batch_size") {
+            size_t v = size_t(std::stoul(val));
+            checkNumeric(val.c_str());
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(
                     v);
-        } else if (strcmp(keyz, "dcp_idle_timeout") == 0) {
-            size_t v = atoi(valz);
-            checkNumeric(valz);
+        } else if (key == "dcp_idle_timeout") {
+            size_t v = size_t(std::stoul(val));
+            checkNumeric(val.c_str());
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpIdleTimeout(v);
         } else {
@@ -682,23 +673,24 @@ cb::mcbp::Status EventuallyPersistentEngine::setDcpParam(const char* keyz,
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setVbucketParam(Vbid vbucket,
-                                                             const char* keyz,
-                                                             const char* valz,
-                                                             std::string& msg) {
+cb::mcbp::Status EventuallyPersistentEngine::setVbucketParam(
+        Vbid vbucket,
+        const std::string& key,
+        const std::string& val,
+        std::string& msg) {
     auto rv = cb::mcbp::Status::Success;
     try {
-        if (strcmp(keyz, "hlc_drift_ahead_threshold_us") == 0) {
-            uint64_t v = std::strtoull(valz, nullptr, 10);
-            checkNumeric(valz);
+        if (key == "hlc_drift_ahead_threshold_us") {
+            uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
+            checkNumeric(val.c_str());
             getConfiguration().setHlcDriftAheadThresholdUs(v);
-        } else if (strcmp(keyz, "hlc_drift_behind_threshold_us") == 0) {
-            uint64_t v = std::strtoull(valz, nullptr, 10);
-            checkNumeric(valz);
+        } else if (key == "hlc_drift_behind_threshold_us") {
+            uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
+            checkNumeric(val.c_str());
             getConfiguration().setHlcDriftBehindThresholdUs(v);
-        } else if (strcmp(keyz, "max_cas") == 0) {
-            uint64_t v = std::strtoull(valz, nullptr, 10);
-            checkNumeric(valz);
+        } else if (key == "max_cas") {
+            uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
+            checkNumeric(val.c_str());
             EP_LOG_WARN("setVbucketParam: max_cas:{} {}", v, vbucket);
             if (getKVBucket()->forceMaxCas(vbucket, v) != ENGINE_SUCCESS) {
                 rv = cb::mcbp::Status::NotMyVbucket;
@@ -732,43 +724,28 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::setParam(
-        protocol_binary_request_set_param* req, std::string& msg) {
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    uint8_t extlen = req->message.header.request.extlen;
-    size_t vallen = ntohl(req->message.header.request.bodylen);
-    Vbid vbucket = req->message.header.request.vbucket.ntoh();
-    protocol_binary_engine_param_t paramtype =
-        static_cast<protocol_binary_engine_param_t>(ntohl(
-            req->message.body.param_type));
+cb::mcbp::Status EventuallyPersistentEngine::setParam(cb::mcbp::Request& req,
+                                                      std::string& msg) {
+    auto extras = req.getExtdata();
+    static_assert(sizeof(protocol_binary_engine_param_t) == 4,
+                  "Unexpected size for ");
+    if (extras.size() != sizeof(protocol_binary_engine_param_t)) {
+        return cb::mcbp::Status::Einval;
+    }
+    auto paramtype = static_cast<protocol_binary_engine_param_t>(
+            ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
 
-    if (keylen == 0 || (vallen - keylen - extlen) == 0) {
+    auto key = req.getKey();
+    auto val = req.getValue();
+
+    if (key.empty() || val.empty()) {
         return cb::mcbp::Status::Einval;
     }
 
-    const char* keyp = reinterpret_cast<const char*>(req->bytes)
-                       + sizeof(req->bytes);
-    const char* valuep = keyp + keylen;
-    vallen -= (keylen + extlen);
-
-    char keyz[128];
-    char valz[512];
-
-    // Read the key.
-    if (keylen >= sizeof(keyz)) {
-        msg = "Key is too large.";
-        return cb::mcbp::Status::Einval;
-    }
-    memcpy(keyz, keyp, keylen);
-    keyz[keylen] = 0x00;
-
-    // Read the value.
-    if (vallen >= sizeof(valz)) {
-        msg = "Value is too large.";
-        return cb::mcbp::Status::Einval;
-    }
-    memcpy(valz, valuep, vallen);
-    valz[vallen] = 0x00;
+    const std::string keyz(reinterpret_cast<const char*>(key.data()),
+                           key.size());
+    const std::string valz(reinterpret_cast<const char*>(val.data()),
+                           val.size());
 
     switch (paramtype) {
     case protocol_binary_engine_param_flush:
@@ -780,7 +757,7 @@ cb::mcbp::Status EventuallyPersistentEngine::setParam(
     case protocol_binary_engine_param_dcp:
         return setDcpParam(keyz, valz, msg);
     case protocol_binary_engine_param_vbucket:
-        return setVbucketParam(vbucket, keyz, valz, msg);
+        return setVbucketParam(req.getVBucket(), keyz, valz, msg);
     }
 
     return cb::mcbp::Status::UnknownCommand;
@@ -1144,9 +1121,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         res = h->startFlusher(&msg, &msg_size);
         break;
     case cb::mcbp::ClientOpcode::SetParam:
-        res = h->setParam(
-                reinterpret_cast<protocol_binary_request_set_param*>(request),
-                dynamic_msg);
+        res = h->setParam(request->request, dynamic_msg);
         msg = dynamic_msg.c_str();
         msg_size = dynamic_msg.length();
         h->decrementSessionCtr();

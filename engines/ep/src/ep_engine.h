@@ -533,28 +533,27 @@ public:
                                       bool transfer,
                                       uint64_t cas);
 
-    cb::mcbp::Status setParam(protocol_binary_request_set_param* req,
-                              std::string& msg);
+    cb::mcbp::Status setParam(cb::mcbp::Request& req, std::string& msg);
 
-    cb::mcbp::Status setFlushParam(const char* keyz,
-                                   const char* valz,
+    cb::mcbp::Status setFlushParam(const std::string& key,
+                                   const std::string& val,
                                    std::string& msg);
 
-    cb::mcbp::Status setReplicationParam(const char* keyz,
-                                         const char* valz,
+    cb::mcbp::Status setReplicationParam(const std::string& key,
+                                         const std::string& val,
                                          std::string& msg);
 
-    cb::mcbp::Status setCheckpointParam(const char* keyz,
-                                        const char* valz,
+    cb::mcbp::Status setCheckpointParam(const std::string& key,
+                                        const std::string& val,
                                         std::string& msg);
 
-    cb::mcbp::Status setDcpParam(const char* keyz,
-                                 const char* valz,
+    cb::mcbp::Status setDcpParam(const std::string& key,
+                                 const std::string& val,
                                  std::string& msg);
 
     cb::mcbp::Status setVbucketParam(Vbid vbucket,
-                                     const char* keyz,
-                                     const char* valz,
+                                     const std::string& key,
+                                     const std::string& val,
                                      std::string& msg);
 
     ENGINE_ERROR_CODE getReplicaCmd(protocol_binary_request_header* request,
