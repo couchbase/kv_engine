@@ -1215,14 +1215,8 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         }
         return rv;
     }
-    case cb::mcbp::ClientOpcode::GetRandomKey: {
-        if (request->request.extlen != 0 ||
-            request->request.keylen != 0 ||
-            request->request.bodylen != 0) {
-            return ENGINE_EINVAL;
-        }
+    case cb::mcbp::ClientOpcode::GetRandomKey:
         return h->getRandomKey(cookie, response);
-    }
     case cb::mcbp::ClientOpcode::GetKeys: {
         return h->getAllKeys(
                 cookie,

@@ -3863,6 +3863,57 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsGetManifest) {
                       cb::mcbp::ClientOpcode::CollectionsGetManifest));
 }
 
+class GetRandomKeyValidatorTest : public ::testing::WithParamInterface<bool>,
+                                  public ValidatorTest {
+public:
+    GetRandomKeyValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetRandomKey,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(GetRandomKeyValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(GetRandomKeyValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetRandomKeyValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetRandomKeyValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetRandomKeyValidatorTest, InvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetRandomKeyValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetRandomKeyValidatorTest, InvalidBodylen) {
+    req.setBodylen(4);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         AddValidatorTest,
                         ::testing::Bool(),
@@ -4045,6 +4096,10 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         RevokeUserPermissionsValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        GetRandomKeyValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,

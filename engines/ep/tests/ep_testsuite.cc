@@ -6268,25 +6268,6 @@ static enum test_result test_get_random_key(EngineIface* h) {
 
     // Since it is random we can't really check that we don't get the
     // same value twice...
-
-    // Check for invalid packets
-    pkt.request.extlen = 1;
-    checkeq(ENGINE_EINVAL,
-            h->unknown_command(cookie, &pkt, add_response),
-            "extlen not allowed");
-
-    pkt.request.extlen = 0;
-    pkt.request.keylen = 1;
-    checkeq(ENGINE_EINVAL,
-            h->unknown_command(cookie, &pkt, add_response),
-            "keylen not allowed");
-
-    pkt.request.keylen = 0;
-    pkt.request.bodylen = 1;
-    checkeq(ENGINE_EINVAL,
-            h->unknown_command(cookie, &pkt, add_response),
-            "bodylen not allowed");
-
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
