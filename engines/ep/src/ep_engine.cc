@@ -1192,12 +1192,8 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     }
     case cb::mcbp::ClientOpcode::GetRandomKey:
         return h->getRandomKey(cookie, response);
-    case cb::mcbp::ClientOpcode::GetKeys: {
-        return h->getAllKeys(
-                cookie,
-                reinterpret_cast<protocol_binary_request_get_keys*>(request),
-                response);
-    }
+    case cb::mcbp::ClientOpcode::GetKeys:
+        return h->getAllKeys(cookie, request->request, response);
         // MB-21143: Remove adjusted time/drift API, but return NOT_SUPPORTED
     case cb::mcbp::ClientOpcode::GetAdjustedTime:
     case cb::mcbp::ClientOpcode::SetDriftCounterState: {
@@ -5580,10 +5576,9 @@ private:
 };
 
 ENGINE_ERROR_CODE
-EventuallyPersistentEngine::getAllKeys(
-        const void* cookie,
-        protocol_binary_request_get_keys* request,
-        ADD_RESPONSE response) {
+EventuallyPersistentEngine::getAllKeys(const void* cookie,
+                                       cb::mcbp::Request& request,
+                                       ADD_RESPONSE response) {
     if (!getKVBucket()->isGetAllKeysSupported()) {
         return ENGINE_ENOTSUP;
     }
@@ -5598,9 +5593,7 @@ EventuallyPersistentEngine::getAllKeys(
         }
     }
 
-    Vbid vbucket = request->message.header.request.vbucket.ntoh();
-    VBucketPtr vb = getVBucket(vbucket);
-
+    VBucketPtr vb = getVBucket(request.getVBucket());
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -5609,34 +5602,30 @@ EventuallyPersistentEngine::getAllKeys(
     if (vb->getState() != vbucket_state_active) {
         return ENGINE_NOT_MY_VBUCKET;
     }
-    //key: key, ext: no. of keys to fetch, sorting-order
-    uint16_t keylen = ntohs(request->message.header.request.keylen);
-    uint8_t extlen = request->message.header.request.extlen;
 
+    // key: key, ext: no. of keys to fetch, sorting-order
     uint32_t count = 1000;
-
-    if (extlen > 0) {
-        if (extlen != sizeof(uint32_t)) {
+    auto extras = request.getExtdata();
+    if (!extras.empty()) {
+        if (extras.size() != sizeof(uint32_t)) {
             return ENGINE_EINVAL;
         }
-        memcpy(&count, request->bytes + sizeof(request->bytes),
-               sizeof(uint32_t));
-        count = ntohl(count);
+        count = ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
     }
 
-    if (keylen == 0) {
+    auto key = request.getKey();
+    if (key.empty()) {
         EP_LOG_WARN("No key passed as argument for getAllKeys");
         return ENGINE_EINVAL;
     }
-    const uint8_t* keyPtr = (request->bytes + sizeof(request->bytes) + extlen);
-    DocKey start_key = makeDocKey(cookie, {keyPtr, keylen});
 
+    DocKey start_key = makeDocKey(cookie, key);
     ExTask task =
             std::make_shared<FetchAllKeysTask>(this,
                                                cookie,
                                                response,
                                                start_key,
-                                               vbucket,
+                                               request.getVBucket(),
                                                count,
                                                isCollectionsSupported(cookie));
     ExecutorPool::get()->schedule(task);

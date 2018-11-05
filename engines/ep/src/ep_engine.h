@@ -458,7 +458,7 @@ public:
                                  ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE getAllKeys(const void* cookie,
-                                 protocol_binary_request_get_keys* request,
+                                 cb::mcbp::Request& request,
                                  ADD_RESPONSE response);
 
     CONN_PRIORITY getDCPPriority(const void* cookie);
