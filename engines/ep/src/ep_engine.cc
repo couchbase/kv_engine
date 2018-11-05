@@ -788,25 +788,18 @@ cb::mcbp::Status EventuallyPersistentEngine::setParam(
 
 static ENGINE_ERROR_CODE getVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
-                                    protocol_binary_request_header* request,
+                                    cb::mcbp::Request& request,
                                     ADD_RESPONSE response) {
-    protocol_binary_request_get_vbucket* req =
-        reinterpret_cast<protocol_binary_request_get_vbucket*>(request);
-    if (req == nullptr) {
-        throw std::invalid_argument("getVBucket: Unable to convert req"
-                                        " to protocol_binary_request_get_vbucket");
-    }
-
-    Vbid vbucket = req->message.header.request.vbucket.ntoh();
+    Vbid vbucket = request.getVBucket();
     VBucketPtr vb = e->getVBucket(vbucket);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     } else {
-        vbucket_state_t state = (vbucket_state_t)ntohl(vb->getState());
+        const auto state = static_cast<vbucket_state_t>(ntohl(vb->getState()));
         return sendResponse(response,
-                            NULL,
+                            nullptr,
                             0,
-                            NULL,
+                            nullptr,
                             0,
                             &state,
                             sizeof(state),
@@ -1119,7 +1112,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
 
     case cb::mcbp::ClientOpcode::GetVbucket: {
         BlockTimer timer(&stats.getVbucketCmdHisto);
-        rv = getVBucket(h, cookie, request, response);
+        rv = getVBucket(h, cookie, request->request, response);
         return rv;
     }
     case cb::mcbp::ClientOpcode::DelVbucket: {
