@@ -91,32 +91,6 @@ TEST_F(CollectionsVBFilterTest, junk_in) {
 }
 
 /**
- * Test invalid JSON formats as an input
- */
-TEST_F(CollectionsVBFilterTest, junk_in_scope) {
-    std::vector<std::string> inputs = {"not json",
-                                       "{}",
-                                       R"({"scope":1})",
-                                       R"({"scope":"this"})",
-                                       R"({"scope":{"a":1})",
-                                       R"({"scope":["2"]})",
-                                       R"({"scope":[a]})",
-                                       R"({"scope":["0", "2"]"})"};
-
-    for (const auto& s : inputs) {
-        boost::optional<cb::const_char_buffer> json(s);
-        try {
-            Collections::VB::Filter f(json, vbm);
-            FAIL() << "Should of thrown an exception " << s;
-        } catch (const cb::engine_error& e) {
-            EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
-        } catch (...) {
-            FAIL() << "Should of thrown cb::engine_error";
-        }
-    }
-}
-
-/**
  * Test valid inputs to the filter.
  */
 TEST_F(CollectionsVBFilterTest, validation1) {
@@ -131,30 +105,6 @@ TEST_F(CollectionsVBFilterTest, validation1) {
             R"({"collections":["0"]})",
             R"({"collections":["8"]})",
             R"({"collections":["9", "a"]})"};
-
-    for (const auto& s : inputs) {
-        boost::optional<cb::const_char_buffer> json(s);
-
-        try {
-            Collections::VB::Filter f(json, vbm);
-        } catch (...) {
-            FAIL() << "Exception thrown with input " << s;
-        }
-    }
-}
-
-/**
- * Test valid scope based inputs to the filter
- */
-TEST_F(CollectionsVBFilterTest, validation1_scope) {
-    cm.add(CollectionEntry::fruit);
-    cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::vector<std::string> inputs = {
-            R"({"scope":"0"})",
-            R"({"scope":"8"})"};
 
     for (const auto& s : inputs) {
         boost::optional<cb::const_char_buffer> json(s);
@@ -188,78 +138,12 @@ TEST_F(CollectionsVBFilterTest, validation2) {
         boost::optional<cb::const_char_buffer> json(s);
         try {
             Collections::VB::Filter f(json, vbm);
-            FAIL() << "Should have thrown an exception with input " << s;
+            FAIL() << "Should of thrown an exception";
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
         } catch (...) {
-            FAIL() << "Should have thrown cb::engine_error";
+            FAIL() << "Should of thrown cb::engine_error";
         }
-    }
-}
-
-/**
- * Test valid JSON formats to the filter, but they contain invalid content
- */
-TEST_F(CollectionsVBFilterTest, validation2_scope) {
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::vector<std::string> inputs = {
-            R"({"scope":"9"})" // one unknown SID
-    };
-
-    for (const auto& s : inputs) {
-        boost::optional<cb::const_char_buffer> json(s);
-        try {
-            Collections::VB::Filter f(json, vbm);
-            FAIL() << "Should have thrown an exception with input " << s;
-        } catch (const cb::engine_error& e) {
-            EXPECT_EQ(cb::engine_errc::unknown_scope, e.code());
-        } catch (...) {
-            FAIL() << "Should have thrown cb::engine_error";
-        }
-    }
-}
-
-/**
- * Test invalid JSON containing both collections and scopes
- */
-TEST_F(CollectionsVBFilterTest, validation2_collections_and_scope) {
-    cm.add(CollectionEntry::meat);
-    cm.add(ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::vector<std::string> inputs = {
-            R"({"scope":"8",
-                "collections":["2"]})"};
-
-    for (const auto& s : inputs) {
-        boost::optional<cb::const_char_buffer> json(s);
-        try {
-            Collections::VB::Filter f(json, vbm);
-            FAIL() << "Should have thrown an exception";
-        } catch (const cb::engine_error& e) {
-            EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
-        } catch (...) {
-            FAIL() << "Should have thrown cb::engine_error";
-        }
-    }
-}
-
-TEST_F(CollectionsVBFilterTest, validation2_empty_scope) {
-    cm.add(ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::string input = R"({"scope":"8"})";
-    boost::optional<cb::const_char_buffer> json(input);
-    try {
-        Collections::VB::Filter f(json, vbm);
-    } catch (const cb::engine_error& e) {
-        EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
-    } catch (...) {
-        FAIL() << "Should have thrown cb::engine_error";
     }
 }
 
@@ -314,49 +198,6 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
     // The actual filter "list" only stores fruit and meat though, default is
     // special cased via doesDefaultCollectionExist
     EXPECT_EQ(2, f.size());
-}
-
-/**
- * Construct a valid Collections::Filter and check its public methods
- * This creates a filter with a scope - which adds a set of collections
- */
-TEST_F(CollectionsVBFilterTest, filter_basic1_default_scope) {
-    cm.add(CollectionEntry::meat);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::string jsonFilter = R"({"scope":"0"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter f(json, vbm);
-
-    EXPECT_FALSE(f.isPassthrough());
-    EXPECT_TRUE(f.allowDefaultCollection());
-    EXPECT_TRUE(f.allowSystemEvents());
-
-    // There are two collections (default and meat) in the default scope,
-    // however we only include the non-default in size
-    EXPECT_EQ(1, f.size());
-}
-
-/**
- * Construct a valid Collections::Filter and check its public methods
- * This creates a filter with a scope - which adds a set of collections
- */
-TEST_F(CollectionsVBFilterTest, filter_basic1_non_default_scope) {
-    cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter f(json, vbm);
-
-    EXPECT_FALSE(f.isPassthrough());
-    EXPECT_FALSE(f.allowDefaultCollection());
-    EXPECT_TRUE(f.allowSystemEvents());
-
-    // There is only the meat collection in this scope
-    EXPECT_EQ(1, f.size());
 }
 
 /**
@@ -461,81 +302,6 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
              0}));
     EXPECT_FALSE(vbf.checkAndUpdate(
             {StoredDocKey{"vegetable:cabbage", CollectionEntry::vegetable},
-             0,
-             0,
-             nullptr,
-             0}));
-}
-
-/**
- * Create a filter using a scope and check we allow what should be allowed.
- */
-TEST_F(CollectionsVBFilterTest, basic_allow_default_scope) {
-    cm.add(CollectionEntry::dairy)
-            .add(ScopeEntry::shop1)
-            .add(CollectionEntry::dairy2, ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::string jsonFilter = R"({"scope":"0"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-
-    Collections::VB::Filter vbf(json, vbm);
-
-    // Yes to default and dairy
-    EXPECT_TRUE(vbf.checkAndUpdate(
-            {StoredDocKey{"anykey", CollectionEntry::defaultC},
-             0,
-             0,
-             nullptr,
-             0}));
-    EXPECT_TRUE(vbf.checkAndUpdate(
-            {StoredDocKey{"dairy:milk", CollectionEntry::dairy},
-             0,
-             0,
-             nullptr,
-             0}));
-    // No to dairy2
-    EXPECT_FALSE(vbf.checkAndUpdate(
-            {StoredDocKey{"dairy:milk", CollectionEntry::dairy2},
-             0,
-             0,
-             nullptr,
-             0}));
-}
-
-/**
- * Create a filter using a scope and check we allow what should be allowed.
- */
-TEST_F(CollectionsVBFilterTest, basic_allow_non_default_scope) {
-    cm.add(CollectionEntry::dairy)
-            .add(ScopeEntry::shop1)
-            .add(CollectionEntry::dairy2, ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-
-    Collections::VB::Filter vbf(json, vbm);
-
-    // Yes to dairy2
-    EXPECT_TRUE(vbf.checkAndUpdate(
-            {StoredDocKey{"dairy:milk", CollectionEntry::dairy2},
-             0,
-             0,
-             nullptr,
-             0}));
-
-    // No to default and dairy
-    EXPECT_FALSE(vbf.checkAndUpdate(
-            {StoredDocKey{"anykey", CollectionEntry::defaultC},
-             0,
-             0,
-             nullptr,
-             0}));
-    EXPECT_FALSE(vbf.checkAndUpdate(
-            {StoredDocKey{"dairy:milk", CollectionEntry::dairy},
              0,
              0,
              nullptr,
@@ -842,88 +608,11 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::defaultC},
+
             false,
             {})));
 
     // dairy system event is not allowed by the filter
-    EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::dairy},
-            false,
-            {})));
-}
-
-/**
- * Test that a filter allows the right system events.
- * This test creates a filter where only matching events are allowed
- */
-TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
-    cm.add(CollectionEntry::dairy)
-            .add(ScopeEntry::shop1)
-            .add(CollectionEntry::meat, ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    // Only events for defaultC and dairy are allowed
-    std::string jsonFilter = R"({"scope":"0"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-
-    Collections::VB::Filter vbf(json, vbm);
-
-    // default (default) system events are not allowed
-    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::defaultC},
-            false,
-            {})));
-
-    // dairy (default) system events are not allowed
-    EXPECT_TRUE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::dairy},
-            false,
-            {})));
-
-    // meat (shop1) system events are allowed
-    EXPECT_FALSE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::meat},
-                                   false,
-                                   {})));
-}
-
-/**
- * Test that a filter allows the right system events.
- * This test creates a filter where only matching events are allowed
- */
-TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
-    cm.add(CollectionEntry::dairy)
-            .add(ScopeEntry::shop1)
-            .add(CollectionEntry::meat, ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    // Only events for meat are allowed
-    std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-
-    Collections::VB::Filter vbf(json, vbm);
-
-    // meat (shop1) system events are allowed
-    EXPECT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::meat},
-                                   false,
-                                   {})));
-
-    // default (default) system events are not allowed
-    EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
-            SystemEvent::Collection,
-            {ScopeEntry::defaultS, CollectionEntry::defaultC},
-            false,
-            {})));
-
-    // dairy (default) system events are not allowed
     EXPECT_FALSE(vbf.checkAndUpdate(*vbm.createSystemEvent(
             SystemEvent::Collection,
             {ScopeEntry::defaultS, CollectionEntry::dairy},
@@ -955,116 +644,4 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
             SystemEvent::Collection, "$default", {}, {})));
     EXPECT_FALSE(vbf.checkAndUpdate(*SystemEventFactory::make(
             SystemEvent::Collection, "dairy", {}, {})));
-}
-
-/**
- * Test that a collection is added to a scope filter by creating the correct
- * system events.
- */
-TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
-    // Initially shop1 has the meat collection
-    cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter vbf(json, vbm);
-
-    // Only have meat in this filter
-    ASSERT_EQ(vbf.size(), 1);
-
-    // Add dairy to the manifest
-    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
-    m = Collections::Manifest(cm);
-    vbm.wlock().update(vb, m);
-
-    // Shop1 system events are allowed
-    ASSERT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::dairy},
-                                   false,
-                                   {})));
-
-    EXPECT_EQ(vbf.size(), 2);
-}
-
-/**
- * Test that a collection is removed from a scope filter by creating the correct
- * system events.
- */
-TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
-    // Initially shop1 has the meat and dairy collections
-    cm.add(ScopeEntry::shop1)
-            .add(CollectionEntry::meat, ScopeEntry::shop1)
-            .add(CollectionEntry::dairy, ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-    Collections::VB::Filter vbf(json, vbm);
-
-    // 2 collections in this filter
-    ASSERT_EQ(vbf.size(), 2);
-
-    // Remove dairy from the manifest
-    cm.remove(CollectionEntry::dairy, ScopeEntry::shop1);
-    m = Collections::Manifest(cm);
-    vbm.wlock().update(vb, m);
-
-    // Shop1 system events are allowed
-    ASSERT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::dairy},
-                                   true, /* delete */
-                                   {})));
-
-    ASSERT_EQ(vbf.size(), 1);
-
-    // Remove meat from the manifest
-    cm.remove(CollectionEntry::meat, ScopeEntry::shop1);
-    m = Collections::Manifest(cm);
-    vbm.wlock().update(vb, m);
-
-    // Shop1 system events are allowed
-    ASSERT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::meat},
-                                   true, /* delete */
-                                   {})));
-
-    EXPECT_EQ(vbf.size(), 0);
-}
-
-/**
- * We should be able to create a scope filter for a scope that has no
- * collections, then add a collection to it
- */
-TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
-    // Initially shop1 has no collections
-    cm.add(ScopeEntry::shop1);
-    Collections::Manifest m(cm);
-    vbm.wlock().update(vb, m);
-
-    std::string jsonFilter = R"({"scope":"8"})";
-    boost::optional<cb::const_char_buffer> json(jsonFilter);
-
-    // Create the filter
-    Collections::VB::Filter vbf(json, vbm);
-    EXPECT_EQ(vbf.size(), 0);
-
-    // Now add a new collection
-    cm.add(CollectionEntry::meat, ScopeEntry::shop1);
-    m = Collections::Manifest(cm);
-    vbm.wlock().update(vb, m);
-
-    // Meat system events are allowed
-    ASSERT_TRUE(vbf.checkAndUpdate(
-            *vbm.createSystemEvent(SystemEvent::Collection,
-                                   {ScopeEntry::shop1, CollectionEntry::meat},
-                                   false, /* create */
-                                   {})));
-
-    EXPECT_EQ(vbf.size(), 1);
 }

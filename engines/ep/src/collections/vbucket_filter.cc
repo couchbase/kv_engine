@@ -98,49 +98,30 @@ void Filter::constructFromJson(cb::const_char_buffer json,
         }
     }
 
-    const auto scopesObject = parsed.find(ScopeKey);
     const auto collectionsObject = parsed.find(CollectionsKey);
-    if (scopesObject != parsed.end()) {
-        if (collectionsObject != parsed.end()) {
-            throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                                   "Filter::constructFromJson cannot specify "
-                                   "both scope and collections");
-        }
+    if (collectionsObject != parsed.end()) {
+        auto jsonCollections = cb::getJsonObject(parsed,
+                                                 CollectionsKey,
+                                                 CollectionsType,
+                                                 "Filter::constructFromJson");
 
-        auto scope = cb::getJsonObject(
-                parsed, ScopeKey, ScopeType, "Filter::constructFromJson");
-        addScope(scope, manifest);
-    } else {
-        if (collectionsObject != parsed.end()) {
-            auto jsonCollections =
-                    cb::getJsonObject(parsed,
-                                      CollectionsKey,
-                                      CollectionsType,
-                                      "Filter::constructFromJson");
-
-            for (const auto& entry : jsonCollections) {
-                cb::throwIfWrongType(std::string(CollectionsKey),
-                                     entry,
-                                     nlohmann::json::value_t::string);
-                addCollection(entry, manifest);
-            }
-        } else if (uidObject == parsed.end()) {
-            // The input JSON must of contained at least a UID, scope, or
-            // collections
-            //  * {} is valid JSON but is invalid for this class
-            //  * {uid:4} is OK - client wants everything (non-zero start)
-            //  * {collections:[...]} - is OK - client wants some collections
-            //  from epoch
-            //  * {uid:4, collections:[...]} - is OK
-            //  * {sid:4} - is OK
-            //  * {uid:4, sid:4} - is OK
-            if (collectionsObject == parsed.end() &&
-                uidObject == parsed.end()) {
-                throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                                       "Filter::constructFromJson no uid or "
-                                       "collections found");
-            }
+        for (const auto& entry : jsonCollections) {
+            cb::throwIfWrongType(std::string(CollectionsKey),
+                                 entry,
+                                 nlohmann::json::value_t::string);
+            addCollection(entry, manifest);
         }
+    }
+
+    // The input JSON must of contained at least a UID or at least a collection
+    //  * {} is valid JSON but is invalid for this class
+    //  * {uid:4} is OK - client wants everything (non-zero start)
+    //  * {collections:[...]} - is OK - client wants some collections from epoch
+    //  * {uid:4, collections:[...]} - is OK
+    if (collectionsObject == parsed.end() && uidObject == parsed.end()) {
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Filter::constructFromJson no uid or collections found");
     }
 }
 
@@ -166,35 +147,14 @@ void Filter::addCollection(const nlohmann::json& object,
     }
 }
 
-void Filter::addScope(const nlohmann::json& object,
-                      const Collections::VB::Manifest& manifest) {
-    // Require that the requested scope exists in the manifest.
-    // DCP cannot filter an unknown scope.
-    auto sid = makeScopeID(object.get<std::string>());
-    boost::optional<std::vector<CollectionID>> collections =
-            manifest.lock().getCollectionsForScope(sid);
-
-    if (!collections) {
-        // Error time - the scope does not exist
-        throw cb::engine_error(
-                cb::engine_errc::unknown_scope,
-                "Filter::addScope unknown scope:" + sid.to_string());
-    }
-
-    scopeID = sid;
-    for (const auto& cid : *collections) {
-        if (cid.isDefaultCollection()) {
-            defaultAllowed = true;
-        } else {
-            this->filter.insert(cid);
-        }
-    }
-}
-
 bool Filter::checkAndUpdateSlow(CollectionID cid, const Item& item) {
     bool allowed = false;
     if (cid == CollectionID::System) {
-        allowed = checkAndUpdateSystemEvent(item);
+        allowed = allowSystemEvent(item);
+
+        if (item.isDeleted()) {
+            remove(item);
+        }
     } else {
         allowed = filter.count(cid);
     }
@@ -202,18 +162,17 @@ bool Filter::checkAndUpdateSlow(CollectionID cid, const Item& item) {
     return allowed;
 }
 
-bool Filter::remove(const Item& item) {
+void Filter::remove(const Item& item) {
     if (passthrough) {
-        return false;
+        return;
     }
 
     CollectionID collection =
             VB::Manifest::getCollectionIDFromKey(item.getKey());
     if (collection == CollectionID::Default) {
         defaultAllowed = false;
-        return true;
     } else {
-        return filter.erase(collection);
+        filter.erase(collection);
     }
 }
 
@@ -221,47 +180,25 @@ bool Filter::empty() const {
     return filter.empty() && !defaultAllowed;
 }
 
-bool Filter::checkAndUpdateSystemEvent(const Item& item) {
-    // Remove the corresponding collection from this filter if it has been
-    // deleted. In the case of:
-    // a) a legacy filter - remove will set defaultAllowed to false and
-    //                      subsequently collapse the stream provided the
-    //                      item is part of the default collection. Remove will
-    //                      do nothing if the item belongs to a non-default
-    //                      collection
-    // b) a passthrough filter - remove will do nothing
-    // c) a collection filter - remove will remove the collection for this item
-    // d) a scope filter - remove will remove the collection for this item
-    bool deleted = false;
-    if (item.isDeleted()) {
-        // Save the return value (indicating if something has actually been
-        // deleted) so that we can return it if we want to send this event
-        deleted = remove(item);
-    }
-
+bool Filter::allowSystemEvent(const Item& item) const {
     if (!systemEventsAllowed) {
-        // Legacy filters do not support system events
         return false;
     }
     switch (SystemEvent(item.getFlags())) {
     case SystemEvent::Collection: {
+        CollectionID collection =
+                VB::Manifest::getCollectionIDFromKey(item.getKey());
         auto dcpData = VB::Manifest::getSystemEventData(
                 {item.getData(), item.getNBytes()});
         // Only consider this if it is an event the client hasn't observed
         if (!uid || (dcpData.manifestUid > *uid)) {
-            if (passthrough || deleted ||
-                (dcpData.cid.isDefaultCollection() && defaultAllowed)) {
+            if ((collection.isDefaultCollection() && defaultAllowed) ||
+                passthrough) {
                 return true;
+            } else {
+                // When filtered allow only if there is a match
+                return filter.count(collection) > 0;
             }
-
-            // If scopeID is not uninitialized then we are filtering on a
-            // scope
-            if (scopeID && dcpData.sid == scopeID) {
-                filter.insert(dcpData.cid);
-            }
-
-            // When filtered allow only if there is a match
-            return filter.count(dcpData.cid) > 0;
         }
         return false;
     }
@@ -334,7 +271,6 @@ void Filter::dump() const {
 
 // To use the keys in json::find, they need to be statically allocated
 const char* Filter::CollectionsKey = "collections";
-const char* Filter::ScopeKey = "scope";
 const char* Filter::UidKey = "uid";
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter) {

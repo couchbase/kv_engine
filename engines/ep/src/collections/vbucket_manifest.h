@@ -135,15 +135,6 @@ public:
         }
 
         /**
-         * @returns optional vector of CollectionIDs associated with the
-         *          scope. Returns uninitialized if the scope does not exist
-         */
-        boost::optional<std::vector<CollectionID>> getCollectionsForScope(
-                ScopeID identifier) const {
-            return manifest.getCollectionsForScope(identifier);
-        }
-
-        /**
          * @return true if the collection exists in the internal container
          */
         bool exists(CollectionID identifier) const {
@@ -692,15 +683,6 @@ protected:
     }
 
     /**
-     * Get the collections associated with a given scope
-     * @param identifier scopeID
-     * @return optional vector of CollectionIDs. Returns uninitialized if the
-     *         scope does not exist
-     */
-    boost::optional<std::vector<CollectionID>> getCollectionsForScope(
-            ScopeID identifier) const;
-
-    /**
      * @return true if the collection exists in the internal container
      */
     bool exists(CollectionID identifier) const {
@@ -775,34 +757,24 @@ protected:
     ManifestEntry& getManifestEntry(CollectionID collectionID);
 
     /**
-     * The changes that we need to make to the vBucket manifest derived from
-     * the bucket manifest.
-     */
-    struct ManifestChanges {
-        std::vector<ScopeID> scopesToAdd;
-        std::vector<ScopeID> scopesToRemove;
-        std::vector<ScopeCollectionPair> collectionsToAdd;
-        std::vector<ScopeCollectionPair> collectionsToRemove;
-    };
-
-    using ProcessResult = boost::optional<ManifestChanges>;
-
-    /**
      * Process a Collections::Manifest to determine if collections need adding
      * or removing.
      *
-     * This function returns three things, a vector of scopes that need to be
-     * added to this manifest, a vector of ScopeCollectionPairs that need to
-     * be added, and a vector of ScopeCollectionPairs that need to be deleted.
+     * This function returns two sets of collections. Those which are being
+     * added and those which are being deleted.
      *
      * @param manifest The Manifest to compare with.
-     * @returns An struct containing the scopes and collections that need
-     *          adding or removing from this vBucket manifest. If
-     *          uninitialized, the manifest cannot be applied and update must
-     *          be aborted. This is the case when we are attempting to add a
-     *          deleting collection.
+     * @returns An optional containing a std::pair of vectors, if successful
+     *          first contains ScopeCollectionPairs that need adding whilst
+     *          second contains those which should be deleted. If the
+     *          optional is uninitialised than the manifest could
+     *          not be processed against this, the only error is trying to
+     *          add a deleting collection-ID.
      */
-    ProcessResult processManifest(const Collections::Manifest& manifest) const;
+    using processResult =
+            boost::optional<std::pair<std::vector<ScopeCollectionPair>,
+                                      std::vector<ScopeCollectionPair>>>;
+    processResult processManifest(const Collections::Manifest& manifest) const;
 
     /**
      * Create an Item that carries a system event and queue it to the vb
@@ -880,11 +852,6 @@ protected:
      * The current set of collections
      */
     container map;
-
-    /**
-     * The current set of scopes
-     */
-    std::unordered_set<ScopeID> scopes;
 
     /**
      * Does the current set contain the default collection?
