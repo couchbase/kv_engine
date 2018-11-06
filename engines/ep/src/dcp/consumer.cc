@@ -327,7 +327,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, Vbid vbucket) {
     uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
     flowControl.incrFreedBytes(bytesCleared);
     streams.erase(vbucket);
-    notifyConsumerIfNecessary(true/*schedule*/);
+    scheduleNotifyIfNecessary();
 
     return ENGINE_SUCCESS;
 }
@@ -1063,7 +1063,7 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(
             flowControl.incrFreedBytes(bytesProcessed);
 
             // Notifying memcached on clearing items for flow control
-            notifyConsumerIfNecessary(false /*schedule*/);
+            immediatelyNotifyIfNecessary();
 
             iterations++;
             break;
@@ -1199,8 +1199,7 @@ void DcpConsumer::notifyStreamReady(Vbid vbucket) {
         ready.push_back(vbucket);
     }
 
-
-    notifyPaused(/*schedule*/true);
+    scheduleNotify();
 }
 
 void DcpConsumer::streamAccepted(uint32_t opaque,
@@ -1272,7 +1271,7 @@ void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
         auto& stream = it.first;
         uint32_t bytesCleared = stream->setDead(END_STREAM_STATE);
         flowControl.incrFreedBytes(bytesCleared);
-        notifyConsumerIfNecessary(true/*schedule*/);
+        scheduleNotifyIfNecessary();
     }
 }
 
@@ -1438,7 +1437,7 @@ bool DcpConsumer::isStreamPresent(Vbid vbucket) {
     return stream && stream->isActive();
 }
 
-void DcpConsumer::notifyConsumerIfNecessary(bool schedule) {
+void DcpConsumer::immediatelyNotifyIfNecessary() {
     if (flowControl.isBufferSufficientlyDrained()) {
         /**
          * Notify memcached to get flow control buffer ack out.
@@ -1446,7 +1445,13 @@ void DcpConsumer::notifyConsumerIfNecessary(bool schedule) {
          * the memcached as it would cause delay in buffer ack being
          * sent out to the producer.
          */
-        notifyPaused(schedule);
+        immediatelyNotify();
+    }
+}
+
+void DcpConsumer::scheduleNotifyIfNecessary() {
+    if (flowControl.isBufferSufficientlyDrained()) {
+        scheduleNotify();
     }
 }
 
@@ -1459,9 +1464,12 @@ std::shared_ptr<PassiveStream> DcpConsumer::findStream(Vbid vbid) {
     }
 }
 
-void DcpConsumer::notifyPaused(bool schedule) {
-    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this(),
-                                                   schedule);
+void DcpConsumer::immediatelyNotify() {
+    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this());
+}
+
+void DcpConsumer::scheduleNotify() {
+    engine_.getDcpConnMap().addConnectionToPending(shared_from_this());
 }
 
 ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
@@ -1498,7 +1506,7 @@ ENGINE_ERROR_CODE DcpConsumer::systemEvent(uint32_t opaque,
 
     flowControl.incrFreedBytes(SystemEventMessage::baseMsgBytes + key.size() +
                                eventData.size());
-    notifyConsumerIfNecessary(true /*schedule*/);
+    scheduleNotifyIfNecessary();
 
     return err;
 }
@@ -1508,5 +1516,5 @@ void DcpConsumer::setDisconnect() {
 
     closeAllStreams();
 
-    notifyPaused(/*schedule*/ true);
+    scheduleNotify();
 }

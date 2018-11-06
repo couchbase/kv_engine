@@ -109,22 +109,12 @@ ConnMap::~ConnMap() {
     }
 }
 
-void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn,
-                                     bool schedule) {
+void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn) {
     if (engine.getEpStats().isShutdown) {
         return;
     }
 
-    if (schedule) {
-        if (conn.get() && conn->isPaused() && conn->isReserved()) {
-            pendingNotifications.push(conn);
-            if (connNotifier_) {
-                // Wake up the connection notifier so that
-                // it can notify the event to a given paused connection.
-                connNotifier_->notifyMutationEvent();
-            }
-        }
-    } else {
+    {
         LockHolder rlh(releaseLock);
         if (conn.get() && conn->isPaused() && conn->isReserved()) {
             engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
@@ -132,18 +122,33 @@ void ConnMap::notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn,
     }
 }
 
-void ConnMap::notifyAllPausedConnections() {
+void ConnMap::addConnectionToPending(const std::shared_ptr<ConnHandler>& conn) {
+    if (engine.getEpStats().isShutdown) {
+        return;
+    }
+
+    if (conn.get() && conn->isPaused() && conn->isReserved()) {
+        pendingNotifications.push(conn);
+        if (connNotifier_) {
+            // Wake up the connection notifier so that
+            // it can notify the event to a given paused connection.
+            connNotifier_->notifyMutationEvent();
+        }
+    }
+}
+
+void ConnMap::processPendingNotifications() {
     std::queue<std::shared_ptr<ConnHandler>> queue;
     pendingNotifications.getAll(queue);
 
     TRACE_EVENT1("ep-engine/ConnMap",
-                 "notifyAllPausedConnections",
+                 "processPendingNotifications",
                  "#pending",
                  queue.size());
 
     TRACE_LOCKGUARD_TIMED(releaseLock,
                           "mutex",
-                          "ConnMap::notifyAllPausedConnections::releaseLock",
+                          "ConnMap::processPendingNotifications::releaseLock",
                           SlowMutexThreshold);
 
     while (!queue.empty()) {

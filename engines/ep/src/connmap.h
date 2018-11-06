@@ -79,17 +79,28 @@ public:
     void removeVBConnByVBId(const void* connCookie, Vbid vbid);
 
     /**
-     * Notify a given paused connection.
+     * Notifies the front-end synchronously on this thread that this paused
+     * connection should be re-considered for work.
      *
-     * @param conn connection to be notified. Will retain refcount if
-     *        connection needs notifying and schedule is true.
-     * @param schedule true if a notification event is pushed into a queue.
-     *        Otherwise, directly notify the paused connection.
+     * @param conn connection to be notified.
      */
-    void notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn,
-                                bool schedule = false);
+    void notifyPausedConnection(const std::shared_ptr<ConnHandler>& conn);
 
-    void notifyAllPausedConnections();
+    /**
+     * Schedule a notify by adding it to the pendingNotifications queue.
+     * It will be processed later by the ConnNotifer (in a separate thread)
+     * by the processPendingNotifications method.
+     *
+     * @param conn connection to be scheduled for notification.
+     */
+    void addConnectionToPending(const std::shared_ptr<ConnHandler>& conn);
+
+    /**
+     * Notifies the front-end for all the connections in the
+     * pendingNotifications queue that they should now be re-considered for
+     * work.
+     */
+    void processPendingNotifications();
 
     EventuallyPersistentEngine& getEngine() {
         return engine;

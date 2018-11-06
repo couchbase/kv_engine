@@ -217,14 +217,20 @@ public:
     std::string getProcessorTaskStatusStr();
 
     /**
-     * Check if the enough bytes have been removed from the
-     * flow control buffer, for the consumer to send an ACK
-     * back to the producer.
-     *
-     * @param schedule true if the notification is to be
-     *                 scheduled
+     * Check if the enough bytes have been removed from the flow control
+     * buffer, for the consumer to send an ACK back to the producer.
+     * If so notify the front-end that this paused connection should be
+     * woken-up.
      */
-    void notifyConsumerIfNecessary(bool schedule);
+    void immediatelyNotifyIfNecessary();
+
+    /**
+     * Check if the enough bytes have been removed from the flow control
+     * buffer, for the consumer to send an ACK back to the producer.
+     * If so schedule a notification to the front-end that this paused
+     * connection should be woken-up.
+     */
+    void scheduleNotifyIfNecessary();
 
     void setProcessorYieldThreshold(size_t newValue) {
         processBufferedMessagesYieldThreshold = newValue;
@@ -234,13 +240,18 @@ public:
         processBufferedMessagesBatchSize = newValue;
     }
 
-    /* Notifies the frontend that this (paused) connection should be
-     * re-considered for work.
-     * @param schedule If true, schedule the notification on a background
-     *                 thread for the ConnNotifier to pick, else notify
-     *                 synchronously on this thread.
+    /**
+     * Notifies the front-end synchronously on this thread that this paused
+     * connection should be re-considered for work.
      */
-    void notifyPaused(bool schedule);
+    void immediatelyNotify();
+
+    /**
+     * Schedule a notification to the front-end on a background thread for
+     * the ConnNotifier to pick that notifies this paused connection should
+     * be re-considered for work.
+     */
+    void scheduleNotify();
 
     void setDisconnect() override;
 
@@ -386,7 +397,7 @@ protected:
         ~UpdateFlowControl() {
             if (bytes) {
                 consumer.flowControl.incrFreedBytes(bytes);
-                consumer.notifyConsumerIfNecessary(true /*schedule*/);
+                consumer.scheduleNotifyIfNecessary();
             }
         }
 

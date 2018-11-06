@@ -183,7 +183,18 @@ public:
         return supportsCursorDropping.load();
     }
 
-    void notifyPaused(bool schedule);
+    /**
+     * Notifies the front-end synchronously on this thread that this paused
+     * connection should be re-considered for work.
+     */
+    void immediatelyNotify();
+
+    /**
+     * Schedule a notification to the front-end on a background thread for
+     * the ConnNotifier to pick that notifies this paused connection should
+     * be re-considered for work.
+     */
+    void scheduleNotify();
 
     void setLastReceiveTime(const rel_time_t time) {
         lastReceiveTime = time;

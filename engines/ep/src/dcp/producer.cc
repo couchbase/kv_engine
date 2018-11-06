@@ -104,7 +104,7 @@ void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
                 uint64_t(bytesOutstanding),
                 uint64_t(maxBytes));
     } else {
-        producer.notifyPaused(true);
+        producer.scheduleNotify();
     }
 }
 
@@ -124,7 +124,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
                     uint64_t(ackedBytes),
                     uint64_t(bytesOutstanding),
                     uint64_t(maxBytes));
-            producer.notifyPaused(true);
+            producer.scheduleNotify();
         }
     }
 }
@@ -1277,9 +1277,12 @@ void DcpProducer::notifyStreamReady(Vbid vbucket) {
     }
 }
 
-void DcpProducer::notifyPaused(bool schedule) {
-    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this(),
-                                                   schedule);
+void DcpProducer::immediatelyNotify() {
+    engine_.getDcpConnMap().notifyPausedConnection(shared_from_this());
+}
+
+void DcpProducer::scheduleNotify() {
+    engine_.getDcpConnMap().addConnectionToPending(shared_from_this());
 }
 
 ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {

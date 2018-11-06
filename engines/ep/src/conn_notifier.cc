@@ -89,7 +89,7 @@ void ConnNotifier::notifyMutationEvent(void) {
 bool ConnNotifier::notifyConnections() {
     bool inverse = true;
     pendingNotification.compare_exchange_strong(inverse, false);
-    connMap.notifyAllPausedConnections();
+    connMap.processPendingNotifications();
 
     if (!pendingNotification.load()) {
         const double minimumSleepTime{1.0};
