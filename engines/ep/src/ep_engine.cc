@@ -825,11 +825,6 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
                                     const void* cookie,
                                     cb::mcbp::Request& req,
                                     ADD_RESPONSE response) {
-    if (req.getKeylen() > 0 || req.getExtlen() > 0) {
-        e->setErrorContext(cookie, "Key and extras required");
-        return ENGINE_EINVAL;
-    }
-
     Vbid vbucket = req.getVBucket();
     auto value = req.getValue();
     bool sync = value.size() == 7 && memcmp(value.data(), "async=0", 7) == 0;

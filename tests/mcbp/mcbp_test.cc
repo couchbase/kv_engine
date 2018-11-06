@@ -3979,6 +3979,62 @@ TEST_P(SetVBucketValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class DelVBucketValidatorTest : public ::testing::WithParamInterface<bool>,
+                                public ValidatorTest {
+public:
+    DelVBucketValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::DelVbucket,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(DelVBucketValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(DelVBucketValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DelVBucketValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DelVBucketValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DelVBucketValidatorTest, Cas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(DelVBucketValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DelVBucketValidatorTest, Bodylen) {
+    // The command allows for the client to specify "async=0", but there
+    // was no test for "unsupported" values.. Just verify that we don't
+    // barf out on any ohter.
+    req.setBodylen(8);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    req.setBodylen(32);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         AddValidatorTest,
                         ::testing::Bool(),
@@ -4169,6 +4225,10 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         SetVBucketValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        DelVBucketValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,

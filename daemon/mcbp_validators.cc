@@ -1440,6 +1440,19 @@ static Status set_vbucket_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status del_vbucket_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Any,
+                       ExpectedCas::Any,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -1581,4 +1594,5 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::AdjustTimeofday, adjust_timeofday_validator);
     setup(cb::mcbp::ClientOpcode::GetRandomKey, get_random_key_validator);
     setup(cb::mcbp::ClientOpcode::SetVbucket, set_vbucket_validator);
+    setup(cb::mcbp::ClientOpcode::DelVbucket, del_vbucket_validator);
 }
