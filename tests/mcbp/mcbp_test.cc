@@ -4075,10 +4075,10 @@ TEST_P(GetVBucketValidatorTest, IvalidCas) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
-TEST_P(GetVBucketValidatorTest, InvalidKey) {
+TEST_P(GetVBucketValidatorTest, Key) {
     req.setKeylen(2);
     req.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(GetVBucketValidatorTest, InvalidBodylen) {

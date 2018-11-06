@@ -1468,7 +1468,7 @@ static Status del_vbucket_validator(Cookie& cookie) {
 static Status get_vbucket_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        0,
-                       ExpectedKeyLen::Zero,
+                       ExpectedKeyLen::Any,
                        ExpectedValueLen::Zero,
                        ExpectedCas::NotSet,
                        PROTOCOL_BINARY_RAW_BYTES)) {
