@@ -1466,6 +1466,20 @@ static Status get_vbucket_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status not_supported_validator(Cookie& cookie) {
+    auto& header = cookie.getHeader();
+    if (!verify_header(cookie,
+                       header.getExtlen(),
+                       ExpectedKeyLen::Any,
+                       ExpectedValueLen::Any,
+                       ExpectedCas::Any,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    return Status::NotSupported;
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -1609,4 +1623,32 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::SetVbucket, set_vbucket_validator);
     setup(cb::mcbp::ClientOpcode::DelVbucket, del_vbucket_validator);
     setup(cb::mcbp::ClientOpcode::GetVbucket, get_vbucket_validator);
+
+    // Add a validator which returns not supported (we won't execute
+    // these either as the executor would have returned not supported
+    // They're added sto make it easier to see which opcodes we currently
+    // don't have a proper validator for
+    setup(cb::mcbp::ClientOpcode::Rget, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rset, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rsetq, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rappend, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rappendq, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rprepend, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rprependq, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rdelete, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rdeleteq, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rincr, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rincrq, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rdecr, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Rdecrq, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapConnect, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapConnect, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapMutation, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapDelete, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapFlush, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapOpaque, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapVbucketSet, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapCheckpointStart, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::TapCheckpointEnd, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::DeregisterTapClient, not_supported_validator);
 }
