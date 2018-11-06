@@ -818,9 +818,15 @@ static ENGINE_ERROR_CODE setVBucket(EventuallyPersistentEngine* e,
                   "Unexpected size for vbucket_state_t");
     auto extras = request.getExtdata();
     if (extras.size() != sizeof(vbucket_state_t)) {
-        e->setErrorContext(
-                cookie, "Expected 4 bytes of extras containing the new state");
-        return ENGINE_EINVAL;
+        // MB-31867: ns_server encodes this in the value field. Fall back
+        //           and check if it contains the value
+        extras = request.getValue();
+        if (extras.size() != sizeof(vbucket_state_t)) {
+            e->setErrorContext(
+                    cookie,
+                    "Expected 4 bytes of extras containing the new state");
+            return ENGINE_EINVAL;
+        }
     }
 
     auto state = static_cast<vbucket_state_t>(
