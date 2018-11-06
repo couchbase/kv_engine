@@ -1406,6 +1406,40 @@ static Status get_random_key_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status set_vbucket_validator(Cookie& cookie) {
+    auto& header = cookie.getHeader();
+    if (!verify_header(cookie,
+                       header.getExtlen(),
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Any,
+                       ExpectedCas::Any,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    auto& request = header.getRequest();
+    auto extras = request.getExtdata();
+    static_assert(sizeof(vbucket_state_t) == 4,
+                  "Unexpected size for vbucket_state_t");
+    if (extras.size() == sizeof(vbucket_state_t)) {
+        if (!request.getValue().empty()) {
+            cookie.setErrorContext("No value should be present");
+            return Status::Einval;
+        }
+    } else {
+        // MB-31867: ns_server encodes this in the value field. Fall back
+        //           and check if it contains the value
+        auto value = request.getValue();
+        if (value.size() != sizeof(vbucket_state_t)) {
+            cookie.setErrorContext(
+                    "Expected 4 bytes of extras containing the new state");
+            return Status::Einval;
+        }
+    }
+
+    return Status::Success;
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -1546,4 +1580,5 @@ McbpValidator::McbpValidator() {
           collections_get_manifest_validator);
     setup(cb::mcbp::ClientOpcode::AdjustTimeofday, adjust_timeofday_validator);
     setup(cb::mcbp::ClientOpcode::GetRandomKey, get_random_key_validator);
+    setup(cb::mcbp::ClientOpcode::SetVbucket, set_vbucket_validator);
 }
