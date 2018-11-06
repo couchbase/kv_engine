@@ -586,6 +586,18 @@ static Status auth_provider_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status drop_privilege_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::NonZero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+    return Status::Success;
+}
+
 static Status verbosity_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        4,
@@ -1612,6 +1624,7 @@ McbpValidator::McbpValidator() {
           update_user_permissions_validator);
     setup(cb::mcbp::ClientOpcode::RbacRefresh, configuration_refresh_validator);
     setup(cb::mcbp::ClientOpcode::AuthProvider, auth_provider_validator);
+    setup(cb::mcbp::ClientOpcode::DropPrivilege, drop_privilege_validator);
     setup(cb::mcbp::ClientOpcode::GetFailoverLog,
           dcp_get_failover_log_validator);
     setup(cb::mcbp::ClientOpcode::CollectionsSetManifest,

@@ -4,6 +4,7 @@ add_executable(memcached_mcbp_test
                mcbp_gat_test.cc
                mcbp_test.cc
                mcbp_test.h
+               mcbp_test_2.cc
                mcbp_test_collections.cc
                mcbp_test_main.cc
                mcbp_test_meta.cc
