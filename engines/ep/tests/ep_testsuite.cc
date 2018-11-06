@@ -4618,17 +4618,16 @@ static enum test_result test_observe_seqno_error(EngineIface* h) {
     request = createPacket(cb::mcbp::ClientOpcode::ObserveSeqno,
                            Vbid(0),
                            0,
-                           NULL,
+                           nullptr,
                            0,
-                           NULL,
+                           nullptr,
                            0,
                            invalid_data.str().data(),
                            invalid_data.str().length());
-    h->unknown_command(NULL, request, add_response);
-
+    checkeq(ENGINE_KEY_ENOENT,
+            h->unknown_command(nullptr, request, add_response),
+            "Expected vb uuid not found");
     cb_free(request);
-    checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
-          "Expected vb uuid not found");
 
     return SUCCESS;
 }

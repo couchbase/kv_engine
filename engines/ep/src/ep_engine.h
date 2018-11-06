@@ -521,7 +521,7 @@ public:
                               ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE observe_seqno(const void* cookie,
-                                    protocol_binary_request_header *request,
+                                    cb::mcbp::Request& request,
                                     ADD_RESPONSE response);
 
     VBucketPtr getVBucket(Vbid vbucket);

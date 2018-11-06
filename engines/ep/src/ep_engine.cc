@@ -1157,7 +1157,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     case cb::mcbp::ClientOpcode::Observe:
         return h->observe(cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
-        return h->observe_seqno(cookie, request, response);
+        return h->observe_seqno(cookie, request->request, response);
     case cb::mcbp::ClientOpcode::LastClosedCheckpoint:
     case cb::mcbp::ClientOpcode::CreateCheckpoint:
     case cb::mcbp::ClientOpcode::CheckpointPersistence: {
@@ -4326,29 +4326,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
-                                       const void* cookie,
-                                       protocol_binary_request_header *request,
-                                       ADD_RESPONSE response) {
-    protocol_binary_request_no_extras *req =
-                          (protocol_binary_request_no_extras*)request;
-    const char* data = reinterpret_cast<const char*>(req->bytes) +
-                                                   sizeof(req->bytes);
-    Vbid vb_id;
-    uint64_t vb_uuid;
-    uint8_t  format_type;
-    uint64_t last_persisted_seqno;
-    uint64_t current_seqno;
-
-    std::stringstream result;
-
-    vb_id = req->message.header.request.vbucket.ntoh();
-    memcpy(&vb_uuid, data, sizeof(uint64_t));
-    vb_uuid = ntohll(vb_uuid);
+        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+    Vbid vb_id = request.getVBucket();
+    auto value = request.getValue();
+    uint64_t vb_uuid = static_cast<uint64_t>(
+            ntohll(*reinterpret_cast<const uint64_t*>(value.data())));
 
     EP_LOG_DEBUG("Observing {} with uuid: {}", vb_id, vb_uuid);
 
     VBucketPtr vb = kvBucket->getVBucket(vb_id);
-
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
@@ -4360,28 +4346,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
 
     //Check if the vb uuid matches with the latest entry
     failover_entry_t entry = vb->failovers->getLatestEntry();
+    std::stringstream result;
 
     if (vb_uuid != entry.vb_uuid) {
        uint64_t failover_highseqno = 0;
        uint64_t latest_uuid;
        bool found = vb->failovers->getLastSeqnoForUUID(vb_uuid, &failover_highseqno);
        if (!found) {
-           return sendResponse(response,
-                               NULL,
-                               0,
-                               0,
-                               0,
-                               0,
-                               0,
-                               PROTOCOL_BINARY_RAW_BYTES,
-                               cb::mcbp::Status::KeyEnoent,
-                               0,
-                               cookie);
+           return ENGINE_KEY_ENOENT;
        }
 
-       format_type = 1;
-       last_persisted_seqno = htonll(vb->getPublicPersistenceSeqno());
-       current_seqno = htonll(vb->getHighSeqno());
+       uint8_t format_type = 1;
+       uint64_t last_persisted_seqno = htonll(vb->getPublicPersistenceSeqno());
+       uint64_t current_seqno = htonll(vb->getHighSeqno());
        latest_uuid = htonll(entry.vb_uuid);
        vb_id = vb_id.hton();
        vb_uuid = htonll(vb_uuid);
@@ -4395,9 +4372,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
        result.write((char*) &vb_uuid, sizeof(uint64_t));
        result.write((char*) &failover_highseqno, sizeof(uint64_t));
     } else {
-        format_type = 0;
-        last_persisted_seqno = htonll(vb->getPublicPersistenceSeqno());
-        current_seqno = htonll(vb->getHighSeqno());
+        uint8_t format_type = 0;
+        uint64_t last_persisted_seqno = htonll(vb->getPublicPersistenceSeqno());
+        uint64_t current_seqno = htonll(vb->getHighSeqno());
         vb_id = vb_id.hton();
         vb_uuid =  htonll(vb_uuid);
 
@@ -4409,12 +4386,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     }
 
     return sendResponse(response,
-                        NULL,
+                        nullptr,
                         0,
                         0,
                         0,
                         result.str().data(),
-                        result.str().length(),
+                        gsl::narrow<uint32_t>(result.str().length()),
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
