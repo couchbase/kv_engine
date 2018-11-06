@@ -27,6 +27,7 @@
 #include <daemon/tracing.h>
 #include <phosphor/phosphor.h>
 
+#include "conn_notifier.h"
 #include "connhandler.h"
 #include "connmap.h"
 #include "dcp/backfill-manager.h"
@@ -35,84 +36,6 @@
 #include "executorpool.h"
 
 size_t ConnMap::vbConnLockNum = 32;
-const double ConnNotifier::DEFAULT_MIN_STIME = 1.0;
-
-/**
- * A Callback task for connection notifier
- */
-class ConnNotifierCallback : public GlobalTask {
-public:
-    ConnNotifierCallback(EventuallyPersistentEngine* e,
-                         std::shared_ptr<ConnNotifier> notifier)
-        : GlobalTask(e, TaskId::ConnNotifierCallback),
-          connNotifierPtr(notifier) {
-    }
-
-    bool run(void) {
-        auto connNotifier = connNotifierPtr.lock();
-        if (connNotifier) {
-            return connNotifier->notifyConnections();
-        }
-        /* Stop the task as connNotifier is deleted */
-        return false;
-    }
-
-    std::string getDescription() {
-        return "DCP connection notifier";
-    }
-
-    std::chrono::microseconds maxExpectedDuration() {
-        // In *theory* this should run very quickly (p50 of 64us); however
-        // there's evidence it sometimes takes much longer than that - p99.999
-        // of over 1s.
-        // Set slow limit to 5s initially to highlight the worst runtimes;
-        // consider reducing further when they are solved.
-        return std::chrono::seconds(5);
-    }
-
-private:
-    const std::weak_ptr<ConnNotifier> connNotifierPtr;
-};
-
-void ConnNotifier::start() {
-    bool inverse = false;
-    pendingNotification.compare_exchange_strong(inverse, true);
-    ExTask connotifyTask = std::make_shared<ConnNotifierCallback>(
-            &connMap.getEngine(), shared_from_this());
-    task = ExecutorPool::get()->schedule(connotifyTask);
-}
-
-void ConnNotifier::stop() {
-    bool inverse = true;
-    pendingNotification.compare_exchange_strong(inverse, false);
-    ExecutorPool::get()->cancel(task);
-}
-
-void ConnNotifier::notifyMutationEvent(void) {
-    bool inverse = false;
-    if (pendingNotification.compare_exchange_strong(inverse, true)) {
-        if (task > 0) {
-            ExecutorPool::get()->wake(task);
-        }
-    }
-}
-
-bool ConnNotifier::notifyConnections() {
-    bool inverse = true;
-    pendingNotification.compare_exchange_strong(inverse, false);
-    connMap.notifyAllPausedConnections();
-
-    if (!pendingNotification.load()) {
-        ExecutorPool::get()->snooze(task, DEFAULT_MIN_STIME);
-        if (pendingNotification.load()) {
-            // Check again if a new notification is arrived right before
-            // calling snooze() above.
-            ExecutorPool::get()->snooze(task, 0);
-        }
-    }
-
-    return true;
-}
 
 /**
  * A task to manage connections.

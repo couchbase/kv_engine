@@ -19,6 +19,7 @@
 #include "dcpconnmap.h"
 #include "bucket_logger.h"
 #include "configuration.h"
+#include "conn_notifier.h"
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
 #include "ep_engine.h"

@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include "conn_notifier.h"
 #include "connhandler.h"
 #include "dcp/dcpconnmap.h"
 

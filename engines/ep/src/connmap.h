@@ -123,30 +123,3 @@ protected:
 
     static size_t vbConnLockNum;
 };
-
-/**
- * Connection notifier that wakes up paused connections.
- */
-class ConnNotifier : public std::enable_shared_from_this<ConnNotifier> {
-public:
-    ConnNotifier(ConnMap &cm)
-            : connMap(cm),
-              task(0),
-              pendingNotification(false) {
-    }
-
-    void start();
-
-    void stop();
-
-    void notifyMutationEvent();
-
-    bool notifyConnections();
-
-private:
-    static const double DEFAULT_MIN_STIME;
-
-    ConnMap &connMap;
-    std::atomic<size_t> task;
-    std::atomic<bool> pendingNotification;
-};
