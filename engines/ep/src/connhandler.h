@@ -267,7 +267,9 @@ public:
         reason = r;
     }
 
-    std::string getPausedReason() const;
+    PausedReason getPausedReason() const {
+        return reason;
+    }
 
     bool isPaused() {
         return paused;

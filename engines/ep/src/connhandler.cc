@@ -255,7 +255,7 @@ void ConnHandler::addStats(ADD_STAT add_stat, const void* c) {
     addStat("reserved", reserved.load(), add_stat, c);
     addStat("paused", isPaused(), add_stat, c);
     if (isPaused()) {
-        addStat("paused_reason", getPausedReason(), add_stat, c);
+        addStat("paused_reason", to_string(reason), add_stat, c);
     }
     const auto priority = engine_.getDCPPriority(cookie);
     const char* priString = "<INVALID>";
@@ -279,8 +279,4 @@ void ConnHandler::setLogHeader(const std::string& header) {
 
 const char* ConnHandler::logHeader() {
     return logger->prefix.c_str();
-}
-
-std::string ConnHandler::getPausedReason() const {
-    return to_string(reason);
 }
