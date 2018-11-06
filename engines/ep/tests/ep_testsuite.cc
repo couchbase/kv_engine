@@ -3044,11 +3044,10 @@ static enum test_result test_session_cas_validation(EngineIface* h) {
     uint64_t cas = 0x0101010101010101;
     pkt = createPacket(
             cb::mcbp::ClientOpcode::SetVbucket, Vbid(0), cas, ext, 4);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_KEY_EEXISTS,
             h->unknown_command(NULL, pkt, add_response),
             "SET_VBUCKET command failed");
     cb_free(pkt);
-    cb_assert(last_status == cb::mcbp::Status::KeyEexists);
 
     cas = 0x0102030405060708;
     pkt = createPacket(

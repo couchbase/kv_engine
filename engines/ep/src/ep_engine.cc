@@ -1060,26 +1060,15 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     case cb::mcbp::ClientOpcode::SetParam:
     case cb::mcbp::ClientOpcode::SetVbucket:
     case cb::mcbp::ClientOpcode::DelVbucket:
-    case cb::mcbp::ClientOpcode::CompactDb: {
-        if (h->getEngineSpecific(cookie) == NULL) {
-            uint64_t cas = ntohll(request->request.cas);
+    case cb::mcbp::ClientOpcode::CompactDb:
+        if (h->getEngineSpecific(cookie) == nullptr) {
+            uint64_t cas = request->request.getCas();
             if (!h->validateSessionCas(cas)) {
                 h->setErrorContext(cookie, "Invalid session token");
-                return sendResponse(response,
-                                    NULL,
-                                    0,
-                                    NULL,
-                                    0,
-                                    NULL,
-                                    0,
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    cb::mcbp::Status::KeyEexists,
-                                    cas,
-                                    cookie);
+                return ENGINE_KEY_EEXISTS;
             }
         }
         break;
-    }
     default:
         break;
     }
