@@ -203,6 +203,70 @@ TEST_P(SetClusterConfigValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class StartStopPersistenceValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    StartStopPersistenceValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate(bool start) {
+        if (start) {
+            return ValidatorTest::validate(
+                    cb::mcbp::ClientOpcode::StartPersistence,
+                    static_cast<void*>(&request));
+        }
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::StopPersistence,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(StartStopPersistenceValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(false));
+}
+
+TEST_P(StartStopPersistenceValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(StartStopPersistenceValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(StartStopPersistenceValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(StartStopPersistenceValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(StartStopPersistenceValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(StartStopPersistenceValidatorTest, InvalidBodylen) {
+    req.setBodylen(8);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
                         ::testing::Bool(),
@@ -215,6 +279,11 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         SetClusterConfigValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        StartStopPersistenceValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 

@@ -1502,6 +1502,18 @@ static Status get_vbucket_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status start_stop_persistence_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+    return Status::Success;
+}
+
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     if (!verify_header(cookie,
@@ -1664,6 +1676,10 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::SetVbucket, set_vbucket_validator);
     setup(cb::mcbp::ClientOpcode::DelVbucket, del_vbucket_validator);
     setup(cb::mcbp::ClientOpcode::GetVbucket, get_vbucket_validator);
+    setup(cb::mcbp::ClientOpcode::StopPersistence,
+          start_stop_persistence_validator);
+    setup(cb::mcbp::ClientOpcode::StartPersistence,
+          start_stop_persistence_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported
