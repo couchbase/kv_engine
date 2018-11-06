@@ -267,6 +267,70 @@ TEST_P(StartStopPersistenceValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
 }
 
+class EnableDisableTrafficValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    EnableDisableTrafficValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate(bool start) {
+        if (start) {
+            return ValidatorTest::validate(
+                    cb::mcbp::ClientOpcode::EnableTraffic,
+                    static_cast<void*>(&request));
+        }
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::DisableTraffic,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(EnableDisableTrafficValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Success, validate(false));
+}
+
+TEST_P(EnableDisableTrafficValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(EnableDisableTrafficValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(EnableDisableTrafficValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(EnableDisableTrafficValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(EnableDisableTrafficValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
+TEST_P(EnableDisableTrafficValidatorTest, InvalidBodylen) {
+    req.setBodylen(8);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(true));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
                         ::testing::Bool(),
@@ -284,6 +348,11 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         StartStopPersistenceValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        EnableDisableTrafficValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 

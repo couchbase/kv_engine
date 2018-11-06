@@ -606,7 +606,7 @@ public:
                                       ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE handleTrafficControlCmd(const void* cookie,
-                                              protocol_binary_request_header *request,
+                                              cb::mcbp::Request& request,
                                               ADD_RESPONSE response);
 
     size_t getGetlDefaultTimeout() const {

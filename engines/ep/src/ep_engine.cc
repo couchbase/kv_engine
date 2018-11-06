@@ -1159,11 +1159,11 @@ static ENGINE_ERROR_CODE processUnknownCommand(
             return rv;
         }
         break;
+
     case cb::mcbp::ClientOpcode::EnableTraffic:
-    case cb::mcbp::ClientOpcode::DisableTraffic: {
-        rv = h->handleTrafficControlCmd(cookie, request, response);
-        return rv;
-    }
+    case cb::mcbp::ClientOpcode::DisableTraffic:
+        return h->handleTrafficControlCmd(cookie, request->request, response);
+
     case cb::mcbp::ClientOpcode::CompactDb: {
         rv = compactDB(h, cookie,
                        (protocol_binary_request_compact_db*)(request),
@@ -5093,27 +5093,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
 }
 
 ENGINE_ERROR_CODE
-EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
-                                       protocol_binary_request_header *request,
-                                       ADD_RESPONSE response)
-{
-    auto status = cb::mcbp::Status::Success;
-
-    switch (request->request.getClientOpcode()) {
+EventuallyPersistentEngine::handleTrafficControlCmd(const void* cookie,
+                                                    cb::mcbp::Request& request,
+                                                    ADD_RESPONSE response) {
+    switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::EnableTraffic:
         if (kvBucket->isWarmingUp()) {
             // engine is still warming up, do not turn on data traffic yet
-            status = cb::mcbp::Status::Etmpfail;
             setErrorContext(cookie, "Persistent engine is still warming up!");
+            return ENGINE_TMPFAIL;
         } else if (configuration.isFailpartialwarmup() &&
                    kvBucket->isWarmupOOMFailure()) {
             // engine has completed warm up, but data traffic cannot be
             // turned on due to an OOM failure
-            status = cb::mcbp::Status::Enomem;
             setErrorContext(
                     cookie,
                     "Data traffic to persistent engine cannot be enabled"
                     " due to out of memory failures during warmup");
+            return ENGINE_ENOMEM;
         } else {
             if (enableTraffic(true)) {
                 setErrorContext(
@@ -5137,21 +5134,20 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
         }
         break;
     default:
-        status = cb::mcbp::Status::UnknownCommand;
-        setErrorContext(cookie,
-                        "Unknown traffic control opcode: " +
-                                std::to_string(request->request.opcode));
+        throw std::invalid_argument(
+                "EPE::handleTrafficControlCmd can only be called with "
+                "EnableTraffic or DisableTraffic");
     }
 
     return sendResponse(response,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
-                        status,
+                        cb::mcbp::Status::Success,
                         0,
                         cookie);
 }

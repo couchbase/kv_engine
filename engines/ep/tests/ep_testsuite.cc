@@ -3531,12 +3531,9 @@ static enum test_result test_warmup_oom(EngineIface* h) {
 
     wait_for_warmup_complete(h);
 
-    protocol_binary_request_header* pkt =
-            createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
-    checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
-            "Failed to send data traffic command to the services");
-    checkeq(cb::mcbp::Status::Enomem, last_status.load(),
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
+    checkeq(ENGINE_ENOMEM,
+            h->unknown_command(nullptr, pkt, add_response),
             "Data traffic command should have failed with enomem");
     cb_free(pkt);
 

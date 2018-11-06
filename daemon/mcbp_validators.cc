@@ -1514,6 +1514,18 @@ static Status start_stop_persistence_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status enable_disable_traffic_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+    return Status::Success;
+}
+
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     if (!verify_header(cookie,
@@ -1680,6 +1692,10 @@ McbpValidator::McbpValidator() {
           start_stop_persistence_validator);
     setup(cb::mcbp::ClientOpcode::StartPersistence,
           start_stop_persistence_validator);
+    setup(cb::mcbp::ClientOpcode::EnableTraffic,
+          enable_disable_traffic_validator);
+    setup(cb::mcbp::ClientOpcode::DisableTraffic,
+          enable_disable_traffic_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported
