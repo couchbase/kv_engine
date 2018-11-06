@@ -598,6 +598,31 @@ static Status drop_privilege_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status get_cluster_config_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+    return Status::Success;
+}
+
+static Status set_cluster_config_validator(Cookie& cookie) {
+    if (!verify_header(
+                cookie,
+                0,
+                ExpectedKeyLen::Zero,
+                ExpectedValueLen::NonZero,
+                ExpectedCas::Any,
+                PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON)) {
+        return Status::Einval;
+    }
+    return Status::Success;
+}
+
 static Status verbosity_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        4,
@@ -1624,6 +1649,10 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::RbacRefresh, configuration_refresh_validator);
     setup(cb::mcbp::ClientOpcode::AuthProvider, auth_provider_validator);
     setup(cb::mcbp::ClientOpcode::DropPrivilege, drop_privilege_validator);
+    setup(cb::mcbp::ClientOpcode::GetClusterConfig,
+          get_cluster_config_validator);
+    setup(cb::mcbp::ClientOpcode::SetClusterConfig,
+          set_cluster_config_validator);
     setup(cb::mcbp::ClientOpcode::GetFailoverLog,
           dcp_get_failover_log_validator);
     setup(cb::mcbp::ClientOpcode::CollectionsSetManifest,

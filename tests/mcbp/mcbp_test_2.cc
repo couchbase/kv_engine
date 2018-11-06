@@ -91,8 +91,130 @@ TEST_P(DropPrivilegeValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class GetClusterConfigValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    GetClusterConfigValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetClusterConfig,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(GetClusterConfigValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(GetClusterConfigValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetClusterConfigValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetClusterConfigValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetClusterConfigValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetClusterConfigValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetClusterConfigValidatorTest, InvalidBodylen) {
+    req.setBodylen(8);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class SetClusterConfigValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    SetClusterConfigValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        req.setBodylen(32);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::SetClusterConfig,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(SetClusterConfigValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SetClusterConfigValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetClusterConfigValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetClusterConfigValidatorTest, DocMayBeJSON) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SetClusterConfigValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::Snappy);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetClusterConfigValidatorTest, Cas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SetClusterConfigValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetClusterConfigValidatorTest, InvalidBodylen) {
+    req.setBodylen(0);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        GetClusterConfigValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        SetClusterConfigValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 
