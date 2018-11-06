@@ -4035,6 +4035,57 @@ TEST_P(DelVBucketValidatorTest, Bodylen) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
+class GetVBucketValidatorTest : public ::testing::WithParamInterface<bool>,
+                                public ValidatorTest {
+public:
+    GetVBucketValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetVbucket,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(GetVBucketValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(GetVBucketValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetVBucketValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetVBucketValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetVBucketValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetVBucketValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetVBucketValidatorTest, InvalidBodylen) {
+    req.setBodylen(8);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         AddValidatorTest,
                         ::testing::Bool(),
@@ -4229,6 +4280,10 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DelVBucketValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        GetVBucketValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
