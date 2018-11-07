@@ -22,6 +22,7 @@
 
 #include <cbsasl/client.h>
 #include <mcbp/mcbp.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
@@ -947,25 +948,23 @@ void MemcachedConnection::configureEwouldBlockEngine(const EWBEngineMode& mode,
                                                      ENGINE_ERROR_CODE err_code,
                                                      uint32_t value,
                                                      const std::string& key) {
-    request_ewouldblock_ctl request;
-    memset(request.bytes, 0, sizeof(request.bytes));
-    request.message.header.request.magic = 0x80;
-    request.message.header.request.setOpcode(
-            cb::mcbp::ClientOpcode::EwouldblockCtl);
-    request.message.header.request.extlen = 12;
-    request.message.header.request.keylen = ntohs((short)key.size());
-    request.message.header.request.bodylen =
-            htonl(12 + gsl::narrow<uint32_t>(key.size()));
-    request.message.body.inject_error = htonl(err_code);
-    request.message.body.mode = htonl(static_cast<uint32_t>(mode));
-    request.message.body.value = htonl(value);
+    cb::mcbp::request::EWB_Payload payload;
+    payload.setMode(uint32_t(mode));
+    payload.setValue(uint32_t(value));
+    payload.setInjectError(uint32_t(err_code));
+
+    std::vector<uint8_t> buffer(sizeof(cb::mcbp::Request) +
+                                sizeof(cb::mcbp::request::EWB_Payload) +
+                                key.size());
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::EwouldblockCtl);
+    builder.setExtras(
+            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
 
     Frame frame;
-    frame.payload.resize(sizeof(request.bytes) + key.size());
-    memcpy(frame.payload.data(), request.bytes, sizeof(request.bytes));
-    memcpy(frame.payload.data() + sizeof(request.bytes),
-           key.data(),
-           key.size());
+    frame.payload = std::move(buffer);
     sendFrame(frame);
 
     recvFrame(frame);

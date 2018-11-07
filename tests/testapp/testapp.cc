@@ -7,6 +7,7 @@
 #include <JSON_checker.h>
 #include <cbsasl/client.h>
 #include <gtest/gtest.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <platform/backtrace.h>
 #include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
@@ -1298,29 +1299,30 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
                                                const EWBEngineMode& mode,
                                                uint32_t value,
                                                const std::string& key) {
-    union {
-        request_ewouldblock_ctl request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
+    cb::mcbp::request::EWB_Payload payload;
+    payload.setMode(static_cast<uint32_t>(mode));
+    payload.setValue(value);
+    payload.setInjectError(static_cast<uint32_t>(err_code));
 
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::EwouldblockCtl,
-                                  key.c_str(),
-                                  key.size(),
-                                  NULL,
-                                  0);
-    buffer.request.message.body.mode = htonl(static_cast<uint32_t>(mode));
-    buffer.request.message.body.value = htonl(value);
-    buffer.request.message.body.inject_error = htonl(err_code);
+    std::vector<uint8_t> buffer(sizeof(cb::mcbp::Request) +
+                                sizeof(cb::mcbp::request::EWB_Payload) +
+                                key.size());
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::EwouldblockCtl);
+    builder.setOpaque(0xdeadbeef);
+    builder.setExtras(
+            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
+    safe_send(buffer.data(), buffer.size(), false);
 
-    safe_send(buffer.bytes, len, false);
-
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response,
-                                  cb::mcbp::ClientOpcode::EwouldblockCtl,
-                                  cb::mcbp::Status::Success);
+    buffer.resize(1024);
+    safe_recv_packet(buffer.data(), buffer.size());
+    mcbp_validate_response_header(
+            reinterpret_cast<protocol_binary_response_no_extras*>(
+                    buffer.data()),
+            cb::mcbp::ClientOpcode::EwouldblockCtl,
+            cb::mcbp::Status::Success);
 }
 
 void TestappTest::ewouldblock_engine_disable() {

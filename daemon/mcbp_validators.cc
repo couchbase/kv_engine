@@ -1429,6 +1429,25 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status ewb_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       sizeof(cb::mcbp::request::EWB_Payload),
+                       ExpectedKeyLen::Any,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    // The method should only be available for unit tests
+    if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+        cookie.setErrorContext("Only available for unit tests");
+        return Status::NotSupported;
+    }
+
+    return Status::Success;
+}
+
 static Status scrub_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        0,
@@ -1698,6 +1717,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::CollectionsGetManifest,
           collections_get_manifest_validator);
     setup(cb::mcbp::ClientOpcode::AdjustTimeofday, adjust_timeofday_validator);
+    setup(cb::mcbp::ClientOpcode::EwouldblockCtl, ewb_validator);
     setup(cb::mcbp::ClientOpcode::GetRandomKey, get_random_key_validator);
     setup(cb::mcbp::ClientOpcode::SetVbucket, set_vbucket_validator);
     setup(cb::mcbp::ClientOpcode::DelVbucket, del_vbucket_validator);

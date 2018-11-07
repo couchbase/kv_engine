@@ -532,17 +532,20 @@ public:
             const void* cookie,
             gsl::not_null<protocol_binary_request_header*> request,
             ADD_RESPONSE response) override {
-        const auto opcode = request->request.getClientOpcode();
+        auto& req = request->request;
+        const auto opcode = req.getClientOpcode();
         if (opcode == cb::mcbp::ClientOpcode::EwouldblockCtl) {
-            auto* req =
-                    reinterpret_cast<request_ewouldblock_ctl*>(request.get());
-            const EWBEngineMode mode = static_cast<EWBEngineMode>(ntohl(req->message.body.mode));
-            const uint32_t value = ntohl(req->message.body.value);
-            const ENGINE_ERROR_CODE injected_error =
-                    static_cast<ENGINE_ERROR_CODE>(ntohl(req->message.body.inject_error));
-            const std::string key((char*)req->bytes + sizeof(req->bytes),
-                                  ntohs(req->message.header.request.keylen));
-
+            using cb::mcbp::request::EWB_Payload;
+            auto extras = req.getExtdata();
+            const auto* payload =
+                    reinterpret_cast<const EWB_Payload*>(extras.data());
+            const auto mode = static_cast<EWBEngineMode>(payload->getMode());
+            const auto value = payload->getValue();
+            const auto injected_error =
+                    static_cast<ENGINE_ERROR_CODE>(payload->getInjectError());
+            auto k = req.getKey();
+            const std::string key(reinterpret_cast<const char*>(k.data()),
+                                  k.size());
             std::shared_ptr<FaultInjectMode> new_mode = nullptr;
 
             // Validate mode, and construct new fault injector.

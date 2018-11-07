@@ -27,9 +27,6 @@
 
 #include <memcached/protocol_binary.h>
 
-using request_ewouldblock_ctl = protocol_binary_request_ewb_ctl;
-using response_ewouldblock_ctl = protocol_binary_response_ewb_ctl;
-
 // The mode the engine is currently operating in. Determines when it will
 // inject EWOULDBLOCK instead of the real return code.
 enum class EWBEngineMode : uint32_t {

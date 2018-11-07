@@ -1999,19 +1999,40 @@ typedef protocol_binary_response_no_extras protocol_binary_adjust_time_response;
  *
  * See engines/ewouldblock_engine for more information.
  */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t mode; // See EWB_Engine_Mode
-            uint32_t value;
-            uint32_t inject_error; // ENGINE_ERROR_CODE to inject.
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + sizeof(uint32_t) +
-                  sizeof(uint32_t) + sizeof(uint32_t)];
-} protocol_binary_request_ewb_ctl;
-typedef protocol_binary_response_no_extras protocol_binary_response_ewb_ctl;
+
+namespace cb {
+namespace mcbp {
+namespace request {
+class EWB_Payload {
+public:
+    uint32_t getMode() const {
+        return ntohl(mode);
+    }
+    void setMode(uint32_t m) {
+        mode = htonl(m);
+    }
+    uint32_t getValue() const {
+        return ntohl(value);
+    }
+    void setValue(uint32_t v) {
+        value = htonl(v);
+    }
+    uint32_t getInjectError() const {
+        return ntohl(inject_error);
+    }
+    void setInjectError(uint32_t ie) {
+        inject_error = htonl(ie);
+    }
+
+protected:
+    uint32_t mode = 0; // See EWB_Engine_Mode
+    uint32_t value = 0;
+    uint32_t inject_error = 0; // ENGINE_ERROR_CODE to inject.
+};
+static_assert(sizeof(EWB_Payload) == 12, "Invalid size for WEB_Payload");
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 /**
  * Message format for PROTOCOL_BINARY_CMD_GET_ERRORMAP
