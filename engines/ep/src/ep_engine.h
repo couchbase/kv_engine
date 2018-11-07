@@ -454,7 +454,7 @@ public:
             ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE returnMeta(const void* cookie,
-                                 protocol_binary_request_return_meta* request,
+                                 cb::mcbp::Request& req,
                                  ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE getAllKeys(const void* cookie,

@@ -968,24 +968,24 @@ static ENGINE_ERROR_CODE return_meta(EngineIface* h,
                                      const uint64_t cas,
                                      const uint32_t flags,
                                      const uint32_t exp,
-                                     const uint32_t type,
+                                     cb::mcbp::request::ReturnMetaType type,
                                      uint8_t datatype,
                                      const void* cookie) {
-    char ext[12];
-    encodeExt(ext, type);
-    encodeExt(ext + 4, flags);
-    encodeExt(ext + 8, exp);
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(cb::mcbp::ClientOpcode::ReturnMeta,
-                       vb,
-                       cas,
-                       ext,
-                       12,
-                       key,
-                       keylen,
-                       val,
-                       vallen,
-                       datatype);
+    cb::mcbp::request::ReturnMetaPayload meta;
+    meta.setMutationType(type);
+    meta.setFlags(flags);
+    meta.setExpiration(exp);
+
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::ReturnMeta,
+                             vb,
+                             cas,
+                             reinterpret_cast<const char*>(&meta),
+                             sizeof(meta),
+                             key,
+                             keylen,
+                             val,
+                             vallen,
+                             datatype);
     auto ret = h->unknown_command(cookie, pkt, add_response_ret_meta);
     cb_free(pkt);
 
@@ -1012,7 +1012,7 @@ ENGINE_ERROR_CODE set_ret_meta(EngineIface* h,
                        cas,
                        flags,
                        exp,
-                       SET_RET_META,
+                       cb::mcbp::request::ReturnMetaType::Set,
                        datatype,
                        cookie);
 }
@@ -1037,7 +1037,7 @@ ENGINE_ERROR_CODE add_ret_meta(EngineIface* h,
                        cas,
                        flags,
                        exp,
-                       ADD_RET_META,
+                       cb::mcbp::request::ReturnMetaType::Add,
                        datatype,
                        cookie);
 }
@@ -1057,7 +1057,7 @@ ENGINE_ERROR_CODE del_ret_meta(EngineIface* h,
                        cas,
                        0,
                        0,
-                       DEL_RET_META,
+                       cb::mcbp::request::ReturnMetaType::Del,
                        0x00,
                        cookie);
 }

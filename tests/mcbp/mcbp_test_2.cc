@@ -560,6 +560,89 @@ TEST_P(GetReplicaValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class ReturnMetaValidatorTest : public ::testing::WithParamInterface<bool>,
+                                public ValidatorTest {
+public:
+    ReturnMetaValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        using cb::mcbp::request::ReturnMetaPayload;
+        using cb::mcbp::request::ReturnMetaType;
+        ReturnMetaPayload payload;
+        payload.setExpiration(0);
+        payload.setFlags(0xdeadbeef);
+        payload.setMutationType(ReturnMetaType::Set);
+        auto* ptr = reinterpret_cast<ReturnMetaPayload*>(request.bytes + 24);
+        memcpy(ptr, &payload, sizeof(payload));
+        req.setExtlen(sizeof(payload));
+        req.setKeylen(2);
+        req.setBodylen(req.getExtlen() + req.getKeylen() + 2);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::ReturnMeta,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(ReturnMetaValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(ReturnMetaValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(ReturnMetaValidatorTest, InvalidExtlen) {
+    req.setExtlen(0);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    req.setExtlen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(ReturnMetaValidatorTest, Extras) {
+    using cb::mcbp::request::ReturnMetaPayload;
+    using cb::mcbp::request::ReturnMetaType;
+    auto* ptr = reinterpret_cast<ReturnMetaPayload*>(request.bytes + 24);
+    ptr->setMutationType(ReturnMetaType::Add);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    ptr->setMutationType(ReturnMetaType::Set);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    ptr->setMutationType(ReturnMetaType::Del);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    ptr->setMutationType(ReturnMetaType(0));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    ptr->setMutationType(ReturnMetaType(4));
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(ReturnMetaValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(ReturnMetaValidatorTest, Cas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(ReturnMetaValidatorTest, InvalidKey) {
+    // The key must be present
+    req.setKeylen(0);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(ReturnMetaValidatorTest, Bodylen) {
+    req.setBodylen(req.getKeylen() + req.getExtlen());
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
                         ::testing::Bool(),
@@ -604,5 +687,11 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         GetReplicaValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        ReturnMetaValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
 } // namespace test
 } // namespace mcbp

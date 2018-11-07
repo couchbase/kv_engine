@@ -1595,6 +1595,32 @@ static Status set_param_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status return_meta_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       sizeof(cb::mcbp::request::ReturnMetaPayload),
+                       ExpectedKeyLen::NonZero,
+                       ExpectedValueLen::Any,
+                       ExpectedCas::Any,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    using cb::mcbp::request::ReturnMetaPayload;
+    using cb::mcbp::request::ReturnMetaType;
+    auto* payload = reinterpret_cast<const ReturnMetaPayload*>(
+            cookie.getHeader().getRequest().getExtdata().data());
+
+    switch (payload->getMutationType()) {
+    case ReturnMetaType::Set:
+    case ReturnMetaType::Add:
+    case ReturnMetaType::Del:
+        return Status::Success;
+    }
+
+    cookie.setErrorContext("Invalid mode");
+    return Status::Einval;
+}
+
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     if (!verify_header(cookie,
@@ -1770,6 +1796,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::GetKeys, get_keys_validator);
     setup(cb::mcbp::ClientOpcode::SetParam, set_param_validator);
     setup(cb::mcbp::ClientOpcode::GetReplica, get_validator);
+    setup(cb::mcbp::ClientOpcode::ReturnMeta, return_meta_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported

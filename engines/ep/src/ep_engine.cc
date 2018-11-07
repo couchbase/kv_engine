@@ -1129,12 +1129,8 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                 response);
         return rv;
     }
-    case cb::mcbp::ClientOpcode::ReturnMeta: {
-        return h->returnMeta(
-                cookie,
-                reinterpret_cast<protocol_binary_request_return_meta*>(request),
-                response);
-    }
+    case cb::mcbp::ClientOpcode::ReturnMeta:
+        return h->returnMeta(cookie, request->request, response);
 
     case cb::mcbp::ClientOpcode::GetReplica:
         return h->getReplicaCmd(request->request, response, cookie);
@@ -5183,69 +5179,49 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void* cookie,
 }
 
 ENGINE_ERROR_CODE
-EventuallyPersistentEngine::returnMeta(
-        const void* cookie,
-        protocol_binary_request_return_meta* request,
-        ADD_RESPONSE response) {
-    uint8_t extlen = request->message.header.request.extlen;
-    uint16_t keylen = ntohs(request->message.header.request.keylen);
-    if (extlen != 12 || request->message.header.request.keylen == 0) {
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Einval,
-                            0,
-                            cookie);
-    }
+EventuallyPersistentEngine::returnMeta(const void* cookie,
+                                       cb::mcbp::Request& req,
+                                       ADD_RESPONSE response) {
+    using cb::mcbp::request::ReturnMetaPayload;
+    using cb::mcbp::request::ReturnMetaType;
+
+    auto* payload =
+            reinterpret_cast<const ReturnMetaPayload*>(req.getExtdata().data());
 
     if (isDegradedMode()) {
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Etmpfail,
-                            0,
-                            cookie);
+        return ENGINE_TMPFAIL;
     }
 
-    uint8_t* keyPtr = request->bytes + sizeof(request->bytes);
-    Vbid vbucket = request->message.header.request.vbucket.ntoh();
-    uint32_t bodylen = ntohl(request->message.header.request.bodylen);
-    uint64_t cas = ntohll(request->message.header.request.cas);
-    uint8_t datatype = request->message.header.request.datatype;
-    uint32_t mutate_type = ntohl(request->message.body.mutation_type);
-    uint32_t flags = ntohl(request->message.body.flags);
-    uint32_t exp = ntohl(request->message.body.expiration);
-    exp = exp == 0 ? 0 : ep_abs_time(ep_reltime(exp));
-    size_t vallen = bodylen - keylen - extlen;
+    auto cas = req.getCas();
+    auto datatype = uint8_t(req.getDatatype());
+    auto mutate_type = payload->getMutationType();
+    auto flags = payload->getFlags();
+    auto exp = payload->getExpiration();
+    if (exp != 0) {
+        exp = ep_abs_time(ep_reltime(exp));
+    }
+
     uint64_t seqno;
-
-    ENGINE_ERROR_CODE ret = ENGINE_EINVAL;
-    if (mutate_type == SET_RET_META || mutate_type == ADD_RET_META) {
-        uint8_t *dta = keyPtr + keylen;
+    ENGINE_ERROR_CODE ret;
+    if (mutate_type == ReturnMetaType::Set ||
+        mutate_type == ReturnMetaType::Add) {
+        auto value = req.getValue();
         datatype = checkForDatatypeJson(
-                cookie, datatype, {reinterpret_cast<const char*>(dta), vallen});
+                cookie,
+                datatype,
+                {reinterpret_cast<const char*>(value.data()), value.size()});
 
-        auto itm = std::make_unique<Item>(makeDocKey(cookie, {keyPtr, keylen}),
+        auto itm = std::make_unique<Item>(makeDocKey(cookie, req.getKey()),
                                           flags,
                                           exp,
-                                          dta,
-                                          vallen,
+                                          value.data(),
+                                          value.size(),
                                           datatype,
                                           cas,
                                           -1,
-                                          vbucket);
+                                          req.getVBucket());
 
-        if (mutate_type == SET_RET_META) {
+        if (mutate_type == ReturnMetaType::Set) {
             ret = kvBucket->set(*itm, cookie, {});
         } else {
             ret = kvBucket->add(*itm, cookie);
@@ -5255,12 +5231,12 @@ EventuallyPersistentEngine::returnMeta(
         }
         cas = itm->getCas();
         seqno = htonll(itm->getRevSeqno());
-    } else if (mutate_type == DEL_RET_META) {
+    } else if (mutate_type == ReturnMetaType::Del) {
         ItemMetaData itm_meta;
         mutation_descr_t mutation_descr;
-        ret = kvBucket->deleteItem(makeDocKey(cookie, {keyPtr, keylen}),
+        ret = kvBucket->deleteItem(makeDocKey(cookie, req.getKey()),
                                    cas,
-                                   vbucket,
+                                   req.getVBucket(),
                                    cookie,
                                    &itm_meta,
                                    mutation_descr);
@@ -5268,38 +5244,16 @@ EventuallyPersistentEngine::returnMeta(
             ++stats.numOpsDelRetMeta;
         }
         flags = itm_meta.flags;
-        exp = itm_meta.exptime;
+        exp = gsl::narrow<uint32_t>(itm_meta.exptime);
         cas = itm_meta.cas;
         seqno = htonll(itm_meta.revSeqno);
     } else {
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Einval,
-                            0,
-                            cookie);
+        throw std::runtime_error(
+                "returnMeta: Unknown mode passed though the validator");
     }
 
-    if (ret == ENGINE_NOT_MY_VBUCKET || ret == ENGINE_EWOULDBLOCK) {
+    if (ret != ENGINE_SUCCESS) {
         return ret;
-    } else if (ret != ENGINE_SUCCESS) {
-        auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            rc,
-                            0,
-                            cookie);
     }
 
     uint8_t meta[16];
@@ -5309,11 +5263,11 @@ EventuallyPersistentEngine::returnMeta(
     memcpy(meta + 8, &seqno, 8);
 
     return sendResponse(response,
-                        NULL,
+                        nullptr,
                         0,
                         (const void*)meta,
                         16,
-                        NULL,
+                        nullptr,
                         0,
                         datatype,
                         cb::mcbp::Status::Success,

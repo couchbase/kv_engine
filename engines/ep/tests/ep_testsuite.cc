@@ -5368,12 +5368,10 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{3ull}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that updating an item with the wrong cas fails
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_KEY_EEXISTS,
             set_ret_meta(
                     h, "key", 3, "value", 5, Vbid(0), last_meta.cas + 1, 5, 0),
             "Expected success");
-    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
-          "Expected set returing meta to fail");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
             "Expected 3 set rm ops");
@@ -5382,37 +5380,11 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
 }
 
 static enum test_result test_set_ret_meta_error(EngineIface* h) {
-    // Check invalid packet constructions
-    checkeq(ENGINE_SUCCESS,
-            set_ret_meta(h, "", 0, "value", 5, Vbid(0)),
-            "Expected success");
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-          "Expected set returing meta to succeed");
-
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(cb::mcbp::ClientOpcode::ReturnMeta,
-                       Vbid(0),
-                       0,
-                       NULL,
-                       0,
-                       "key",
-                       3,
-                       "val",
-                       3);
-    checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
-            "Expected to be able to store ret meta");
-    cb_free(pkt);
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-          "Expected set returing meta to succeed");
-
     // Check tmp fail errors
     disable_traffic(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_TMPFAIL,
             set_ret_meta(h, "key", 3, "value", 5, Vbid(0)),
             "Expected success");
-    checkeq(cb::mcbp::Status::Etmpfail, last_status.load(),
-          "Expected set returing meta to fail");
     enable_traffic(h);
 
     // Check not my vbucket errors
@@ -5439,11 +5411,9 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
 
 static enum test_result test_add_ret_meta(EngineIface* h) {
     // Check that add with cas fails
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_NOT_STORED,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 10, 0, 0),
             "Expected success");
-    checkeq(cb::mcbp::Status::NotStored, last_status.load(),
-          "Expected set returing meta to fail");
 
     // Check that add without cas succeeds.
     checkeq(ENGINE_SUCCESS,
@@ -5461,11 +5431,9 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
 
     // Check that re-adding a key fails
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_NOT_STORED,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
             "Expected success");
-    checkeq(cb::mcbp::Status::NotStored, last_status.load(),
-          "Expected set returing meta to fail");
 
     // Check that adding a key with flags and exptime returns the correct values
     checkeq(ENGINE_SUCCESS,
@@ -5488,37 +5456,11 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
 }
 
 static enum test_result test_add_ret_meta_error(EngineIface* h) {
-    // Check invalid packet constructions
-    checkeq(ENGINE_SUCCESS,
-            add_ret_meta(h, "", 0, "value", 5, Vbid(0)),
-            "Expected success");
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-          "Expected add returing meta to succeed");
-
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(cb::mcbp::ClientOpcode::ReturnMeta,
-                       Vbid(0),
-                       0,
-                       NULL,
-                       0,
-                       "key",
-                       3,
-                       "val",
-                       3);
-    checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
-            "Expected to be able to add ret meta");
-    cb_free(pkt);
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-          "Expected add returing meta to succeed");
-
     // Check tmp fail errors
     disable_traffic(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_TMPFAIL,
             add_ret_meta(h, "key", 3, "value", 5, Vbid(0)),
             "Expected success");
-    checkeq(cb::mcbp::Status::Etmpfail, last_status.load(),
-          "Expected add returing meta to fail");
     enable_traffic(h);
 
     // Check not my vbucket errors
@@ -5545,18 +5487,14 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
 
 static enum test_result test_del_ret_meta(EngineIface* h) {
     // Check that deleting a non-existent key fails
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_KEY_ENOENT,
             del_ret_meta(h, "key", 3, Vbid(0), 0),
             "Expected success");
-    checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
-          "Expected set returing meta to fail");
 
     // Check that deleting a non-existent key with a cas fails
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_KEY_ENOENT,
             del_ret_meta(h, "key", 3, Vbid(0), 10),
             "Expeced success");
-    checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
-          "Expected set returing meta to fail");
 
     // Check that deleting a key with no cas succeeds
     checkeq(ENGINE_SUCCESS,
@@ -5626,11 +5564,9 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkne(uint64_t{0}, last_meta.cas, "Invalid result for cas");
     checkeq(cb::uint48_t{5}, last_meta.revSeqno, "Invalid result for seqno");
 
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_KEY_EEXISTS,
             del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas + 1),
             "Expected success");
-    checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
-          "Expected set returing meta to fail");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_del_ret_meta"),
             "Expected 2 del rm ops");
@@ -5639,30 +5575,11 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
 }
 
 static enum test_result test_del_ret_meta_error(EngineIface* h) {
-    // Check invalid packet constructions
-    checkeq(ENGINE_SUCCESS,
-            del_ret_meta(h, "", 0, Vbid(0)),
-            "Expected success");
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-          "Expected add returing meta to succeed");
-
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(
-            cb::mcbp::ClientOpcode::ReturnMeta, Vbid(0), 0, NULL, 0, "key", 3);
-    checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
-            "Expected to be able to del ret meta");
-    cb_free(pkt);
-    checkeq(cb::mcbp::Status::Einval, last_status.load(),
-          "Expected add returing meta to succeed");
-
     // Check tmp fail errors
     disable_traffic(h);
-    checkeq(ENGINE_SUCCESS,
+    checkeq(ENGINE_TMPFAIL,
             del_ret_meta(h, "key", 3, Vbid(0)),
             "Expected success");
-    checkeq(cb::mcbp::Status::Etmpfail, last_status.load(),
-          "Expected add returing meta to fail");
     enable_traffic(h);
 
     // Check not my vbucket errors

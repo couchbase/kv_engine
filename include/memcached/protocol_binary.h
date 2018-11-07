@@ -1568,10 +1568,6 @@ typedef union {
  */
 #define SKIP_CONFLICT_RESOLUTION_FLAG 0x08
 
-#define SET_RET_META 1
-#define ADD_RET_META 2
-#define DEL_RET_META 3
-
 /**
  * This flag is used with the get meta response packet. If set it
  * specifies that the item recieved has been deleted, but that the
@@ -1686,6 +1682,43 @@ typedef protocol_binary_response_no_extras
 /**
  * The physical layout for the CMD_RETURN_META
  */
+namespace cb {
+namespace mcbp {
+namespace request {
+
+enum class ReturnMetaType : uint32_t { Set = 1, Add = 2, Del = 3 };
+
+class ReturnMetaPayload {
+public:
+    ReturnMetaType getMutationType() const {
+        return static_cast<ReturnMetaType>(ntohl(mutation_type));
+    }
+    void setMutationType(ReturnMetaType mutation_type) {
+        ReturnMetaPayload::mutation_type =
+                htonl(static_cast<uint32_t>(mutation_type));
+    }
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    void setFlags(uint32_t flags) {
+        ReturnMetaPayload::flags = htonl(flags);
+    }
+    uint32_t getExpiration() const {
+        return ntohl(expiration);
+    }
+    void setExpiration(uint32_t expiration) {
+        ReturnMetaPayload::expiration = htonl(expiration);
+    }
+
+protected:
+    uint32_t mutation_type;
+    uint32_t flags;
+    uint32_t expiration;
+};
+static_assert(sizeof(ReturnMetaPayload) == 12, "Unexpected struct size");
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 typedef union {
     struct {
         protocol_binary_request_header header;
