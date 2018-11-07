@@ -5529,19 +5529,10 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     uint32_t count = 1000;
     auto extras = request.getExtdata();
     if (!extras.empty()) {
-        if (extras.size() != sizeof(uint32_t)) {
-            return ENGINE_EINVAL;
-        }
         count = ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
     }
 
-    auto key = request.getKey();
-    if (key.empty()) {
-        EP_LOG_WARN("No key passed as argument for getAllKeys");
-        return ENGINE_EINVAL;
-    }
-
-    DocKey start_key = makeDocKey(cookie, key);
+    DocKey start_key = makeDocKey(cookie, request.getKey());
     ExTask task =
             std::make_shared<FetchAllKeysTask>(this,
                                                cookie,

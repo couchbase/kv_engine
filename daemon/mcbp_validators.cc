@@ -1558,6 +1558,27 @@ static Status enable_disable_traffic_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status get_keys_validator(Cookie& cookie) {
+    const auto extlen = cookie.getHeader().getExtlen();
+    if (!verify_header(cookie,
+                       extlen,
+                       ExpectedKeyLen::NonZero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    if (extlen != 0 && extlen != sizeof(uint32_t)) {
+        cookie.setErrorContext(
+                "Expected 4 bytes of extras containing the number of keys to "
+                "get");
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     if (!verify_header(cookie,
@@ -1730,6 +1751,7 @@ McbpValidator::McbpValidator() {
           enable_disable_traffic_validator);
     setup(cb::mcbp::ClientOpcode::DisableTraffic,
           enable_disable_traffic_validator);
+    setup(cb::mcbp::ClientOpcode::GetKeys, get_keys_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported
