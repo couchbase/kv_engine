@@ -502,6 +502,64 @@ TEST_P(SetParamValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class GetReplicaValidatorTest : public ::testing::WithParamInterface<bool>,
+                                public ValidatorTest {
+public:
+    GetReplicaValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        req.setKeylen(2);
+        req.setBodylen(2);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetReplica,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(GetReplicaValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(GetReplicaValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetReplicaValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(6);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetReplicaValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetReplicaValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetReplicaValidatorTest, InvalidKey) {
+    // The key must be present
+    req.setKeylen(0);
+    req.setBodylen(0);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(GetReplicaValidatorTest, InvalidBodylen) {
+    req.setBodylen(8);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
                         ::testing::Bool(),
@@ -542,5 +600,9 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        GetReplicaValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
 } // namespace test
 } // namespace mcbp

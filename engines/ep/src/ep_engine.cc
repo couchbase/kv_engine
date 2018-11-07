@@ -879,31 +879,26 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
-        protocol_binary_request_header* request,
+    cb::mcbp::Request& request,
         const void* cookie,
         Item** it,
         const char** msg,
         cb::mcbp::Status* res) {
-    protocol_binary_request_no_extras* req =
-        (protocol_binary_request_no_extras*)request;
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    Vbid vbucket = req->message.header.request.vbucket.ntoh();
-    ENGINE_ERROR_CODE error_code;
-    DocKey key = makeDocKey(
-            cookie,
-            {reinterpret_cast<const uint8_t*>(request) + sizeof(*request),
-             keylen});
+    DocKey key = makeDocKey(cookie, request.getKey());
 
-    get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
                                                        HONOR_STATES |
                                                        TRACK_REFERENCE |
                                                        DELETE_TEMP |
                                                        HIDE_LOCKED_CAS |
                                                        TRACK_STATISTICS);
 
-    GetValue rv(getKVBucket()->getReplica(key, vbucket, cookie, options));
-
-    if ((error_code = rv.getStatus()) != ENGINE_SUCCESS) {
+    GetValue rv(getKVBucket()->getReplica(key, request.getVBucket(), cookie, options));
+    auto error_code = rv.getStatus();
+    if (error_code == ENGINE_SUCCESS) {
+        *it = rv.item.release();
+        *res = cb::mcbp::Status::Success;
+    } else {
         if (error_code == ENGINE_NOT_MY_VBUCKET) {
             *res = cb::mcbp::Status::NotMyVbucket;
             return error_code;
@@ -913,10 +908,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
         } else {
             return error_code;
         }
-    } else {
-        *it = rv.item.release();
-        *res = cb::mcbp::Status::Success;
     }
+
     ++(getEpStats().numOpsGet);
     return ENGINE_SUCCESS;
 }
@@ -1145,7 +1138,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                 response);
     }
     case cb::mcbp::ClientOpcode::GetReplica:
-        rv = h->getReplicaCmd(request, cookie, &itm, &msg, &res);
+        rv = h->getReplicaCmd(request->request, cookie, &itm, &msg, &res);
         if (rv != ENGINE_SUCCESS && rv != ENGINE_NOT_MY_VBUCKET) {
             return rv;
         }

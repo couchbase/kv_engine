@@ -1769,6 +1769,7 @@ McbpValidator::McbpValidator() {
           enable_disable_traffic_validator);
     setup(cb::mcbp::ClientOpcode::GetKeys, get_keys_validator);
     setup(cb::mcbp::ClientOpcode::SetParam, set_param_validator);
+    setup(cb::mcbp::ClientOpcode::GetReplica, get_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported

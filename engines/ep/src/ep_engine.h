@@ -554,7 +554,7 @@ public:
                                      const std::string& val,
                                      std::string& msg);
 
-    ENGINE_ERROR_CODE getReplicaCmd(protocol_binary_request_header* request,
+    ENGINE_ERROR_CODE getReplicaCmd(cb::mcbp::Request& request,
                                     const void* cookie,
                                     Item** it,
                                     const char** msg,
