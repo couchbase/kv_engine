@@ -747,6 +747,51 @@ bool Manifest::addCollectionStats(Vbid vbid,
     return true;
 }
 
+bool Manifest::addScopeStats(Vbid vbid,
+                             const void* cookie,
+                             ADD_STAT add_stat) const {
+    const int bsize = 512;
+    char buffer[bsize];
+    try {
+        checked_snprintf(buffer, bsize, "vb_%d:manifest:scopes", vbid.get());
+        add_casted_stat(buffer, scopes.size(), add_stat, cookie);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN(
+                "VB::Manifest::addScopeStats {}, failed to build stats "
+                "exception:{}",
+                vbid,
+                e.what());
+        return false;
+    }
+
+    // We'll also print the iteration index of each scope and collection.
+    // This is particularly useful for scopes as the ordering of the
+    // container matters when we deal with scope deletion events. It's less
+    // useful for collection stats, but allows us to print the CollectionID
+    // as the value and ensures that we still have unique keys which is a
+    // requirement of stats.
+    int i = 0;
+    for (auto it = scopes.begin(); it != scopes.end(); it++, i++) {
+        checked_snprintf(
+                buffer, bsize, "vb_%d:manifest:scopes:%d", vbid.get(), i);
+        add_casted_stat(buffer, it->to_string().c_str(), add_stat, cookie);
+    }
+
+    i = 0;
+    for (auto it = map.begin(); it != map.end(); it++, i++) {
+        checked_snprintf(buffer,
+                         bsize,
+                         "vb_%d:manifest:scope:%s:collection:%d",
+                         vbid.get(),
+                         it->second.getScopeID().to_string().c_str(),
+                         i);
+        add_casted_stat(
+                buffer, it->first.to_string().c_str(), add_stat, cookie);
+    }
+
+    return true;
+}
+
 void Manifest::updateSummary(Summary& summary) const {
     for (const auto& entry : map) {
         auto s = summary.find(entry.first);

@@ -493,6 +493,20 @@ def stats_collections_details(mc, vb=-1):
         print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
+def stats_scopes(mc):
+    stats_formatter(stats_perform(mc, 'scopes'))
+
+@cmd
+def stats_scopes_details(mc, vb=-1):
+    try:
+        vb = int(vb)
+        if vb == -1:
+            cmd = 'scopes-details'
+        else:
+            cmd = "scopes-details %s" % (str(vb))
+        stats_formatter(stats_perform(mc, cmd))
+    except ValueError:
+        print 'Specified vbucket \"%s\" is not valid' % str(vb)
 
 @cmd
 def stats_dcpagg(mc):
@@ -810,8 +824,12 @@ def main():
     c.addCommand('vkey', stats_vkey, 'vkey keyname vbid')
     c.addCommand('warmup', stats_warmup, 'warmup')
     c.addCommand('uuid', stats_uuid, 'uuid')
-    c.addCommand('collections', stats_collections, 'collections [vbid]')
-    c.addCommand('collections-details', stats_collections_details, 'collections-details')
+    c.addCommand('collections', stats_collections, 'collections')
+    c.addCommand('collections-details', stats_collections_details,
+                 'collections-details [vbid]')
+    c.addCommand('scopes', stats_scopes, 'scopes')
+    c.addCommand('scopes-details', stats_scopes_details,
+                 'scopes-details [vbid]')
     c.addFlag('-j', 'json', 'output the results in json format')
     c.addFlag('-8', 'force_utf8', 'Force use of UTF8 symbols in output')
 

@@ -301,6 +301,37 @@ void Manifest::addCollectionStats(const void* cookie, ADD_STAT add_stat) const {
     }
 }
 
+void Manifest::addScopeStats(const void* cookie, ADD_STAT add_stat) const {
+    try {
+        const int bsize = 512;
+        char buffer[bsize];
+        checked_snprintf(buffer, bsize, "manifest:scopes");
+        add_casted_stat(buffer, scopes.size(), add_stat, cookie);
+        checked_snprintf(buffer, bsize, "manifest:uid");
+        add_casted_stat(buffer, uid, add_stat, cookie);
+
+        for (const auto& entry : scopes) {
+            checked_snprintf(buffer,
+                             bsize,
+                             "manifest:scopes:%s:name",
+                             entry.first.to_string().c_str());
+            add_casted_stat(
+                    buffer, entry.second.name.c_str(), add_stat, cookie);
+            checked_snprintf(buffer,
+                             bsize,
+                             "manifest:scopes:%s:collections",
+                             entry.first.to_string().c_str());
+            add_casted_stat<unsigned long>(
+                    buffer, entry.second.collections.size(), add_stat, cookie);
+        }
+    } catch (const std::exception& e) {
+        EP_LOG_WARN(
+                "Manifest::addScopeStats failed to build stats "
+                "exception:{}",
+                e.what());
+    }
+}
+
 void Manifest::dump() const {
     std::cerr << *this << std::endl;
 }

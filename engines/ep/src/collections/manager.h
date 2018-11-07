@@ -70,6 +70,11 @@ public:
     void addCollectionStats(const void* cookie, ADD_STAT add_stat) const;
 
     /**
+     * Do 'add_stat' calls for the bucket to retrieve summary scope stats
+     */
+    void addScopeStats(const void* cookie, ADD_STAT add_stat) const;
+
+    /**
      * For development, log as much collections stuff as we can
      */
     void logAll(KVBucket& bucket) const;
@@ -86,6 +91,14 @@ public:
                                                const void* cookie,
                                                ADD_STAT add_stat,
                                                const std::string& statKey);
+
+    /**
+     * Perform the gathering of scope stats for the bucket.
+     */
+    static ENGINE_ERROR_CODE doScopeStats(KVBucket& bucket,
+                                          const void* cookie,
+                                          ADD_STAT add_stat,
+                                          const std::string& statKey);
 
 private:
     /**

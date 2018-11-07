@@ -149,6 +149,16 @@ void Collections::Manager::addCollectionStats(const void* cookie,
     }
 }
 
+void Collections::Manager::addScopeStats(const void* cookie,
+                                         ADD_STAT add_stat) const {
+    std::lock_guard<std::mutex> lg(lock);
+    if (current) {
+        current->addScopeStats(cookie, add_stat);
+    } else {
+        add_casted_stat("manifest", "none", add_stat, cookie);
+    }
+}
+
 class CollectionCountVBucketVisitor : public VBucketVisitor {
 public:
     void visitBucket(VBucketPtr& vb) override {
@@ -167,6 +177,28 @@ public:
 
     void visitBucket(VBucketPtr& vb) override {
         success = vb->lockCollections().addCollectionStats(
+                          vb->getId(), cookie, add_stat) ||
+                  success;
+    }
+
+    bool getSuccess() const {
+        return success;
+    }
+
+private:
+    const void* cookie;
+    ADD_STAT add_stat;
+    bool success = true;
+};
+
+class ScopeDetailedVBucketVisitor : public VBucketVisitor {
+public:
+    ScopeDetailedVBucketVisitor(const void* c, ADD_STAT a)
+        : cookie(c), add_stat(a) {
+    }
+
+    void visitBucket(VBucketPtr& vb) override {
+        success = vb->lockCollections().addScopeStats(
                           vb->getId(), cookie, add_stat) ||
                   success;
     }
@@ -244,6 +276,55 @@ ENGINE_ERROR_CODE Collections::Manager::doCollectionStats(
                 success = false;
             }
         }
+    }
+
+    return success ? ENGINE_SUCCESS : ENGINE_FAILED;
+}
+
+// scopes-details
+//   - return top level stats (manager/manifest)
+//   - iterate vbucket returning detailed VB stats
+// scopes-details n
+//   - return detailed VB stats for n only
+// scopes
+//   - return top level stats (manager/manifest)
+//   - return number of collections from all active VBs
+ENGINE_ERROR_CODE Collections::Manager::doScopeStats(
+        KVBucket& bucket,
+        const void* cookie,
+        ADD_STAT add_stat,
+        const std::string& statKey) {
+    bool success = true;
+    if (cb_isPrefix(statKey, "scopes-details")) {
+        // VB may be encoded in statKey
+        auto pos = statKey.find_first_of(" ");
+        if (pos != std::string::npos) {
+            try {
+                Vbid vbid = Vbid(std::stoi(statKey.substr(pos)));
+                VBucketPtr vb = bucket.getVBucket(vbid);
+                if (vb) {
+                    success = vb->lockCollections().addScopeStats(
+                            vbid, cookie, add_stat);
+                } else {
+                    return ENGINE_NOT_MY_VBUCKET;
+                }
+            } catch (const std::exception& e) {
+                EP_LOG_WARN(
+                        "Collections::Manager::doScopeStats failed to "
+                        "build stats for {} exception:{}",
+                        statKey.substr(pos),
+                        e.what());
+                return ENGINE_EINVAL;
+            }
+        } else {
+            bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
+            ScopeDetailedVBucketVisitor visitor(cookie, add_stat);
+            bucket.visit(visitor);
+            success = visitor.getSuccess();
+        }
+    } else {
+        // Do the high level stats (includes number of collections)
+        bucket.getCollectionsManager().addScopeStats(cookie, add_stat);
     }
 
     return success ? ENGINE_SUCCESS : ENGINE_FAILED;

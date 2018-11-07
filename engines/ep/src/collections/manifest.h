@@ -178,6 +178,8 @@ public:
 
     void addCollectionStats(const void* cookie, ADD_STAT add_stat) const;
 
+    void addScopeStats(const void* cookie, ADD_STAT add_stat) const;
+
     /**
      * Write to std::cerr this
      */

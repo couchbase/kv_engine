@@ -3859,6 +3859,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCollectionStats(
             *kvBucket, cookie, add_stat, statKey);
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::doScopeStats(
+        const void* cookie, ADD_STAT add_stat, const std::string& statKey) {
+    return Collections::Manager::doScopeStats(
+            *kvBucket, cookie, add_stat, statKey);
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        const char* stat_key,
                                                        int nkey,
@@ -4018,6 +4024,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         }
     } else if (cb_isPrefix(statKey, "collections")) {
         rv = doCollectionStats(cookie, add_stat, std::string(stat_key, nkey));
+    } else if (cb_isPrefix(statKey, "scopes")) {
+        rv = doScopeStats(cookie, add_stat, std::string(stat_key, nkey));
     } else if (statKey[0] == '_') {
         // Privileged stats - need Stats priv (and not just SimpleStats).
         switch (getServerApi()->cookie->check_privilege(

@@ -165,6 +165,12 @@ public:
             return manifest.addCollectionStats(vbid, cookie, add_stat);
         }
 
+        bool addScopeStats(Vbid vbid,
+                           const void* cookie,
+                           ADD_STAT add_stat) const {
+            return manifest.addScopeStats(vbid, cookie, add_stat);
+        }
+
         void updateSummary(Summary& summary) const {
             manifest.updateSummary(summary);
         }
@@ -837,6 +843,12 @@ protected:
     bool addCollectionStats(Vbid vbid,
                             const void* cookie,
                             ADD_STAT add_stat) const;
+
+    /**
+     * Detailed stats for the scopes in this VB::Manifest
+     * @return true if addScopeStats was successful, false if failed.
+     */
+    bool addScopeStats(Vbid vbid, const void* cookie, ADD_STAT add_stat) const;
 
     void updateSummary(Summary& summary) const;
 

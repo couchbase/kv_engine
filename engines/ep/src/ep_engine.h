@@ -817,6 +817,10 @@ protected:
                                         ADD_STAT add_stat,
                                         const std::string& statKey);
 
+    ENGINE_ERROR_CODE doScopeStats(const void* cookie,
+                                   ADD_STAT add_stat,
+                                   const std::string& statKey);
+
     void addLookupResult(const void* cookie, std::unique_ptr<Item> result);
 
     bool fetchLookupResult(const void* cookie, std::unique_ptr<Item>& itm);
