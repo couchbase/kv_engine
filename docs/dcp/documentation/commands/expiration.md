@@ -77,6 +77,20 @@ The client should not send a reply to this command. The following example shows 
 
 This message will not return a response unless an error occurs.
 
+### The meaning of datatype
+
+The datatype field of the `DCP_EXPIRATION` describes the Value payload of the message
+and not the datatype of the original document. This is important to consider when a
+producer is opened with any combination of the no value or include xattr flags.
+
+* [Datatype bits ](../../../../BinaryProtocol.md#data-types)
+* DCP without the value or xattr flags - datatype will never contain XATTR, but
+  could be a combination of 0, JSON. If the client has enabled compression, the
+  SNAPPY datatype bit may also be present.
+* `DCP_OPEN_NO_VALUE` - datatype will always be 0
+* `DCP_OPEN_NO_VALUE|DCP_OPEN_INCLUDE_XATTRS` - datatype will be 0 or XATTR.
+* `DCP_OPEN_INCLUDE_XATTRS` - datatype could be many combinations. e.g. 0, XATTR or XATTR|JSON
+
 ### Delete Time
 
 Receiving expiry opcodes requires 'include delete-times' so that packets sent

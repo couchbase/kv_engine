@@ -99,20 +99,22 @@ the breakdown of the message (V1 shown):
 
 This message will not return a response unless an error occurs.
 
-### Extended Attributes (XATTRs)
+### The meaning of datatype
 
-If a Document has XATTRs and `DCP_OPEN_INCLUDE_XATTRS` was set as part
-of the [DCP_OPEN](open-connection.md) message, then the `DCP_DELETION`
-message will include the XATTRs as part of the Value payload.
+The datatype field of the `DCP_DELETION` describes the Value payload of the message
+and not the datatype of the original document. This is important to consider when a
+producer is opened with any combination of the no value or include xattr flags.
 
-The presence of XATTRs is indicated by setting the XATTR bit in the
-datatype field:
-
-    #define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(4)
-
-See
-[Document - Extended Attributes](https://github.com/couchbase/memcached/blob/master/docs/Document.md#xattr---extended-attributes)
-for details of the encoding scheme.
+* [Datatype bits ](../../../../BinaryProtocol.md#data-types)
+* DCP without the value or xattr flags - datatype will never contain XATTR, but
+  could be a combination of 0, JSON. If the client has enabled compression, the
+  SNAPPY datatype bit may also be present.
+* `DCP_OPEN_NO_VALUE` - datatype will always be 0
+* `DCP_OPEN_NO_VALUE|DCP_OPEN_INCLUDE_XATTRS` - datatype will be 0 or XATTR. If
+   the client has enabled compression, the SNAPPY datatype bit may also be present.
+* `DCP_OPEN_INCLUDE_XATTRS` - datatype could be many combinations. e.g. 0, XATTR
+  or XATTR|JSON. If the client has enabled compression, the SNAPPY datatype bit
+  may also be present.
 
 ### Extended Meta Data Section
 

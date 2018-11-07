@@ -21,27 +21,25 @@ Extra looks like:
 
 Flags are specified as a bitmask in network byte order with the following bits defined:
 
-     0x1 - Type: Producer (bit set) / Consumer (bit cleared).
-     0x2 - Type: Notifier (bit set). Note: both bits 1 and 2 should NOT be set.
-     0x4 - Include XATTRs. Specifies that DCP_MUTATION and DCP_DELETION messages
-           should include any XATTRs associated with the Document.
-     0x8 - (No Value) - Specifies that the server should stream only item key
-           and metadata in the mutations and not stream the value of the item
-     0x10 - Collections - Specifies the client knows about collections, subsequent
-            DCP streams will send collection data. Additionally the client may
-            set a value in this request containing a JSON document that specifies
-            a collections filter.
-     0x20 - Include Delete Times - The client wishes to receive extra metadata regarding
-            deletes. When a delete is persisted to disk, it is timestamped and purged
-            from the vbucket after some interval. When 'include delete times' is enabled,
-            deletes which are read from disk will have a timestamp value in the delete-time
-            field, in-memory deletes will have a 0 value in the delete-time field. See DCP
-            deletion command. Note when enabled on a consumer, the consumer expects the client
-            to send the delete-time format DCP delete.
+* 0x1: __DCP type__ requests a producer is created, if this bit is clear a consumer
+  is created (unless the notifier bit is set).
+* 0x2: __DCP notifier__ request a 'notifier', cannot be combined with 0x1.
+* 0x4: __Include XATTRs__ requests that DCP_MUTATION, DCP_DELETION and DCP_EXPIRATION
+  (if [enabled](control.md)) messages should include any XATTRs associated with the Document.
+* 0x8: __No value__ requests that DCP_MUTATION, DCP_DELETION and DCP_EXPIRATION
+  (if [enabled](control.md)) messages do not include the Document.
+* 0x20:  __Include delete times__ requests that DCP_DELETION messages include metadata
+  regarding when a document was deleted. When a delete is persisted to disk, it
+  is timestamped and purged from the vbucket after some interval. When 'include
+  delete times' is enabled, deletes which are read from disk will have a
+  timestamp value in the delete-time field, in-memory deletes will have a 0
+  value in the delete-time field. See DCP deletion command. Note when enabled on
+  a consumer, the consumer expects the client to send the delete-time format DCP
+  delete.
 
 When setting the Producer or Consumer flag the sender is telling the server what type of connection will be created. For example, if the Producer type is set then the sender of the Open Connection message will be a Consumer.
 
-The connection name is specified using the key field. When selecting a name the only requirement is that the name take up no more space than 256 bytes. It is recommended that the name uses that ASCII character set and uses alpha-numeric characters.
+The connection name is specified using the key field. When selecting a name the only requirement is that the name take up no more space than 256 bytes. It is recommended that the name uses that ASCII character set and uses alpha-numeric characters. It is highly advantageous for improved supportability Couchbase Server that the connection names embed as much contextual information as possible from the client.
 
 The following example shows the breakdown of the message:
 
