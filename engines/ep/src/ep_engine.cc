@@ -1105,10 +1105,10 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         rv = h->handleCheckpointCmds(cookie, request, response);
         return rv;
     }
-    case cb::mcbp::ClientOpcode::SeqnoPersistence: {
-        rv = h->handleSeqnoCmds(cookie, request, response);
-        return rv;
-    }
+
+    case cb::mcbp::ClientOpcode::SeqnoPersistence:
+        return h->handleSeqnoPersistence(cookie, request->request, response);
+
     case cb::mcbp::ClientOpcode::SetWithMeta:
     case cb::mcbp::ClientOpcode::SetqWithMeta:
     case cb::mcbp::ClientOpcode::AddWithMeta:
@@ -4421,76 +4421,63 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                         cookie);
 }
 
-ENGINE_ERROR_CODE
-EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
-                                           protocol_binary_request_header *req,
-                                           ADD_RESPONSE response)
-{
-    Vbid vbucket = req->request.vbucket.ntoh();
+ENGINE_ERROR_CODE EventuallyPersistentEngine::handleSeqnoPersistence(
+        const void* cookie, cb::mcbp::Request& req, ADD_RESPONSE response) {
+    const Vbid vbucket = req.getVBucket();
     VBucketPtr vb = getVBucket(vbucket);
-
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
     auto status = cb::mcbp::Status::Success;
+    auto extras = req.getExtdata();
+    uint64_t seqno = ntohll(*reinterpret_cast<const uint64_t*>(extras.data()));
 
-    uint16_t extlen = req->request.extlen;
-    uint32_t bodylen = ntohl(req->request.bodylen);
-    if ((bodylen - extlen) != 0) {
-        status = cb::mcbp::Status::Einval;
-        setErrorContext(cookie, "Body should be all extras.");
-    } else {
-        uint64_t seqno;
-        memcpy(&seqno, req->bytes + sizeof(req->bytes), 8);
-        seqno = ntohll(seqno);
-        void *es = getEngineSpecific(cookie);
-        if (!es) {
-            auto persisted_seqno = vb->getPersistenceSeqno();
-            if (seqno > persisted_seqno) {
-                auto res = vb->checkAddHighPriorityVBEntry(
-                        seqno, cookie, HighPriorityVBNotify::Seqno);
+    if (getEngineSpecific(cookie) == nullptr) {
+        auto persisted_seqno = vb->getPersistenceSeqno();
+        if (seqno > persisted_seqno) {
+            auto res = vb->checkAddHighPriorityVBEntry(
+                    seqno, cookie, HighPriorityVBNotify::Seqno);
 
-                switch (res) {
-                case HighPriorityVBReqStatus::RequestScheduled:
-                    storeEngineSpecific(cookie, this);
-                    return ENGINE_EWOULDBLOCK;
+            switch (res) {
+            case HighPriorityVBReqStatus::RequestScheduled:
+                storeEngineSpecific(cookie, this);
+                return ENGINE_EWOULDBLOCK;
 
-                case HighPriorityVBReqStatus::NotSupported:
-                    status = cb::mcbp::Status::NotSupported;
-                    EP_LOG_WARN(
-                            "EventuallyPersistentEngine::handleSeqnoCmds(): "
-                            "High priority async seqno request "
-                            "for {} is NOT supported",
-                            vbucket);
-                    break;
+            case HighPriorityVBReqStatus::NotSupported:
+                status = cb::mcbp::Status::NotSupported;
+                EP_LOG_WARN(
+                        "EventuallyPersistentEngine::handleSeqnoCmds(): "
+                        "High priority async seqno request "
+                        "for {} is NOT supported",
+                        vbucket);
+                break;
 
-                case HighPriorityVBReqStatus::RequestNotScheduled:
-                    /* 'HighPriorityVBEntry' was not added, hence just return
-                       success */
-                    EP_LOG_INFO(
-                            "EventuallyPersistentEngine::handleSeqnoCmds(): "
-                            "Did NOT add high priority async seqno request "
-                            "for {}, Persisted seqno {} > requested seqno "
-                            "{}",
-                            vbucket,
-                            persisted_seqno,
-                            seqno);
-                    break;
-                }
+            case HighPriorityVBReqStatus::RequestNotScheduled:
+                /* 'HighPriorityVBEntry' was not added, hence just return
+                   success */
+                EP_LOG_INFO(
+                        "EventuallyPersistentEngine::handleSeqnoCmds(): "
+                        "Did NOT add high priority async seqno request "
+                        "for {}, Persisted seqno {} > requested seqno "
+                        "{}",
+                        vbucket,
+                        persisted_seqno,
+                        seqno);
+                break;
             }
-        } else {
-            storeEngineSpecific(cookie, NULL);
-            EP_LOG_DEBUG("Sequence number {} persisted for {}", seqno, vbucket);
         }
+    } else {
+        storeEngineSpecific(cookie, nullptr);
+        EP_LOG_DEBUG("Sequence number {} persisted for {}", seqno, vbucket);
     }
 
     return sendResponse(response,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,

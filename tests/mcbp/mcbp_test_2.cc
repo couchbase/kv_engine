@@ -643,6 +643,64 @@ TEST_P(ReturnMetaValidatorTest, Bodylen) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
+class SeqnoPersistenceValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    SeqnoPersistenceValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        req.setExtlen(sizeof(uint64_t));
+        req.setBodylen(req.getExtlen());
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::SeqnoPersistence,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(SeqnoPersistenceValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SeqnoPersistenceValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SeqnoPersistenceValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SeqnoPersistenceValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SeqnoPersistenceValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SeqnoPersistenceValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + req.getKeylen());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SeqnoPersistenceValidatorTest, InvalidBodylen) {
+    req.setBodylen(10);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
                         ::testing::Bool(),
@@ -690,6 +748,11 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         ReturnMetaValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        SeqnoPersistenceValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 

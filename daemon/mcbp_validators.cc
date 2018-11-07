@@ -1621,6 +1621,19 @@ static Status return_meta_validator(Cookie& cookie) {
     return Status::Einval;
 }
 
+static Status seqno_persistence_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       8,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     if (!verify_header(cookie,
@@ -1797,6 +1810,8 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::SetParam, set_param_validator);
     setup(cb::mcbp::ClientOpcode::GetReplica, get_validator);
     setup(cb::mcbp::ClientOpcode::ReturnMeta, return_meta_validator);
+    setup(cb::mcbp::ClientOpcode::SeqnoPersistence,
+          seqno_persistence_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported

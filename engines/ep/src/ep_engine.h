@@ -599,9 +599,9 @@ public:
                                            protocol_binary_request_header *request,
                                            ADD_RESPONSE response);
 
-    ENGINE_ERROR_CODE handleSeqnoCmds(const void* cookie,
-                                      protocol_binary_request_header *request,
-                                      ADD_RESPONSE response);
+    ENGINE_ERROR_CODE handleSeqnoPersistence(const void* cookie,
+                                             cb::mcbp::Request& req,
+                                             ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE handleTrafficControlCmd(const void* cookie,
                                               cb::mcbp::Request& request,
