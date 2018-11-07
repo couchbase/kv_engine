@@ -1579,6 +1579,22 @@ static Status get_keys_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status set_param_validator(Cookie& cookie) {
+    static_assert(sizeof(protocol_binary_engine_param_t) == 4,
+                  "Unexpected size for protocol_binary_engine_param_t");
+
+    if (!verify_header(cookie,
+                       sizeof(protocol_binary_engine_param_t),
+                       ExpectedKeyLen::NonZero,
+                       ExpectedValueLen::NonZero,
+                       ExpectedCas::Any,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     if (!verify_header(cookie,
@@ -1752,6 +1768,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::DisableTraffic,
           enable_disable_traffic_validator);
     setup(cb::mcbp::ClientOpcode::GetKeys, get_keys_validator);
+    setup(cb::mcbp::ClientOpcode::SetParam, set_param_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported

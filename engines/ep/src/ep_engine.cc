@@ -727,20 +727,11 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
 cb::mcbp::Status EventuallyPersistentEngine::setParam(cb::mcbp::Request& req,
                                                       std::string& msg) {
     auto extras = req.getExtdata();
-    static_assert(sizeof(protocol_binary_engine_param_t) == 4,
-                  "Unexpected size for ");
-    if (extras.size() != sizeof(protocol_binary_engine_param_t)) {
-        return cb::mcbp::Status::Einval;
-    }
     auto paramtype = static_cast<protocol_binary_engine_param_t>(
             ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
 
     auto key = req.getKey();
     auto val = req.getValue();
-
-    if (key.empty() || val.empty()) {
-        return cb::mcbp::Status::Einval;
-    }
 
     const std::string keyz(reinterpret_cast<const char*>(key.data()),
                            key.size());

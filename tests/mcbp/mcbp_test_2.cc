@@ -444,6 +444,64 @@ TEST_P(GetKeysValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class SetParamValidatorTest : public ::testing::WithParamInterface<bool>,
+                              public ValidatorTest {
+public:
+    SetParamValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        req.setExtlen(sizeof(protocol_binary_engine_param_t));
+        req.setKeylen(2);
+        req.setBodylen(req.getExtlen() + req.getKeylen() + 2);
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::SetParam,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(SetParamValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SetParamValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetParamValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetParamValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetParamValidatorTest, Cas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(SetParamValidatorTest, InvalidKey) {
+    // The key must be present
+    req.setKeylen(0);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(SetParamValidatorTest, InvalidBodylen) {
+    // The value must be present
+    req.setBodylen(req.getExtlen() + req.getKeylen());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
                         ::testing::Bool(),
@@ -476,6 +534,11 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         GetKeysValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        SetParamValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 
