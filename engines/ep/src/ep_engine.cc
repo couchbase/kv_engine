@@ -879,39 +879,38 @@ static ENGINE_ERROR_CODE delVBucket(EventuallyPersistentEngine* e,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
-    cb::mcbp::Request& request,
-        const void* cookie,
-        Item** it,
-        const char** msg,
-        cb::mcbp::Status* res) {
+        cb::mcbp::Request& request, ADD_RESPONSE response, const void* cookie) {
     DocKey key = makeDocKey(cookie, request.getKey());
 
-    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH |
-                                                       HONOR_STATES |
-                                                       TRACK_REFERENCE |
-                                                       DELETE_TEMP |
-                                                       HIDE_LOCKED_CAS |
-                                                       TRACK_STATISTICS);
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
-    GetValue rv(getKVBucket()->getReplica(key, request.getVBucket(), cookie, options));
+    GetValue rv(getKVBucket()->getReplica(
+            key, request.getVBucket(), cookie, options));
     auto error_code = rv.getStatus();
-    if (error_code == ENGINE_SUCCESS) {
-        *it = rv.item.release();
-        *res = cb::mcbp::Status::Success;
-    } else {
-        if (error_code == ENGINE_NOT_MY_VBUCKET) {
-            *res = cb::mcbp::Status::NotMyVbucket;
-            return error_code;
-        } else if (error_code == ENGINE_TMPFAIL) {
-            *msg = "NOT_FOUND";
-            *res = cb::mcbp::Status::KeyEnoent;
-        } else {
-            return error_code;
-        }
+    if (error_code != ENGINE_EWOULDBLOCK) {
+        ++(getEpStats().numOpsGet);
     }
 
-    ++(getEpStats().numOpsGet);
-    return ENGINE_SUCCESS;
+    if (error_code == ENGINE_SUCCESS) {
+        uint32_t flags = rv.item->getFlags();
+        return sendResponse(response,
+                            static_cast<const void*>(rv.item->getKey().data()),
+                            rv.item->getKey().size(),
+                            (const void*)&flags,
+                            sizeof(uint32_t),
+                            static_cast<const void*>(rv.item->getData()),
+                            rv.item->getNBytes(),
+                            rv.item->getDataType(),
+                            cb::mcbp::Status::Success,
+                            rv.item->getCas(),
+                            cookie);
+    } else if (error_code == ENGINE_TMPFAIL) {
+        return ENGINE_KEY_ENOENT;
+    }
+
+    return error_code;
 }
 
 static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
@@ -1031,7 +1030,6 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     std::string dynamic_msg;
     const char* msg = NULL;
     size_t msg_size = 0;
-    Item* itm = NULL;
 
     EPStats& stats = h->getEpStats();
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
@@ -1137,12 +1135,9 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                 reinterpret_cast<protocol_binary_request_return_meta*>(request),
                 response);
     }
+
     case cb::mcbp::ClientOpcode::GetReplica:
-        rv = h->getReplicaCmd(request->request, cookie, &itm, &msg, &res);
-        if (rv != ENGINE_SUCCESS && rv != ENGINE_NOT_MY_VBUCKET) {
-            return rv;
-        }
-        break;
+        return h->getReplicaCmd(request->request, response, cookie);
 
     case cb::mcbp::ClientOpcode::EnableTraffic:
     case cb::mcbp::ClientOpcode::DisableTraffic:
@@ -1191,21 +1186,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                             cookie);
     }
 
-    if (itm) {
-        uint32_t flags = itm->getFlags();
-        rv = sendResponse(response,
-                          static_cast<const void*>(itm->getKey().data()),
-                          itm->getKey().size(),
-                          (const void*)&flags,
-                          sizeof(uint32_t),
-                          static_cast<const void*>(itm->getData()),
-                          itm->getNBytes(),
-                          itm->getDataType(),
-                          res,
-                          itm->getCas(),
-                          cookie);
-        delete itm;
-    } else if (rv == ENGINE_NOT_MY_VBUCKET) {
+    if (rv == ENGINE_NOT_MY_VBUCKET) {
         return rv;
     } else {
         msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);

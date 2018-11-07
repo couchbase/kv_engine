@@ -555,10 +555,8 @@ public:
                                      std::string& msg);
 
     ENGINE_ERROR_CODE getReplicaCmd(cb::mcbp::Request& request,
-                                    const void* cookie,
-                                    Item** it,
-                                    const char** msg,
-                                    cb::mcbp::Status* res);
+                                    ADD_RESPONSE response,
+                                    const void* cookie);
 
     ~EventuallyPersistentEngine();
 
