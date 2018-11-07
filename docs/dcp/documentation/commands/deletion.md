@@ -42,11 +42,9 @@ V2 Extra looks like:
        +---------------+---------------+---------------+---------------+
      16| Delete Time                                                   |
        +---------------+-----------------------------------------------+
-     20| clen          |
+     20| unused        |
        +---------------*
        Total 21 bytes
-
-Please see "Collections Enabled" for description of clen field.
 
 The client should not send a reply to this command. The following example shows
 the breakdown of the message (V1 shown):
@@ -123,20 +121,9 @@ The extended meta data section is used to send extra meta data for a particular 
 
 ### Collections Enabled
 
-If the DCP channel is opened with collections enabled then all deletions sent
-will use the V2 format. The 1 byte collection length (shown as "clen" in the
-above V2 encoding diagram) is used to show how many bytes of the key are the
-collection name.
-
-For example if the key was "c::mykey", the key-len field would contain 8 and
-clen would contain 1, allowing the client to see that the collection of the item
-is the first byte, 'c'.
-
-If the deletion relates to a key in the default collection, then the collection
-length would be 0.
-
-If the DCP channel is not opened with collections enabled then the V1 format is
-used and only deletes of the default collection are sent.
+If the DCP producer is collection enabled, all keys with be prefixed with the
+collection-ID of the document encoded as a 32-bit [unsigned LEB128(https://en.wikipedia.org/wiki/LEB128)]
+value. The key-length field will include the bytes used by the collection-ID.
 
 ### Delete Time
 

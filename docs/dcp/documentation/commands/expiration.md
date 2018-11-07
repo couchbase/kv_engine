@@ -87,6 +87,12 @@ field is mainly of use to clients building a replica of an active vbucket as
 the delete time is persisted and used to allow deletions and expirations to
 remain on disk for a fixed period.
 
+### Collections Enabled
+
+If the DCP producer is collection enabled, all keys with be prefixed with the
+collection-ID of the document encoded as a 32-bit [unsigned LEB128(https://en.wikipedia.org/wiki/LEB128)]
+value. The key-length field will include the bytes used by the collection-ID.
+
 ### Errors
 
 **PROTOCOL_BINARY_RESPONSE_KEY_ENOENT (0x01)**

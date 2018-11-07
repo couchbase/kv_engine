@@ -126,34 +126,14 @@ Upon success, the following message is returned.
 
 **Note:** If the name given in the open connection command is already being used by another established connection then the established connection will be closed and the new connection will be created successfully.
 
-### Collections Filter
+## Collections
 
-If the user specifies 0x10 (collections) in the open flags the user can optionally encode a filter.
+If the connection has enabled the collections feature, then the DCP producer or consumer will be collection enabled.
 
-#### Collections not enabled
-
-A client that doesn't enable collections will only receive mutations in the default collection. That is
-documents written by clients that don't enable collections (for example legacy clients written before Couchbase developed collections).
-
-#### Collections enabled and no filter specified (i.e. no value)
-
-The client receives "unfiltered" data, that is every mutation will be sent to the client.
-
-#### Collections enabled and a filter specified
-
-The value must encode a valid JSON document that specifies the filter information. For example if the bucket
-has 10 collections named collection_0 through to collection_10 and the client only wants mutations against
-collection_5 and collection_8 the following JSON filter data would be encoded.
-
-```
-{
-    "collections" : ["collection_5", "collection_8"]
-}
-```
-
-DCP streams that are created on a filtered DCP channel will have a lifetime of the filtered collections. For example if
-collection_5 and collection_8 were deleted, DCP streams would auto close when the last collection is deleted as there's no more data
-to send.
+* A DCP producer with collections enabled is the only way to access documents
+  that are not in the default collection.
+* A DCP consumer with collections enabled can accept mutations, deletions and
+  expirations from a collection aware producer.
 
 ### Returns
 

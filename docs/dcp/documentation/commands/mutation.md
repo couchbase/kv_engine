@@ -33,9 +33,6 @@ The metadata is located after the items value. The size for the value is therefo
 
 NRU is an internal field used by the server and may safely be ignored by other consumers.
 
-Please see "Collections Enabled" for description of clen field.
-
-
 The consumer should not send a reply to this command. The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |
@@ -68,15 +65,13 @@ The consumer should not send a reply to this command. The following example show
         +---------------+---------------+---------------+---------------+
       48| 0x00          | 0x00          | 0x00          | 0x00          |
         +---------------+---------------+---------------+---------------+
-      52| 0x00          | 0x00          | 0x00          | 0x07          |
+      52| 0x00          | 0x00          | 0x00          | 0x68 ('h')    |
         +---------------+---------------+---------------+---------------+
-      56| 0x63 ('c')    | 0x3a (':')    | 0x3a (':')    | 0x68 ('h')    |
+      56| 0x65 ('e')    | 0x6c ('l')    | 0x6c ('l')    | 0x6f ('o')    |
         +---------------+---------------+---------------+---------------+
-      60| 0x65 ('e')    | 0x6c ('l')    | 0x6c ('l')    | 0x6f ('o')    |
+      60| 0x77 ('w')    | 0x6f ('o')    | 0x72 ('r')    | 0x6c ('l')    |
         +---------------+---------------+---------------+---------------+
-      64| 0x77 ('w')    | 0x6f ('o')    | 0x72 ('r')    | 0x6c ('l')    |
-        +---------------+---------------+---------------+---------------+
-      68| 0x64 ('d')    |
+      64| 0x64 ('d')    |
         +---------------+
     DCP_MUTATION command
     Field        (offset) (value)
@@ -96,9 +91,8 @@ The consumer should not send a reply to this command. The following example show
       lock time  (48-51): 0x00000000
       nmeta      (52-53): 0x0000
       nru        (54)   : 0x00
-      clen       (55)   : 0x1
-    Key          (56-63): c::hello
-    Value        (64-68): world
+    Key          (55-59): hello
+    Value        (60-64): world
 
 ### Returns
 
@@ -116,7 +110,7 @@ datatype field:
     #define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(4)
 
 See
-[Document - Extended Attributes](https://github.com/couchbase/memcached/blob/master/docs/Document.md#xattr---extended-attributes)
+[Document - Extended Attributes](../../../../Document.md#xattr---extended-attributes)
 for details of the encoding scheme.
 
 ### Extended Meta Data Section
@@ -125,20 +119,8 @@ The extended meta data section is used to send extra meta data for a particular 
 
 ### Collections Enabled
 
-If the DCP channel is opened with collections enabled then all mutations sent
-will include 1 extra byte that encodes the collection length (shown as "clen" in the
-above encoding diagram). The collection length tells the client how many bytes of
-the key encode the collection name.
-
-The diagram above shows a key written to the "c" collection with a separator of
-"::", thus the key is "c::hello".
-
-If the mutation relates to a key in the default collection, then the collection
-length would be 0.
-
-If the DCP channel is not opened with collections enabled, then this data is not
-sent and we will encode a mutation packet which is compatible with legacy
-clients.
+If the DCP producer is collection enabled, all keys with be prefixed with a
+[unsigned LEB128(https://en.wikipedia.org/wiki/LEB128)] encoded collection-ID.
 
 ### Errors
 
