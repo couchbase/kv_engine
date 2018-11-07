@@ -1429,6 +1429,19 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status scrub_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 static Status get_random_key_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        0,
@@ -1656,6 +1669,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::GetAllVbSeqnos, get_all_vb_seqnos_validator);
 
     setup(cb::mcbp::ClientOpcode::EvictKey, evict_key_validator);
+    setup(cb::mcbp::ClientOpcode::Scrub, scrub_validator);
 
     setup(cb::mcbp::ClientOpcode::GetMeta, get_meta_validator);
     setup(cb::mcbp::ClientOpcode::GetqMeta, get_meta_validator);

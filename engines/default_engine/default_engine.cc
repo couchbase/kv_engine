@@ -775,22 +775,20 @@ static bool rm_vbucket(struct default_engine *e,
 
 static bool scrub_cmd(struct default_engine *e,
                       const void *cookie,
-                      protocol_binary_request_header *request,
                       ADD_RESPONSE response) {
-
-    cb::mcbp::Status res = cb::mcbp::Status::Success;
+    auto res = cb::mcbp::Status::Success;
     if (!item_start_scrub(e)) {
         res = cb::mcbp::Status::Ebusy;
     }
 
-    return response(NULL,
+    return response(nullptr,
                     0,
-                    NULL,
+                    nullptr,
                     0,
-                    NULL,
+                    nullptr,
                     0,
                     PROTOCOL_BINARY_RAW_BYTES,
-                    cb::mcbp::Status(res),
+                    res,
                     0,
                     cookie);
 }
@@ -870,7 +868,7 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
 
     switch (request->request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::Scrub:
-        sent = scrub_cmd(this, cookie, request, response);
+        sent = scrub_cmd(this, cookie, response);
         break;
     case cb::mcbp::ClientOpcode::DelVbucket:
         sent = rm_vbucket(this, cookie, request, response);
