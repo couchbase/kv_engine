@@ -701,6 +701,173 @@ TEST_P(SeqnoPersistenceValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class LastClosedCheckpointValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    LastClosedCheckpointValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::LastClosedCheckpoint,
+                static_cast<void*>(&request));
+    }
+};
+
+TEST_P(LastClosedCheckpointValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(LastClosedCheckpointValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(LastClosedCheckpointValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(LastClosedCheckpointValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(LastClosedCheckpointValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(LastClosedCheckpointValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + req.getKeylen());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(LastClosedCheckpointValidatorTest, InvalidBodylen) {
+    req.setBodylen(10);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class CreateCheckpointValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    CreateCheckpointValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::CreateCheckpoint,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(CreateCheckpointValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(CreateCheckpointValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateCheckpointValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    req.setBodylen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateCheckpointValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateCheckpointValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateCheckpointValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + req.getKeylen());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CreateCheckpointValidatorTest, InvalidBodylen) {
+    req.setBodylen(10);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+class CheckpointPersistenceValidatorTest
+    : public ::testing::WithParamInterface<bool>,
+      public ValidatorTest {
+public:
+    CheckpointPersistenceValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        req.setExtlen(sizeof(uint64_t));
+        req.setBodylen(sizeof(uint64_t));
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(
+                cb::mcbp::ClientOpcode::CheckpointPersistence,
+                static_cast<void*>(&request));
+    }
+};
+
+TEST_P(CheckpointPersistenceValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+
+    // But the value may also be stored in the body..
+    req.setExtlen(0);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(CheckpointPersistenceValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CheckpointPersistenceValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CheckpointPersistenceValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CheckpointPersistenceValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CheckpointPersistenceValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + req.getKeylen());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CheckpointPersistenceValidatorTest, InvalidBodylen) {
+    req.setBodylen(10);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
                         ::testing::Bool(),
@@ -753,6 +920,21 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         SeqnoPersistenceValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        LastClosedCheckpointValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        CreateCheckpointValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        CheckpointPersistenceValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 

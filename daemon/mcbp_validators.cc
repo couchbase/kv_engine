@@ -1634,6 +1634,60 @@ static Status seqno_persistence_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status last_closed_checkpoint_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
+static Status create_checkpoint_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
+static Status chekpoint_persistence_validator(Cookie& cookie) {
+    auto& header = cookie.getHeader();
+
+    if (!verify_header(cookie,
+                       header.getExtlen(),
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Any,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    auto& req = header.getRequest();
+    if (req.getExtdata().size() == sizeof(uint64_t)) {
+        if (!req.getValue().empty()) {
+            cookie.setErrorContext("Missing checkpoint id");
+            return Status::Einval;
+        }
+    } else {
+        if (req.getValue().size() != sizeof(uint64_t)) {
+            cookie.setErrorContext("Missing checkpoint id");
+            return Status::Einval;
+        }
+    }
+
+    return Status::Success;
+}
+
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     if (!verify_header(cookie,
@@ -1812,6 +1866,12 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ReturnMeta, return_meta_validator);
     setup(cb::mcbp::ClientOpcode::SeqnoPersistence,
           seqno_persistence_validator);
+    setup(cb::mcbp::ClientOpcode::LastClosedCheckpoint,
+          last_closed_checkpoint_validator);
+    setup(cb::mcbp::ClientOpcode::CreateCheckpoint,
+          create_checkpoint_validator);
+    setup(cb::mcbp::ClientOpcode::CheckpointPersistence,
+          chekpoint_persistence_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported

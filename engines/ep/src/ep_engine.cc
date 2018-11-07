@@ -1100,11 +1100,15 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     case cb::mcbp::ClientOpcode::ObserveSeqno:
         return h->observe_seqno(cookie, request->request, response);
     case cb::mcbp::ClientOpcode::LastClosedCheckpoint:
+        return h->handleLastClosedCheckpoint(
+                cookie, request->request, response);
+
     case cb::mcbp::ClientOpcode::CreateCheckpoint:
-    case cb::mcbp::ClientOpcode::CheckpointPersistence: {
-        rv = h->handleCheckpointCmds(cookie, request, response);
-        return rv;
-    }
+        return h->handleCreateCheckpoint(cookie, request->request, response);
+
+    case cb::mcbp::ClientOpcode::CheckpointPersistence:
+        return h->handleCheckpointPersistence(
+                cookie, request->request, response);
 
     case cb::mcbp::ClientOpcode::SeqnoPersistence:
         return h->handleSeqnoPersistence(cookie, request->request, response);
@@ -4278,135 +4282,62 @@ VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) {
     return kvBucket->getVBucket(vbucket);
 }
 
-ENGINE_ERROR_CODE
-EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
-                                           protocol_binary_request_header *req,
-                                           ADD_RESPONSE response)
-{
-    Vbid vbucket = req->request.vbucket.ntoh();
-    VBucketPtr vb = getVBucket(vbucket);
-
+ENGINE_ERROR_CODE EventuallyPersistentEngine::handleLastClosedCheckpoint(
+        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+    VBucketPtr vb = getVBucket(request.getVBucket());
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    auto status = cb::mcbp::Status::Success;
+    const uint64_t id =
+            htonll(vb->checkpointManager->getLastClosedCheckpointId());
+    return sendResponse(response,
+                        nullptr,
+                        0,
+                        nullptr,
+                        0,
+                        &id,
+                        sizeof(id),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        cb::mcbp::Status::Success,
+                        0,
+                        cookie);
+}
 
-    switch (req->request.getClientOpcode()) {
-    case cb::mcbp::ClientOpcode::LastClosedCheckpoint: {
-        uint64_t checkpointId =
-                vb->checkpointManager->getLastClosedCheckpointId();
-        checkpointId = htonll(checkpointId);
+ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCreateCheckpoint(
+        const void* cookie, cb::mcbp::Request& req, ADD_RESPONSE response) {
+    VBucketPtr vb = getVBucket(req.getVBucket());
+
+    if (!vb || vb->getState() != vbucket_state_active) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    // Create a new checkpoint, notifying flusher.
+    const uint64_t checkpointId =
+            htonll(vb->checkpointManager->createNewCheckpoint());
+    getKVBucket()->wakeUpFlusher();
+    const auto lastPersisted =
+            kvBucket->getLastPersistedCheckpointId(vb->getId());
+
+    if (lastPersisted.second) {
+        const uint64_t persistedChkId = htonll(lastPersisted.first);
+        char val[sizeof(checkpointId) + sizeof(persistedChkId)];
+        memcpy(val, &checkpointId, sizeof(checkpointId));
+        memcpy(val + sizeof(checkpointId),
+               &persistedChkId,
+               sizeof(persistedChkId));
         return sendResponse(response,
                             NULL,
                             0,
                             NULL,
                             0,
-                            &checkpointId,
-                            sizeof(checkpointId),
+                            val,
+                            sizeof(val),
                             PROTOCOL_BINARY_RAW_BYTES,
                             cb::mcbp::Status::Success,
                             0,
                             cookie);
-    } break;
-    case cb::mcbp::ClientOpcode::CreateCheckpoint:
-        if (vb->getState() != vbucket_state_active) {
-            return ENGINE_NOT_MY_VBUCKET;
-
-        } else {
-            // Create a new checkpoint, notifying flusher.
-            const uint64_t checkpointId =
-                    htonll(vb->checkpointManager->createNewCheckpoint());
-            getKVBucket()->wakeUpFlusher();
-            const auto lastPersisted =
-                    kvBucket->getLastPersistedCheckpointId(vb->getId());
-
-            if (lastPersisted.second) {
-                const uint64_t persistedChkId = htonll(lastPersisted.first);
-
-                char val[sizeof(checkpointId) + sizeof(persistedChkId)];
-                memcpy(val, &checkpointId, sizeof(checkpointId));
-                memcpy(val + sizeof(checkpointId),
-                       &persistedChkId,
-                       sizeof(persistedChkId));
-                return sendResponse(response,
-                                    NULL,
-                                    0,
-                                    NULL,
-                                    0,
-                                    val,
-                                    sizeof(val),
-                                    PROTOCOL_BINARY_RAW_BYTES,
-                                    cb::mcbp::Status::Success,
-                                    0,
-                                    cookie);
-            }
-        }
-        break;
-    case cb::mcbp::ClientOpcode::CheckpointPersistence: {
-        uint16_t keylen = ntohs(req->request.keylen);
-        uint32_t bodylen = ntohl(req->request.bodylen);
-        if ((bodylen - keylen) == 0) {
-            status = cb::mcbp::Status::Einval;
-            setErrorContext(cookie,
-                            "No checkpoint id is given for "
-                            "CMD_CHECKPOINT_PERSISTENCE!!!");
-            } else {
-                uint64_t chk_id;
-                memcpy(&chk_id, req->bytes + sizeof(req->bytes) + keylen,
-                       bodylen - keylen);
-                chk_id = ntohll(chk_id);
-                void *es = getEngineSpecific(cookie);
-                if (!es) {
-                    auto res = vb->checkAddHighPriorityVBEntry(
-                            chk_id,
-                            cookie,
-                            HighPriorityVBNotify::ChkPersistence);
-
-                    switch (res) {
-                    case HighPriorityVBReqStatus::RequestScheduled:
-                        storeEngineSpecific(cookie, this);
-                        // Wake up the flusher if it is idle.
-                        getKVBucket()->wakeUpFlusher();
-                        return ENGINE_EWOULDBLOCK;
-
-                    case HighPriorityVBReqStatus::NotSupported:
-                        status = cb::mcbp::Status::NotSupported;
-                        EP_LOG_WARN(
-                                "EventuallyPersistentEngine::"
-                                "handleCheckpointCmds(): "
-                                "High priority async chk request "
-                                "for {} is NOT supported",
-                                vbucket);
-                        break;
-
-                    case HighPriorityVBReqStatus::RequestNotScheduled:
-                        /* 'HighPriorityVBEntry' was not added, hence just
-                           return success */
-                        EP_LOG_INFO(
-                                "EventuallyPersistentEngine::"
-                                "handleCheckpointCmds(): "
-                                "Did NOT add high priority async chk request "
-                                "for {}",
-                                vbucket);
-
-                        break;
-                    }
-                } else {
-                    storeEngineSpecific(cookie, NULL);
-                    EP_LOG_DEBUG(
-                            "Checkpoint {} persisted for {}", chk_id, vbucket);
-                }
-            }
-    } break;
-    default:
-        {
-        status = cb::mcbp::Status::UnknownCommand;
-        setErrorContext(cookie,
-                        "Unknown checkpoint command opcode: " +
-                                std::to_string(req->request.opcode));
-        }
-        }
+    }
 
     return sendResponse(response,
                         NULL,
@@ -4414,6 +4345,76 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                         NULL,
                         0,
                         NULL,
+                        0,
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        cb::mcbp::Status::Success,
+                        0,
+                        cookie);
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::handleCheckpointPersistence(
+        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
+    auto vbucket = request.getVBucket();
+    VBucketPtr vb = getVBucket(vbucket);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    auto status = cb::mcbp::Status::Success;
+    auto extras = request.getExtdata();
+    uint64_t chk_id;
+    if (extras.size() == sizeof(chk_id)) {
+        memcpy(&chk_id, extras.data(), sizeof(chk_id));
+    } else {
+        auto value = request.getValue();
+        memcpy(&chk_id, value.data(), sizeof(chk_id));
+    }
+
+    chk_id = ntohll(chk_id);
+    if (getEngineSpecific(cookie) == nullptr) {
+        auto res = vb->checkAddHighPriorityVBEntry(
+                chk_id, cookie, HighPriorityVBNotify::ChkPersistence);
+
+        switch (res) {
+        case HighPriorityVBReqStatus::RequestScheduled:
+            storeEngineSpecific(cookie, this);
+            // Wake up the flusher if it is idle.
+            getKVBucket()->wakeUpFlusher();
+            return ENGINE_EWOULDBLOCK;
+
+        case HighPriorityVBReqStatus::NotSupported:
+            status = cb::mcbp::Status::NotSupported;
+            EP_LOG_WARN(
+                    "EventuallyPersistentEngine::"
+                    "handleCheckpointCmds(): "
+                    "High priority async chk request "
+                    "for {} is NOT supported",
+                    vbucket);
+            break;
+
+        case HighPriorityVBReqStatus::RequestNotScheduled:
+            // 'HighPriorityVBEntry' was not added, hence just
+            // return success
+            EP_LOG_INFO(
+                    "EventuallyPersistentEngine::"
+                    "handleCheckpointCmds(): "
+                    "Did NOT add high priority async chk request "
+                    "for {}",
+                    vbucket);
+
+            break;
+        }
+    } else {
+        storeEngineSpecific(cookie, NULL);
+        EP_LOG_DEBUG("Checkpoint {} persisted for {}", chk_id, vbucket);
+    }
+
+    return sendResponse(response,
+                        nullptr,
+                        0,
+                        nullptr,
+                        0,
+                        nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,

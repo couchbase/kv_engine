@@ -595,9 +595,16 @@ public:
         return configuration;
     }
 
-    ENGINE_ERROR_CODE handleCheckpointCmds(const void* cookie,
-                                           protocol_binary_request_header *request,
-                                           ADD_RESPONSE response);
+    ENGINE_ERROR_CODE handleLastClosedCheckpoint(const void* cookie,
+                                                 cb::mcbp::Request& request,
+                                                 ADD_RESPONSE response);
+    ENGINE_ERROR_CODE handleCreateCheckpoint(const void* cookie,
+                                             cb::mcbp::Request& request,
+                                             ADD_RESPONSE response);
+
+    ENGINE_ERROR_CODE handleCheckpointPersistence(const void* cookie,
+                                                  cb::mcbp::Request& request,
+                                                  ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE handleSeqnoPersistence(const void* cookie,
                                              cb::mcbp::Request& req,
