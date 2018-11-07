@@ -177,6 +177,14 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         CursorRegResult result =
                 chkptmgr.registerCursorBySeqno(name_, lastProcessedSeqno);
 
+        log(spdlog::level::level_enum::info,
+            "ActiveStream::registerCursor name \"{}\" for {}, backfill:{}, "
+            "seqno:{}",
+            name_,
+            vb_,
+            result.tryBackfill,
+            result.seqno);
+
         /*
          * MB-22960:  Due to cursor dropping we re-register the replication
          * cursor only during backfill when we mark the disk snapshot.  However
@@ -1067,16 +1075,12 @@ void ActiveStream::endStream(end_stream_status_t reason) {
                     std::make_unique<StreamEndResponse>(opaque_, reason, vb_));
         }
         VBucketPtr vb = engine->getVBucket(vb_);
-        log(spdlog::level::level_enum::warn,
-            "({}) Stream closing, "
-            "sent until seqno {} "
-            "remaining items {}, "
-            "reason: {}",
-            vb_,
-            lastSentSeqno.load(),
-            readyQ_non_meta_items.load(),
-            getEndStreamStatusStr(reason));
-        log(spdlog::level::level_enum::warn,
+
+        // If we ended normally then print at info level to prevent views
+        // from spamming our logs
+        auto level = reason == END_STREAM_OK ? spdlog::level::level_enum::info
+                                             : spdlog::level::level_enum::warn;
+        log(level,
             "({}) Stream closing, sent until seqno {} remaining items "
             "{}, reason: {}",
             vb_,
@@ -1158,6 +1162,13 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
             auto registerResult =
                     vbucket->checkpointManager->registerCursorBySeqno(
                             name_, lastReadSeqno.load());
+            log(spdlog::level::level_enum::info,
+                "ActiveStream::scheduleBackfill_UNLOCKED register cursor with "
+                "name \"{}\" for {}, backfill:{}, seqno:{}",
+                name_,
+                vb_,
+                registerResult.tryBackfill,
+                registerResult.seqno);
             curChkSeqno = registerResult.seqno;
             tryBackfill = registerResult.tryBackfill;
             cursor = registerResult.cursor;
@@ -1257,6 +1268,14 @@ void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
                 CursorRegResult result =
                         vbucket->checkpointManager->registerCursorBySeqno(
                                 name_, lastReadSeqno.load());
+                log(spdlog::level::level_enum::info,
+                    "ActiveStream::scheduleBackfill_UNLOCKED "
+                    "Rescheduling. Register cursor with name \"{}\" for {}, "
+                    "backfill:{}, seqno:{}",
+                    name_,
+                    vb_,
+                    result.tryBackfill,
+                    result.seqno);
                 curChkSeqno = result.seqno;
                 cursor = result.cursor;
             } catch (std::exception& error) {

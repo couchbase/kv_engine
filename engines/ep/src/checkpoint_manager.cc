@@ -52,6 +52,8 @@ CheckpointManager::CheckpointManager(EPStats& st,
         // Register the persistence cursor
         pCursor = registerCursorBySeqno_UNLOCKED(lh, pCursorName, lastBySeqno)
                           .cursor;
+        EP_LOG_INFO("CheckpointManager::registering persistence cursor for {}",
+                    vbucketId);
         persistenceCursor = pCursor.lock().get();
     }
 }
@@ -238,10 +240,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                 "checkpoint highSeqno (which is " +
                 std::to_string(openCkpt.getHighSeqno()) + ")");
     }
-
-    EP_LOG_INFO("CheckpointManager::registerCursorBySeqno name \"{}\" from {}",
-                name,
-                vbucketId);
 
     size_t skipped = 0;
     CursorRegResult result;
