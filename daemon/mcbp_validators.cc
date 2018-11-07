@@ -1692,4 +1692,10 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::TapCheckpointStart, not_supported_validator);
     setup(cb::mcbp::ClientOpcode::TapCheckpointEnd, not_supported_validator);
     setup(cb::mcbp::ClientOpcode::DeregisterTapClient, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::ResetReplicationChain,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::NotifyVbucketUpdate, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::SnapshotVbStates, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::VbucketBatchCount, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::ChangeVbFilter, not_supported_validator);
 }

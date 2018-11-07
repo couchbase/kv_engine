@@ -227,10 +227,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::SetqWithMeta, require<Privilege::MetaWrite>);
     setup(cb::mcbp::ClientOpcode::AddWithMeta, require<Privilege::MetaWrite>);
     setup(cb::mcbp::ClientOpcode::AddqWithMeta, require<Privilege::MetaWrite>);
-    setup(cb::mcbp::ClientOpcode::SnapshotVbStates,
-          require<Privilege::MetaWrite>);
-    setup(cb::mcbp::ClientOpcode::VbucketBatchCount,
-          require<Privilege::MetaWrite>);
     setup(cb::mcbp::ClientOpcode::DelWithMeta, require<Privilege::MetaWrite>);
     setup(cb::mcbp::ClientOpcode::DelqWithMeta, require<Privilege::MetaWrite>);
 
@@ -239,8 +235,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      */
     setup(cb::mcbp::ClientOpcode::CreateCheckpoint,
           require<Privilege::NodeManagement>);
-    setup(cb::mcbp::ClientOpcode::NotifyVbucketUpdate,
-          require<Privilege::MetaWrite>);
     /**
      * Command to enable data traffic after completion of warm
      */
