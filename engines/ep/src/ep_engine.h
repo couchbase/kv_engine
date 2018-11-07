@@ -599,10 +599,6 @@ public:
         return configuration;
     }
 
-    ENGINE_ERROR_CODE deregisterTapClient(const void* cookie,
-                                          protocol_binary_request_header *request,
-                                          ADD_RESPONSE response);
-
     ENGINE_ERROR_CODE handleCheckpointCmds(const void* cookie,
                                            protocol_binary_request_header *request,
                                            ADD_RESPONSE response);
@@ -610,14 +606,6 @@ public:
     ENGINE_ERROR_CODE handleSeqnoCmds(const void* cookie,
                                       protocol_binary_request_header *request,
                                       ADD_RESPONSE response);
-
-    ENGINE_ERROR_CODE resetReplicationChain(const void* cookie,
-                                            protocol_binary_request_header *request,
-                                            ADD_RESPONSE response);
-
-    ENGINE_ERROR_CODE changeTapVBFilter(const void* cookie,
-                                        protocol_binary_request_header *request,
-                                        ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE handleTrafficControlCmd(const void* cookie,
                                               protocol_binary_request_header *request,
@@ -778,7 +766,6 @@ protected:
     bool enableTraffic(bool enable);
 
     ENGINE_ERROR_CODE doEngineStats(const void *cookie, ADD_STAT add_stat);
-    ENGINE_ERROR_CODE doKlogStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doMemoryStats(const void *cookie, ADD_STAT add_stat);
     ENGINE_ERROR_CODE doVBucketStats(const void *cookie, ADD_STAT add_stat,
                                      const char* stat_key,
