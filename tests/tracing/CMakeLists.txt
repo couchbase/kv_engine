@@ -31,3 +31,4 @@ target_link_libraries(tracing_bench
     platform
     xattr
     ${MALLOC_LIBRARIES})
+add_sanitizers(tracing_bench)

@@ -5,4 +5,5 @@ target_link_libraries(mctrace
                       mcd_util
                       mcutils
                       platform)
+add_sanitizers(mctrace)
 install(TARGETS mctrace RUNTIME DESTINATION bin)

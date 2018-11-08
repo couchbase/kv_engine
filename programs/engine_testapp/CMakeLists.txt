@@ -15,6 +15,7 @@ TARGET_LINK_LIBRARIES(engine_testapp PRIVATE
 		xattr
 		${MALLOC_LIBRARIES}
 		${COUCHBASE_NETWORK_LIBS})
+add_sanitizers(engine_testapp)
 INSTALL(TARGETS engine_testapp
         RUNTIME DESTINATION bin)
 

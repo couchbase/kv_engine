@@ -4,4 +4,5 @@ TARGET_LINK_LIBRARIES(mcctl
                       mcd_util
                       mcutils
                       platform)
+add_sanitizers(mcctl)
 INSTALL(TARGETS mcctl RUNTIME DESTINATION bin)

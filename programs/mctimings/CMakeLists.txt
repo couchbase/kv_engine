@@ -5,4 +5,5 @@ TARGET_LINK_LIBRARIES(mctimings
                       getpass
                       cJSON
                       platform)
+add_sanitizers(mctimings)
 INSTALL(TARGETS mctimings RUNTIME DESTINATION bin)

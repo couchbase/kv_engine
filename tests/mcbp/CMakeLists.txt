@@ -36,6 +36,8 @@ target_include_directories(memcached_mcbp_bench
     ${benchmark_SOURCE_DIR}/include)
 target_link_libraries(memcached_mcbp_bench
                       benchmark memcached_daemon)
+add_sanitizers(memcached_mcbp_bench)
 
 add_executable(mcbp_missing_validators mcbp_missing_validators.cc)
 target_link_libraries(mcbp_missing_validators memcached_daemon platform)
+add_sanitizers(mcbp_missing_validators)

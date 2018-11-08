@@ -54,6 +54,7 @@ target_link_libraries(cbsasladm
                       mcd_util
                       mcutils
                       platform)
+add_sanitizers(cbsasladm)
 install(TARGETS cbsasladm RUNTIME DESTINATION bin)
 
 # Unit tests

@@ -46,6 +46,7 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
                           gtest
                           gtest_main
                           gmock)
+    add_sanitizers(utilities_testapp)
     add_test(NAME memcached-utilities-tests
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND utilities_testapp)

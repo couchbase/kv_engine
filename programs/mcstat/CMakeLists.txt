@@ -4,4 +4,5 @@ TARGET_LINK_LIBRARIES(mcstat
                       mcutils
                       mc_client_connection
                       getpass)
+add_sanitizers(mcstat)
 INSTALL(TARGETS mcstat RUNTIME DESTINATION bin)

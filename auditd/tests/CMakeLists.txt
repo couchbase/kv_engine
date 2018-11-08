@@ -37,6 +37,7 @@ ADD_EXECUTABLE(memcached_auditd_tests
 TARGET_LINK_LIBRARIES(memcached_auditd_tests
                       auditd memcached_logger mcd_util mcd_time cJSON dirutils gtest)
 ADD_DEPENDENCIES(memcached_auditd_tests generate_audit_descriptors)
+add_sanitizers(memcached_auditd_tests)
 ADD_TEST(NAME memcached-auditd-test
          COMMAND memcached_auditd_tests -e ${Memcached_BINARY_DIR}/auditd)
 
@@ -45,6 +46,7 @@ ADD_EXECUTABLE(memcached_audit_evdescr_test eventdescriptor_test.cc
                ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.h)
 TARGET_LINK_LIBRARIES(memcached_audit_evdescr_test cJSON gtest gtest_main
         mcd_util)
+add_sanitizers(memcached_audit_evdescr_test)
 ADD_TEST(NAME memcached-audit-evdescr-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_audit_evdescr_test)
