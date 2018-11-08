@@ -47,6 +47,12 @@ class PersistenceCallback;
 class RollbackCB;
 class RollbackResult;
 
+namespace cb {
+namespace mcbp {
+struct Request;
+}
+} // namespace cb
+
 namespace Collections {
 namespace VB {
 class Flush;
@@ -706,7 +712,7 @@ public:
      *
      * return database file id
      */
-    virtual Vbid getDBFileId(const protocol_binary_request_compact_db& req) = 0;
+    virtual Vbid getDBFileId(const cb::mcbp::Request& req) = 0;
 
     virtual vbucket_state* getVBucketState(Vbid vbid) = 0;
 

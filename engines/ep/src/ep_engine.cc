@@ -915,47 +915,31 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getReplicaCmd(
 
 static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                                    const void* cookie,
-                                   protocol_binary_request_compact_db* req,
+                                   cb::mcbp::Request& req,
                                    ADD_RESPONSE response) {
-    auto res = cb::mcbp::Status::Success;
+    const auto res = cb::mcbp::Status::Success;
     CompactionConfig compactionConfig;
-    uint64_t cas = ntohll(req->message.header.request.cas);
+    uint64_t cas = req.getCas();
 
-    if (ntohs(req->message.header.request.keylen) > 0 ||
-        req->message.header.request.extlen != 24) {
-        EP_LOG_WARN("Compaction received bad ext/key len {}/{}.",
-                    req->message.header.request.extlen,
-                    ntohs(req->message.header.request.keylen));
-        e->setErrorContext(cookie, "Key and correct extras required");
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Einval,
-                            cas,
-                            cookie);
-    }
     EPStats& stats = e->getEpStats();
-    compactionConfig.purge_before_ts =
-            ntohll(req->message.body.purge_before_ts);
-    compactionConfig.purge_before_seq =
-            ntohll(req->message.body.purge_before_seq);
-    compactionConfig.drop_deletes = req->message.body.drop_deletes;
-    compactionConfig.db_file_id = e->getKVBucket()->getDBFileId(*req);
-    Vbid vbid = req->message.header.request.vbucket.ntoh();
+    auto extras = req.getExtdata();
+    const auto* payload =
+            reinterpret_cast<const cb::mcbp::request::CompactDbPayload*>(
+                    extras.data());
+
+    compactionConfig.purge_before_ts = payload->getPurgeBeforeTs();
+    compactionConfig.purge_before_seq = payload->getPurgeBeforeSeq();
+    compactionConfig.drop_deletes = payload->getDropDeletes();
+    compactionConfig.db_file_id = e->getKVBucket()->getDBFileId(req);
+    Vbid vbid = req.getVBucket();
 
     ENGINE_ERROR_CODE err;
-    void* es = e->getEngineSpecific(cookie);
-    if (es == NULL) {
+    if (e->getEngineSpecific(cookie) == nullptr) {
         ++stats.pendingCompactions;
         e->storeEngineSpecific(cookie, e);
         err = e->compactDB(vbid, compactionConfig, cookie);
     } else {
-        e->storeEngineSpecific(cookie, NULL);
+        e->storeEngineSpecific(cookie, nullptr);
         err = ENGINE_SUCCESS;
     }
 
@@ -968,22 +952,20 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                 "Compaction of db file id: {} failed "
                 "because the db file doesn't exist!!!",
                 compactionConfig.db_file_id.get());
-        res = cb::mcbp::Status::NotMyVbucket;
-        break;
+        return ENGINE_NOT_MY_VBUCKET;
     case ENGINE_EINVAL:
         --stats.pendingCompactions;
         EP_LOG_WARN(
                 "Compaction of db file id: {} failed "
                 "because of an invalid argument",
                 compactionConfig.db_file_id.get());
-        res = cb::mcbp::Status::Einval;
-        break;
+        return ENGINE_EINVAL;
     case ENGINE_EWOULDBLOCK:
         EP_LOG_INFO(
                 "Compaction of db file id: {} scheduled "
                 "(awaiting completion).",
                 compactionConfig.db_file_id.get());
-        e->storeEngineSpecific(cookie, req);
+        e->storeEngineSpecific(cookie, &req);
         return ENGINE_EWOULDBLOCK;
     case ENGINE_TMPFAIL:
         EP_LOG_WARN(
@@ -991,29 +973,24 @@ static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine* e,
                 " a temporary failure and may need to be retried",
                 compactionConfig.db_file_id.get());
         e->setErrorContext(cookie, "Temporary failure in compacting db file.");
-        res = cb::mcbp::Status::Etmpfail;
-        break;
+        return ENGINE_TMPFAIL;
     default:
         --stats.pendingCompactions;
-        EP_LOG_WARN(
-                "Compaction of db file id: {} failed "
-                "because of unknown reasons",
-                compactionConfig.db_file_id.get());
-        e->setErrorContext(cookie, "Failed to compact db file.  Unknown reason.");
-        res = cb::mcbp::Status::Einternal;
-        break;
-    }
-
-    if (err == ENGINE_NOT_MY_VBUCKET) {
+        EP_LOG_WARN("Compaction of db file id: {} failed: ",
+                    compactionConfig.db_file_id.get(),
+                    cb::to_string(cb::engine_errc(err)));
+        e->setErrorContext(cookie,
+                           "Failed to compact db file: " +
+                                   cb::to_string(cb::engine_errc(err)));
         return err;
     }
 
     return sendResponse(response,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         res,
@@ -1144,9 +1121,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         return h->handleTrafficControlCmd(cookie, request->request, response);
 
     case cb::mcbp::ClientOpcode::CompactDb: {
-        rv = compactDB(h, cookie,
-                       (protocol_binary_request_compact_db*)(request),
-                       response);
+        rv = compactDB(h, cookie, request->request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             h->decrementSessionCtr();
             h->storeEngineSpecific(cookie, NULL);

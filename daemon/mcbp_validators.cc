@@ -1688,6 +1688,29 @@ static Status chekpoint_persistence_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status compact_db_validator(Cookie& cookie) {
+    using cb::mcbp::request::CompactDbPayload;
+
+    if (!verify_header(cookie,
+                       sizeof(CompactDbPayload),
+                       ExpectedKeyLen::Zero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+
+    const auto extras = cookie.getHeader().getRequest().getExtdata();
+    const auto* payload =
+            reinterpret_cast<const CompactDbPayload*>(extras.data());
+    if (!payload->validate()) {
+        cookie.setErrorContext("Padding bytes should be set to 0");
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     if (!verify_header(cookie,
@@ -1872,6 +1895,7 @@ McbpValidator::McbpValidator() {
           create_checkpoint_validator);
     setup(cb::mcbp::ClientOpcode::CheckpointPersistence,
           chekpoint_persistence_validator);
+    setup(cb::mcbp::ClientOpcode::CompactDb, compact_db_validator);
 
     // Add a validator which returns not supported (we won't execute
     // these either as the executor would have returned not supported

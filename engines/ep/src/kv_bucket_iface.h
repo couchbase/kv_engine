@@ -459,7 +459,7 @@ public:
      *
      * returns the database file id from the underlying KV store
      */
-    virtual Vbid getDBFileId(const protocol_binary_request_compact_db& req) = 0;
+    virtual Vbid getDBFileId(const cb::mcbp::Request& req) = 0;
 
     /**
      * Reset a given vbucket from memory and disk. This differs from vbucket

@@ -222,7 +222,7 @@ public:
         return true;
     }
 
-    Vbid getDBFileId(const protocol_binary_request_compact_db&) override {
+    Vbid getDBFileId(const cb::mcbp::Request&) override {
         // Not needed if there is no explicit compaction
         return Vbid(0);
     }

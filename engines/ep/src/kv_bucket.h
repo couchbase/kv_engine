@@ -464,7 +464,7 @@ public:
      *
      * returns the database file id from the underlying KV store
      */
-    Vbid getDBFileId(const protocol_binary_request_compact_db& req);
+    Vbid getDBFileId(const cb::mcbp::Request& req);
 
     /**
      * Remove completed compaction tasks or wake snoozed tasks

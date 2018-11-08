@@ -1270,29 +1270,38 @@ void compact_db(EngineIface* h,
                 const uint64_t purge_before_ts,
                 const uint64_t purge_before_seq,
                 const uint8_t drop_deletes) {
-    protocol_binary_request_compact_db req;
-    memset(&req, 0, sizeof(req));
-    req.message.body.purge_before_ts  = htonll(purge_before_ts);
-    req.message.body.purge_before_seq = htonll(purge_before_seq);
-    req.message.body.drop_deletes     = drop_deletes;
+    cb::mcbp::request::CompactDbPayload payload;
+    payload.setPurgeBeforeTs(purge_before_ts);
+    payload.setPurgeBeforeSeq(purge_before_seq);
+    payload.setDropDeletes(drop_deletes);
+    payload.setDbFileId(db_file_id);
 
-    std::string backend = get_str_stat(h, "ep_backend");
-    const char *args = (const char *)&(req.message.body);
-    uint32_t argslen = 24;
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::CompactDb,
+                             vbucket_id,
+                             0,
+                             reinterpret_cast<const char*>(&payload),
+                             sizeof(payload),
+                             nullptr,
+                             0,
+                             nullptr,
+                             0);
+    auto ret = h->unknown_command(nullptr, pkt, add_response);
 
-    protocol_binary_request_header* pkt =
-            createPacket(cb::mcbp::ClientOpcode::CompactDb,
-                         vbucket_id,
-                         0,
-                         args,
-                         argslen,
-                         NULL,
-                         0,
-                         NULL,
-                         0);
-    checkeq(ENGINE_SUCCESS,
-            h->unknown_command(NULL, pkt, add_response),
-            "Failed to request compact vbucket");
+    const auto backend = get_str_stat(h, "ep_backend");
+
+    if (backend == "couchdb") {
+        if (ret == ENGINE_ENOTSUP) {
+            // Ephemeral buckets return ENGINE_ENOTSUP, and this method is
+            // called from a lot of the test cases we run on all bucket
+            // types. Lets remap the error code to success
+            ret = ENGINE_SUCCESS;
+        }
+        checkeq(ENGINE_SUCCESS, ret, "Failed to request compact vbucket");
+    } else {
+        checkeq(ENGINE_FAILED,
+                ret,
+                "checkForDBExistence returns ENGINE_FAILED for !couchdb");
+    }
     cb_free(pkt);
 }
 

@@ -1798,6 +1798,10 @@ typedef union {
     uint8_t bytes[sizeof(protocol_binary_request_header) + 9];
 } protocol_binary_request_set_drift_counter_state;
 
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
 /**
  * Message format for CMD_COMPACT_DB
  *
@@ -1825,20 +1829,52 @@ typedef union {
  * successfully and a NOT_MY_VBUCKET (along with cluster config)
  * if the vbucket isn't found.
  */
-union protocol_binary_request_compact_db {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t purge_before_ts;
-            uint64_t purge_before_seq;
-            uint8_t drop_deletes;
-            uint8_t align_pad1;
-            Vbid db_file_id;
-            uint32_t align_pad3;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
+class CompactDbPayload {
+public:
+    uint64_t getPurgeBeforeTs() const {
+        return ntohll(purge_before_ts);
+    }
+    void setPurgeBeforeTs(uint64_t purge_before_ts) {
+        CompactDbPayload::purge_before_ts = htonll(purge_before_ts);
+    }
+    uint64_t getPurgeBeforeSeq() const {
+        return ntohll(purge_before_seq);
+    }
+    void setPurgeBeforeSeq(uint64_t purge_before_seq) {
+        CompactDbPayload::purge_before_seq = htonll(purge_before_seq);
+    }
+    uint8_t getDropDeletes() const {
+        return drop_deletes;
+    }
+    void setDropDeletes(uint8_t drop_deletes) {
+        CompactDbPayload::drop_deletes = drop_deletes;
+    }
+    const Vbid getDbFileId() const {
+        return db_file_id.ntoh();
+    }
+    void setDbFileId(const Vbid& db_file_id) {
+        CompactDbPayload::db_file_id = db_file_id.hton();
+    }
+
+    // Generate a method which use align_pad1 and 3 to avoid the compiler
+    // to generate a warning about unused member (because we
+    bool validate() const {
+        return align_pad1 == 0 && align_pad3 == 0;
+    }
+
+protected:
+    uint64_t purge_before_ts = 0;
+    uint64_t purge_before_seq = 0;
+    uint8_t drop_deletes = 0;
+    uint8_t align_pad1 = 0;
+    Vbid db_file_id;
+    uint32_t align_pad3 = 0;
 };
+#pragma pack()
+static_assert(sizeof(CompactDbPayload) == 24, "Unexpected struct size");
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 typedef protocol_binary_request_get protocol_binary_request_get_random;
 

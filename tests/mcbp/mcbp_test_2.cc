@@ -868,6 +868,89 @@ TEST_P(CheckpointPersistenceValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+class CompactDbValidatorTest : public ::testing::WithParamInterface<bool>,
+                               public ValidatorTest {
+public:
+    CompactDbValidatorTest()
+        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    }
+
+    class MockPayload : public cb::mcbp::request::CompactDbPayload {
+    public:
+        void setAlignPad1(uint8_t val) {
+            align_pad1 = val;
+        }
+        void setAlignPad3(uint32_t val) {
+            align_pad3 = val;
+        }
+    };
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        req.setExtlen(sizeof(MockPayload));
+        req.setBodylen(req.getExtlen());
+    }
+
+    MockPayload& getPayload() {
+        return *reinterpret_cast<MockPayload*>(request.bytes +
+                                               sizeof(request.bytes));
+    }
+
+protected:
+    cb::mcbp::Request& req;
+    cb::mcbp::Status validate() {
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::CompactDb,
+                                       static_cast<void*>(&request));
+    }
+};
+
+TEST_P(CompactDbValidatorTest, CorrectMessage) {
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
+TEST_P(CompactDbValidatorTest, InvalidMagic) {
+    req.magic = 0;
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CompactDbValidatorTest, InvalidExtlen) {
+    req.setExtlen(2);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CompactDbValidatorTest, InvalidExtras) {
+    auto& mock = getPayload();
+    mock.setAlignPad1(1);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    mock.setAlignPad1(0);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    mock.setAlignPad3(1);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    mock.setAlignPad1(1);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CompactDbValidatorTest, InvalidDatatype) {
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CompactDbValidatorTest, IvalidCas) {
+    req.setCas(0xff);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CompactDbValidatorTest, InvalidKey) {
+    req.setKeylen(2);
+    req.setBodylen(req.getBodylen() + req.getKeylen());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(CompactDbValidatorTest, InvalidBodylen) {
+    req.setBodylen(req.getBodylen() + 10);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         DropPrivilegeValidatorTest,
                         ::testing::Bool(),
@@ -935,6 +1018,11 @@ INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
                         CheckpointPersistenceValidatorTest,
+                        ::testing::Bool(),
+                        ::testing::PrintToStringParamName());
+
+INSTANTIATE_TEST_CASE_P(CollectionsOnOff,
+                        CompactDbValidatorTest,
                         ::testing::Bool(),
                         ::testing::PrintToStringParamName());
 

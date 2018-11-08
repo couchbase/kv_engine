@@ -508,7 +508,7 @@ public:
 
     ENGINE_ERROR_CODE compactDB(Vbid vbid,
                                 const CompactionConfig& c,
-                                const void* cookie = NULL);
+                                const void* cookie);
 
     cb::mcbp::Status evictKey(const void* cookie,
                               cb::mcbp::Request& request,

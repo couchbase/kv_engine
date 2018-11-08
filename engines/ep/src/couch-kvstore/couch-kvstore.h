@@ -347,8 +347,8 @@ public:
      *
      * return database file id
      */
-    Vbid getDBFileId(const protocol_binary_request_compact_db& req) override {
-        return req.message.header.request.vbucket.ntoh();
+    Vbid getDBFileId(const cb::mcbp::Request& req) override {
+        return req.getVBucket();
     }
 
     vbucket_state* getVBucketState(Vbid vbid) override;
