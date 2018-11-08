@@ -229,6 +229,10 @@ GetValue VBucketTest::public_getAndUpdateTtl(const DocKey& key,
     return gv;
 }
 
+void VBucketTest::public_incrementBackfillQueueSize() {
+    vbucket->stats.vbBackfillQueueSize++;
+}
+
 size_t EPVBucketTest::public_queueBGFetchItem(
         const DocKey& key,
         std::unique_ptr<VBucketBGFetchItem> fetchItem,
@@ -564,7 +568,9 @@ TEST_P(VBucketTest, GetItemsToPersist_Limit) {
 
     // Add 2 items to backfill queue
     this->vbucket->backfill.items.push(makeQueuedItem("3"));
+    public_incrementBackfillQueueSize();
     this->vbucket->backfill.items.push(makeQueuedItem("4"));
+    public_incrementBackfillQueueSize();
 
     // Add 2 items to checkpoint manager (in addition to initial
     // checkpoint_start).

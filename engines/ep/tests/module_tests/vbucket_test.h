@@ -95,6 +95,8 @@ protected:
 
     GetValue public_getAndUpdateTtl(const DocKey& key, time_t exptime);
 
+    void public_incrementBackfillQueueSize();
+
     std::unique_ptr<VBucket> vbucket;
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
