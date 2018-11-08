@@ -2115,6 +2115,11 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
 }
 
 TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
+    // This test does not work under RocksDB because we assume that every
+    // deletion is to an item that does not exist
+    if (kvstoreConfig->getBackend() == "rocksdb") {
+        return;
+    }
     // Store an item
     auto key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", 5);

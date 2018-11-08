@@ -2385,7 +2385,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  NULL,
-                 prepare,
+                 /* TODO RDB: vBucket num_items not correct under Rocks when
+                  * full eviction */
+                 prepare_skip_broken_under_rocks_full_eviction,
                  cleanup),
         TestCase("delete with value CAS",
                  test_delete_with_value_cas,

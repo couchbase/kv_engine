@@ -539,8 +539,9 @@ void RocksDBKVStore::commitCallback(
                 // TODO: Should set `rv` to 1 or 0 depending on if this is a
                 // delete to an existing (1) or non-existing (0) item. However,
                 // to achieve this we would need to perform a Get to RocksDB
-                // which is costly. For now just assume that the item did exist.
-                rv = 1;
+                // which is costly. For now just assume that the item did
+                // not exist.
+                rv = 0;
             }
             request->getDelCallback()->callback(*transactionCtx, rv);
         } else {
