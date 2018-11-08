@@ -50,7 +50,7 @@ VBucketPtr VBucketMap::getBucket(Vbid id) const {
 ENGINE_ERROR_CODE VBucketMap::addBucket(VBucketPtr vb) {
     if (vb->getId().get() < size) {
         getShardByVbId(vb->getId())->setBucket(vb);
-        ++vbStateCount[vb->getState()];
+        ++vbStateCount[vb->getState() - vbucket_state_active];
         EP_LOG_DEBUG("Mapped new {} in state {}",
                      vb->getId(),
                      VBucket::toString(vb->getState()));

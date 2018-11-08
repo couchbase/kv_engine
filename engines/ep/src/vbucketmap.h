@@ -113,7 +113,7 @@ public:
      * @param state  the state for which the vb count is to be decremented.
      */
     void decVBStateCount(vbucket_state_t state) {
-        --vbStateCount[state];
+        --vbStateCount[state - vbucket_state_active];
     }
 
     /**
@@ -121,7 +121,7 @@ public:
      * @param state the state for which the vb count is to be incremented.
      */
     void incVBStateCount(vbucket_state_t state) {
-        ++vbStateCount[state];
+        ++vbStateCount[state - vbucket_state_active];
     }
 
     /**
@@ -130,7 +130,7 @@ public:
      * @rturn  the current vb count in the given state.
      */
     uint16_t getVBStateCount(vbucket_state_t state) const {
-        return vbStateCount[state];
+        return vbStateCount[state - vbucket_state_active];
     }
 
     /**
