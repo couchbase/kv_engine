@@ -510,8 +510,6 @@ public:
                                 const CompactionConfig& c,
                                 const void* cookie = NULL);
 
-    bool resetVBucket(Vbid vbid);
-
     cb::mcbp::Status evictKey(const void* cookie,
                               cb::mcbp::Request& request,
                               const char** msg);

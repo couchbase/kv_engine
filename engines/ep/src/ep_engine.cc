@@ -5792,10 +5792,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::compactDB(
     return kvBucket->scheduleCompaction(vbid, c, cookie);
 }
 
-bool EventuallyPersistentEngine::resetVBucket(Vbid vbid) {
-    return kvBucket->resetVBucket(vbid);
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
     static_assert(sizeof(vbucket_state_t) == 4,
