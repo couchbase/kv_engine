@@ -459,6 +459,21 @@ bool ItemPager::run(void) {
     double upper = static_cast<double>(stats.mem_high_wat);
     double lower = static_cast<double>(stats.mem_low_wat);
 
+    // If we dynamically switch from the hifi_mfu policy to the 2-bit_lru
+    // policy or vice-versa, we will not be in a valid phase.  Therefore
+    // reinitialise to the correct phase for the eviction policy.
+    if (engine.getConfiguration().getHtEvictionPolicy() == "hifi_mfu") {
+        if (phase != REPLICA_ONLY && phase != ACTIVE_AND_PENDING_ONLY) {
+            // Not a valid phase for the hifi_mfu policy, so reinitialise.
+            phase = (engine.getConfiguration().getBucketType() == "persistent")
+                            ? REPLICA_ONLY
+                            : ACTIVE_AND_PENDING_ONLY;
+        }
+    } else if (phase != PAGING_UNREFERENCED && phase != PAGING_RANDOM) {
+        // Not a valid phase for the 2-bit_lru policy, so reinitialise.
+        phase = PAGING_UNREFERENCED;
+    }
+
     if (current <= lower) {
         doEvict = false;
     }
