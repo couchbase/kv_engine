@@ -1005,11 +1005,10 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         ADD_RESPONSE response) {
     auto res = cb::mcbp::Status::UnknownCommand;
     std::string dynamic_msg;
-    const char* msg = NULL;
+    const char* msg = nullptr;
     size_t msg_size = 0;
 
     EPStats& stats = h->getEpStats();
-    ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
     /**
      * Session validation
@@ -1039,12 +1038,11 @@ static ENGINE_ERROR_CODE processUnknownCommand(
 
     case cb::mcbp::ClientOpcode::GetVbucket: {
         BlockTimer timer(&stats.getVbucketCmdHisto);
-        rv = getVBucket(h, cookie, request->request, response);
-        return rv;
+        return getVBucket(h, cookie, request->request, response);
     }
     case cb::mcbp::ClientOpcode::DelVbucket: {
         BlockTimer timer(&stats.delVbucketCmdHisto);
-        rv = delVBucket(h, cookie, request->request, response);
+        const auto rv = delVBucket(h, cookie, request->request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             h->decrementSessionCtr();
             h->storeEngineSpecific(cookie, NULL);
@@ -1053,7 +1051,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     }
     case cb::mcbp::ClientOpcode::SetVbucket: {
         BlockTimer timer(&stats.setVbucketCmdHisto);
-        rv = setVBucket(h, cookie, request->request, response);
+        const auto rv = setVBucket(h, cookie, request->request, response);
         h->decrementSessionCtr();
         return rv;
     }
@@ -1093,23 +1091,19 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     case cb::mcbp::ClientOpcode::SetWithMeta:
     case cb::mcbp::ClientOpcode::SetqWithMeta:
     case cb::mcbp::ClientOpcode::AddWithMeta:
-    case cb::mcbp::ClientOpcode::AddqWithMeta: {
-        rv = h->setWithMeta(
+    case cb::mcbp::ClientOpcode::AddqWithMeta:
+        return h->setWithMeta(
                 cookie,
                 reinterpret_cast<protocol_binary_request_set_with_meta*>(
                         request),
                 response);
-        return rv;
-    }
     case cb::mcbp::ClientOpcode::DelWithMeta:
-    case cb::mcbp::ClientOpcode::DelqWithMeta: {
-        rv = h->deleteWithMeta(
+    case cb::mcbp::ClientOpcode::DelqWithMeta:
+        return h->deleteWithMeta(
                 cookie,
                 reinterpret_cast<protocol_binary_request_delete_with_meta*>(
                         request),
                 response);
-        return rv;
-    }
     case cb::mcbp::ClientOpcode::ReturnMeta:
         return h->returnMeta(cookie, request->request, response);
 
@@ -1121,7 +1115,7 @@ static ENGINE_ERROR_CODE processUnknownCommand(
         return h->handleTrafficControlCmd(cookie, request->request, response);
 
     case cb::mcbp::ClientOpcode::CompactDb: {
-        rv = compactDB(h, cookie, request->request, response);
+        const auto rv = compactDB(h, cookie, request->request, response);
         if (rv != ENGINE_EWOULDBLOCK) {
             h->decrementSessionCtr();
             h->storeEngineSpecific(cookie, NULL);
@@ -1148,36 +1142,21 @@ static ENGINE_ERROR_CODE processUnknownCommand(
                             cookie);
     }
     default:
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::UnknownCommand,
-                            0,
-                            cookie);
+        res = cb::mcbp::Status::UnknownCommand;
     }
 
-    if (rv == ENGINE_NOT_MY_VBUCKET) {
-        return rv;
-    } else {
-        msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
-        rv = sendResponse(response,
-                          NULL,
-                          0,
-                          NULL,
-                          0,
-                          msg,
-                          static_cast<uint16_t>(msg_size),
-                          PROTOCOL_BINARY_RAW_BYTES,
-                          res,
-                          0,
-                          cookie);
-    }
-    return rv;
+    msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
+    return sendResponse(response,
+                        NULL,
+                        0,
+                        NULL,
+                        0,
+                        msg,
+                        static_cast<uint16_t>(msg_size),
+                        PROTOCOL_BINARY_RAW_BYTES,
+                        res,
+                        0,
+                        cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::unknown_command(
