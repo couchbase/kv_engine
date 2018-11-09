@@ -692,6 +692,9 @@ TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
 
 class VBucketFullEvictionTest : public VBucketTest {};
 
+// This test aims to ensure the vBucket document count is correct in the
+// scenario where the flusher picks up a deletion of a document then we
+// recreate the document before the persistence callback is invoked.
 TEST_P(VBucketFullEvictionTest, MB_30137) {
     auto k = makeStoredDocKey("key");
     queued_item qi(new Item(k, 0, 0, k.data(), k.size()));
@@ -700,7 +703,19 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     // (1) Store k
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*qi, qi->getCas()));
 
-    // (1.1) Mimic flusher by running the PCB for the store at (1)
+    // (1.1) We need the persistence cursor to move through the current
+    // checkpoint to ensure that the checkpoint manager correctly updates the
+    // vBucket stats that throw assertions in development builds to identify
+    // correctness issues. At this point we aim to persist everything fully
+    // (1.2) before performing any other operations.
+    auto cursorResult =
+            vbucket->checkpointManager->registerCursorBySeqno("persistence", 0);
+    std::vector<queued_item> out;
+    vbucket->checkpointManager->getItemsForCursor(
+            cursorResult.cursor.lock().get(), out, 1);
+    ASSERT_EQ(2, out.size());
+
+    // (1.2) Mimic flusher by running the PCB for the store at (1)
     EPTransactionContext tc1(global_stats, *vbucket);
     auto mr1 = std::make_pair(1, true);
     cb1.callback(tc1, mr1); // Using the create/update callback
@@ -709,6 +724,15 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
 
     // (2) Delete k
     softDeleteOne(k, MutationStatus::WasClean);
+
+    // (2.1) Now we need to mimic the persistence cursor moving through the
+    // checkpoint again (picking up only the deletion (2)) to ensure that the
+    // checkpoint manager sets the vBucket stats correctly (in particular the
+    // dirtyQueueSize and the diskQueueSize).
+    out.clear();
+    vbucket->checkpointManager->getItemsForCursor(
+            cursorResult.cursor.lock().get(), out, 1);
+    ASSERT_EQ(1, out.size());
 
     // (3) Now set k again
     EXPECT_EQ(MutationStatus::WasDirty, public_processSet(*qi, qi->getCas()));
