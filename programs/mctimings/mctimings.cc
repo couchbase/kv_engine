@@ -19,9 +19,9 @@
 #include "programs/hostname_utils.h"
 #include "programs/getpass.h"
 
-#include <cJSON.h>
 #include <getopt.h>
 #include <memcached/protocol_binary.h>
+#include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -34,33 +34,7 @@
 #include <iostream>
 #include <stdexcept>
 
-static uint32_t getValue(cJSON *root, const char *key) {
-    cJSON *obj = cJSON_GetObjectItem(root, key);
-    if (obj == nullptr) {
-        std::string msg = "Fatal error: missing key \"";
-        msg += key;
-        msg += "\"";
-        throw std::runtime_error(msg);
-    }
-    return uint32_t(obj->valueint);
-}
-
-static cJSON *getArray(cJSON *root, const char *key) {
-    cJSON *obj = cJSON_GetObjectItem(root, key);
-    if (obj == nullptr) {
-        std::string msg = "Fatal error: missing key \"";
-        msg += key;
-        msg += "\"";
-        throw std::runtime_error(msg);
-    }
-    if (obj->type != cJSON_Array) {
-        std::string msg = "Fatal error: key \"";
-        msg += key;
-        msg += "\" is not an array";
-        throw std::runtime_error(msg);
-    }
-    return obj;
-}
+#define JSON_DUMP_INDENT_SIZE 4
 
 // A single bin of a histogram. Holds the raw count and cumulative total (to
 // allow percentile to be calculated).
@@ -71,7 +45,7 @@ struct Bin {
 
 class Timings {
 public:
-    Timings(cJSON* json) : max(0), ns(Bin()), oldwayout(false) {
+    Timings(nlohmann::json json) : max(0), ns(Bin()), oldwayout(false) {
         us.fill(Bin());
         ms.fill(Bin());
         halfsec.fill(Bin());
@@ -127,62 +101,56 @@ private:
         }
     }
 
-    void initialize(cJSON *root) {
-        auto *obj = cJSON_GetObjectItem(root, "error");
-        if (obj != nullptr) {
+    void initialize(const nlohmann::json& root) {
+        auto obj = root["error"];
+        if (!obj.is_null()) {
             // The server responded with an error.. send that to the user
-            std::string message(obj->valuestring);
-            throw std::runtime_error(message);
+            throw std::runtime_error(obj.get<std::string>());
         }
 
-        ns.count = getValue(root, "ns");
-        auto arr = getArray(root, "us");
-        int ii = 0;
-        cJSON* i = arr->child;
-        while (i) {
-            us[ii].count = gsl::narrow<uint32_t>(i->valueint);
-            ++ii;
-            i = i->next;
-            if (ii == 100 && i != NULL) {
+        ns.count = root["ns"].get<uint32_t>();
+
+        auto arr = root["us"].get<std::vector<uint64_t>>();
+        size_t i = 0;
+        for (auto count : arr) {
+            if (i >= us.size()) {
                 throw std::runtime_error(
-                    "Internal error.. too many \"us\" samples");
+                        "Internal error.. too many \"us\" samples");
             }
+            us[i].count = gsl::narrow<uint32_t>(count);
+            ++i;
         }
 
-        arr = getArray(root, "ms");
-        ii = 1;
-        i = arr->child;
-        while (i) {
-            ms[ii].count = gsl::narrow<uint32_t>(i->valueint);
-            ++ii;
-            i = i->next;
-            if (ii == 50 && i != NULL) {
+        arr = root["ms"].get<std::vector<uint64_t>>();
+        i = 0;
+        for (auto count : arr) {
+            if (i >= ms.size()) {
                 throw std::runtime_error(
                     "Internal error.. too many \"ms\" samples");
             }
+            ms[i].count = gsl::narrow<uint32_t>(count);
+            ++i;
         }
 
-        arr = getArray(root, "500ms");
-        ii = 0;
-        i = arr->child;
-        while (i) {
-            halfsec[ii].count = gsl::narrow<uint32_t>(i->valueint);
-            ++ii;
-            i = i->next;
-            if (ii == 10 && i != NULL) {
+        arr = root["500ms"].get<std::vector<uint64_t>>();
+        i = 0;
+        for (auto count : arr) {
+            if (i >= halfsec.size()) {
                 throw std::runtime_error(
                     "Internal error.. too many \"halfsec\" samples\"");
             }
+            halfsec[i].count = gsl::narrow<uint32_t>(count);
+            ++i;
         }
 
         try {
-            wayout[0].count = getValue(root, "5s-9s");
-            wayout[1].count = getValue(root, "10s-19s");
-            wayout[2].count = getValue(root, "20s-39s");
-            wayout[3].count = getValue(root, "40s-79s");
-            wayout[4].count = getValue(root, "80s-inf");
+            wayout[0].count = root["5s-9s"].get<uint32_t>();
+            wayout[1].count = root["10s-19s"].get<uint32_t>();
+            wayout[2].count = root["20s-39s"].get<uint32_t>();
+            wayout[3].count = root["40s-79s"].get<uint32_t>();
+            wayout[4].count = root["80s-inf"].get<uint32_t>();
         } catch (...) {
-            wayout[0].count = getValue(root, "wayout");
+            wayout[0].count = root["wayout"].get<uint32_t>();
             oldwayout = true;
         }
 
@@ -308,15 +276,15 @@ static void request_cmd_timings(MemcachedConnection& connection,
     try {
         auto command = opcode2string(opcode);
         if (json) {
-            auto* timings = resp.getTimings();
+            auto timings = resp.getTimings();
             if (timings == nullptr) {
                 if (!skip) {
                     std::cerr << "The server doesn't have information about \""
                               << command << "\"" << std::endl;
                 }
             } else {
-                cJSON_AddStringToObject(timings, "command", command.c_str());
-                std::cout << to_string(timings, verbose) << std::endl;
+                timings["command"] = command;
+                std::cout << timings.dump(JSON_DUMP_INDENT_SIZE) << std::endl;
             }
         } else {
             Timings timings(resp.getTimings());
@@ -373,18 +341,18 @@ static void request_stat_timings(MemcachedConnection& connection,
     }
 
     // And the value for the item should be valid JSON
-    unique_cJSON_ptr json(cJSON_Parse(iter->second.c_str()));
-    if (!json) {
+    nlohmann::json json = nlohmann::json::parse(iter->second);
+    if (json.is_null()) {
         std::cerr << "Failed to fetch statistics for \"" << key << "\". Not json"
                   << std::endl;
         exit(EXIT_FAILURE);
     }
     try {
         if (json_output) {
-            cJSON_AddStringToObject(json.get(), "command", key.c_str());
-            std::cout << to_string(json, verbose) << std::endl;
+            json["command"] = key;
+            std::cout << json.dump(JSON_DUMP_INDENT_SIZE) << std::endl;
         } else {
-            Timings timings(json.get());
+            Timings timings(json);
             if (verbose) {
                 timings.dumpHistogram(key);
             } else {

@@ -1181,14 +1181,17 @@ void BinprotGetCmdTimerCommand::setBucket(const std::string& bucket) {
 void BinprotGetCmdTimerResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
     if (isSuccess()) {
-        timings.reset(cJSON_Parse(getDataString().c_str()));
-        if (!timings) {
-            throw std::runtime_error("BinprotGetCmdTimerResponse::assign: Invalid payload returned");
+        try {
+            timings = nlohmann::json::parse(getDataString());
+        } catch(nlohmann::json::exception& e) {
+            std::string msg("BinprotGetCmdTimerResponse::assign: Invalid payload returned");
+            msg + " Reason: " + e.what();
+            throw std::runtime_error(msg);
         }
     }
 }
-cJSON* BinprotGetCmdTimerResponse::getTimings() const {
-    return timings.get();
+nlohmann::json BinprotGetCmdTimerResponse::getTimings() const {
+    return timings;
 }
 
 void BinprotVerbosityCommand::encode(std::vector<uint8_t>& buf) const {

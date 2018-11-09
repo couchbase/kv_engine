@@ -19,6 +19,7 @@
 #include <boost/optional/optional_fwd.hpp>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/response.h>
+#include <nlohmann/json.hpp>
 #include <platform/sized_buffer.h>
 #include <unordered_set>
 /**
@@ -623,10 +624,10 @@ class BinprotGetCmdTimerResponse : public BinprotResponse {
 public:
     void assign(std::vector<uint8_t>&& buf) override;
 
-    cJSON* getTimings() const;
+    nlohmann::json getTimings() const;
 
 private:
-    unique_cJSON_ptr timings;
+    nlohmann::json timings;
 };
 
 class BinprotVerbosityCommand
