@@ -52,10 +52,11 @@ Filter::Filter(boost::optional<cb::const_char_buffer> jsonFilter,
     // events are allowed
     systemEventsAllowed = true;
 
+    // Assume passthrough/defaultAllowed constructFromJson will correct
+    passthrough = true;
+    defaultAllowed = true;
     if (json.empty()) {
-        // No collection/scopes defined, everything is allowed from the epoch
-        passthrough = true;
-        defaultAllowed = true;
+        return;
     } else {
         try {
             constructFromJson(json, manifest);
@@ -106,12 +107,15 @@ void Filter::constructFromJson(cb::const_char_buffer json,
                                    "Filter::constructFromJson cannot specify "
                                    "both scope and collections");
         }
-
+        passthrough = false;
+        defaultAllowed = false;
         auto scope = cb::getJsonObject(
                 parsed, ScopeKey, ScopeType, "Filter::constructFromJson");
         addScope(scope, manifest);
     } else {
         if (collectionsObject != parsed.end()) {
+            passthrough = false;
+            defaultAllowed = false;
             auto jsonCollections =
                     cb::getJsonObject(parsed,
                                       CollectionsKey,

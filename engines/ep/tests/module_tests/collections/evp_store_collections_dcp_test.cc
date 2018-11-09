@@ -634,6 +634,7 @@ TEST_F(CollectionsDcpTest, collections_manifest_is_ahead) {
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     auto vb = store->getVBucket(vbid);
     vb->updateFromManifest({cm});
+    store_item(vbid, makeStoredDocKey("k", CollectionEntry::dairy), "v");
 
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
@@ -646,6 +647,28 @@ TEST_F(CollectionsDcpTest, collections_manifest_is_ahead) {
     }
 
     createDcpStream({{R"({"uid":"3"})"}});
+    notifyAndStepToCheckpoint();
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    EXPECT_EQ(dcp_last_collection_id, CollectionEntry::fruit.getId());
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            producer->stepAndExpect(producers.get(),
+                                    cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    EXPECT_EQ(dcp_last_collection_id, CollectionEntry::dairy.getId());
+    EXPECT_EQ(dcp_last_system_event, mcbp::systemevent::id::CreateCollection);
+    EXPECT_EQ(
+            ENGINE_SUCCESS,
+            producer->stepAndExpect(producers.get(),
+                                    cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ(dcp_last_collection_id, CollectionEntry::dairy.getId());
 }
 
 // Test that create and delete (full deletion) keeps the collection drop marker
