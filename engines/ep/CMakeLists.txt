@@ -180,8 +180,14 @@ ADD_CUSTOM_COMMAND(OUTPUT
                      ${CMAKE_CURRENT_BINARY_DIR}/src/collections/vbucket_serialised_manifest_entry_generated.h
                   COMMAND
                      ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/collections/ --gen-mutable --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/vbucket_serialised_manifest_entry.fbs
+                  COMMAND
+                     ${CMAKE_COMMAND}
+                     -DDIR1=${CMAKE_CURRENT_SOURCE_DIR}
+                     -DDIR2=${CMAKE_CURRENT_BINARY_DIR}
+                      -P ${CMAKE_CURRENT_SOURCE_DIR}/src/collections/generate_flatbuffers_raw_schema.cmake
                   DEPENDS
                      src/collections/vbucket_serialised_manifest_entry.fbs
+                     src/collections/vbucket_serialised_manifest_entry_raw_schema.in
                   COMMENT "Generating flatbuffers serialied_manifest_entry_generated")
 
 SET(COUCH_KVSTORE_SOURCE src/couch-kvstore/couch-kvstore.cc
