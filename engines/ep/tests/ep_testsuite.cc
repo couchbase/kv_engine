@@ -5731,121 +5731,87 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
     return SUCCESS;
 }
 
-struct multi_meta_args {
-    EngineIface* h;
-    EngineIface* h1;
-    int start;
-    int end;
-};
-
-extern "C" {
-    static void multi_set_with_meta(void *args) {
-        struct multi_meta_args *mma = static_cast<multi_meta_args *>(args);
-
-        for (int i = mma->start; i < mma->end; i++) {
-            // init some random metadata
-            ItemMetaData itm_meta;
-            itm_meta.revSeqno = 10;
-            itm_meta.cas = 0xdeadbeef;
-            itm_meta.exptime = 0;
-            itm_meta.flags = 0xdeadbeef;
-
-            std::stringstream key;
-            key << "key" << i;
-
-            set_with_meta(mma->h,
-                          key.str().c_str(),
-                          key.str().length(),
-                          "somevalueEdited",
-                          15,
-                          Vbid(0),
-                          &itm_meta,
-                          last_cas);
-        }
-    }
-
-    static void multi_del_with_meta(void *args) {
-        struct multi_meta_args *mma = static_cast<multi_meta_args *>(args);
-
-        for (int i = mma->start; i < mma->end; i++) {
-            // init some random metadata
-            ItemMetaData itm_meta;
-            itm_meta.revSeqno = 10;
-            itm_meta.cas = 0xdeadbeef;
-            itm_meta.exptime = 0;
-            itm_meta.flags = 0xdeadbeef;
-
-            std::stringstream key;
-            key << "key" << i;
-
-            del_with_meta(mma->h,
-                          key.str().c_str(),
-                          key.str().length(),
-                          Vbid(0),
-                          &itm_meta,
-                          last_cas);
-        }
-    }
-}
-
 static enum test_result test_multiple_set_delete_with_metas_full_eviction(
         EngineIface* h) {
     checkeq(ENGINE_SUCCESS, get_stats(h, {}, add_stats), "Failed to get stats");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
-    cb_assert(eviction_policy == "full_eviction");
+    checkeq(std::string{"full_eviction"},
+            eviction_policy,
+            "Only available for full eviction");
 
-    int i = 0;
-    while(i < 1000) {
-        uint64_t cas_for_set = last_cas;
-        // init some random metadata
-        ItemMetaData itm_meta;
-        itm_meta.revSeqno = 10;
-        itm_meta.cas = 0xdeadbeef;
-        itm_meta.exptime = 0;
-        itm_meta.flags = 0xdeadbeef;
+    // init some random metadata
+    ItemMetaData itm_meta;
+    itm_meta.revSeqno = 10;
+    itm_meta.cas = 0xdeadbeef;
+    itm_meta.exptime = 0;
+    itm_meta.flags = 0xdeadbeef;
 
-        std::stringstream key;
-        key << "key" << i;
-
+    for (int ii = 0; ii < 1000; ++ii) {
+        std::string key = "key" + std::to_string(ii);
         set_with_meta(h,
-                      key.str().c_str(),
-                      key.str().length(),
+                      key.data(),
+                      key.size(),
                       "somevalue",
                       9,
                       Vbid(0),
                       &itm_meta,
-                      cas_for_set);
-        i++;
+                      0);
     }
 
     wait_for_flusher_to_settle(h);
 
     int curr_vb_items = get_int_stat(h, "vb_0:num_items", "vbucket-details 0");
-    int num_ops_set_with_meta = get_int_stat(h, "ep_num_ops_set_meta");
-    cb_assert(curr_vb_items == num_ops_set_with_meta && curr_vb_items > 0);
+    checkeq(1000, curr_vb_items, "Expected all items to be stored");
+    const auto num_ops_set_with_meta = get_int_stat(h, "ep_num_ops_set_meta");
+    const auto num_ops_del_with_meta = get_int_stat(h, "ep_num_ops_del_meta");
+    checkeq(curr_vb_items,
+            num_ops_set_with_meta,
+            "Expected the number of set_with_meta calls to match the number of "
+            "items");
 
-    cb_thread_t thread1, thread2;
-    struct multi_meta_args mma1, mma2;
-    mma1.h = h;
-    mma1.start = 0;
-    mma1.end = 100;
-    cb_assert(cb_create_thread(&thread1, multi_set_with_meta, &mma1, 0) == 0);
+    // If we try to overwrite the item with the same cas it'll return
+    // KEY_EEXISTS so let's set a different operation.
+    itm_meta.cas = 0xdeadcafe;
+    std::thread thread1{[&h, &itm_meta]() {
+        for (int ii = 0; ii < 100; ii++) {
+            std::string key = "key" + std::to_string(ii);
+            set_with_meta(h,
+                          key.data(),
+                          key.size(),
+                          "somevalueEdited",
+                          15,
+                          Vbid(0),
+                          &itm_meta,
+                          0);
+            checkeq(cb::mcbp::Status::Success,
+                    last_status.load(),
+                    "Expected to modify the item");
+        }
+    }};
 
-    mma2.h = h;
-    mma2.start = curr_vb_items - 100;
-    mma2.end = curr_vb_items;
-    cb_assert(cb_create_thread(&thread2, multi_del_with_meta, &mma2, 0) == 0);
+    std::thread thread2{[&h, &curr_vb_items, &itm_meta]() {
+        for (int ii = curr_vb_items - 100; ii < curr_vb_items; ii++) {
+            std::string key = "key" + std::to_string(ii);
+            del_with_meta(h, key.data(), key.size(), Vbid(0), &itm_meta, 0);
+            checkeq(cb::mcbp::Status::Success,
+                    last_status.load(),
+                    "Expected to modify the item");
+        }
+    }};
 
-    cb_assert(cb_join_thread(thread1) == 0);
-    cb_assert(cb_join_thread(thread2) == 0);
+    thread1.join();
+    thread2.join();
 
     wait_for_flusher_to_settle(h);
 
-    cb_assert(get_int_stat(h, "ep_num_ops_set_meta") > num_ops_set_with_meta);
-    cb_assert(get_int_stat(h, "ep_num_ops_del_meta") > 0);
+    checkeq(num_ops_set_with_meta + 100,
+            get_int_stat(h, "ep_num_ops_set_meta"),
+            "Expected 100 set operations");
+    checkeq(num_ops_del_with_meta + 100,
+            get_int_stat(h, "ep_num_ops_del_meta"),
+            "Expected 100 delete operations");
 
     curr_vb_items = get_int_stat(h, "vb_0:num_items", "vbucket-details 0");
-
     if (isWarmupEnabled(h)) {
         // Restart, and check data is warmed up correctly.
         testHarness->reload_engine(&h,
