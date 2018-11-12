@@ -227,8 +227,7 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = NULL,
-            bool isReplication = false);
+            ExtendedMetaData* emd = NULL);
 
     /**
      * Retrieve a value, but update its TTL first
@@ -264,8 +263,7 @@ public:
                                      GenerateBySeqno genBySeqno,
                                      GenerateCas generateCas,
                                      uint64_t bySeqno,
-                                     ExtendedMetaData* emd,
-                                     bool isReplication);
+                                     ExtendedMetaData* emd);
 
     virtual void reset();
 

@@ -582,9 +582,8 @@ EPVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
                                  const void* cookie,
                                  EventuallyPersistentEngine& engine,
                                  int bgFetchDelay,
-                                 bool metadataOnly,
-                                 bool isReplication) {
-    TempAddStatus rv = addTempStoredValue(hbl, key, isReplication);
+                                 bool metadataOnly) {
+    TempAddStatus rv = addTempStoredValue(hbl, key);
     switch (rv) {
     case TempAddStatus::NoMem:
         return ENGINE_ENOMEM;
@@ -653,7 +652,7 @@ void EPVBucket::scheduleDeferredDeletion(EventuallyPersistentEngine& engine) {
 MutationStatus EPVBucket::insertFromWarmup(Item& itm,
                                          bool eject,
                                          bool keyMetaDataOnly) {
-    if (!hasMemoryForStoredValue(stats, itm, false)) {
+    if (!hasMemoryForStoredValue(stats, itm, UseActiveVBMemThreshold::Yes)) {
         return MutationStatus::NoMem;
     }
 

@@ -176,7 +176,6 @@ AddStatus VBucketTest::public_processAdd(Item& itm) {
                          hbl_sv.second,
                          itm,
                          /*maybeKeyExists*/ true,
-                         /*isReplication*/ false,
                          queueItmCtx,
                          vbucket->lockCollections(itm.getKey()))
             .first;

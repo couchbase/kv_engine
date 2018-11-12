@@ -4815,8 +4815,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
                                      allowExisting,
                                      genBySeqno,
                                      genCas,
-                                     extendedMetaData.get(),
-                                     false /*isReplication*/);
+                                     extendedMetaData.get());
 
     if (ret == ENGINE_SUCCESS) {
         cas = item->getCas();
@@ -5020,8 +5019,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                     genBySeqno,
                                     genCas,
                                     0 /*bySeqno*/,
-                                    extendedMetaData.get(),
-                                    false /*isReplication*/);
+                                    extendedMetaData.get());
 }
 
 ENGINE_ERROR_CODE

@@ -245,8 +245,7 @@ private:
                           const void* cookie,
                           EventuallyPersistentEngine& engine,
                           int bgFetchDelay,
-                          bool metadataOnly,
-                          bool isReplication = false) override;
+                          bool metadataOnly) override;
 
     GetValue getInternalNonResident(const DocKey& key,
                                     const void* cookie,

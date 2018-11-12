@@ -818,7 +818,7 @@ void VBucket::incExpirationStat(const ExpireBy source) {
 }
 
 MutationStatus VBucket::setFromInternal(Item& itm) {
-    if (!hasMemoryForStoredValue(stats, itm, false)) {
+    if (!hasMemoryForStoredValue(stats, itm, UseActiveVBMemThreshold::Yes)) {
         return MutationStatus::NoMem;
     }
     return ht.set(itm);
@@ -1123,7 +1123,6 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
         bool allowExisting,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
-        bool isReplication,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     auto hbl = ht.getLockedBucket(itm.getKey());
     StoredValue* v = ht.unlocked_find(itm.getKey(),
@@ -1162,13 +1161,8 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
             }
         } else {
             if (maybeKeyExistsInFilter(itm.getKey())) {
-                return addTempItemAndBGFetch(hbl,
-                                             itm.getKey(),
-                                             cookie,
-                                             engine,
-                                             bgFetchDelay,
-                                             true,
-                                             isReplication);
+                return addTempItemAndBGFetch(
+                        hbl, itm.getKey(), cookie, engine, bgFetchDelay, true);
             } else {
                 maybeKeyExists = false;
             }
@@ -1203,8 +1197,7 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
                                              true,
                                              queueItmCtx,
                                              {/*no predicate*/},
-                                             maybeKeyExists,
-                                             isReplication);
+                                             maybeKeyExists);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (status) {
@@ -1243,13 +1236,8 @@ ENGINE_ERROR_CODE VBucket::setWithMeta(
             bgFetch(itm.getKey(), cookie, engine, bgFetchDelay, true);
             return ENGINE_EWOULDBLOCK;
         }
-        ret = addTempItemAndBGFetch(hbl,
-                                    itm.getKey(),
-                                    cookie,
-                                    engine,
-                                    bgFetchDelay,
-                                    true,
-                                    isReplication);
+        ret = addTempItemAndBGFetch(
+                hbl, itm.getKey(), cookie, engine, bgFetchDelay, true);
     }
     }
 
@@ -1400,7 +1388,6 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
         GenerateBySeqno genBySeqno,
         GenerateCas generateCas,
         uint64_t bySeqno,
-        bool isReplication,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     const auto& key = readHandle.getKey();
     auto hbl = ht.getLockedBucket(key);
@@ -1430,17 +1417,12 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
             // Item is 1) deleted or not existent in the value eviction case OR
             // 2) deleted or evicted in the full eviction.
             if (maybeKeyExistsInFilter(key)) {
-                return addTempItemAndBGFetch(hbl,
-                                             key,
-                                             cookie,
-                                             engine,
-                                             bgFetchDelay,
-                                             true,
-                                             isReplication);
+                return addTempItemAndBGFetch(
+                        hbl, key, cookie, engine, bgFetchDelay, true);
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.
-                TempAddStatus rv = addTempStoredValue(hbl, key, isReplication);
+                TempAddStatus rv = addTempStoredValue(hbl, key);
                 if (rv == TempAddStatus::NoMem) {
                     return ENGINE_ENOMEM;
                 }
@@ -1454,7 +1436,7 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
     } else {
         if (!v) {
             // We should always try to persist a delete here.
-            TempAddStatus rv = addTempStoredValue(hbl, key, isReplication);
+            TempAddStatus rv = addTempStoredValue(hbl, key);
             if (rv == TempAddStatus::NoMem) {
                 return ENGINE_ENOMEM;
             }
@@ -1498,11 +1480,9 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
                                    backfill,
                                    nullptr /* No pre link step needed */);
 
-        // system xattrs must remain, however no need to prune xattrs if this is
-        // a replication call, the active has done this and we must just store
-        // what we're given
         std::unique_ptr<Item> itm;
-        if (!isReplication && mcbp::datatype::is_xattr(v->getDatatype()) &&
+        if (getState() == vbucket_state_active &&
+            mcbp::datatype::is_xattr(v->getDatatype()) &&
             (itm = pruneXattrDocument(*v, itemMeta))) {
             // A new item has been generated and must be given a new seqno
             queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
@@ -1510,6 +1490,10 @@ ENGINE_ERROR_CODE VBucket::deleteWithMeta(
             std::tie(v, delrv, notifyCtx) =
                     updateStoredValue(hbl, *v, *itm, queueItmCtx);
         } else {
+            // system xattrs must remain, however no need to prune xattrs if
+            // this is a replication call (i.e. not to an active vbucket),
+            // the active has done this and we must just store what we're
+            // given.
             std::tie(delrv, v, notifyCtx) = processSoftDelete(hbl,
                                                               *v,
                                                               cas,
@@ -1659,8 +1643,8 @@ ENGINE_ERROR_CODE VBucket::add(
                                &preLinkDocumentContext);
     AddStatus status;
     boost::optional<VBNotifyCtx> notifyCtx;
-    std::tie(status, notifyCtx) = processAdd(
-            hbl, v, itm, maybeKeyExists, false, queueItmCtx, readHandle);
+    std::tie(status, notifyCtx) =
+            processAdd(hbl, v, itm, maybeKeyExists, queueItmCtx, readHandle);
 
     switch (status) {
     case AddStatus::NoMem:
@@ -2192,15 +2176,17 @@ void VBucket::setMutationMemoryThreshold(double memThreshold) {
     }
 }
 
-bool VBucket::hasMemoryForStoredValue(EPStats& st,
-                                      const Item& item,
-                                      bool isReplication) {
+bool VBucket::hasMemoryForStoredValue(
+        EPStats& st,
+        const Item& item,
+        UseActiveVBMemThreshold useActiveVBMemThreshold) {
     double newSize = static_cast<double>(estimateNewMemoryUsage(st, item));
     double maxSize = static_cast<double>(st.getMaxDataSize());
-    if (isReplication) {
-        return newSize <= (maxSize * st.replicationThrottleThreshold);
-    } else {
+    if (useActiveVBMemThreshold == UseActiveVBMemThreshold::Yes ||
+        getState() == vbucket_state_active) {
         return newSize <= (maxSize * mutationMemThreshold);
+    } else {
+        return newSize <= (maxSize * st.replicationThrottleThreshold);
     }
 }
 
@@ -2297,15 +2283,14 @@ std::pair<MutationStatus, boost::optional<VBNotifyCtx>> VBucket::processSet(
         bool hasMetaData,
         const VBQueueItemCtx& queueItmCtx,
         cb::StoreIfStatus storeIfStatus,
-        bool maybeKeyExists,
-        bool isReplication) {
+        bool maybeKeyExists) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::processSet: htLock not held for " +
                 getId().to_string());
     }
 
-    if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
+    if (!hasMemoryForStoredValue(stats, itm)) {
         return {MutationStatus::NoMem, {}};
     }
 
@@ -2409,7 +2394,6 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         StoredValue*& v,
         Item& itm,
         bool maybeKeyExists,
-        bool isReplication,
         const VBQueueItemCtx& queueItmCtx,
         const Collections::VB::Manifest::CachingReadHandle& readHandle) {
     if (!hbl.getHTLock()) {
@@ -2421,7 +2405,7 @@ std::pair<AddStatus, boost::optional<VBNotifyCtx>> VBucket::processAdd(
         !v->isTempItem() && !readHandle.isLogicallyDeleted(v->getBySeqno())) {
         return {AddStatus::Exists, {}};
     }
-    if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
+    if (!hasMemoryForStoredValue(stats, itm)) {
         return {AddStatus::NoMem, {}};
     }
 
@@ -2594,8 +2578,7 @@ bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
 }
 
 TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                          const DocKey& key,
-                                          bool isReplication) {
+                                          const DocKey& key) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::addTempStoredValue: htLock not held for " +
@@ -2611,7 +2594,7 @@ TempAddStatus VBucket::addTempStoredValue(const HashTable::HashBucketLock& hbl,
              0,
              StoredValue::state_temp_init);
 
-    if (!hasMemoryForStoredValue(stats, itm, isReplication)) {
+    if (!hasMemoryForStoredValue(stats, itm)) {
         return TempAddStatus::NoMem;
     }
 

@@ -496,8 +496,7 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(
                                                  true,
                                                  GenerateBySeqno::No,
                                                  GenerateCas::No,
-                                                 mutation->getExtMetaData(),
-                                                 true);
+                                                 mutation->getExtMetaData());
     }
 
     if (ret != ENGINE_SUCCESS) {
@@ -575,8 +574,7 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(
                                                 GenerateBySeqno::No,
                                                 GenerateCas::No,
                                                 *deletion->getBySeqno(),
-                                                deletion->getExtMetaData(),
-                                                true);
+                                                deletion->getExtMetaData());
     if (ret == ENGINE_KEY_ENOENT) {
         ret = ENGINE_SUCCESS;
     }

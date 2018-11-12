@@ -212,8 +212,7 @@ private:
                           const void* cookie,
                           EventuallyPersistentEngine& engine,
                           int bgFetchDelay,
-                          bool metadataOnly,
-                          bool isReplication = false) override;
+                          bool metadataOnly) override;
 
     /**
      * Helper function to update stats after completion of a background fetch

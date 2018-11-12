@@ -130,6 +130,8 @@ public:
          No
      };
 
+    enum class UseActiveVBMemThreshold { Yes, No };
+
     VBucket(Vbid i,
             vbucket_state_t newState,
             EPStats& st,
@@ -877,8 +879,6 @@ public:
      *                      item exists already
      * @param genBySeqno whether or not to generate sequence number
      * @param genCas
-     * @param isReplication set to true if we are to use replication
-     *                      throttle threshold
      * @param readHandle Reader access to the Item's collection data.
      *
      * @return the result of the store operation
@@ -894,7 +894,6 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno,
             GenerateCas genCas,
-            bool isReplication,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
@@ -939,8 +938,6 @@ public:
      * @param genBySeqno whether or not to generate sequence number
      * @param generateCas whether or not to generate cas
      * @param bySeqno seqno of the key being deleted
-     * @param isReplication set to true if we are to use replication
-     *                      throttle threshold
      * @param readHandle Reader access to the key's collection data.
      *
      * @return the result of the operation
@@ -957,7 +954,6 @@ public:
             GenerateBySeqno genBySeqno,
             GenerateCas generateCas,
             uint64_t bySeqno,
-            bool isReplication,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
     /**
@@ -1356,7 +1352,6 @@ protected:
      * @param storeIfStatus the status of any conditional store predicate
      * @param maybeKeyExists true if the key /may/ exist on disk (as an active,
      *                       alive document). Only valid if `v` is null.
-     * @param isReplication true if issued by consumer (for replication)
      *
      * @return Result indicating the status of the operation and notification
      *                info (if operation was successful).
@@ -1370,8 +1365,7 @@ protected:
             bool hasMetaData,
             const VBQueueItemCtx& queueItmCtx,
             cb::StoreIfStatus storeIfStatus,
-            bool maybeKeyExists = true,
-            bool isReplication = false);
+            bool maybeKeyExists = true);
 
     /**
      * This function checks cas, expiry and other partition (vbucket) related
@@ -1381,7 +1375,6 @@ protected:
      * @param hbl Hash table bucket lock that must be held
      * @param v[in, out] the stored value to do this operation on
      * @param itm Item to be added/updated. On success, its revSeqno is updated
-     * @param isReplication true if issued by consumer (for replication)
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue
      * @param readHandle Reader access to the Item's collection data.
@@ -1394,7 +1387,6 @@ protected:
             StoredValue*& v,
             Item& itm,
             bool maybeKeyExists,
-            bool isReplication,
             const VBQueueItemCtx& queueItmCtx,
             const Collections::VB::Manifest::CachingReadHandle& readHandle);
 
@@ -1503,13 +1495,11 @@ protected:
      *
      * @param hbl Hash table bucket lock that must be held
      * @param key the key for which a temporary item needs to be added
-     * @param isReplication true if issued by consumer (for replication)
      *
      * @return Result indicating the status of the operation
      */
     TempAddStatus addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                     const DocKey& key,
-                                     bool isReplication = false);
+                                     const DocKey& key);
 
     /**
      * Internal wrapper function around the callback to be called when a new
@@ -1548,13 +1538,16 @@ protected:
      *
      * @param st Reference to epstats
      * @param item Item that is being added
-     * @param isReplication Flag indicating if the item is from replication
+     * @param useActiveVBMemThreshold whether active VB memory threshold
+     *                                should be used regardless of VB state.
      *
      * @return True if there is memory for the item; else False
      */
-    bool hasMemoryForStoredValue(EPStats& st,
-                                 const Item& item,
-                                 bool isReplication);
+    bool hasMemoryForStoredValue(
+            EPStats& st,
+            const Item& item,
+            UseActiveVBMemThreshold useActiveVBMemThrehsold =
+                    UseActiveVBMemThreshold::No);
 
     void _addStats(bool details, ADD_STAT add_stat, const void* c);
 
@@ -1712,7 +1705,6 @@ private:
      * @param bgFetchDelay Delay in secs before we run the bgFetch task
      * @param metadataOnly whether the fetch is for a non-resident value or
      *                     metadata of a (possibly) deleted item
-     * @param isReplication indicates if the call is for a replica vbucket
      *
      * @return ENGINE_ERROR_CODE status notified to be to the front end
      */
@@ -1722,8 +1714,7 @@ private:
             const void* cookie,
             EventuallyPersistentEngine& engine,
             int bgFetchDelay,
-            bool metadataOnly,
-            bool isReplication = false) = 0;
+            bool metadataOnly) = 0;
 
     /**
      * Enqueue a background fetch for a key.

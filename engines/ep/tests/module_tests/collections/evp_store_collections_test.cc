@@ -268,8 +268,7 @@ TEST_F(CollectionsTest, unknown_collection_errors) {
                                     GenerateBySeqno::Yes,
                                     GenerateCas::No,
                                     0,
-                                    nullptr,
-                                    false));
+                                    nullptr));
 
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION,
               store->setWithMeta(item2,
@@ -1074,8 +1073,7 @@ TEST_P(CollectionsExpiryLimitTest, set_with_meta) {
                                      true,
                                      GenerateBySeqno::Yes,
                                      GenerateCas::No,
-                                     nullptr,
-                                     false));
+                                     nullptr));
     };
     operation_test(func, GetParam());
 }

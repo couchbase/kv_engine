@@ -1484,8 +1484,7 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
                                         bool allowExisting,
                                         GenerateBySeqno genBySeqno,
                                         GenerateCas genCas,
-                                        ExtendedMetaData* emd,
-                                        bool isReplication) {
+                                        ExtendedMetaData* emd) {
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1533,7 +1532,6 @@ ENGINE_ERROR_CODE KVBucket::setWithMeta(Item& itm,
                                  allowExisting,
                                  genBySeqno,
                                  genCas,
-                                 isReplication,
                                  collectionsRHandle);
         }
     }
@@ -1774,8 +1772,7 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                            GenerateBySeqno genBySeqno,
                                            GenerateCas generateCas,
                                            uint64_t bySeqno,
-                                           ExtendedMetaData* emd,
-                                           bool isReplication) {
+                                           ExtendedMetaData* emd) {
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -1823,7 +1820,6 @@ ENGINE_ERROR_CODE KVBucket::deleteWithMeta(const DocKey& key,
                                   genBySeqno,
                                   generateCas,
                                   bySeqno,
-                                  isReplication,
                                   collectionsRHandle);
     }
 }

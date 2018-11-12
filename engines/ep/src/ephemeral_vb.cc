@@ -581,8 +581,7 @@ EphemeralVBucket::addTempItemAndBGFetch(HashTable::HashBucketLock& hbl,
                                         const void* cookie,
                                         EventuallyPersistentEngine& engine,
                                         int bgFetchDelay,
-                                        bool metadataOnly,
-                                        bool isReplication) {
+                                        bool metadataOnly) {
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
     throw std::logic_error(
             "EphemeralVBucket::addTempItemAndBGFetch() is not valid. "

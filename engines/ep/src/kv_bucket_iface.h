@@ -194,8 +194,6 @@ public:
      *                      item exists already
      * @param genBySeqno whether or not to generate sequence number
      * @param emd ExtendedMetaData class object that contains any ext meta
-     * @param isReplication set to true if we are to use replication
-     *                      throttle threshold
      *
      * @return the result of the store operation
      */
@@ -209,8 +207,7 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = NULL,
-            bool isReplication = false) = 0;
+            ExtendedMetaData* emd = NULL) = 0;
 
     /**
      * Retrieve a value, but update its TTL first
@@ -287,8 +284,6 @@ public:
      * @param generateCas whether or not to generate cas
      * @param bySeqno seqno of the key being deleted
      * @param emd ExtendedMetaData class object that contains any ext meta
-     * @param isReplication set to true if we are to use replication
-     *                      throttle threshold
      *
      * @return the result of the delete operation
      */
@@ -305,8 +300,7 @@ public:
             GenerateBySeqno genBySeqno,
             GenerateCas generateCas,
             uint64_t bySeqno,
-            ExtendedMetaData* emd,
-            bool isReplication) = 0;
+            ExtendedMetaData* emd) = 0;
 
     /**
      * Resets the Bucket. Removes all elements from each VBucket's &
