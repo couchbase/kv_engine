@@ -19,10 +19,10 @@ Optional Extra looks like:
      Byte/     0       |       1       |       2       |       3       |
         /              |               |               |               |
        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-       +---------------+
-      0| vbucket_state |
-       +---------------+
-       Total 1 byte
+       +---------------+---------------+---------------+---------------+
+      0| vbucket_state | vbucket_state | vbucket_state | vbucket_state |
+       +---------------+---------------+---------------+---------------+
+       Total 4 bytes
 
 
 The `vbucket_state` is one of:
@@ -86,8 +86,8 @@ The `vbucket_state` is one of:
       +---------------+---------------+---------------+---------------+
     20| 0x00          | 0x00          | 0x00          | 0x00          |
       +---------------+---------------+---------------+---------------+
-    24| 0x02          |
-      +---------------+
+    24| 0x00          | 0x00          | 0x00          | 0x02          |
+      +---------------+---------------+---------------+---------------+
 
     Header breakdown
     GET_ALL_VB_SEQNOS command
@@ -101,7 +101,7 @@ The `vbucket_state` is one of:
     Total body   (8-11) : 0x00000000          (4)
     Opaque       (12-15): 0xdeadbeef          (3735928559)
     CAS          (16-23): 0x0000000000000000  (Field not used)
-      vb state   (24)   : 0x02                (replica)
+      vb state   (24-27): 0x02                (replica)
 
 #### Get All vBucket Sequence Numbers Binary Response
 
