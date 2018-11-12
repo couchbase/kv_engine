@@ -666,6 +666,10 @@ class MemcachedClient(object):
         self.collection_map = {}
         parsed = json.loads(manifest)
         for scope in parsed['scopes']:
-            for collection in scope['collections']:
-                key = scope[u'name'] + "." + collection[u'name']
-                self.collection_map[key] = int(collection[u'uid'])
+            try:
+                for collection in scope['collections']:
+                    key = scope[u'name'] + "." + collection[u'name']
+                    self.collection_map[key] = int(collection[u'uid'])
+            except KeyError:
+                # A scope with no collections is legal
+                pass
