@@ -23,6 +23,7 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/test_helpers.h"
 
+#include <daemon/protocol/mcbp/engine_errc_2_mcbp.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -98,19 +99,12 @@ public:
      */
     ENGINE_ERROR_CODE callEngine(cb::mcbp::ClientOpcode op,
                                  std::vector<char>& wm) {
+        auto* req = reinterpret_cast<cb::mcbp::Request*>(wm.data());
         if (op == cb::mcbp::ClientOpcode::DelWithMeta ||
             op == cb::mcbp::ClientOpcode::DelqWithMeta) {
-            return engine->deleteWithMeta(
-                    cookie,
-                    reinterpret_cast<protocol_binary_request_delete_with_meta*>(
-                            wm.data()),
-                    this->addResponse);
+            return engine->deleteWithMeta(cookie, *req, this->addResponse);
         } else {
-            return engine->setWithMeta(
-                    cookie,
-                    reinterpret_cast<protocol_binary_request_set_with_meta*>(
-                            wm.data()),
-                    this->addResponse);
+            return engine->setWithMeta(cookie, *req, this->addResponse);
         }
     }
 
@@ -161,6 +155,12 @@ public:
                                        options);
         if (expectedResponseStatus == cb::mcbp::Status::NotMyVbucket) {
             EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, callEngine(op, swm));
+        } else if (expectedResponseStatus == cb::mcbp::Status::Etmpfail) {
+            EXPECT_EQ(ENGINE_TMPFAIL, callEngine(op, swm));
+        } else if (expectedResponseStatus == cb::mcbp::Status::Einval) {
+            EXPECT_EQ(ENGINE_EINVAL, callEngine(op, swm));
+        } else if (expectedResponseStatus == cb::mcbp::Status::KeyEexists) {
+            EXPECT_EQ(ENGINE_KEY_EEXISTS, callEngine(op, swm));
         } else {
             EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
             EXPECT_EQ(expectedResponseStatus, getAddResponseStatus());
@@ -478,36 +478,6 @@ TEST_P(AllWithMetaTest, regenerateCAS) {
     EXPECT_NE(cas, result.item->getCas()) << "CAS didn't change";
 }
 
-TEST_P(AllWithMetaTest, invalid_extlen) {
-    // extlen must be very specific values
-    std::string key = "mykey";
-    std::string value = "myvalue";
-    ItemMetaData itemMeta{1, 0, 0, 0};
-
-    auto swm = buildWithMetaPacket(GetParam(),
-                                   0 /*datatype*/,
-                                   vbid /*vbucket*/,
-                                   0 /*opaque*/,
-                                   0 /*cas*/,
-                                   itemMeta,
-                                   key,
-                                   value);
-
-    auto packet = reinterpret_cast<protocol_binary_request_set_with_meta*>(
-            swm.data());
-    // futz the extlen (yes yes AFL fuzz would be ace)
-    for (uint8_t e = 0; e < 0xff; e++) {
-        if (e == 24 || e == 26 || e == 28 || e == 30) {
-            // Skip the valid sizes
-            continue;
-        }
-        packet->message.header.request.extlen = e;
-        EXPECT_EQ(ENGINE_SUCCESS, callEngine(GetParam(), swm));
-        EXPECT_EQ(cb::mcbp::Status::Einval, getAddResponseStatus());
-        checkGetItem(key, value, itemMeta, ENGINE_KEY_ENOENT);
-    }
-}
-
 // Test to verify that a set with meta will store the data
 // as uncompressed in the hash table
 TEST_F(WithMetaTest, storeUncompressedInOffMode) {
@@ -698,8 +668,7 @@ void WithMetaTest::conflict_del_lose_xattr(cb::mcbp::ClientOpcode op,
                               value,
                               {},
                               options);
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
-    EXPECT_EQ(cb::mcbp::Status::KeyEexists, getAddResponseStatus());
+    EXPECT_EQ(ENGINE_KEY_EEXISTS, callEngine(op, swm));
 }
 
 void WithMetaTest::conflict_lose_xattr(cb::mcbp::ClientOpcode op,
@@ -739,8 +708,7 @@ void WithMetaTest::conflict_lose_xattr(cb::mcbp::ClientOpcode op,
                               value,
                               {},
                               options);
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
-    EXPECT_EQ(cb::mcbp::Status::KeyEexists, getAddResponseStatus());
+    EXPECT_EQ(ENGINE_KEY_EEXISTS, callEngine(op, swm));
 }
 
 TEST_P(DelWithMetaTest, conflict_lose) {
@@ -886,9 +854,15 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
                                       options);
 
         // Now set/del against the item using the test iteration metadata
-        EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, wm));
+        cb::mcbp::Status status;
+        if (td.expectedStatus == cb::mcbp::Status::Success) {
+            EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, wm));
+            status = getAddResponseStatus();
+        } else {
+            auto error = callEngine(op, wm);
+            status = cb::mcbp::to_status(cb::engine_errc(error));
+        }
 
-        auto status = getAddResponseStatus();
         if (isDelete) {
             EXPECT_EQ(td.expectedStatus, status)
                     << "Failed deleteWithMeta for iteration " << counter;
@@ -935,18 +909,20 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
                               xattrValue,
                               {},
                               options);
-    EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
 
     if (isSet) {
+        EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
         EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
         checkGetItem(key, xattrValue, itemMeta);
     } else {
         EXPECT_TRUE(isDelete);
-        auto expected = (options & SKIP_CONFLICT_RESOLUTION_FLAG) != 0
-                                ? cb::mcbp::Status::Success
-                                : cb::mcbp::Status::KeyEexists;
-        // del fails as conflict resolution won't get to the XATTR test
-        EXPECT_EQ(expected, getAddResponseStatus());
+        if ((options & SKIP_CONFLICT_RESOLUTION_FLAG) != 0) {
+            // del fails as conflict resolution won't get to the XATTR test
+            EXPECT_EQ(ENGINE_SUCCESS, callEngine(op, swm));
+            EXPECT_EQ(cb::mcbp::Status::Success, getAddResponseStatus());
+        } else {
+            EXPECT_EQ(ENGINE_KEY_EEXISTS, callEngine(op, swm));
+        }
     }
 }
 

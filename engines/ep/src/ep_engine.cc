@@ -1092,18 +1092,12 @@ static ENGINE_ERROR_CODE processUnknownCommand(
     case cb::mcbp::ClientOpcode::SetqWithMeta:
     case cb::mcbp::ClientOpcode::AddWithMeta:
     case cb::mcbp::ClientOpcode::AddqWithMeta:
-        return h->setWithMeta(
-                cookie,
-                reinterpret_cast<protocol_binary_request_set_with_meta*>(
-                        request),
-                response);
+        return h->setWithMeta(cookie, request->request, response);
+
     case cb::mcbp::ClientOpcode::DelWithMeta:
     case cb::mcbp::ClientOpcode::DelqWithMeta:
-        return h->deleteWithMeta(
-                cookie,
-                reinterpret_cast<protocol_binary_request_delete_with_meta*>(
-                        request),
-                response);
+        return h->deleteWithMeta(cookie, request->request, response);
+
     case cb::mcbp::ClientOpcode::ReturnMeta:
         return h->returnMeta(cookie, request->request, response);
 
@@ -4469,20 +4463,17 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
     return std::make_pair(cb::engine_errc(ret), metadata);
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::decodeWithMetaOptions(
-        cb::const_byte_buffer request,
-        uint8_t extlen,
+bool EventuallyPersistentEngine::decodeWithMetaOptions(
+        cb::const_byte_buffer extras,
         GenerateCas& generateCas,
         CheckConflicts& checkConflicts,
-        PermittedVBStates& permittedVBStates,
-        int& keyOffset) {
-    keyOffset = 0;
+        PermittedVBStates& permittedVBStates) {
     bool forceFlag = false;
-    if (extlen == 28 || extlen == 30) {
+    if (extras.size() == 28 || extras.size() == 30) {
+        const size_t fixed_extras_size = 24;
         uint32_t options;
-        memcpy(&options, request.data() + request.size(), sizeof(options));
+        memcpy(&options, extras.data() + fixed_extras_size, sizeof(options));
         options = ntohl(options);
-        keyOffset = 4; // 4 bytes for options
 
         if (options & SKIP_CONFLICT_RESOLUTION_FLAG) {
             checkConflicts = CheckConflicts::No;
@@ -4516,12 +4507,8 @@ cb::mcbp::Status EventuallyPersistentEngine::decodeWithMetaOptions(
     bool check3 =
             configuration.getConflictResolutionType() != "lww" && forceFlag;
 
-    // So if either check1/2/3 is true, return EINVAL
-    if (check1 || check2 || check3) {
-        return cb::mcbp::Status::Einval;
-    }
-
-    return cb::mcbp::Status::Success;
+    // So if either check1/2/3 is true, return false
+    return !(check1 || check2 || check3);
 }
 
 protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
@@ -4552,115 +4539,82 @@ DocKey EventuallyPersistentEngine::makeDocKey(const void* cookie,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
-        const void* cookie,
-        protocol_binary_request_set_with_meta* request,
-        ADD_RESPONSE response) {
-    // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
-    uint8_t extlen = request->message.header.request.extlen;
-    uint16_t keylen = ntohs(request->message.header.request.keylen);
-    // extlen, the size dicates what is encoded.
-    // 24 = no nmeta and no options
-    // 26 = nmeta
-    // 28 = options (4-byte field)
-    // 30 = options and nmeta (options followed by nmeta)
-    // so 27, 25 etc... are illegal
-    if ((extlen != 24 && extlen != 26 && extlen != 28  && extlen != 30)
-        || keylen == 0) {
-        return sendErrorResponse(response, cb::mcbp::Status::Einval, 0, cookie);
-    }
-
+        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
     if (isDegradedMode()) {
-        return sendErrorResponse(
-                response, cb::mcbp::Status::Etmpfail, 0, cookie);
+        return ENGINE_TMPFAIL;
     }
 
-    const auto opcode = request->message.header.request.getClientOpcode();
-    uint8_t* key = request->bytes + sizeof(request->bytes);
-    Vbid vbucket = request->message.header.request.vbucket.ntoh();
-    uint32_t bodylen = ntohl(request->message.header.request.bodylen);
-    uint8_t datatype = request->message.header.request.datatype;
-    size_t vallen = bodylen - keylen - extlen;
-
-    uint32_t flags = request->message.body.flags;
-    uint32_t expiration = ntohl(request->message.body.expiration);
-    uint64_t seqno = ntohll(request->message.body.seqno);
-    uint64_t cas = ntohll(request->message.body.cas);
+    const auto extras = request.getExtdata();
 
     CheckConflicts checkConflicts = CheckConflicts::Yes;
     PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
-    int keyOffset = 0;
-    auto error = cb::mcbp::Status::Success;
-    if ((error = decodeWithMetaOptions({request->bytes, sizeof(request->bytes)},
-                                       request->message.header.request.extlen,
-                                       generateCas,
-                                       checkConflicts,
-                                       permittedVBStates,
-                                       keyOffset)) !=
-        cb::mcbp::Status::Success) {
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            error,
-                            0,
-                            cookie);
+    if (!decodeWithMetaOptions(
+                extras, generateCas, checkConflicts, permittedVBStates)) {
+        return ENGINE_EINVAL;
     }
 
+    auto value = request.getValue();
     cb::const_byte_buffer emd;
-    if (extlen == 26 || extlen == 30) {
-        uint16_t nmeta = 0;
-        memcpy(&nmeta, key + keyOffset, sizeof(nmeta));
-        keyOffset += 2; // 2 bytes for nmeta
+    if (extras.size() == 26 || extras.size() == 30) {
+        // 26 = nmeta
+        // 30 = options and nmeta (options followed by nmeta)
+        // The extras is stored last, so copy out the two last bytes in
+        // the extras field and use them as nmeta
+        uint16_t nmeta;
+        memcpy(&nmeta, extras.end() - sizeof(nmeta), sizeof(nmeta));
         nmeta = ntohs(nmeta);
-        if (nmeta > 0) {
-            // Correct the vallen
-            vallen -= nmeta;
-            emd = cb::const_byte_buffer{key + keylen + keyOffset + vallen,
-                                        nmeta};
-        }
+        // Correct the vallen
+        emd = {value.data() + value.size() - nmeta, nmeta};
+        value = {value.data(), value.size() - nmeta};
     }
 
-    if (vallen > maxItemSize) {
+    if (value.size() > maxItemSize) {
         EP_LOG_WARN(
                 "Item value size {} for setWithMeta is bigger "
                 "than the max size {} allowed!!!",
-                vallen,
+                value.size(),
                 maxItemSize);
-        return sendErrorResponse(response, cb::mcbp::Status::E2big, 0, cookie);
+        return ENGINE_E2BIG;
     }
 
-
-
-    void *startTimeC = getEngineSpecific(cookie);
     std::chrono::steady_clock::time_point startTime;
-    if (startTimeC) {
-        startTime = std::chrono::steady_clock::time_point(
-                std::chrono::steady_clock::duration(
-                        *(static_cast<hrtime_t*>(startTimeC))));
-    } else {
-        startTime = std::chrono::steady_clock::now();
+    {
+        void* startTimeC = getEngineSpecific(cookie);
+        if (startTimeC) {
+            startTime = std::chrono::steady_clock::time_point(
+                    std::chrono::steady_clock::duration(
+                            *(static_cast<hrtime_t*>(startTimeC))));
+            // Release the allocated memory and store nullptr to avoid
+            // memory leak in an error path
+            cb_free(startTimeC);
+            storeEngineSpecific(cookie, nullptr);
+        } else {
+            startTime = std::chrono::steady_clock::now();
+        }
     }
     TRACE_BEGIN(cookie, TraceCode::SETWITHMETA, startTime);
 
-    bool allowExisting = (opcode == cb::mcbp::ClientOpcode::SetWithMeta ||
-                          opcode == cb::mcbp::ClientOpcode::SetqWithMeta);
+    const auto opcode = request.getClientOpcode();
+    const bool allowExisting = (opcode == cb::mcbp::ClientOpcode::SetWithMeta ||
+                                opcode == cb::mcbp::ClientOpcode::SetqWithMeta);
 
+    auto* req =
+            reinterpret_cast<protocol_binary_request_set_with_meta*>(&request);
+    uint32_t flags = req->message.body.flags;
+    uint32_t expiration = ntohl(req->message.body.expiration);
+    uint64_t seqno = ntohll(req->message.body.seqno);
+    uint64_t cas = ntohll(req->message.body.cas);
     uint64_t bySeqno = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    uint64_t commandCas = ntohll(request->message.header.request.cas);
+    ENGINE_ERROR_CODE ret;
+    uint64_t commandCas = request.getCas();
     try {
-        uint8_t* value = key + keyOffset + keylen;
-        ret = setWithMeta(vbucket,
-                          makeDocKey(cookie, {key + keyOffset, keylen}),
-                          {value, vallen},
+        ret = setWithMeta(request.getVBucket(),
+                          makeDocKey(cookie, request.getKey()),
+                          value,
                           {cas, seqno, flags, time_t(expiration)},
                           false /*isDeleted*/,
-                          datatype,
+                          uint8_t(request.getDatatype()),
                           commandCas,
                           &bySeqno,
                           cookie,
@@ -4671,10 +4625,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
                           generateCas,
                           emd);
     } catch (const std::bad_alloc&) {
-        return sendErrorResponse(response, cb::mcbp::Status::Enomem, 0, cookie);
+        return ENGINE_ENOMEM;
     }
 
-    cas = 0;
     if (ret == ENGINE_SUCCESS) {
         ++stats.numOpsSetMeta;
         auto endTime = std::chrono::steady_clock::now();
@@ -4685,39 +4638,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
 
         cas = commandCas;
     } else if (ret == ENGINE_ENOMEM) {
-        ret = memoryCondition();
+        return memoryCondition();
     } else if (ret == ENGINE_EWOULDBLOCK) {
         ++stats.numOpsGetMetaOnSetWithMeta;
-        if (!startTimeC) {
-            startTimeC = cb_malloc(sizeof(hrtime_t));
-            memcpy(startTimeC, &startTime, sizeof(hrtime_t));
-            storeEngineSpecific(cookie, startTimeC);
-        }
+        auto* startTimeC = cb_malloc(sizeof(hrtime_t));
+        memcpy(startTimeC, &startTime, sizeof(hrtime_t));
+        storeEngineSpecific(cookie, startTimeC);
+        return ret;
+    } else {
+        // Let the framework generate the error message
         return ret;
     }
 
-    auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
-
-    if (startTimeC) {
-        cb_free(startTimeC);
-        startTimeC = nullptr;
-        storeEngineSpecific(cookie, startTimeC);
-    }
-
-    if ((opcode == cb::mcbp::ClientOpcode::SetqWithMeta ||
-         opcode == cb::mcbp::ClientOpcode::AddqWithMeta) &&
-        rc == cb::mcbp::Status::Success) {
+    if (opcode == cb::mcbp::ClientOpcode::SetqWithMeta ||
+        opcode == cb::mcbp::ClientOpcode::AddqWithMeta) {
+        // quiet ops should not produce output
         return ENGINE_SUCCESS;
     }
 
-    if (ret == ENGINE_NOT_MY_VBUCKET) {
-        return ret;
+    if (isMutationExtrasSupported(cookie)) {
+        return sendMutationExtras(response,
+                                  request.getVBucket(),
+                                  bySeqno,
+                                  cb::mcbp::Status::Success,
+                                  cas,
+                                  cookie);
     }
-
-    if (ret == ENGINE_SUCCESS && isMutationExtrasSupported(cookie)) {
-        return sendMutationExtras(response, vbucket, bySeqno, rc, cas, cookie);
-    }
-    return sendErrorResponse(response, rc, cas, cookie);
+    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
@@ -4805,125 +4752,50 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
-        const void* cookie,
-        protocol_binary_request_delete_with_meta* request,
-        ADD_RESPONSE response) {
-    // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
-    uint16_t nkey = ntohs(request->message.header.request.keylen);
-    uint8_t extlen = request->message.header.request.extlen;
-    // extlen, the size dicates what is encoded.
-    // 24 = no nmeta and no options
-    // 26 = nmeta
-    // 28 = options (4-byte field)
-    // 30 = options and nmeta (options followed by nmeta)
-    // so 27, 25 etc... are illegal
-    if ((extlen != 24 && extlen != 26 && extlen != 28  && extlen != 30)
-        || nkey == 0) {
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Einval,
-                            0,
-                            cookie);
-    }
-
+        const void* cookie, cb::mcbp::Request& request, ADD_RESPONSE response) {
     if (isDegradedMode()) {
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            cb::mcbp::Status::Etmpfail,
-                            0,
-                            cookie);
+        return ENGINE_TMPFAIL;
     }
 
-    const auto opcode = request->message.header.request.getClientOpcode();
-    Vbid vbucket = request->message.header.request.vbucket.ntoh();
-    uint64_t cas = ntohll(request->message.header.request.cas);
-    uint32_t bodylen = ntohl(request->message.header.request.bodylen);
-    uint32_t flags = request->message.body.flags;
-    uint32_t delete_time = ntohl(request->message.body.delete_time);
-    uint64_t seqno = ntohll(request->message.body.seqno);
-    uint64_t metacas = ntohll(request->message.body.cas);
-    uint8_t datatype = request->message.header.request.datatype;
-    size_t vallen = bodylen - nkey - extlen;
+    const auto extras = request.getExtdata();
 
     CheckConflicts checkConflicts = CheckConflicts::Yes;
     PermittedVBStates permittedVBStates{vbucket_state_active};
     GenerateCas generateCas = GenerateCas::No;
-    int keyOffset = 0;
-    auto error = cb::mcbp::Status::Success;
-    if ((error = decodeWithMetaOptions({request->bytes, sizeof(request->bytes)},
-                                       extlen,
-                                       generateCas,
-                                       checkConflicts,
-                                       permittedVBStates,
-                                       keyOffset)) !=
-        cb::mcbp::Status::Success) {
-        return sendResponse(response,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            NULL,
-                            0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            error,
-                            0,
-                            cookie);
+    if (!decodeWithMetaOptions(
+                extras, generateCas, checkConflicts, permittedVBStates)) {
+        return ENGINE_EINVAL;
     }
 
+    auto value = request.getValue();
     cb::const_byte_buffer emd;
-    if (extlen == 26 || extlen == 30) {
-        uint16_t nmeta = 0;
-        memcpy(&nmeta, request->bytes + sizeof(request->bytes),
-               sizeof(nmeta));
-        keyOffset += 2; // 2 bytes for nmeta
+    if (extras.size() == 26 || extras.size() == 30) {
+        // 26 = nmeta
+        // 30 = options and nmeta (options followed by nmeta)
+        // The extras is stored last, so copy out the two last bytes in
+        // the extras field and use them as nmeta
+        uint16_t nmeta;
+        memcpy(&nmeta, extras.end() - sizeof(nmeta), sizeof(nmeta));
         nmeta = ntohs(nmeta);
-        if (nmeta > 0) {
-            // Correct the vallen
-            vallen -= nmeta;
-            emd = cb::const_byte_buffer(request->bytes +
-                                                sizeof(request->bytes) + nkey +
-                                                keyOffset + vallen,
-                                        nmeta);
-        }
+        // Correct the vallen
+        emd = {value.data() + value.size() - nmeta, nmeta};
+        value = {value.data(), value.size() - nmeta};
     }
 
-    const uint8_t *keyPtr = request->bytes + keyOffset + sizeof(request->bytes);
-    auto key = makeDocKey(cookie, {keyPtr, nkey});
+    auto key = makeDocKey(cookie, request.getKey());
     uint64_t bySeqno = 0;
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+
+    auto* req = reinterpret_cast<protocol_binary_request_delete_with_meta*>(
+            &request);
+    const uint32_t flags = req->message.body.flags;
+    const uint32_t delete_time = ntohl(req->message.body.delete_time);
+    const uint64_t seqno = ntohll(req->message.body.seqno);
+    const uint64_t metacas = ntohll(req->message.body.cas);
+    uint64_t cas = request.getCas();
+    ENGINE_ERROR_CODE ret;
     try {
-        if (vallen) {
-            // A delete with a value
-            const uint8_t* value = keyPtr + nkey;
-            ret = setWithMeta(vbucket,
-                              key,
-                              {value, vallen},
-                              {metacas, seqno, flags, time_t(delete_time)},
-                              true /*isDeleted*/,
-                              datatype,
-                              cas,
-                              &bySeqno,
-                              cookie,
-                              permittedVBStates,
-                              checkConflicts,
-                              true /*allowExisting*/,
-                              GenerateBySeqno::Yes,
-                              generateCas,
-                              emd);
-        } else {
-            ret = deleteWithMeta(vbucket,
+        if (value.empty()) {
+            ret = deleteWithMeta(request.getVBucket(),
                                  key,
                                  {metacas, seqno, flags, time_t(delete_time)},
                                  cas,
@@ -4934,35 +4806,50 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
                                  GenerateBySeqno::Yes,
                                  generateCas,
                                  emd);
+        } else {
+            // A delete with a value
+            ret = setWithMeta(request.getVBucket(),
+                              key,
+                              value,
+                              {metacas, seqno, flags, time_t(delete_time)},
+                              true /*isDeleted*/,
+                              uint8_t(request.getDatatype()),
+                              cas,
+                              &bySeqno,
+                              cookie,
+                              permittedVBStates,
+                              checkConflicts,
+                              true /*allowExisting*/,
+                              GenerateBySeqno::Yes,
+                              generateCas,
+                              emd);
         }
     } catch (const std::bad_alloc&) {
-        return sendErrorResponse(response, cb::mcbp::Status::Enomem, 0, cookie);
+        return ENGINE_ENOMEM;
     }
 
     if (ret == ENGINE_SUCCESS) {
         stats.numOpsDelMeta++;
     } else if (ret == ENGINE_ENOMEM) {
-        ret = memoryCondition();
-    } else if (ret == ENGINE_EWOULDBLOCK) {
-        return ENGINE_EWOULDBLOCK;
-    }
-
-    auto rc = serverApi->cookie->engine_error2mcbp(cookie, ret);
-
-    if (opcode == cb::mcbp::ClientOpcode::DelqWithMeta &&
-        rc == cb::mcbp::Status::Success) {
-        return ENGINE_SUCCESS;
-    }
-
-    if (ret == ENGINE_NOT_MY_VBUCKET) {
+        return memoryCondition();
+    } else {
         return ret;
     }
 
-    if (ret == ENGINE_SUCCESS && isMutationExtrasSupported(cookie)) {
-        return sendMutationExtras(response, vbucket, bySeqno, rc, cas, cookie);
+    if (request.getClientOpcode() == cb::mcbp::ClientOpcode::DelqWithMeta) {
+        return ENGINE_SUCCESS;
     }
 
-    return sendErrorResponse(response, rc, cas, cookie);
+    if (isMutationExtrasSupported(cookie)) {
+        return sendMutationExtras(response,
+                                  request.getVBucket(),
+                                  bySeqno,
+                                  cb::mcbp::Status::Success,
+                                  cas,
+                                  cookie);
+    }
+
+    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(

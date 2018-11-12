@@ -443,15 +443,13 @@ public:
                                              const DocKey& key,
                                              Vbid vbucket);
 
-    ENGINE_ERROR_CODE setWithMeta(
-            const void* cookie,
-            protocol_binary_request_set_with_meta* request,
-            ADD_RESPONSE response);
+    ENGINE_ERROR_CODE setWithMeta(const void* cookie,
+                                  cb::mcbp::Request& request,
+                                  ADD_RESPONSE response);
 
-    ENGINE_ERROR_CODE deleteWithMeta(
-            const void* cookie,
-            protocol_binary_request_delete_with_meta* request,
-            ADD_RESPONSE response);
+    ENGINE_ERROR_CODE deleteWithMeta(const void* cookie,
+                                     cb::mcbp::Request& request,
+                                     ADD_RESPONSE response);
 
     ENGINE_ERROR_CODE returnMeta(const void* cookie,
                                  cb::mcbp::Request& req,
@@ -829,26 +827,24 @@ protected:
     // server.
     void initializeEngineCallbacks();
 
-    /*
+    /**
      * Private helper method for decoding the options on set/del_with_meta.
      * Tighly coupled to the logic of both those functions, it will
      * take a request pointer and locate and validate any options within.
-     * @param request byte buffer containing the incoming meta request.
-     * @param extlen the extlen value from the incoming meta request.
+     *
+     * @param extras byte buffer containing the incoming meta extras
      * @param generateCas[out] set to Yes if CAS regeneration is enabled.
      * @param checkConflicts[out] set to No if conflict resolution should
      *        not be performed.
      * @param permittedVBStates[out] updates with replica and pending if the
      *        options contain force.
-     * @param keyOffset set to the number of bytes which are to be skipped to
-     *        locate the key.
+     * @return true if everything is OK, false for an invalid combination of
+     *              options
      */
-    cb::mcbp::Status decodeWithMetaOptions(cb::const_byte_buffer request,
-                                           uint8_t extlen,
-                                           GenerateCas& generateCas,
-                                           CheckConflicts& checkConflicts,
-                                           PermittedVBStates& permittedVBStates,
-                                           int& keyOffset);
+    bool decodeWithMetaOptions(cb::const_byte_buffer extras,
+                               GenerateCas& generateCas,
+                               CheckConflicts& checkConflicts,
+                               PermittedVBStates& permittedVBStates);
 
     /**
      * Sends error response, using the specified error and response callback

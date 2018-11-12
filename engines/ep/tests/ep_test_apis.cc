@@ -34,6 +34,14 @@
 
 #include "mock/mock_dcp.h"
 
+struct PacketDeleter {
+    void operator()(protocol_binary_request_header* pkt) {
+        cb_free(pkt);
+    }
+};
+using unique_packet_ptr =
+        std::unique_ptr<protocol_binary_request_header, PacketDeleter>;
+
 template<typename T> class HistogramStats;
 
 // Due to the limitations of the add_stats callback (essentially we cannot pass
@@ -429,45 +437,45 @@ ENGINE_ERROR_CODE delete_with_value(EngineIface* h,
     return ENGINE_ERROR_CODE(ret.first);
 }
 
-void del_with_meta(EngineIface* h,
-                   const char* key,
-                   const size_t keylen,
-                   const Vbid vb,
-                   ItemMetaData* itemMeta,
-                   uint64_t cas_for_delete,
-                   uint32_t options,
-                   const void* cookie,
-                   const std::vector<char>& nmeta,
-                   protocol_binary_datatype_t datatype,
-                   const std::vector<char>& value) {
+ENGINE_ERROR_CODE del_with_meta(EngineIface* h,
+                                const char* key,
+                                const size_t keylen,
+                                const Vbid vb,
+                                ItemMetaData* itemMeta,
+                                uint64_t cas_for_delete,
+                                uint32_t options,
+                                const void* cookie,
+                                const std::vector<char>& nmeta,
+                                protocol_binary_datatype_t datatype,
+                                const std::vector<char>& value) {
     RawItemMetaData meta{itemMeta->cas,
                          itemMeta->revSeqno,
                          itemMeta->flags,
                          itemMeta->exptime};
-    del_with_meta(h,
-                  key,
-                  keylen,
-                  vb,
-                  &meta,
-                  cas_for_delete,
-                  options,
-                  cookie,
-                  nmeta,
-                  datatype,
-                  value);
+    return del_with_meta(h,
+                         key,
+                         keylen,
+                         vb,
+                         &meta,
+                         cas_for_delete,
+                         options,
+                         cookie,
+                         nmeta,
+                         datatype,
+                         value);
 }
 
-void del_with_meta(EngineIface* h,
-                   const char* key,
-                   const size_t keylen,
-                   const Vbid vb,
-                   RawItemMetaData* itemMeta,
-                   uint64_t cas_for_delete,
-                   uint32_t options,
-                   const void* cookie,
-                   const std::vector<char>& nmeta,
-                   protocol_binary_datatype_t datatype,
-                   const std::vector<char>& value) {
+ENGINE_ERROR_CODE del_with_meta(EngineIface* h,
+                                const char* key,
+                                const size_t keylen,
+                                const Vbid vb,
+                                RawItemMetaData* itemMeta,
+                                uint64_t cas_for_delete,
+                                uint32_t options,
+                                const void* cookie,
+                                const std::vector<char>& nmeta,
+                                protocol_binary_datatype_t datatype,
+                                const std::vector<char>& value) {
     int blen = 24;
     std::unique_ptr<char[]> ext(new char[30]);
     std::unique_ptr<ExtendedMetaData> emd;
@@ -486,24 +494,20 @@ void del_with_meta(EngineIface* h,
         blen += sizeof(uint16_t);
     }
 
-    protocol_binary_request_header *pkt;
-    pkt = createPacket(cb::mcbp::ClientOpcode::DelWithMeta,
-                       vb,
-                       cas_for_delete,
-                       ext.get(),
-                       blen,
-                       key,
-                       keylen,
-                       value.data(),
-                       value.size(),
-                       datatype,
-                       nmeta.data(),
-                       nmeta.size());
+    unique_packet_ptr pkt(createPacket(cb::mcbp::ClientOpcode::DelWithMeta,
+                                       vb,
+                                       cas_for_delete,
+                                       ext.get(),
+                                       blen,
+                                       key,
+                                       keylen,
+                                       value.data(),
+                                       value.size(),
+                                       datatype,
+                                       nmeta.data(),
+                                       nmeta.size()));
 
-    checkeq(ENGINE_SUCCESS,
-            h->unknown_command(cookie, pkt, add_response_set_del_meta),
-            "Expected to be able to delete with meta");
-    cb_free(pkt);
+    return h->unknown_command(cookie, pkt.get(), add_response_set_del_meta);
 }
 
 void evict_key(EngineIface* h,
@@ -855,19 +859,19 @@ void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end) {
     }
 }
 
-static void store_with_meta(EngineIface* h,
-                            cb::mcbp::ClientOpcode cmd,
-                            const char* key,
-                            const size_t keylen,
-                            const char* val,
-                            const size_t vallen,
-                            const Vbid vb,
-                            ItemMetaData* itemMeta,
-                            uint64_t cas_for_store,
-                            uint32_t options,
-                            uint8_t datatype,
-                            const void* cookie,
-                            const std::vector<char>& nmeta) {
+static ENGINE_ERROR_CODE store_with_meta(EngineIface* h,
+                                         cb::mcbp::ClientOpcode cmd,
+                                         const char* key,
+                                         const size_t keylen,
+                                         const char* val,
+                                         const size_t vallen,
+                                         const Vbid vb,
+                                         ItemMetaData* itemMeta,
+                                         uint64_t cas_for_store,
+                                         uint32_t options,
+                                         uint8_t datatype,
+                                         const void* cookie,
+                                         const std::vector<char>& nmeta) {
     int blen = 24;
     std::unique_ptr<char[]> ext(new char[30]);
     std::unique_ptr<ExtendedMetaData> emd;
@@ -886,77 +890,74 @@ static void store_with_meta(EngineIface* h,
         blen += sizeof(uint16_t);
     }
 
-    auto* pkt = createPacket(cmd,
-                             vb,
-                             cas_for_store,
-                             ext.get(),
-                             blen,
-                             key,
-                             keylen,
-                             val,
-                             vallen,
-                             datatype,
-                             nmeta.data(),
-                             nmeta.size());
+    unique_packet_ptr pkt(createPacket(cmd,
+                                       vb,
+                                       cas_for_store,
+                                       ext.get(),
+                                       blen,
+                                       key,
+                                       keylen,
+                                       val,
+                                       vallen,
+                                       datatype,
+                                       nmeta.data(),
+                                       nmeta.size()));
 
-    checkeq(ENGINE_SUCCESS,
-            h->unknown_command(cookie, pkt, add_response_set_del_meta),
-            "Expected to be able to store with meta");
-    cb_free(pkt);
+    return h->unknown_command(cookie, pkt.get(), add_response_set_del_meta);
 }
 
-void set_with_meta(EngineIface* h,
-                   const char* key,
-                   const size_t keylen,
-                   const char* val,
-                   const size_t vallen,
-                   const Vbid vb,
-                   ItemMetaData* itemMeta,
-                   uint64_t cas_for_set,
-                   uint32_t options,
-                   uint8_t datatype,
-                   const void* cookie,
-                   const std::vector<char>& nmeta) {
-    store_with_meta(h,
-                    cb::mcbp::ClientOpcode::SetWithMeta,
-                    key,
-                    keylen,
-                    val,
-                    vallen,
-                    vb,
-                    itemMeta,
-                    cas_for_set,
-                    options,
-                    datatype,
-                    cookie,
-                    nmeta);
+ENGINE_ERROR_CODE set_with_meta(EngineIface* h,
+                                const char* key,
+                                const size_t keylen,
+                                const char* val,
+                                const size_t vallen,
+                                const Vbid vb,
+                                ItemMetaData* itemMeta,
+                                uint64_t cas_for_set,
+                                uint32_t options,
+                                uint8_t datatype,
+                                const void* cookie,
+                                const std::vector<char>& nmeta) {
+    return store_with_meta(h,
+                           cb::mcbp::ClientOpcode::SetWithMeta,
+                           key,
+                           keylen,
+                           val,
+                           vallen,
+                           vb,
+                           itemMeta,
+                           cas_for_set,
+                           options,
+                           datatype,
+                           cookie,
+                           nmeta);
 }
 
-void add_with_meta(EngineIface* h,
-                   const char* key,
-                   const size_t keylen,
-                   const char* val,
-                   const size_t vallen,
-                   const Vbid vb,
-                   ItemMetaData* itemMeta,
-                   uint64_t cas_for_add,
-                   uint32_t options,
-                   uint8_t datatype,
-                   const void* cookie,
-                   const std::vector<char>& nmeta) {
-    store_with_meta(h,
-                    cb::mcbp::ClientOpcode::AddWithMeta,
-                    key,
-                    keylen,
-                    val,
-                    vallen,
-                    vb,
-                    itemMeta,
-                    cas_for_add,
-                    options,
-                    datatype,
-                    cookie,
-                    nmeta);
+ENGINE_ERROR_CODE add_with_meta(EngineIface* h,
+                                const char* key,
+                                const size_t keylen,
+                                const char* val,
+                                const size_t vallen,
+                                const Vbid vb,
+                                ItemMetaData* itemMeta,
+                                uint64_t cas_for_add,
+                                uint32_t options,
+                                uint8_t datatype,
+                                const void* cookie,
+                                const std::vector<char>& nmeta) {
+    return store_with_meta(h,
+                           cb::mcbp::ClientOpcode::AddWithMeta,
+                           key,
+                           keylen,
+                           val,
+                           vallen,
+                           vb,
+                           itemMeta,
+                           cas_for_add,
+                           options,
+                           datatype,
+                           cookie,
+                           nmeta);
 }
 
 static ENGINE_ERROR_CODE return_meta(EngineIface* h,

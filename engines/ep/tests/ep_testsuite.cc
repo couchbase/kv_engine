@@ -2295,7 +2295,9 @@ static enum test_result test_bg_meta_stats(EngineIface* h) {
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    add_with_meta(h, "k3", keylen, NULL, 0, Vbid(0), &itemMeta);
+    checkeq(ENGINE_SUCCESS,
+            add_with_meta(h, "k3", keylen, NULL, 0, Vbid(0), &itemMeta),
+            "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Set meta failed");
 
     check(get_meta(h, "k2"), "Get meta failed");
@@ -2802,7 +2804,6 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
         // Set with Meta
         int j;
         for (j = 0; j < 10; j++) {
-            uint64_t cas_for_set = last_cas;
             // init some random metadata
             ItemMetaData itm_meta;
             itm_meta.revSeqno = 10;
@@ -2810,16 +2811,17 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
             itm_meta.exptime = time(NULL) + 300;
             itm_meta.flags = 0xdeadbeef;
 
-            std::stringstream key;
-            key << "swm-" << j;
-            set_with_meta(h,
-                          key.str().c_str(),
-                          key.str().length(),
-                          "somevalue",
-                          9,
-                          Vbid(0),
-                          &itm_meta,
-                          cas_for_set);
+            const std::string key = "swm-" + std::to_string(j);
+            checkeq(ENGINE_SUCCESS,
+                    set_with_meta(h,
+                                  key.data(),
+                                  key.size(),
+                                  "somevalue",
+                                  9,
+                                  Vbid(0),
+                                  &itm_meta,
+                                  0),
+                    "Expected to store item");
         }
 
         checkeq(num_read_attempts,
@@ -2949,17 +2951,19 @@ static enum test_result test_datatype(EngineIface* h) {
     itm_meta.cas = info.cas;
     itm_meta.exptime = info.exptime;
     itm_meta.flags = info.flags;
-    set_with_meta(h,
-                  key1,
-                  strlen(key1),
-                  val1,
-                  strlen(val1),
-                  Vbid(0),
-                  &itm_meta,
-                  last_cas,
-                  0,
-                  info.datatype,
-                  cookie);
+    checkeq(ENGINE_SUCCESS,
+            set_with_meta(h,
+                          key1,
+                          strlen(key1),
+                          val1,
+                          strlen(val1),
+                          Vbid(0),
+                          &itm_meta,
+                          last_cas,
+                          0,
+                          info.datatype,
+                          cookie),
+            "Expected to store item");
 
     ret = get(h, cookie, key1, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
@@ -2987,17 +2991,19 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
     itm_meta.flags = 0;
 
     //SET_WITH_META
-    set_with_meta(h,
-                  key,
-                  strlen(key),
-                  val,
-                  strlen(val),
-                  Vbid(0),
-                  &itm_meta,
-                  0,
-                  0,
-                  datatype,
-                  cookie);
+    checkeq(ENGINE_SUCCESS,
+            set_with_meta(h,
+                          key,
+                          strlen(key),
+                          val,
+                          strlen(val),
+                          Vbid(0),
+                          &itm_meta,
+                          0,
+                          0,
+                          datatype,
+                          cookie),
+            "Expected to store item");
 
     auto ret = get(h, cookie, key, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
@@ -4372,14 +4378,16 @@ static enum test_result test_regression_mb4314(EngineIface* h) {
           "Expected get_meta() to fail");
 
     ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, 0);
-    set_with_meta(h,
-                  "test_regression_mb4314",
-                  22,
-                  NULL,
-                  0,
-                  Vbid(0),
-                  &itm_meta,
-                  errorMetaPair.second.cas);
+    checkeq(ENGINE_SUCCESS,
+            set_with_meta(h,
+                          "test_regression_mb4314",
+                          22,
+                          NULL,
+                          0,
+                          Vbid(0),
+                          &itm_meta,
+                          errorMetaPair.second.cas),
+            "Expected to store item");
 
     // Now try to read the item back:
     auto ret = get(h, NULL, "test_regression_mb4314", Vbid(0));
@@ -5641,8 +5649,16 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
     itm_meta.flags = 0xdeadbeef;
 
     // set with meta for a non-resident item should pass.
-    set_with_meta(
-            h, key, keylen, newVal, newValLen, Vbid(0), &itm_meta, cas_for_set);
+    checkeq(ENGINE_SUCCESS,
+            set_with_meta(h,
+                          key,
+                          keylen,
+                          newVal,
+                          newValLen,
+                          Vbid(0),
+                          &itm_meta,
+                          cas_for_set),
+            "Expected to store item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     return SUCCESS;
@@ -5665,14 +5681,16 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 
     for (int ii = 0; ii < 1000; ++ii) {
         std::string key = "key" + std::to_string(ii);
-        set_with_meta(h,
-                      key.data(),
-                      key.size(),
-                      "somevalue",
-                      9,
-                      Vbid(0),
-                      &itm_meta,
-                      0);
+        checkeq(ENGINE_SUCCESS,
+                set_with_meta(h,
+                              key.data(),
+                              key.size(),
+                              "somevalue",
+                              9,
+                              Vbid(0),
+                              &itm_meta,
+                              0),
+                "Expected to store item");
     }
 
     wait_for_flusher_to_settle(h);
@@ -5692,14 +5710,16 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
     std::thread thread1{[&h, &itm_meta]() {
         for (int ii = 0; ii < 100; ii++) {
             std::string key = "key" + std::to_string(ii);
-            set_with_meta(h,
-                          key.data(),
-                          key.size(),
-                          "somevalueEdited",
-                          15,
-                          Vbid(0),
-                          &itm_meta,
-                          0);
+            checkeq(ENGINE_SUCCESS,
+                    set_with_meta(h,
+                                  key.data(),
+                                  key.size(),
+                                  "somevalueEdited",
+                                  15,
+                                  Vbid(0),
+                                  &itm_meta,
+                                  0),
+                    "Expected to modify the item");
             checkeq(cb::mcbp::Status::Success,
                     last_status.load(),
                     "Expected to modify the item");
@@ -5709,7 +5729,10 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
     std::thread thread2{[&h, &curr_vb_items, &itm_meta]() {
         for (int ii = curr_vb_items - 100; ii < curr_vb_items; ii++) {
             std::string key = "key" + std::to_string(ii);
-            del_with_meta(h, key.data(), key.size(), Vbid(0), &itm_meta, 0);
+            checkeq(ENGINE_SUCCESS,
+                    del_with_meta(
+                            h, key.data(), key.size(), Vbid(0), &itm_meta, 0),
+                    "Expected to delete the item");
             checkeq(cb::mcbp::Status::Success,
                     last_status.load(),
                     "Expected to modify the item");
@@ -5838,7 +5861,9 @@ static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h) {
     evict_key(h, key, Vbid(0), "Ejected.");
 
     // delete an item with meta data
-    del_with_meta(h, key, keylen, Vbid(0), &itemMeta);
+    checkeq(ENGINE_SUCCESS,
+            del_with_meta(h, key, keylen, Vbid(0), &itemMeta),
+            "Expected delete success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
     return SUCCESS;
