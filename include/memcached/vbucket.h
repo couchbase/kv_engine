@@ -22,7 +22,8 @@
 #include <string>
 
 typedef enum : int {
-    vbucket_state_active = 1, /**< Actively servicing a vbucket. */
+    vbucket_state_alive = 0, /**< A value indicating the vBucket is not dead*/
+    vbucket_state_active, /**< Actively servicing a vbucket. */
     vbucket_state_replica, /**< Servicing a vbucket as a replica only. */
     vbucket_state_pending, /**< Pending active. */
     vbucket_state_dead /**< Not in use, pending deletion. */

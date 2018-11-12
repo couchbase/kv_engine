@@ -6787,11 +6787,23 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
         }
     }
 
-    /* Create request to get vb seqno of all vbuckets */
-    get_all_vb_seqnos(h, static_cast<vbucket_state_t>(0), cookie);
+    /* Create a pending vbucket */
+    check(set_vbucket_state(h, Vbid(num_vbuckets), vbucket_state_pending),
+          "Failed to set vbucket state.");
+
+    /* Create request to get vb seqno of all alive vbuckets without supplying
+     * the state*/
+    get_all_vb_seqnos(h, {}, cookie);
 
     /* Check if the response received is correct */
-    verify_all_vb_seqnos(h, 0, num_vbuckets - 1);
+    verify_all_vb_seqnos(h, 0, num_vbuckets);
+
+    /* Create request to get vb seqno of all alive vbuckets by supplying a 0
+     * state */
+    get_all_vb_seqnos(h, vbucket_state_alive, cookie);
+
+    /* Check if the response received is correct */
+    verify_all_vb_seqnos(h, 0, num_vbuckets);
 
     /* Create request to get vb seqno of active vbuckets */
     get_all_vb_seqnos(h, vbucket_state_active, cookie);
@@ -6804,6 +6816,12 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
 
     /* Check if the response received is correct */
     verify_all_vb_seqnos(h, 0, 0);
+
+    /* Create request to get vb seqno of replica vbuckets */
+    get_all_vb_seqnos(h, vbucket_state_pending, cookie);
+
+    /* Check if the response received is correct */
+    verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets);
 
     testHarness->destroy_cookie(cookie);
 

@@ -5840,8 +5840,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     static_assert(sizeof(vbucket_state_t) == 4,
                   "Unexpected size for vbucket_state_t");
     auto extras = request.getExtdata();
-    auto reqState = static_cast<vbucket_state_t>(0);
-    ;
+
+    // By default allow any alive states. If reqState has been set then
+    // filter on that specific state.
+    auto reqState = aliveVBStates;
 
     // if extlen is non-zero, it limits the result to only include the
     // vbuckets in the specified vbucket state.
@@ -5849,8 +5851,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
         if (extras.size() != sizeof(vbucket_state_t)) {
             return ENGINE_EINVAL;
         }
-        reqState = static_cast<vbucket_state_t>(
+
+        // If the received vbucket_state isn't 0 (i.e. all alive states) then
+        // set the specifically requested states.
+        auto desired = static_cast<vbucket_state_t>(
                 ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
+        if (desired != vbucket_state_alive) {
+            reqState = PermittedVBStates(desired);
+        }
     }
 
     std::vector<uint8_t> payload;
@@ -5879,31 +5887,24 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     for (auto id : vbuckets) {
         VBucketPtr vb = getVBucket(id);
         if (vb) {
-            auto state = vb->getState();
-            bool getSeqnoForThisVb = false;
-            if (reqState) {
-                getSeqnoForThisVb = (reqState == state);
+            if (!reqState.test(vb->getState())) {
+                continue;
+            }
+
+            Vbid vbid = id.hton();
+            uint64_t highSeqno;
+            if (vb->getState() == vbucket_state_active) {
+                highSeqno = htonll(vb->getHighSeqno());
             } else {
-                getSeqnoForThisVb = (state == vbucket_state_active) ||
-                                    (state == vbucket_state_replica) ||
-                                    (state == vbucket_state_pending);
+                snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
+                highSeqno = htonll(info.range.end);
             }
-            if (getSeqnoForThisVb) {
-                Vbid vbid = id.hton();
-                uint64_t highSeqno;
-                if (vb->getState() == vbucket_state_active) {
-                    highSeqno = htonll(vb->getHighSeqno());
-                } else {
-                    snapshot_info_t info =
-                            vb->checkpointManager->getSnapshotInfo();
-                    highSeqno = htonll(info.range.end);
-                }
-                auto offset = payload.size();
-                payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));
-                memcpy(payload.data() + offset, &vbid, sizeof(vbid));
-                memcpy(payload.data() + offset + sizeof(vbid), &highSeqno,
-                       sizeof(highSeqno));
-            }
+            auto offset = payload.size();
+            payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));
+            memcpy(payload.data() + offset, &vbid, sizeof(vbid));
+            memcpy(payload.data() + offset + sizeof(vbid),
+                   &highSeqno,
+                   sizeof(highSeqno));
         }
     }
 

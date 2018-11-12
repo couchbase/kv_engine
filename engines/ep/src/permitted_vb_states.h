@@ -26,3 +26,9 @@ struct PermittedVBStatesMap {
 };
 
 using PermittedVBStates = cb::bitset<4, vbucket_state_t, PermittedVBStatesMap>;
+
+/**
+ * Set of vbucket_state_t's that are considered alive
+ */
+const PermittedVBStates aliveVBStates = PermittedVBStates{
+        vbucket_state_active, vbucket_state_replica, vbucket_state_pending};

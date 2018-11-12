@@ -1554,7 +1554,7 @@ static Status get_all_vb_seqnos_validator(Cookie& cookie) {
                   extras.end(),
                   reinterpret_cast<uint8_t*>(&state));
         state = static_cast<vbucket_state_t>(ntohl(state));
-        if (!is_valid_vbucket_state_t(state)) {
+        if (!is_valid_vbucket_state_t(state) && state != vbucket_state_alive) {
             cookie.setErrorContext("Request vbucket state invalid");
             return Status::Einval;
         }
