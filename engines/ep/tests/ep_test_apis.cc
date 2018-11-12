@@ -745,12 +745,12 @@ bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state) {
 }
 
 bool get_all_vb_seqnos(EngineIface* h,
-                       vbucket_state_t state,
+                       boost::optional<vbucket_state_t> state,
                        const void* cookie) {
     unique_request_ptr pkt;
     if (state) {
         char ext[sizeof(vbucket_state_t)];
-        encodeExt(ext, static_cast<uint32_t>(state));
+        encodeExt(ext, static_cast<uint32_t>(*state));
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
                            Vbid(0),
                            0,

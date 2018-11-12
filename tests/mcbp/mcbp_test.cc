@@ -3135,7 +3135,9 @@ TEST_P(GetAllVbSeqnoValidatorTest, InvalidVbucketState) {
 
     for (int ii = 0; ii < 100; ++ii) {
         request.message.body.state = static_cast<vbucket_state_t>(htonl(ii));
-        if (is_valid_vbucket_state_t(static_cast<vbucket_state_t>(ii))) {
+        // Must be a valid vbucket state or 0 (indicating any alive state)
+        if (is_valid_vbucket_state_t(static_cast<vbucket_state_t>(ii)) ||
+            static_cast<vbucket_state_t>(ii) == vbucket_state_alive) {
             EXPECT_EQ(cb::mcbp::Status::Success, validate());
         } else {
             EXPECT_EQ(cb::mcbp::Status::Einval, validate());

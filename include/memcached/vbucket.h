@@ -23,7 +23,8 @@
 #include <string>
 
 typedef enum : int {
-    vbucket_state_active = 1, /**< Actively servicing a vbucket. */
+    vbucket_state_alive = 0, /**< A value indicating the vBucket is not dead*/
+    vbucket_state_active, /**< Actively servicing a vbucket. */
     vbucket_state_replica, /**< Servicing a vbucket as a replica only. */
     vbucket_state_pending, /**< Pending active. */
     vbucket_state_dead /**< Not in use, pending deletion. */
@@ -47,6 +48,12 @@ struct PermittedVBStatesMap {
 };
 
 using PermittedVBStates = cb::bitset<4, vbucket_state_t, PermittedVBStatesMap>;
+
+/**
+ * Set of vbucket_state_t's that are considered alive
+ */
+const PermittedVBStates aliveVBStates = PermittedVBStates{
+        vbucket_state_active, vbucket_state_replica, vbucket_state_replica};
 
 /**
  * Vbid - a custom type class to control the use of vBucket ID's and their

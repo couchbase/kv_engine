@@ -26,11 +26,11 @@ Optional Extra looks like:
 
 
 The `vbucket_state` is one of:
-
- - active: `0x01`
+ - alive:   `0x00` (active + replica + pending)
+ - active:  `0x01`
  - replica: `0x02`
  - pending: `0x03`
- - dead: `0x04`
+ - dead:    `0x04`
 
 
 ### Binary Implementation
