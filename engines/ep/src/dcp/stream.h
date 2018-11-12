@@ -302,6 +302,10 @@ public:
     /// @return true if both includeValue and includeXattributes are set to No,
     /// otherwise return false.
     bool isKeyOnly() const {
+        // IncludeValue::NoWithUnderlyingDatatype doesn't allow key-only,
+        // as we need to fetch the datatype also (which is not present in
+        // revmeta for V0 documents, so in general still requires fetching
+        // the body).
         return (includeValue == IncludeValue::No) &&
                (includeXattributes == IncludeXattrs::No);
     }

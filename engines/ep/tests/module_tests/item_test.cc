@@ -54,13 +54,14 @@ TEST_P(ItemNoValuePruneTest, testPrune) {
     EXPECT_EQ(0, item->getNBytes());
 }
 
-INSTANTIATE_TEST_CASE_P(PruneTestWithParameters,
-                        ItemNoValuePruneTest,
-                        ::testing::Combine(testing::Values(IncludeValue::Yes,
-                                                           IncludeValue::No),
-                                           testing::Values(IncludeXattrs::Yes,
-                                                           IncludeXattrs::No)),
-                                                           );
+INSTANTIATE_TEST_CASE_P(
+        PruneTestWithParameters,
+        ItemNoValuePruneTest,
+        ::testing::Combine(
+                testing::Values(IncludeValue::Yes,
+                                IncludeValue::No,
+                                IncludeValue::NoWithUnderlyingDatatype),
+                testing::Values(IncludeXattrs::Yes, IncludeXattrs::No)), );
 
 class ItemTest : public ::testing::Test {
 public:
@@ -165,6 +166,23 @@ TEST_F(ItemPruneTest, testPruneValue) {
     EXPECT_EQ(0, memcmp(item->getData(), data.data(), item->getNBytes()));
 }
 
+TEST_F(ItemPruneTest, testPruneValueUnderlyingDatatype) {
+    item->pruneValueAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
+                                IncludeXattrs::Yes);
+
+    auto datatype = item->getDataType();
+    EXPECT_TRUE(mcbp::datatype::is_json(datatype))
+            << "Datatype should be preserved with NoWithUnderlyingDatatype";
+    EXPECT_TRUE(mcbp::datatype::is_xattr(datatype));
+    EXPECT_FALSE(mcbp::datatype::is_snappy(datatype));
+    EXPECT_FALSE(mcbp::datatype::is_raw(datatype));
+
+    // data should include the xattrs but not the value
+    auto data = createXattrValue("");
+    EXPECT_EQ(data.size(), item->getNBytes());
+    EXPECT_EQ(0, memcmp(item->getData(), data.data(), item->getNBytes()));
+}
+
 TEST_F(ItemPruneTest, testPruneValueAndXattrs) {
     item->pruneValueAndOrXattrs(IncludeValue::No, IncludeXattrs::No);
 
@@ -173,6 +191,21 @@ TEST_F(ItemPruneTest, testPruneValueAndXattrs) {
     EXPECT_FALSE(mcbp::datatype::is_xattr(datatype));
     EXPECT_FALSE(mcbp::datatype::is_snappy(datatype));
     EXPECT_TRUE(mcbp::datatype::is_raw(datatype));
+
+    // should not have value or xattrs
+    EXPECT_EQ(0, item->getNBytes());
+}
+
+TEST_F(ItemPruneTest, testPruneValueAndXattrsUnderlyingDatatype) {
+    item->pruneValueAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
+                                IncludeXattrs::No);
+
+    auto datatype = item->getDataType();
+    EXPECT_TRUE(mcbp::datatype::is_json(datatype))
+            << "Datatype should be preserved with NoWithUnderlyingDatatype";
+    EXPECT_TRUE(mcbp::datatype::is_xattr(datatype))
+            << "Datatype should be preserved with NoWithUnderlyingDatatype";
+    EXPECT_FALSE(mcbp::datatype::is_snappy(datatype));
 
     // should not have value or xattrs
     EXPECT_EQ(0, item->getNBytes());
@@ -197,6 +230,30 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
     EXPECT_FALSE(mcbp::datatype::is_xattr(dtype));
     EXPECT_FALSE(mcbp::datatype::is_snappy(dtype));
     EXPECT_TRUE(mcbp::datatype::is_raw(dtype));
+
+    // should not have value
+    EXPECT_EQ(0, item->getNBytes());
+}
+
+TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
+    std::string valueData = R"({"json":"yes"})";
+    protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+
+    item = std::make_unique<Item>(makeStoredDocKey("key"),
+                                  0,
+                                  0,
+                                  const_cast<char*>(valueData.data()),
+                                  valueData.size(),
+                                  datatype);
+
+    item->pruneValueAndOrXattrs(IncludeValue::NoWithUnderlyingDatatype,
+                                IncludeXattrs::Yes);
+
+    auto dtype = item->getDataType();
+    EXPECT_TRUE(mcbp::datatype::is_json(dtype))
+            << "Datatype should be preserved with NoWithUnderlyingDatatype";
+    EXPECT_FALSE(mcbp::datatype::is_xattr(dtype));
+    EXPECT_FALSE(mcbp::datatype::is_snappy(dtype));
 
     // should not have value
     EXPECT_EQ(0, item->getNBytes());

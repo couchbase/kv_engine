@@ -110,7 +110,8 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
 
     const auto mask = DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER |
                       DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_NO_VALUE |
-                      DCP_OPEN_COLLECTIONS | DCP_OPEN_INCLUDE_DELETE_TIMES;
+                      DCP_OPEN_COLLECTIONS | DCP_OPEN_INCLUDE_DELETE_TIMES |
+                      DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE;
 
     if (flags & ~mask) {
         LOG_INFO(
@@ -124,6 +125,17 @@ static protocol_binary_response_status dcp_open_validator(const Cookie& cookie)
         LOG_INFO(
                 "Invalid flags combination ({:x}) specified for a DCP "
                 "consumer {}",
+                flags,
+                get_peer_description(cookie));
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    if ((flags & DCP_OPEN_NO_VALUE) &&
+        (flags & DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE)) {
+        LOG_INFO(
+                "Invalid flags combination ({:x}) specified for a DCP "
+                "consumer {} - cannot specify NO_VALUE with "
+                "NO_VALUE_WITH_UNDERLYING_DATATYPE",
                 flags,
                 get_peer_description(cookie));
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
