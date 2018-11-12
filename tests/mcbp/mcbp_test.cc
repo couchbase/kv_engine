@@ -3107,6 +3107,16 @@ TEST_P(GetAllVbSeqnoValidatorTest, CorrectMessageWithState) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
+TEST_P(GetAllVbSeqnoValidatorTest, CorrectMessageWithCollectionID) {
+    EXPECT_EQ(4, sizeof(vbucket_state_t));
+    EXPECT_EQ(4, sizeof(CollectionIDType));
+    request.message.header.request.setExtlen(8);
+    request.message.header.request.setBodylen(8);
+    request.message.body.state = static_cast<vbucket_state_t>(htonl(1));
+    request.message.body.cid = static_cast<CollectionIDType>(htonl(8));
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
+}
+
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidMagic) {
     blob[0] = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
@@ -3136,6 +3146,9 @@ TEST_P(GetAllVbSeqnoValidatorTest, InvalidCas) {
 
 TEST_P(GetAllVbSeqnoValidatorTest, InvalidBody) {
     request.message.header.request.setBodylen(4);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+
+    request.message.header.request.setBodylen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3922,7 +3935,9 @@ TEST_P(CommandSpecificErrorContextTest, GetAllVbSeqnos) {
     header.setKeylen(0);
     header.setBodylen(sizeof(vbucket_state_t) + 1);
     EXPECT_EQ("Request extras must be of length 0 or " +
-                      std::to_string(sizeof(vbucket_state_t)),
+                      std::to_string(sizeof(vbucket_state_t)) + " or " +
+                      std::to_string(sizeof(vbucket_state_t) +
+                                     sizeof(CollectionIDType)),
               validate_error_context(cb::mcbp::ClientOpcode::GetAllVbSeqnos));
 
     // VBucket state must be between 1 and 4

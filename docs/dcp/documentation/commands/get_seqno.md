@@ -103,6 +103,80 @@ The `vbucket_state` is one of:
     CAS          (16-23): 0x0000000000000000  (Field not used)
       vb state   (24-27): 0x02                (replica)
 
+#### Get All vBucket Sequence Numbers Binary Request (restricted to a certain collection for vBuckets in any state)
+
+    Byte/     0       |       1       |       2       |       3       |
+       /              |               |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+---------------+
+     0| 0x80          | 0x48          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+     4| 0x01          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+     8| 0x00          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+    12| 0xde          | 0xad          | 0xbe          | 0xef          |
+      +---------------+---------------+---------------+---------------+
+    16| 0x00          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+    20| 0x00          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+    24| 0x00          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+    28| 0xca          | 0xfe          | 0xf0          | 0x0d          |
+      +---------------+---------------+---------------+---------------+
+    Header breakdown
+    GET_ALL_VB_SEQNOS command
+    Field           (offset) (value)
+    Magic           (0)    : 0x80                (Request)
+    Opcode          (1)    : 0x48                (Get All vBucket Sequence Numbers)
+    Key length      (2,3)  : 0x0000              (0)
+    Extra length    (4)    : 0x01                (1)
+    Data type       (5)    : 0x00                (Field not used)
+    VBucket         (6,7)  : 0x0000              (Field not used)
+    Total body      (8-11) : 0x00000000          (4)
+    Opaque          (12-15): 0xdeadbeef          (3735928559)
+    CAS             (16-23): 0x0000000000000000  (Field not used)
+      vb state      (24-27): 0x00                (any alive state)
+      collection id (28-31): 0xcafef00d          (3405705229)
+
+#### Get All vBucket Sequence Numbers Binary Request (restricted to a certain state and a certain collection)
+
+    Byte/     0       |       1       |       2       |       3       |
+       /              |               |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+---------------+
+     0| 0x80          | 0x48          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+     4| 0x01          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+     8| 0x00          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+    12| 0xde          | 0xad          | 0xbe          | 0xef          |
+      +---------------+---------------+---------------+---------------+
+    16| 0x00          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+    20| 0x00          | 0x00          | 0x00          | 0x00          |
+      +---------------+---------------+---------------+---------------+
+    24| 0x00          | 0x00          | 0x00          | 0x02          |
+      +---------------+---------------+---------------+---------------+
+    28| 0xca          | 0xfe          | 0xf0          | 0x0d          |
+      +---------------+---------------+---------------+---------------+
+    Header breakdown
+    GET_ALL_VB_SEQNOS command
+    Field           (offset) (value)
+    Magic           (0)    : 0x80                (Request)
+    Opcode          (1)    : 0x48                (Get All vBucket Sequence Numbers)
+    Key length      (2,3)  : 0x0000              (0)
+    Extra length    (4)    : 0x01                (1)
+    Data type       (5)    : 0x00                (Field not used)
+    VBucket         (6,7)  : 0x0000              (Field not used)
+    Total body      (8-11) : 0x00000000          (4)
+    Opaque          (12-15): 0xdeadbeef          (3735928559)
+    CAS             (16-23): 0x0000000000000000  (Field not used)
+      vb state      (24-27): 0x02                (replica)
+      collection id (28-31): 0xcafef00d          (3405705229)
+
 #### Get All vBucket Sequence Numbers Binary Response
 
 If the command executes successful (see the status field), the following packet is returned from a server which has 4 vBuckets. The vBuckets in the response are sorted by their number.

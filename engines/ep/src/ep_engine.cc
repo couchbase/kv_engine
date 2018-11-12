@@ -5858,21 +5858,41 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // By default allow any alive states. If reqState has been set then
     // filter on that specific state.
     auto reqState = aliveVBStates;
+    boost::optional<CollectionIDType> reqCollection = {};
 
-    // if extlen is non-zero, it limits the result to only include the
-    // vbuckets in the specified vbucket state.
+    // if extlen is non-zero, it limits the result to either only include the
+    // vbuckets in the specified vbucket state, or in the specified vbucket
+    // state and for the specified collection ID.
     if (extras.size() > 0) {
-        if (extras.size() != sizeof(vbucket_state_t)) {
-            return ENGINE_EINVAL;
-        }
+        auto rawState = ntohl(*reinterpret_cast<const uint32_t*>(
+                extras.substr(0, sizeof(vbucket_state_t)).data()));
 
         // If the received vbucket_state isn't 0 (i.e. all alive states) then
         // set the specifically requested states.
-        auto desired = static_cast<vbucket_state_t>(
-                ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
+        auto desired = static_cast<vbucket_state_t>(rawState);
         if (desired != vbucket_state_alive) {
             reqState = PermittedVBStates(desired);
         }
+
+        if (extras.size() ==
+            (sizeof(vbucket_state_t) + sizeof(CollectionIDType))) {
+            reqCollection = static_cast<CollectionIDType>(
+                    ntohl(*reinterpret_cast<const uint32_t*>(
+                            extras.substr(sizeof(vbucket_state_t),
+                                          sizeof(CollectionIDType))
+                                    .data())));
+        } else if (extras.size() != sizeof(vbucket_state_t)) {
+            return ENGINE_EINVAL;
+        }
+    }
+
+    // If the client ISN'T talking collections, we should just give them the
+    // high seqno of the default collection as that's all they should be aware
+    // of.
+    // If the client IS talking collections but hasn't specified a collection,
+    // we'll give them the actual vBucket high seqno.
+    if (!serverApi->cookie->is_collections_supported(cookie)) {
+        reqCollection = CollectionID::Default;
     }
 
     std::vector<uint8_t> payload;
@@ -5907,11 +5927,30 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
 
             Vbid vbid = id.hton();
             uint64_t highSeqno;
-            if (vb->getState() == vbucket_state_active) {
-                highSeqno = htonll(vb->getHighSeqno());
+
+            if (reqCollection) {
+                // The collection may not exist in any given vBucket.
+                // Check this instead of throwing and catching an
+                // exception.
+                auto handle = vb->lockCollections();
+                if (handle.exists(reqCollection.get())) {
+                    highSeqno = htonll(
+                            vb->lockCollections().getHighSeqno(*reqCollection));
+                } else {
+                    // If the collection doesn't exist in this
+                    // vBucket, return nothing for this vBucket by
+                    // not adding anything to the payload during this
+                    // iteration.
+                    continue;
+                }
             } else {
-                snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
-                highSeqno = htonll(info.range.end);
+                if (vb->getState() == vbucket_state_active) {
+                    highSeqno = htonll(vb->getHighSeqno());
+                } else {
+                    snapshot_info_t info =
+                            vb->checkpointManager->getSnapshotInfo();
+                    highSeqno = htonll(info.range.end);
+                }
             }
             auto offset = payload.size();
             payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));

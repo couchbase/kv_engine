@@ -140,7 +140,7 @@ static void get_histo_stat(EngineIface* h,
                            const char* statname,
                            const char* statkey);
 
-void encodeExt(char *buffer, uint32_t val);
+void encodeExt(char* buffer, uint32_t val, size_t offset = 0);
 void encodeWithMetaExt(char *buffer, ItemMetaData *meta);
 
 void decayingSleep(useconds_t *sleepTime) {
@@ -288,10 +288,9 @@ void add_individual_histo_stat(const char* key,
     }
 }
 
-
-void encodeExt(char *buffer, uint32_t val) {
+void encodeExt(char* buffer, uint32_t val, size_t offset) {
     val = htonl(val);
-    memcpy(buffer, (char*)&val, sizeof(val));
+    memcpy(buffer + offset, (char*)&val, sizeof(val));
 }
 
 void encodeWithMetaExt(char* buffer,
@@ -747,9 +746,28 @@ bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state) {
 
 bool get_all_vb_seqnos(EngineIface* h,
                        boost::optional<vbucket_state_t> state,
-                       const void* cookie) {
+                       const void* cookie,
+                       boost::optional<CollectionIDType> collection) {
     unique_request_ptr pkt;
-    if (state) {
+
+    if (collection) {
+        if (!state) {
+            // Do the same check so we can print for the user...
+            checkeq(state.is_initialized(),
+                    true,
+                    "State must be set when "
+                    "collection is specified");
+            return false;
+        }
+
+        char ext[sizeof(vbucket_state_t) + sizeof(CollectionIDType)];
+        encodeExt(ext, static_cast<uint32_t>(*state));
+        encodeExt(ext, *collection, sizeof(vbucket_state_t));
+        pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
+                           Vbid(0),
+                           0,
+                           {ext,sizeof(vbucket_state_t) + sizeof(CollectionIDType)});
+    } else if (state) {
         char ext[sizeof(vbucket_state_t)];
         encodeExt(ext, static_cast<uint32_t>(*state));
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
@@ -767,7 +785,10 @@ bool get_all_vb_seqnos(EngineIface* h,
     return last_status == cb::mcbp::Status::Success;
 }
 
-void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end) {
+void verify_all_vb_seqnos(EngineIface* h,
+                          int vb_start,
+                          int vb_end,
+                          boost::optional<CollectionID> cid) {
     const int per_vb_resp_size = sizeof(uint16_t) + sizeof(uint64_t);
     const int high_seqno_offset = sizeof(uint16_t);
 
@@ -783,11 +804,23 @@ void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end) {
                 ntohs(*(reinterpret_cast<const uint16_t*>(last_body.data() +
                                                           per_vb_resp_size*i))),
               "vb_id mismatch");
-        /* Check for correct high_seqno */
-        std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
-                                  ":high_seqno");
-        uint64_t high_seqno_vb =
-                get_ull_stat(h, vb_stat_seqno.c_str(), "vbucket-seqno");
+
+        uint64_t high_seqno_vb;
+        if (cid) {
+            // Get high seqno for the collection in the vBucket
+            std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
+                                      ":collection:" + cid->to_string() +
+                                      ":entry:high_seqno");
+            high_seqno_vb = get_ull_stat(
+                    h, vb_stat_seqno.c_str(), "collections-details");
+        } else {
+            // Get high seqno for the vBucket
+            std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
+                                      ":high_seqno");
+            high_seqno_vb =
+                    get_ull_stat(h, vb_stat_seqno.c_str(), "vbucket-seqno");
+        }
+
         checkeq(high_seqno_vb,
                 ntohll(*(reinterpret_cast<const uint64_t*>(last_body.data() +
                                                            per_vb_resp_size*i +

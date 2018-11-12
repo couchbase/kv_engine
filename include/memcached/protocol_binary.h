@@ -35,6 +35,7 @@
 #pragma once
 
 #include "config.h"
+#include "dockey.h"
 
 #include <memcached/vbucket.h>
 #include <platform/socket.h>
@@ -1824,21 +1825,25 @@ typedef protocol_binary_response_no_extras
  *
  * Header: Only opcode field is used.
  *
- * Body: Contains the vbucket state for which the vb sequence numbers are
- *       requested.
- *       Please note that this field is optional, header.request.extlen is
- *       checked to see if it is present. If not present, it implies request
- *       is for all vbucket states.
+ * Body: Contains the vBucket state and/or collection id for which the vb
+ *       sequence numbers are requested.
+ *       Please note that these fields are optional, header.request.extlen is
+ *       checked to see if they are present. If a vBucket state is not
+ *       present or 0 it implies request is for all vbucket states. If
+ *       collection id is not present it it implies the request is for the
+ *       vBucket high seqno number.
+ *
  */
 typedef union {
     struct {
         protocol_binary_request_header header;
         struct {
             vbucket_state_t state;
+            CollectionIDType cid;
         } body;
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) +
-                  sizeof(vbucket_state_t)];
+                  sizeof(vbucket_state_t) + sizeof(CollectionIDType)];
 } protocol_binary_request_get_all_vb_seqnos;
 
 /**

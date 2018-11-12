@@ -246,8 +246,12 @@ bool set_param(EngineIface* h,
 bool set_vbucket_state(EngineIface* h, Vbid vb, vbucket_state_t state);
 bool get_all_vb_seqnos(EngineIface* h,
                        boost::optional<vbucket_state_t> state,
-                       const void* cookie);
-void verify_all_vb_seqnos(EngineIface* h, int vb_start, int vb_end);
+                       const void* cookie,
+                       boost::optional<CollectionIDType> collection = {});
+void verify_all_vb_seqnos(EngineIface* h,
+                          int vb_start,
+                          int vb_end,
+                          boost::optional<CollectionID> collection = {});
 void start_persistence(EngineIface* h);
 void stop_persistence(EngineIface* h);
 

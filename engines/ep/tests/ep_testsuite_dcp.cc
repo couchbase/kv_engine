@@ -6714,6 +6714,7 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h) {
 
 static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
+    testHarness->set_collections_support(cookie, true);
 
     const int num_vbuckets = 10;
 
@@ -6772,18 +6773,47 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
         /* Active vbuckets */
         check(set_vbucket_state(h, Vbid(i), vbucket_state_active),
               "Failed to set vbucket state.");
+    }
+
+    // Set the manifest now that we have created vBuckets
+    h->set_collection_manifest(cookie, R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"},
+                               {"name":"beer", "uid":"8"},
+                               {"name":"brewery","uid":"9"}]}]})");
+    wait_for_flusher_to_settle(h);
+
+    // Now insert items
+    for (int i = 1; i < num_vbuckets; i++) {
+        // Insert into default collection
         for (int j= 0; j < i; j++) {
             std::string key("key" + std::to_string(i));
             checkeq(ENGINE_SUCCESS,
                     store(h,
-                        NULL,
-                        OPERATION_SET,
-                        key.c_str(),
-                        "value",
-                        NULL,
-                        0,
-                        Vbid(i)),
-                  "Failed to store an item.");
+                          cookie,
+                          OPERATION_SET,
+                          key.c_str(),
+                          "value",
+                          NULL,
+                          0,
+                          Vbid(i)),
+                    "Failed to store an item.");
+        }
+
+        // Insert into collection with id 8
+        for (int j = 0; j < i; j++) {
+            std::string str_key("key" + std::to_string(i));
+            StoredDocKey key{str_key, 8};
+            checkeq(ENGINE_SUCCESS,
+                    store(h,
+                          cookie,
+                          OPERATION_SET,
+                          key.c_str(),
+                          "value",
+                          NULL,
+                          0,
+                          Vbid(i)),
+                    "Failed to store an item.");
         }
     }
 
@@ -6822,6 +6852,77 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
 
     /* Check if the response received is correct */
     verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets);
+
+    /* Check the correctness of each collection high seqno (we should return
+     * values for the default collection from replica and pending vBuckets) */
+    get_all_vb_seqnos(h, vbucket_state_alive, cookie, CollectionID::Default);
+    verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
+
+    /*
+     * Check our collections on the active vBucket
+     */
+    get_all_vb_seqnos(h, vbucket_state_active, cookie, 8);
+    verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(8));
+
+    get_all_vb_seqnos(h, vbucket_state_active, cookie, 9);
+    verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(9));
+
+    /*
+     * We won't return anything from the replica (vbid 0) because it doesn't
+     * know about any collections (didn't step dcp).
+     */
+    get_all_vb_seqnos(h, vbucket_state_replica, cookie, 8);
+    verify_all_vb_seqnos(h, 0, -1, CollectionID(8));
+
+    get_all_vb_seqnos(h, vbucket_state_replica, cookie, 9);
+    verify_all_vb_seqnos(h, 0, -1, CollectionID(9));
+
+    /*
+     * We won't have created the collections on the pending VB.
+     */
+    get_all_vb_seqnos(h, vbucket_state_pending, cookie, 8);
+    verify_all_vb_seqnos(h, 0, -1, CollectionID(8));
+
+    get_all_vb_seqnos(h, vbucket_state_pending, cookie, 9);
+    verify_all_vb_seqnos(h, 0, -1, CollectionID(9));
+
+    /*
+     * What happens when we don't tell the server that we can talk collections?
+     */
+
+    testHarness->destroy_cookie(cookie);
+    cookie = testHarness->create_cookie();
+
+    /*
+     * We should just get back the default collection high seqno for the desired
+     * vBuckets, regardless of whether or not we send a collection ID.
+     */
+    get_all_vb_seqnos(h, {}, cookie);
+    verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
+
+    get_all_vb_seqnos(h, vbucket_state_alive, cookie);
+    verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
+
+    get_all_vb_seqnos(h, vbucket_state_active, cookie);
+    verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(0));
+
+    get_all_vb_seqnos(h, vbucket_state_replica, cookie);
+    verify_all_vb_seqnos(h, 0, 0, CollectionID(0));
+
+    get_all_vb_seqnos(h, vbucket_state_pending, cookie);
+    verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets, CollectionID(0));
+
+    get_all_vb_seqnos(h, vbucket_state_alive, cookie, 8);
+    verify_all_vb_seqnos(h, 0, num_vbuckets, CollectionID(0));
+
+    get_all_vb_seqnos(h, vbucket_state_active, cookie, 8);
+    verify_all_vb_seqnos(h, 1, num_vbuckets - 1, CollectionID(0));
+
+    get_all_vb_seqnos(h, vbucket_state_replica, cookie, 8);
+    verify_all_vb_seqnos(h, 0, 0, CollectionID(0));
+
+    get_all_vb_seqnos(h, vbucket_state_pending, cookie, 8);
+    verify_all_vb_seqnos(h, num_vbuckets, num_vbuckets, CollectionID(0));
 
     testHarness->destroy_cookie(cookie);
 

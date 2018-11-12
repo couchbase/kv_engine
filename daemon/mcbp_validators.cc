@@ -1544,15 +1544,23 @@ static Status get_all_vb_seqnos_validator(Cookie& cookie) {
 
     if (!extras.empty()) {
         // extlen is optional, and if non-zero it contains the vbucket
-        // state to report
-        if (extras.size() != sizeof(vbucket_state_t)) {
+        // state to report and potentially also a collection ID
+        if (extras.size() != sizeof(vbucket_state_t) &&
+            extras.size() !=
+                    sizeof(vbucket_state_t) + sizeof(CollectionIDType)) {
             cookie.setErrorContext("Request extras must be of length 0 or " +
-                                   std::to_string(sizeof(vbucket_state_t)));
+                                   std::to_string(sizeof(vbucket_state_t)) +
+                                   " or " +
+                                   std::to_string(sizeof(vbucket_state_t) +
+                                                  sizeof(CollectionIDType)));
             return Status::Einval;
         }
         vbucket_state_t state;
-        std::copy(extras.begin(),
-                  extras.end(),
+
+        // vbucket state will be the first part of extras
+        auto extrasState = extras.substr(0, sizeof(vbucket_state_t));
+        std::copy(extrasState.begin(),
+                  extrasState.end(),
                   reinterpret_cast<uint8_t*>(&state));
         state = static_cast<vbucket_state_t>(ntohl(state));
         if (!is_valid_vbucket_state_t(state) && state != vbucket_state_alive) {
