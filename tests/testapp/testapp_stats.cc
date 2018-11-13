@@ -515,12 +515,16 @@ TEST_P(StatsTest, TestSubdocExecute) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
     stats = conn.stats("subdoc_execute");
+    // parse the string in the json object so that we can access the
+    // json in the string correctly
+    unique_cJSON_ptr parsedPtr;
+    parsedPtr.reset(cJSON_Parse(stats.get()->child->valuestring));
 
-    // @todo inspect the content. for now just validate that we've got a
-    //       single element in there..
-    EXPECT_EQ(1, cJSON_GetArraySize(stats.get()));
-    std::string value(stats.get()->child->valuestring);
-    EXPECT_EQ(0, value.find("{\"ns\":"));
+    // check there are ten items in the json array
+    EXPECT_EQ(10, cJSON_GetArraySize(parsedPtr.get()));
+    // check that there is a ns item in the json array
+    cJSON* nsObj = cJSON_GetObjectItem(parsedPtr.get(), "ns");
+    EXPECT_NE("ns", nsObj->string);
 }
 
 TEST_P(StatsTest, TestResponseStats) {

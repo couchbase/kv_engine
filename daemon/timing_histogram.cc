@@ -17,8 +17,7 @@
 
 #include "timing_histogram.h"
 
-#include <cJSON.h>
-#include <cJSON_utils.h>
+#include <nlohmann/json.hpp>
 #include <platform/platform.h>
 
 #include <atomic>
@@ -142,47 +141,41 @@ void TimingHistogram::add(std::chrono::nanoseconds nsec) {
 }
 
 std::string TimingHistogram::to_string() {
-    unique_cJSON_ptr json(cJSON_CreateObject());
-    cJSON* root = json.get();
+    nlohmann::json json;
 
-    if (root == nullptr) {
-        throw std::bad_alloc();
-    }
+    json["ns"] = get_ns();
 
-    cJSON_AddNumberToObject(root, "ns", get_ns());
-
-    cJSON *array = cJSON_CreateArray();
+    std::vector<uint32_t> array;
     for (auto &us : usec) {
-        cJSON *obj = cJSON_CreateNumber(us);
-        cJSON_AddItemToArray(array, obj);
+        array.push_back(us);
     }
-    cJSON_AddItemToObject(root, "us", array);
+    json["us"] = array;
 
-    array = cJSON_CreateArray();
+    array.clear();
     size_t len = msec.size();
     // element 0 isn't used
     for (size_t ii = 1; ii < len; ii++) {
-        cJSON* obj = cJSON_CreateNumber(get_msec(gsl::narrow<uint8_t>(ii)));
-        cJSON_AddItemToArray(array, obj);
+        array.push_back(get_msec(gsl::narrow<uint8_t>(ii)));
     }
-    cJSON_AddItemToObject(root, "ms", array);
+    json["ms"] = array;
 
-    array = cJSON_CreateArray();
+    array.clear();
+
     for (auto &hs : halfsec) {
-        cJSON *obj = cJSON_CreateNumber(hs);
-        cJSON_AddItemToArray(array, obj);
+        array.push_back(hs);
     }
-    cJSON_AddItemToObject(root, "500ms", array);
+    json["500ms"] = array;
 
-    cJSON_AddNumberToObject(root, "5s-9s", get_wayout(0));
-    cJSON_AddNumberToObject(root, "10s-19s", get_wayout(1));
-    cJSON_AddNumberToObject(root, "20s-39s", get_wayout(2));
-    cJSON_AddNumberToObject(root, "40s-79s", get_wayout(3));
-    cJSON_AddNumberToObject(root, "80s-inf", get_wayout(4));
+    json["5s-9s"] = get_wayout(0);
+    json["10s-19s"] = get_wayout(1);
+    json["20s-39s"] = get_wayout(2);
+    json["40s-79s"] = get_wayout(3);
+    json["80s-inf"] = get_wayout(4);
 
     // for backwards compatibility, add the old wayouts
-    cJSON_AddNumberToObject(root, "wayout", aggregate_wayout());
-    return ::to_string(root, false);
+    json["wayout"] = aggregate_wayout();
+
+    return json.dump();
 }
 
 /* get functions of Timings class */
