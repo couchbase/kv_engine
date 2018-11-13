@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -53,6 +53,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "Tracing";
     case cb::mcbp::Feature::AltRequestSupport:
         return "AltRequestSupport";
+    case cb::mcbp::Feature::SyncReplication:
+        return "SyncReplication";
     }
 
     throw std::invalid_argument(

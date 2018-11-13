@@ -1661,6 +1661,7 @@ The following features is defined:
 | 0x000e | Unordered Execution |
 | 0x000f | Tracing |
 | 0x0010 | AltRequest support |
+| 0x0011 | SyncReplication support |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1718,6 +1719,10 @@ The following features is defined:
                       anything on the server). It may be used from the client to
                       know if it may send the alternative request packet (magic
                       0x08) containing FrameInfo segments.
+* `SyncReplication` This is purely informational (it does not enable/disable
+                    anything on the server). It may be used from the client to
+                    know if it may use synchronous replication tags in the
+                    mutation requests.
 
 Response:
 

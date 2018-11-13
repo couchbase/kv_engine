@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,7 +60,9 @@ enum class Feature : uint16_t {
      */
     Tracing = 0x0f,
     /// Does the server support alternative request packets
-    AltRequestSupport = 0x10
+    AltRequestSupport = 0x10,
+    /// Do the server support Synchronous Replication
+    SyncReplication = 0x11
 };
 
 } // namespace mcbp

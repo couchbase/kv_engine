@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -74,6 +74,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::UnorderedExecution:
         case cb::mcbp::Feature::Tracing:
         case cb::mcbp::Feature::AltRequestSupport:
+        case cb::mcbp::Feature::SyncReplication:
 
             // This isn't very optimal, but we've only got a handfull of elements ;)
             if (!containsFeature(requested, feature)) {
@@ -99,6 +100,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::JSON:
         case cb::mcbp::Feature::Tracing:
         case cb::mcbp::Feature::AltRequestSupport:
+        case cb::mcbp::Feature::SyncReplication:
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::UnorderedExecution:
             // No other dependency
@@ -267,6 +269,9 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::AltRequestSupport:
             // The AltRequestSupport is only informative, but we don't support
             // it yet
+            break;
+        case cb::mcbp::Feature::SyncReplication:
+            // The SyncReplication is only informative, but we support it yet
             break;
         case cb::mcbp::Feature::COLLECTIONS:
             // Allow KV engine to chicken out

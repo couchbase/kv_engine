@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ bool Datatype::isSupported(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::UnorderedExecution:
     case cb::mcbp::Feature::Tracing:
     case cb::mcbp::Feature::AltRequestSupport:
+    case cb::mcbp::Feature::SyncReplication:
         throw std::invalid_argument("Datatype::isSupported invalid feature:" +
                                     std::to_string(int(feature)));
     }
@@ -69,6 +70,7 @@ void Datatype::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::UnorderedExecution:
     case cb::mcbp::Feature::Tracing:
     case cb::mcbp::Feature::AltRequestSupport:
+    case cb::mcbp::Feature::SyncReplication:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

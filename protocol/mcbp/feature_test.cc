@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -35,7 +35,8 @@ const std::map<cb::mcbp::Feature, std::string> blueprint = {
           "Clustermap change notification"},
          {cb::mcbp::Feature::UnorderedExecution, "Unordered execution"},
          {cb::mcbp::Feature::Tracing, "Tracing"},
-         {cb::mcbp::Feature::AltRequestSupport, "AltRequestSupport"}}};
+         {cb::mcbp::Feature::AltRequestSupport, "AltRequestSupport"},
+         {cb::mcbp::Feature::SyncReplication, "SyncReplication"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : blueprint) {
