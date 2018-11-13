@@ -632,7 +632,8 @@ TEST_P(HashTableStatsTest, SoftDelete) {
         auto* sv = ht.unlocked_find(
                 key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
         ASSERT_NE(nullptr, sv);
-        ht.unlocked_softDelete(hbl.getHTLock(), *sv, /*onlyMarkDeleted*/ true);
+        ht.unlocked_softDelete(hbl.getHTLock(), *sv, /*onlyMarkDeleted*/ true,
+                DeleteSource::Explicit);
     }
 
     // Check counts:
@@ -912,7 +913,8 @@ TEST_F(HashTableTest, CopyDeletedItem) {
             copyKey, hbl.getBucketNum(), WantsDeleted::Yes, TrackReference::No);
 
     ht.unlocked_softDelete(
-            hbl.getHTLock(), *replaceSv, /* onlyMarkDeleted */ false);
+            hbl.getHTLock(), *replaceSv, /* onlyMarkDeleted */ false,
+            DeleteSource::Explicit);
     EXPECT_EQ(numItems, ht.getNumItems());
     const int expNumDeletedItems = 1;
     EXPECT_EQ(expNumDeletedItems, ht.getNumDeletedItems());
@@ -962,7 +964,8 @@ TEST_F(HashTableTest, LockAfterDelete) {
                 key, hbl.getBucketNum(), WantsDeleted::No, TrackReference::No);
         TimeTraveller toTheFuture(1985);
         ht.unlocked_softDelete(
-                hbl.getHTLock(), *sv, /* onlyMarkDeleted */ false);
+                hbl.getHTLock(), *sv, /* onlyMarkDeleted */ false,
+                DeleteSource::Explicit);
     }
     ASSERT_EQ(1, ht.getNumItems());
     ASSERT_EQ(1, ht.getNumDeletedItems());

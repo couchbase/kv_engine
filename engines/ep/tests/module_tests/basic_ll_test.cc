@@ -228,8 +228,10 @@ protected:
                                                WantsDeleted::Yes,
                                                TrackReference::No);
 
-            ht.unlocked_softDelete(
-                    hbl.getHTLock(), *sv, /* onlyMarkDeleted */ false);
+            ht.unlocked_softDelete(hbl.getHTLock(),
+                                   *sv,
+                                   /* onlyMarkDeleted */ false,
+                                   DeleteSource::Explicit);
         }
 
         updateItem(highSeqno, key);

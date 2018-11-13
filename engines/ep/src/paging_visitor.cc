@@ -81,8 +81,7 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
                      v.isExpired(startTime) && !v.isDeleted();
     if (isExpired || v.isTempNonExistentItem() || v.isTempDeletedItem()) {
-        std::unique_ptr<Item> it =
-                v.toItem(false, currentBucket->getId(), DeleteSource::TTL);
+        std::unique_ptr<Item> it = v.toItem(false, currentBucket->getId());
         expired.push_back(*it.get());
         return true;
     }

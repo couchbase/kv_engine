@@ -170,7 +170,7 @@ TYPED_TEST(ValueTest, valuelen) {
 TYPED_TEST(ValueTest, valuelenDeletedWithValue) {
     // Check valuelen reports correctly for a StoredValue just marked delete
     // (with xattrs deleted items can have value)
-    this->sv->markDeleted();
+    this->sv->markDeleted(DeleteSource::Explicit);
     EXPECT_EQ(/*value length*/ 5, this->sv->valuelen())
             << "valuelen() expected to be sum of raw value length + extended "
                "meta as we want to keep deleted body";
@@ -178,7 +178,7 @@ TYPED_TEST(ValueTest, valuelenDeletedWithValue) {
 
 TYPED_TEST(ValueTest, valuelenDeletedWithoutValue) {
     // Check valuelen reports correctly for a StoredValue logically delete
-    this->sv->del();
+    this->sv->del(DeleteSource::Explicit);
     EXPECT_TRUE(this->sv->isResident());
     EXPECT_EQ(0, this->sv->valuelen())
             << "valuelen() expected to be 0 as we do not want to keep deleted "
@@ -229,7 +229,7 @@ TYPED_TEST(ValueTest, checkIfTempItemIsResident) {
 TYPED_TEST(ValueTest, checkIfDeletedWithValueIsResident) {
     ///Just mark the value as deleted. There should
     ///be a value and the item should be resident
-    this->sv->markDeleted();
+    this->sv->markDeleted(DeleteSource::Explicit);
     EXPECT_TRUE(this->sv->getValue());
     EXPECT_TRUE(this->sv->isResident());
 
@@ -242,7 +242,7 @@ TYPED_TEST(ValueTest, checkIfDeletedWithValueIsResident) {
  */
 TYPED_TEST(ValueTest, deletedValueDatatypeIsBinary) {
     ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, this->sv->getDatatype());
-    this->sv->del();
+    this->sv->del(DeleteSource::Explicit);
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, this->sv->getDatatype())
             << "datatype should be RAW BYTES after deletion.";
 }

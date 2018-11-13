@@ -333,8 +333,9 @@ public:
      */
     void setValue(const Item& itm);
 
-    void markDeleted() {
+    void markDeleted(DeleteSource delSource) {
         setDeletedPriv(true);
+        setDeletionSource(delSource);
         markDirty();
     }
 
@@ -571,9 +572,10 @@ public:
 
     /**
      * Logically delete this object
+     * @param delSource The source of the deletion
      * @return true if the item was deleted
      */
-    bool del();
+    bool del(DeleteSource delSource);
 
     uint64_t getRevSeqno() const {
         return revSeqno;
@@ -605,13 +607,8 @@ public:
      *
      * @param lck if true, the new item will return a locked CAS ID.
      * @param vbucket the vbucket containing this item.
-     * @param deleteSource If the object is deleted, the source of deletion can
-     *                     be set. Defaults to Explicit.
      */
-    std::unique_ptr<Item> toItem(
-            bool lck,
-            Vbid vbucket,
-            DeleteSource deleteSource = DeleteSource::Explicit) const;
+    std::unique_ptr<Item> toItem(bool lck, Vbid vbucket) const;
 
     /**
      * Generate a new Item with only key and metadata out of this object.
@@ -724,6 +721,19 @@ public:
     /// Return how many bytes are need to store item given key as a StoredValue
     static size_t getRequiredStorage(const DocKey& key);
 
+    /**
+     * @return the deletion source of the stored value
+     */
+    DeleteSource getDeletionSource() const {
+        if (!isDeleted()) {
+            throw std::logic_error(
+                    "StoredValue::getDeletionSource: Called on a non-Deleted "
+                    "item");
+        }
+        uint8_t delTest = bits2.test(deletionSource);
+        return static_cast<DeleteSource>(delTest);
+    }
+
 protected:
     /**
      * Constructor - protected as allocation needs to be done via
@@ -773,8 +783,9 @@ protected:
      * Logically mark this SV as deleted.
      * Implementation for StoredValue instances (dispatched to by del() based
      * on isOrdered==false).
+     * @param delSource The source of the deletion.
      */
-    bool deleteImpl();
+    bool deleteImpl(DeleteSource delSource);
 
     /* Update the value for this SV from the given item.
      * Implementation for StoredValue instances (dispatched to by setValue()).
@@ -821,6 +832,10 @@ protected:
                (uint8_t(bits.test(nruIndex2)) << 1);
     }
 
+    void setDeletionSource(DeleteSource delSource) {
+        bits2.set(deletionSource, static_cast<uint8_t>(delSource));
+    }
+
     friend class StoredValueFactory;
 
     value_t            value;          // 8 bytes
@@ -864,6 +879,16 @@ protected:
     static constexpr size_t staleIndex = 7;
 
     folly::AtomicBitSet<sizeof(uint8_t)> bits;
+
+    // If the stored value is deleted, this stores the source of its deletion.
+    static constexpr size_t deletionSource = 0;
+
+    /**
+     * Much like bits, bits2 consists of compressed members inside an
+     * AtomicBitSet and is stored in StoredValue due to spare bits. Currently,
+     * only 1 of the 8 available bits is used.
+     */
+    folly::AtomicBitSet<sizeof(uint8_t)> bits2;
 
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
 };
@@ -963,7 +988,7 @@ protected:
      * OrderedStoredValue instances (dispatched to by del() based on
      * isOrdered==true).
      */
-    bool deleteImpl();
+    bool deleteImpl(DeleteSource delSource);
 
     /* Update the value for this OSV from the given item.
      * Implementation for OrderedStoredValue instances (dispatched to by

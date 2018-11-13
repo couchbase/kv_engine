@@ -69,6 +69,10 @@ StoredValue::StoredValue(const Item& itm,
         resetValue();
     }
 
+    if (itm.isDeleted()) {
+        setDeletionSource(itm.deletionSource());
+    }
+
     ObjectRegistry::onCreateStoredValue(this);
 }
 
@@ -97,6 +101,10 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
     // object.
     StoredDocKey sKey(other.getKey());
     new (key()) SerialisedDocKey(sKey);
+
+    if (isDeleted()) {
+        setDeletionSource(other.getDeletionSource());
+    }
 
     ObjectRegistry::onCreateStoredValue(this);
 }
@@ -187,11 +195,11 @@ size_t StoredValue::uncompressedValuelen() const {
     return valuelen();
 }
 
-bool StoredValue::del() {
+bool StoredValue::del(DeleteSource delSource) {
     if (isOrdered()) {
-        return static_cast<OrderedStoredValue*>(this)->deleteImpl();
+        return static_cast<OrderedStoredValue*>(this)->deleteImpl(delSource);
     } else {
-        return this->deleteImpl();
+        return this->deleteImpl(delSource);
     }
 }
 
@@ -199,9 +207,7 @@ size_t StoredValue::getRequiredStorage(const DocKey& key) {
     return sizeof(StoredValue) + SerialisedDocKey::getObjectSize(key.size());
 }
 
-std::unique_ptr<Item> StoredValue::toItem(bool lck,
-                                          Vbid vbucket,
-                                          DeleteSource deleteSource) const {
+std::unique_ptr<Item> StoredValue::toItem(bool lck, Vbid vbucket) const {
     auto itm =
             std::make_unique<Item>(getKey(),
                                    getFlags(),
@@ -217,7 +223,7 @@ std::unique_ptr<Item> StoredValue::toItem(bool lck,
     itm->setFreqCounterValue(getFreqCounterValue());
 
     if (isDeleted()) {
-        itm->setDeleted(deleteSource);
+        itm->setDeleted(getDeletionSource());
     }
 
     return itm;
@@ -286,7 +292,7 @@ bool StoredValue::operator==(const StoredValue& other) const {
             isResident() == other.isResident() && getKey() == other.getKey());
 }
 
-bool StoredValue::deleteImpl() {
+bool StoredValue::deleteImpl(DeleteSource delSource) {
     if (isDeleted() && !getValue()) {
         // SV is already marked as deleted and has no value - no further
         // deletion possible.
@@ -298,6 +304,7 @@ bool StoredValue::deleteImpl() {
     setPendingSeqno();
 
     setDeletedPriv(true);
+    setDeletionSource(delSource);
     markDirty();
 
     return true;
@@ -469,8 +476,8 @@ rel_time_t OrderedStoredValue::getDeletedTime() const {
     }
 }
 
-bool OrderedStoredValue::deleteImpl() {
-    if (StoredValue::deleteImpl()) {
+bool OrderedStoredValue::deleteImpl(DeleteSource delSource) {
+    if (StoredValue::deleteImpl(delSource)) {
         // Need to record the time when an item is deleted for subsequent
         //purging (ephemeral_metadata_purge_age).
         setDeletedTime(ep_current_time());

@@ -462,13 +462,14 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
 
 void HashTable::unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
                                     StoredValue& v,
-                                    bool onlyMarkDeleted) {
+                                    bool onlyMarkDeleted,
+                                    DeleteSource delSource) {
     const auto preProps = valueStats.prologue(&v);
 
     if (onlyMarkDeleted) {
-        v.markDeleted();
+        v.markDeleted(delSource);
     } else {
-        v.del();
+        v.del(delSource);
     }
 
     valueStats.epilogue(preProps, &v);

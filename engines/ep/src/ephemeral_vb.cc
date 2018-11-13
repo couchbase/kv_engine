@@ -528,7 +528,8 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
         }
 
         /* Delete the storedvalue */
-        ht.unlocked_softDelete(hbl.getHTLock(), *newSv, onlyMarkDeleted);
+        ht.unlocked_softDelete(
+                hbl.getHTLock(), *newSv, onlyMarkDeleted, deleteSource);
 
         if (queueItmCtx.genBySeqno == GenerateBySeqno::No) {
             newSv->setBySeqno(bySeqno);

@@ -599,10 +599,12 @@ public:
      * @param v Reference to the StoredValue to be soft deleted
      * @param onlyMarkDeleted indicates if we must reset the StoredValue or
      *                        just mark deleted
+     * @param delSource The source of the deletion (explicit or expiry)
      */
     void unlocked_softDelete(const std::unique_lock<std::mutex>& htLock,
                              StoredValue& v,
-                             bool onlyMarkDeleted);
+                             bool onlyMarkDeleted,
+                             DeleteSource delSource);
 
     /**
      * Find an item within a specific bucket assuming you already

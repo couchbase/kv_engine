@@ -472,7 +472,7 @@ void VBucket::handlePreExpiry(const std::unique_lock<std::mutex>& hbl,
                               StoredValue& v) {
     value_t value = v.getValue();
     if (value) {
-        std::unique_ptr<Item> itm(v.toItem(false, id, DeleteSource::TTL));
+        std::unique_ptr<Item> itm(v.toItem(false, id));
         item_info itm_info;
         EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
         itm_info =
@@ -713,7 +713,7 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
                                 DeleteSource deleteSource) {
     VBNotifyCtx notifyCtx;
 
-    queued_item qi(v.toItem(false, getId(), deleteSource));
+    queued_item qi(v.toItem(false, getId()));
 
     // MB-27457: Timestamp deletes only when they don't already have a timestamp
     // assigned. This is here to ensure all deleted items have a timestamp which
