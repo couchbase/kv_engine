@@ -18,6 +18,7 @@
 #pragma once
 
 #include <boost/optional/optional.hpp>
+#include <nlohmann/json_fwd.hpp>
 #include <memory>
 #include <utility>
 
@@ -45,18 +46,35 @@ class HdrHistogram {
     using UniquePtr = std::unique_ptr<struct hdr_histogram, HdrDeleter>;
 
 public:
-#ifdef WIN32
-    /**
-     * The following typedef is required because of an issue msvc2015 where
-     * use of HdrHistogram::Iterator in statwriter.h causes the following
-     * error:
-     * C2079: 'iter' uses undefined struct 'HdrHistogram::hdr_iter'
-     */
-    typedef struct hdr_iter HdrIter;
-    using Iterator = HdrIter;
-#else
-    using Iterator = struct hdr_iter;
-#endif
+    struct Iterator : public hdr_iter {
+        /**
+         * Enum to state the method of iteration the iterator is using
+         */
+        enum class IterMode {
+            /**
+             * Log enum is a type of iterator that will move
+             * though values in logarithmically increasing steps
+             */
+            Log,
+            /**
+             * Linear enum is a type of iterator that will move
+             * though values in consistent step widths
+             */
+            Linear,
+            /**
+             * Recorded enum is a type of iterator that will move
+             * though all values by the finest granularity
+             * supported by the underlying data structure
+             */
+            Recorded,
+            /**
+             * Percentiles enum is a type of iterator that will move
+             * though values by percentile levels step widths
+             */
+            Percentiles
+        };
+        IterMode type;
+    };
 
     /**
      * Constructor for the histogram.
@@ -72,6 +90,15 @@ public:
     HdrHistogram(uint64_t lowestTrackableValue,
                  uint64_t highestTrackableValue,
                  int significantFigures);
+
+    /**
+     * Addition assigment operator for aggregation of histograms
+     * across buckets
+     * @param other histogram to add to this one
+     * @return returns this histogram with the addition of the values from
+     * the other histogram
+     */
+    HdrHistogram& operator+=(const HdrHistogram& other);
 
     /**
      * Adds a value to the histogram.
@@ -107,6 +134,14 @@ public:
     Iterator makeLinearIterator(int64_t valueUnitsPerBucket) const;
 
     /**
+     * Returns a log iterator for the histogram
+     * @param firstBucketWidth  the number of values to be grouped into
+     *        the first bucket bucket
+     * @param log_base base of the logarithm of iterator
+     */
+    Iterator makeLogIterator(int64_t firstBucketWidth, double log_base) const;
+
+    /**
      * Gets the next value and corresponding count from the histogram
      * Returns an optional pair, comprising of:
      * 1) value
@@ -116,6 +151,44 @@ public:
      */
     boost::optional<std::pair<uint64_t, uint64_t>> getNextValueAndCount(
             Iterator& iter) const;
+
+    /**
+     * prints the histogram counts by percentiles to stdout
+     */
+    void printPercentiles();
+
+    /**
+     * dumps the histogram to stdout using a logarithmic iterator
+     * @param firstBucketWidth range of the first bucket
+     * @param log_base base of the logarithmic iterator
+     */
+    void dumpLogValues(int64_t firstBucketWidth, double log_base);
+
+    /**
+     * dumps the histogram to stdout using a linear iterator
+     * @param bucketWidth size of each bucket in terms of range
+     */
+    void dumpLinearValues(int64_t bucketWidth);
+
+    /**
+     * Dumps the histograms count data to a string stream
+     * using the iterator its called with
+     * @param itr iterator to be used to access the histogram data
+     * @return a string stream containing the histogram dump
+     */
+    std::stringstream dumpValues(Iterator& itr);
+
+    /**
+     * Method to get the histogram as a json object
+     * @return a nlohmann::json containing the histograms data iterated linearly
+     */
+    std::unique_ptr<nlohmann::json> to_json();
+
+    /**
+     * Dumps the histogram data to json in a string form
+     * @return a string of histogram json data
+     */
+    std::string to_string();
 
 private:
     /**
