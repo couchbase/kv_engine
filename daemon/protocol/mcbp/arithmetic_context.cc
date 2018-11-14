@@ -25,11 +25,14 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
+using cb::mcbp::request::ArithmeticPayload;
+
 ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
                                                    const cb::mcbp::Request& req)
     : SteppableCommandContext(cookie),
       key(cookie.getRequestKey()),
-      request(reinterpret_cast<const protocol_binary_request_incr&>(req)),
+      extras(*reinterpret_cast<const ArithmeticPayload*>(
+              req.getExtdata().data())),
       cas(req.getCas()),
       vbucket(req.getVBucket()),
       increment(req.getClientOpcode() == cb::mcbp::ClientOpcode::Increment ||
@@ -69,7 +72,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
         // Move on to the next state
         state = State::AllocateNewItem;
     } else if (ret.first == cb::engine_errc::no_such_key) {
-        if (ntohl(request.message.body.expiration) != 0xffffffff) {
+        if (extras.getExpiration() != 0xffffffff) {
             state = State::CreateNewItem;
             ret.first = cb::engine_errc::success;
         } else {
@@ -85,15 +88,15 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::getItem() {
 }
 
 ENGINE_ERROR_CODE ArithmeticCommandContext::createNewItem() {
-    const std::string value{std::to_string(ntohll(request.message.body.initial))};
-    result = ntohll(request.message.body.initial);
+    const std::string value{std::to_string(extras.getInitial())};
+    result = extras.getInitial();
 
     auto pair = bucket_allocate_ex(cookie,
                                    key,
                                    value.size(),
                                    0, // no privileged bytes
                                    0, // Empty flags
-                                   ntohl(request.message.body.expiration),
+                                   extras.getExpiration(),
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    vbucket);
     newitem = std::move(pair.first);
@@ -147,7 +150,7 @@ ENGINE_ERROR_CODE ArithmeticCommandContext::allocateNewItem() {
         return ENGINE_DELTA_BADVAL;
     }
 
-    uint64_t delta = ntohll(request.message.body.delta);
+    auto delta = extras.getDelta();
 
     // perform the op ;)
     if (increment) {

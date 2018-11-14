@@ -227,18 +227,41 @@ typedef protocol_binary_response_no_extras protocol_binary_response_noop;
  * command.
  * See section 4
  */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t delta;
-            uint64_t initial;
-            uint32_t expiration;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 20];
-} protocol_binary_request_incr;
-typedef protocol_binary_request_incr protocol_binary_request_decr;
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class ArithmeticPayload {
+public:
+    uint64_t getDelta() const {
+        return ntohll(delta);
+    }
+    void setDelta(uint64_t delta) {
+        ArithmeticPayload::delta = htonll(delta);
+    }
+    uint64_t getInitial() const {
+        return ntohll(initial);
+    }
+    void setInitial(uint64_t initial) {
+        ArithmeticPayload::initial = htonll(initial);
+    }
+    uint32_t getExpiration() const {
+        return ntohl(expiration);
+    }
+    void setExpiration(uint32_t expiration) {
+        ArithmeticPayload::expiration = htonl(expiration);
+    }
+
+private:
+    uint64_t delta = 0;
+    uint64_t initial = 0;
+    uint32_t expiration = 0;
+};
+static_assert(sizeof(ArithmeticPayload) == 20, "Unexpected struct size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 /**
  * Definition of the response from an incr or decr command

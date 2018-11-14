@@ -877,7 +877,7 @@ static Status stat_validator(Cookie& cookie) {
 
 static Status arithmetic_validator(Cookie& cookie) {
     if (!verify_header(cookie,
-                       20,
+                       sizeof(cb::mcbp::request::ArithmeticPayload),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::NotSet,

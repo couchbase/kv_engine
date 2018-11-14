@@ -124,7 +124,7 @@ protected:
 private:
 
     const DocKey key;
-    const protocol_binary_request_incr& request;
+    const cb::mcbp::request::ArithmeticPayload extras;
     const uint64_t cas;
     const Vbid vbucket;
     const bool increment;

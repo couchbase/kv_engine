@@ -18,7 +18,8 @@
 #include "testapp.h"
 #include "testapp_assert_helper.h"
 
-#include <include/memcached/util.h>
+#include <mcbp/protocol/framebuilder.h>
+#include <memcached/util.h>
 
 /*
  * Set the read/write commands differently than the default values
@@ -79,26 +80,24 @@ off_t mcbp_arithmetic_command(char* buf,
                               uint64_t delta,
                               uint64_t initial,
                               uint32_t exp) {
-    off_t key_offset;
-    protocol_binary_request_incr* request =
-        reinterpret_cast<protocol_binary_request_incr*>(buf);
-    cb_assert(bufsz > sizeof(*request) + keylen);
+    using namespace cb::mcbp;
+    using request::ArithmeticPayload;
 
-    memset(request, 0, sizeof(*request));
-    request->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request->message.header.request.setOpcode(cmd);
-    request->message.header.request.keylen = htons((uint16_t)keylen);
-    request->message.header.request.extlen = 20;
-    request->message.header.request.bodylen = htonl((uint32_t)(keylen + 20));
-    request->message.header.request.opaque = 0xdeadbeef;
-    request->message.body.delta = htonll(delta);
-    request->message.body.initial = htonll(initial);
-    request->message.body.expiration = htonl(exp);
+    ArithmeticPayload extras;
+    extras.setDelta(delta);
+    extras.setInitial(initial);
+    extras.setExpiration(exp);
 
-    key_offset = sizeof(protocol_binary_request_no_extras) + 20;
+    RequestBuilder builder({reinterpret_cast<uint8_t*>(buf), bufsz});
+    builder.setMagic(Magic::ClientRequest);
+    builder.setOpcode(cmd);
+    builder.setExtras(
+            {reinterpret_cast<const uint8_t*>(&extras), sizeof(extras)});
+    builder.setOpaque(0xdeadbeef);
+    builder.setKey({reinterpret_cast<const uint8_t*>(key), keylen});
 
-    memcpy(buf + key_offset, key, keylen);
-    return (off_t)(key_offset + keylen);
+    return off_t(sizeof(cb::mcbp::Request) + sizeof(ArithmeticPayload) +
+                 keylen);
 }
 
 size_t mcbp_storage_command(Frame& frame,
