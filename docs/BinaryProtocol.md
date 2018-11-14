@@ -113,6 +113,27 @@ Allow this command to be reordered. FrameInfo encoded as:
       +---------------+
      0|  ID:0 | Len:0 |
 
+##### ID:1 - Durability Requirement
+
+This command contains durability requirements. FrameInfo encoded as:
+
+    Byte/     0           |
+       /                  |
+      |0 1 2 3 4 5 6 7    |
+      +-------------------+
+     0|  ID:1 | Len:1 or 3|
+
+
+The size of the durability requirement is variable length. The first byte
+contains the durability level by using the following table:
+
+    0x01 = majority
+    0x02 = majority and persist on master
+    0x03 = persist to majority
+
+The (optional) 2nd and 3rd byte contains the timeout specified in
+milliseconds (network byte order). If omitted the default
+timeout value configured on the server will be used.
 
 ### Response header
 
