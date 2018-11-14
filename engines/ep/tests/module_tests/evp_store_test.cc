@@ -898,6 +898,29 @@ TEST_P(EPStoreEvictionTest, memOverheadMemoryCondition) {
     }
 }
 
+// MB-26907: Test that the item count is properly updated upon an expiry for
+//           both value and full eviction.
+TEST_P(EPStoreEvictionTest, expiredItemCount) {
+    // Create a item with an expiry time
+    auto expiryTime = time(NULL) + 290;
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "expire value", expiryTime);
+    ASSERT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+
+    flush_vbucket_to_disk(vbid);
+    ASSERT_EQ(1, store->getVBucket(vbid)->getNumItems());
+
+    // Travel past expiry time
+    TimeTraveller arron(64000);
+
+    // Trigger expiry on a GET
+    auto gv = store->get(key, vbid, cookie, NONE);
+    EXPECT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    flush_vbucket_to_disk(vbid);
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
+}
+
 class EPStoreEvictionBloomOnOffTest
         : public EPBucketTest,
           public ::testing::WithParamInterface<

@@ -2768,7 +2768,7 @@ TEST_F(WarmupTest, produce_delete_times) {
 }
 
 // MB-26907
-TEST_F(WarmupTest, enable_expiry_output) {
+TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto cookie = create_mock_cookie();
@@ -2803,7 +2803,7 @@ TEST_F(WarmupTest, enable_expiry_output) {
                            MutationResponse::mutationBaseMsgBytes +
                            (sizeof("value") - 1) + (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
-
+    EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, dcp_last_op);
     TimeTraveller arron(64000);
 
@@ -2821,6 +2821,7 @@ TEST_F(WarmupTest, enable_expiry_output) {
                      MutationResponse::deletionV2BaseMsgBytes +
                      (sizeof("KEY3") - 1);
     EXPECT_EQ(expectedBytes, producer->getBytesOutstanding());
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
 
     destroy_mock_cookie(cookie);
     producer->closeAllStreams();
@@ -3648,6 +3649,9 @@ void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
     // Enable DCP Expiry opcodes
     producer->setDCPExpiry(true);
 
+    // Clear dcp_last_op to make sure it isn't just carried over
+    clear_dcp_data();
+
     uint64_t rollbackSeqno = 0;
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
@@ -3688,6 +3692,98 @@ TEST_F(SingleThreadedEPBucketTest, backfill_expiry_output) {
 // MB-26907
 TEST_F(SingleThreadedEPBucketTest, backfill_expiry_output_xattr) {
     backfillExpiryOutput(true);
+}
+// MB-26907
+// This tests the success of expiry opcodes being sent over DCP
+// during a backfill after a slow stream request on any type of bucket.
+TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Expire a key;
+    auto expiryTime = ep_real_time() + 32000;
+    store_item(
+            vbid, {"KEY3", DocKeyEncodesCollectionId::No}, "value", expiryTime);
+
+    // Trigger expiry on the stored item
+    TimeTraveller arron(64000);
+
+    // Trigger expiry on a GET
+    auto gv = store->get(
+            {"KEY3", DocKeyEncodesCollectionId::No}, vbid, cookie, NONE);
+    ASSERT_EQ(ENGINE_KEY_ENOENT, gv.getStatus());
+
+    // Now flush to disk
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto vb = store->getVBuckets().getBucket(vbid);
+
+    // Remove closed checkpoint so that backfill will take place
+    bool newcp;
+    EXPECT_EQ(1,
+              vb->checkpointManager->removeClosedUnrefCheckpoints(*vb, newcp));
+
+    // Setup DCP
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "mb-26907",
+                                                      /*flags*/ 0);
+
+    MockDcpMessageProducers producers(engine.get());
+
+    ASSERT_TRUE(producer->getReadyQueue().empty());
+
+    // Enable DCP Expiry opcodes
+    producer->setDCPExpiry(true);
+
+    uint64_t rollbackSeqno = 0;
+    ASSERT_NE(nullptr, vb.get());
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno
+                                      vb->getHighSeqno(), // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      0, // snap_start_seqno
+                                      vb->getHighSeqno(), // snap_end_seqno
+                                      &rollbackSeqno,
+                                      &dcpAddFailoverLog,
+                                      {}));
+
+    auto vb0Stream =
+            dynamic_cast<ActiveStream*>(producer->findStream(vbid).get());
+    ASSERT_NE(nullptr, vb0Stream);
+
+    ASSERT_TRUE(vb0Stream->handleSlowStream());
+
+    // Clear dcp_last_op to make sure it isn't just carried over
+    clear_dcp_data();
+
+    // Run a backfill
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+    // backfill:scan()
+    runNextTask(lpAuxioQ);
+    // backfill:complete()
+    runNextTask(lpAuxioQ);
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, dcp_last_op);
+
+    EXPECT_EQ(ENGINE_SUCCESS, producer->step(&producers));
+    EXPECT_EQ(expiryTime, dcp_last_delete_time);
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpExpiration, dcp_last_op);
+    EXPECT_EQ("KEY3", dcp_last_key);
+
+    if (persistent()) {
+        // backfill:finished() - "CheckedExecutor failed fetchNextTask" thrown
+        // if called with an ephemeral bucket.
+        runNextTask(lpAuxioQ);
+    }
+    producer->closeAllStreams();
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
 }
 
 void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(

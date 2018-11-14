@@ -41,7 +41,17 @@ protected:
         SingleThreadedKVBucketTest::SetUp();
     }
 
-    void setupProducer() {
+    ENGINE_ERROR_CODE getInternalHelper(const DocKey& key) {
+        return getInternal(key,
+                           vbid,
+                           cookie,
+                           vbucket_state_t::vbucket_state_active,
+                           get_options_t::NONE)
+                .getStatus();
+    }
+
+    void setupProducer(EnableExpiryOutput enableExpiryOutput,
+                       uint32_t exp_time = 0) {
         // Setup the source (active) Bucket.
         EXPECT_EQ(ENGINE_SUCCESS,
                   engine->getKVBucket()->setVBucketState(
@@ -50,15 +60,30 @@ protected:
                           false));
 
         // Add some items to the source Bucket.
-        store_item(vbid, makeStoredDocKey("key1"), "value");
-        store_item(vbid, makeStoredDocKey("key2"), "value");
-        store_item(vbid, makeStoredDocKey("key3"), "value");
+        auto key1 = makeStoredDocKey("key1");
+        auto key2 = makeStoredDocKey("key2");
+        auto key3 = makeStoredDocKey("key3");
+        store_item(vbid, key1, "value", exp_time);
+        store_item(vbid, key2, "value", exp_time);
+        store_item(vbid, key3, "value", exp_time);
 
         // Create the Dcp producer.
         producer = SingleThreadedKVBucketTest::createDcpProducer(
                 cookie,
                 IncludeDeleteTime::No);
         producer->scheduleCheckpointProcessorTask();
+
+        // Setup conditions for expirations
+        auto expectedGetOutcome = ENGINE_SUCCESS;
+        if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+            producer->setDCPExpiry(true);
+            expectedGetOutcome = ENGINE_KEY_ENOENT;
+        }
+        TimeTraveller t(1080);
+        // Trigger expiries on a get, or just check that the key exists
+        EXPECT_EQ(expectedGetOutcome, getInternalHelper(key1));
+        EXPECT_EQ(expectedGetOutcome, getInternalHelper(key2));
+        EXPECT_EQ(expectedGetOutcome, getInternalHelper(key3));
 
         auto& sourceVb = *engine->getVBucket(vbid);
         producer->mockActiveStreamRequest(consumerStream->getFlags(),
@@ -156,6 +181,8 @@ protected:
     void readNextConsumerMsgAndSendToProducer(ActiveStream& producerStream,
                                               PassiveStream& consumerStream);
 
+    void takeoverTest(EnableExpiryOutput enableExpiryOutput);
+
     std::unique_ptr<SynchronousEPEngine> replicaEngine;
     std::shared_ptr<MockDcpConsumer> consumer;
     // Non-owning ptr to consumer stream (owned by consumer).
@@ -197,14 +224,20 @@ void DCPLoopbackStreamTest::readNextConsumerMsgAndSendToProducer(
  * producer. Test finishes when the PassiveStream is set to Dead - at that point
  * the vBucket should be active on the destination; and dead on the source.
  */
-TEST_F(DCPLoopbackStreamTest, Takeover) {
+void DCPLoopbackStreamTest::takeoverTest(
+        EnableExpiryOutput enableExpiryOutput) {
+    uint32_t exp_time = 0;
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        exp_time = time(NULL) + 256;
+    }
+
     // Note: the order matters.
     //     First, we setup the Consumer with the given flags and we discard the
     //     StreamRequest message from the Consumer::readyQ.
     //     Then, we simulate the Producer receiving the StreamRequest just
     //     by creating the Producer with the Consumer's flags
     setupConsumer(DCP_ADD_STREAM_FLAG_TAKEOVER);
-    setupProducer();
+    setupProducer(enableExpiryOutput, exp_time);
 
     // Both streams created. Check state is as expected.
     ASSERT_TRUE(producerStream->isTakeoverSend())
@@ -218,7 +251,8 @@ TEST_F(DCPLoopbackStreamTest, Takeover) {
         // Cannot pass mutation/deletion directly to the consumer as the object
         // is different
         if (producerMsg->getEvent() == DcpResponse::Event::Mutation ||
-            producerMsg->getEvent() == DcpResponse::Event::Deletion) {
+            producerMsg->getEvent() == DcpResponse::Event::Deletion ||
+            producerMsg->getEvent() == DcpResponse::Event::Expiration) {
             producerMsg = std::make_unique<MutationConsumerMessage>(
                     *static_cast<MutationResponse*>(producerMsg.get()));
         }
@@ -246,4 +280,29 @@ TEST_F(DCPLoopbackStreamTest, Takeover) {
     EXPECT_EQ(vbucket_state_active, destVb->getState())
             << "Expected consumer vBucket to be active once stream "
                "transitions to dead.";
+
+    // Check final state of items
+    auto num_left = 3, expired = 0;
+    auto expectedOutcome = ENGINE_SUCCESS;
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        num_left = 0, expired = 3;
+        expectedOutcome = ENGINE_KEY_ENOENT;
+    }
+    EXPECT_EQ(num_left, sourceVb->getNumItems());
+    EXPECT_EQ(num_left, destVb->getNumItems());
+    EXPECT_EQ(expired, sourceVb->numExpiredItems);
+    // numExpiredItems is a stat for recording how many items have been flipped
+    // from active to expired on a vbucket, so does not get transferred during
+    // a takeover.
+
+    auto key1 = makeStoredDocKey("key1");
+    EXPECT_EQ(expectedOutcome, getInternalHelper(key1));
+}
+
+TEST_F(DCPLoopbackStreamTest, Takeover) {
+    takeoverTest(EnableExpiryOutput::No);
+}
+
+TEST_F(DCPLoopbackStreamTest, TakeoverWithExpiry) {
+    takeoverTest(EnableExpiryOutput::Yes);
 }

@@ -74,6 +74,15 @@ struct SeqnoRange {
     uint64_t end;
 };
 
+/**
+ * DeletionOpcode is used to determine whether or not to perform the deletion
+ * path, or the expiration path.
+ */
+enum class DeletionOpcode : bool {
+    Deletion,
+    Expiration,
+};
+
 class DcpStreamCtx {
 /**
  * This class represents all attributes required for
@@ -87,6 +96,7 @@ public:
           vb_uuid(0),
           exp_mutations(0),
           exp_deletions(0),
+          exp_expirations(0),
           exp_markers(0),
           extra_takeover_ops(0),
           exp_disk_snapshot(false),
@@ -116,6 +126,8 @@ public:
     size_t exp_mutations;
     /* Number of deletions expected (for verification) */
     size_t exp_deletions;
+    /* Number of expiries expected (for verification) */
+    size_t exp_expirations;
     /* Number of snapshot markers expected (for verification) */
     size_t exp_markers;
     /* Extra front end mutations as part of takeover */
@@ -226,6 +238,7 @@ private:
         VBStats()
             : num_mutations(0),
               num_deletions(0),
+              num_expirations(0),
               num_snapshot_markers(0),
               num_set_vbucket_pending(0),
               num_set_vbucket_active(0),
@@ -240,6 +253,7 @@ private:
 
         size_t num_mutations;
         size_t num_deletions;
+        size_t num_expirations;
         size_t num_snapshot_markers;
         size_t num_set_vbucket_pending;
         size_t num_set_vbucket_active;
@@ -276,12 +290,62 @@ private:
 
     // Flag used by run() to check if it should continue to execute.
     std::atomic<bool> done{false};
+
+    /**
+     * Helper function to perform the very similar resolution of a deletion
+     * and an expiry, triggered inside the run() case switch where one of these
+     * operations is returned as the dcp_last_op.
+     * @param stats The vbstats that will be updated by this function.
+     * @param bytes_read The current no of bytes read which will be updated by
+     *                   this function.
+     * @param all_bytes The total no of bytes read which will be updated by
+     *                  this function.
+     * @param vbid The vBucket ID.
+     * @param delOrExpire Determines whether to take the deletion case or the
+     *                    expiration case.
+    */
+    void deleteOrExpireCase(TestDcpConsumer::VBStats& stats,
+                            uint32_t& bytes_read,
+                            uint64_t& all_bytes,
+                            Vbid vbid,
+                            DeletionOpcode delOrExpire);
 };
 
 ENGINE_ERROR_CODE TestDcpConsumer::sendControlMessage(
         const std::string& name, const std::string& value) {
     auto dcp = requireDcpIface(h);
     return dcp->control(cookie, ++opaque, name, value);
+}
+
+void TestDcpConsumer::deleteOrExpireCase(TestDcpConsumer::VBStats& stats,
+                                         uint32_t& bytes_read,
+                                         uint64_t& all_bytes,
+                                         Vbid vbid,
+                                         DeletionOpcode delOrExpire) {
+    cb_assert(vbid != static_cast<Vbid>(-1));
+    checklt(stats.last_by_seqno,
+            dcp_last_byseqno.load(),
+            "Expected bigger seqno");
+    stats.last_by_seqno = dcp_last_byseqno;
+    if (delOrExpire == DeletionOpcode::Deletion) {
+        stats.num_deletions++;
+    } else {
+        stats.num_expirations++;
+    }
+    bytes_read += dcp_last_packet_size;
+    all_bytes += dcp_last_packet_size;
+    if (stats.pending_marker_ack && dcp_last_byseqno == stats.marker_end) {
+        sendDcpAck(h,
+                   cookie,
+                   cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                   cb::mcbp::Status::Success,
+                   dcp_last_opaque);
+    }
+
+    if (!dcp_last_value.empty()) {
+        stats.num_values++;
+    }
+    return;
 }
 
 void TestDcpConsumer::run(bool openConn) {
@@ -363,27 +427,18 @@ void TestDcpConsumer::run(bool openConn) {
 
                 break;
             case cb::mcbp::ClientOpcode::DcpDeletion:
-                cb_assert(vbid != static_cast<Vbid>(-1));
-                checklt(stats.last_by_seqno,
-                        dcp_last_byseqno.load(),
-                        "Expected bigger seqno");
-                stats.last_by_seqno = dcp_last_byseqno;
-                stats.num_deletions++;
-                bytes_read += dcp_last_packet_size;
-                all_bytes += dcp_last_packet_size;
-                if (stats.pending_marker_ack &&
-                    dcp_last_byseqno == stats.marker_end) {
-                    sendDcpAck(h,
-                               cookie,
-                               cb::mcbp::ClientOpcode::DcpSnapshotMarker,
-                               cb::mcbp::Status::Success,
-                               dcp_last_opaque);
-                }
-
-                if (!dcp_last_value.empty()) {
-                    stats.num_values++;
-                }
-
+                deleteOrExpireCase(stats,
+                                   bytes_read,
+                                   all_bytes,
+                                   vbid,
+                                   DeletionOpcode::Deletion);
+                break;
+            case cb::mcbp::ClientOpcode::DcpExpiration:
+                deleteOrExpireCase(stats,
+                                   bytes_read,
+                                   all_bytes,
+                                   vbid,
+                                   DeletionOpcode::Expiration);
                 break;
             case cb::mcbp::ClientOpcode::DcpStreamEnd:
                 cb_assert(vbid != static_cast<Vbid>(-1));
@@ -489,6 +544,9 @@ void TestDcpConsumer::run(bool openConn) {
                           "Invalid number of mutations");
                     checkge(ctx.exp_deletions, stats.num_deletions,
                           "Invalid number of deletes");
+                    checkge(ctx.exp_expirations,
+                            stats.num_expirations,
+                            "Invalid number of expirations");
                 }
             } else {
                 // Account for cursors that may have been dropped because
@@ -504,15 +562,22 @@ void TestDcpConsumer::run(bool openConn) {
                             "Invalid number of mutations");
                     checkle(stats.num_deletions, ctx.exp_deletions,
                             "Invalid number of deletions");
+                    checkle(stats.num_expirations,
+                            ctx.exp_expirations,
+                            "Invalid number of expirations");
                 } else {
                     checkeq(ctx.exp_mutations, stats.num_mutations,
                             "Invalid number of mutations");
                     checkeq(ctx.exp_deletions, stats.num_deletions,
                             "Invalid number of deletes");
+                    checkeq(ctx.exp_expirations,
+                            stats.num_expirations,
+                            "Invalid number of expirations");
                     if (ctx.live_frontend_client) {
                         // Hard to predict exact number of markers to be received
                         // if in case of a live parallel front end load
-                        if (ctx.exp_mutations > 0 || ctx.exp_deletions > 0) {
+                        if (ctx.exp_mutations > 0 || ctx.exp_deletions > 0 ||
+                            ctx.exp_expirations > 0) {
                             checkle(size_t{1},
                                     stats.num_snapshot_markers,
                                     "Snapshot marker count can't be zero");
@@ -2138,6 +2203,74 @@ static enum test_result test_dcp_producer_deleted_item_backfill(
     return SUCCESS;
 }
 
+// Function to parameterize whether expiries should be outputted or not.
+static test_result testDcpProducerExpiredItemBackfill(
+        EngineIface* h, EnableExpiryOutput enableExpiryOutput) {
+    const int expiries = 5;
+    const int start_seqno = 0;
+    write_items(h,
+                expiries,
+                start_seqno,
+                "exp",
+                "value",
+                0 /*exp*/,
+                Vbid(0),
+                DocumentState::Alive);
+
+    wait_for_flusher_to_settle(h);
+    verify_curr_items(h, 5, "Wrong number of items");
+
+    const int exp_time = time(NULL) + 42;
+
+    for (int i = 0; i < expiries; ++i) {
+        std::string key("exp" + std::to_string(i + start_seqno));
+        ENGINE_ERROR_CODE ret = touch(h, key.c_str(), Vbid(0), exp_time);
+        checkeq(ENGINE_SUCCESS, ret, "Expected get to return 'success'");
+    }
+
+    testHarness->time_travel(exp_time + 256);
+
+    // Wait for the item to be expired
+    wait_for_stat_to_be(h, "vb_active_expired", expiries);
+
+    wait_for_flusher_to_settle(h);
+    verify_curr_items(h, 0, "Wrong number of items");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, expiries * 2}; // doubled as each will cause a mutation,
+    // as well as an expiry
+
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        ctx.exp_expirations = expiries;
+    } else {
+        ctx.exp_deletions = expiries;
+    }
+
+    ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.exp_markers = 1;
+
+    const void* cookie = testHarness->create_cookie();
+    TestDcpConsumer tdc("unittest", cookie, h);
+    uint32_t flags = DCP_OPEN_PRODUCER;
+    tdc.openConnection(flags);
+
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        checkeq(ENGINE_SUCCESS,
+                tdc.sendControlMessage("enable_expiry_opcode", "true"),
+                "Failed to enable_expiry_opcode");
+    }
+
+    tdc.addStreamCtx(ctx);
+
+    tdc.run(false);
+
+    testHarness->destroy_cookie(cookie);
+    clear_dcp_data();
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
     const int num_items = 400, batch_items = 200;
     for (int start_seqno = 0; start_seqno < num_items;
@@ -2167,6 +2300,26 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
+}
+
+/*
+ * Test that expired items (with values) backfill correctly
+ */
+static enum test_result test_dcp_producer_expired_item_backfill(
+        EngineIface* h) {
+    auto result1 =
+            testDcpProducerExpiredItemBackfill(h, EnableExpiryOutput::Yes);
+    auto result2 =
+            testDcpProducerExpiredItemBackfill(h, EnableExpiryOutput::No);
+    if (result1 == SUCCESS) {
+        if (result2 == SUCCESS) {
+            return SUCCESS;
+        } else {
+            return result2;
+        }
+    } else {
+        return result1;
+    }
 }
 
 static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h) {
@@ -6862,9 +7015,15 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test MB-23863 backfill deleted value",
                  test_dcp_producer_deleted_item_backfill, test_setup, teardown,
                  NULL, prepare_ep_bucket, cleanup),
+        TestCase("test MB-26907 backfill expired value",
+                 test_dcp_producer_expired_item_backfill,
+                 test_setup,
+                 teardown,
+                 NULL,
+                 /* TODO RDB: curr_items not correct under RocksDB */
+                 prepare_skip_broken_under_rocks_full_eviction,
+                 cleanup),
         TestCase("test noop mandatory",test_dcp_noop_mandatory,
                  test_setup, teardown, NULL, prepare, cleanup),
 
-        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
-};
-
+        TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)};

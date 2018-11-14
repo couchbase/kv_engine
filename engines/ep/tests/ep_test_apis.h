@@ -70,6 +70,7 @@ const uint8_t dcp_stream_end_resp_base_msg_bytes = 28;
 const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;
 const uint8_t dcp_mutation_base_msg_bytes = 55;
 const uint8_t dcp_deletion_base_msg_bytes = 42;
+const uint8_t dcp_expiration_base_msg_bytes = 44;
 
 extern std::atomic<cb::mcbp::Status> last_status;
 extern std::string last_key;
