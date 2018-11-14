@@ -50,6 +50,54 @@ cb::const_byte_buffer Request::getValue() const {
     return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
 }
 
+void Request::parseFrameExtras(FrameInfoCallback callback) const {
+    if (getMagic() != Magic::AltClientRequest) {
+        return;
+    }
+
+    const auto* data = reinterpret_cast<const uint8_t*>(this);
+    cb::const_byte_buffer fe = {data + sizeof(*this), data[2]};
+    if (fe.empty()) {
+        return;
+    }
+    size_t offset = 0;
+    while (offset < fe.size()) {
+        using cb::mcbp::request::FrameInfoId;
+        const auto id = FrameInfoId(fe[offset] & 0x0f);
+        size_t size = size_t(fe[offset] & 0xf0) >> 4;
+
+        if ((offset + 1 + size) > fe.size()) {
+            throw std::overflow_error("parseFrameExtras: outside frame extras");
+        }
+
+        cb::const_byte_buffer content{fe.data() + offset + 1, size};
+        offset += 1 + size;
+        switch (id) {
+        case FrameInfoId::Reorder:
+            if (!content.empty()) {
+                throw std::runtime_error(
+                        "parseFrameExtras: Invalid size for Reorder");
+            }
+            if (!callback(FrameInfoId::Reorder, content)) {
+                return;
+            }
+            continue;
+        case FrameInfoId::DurabilityRequirement:
+            if (content.size() != 1 && content.size() != 3) {
+                throw std::runtime_error(
+                        R"(parseFrameExtras: Invalid size for DurabilityRequirement)");
+            }
+            if (!callback(FrameInfoId::DurabilityRequirement, content)) {
+                return;
+            }
+            continue;
+        }
+        throw std::runtime_error(
+                "cb::mcbp::Request::parseFrameExtras: Unknown id: " +
+                std::to_string(int(id)));
+    }
+}
+
 bool Request::isQuiet() const {
     if (getMagic() == Magic::ClientRequest) {
         switch (getClientOpcode()) {
@@ -263,3 +311,17 @@ bool Request::isValid() const {
 
 } // namespace mcbp
 } // namespace cb
+
+std::string to_string(cb::mcbp::request::FrameInfoId id) {
+    using cb::mcbp::request::FrameInfoId;
+
+    switch (id) {
+    case FrameInfoId::Reorder:
+        return "Reorder";
+    case FrameInfoId::DurabilityRequirement:
+        return "DurabilityRequirement";
+    }
+
+    throw std::invalid_argument("to_string(): Invalid frame id: " +
+                                std::to_string(int(id)));
+}

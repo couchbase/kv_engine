@@ -31,9 +31,14 @@
 #endif
 
 #include <cstdint>
+#include <functional>
 
 namespace cb {
 namespace mcbp {
+
+namespace request {
+enum class FrameInfoId { Reorder = 0, DurabilityRequirement = 1 };
+}
 
 /**
  * Definition of the header structure for a request packet.
@@ -138,8 +143,6 @@ public:
         cas = htonll(val);
     }
 
-    cb::const_byte_buffer getKey() const;
-
     /**
      * Get a printable version of the key (non-printable characters replaced
      * with a '.'
@@ -148,7 +151,32 @@ public:
 
     cb::const_byte_buffer getExtdata() const;
 
+    cb::const_byte_buffer getKey() const;
+
     cb::const_byte_buffer getValue() const;
+
+    /**
+     * Callback function to use while parsing the FrameExtras section
+     *
+     * The first parameter is the identifier for the frame info, the
+     * second parameter is the content of the frame info.
+     *
+     * If the callback function should return false if it wants to stop
+     * further parsing of the FrameExtras
+     */
+    using FrameInfoCallback = std::function<bool(cb::mcbp::request::FrameInfoId,
+                                                 cb::const_byte_buffer)>;
+    /**
+     * Iterate over the provided frame extras
+     *
+     * @param callback The callback function to call for each frame info found.
+     *                 if the callback returns false we stop parsing the
+     *                 frame extras. Provided to the callback is the
+     *                 Frame Info identifier and the content
+     * @throws std::runtime_error if an unknown frame identifier is received
+     *                            or if there is other errors in there.
+     */
+    void parseFrameExtras(FrameInfoCallback callback) const;
 
     /**
      * Is this a quiet command or not
@@ -180,3 +208,5 @@ using DropPrivilegeRequest = Request;
 
 } // namespace mcbp
 } // namespace cb
+
+std::string to_string(cb::mcbp::request::FrameInfoId id);

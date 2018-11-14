@@ -67,6 +67,12 @@ if (COUCHBASE_KV_BUILD_UNIT_TESTS)
              WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
              COMMAND mcbp_sla_test)
 
+    add_executable(mcbp_request_test request_test.cc)
+    target_link_libraries(mcbp_request_test mcbp gtest gtest_main)
+    add_test(NAME mcbp_request_test
+             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+             COMMAND mcbp_request_test)
+
     add_executable(mcbp_status_test status_test.cc)
     target_link_libraries(mcbp_status_test mcbp gtest gtest_main)
     add_test(NAME mcbp_status_test
