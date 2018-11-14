@@ -15,15 +15,12 @@
  *   limitations under the License.
  */
 
-#include <cJSON_utils.h>
 #include <daemon/settings.h>
 #include <getopt.h>
 #include <gtest/gtest.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-#include <platform/platform.h>
-#include <system_error>
 
 class SettingsTest : public ::testing::Test {
 public:
@@ -56,16 +53,7 @@ public:
     nlohmann::json makeInterfacesConfig(const char* protocolMode);
     template <typename T = std::invalid_argument>
     void expectFail(const nlohmann::json& json) {
-        // TODO MB-30041 Remove after refactoring settings
-        // Make a cJSON ptr from our nlohmann json
-        unique_cJSON_ptr ptr{cJSON_Parse(json.dump().c_str())};
-
-        EXPECT_THROW(Settings settings(ptr), T) << to_string(ptr, true);
-    }
-
-    template <typename T = std::invalid_argument>
-    void expectFail(const unique_cJSON_ptr& ptr) {
-        EXPECT_THROW(Settings settings(ptr), T) << to_string(ptr, true);
+        EXPECT_THROW(Settings settings(json), T) << json.dump();
     }
 };
 
@@ -210,10 +198,10 @@ TEST_F(SettingsTest, AuditFile) {
     // Ensure that we accept a string, but the file must exist
     EXPECT_NE(nullptr, cb_mktemp(pattern));
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "audit_file", pattern);
+    nlohmann::json json;
+    json["audit_file"] = pattern;
     try {
-        Settings settings(obj);
+        Settings settings(json);
         EXPECT_EQ(pattern, settings.getAuditFile());
         EXPECT_TRUE(settings.has.audit);
     } catch (std::exception& exception) {
@@ -222,7 +210,7 @@ TEST_F(SettingsTest, AuditFile) {
 
     // But we should fail if the file don't exist
     cb::io::rmrf(pattern);
-    expectFail<std::system_error>(obj);
+    expectFail<std::system_error>(json);
 }
 
 TEST_F(SettingsTest, RbacFile) {
@@ -233,10 +221,10 @@ TEST_F(SettingsTest, RbacFile) {
     // Ensure that we accept a string, but the file must exist
     const auto tmpfile = cb::io::mktemp(pattern);
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "rbac_file", tmpfile.c_str());
+    nlohmann::json json;
+    json["rbac_file"] = tmpfile;
     try {
-        Settings settings(obj);
+        Settings settings(json);
         EXPECT_EQ(tmpfile, settings.getRbacFile());
         EXPECT_TRUE(settings.has.rbac_file);
     } catch (std::exception& exception) {
@@ -245,16 +233,18 @@ TEST_F(SettingsTest, RbacFile) {
 
     // But we should fail if the file don't exist
     cb::io::rmrf(tmpfile);
-    expectFail<std::system_error>(obj);
+    expectFail<std::system_error>(json);
 }
 
 TEST_F(SettingsTest, Threads) {
     nonNumericValuesShouldFail("threads");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "threads", 10);
+    nlohmann::json json;
+    // Explicitly make threads an unsigned int
+    uint8_t threads = 10;
+    json["threads"] = threads;
     try {
-        Settings settings(obj);
+        Settings settings(json);
         EXPECT_EQ(10, settings.getNumWorkerThreads());
         EXPECT_TRUE(settings.has.threads);
     } catch (std::exception& exception) {
@@ -265,32 +255,31 @@ TEST_F(SettingsTest, Threads) {
 TEST_F(SettingsTest, Interfaces) {
     nonArrayValuesShouldFail("interfaces");
 
-    unique_cJSON_ptr array(cJSON_CreateArray());
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-
     char key_pattern[] = {"key.XXXXXX"};
     char cert_pattern[] = {"cert.XXXXXX"};
     EXPECT_NE(nullptr, cb_mktemp(key_pattern));
     EXPECT_NE(nullptr, cb_mktemp(cert_pattern));
 
-    cJSON_AddNumberToObject(obj.get(), "port", 0);
-    cJSON_AddTrueToObject(obj.get(), "ipv4");
-    cJSON_AddTrueToObject(obj.get(), "ipv6");
-    cJSON_AddNumberToObject(obj.get(), "maxconn", 10);
-    cJSON_AddNumberToObject(obj.get(), "backlog", 10);
-    cJSON_AddStringToObject(obj.get(), "host", "*");
-    cJSON_AddStringToObject(obj.get(), "protocol", "memcached");
-    cJSON_AddTrueToObject(obj.get(), "management");
+    nlohmann::json obj;
+    obj["port"] = 0;
+    obj["ipv4"] = true;
+    obj["ipv6"] = true;
+    obj["maxconn"] = 10;
+    obj["backlog"] = 10;
+    obj["host"] = "*";
+    obj["protocol"] = "memcached";
+    obj["management"] = true;
 
-    unique_cJSON_ptr ssl(cJSON_CreateObject());
-    cJSON_AddStringToObject(ssl.get(), "key", key_pattern);
-    cJSON_AddStringToObject(ssl.get(), "cert", cert_pattern);
-    cJSON_AddItemToObject(obj.get(), "ssl", ssl.release());
+    nlohmann::json ssl;
+    ssl["key"] = key_pattern;
+    ssl["cert"] = cert_pattern;
+    obj["ssl"] = ssl;
 
-    cJSON_AddItemToArray(array.get(), obj.release());
+    nlohmann::json array;
+    array.push_back(obj);
 
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    cJSON_AddItemToObject(root.get(), "interfaces", array.release());
+    nlohmann::json root;
+    root["interfaces"] = array;
 
     try {
         Settings settings(root);
@@ -314,31 +303,31 @@ TEST_F(SettingsTest, Interfaces) {
 TEST_F(SettingsTest, InterfacesMissingSSLFiles) {
     nonArrayValuesShouldFail("interfaces");
 
-    unique_cJSON_ptr array(cJSON_CreateArray());
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-
     char key_pattern[] = {"key.XXXXXX"};
     char cert_pattern[] = {"cert.XXXXXX"};
     EXPECT_NE(nullptr, cb_mktemp(key_pattern));
     EXPECT_NE(nullptr, cb_mktemp(cert_pattern));
 
-    cJSON_AddNumberToObject(obj.get(), "port", 0);
-    cJSON_AddTrueToObject(obj.get(), "ipv4");
-    cJSON_AddTrueToObject(obj.get(), "ipv6");
-    cJSON_AddNumberToObject(obj.get(), "maxconn", 10);
-    cJSON_AddNumberToObject(obj.get(), "backlog", 10);
-    cJSON_AddStringToObject(obj.get(), "host", "*");
-    cJSON_AddStringToObject(obj.get(), "protocol", "memcached");
-    cJSON_AddTrueToObject(obj.get(), "management");
+    nlohmann::json obj;
+    obj["port"] = 0;
+    obj["ipv4"] = true;
+    obj["ipv6"] = true;
+    obj["maxconn"] = 10;
+    obj["backlog"] = 10;
+    obj["host"] = "*";
+    obj["protocol"] = "memcached";
+    obj["management"] = true;
 
-    unique_cJSON_ptr ssl(cJSON_CreateObject());
-    cJSON_AddStringToObject(ssl.get(), "key", key_pattern);
-    cJSON_AddStringToObject(ssl.get(), "cert", cert_pattern);
-    cJSON_AddItemToObject(obj.get(), "ssl", ssl.release());
+    nlohmann::json ssl;
+    ssl["key"] = key_pattern;
+    ssl["cert"] = cert_pattern;
+    obj["ssl"] = ssl;
 
-    cJSON_AddItemToArray(array.get(), obj.release());
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    cJSON_AddItemToObject(root.get(), "interfaces", array.release());
+    nlohmann::json array;
+    array.push_back(obj);
+
+    nlohmann::json root;
+    root["interfaces"] = array;
 
     try {
         Settings settings(root);
@@ -476,14 +465,14 @@ TEST_F(SettingsTest, InterfacesInvalidProtocolString) {
 TEST_F(SettingsTest, ParseLoggerSettings) {
     nonObjectValuesShouldFail("logger");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "filename", "logs/n_1/memcached.log");
-    cJSON_AddNumberToObject(obj.get(), "buffersize", 1024);
-    cJSON_AddNumberToObject(obj.get(), "cyclesize", 10485760);
-    cJSON_AddBoolToObject(obj.get(), "unit_test", true);
+    nlohmann::json obj;
+    obj["filename"] = "logs/n_1/memcached.log";
+    obj["buffersize"] = 1024;
+    obj["cyclesize"] = 10485760;
+    obj["unit_test"] = true;
 
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    cJSON_AddItemToObject(root.get(), "logger", obj.release());
+    nlohmann::json root;
+    root["logger"] = obj;
     Settings settings(root);
 
     EXPECT_TRUE(settings.has.logger);
@@ -498,8 +487,8 @@ TEST_F(SettingsTest, ParseLoggerSettings) {
 TEST_F(SettingsTest, StdinListener) {
     nonBooleanValuesShouldFail("stdin_listener");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "stdin_listener");
+    nlohmann::json obj;
+    obj["stdin_listener"] = true;
     try {
         Settings settings(obj);
         EXPECT_TRUE(settings.isStdinListenerEnabled());
@@ -508,8 +497,7 @@ TEST_F(SettingsTest, StdinListener) {
         FAIL() << exception.what();
     }
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "stdin_listener");
+    obj["stdin_listener"] = false;
     try {
         Settings settings(obj);
         EXPECT_FALSE(settings.isStdinListenerEnabled());
@@ -522,8 +510,8 @@ TEST_F(SettingsTest, StdinListener) {
 TEST_F(SettingsTest, TopkeysEnabled) {
     nonBooleanValuesShouldFail("topkeys_enabled");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "topkeys_enabled");
+    nlohmann::json obj;
+    obj["topkeys_enabled"] = true;
     try {
         Settings settings(obj);
         EXPECT_TRUE(settings.isTopkeysEnabled());
@@ -532,8 +520,7 @@ TEST_F(SettingsTest, TopkeysEnabled) {
         FAIL() << exception.what();
     }
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "topkeys_enabled");
+    obj["topkeys_enabled"] = false;
     try {
         Settings settings(obj);
         EXPECT_FALSE(settings.isTopkeysEnabled());
@@ -546,12 +533,15 @@ TEST_F(SettingsTest, TopkeysEnabled) {
 TEST_F(SettingsTest, DefaultReqsPerEvent) {
     nonNumericValuesShouldFail("default_reqs_per_event");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "default_reqs_per_event", 10);
+    nlohmann::json obj;
+    // Explicitly make defaultReqsPerEvent an unsigned int
+    uint8_t defaultReqsPerEvent = 10;
+    obj["default_reqs_per_event"] = defaultReqsPerEvent;
     try {
         Settings settings(obj);
-        EXPECT_EQ(10, settings.getRequestsPerEventNotification(
-            EventPriority::Default));
+        EXPECT_EQ(10,
+                  settings.getRequestsPerEventNotification(
+                          EventPriority::Default));
         EXPECT_TRUE(settings.has.default_reqs_per_event);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
@@ -561,12 +551,15 @@ TEST_F(SettingsTest, DefaultReqsPerEvent) {
 TEST_F(SettingsTest, HighPriorityReqsPerEvent) {
     nonNumericValuesShouldFail("reqs_per_event_high_priority");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "reqs_per_event_high_priority", 10);
+    nlohmann::json obj;
+    // Explicitly make reqsPerEventHighPriority an unsigned int
+    uint8_t reqsPerEventHighPriority = 10;
+    obj["reqs_per_event_high_priority"] = reqsPerEventHighPriority;
     try {
         Settings settings(obj);
-        EXPECT_EQ(10, settings.getRequestsPerEventNotification(
-            EventPriority::High));
+        EXPECT_EQ(
+                10,
+                settings.getRequestsPerEventNotification(EventPriority::High));
         EXPECT_TRUE(settings.has.reqs_per_event_high_priority);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
@@ -576,12 +569,15 @@ TEST_F(SettingsTest, HighPriorityReqsPerEvent) {
 TEST_F(SettingsTest, MediumPriorityReqsPerEvent) {
     nonNumericValuesShouldFail("reqs_per_event_med_priority");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "reqs_per_event_med_priority", 10);
+    nlohmann::json obj;
+    // Explicitly make reqsPerEventMedPriority an unsigned int
+    uint8_t reqsPerEventMedPriority = 10;
+    obj["reqs_per_event_med_priority"] = reqsPerEventMedPriority;
     try {
         Settings settings(obj);
-        EXPECT_EQ(10, settings.getRequestsPerEventNotification(
-            EventPriority::Medium));
+        EXPECT_EQ(10,
+                  settings.getRequestsPerEventNotification(
+                          EventPriority::Medium));
         EXPECT_TRUE(settings.has.reqs_per_event_med_priority);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
@@ -591,8 +587,10 @@ TEST_F(SettingsTest, MediumPriorityReqsPerEvent) {
 TEST_F(SettingsTest, LowPriorityReqsPerEvent) {
     nonNumericValuesShouldFail("reqs_per_event_low_priority");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "reqs_per_event_low_priority", 10);
+    nlohmann::json obj;
+    // Explicitly make reqsPerEventLowPriority an unsigned int
+    uint8_t reqsPerEventLowPriority = 10;
+    obj["reqs_per_event_low_priority"] = reqsPerEventLowPriority;
     try {
         Settings settings(obj);
         EXPECT_EQ(10,
@@ -606,8 +604,10 @@ TEST_F(SettingsTest, LowPriorityReqsPerEvent) {
 TEST_F(SettingsTest, Verbosity) {
     nonNumericValuesShouldFail("verbosity");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "verbosity", 1);
+    nlohmann::json obj;
+    // Explicitly make verbosity an unsigned int
+    uint8_t verbosity = 1;
+    obj["verbosity"] = verbosity;
     try {
         Settings settings(obj);
         EXPECT_EQ(1, settings.getVerbose());
@@ -620,8 +620,10 @@ TEST_F(SettingsTest, Verbosity) {
 TEST_F(SettingsTest, ConnectionIdleTime) {
     nonNumericValuesShouldFail("connection_idle_time");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "connection_idle_time", 500);
+    nlohmann::json obj;
+    // Explicitly make connection_idle_time an unsigned int
+    uint16_t connectionIdleTime = 500;
+    obj["connection_idle_time"] = connectionIdleTime;
     try {
         Settings settings(obj);
         EXPECT_EQ(500, settings.getConnectionIdleTime());
@@ -634,8 +636,10 @@ TEST_F(SettingsTest, ConnectionIdleTime) {
 TEST_F(SettingsTest, BioDrainBufferSize) {
     nonNumericValuesShouldFail("bio_drain_buffer_sz");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddNumberToObject(obj.get(), "bio_drain_buffer_sz", 1024);
+    nlohmann::json obj;
+    // Explicitly make bioDrainBufferSize an unsigned int
+    uint16_t bioDrainBufferSize = 1024;
+    obj["bio_drain_buffer_sz"] = bioDrainBufferSize;
     try {
         Settings settings(obj);
         EXPECT_EQ(1024, settings.getBioDrainBufferSize());
@@ -648,8 +652,8 @@ TEST_F(SettingsTest, BioDrainBufferSize) {
 TEST_F(SettingsTest, DatatypeJson) {
     nonBooleanValuesShouldFail("datatype_json");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "datatype_json");
+    nlohmann::json obj;
+    obj["datatype_json"] = true;
     try {
         Settings settings(obj);
         EXPECT_TRUE(settings.isDatatypeJsonEnabled());
@@ -658,8 +662,7 @@ TEST_F(SettingsTest, DatatypeJson) {
         FAIL() << exception.what();
     }
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "datatype_json");
+    obj["datatype_json"] = false;
     try {
         Settings settings(obj);
         EXPECT_FALSE(settings.isDatatypeJsonEnabled());
@@ -672,8 +675,8 @@ TEST_F(SettingsTest, DatatypeJson) {
 TEST_F(SettingsTest, DatatypeSnappy) {
     nonBooleanValuesShouldFail("datatype_snappy");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "datatype_snappy");
+    nlohmann::json obj;
+    obj["datatype_snappy"] = true;
     try {
         Settings settings(obj);
         EXPECT_TRUE(settings.isDatatypeSnappyEnabled());
@@ -682,8 +685,7 @@ TEST_F(SettingsTest, DatatypeSnappy) {
         FAIL() << exception.what();
     }
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "datatype_snappy");
+    obj["datatype_snappy"] = false;
     try {
         Settings settings(obj);
         EXPECT_FALSE(settings.isDatatypeSnappyEnabled());
@@ -698,9 +700,8 @@ TEST_F(SettingsTest, Root) {
     nonStringValuesShouldFail("root");
 
     // Ensure that we accept a string, but it must be a directory
-
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "root", "/");
+    nlohmann::json obj;
+    obj["root"] = "/";
     try {
         Settings settings(obj);
         EXPECT_EQ("/", settings.getRoot());
@@ -710,8 +711,7 @@ TEST_F(SettingsTest, Root) {
     }
 
     // But we should fail if the file don't exist
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "root", "/it/would/suck/if/this/exist");
+    obj["root"] = "/it/would/suck/if/this/exist";
     expectFail<std::system_error>(obj);
 }
 
@@ -720,8 +720,8 @@ TEST_F(SettingsTest, SslCipherList) {
     nonStringValuesShouldFail("ssl_cipher_list");
 
     // Ensure that we accept a string
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "ssl_cipher_list", "HIGH");
+    nlohmann::json obj;
+    obj["ssl_cipher_list"] = "HIGH";
     try {
         Settings settings(obj);
         EXPECT_EQ("HIGH", settings.getSslCipherList());
@@ -731,8 +731,7 @@ TEST_F(SettingsTest, SslCipherList) {
     }
 
     // An empty string is also allowed
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "ssl_cipher_list", "");
+    obj["ssl_cipher_list"] = "";
     try {
         Settings settings(obj);
         EXPECT_EQ("", settings.getSslCipherList());
@@ -745,12 +744,12 @@ TEST_F(SettingsTest, SslCipherList) {
 TEST_F(SettingsTest, SslMinimumProtocol) {
     nonStringValuesShouldFail("ssl_minimum_protocol");
 
+    nlohmann::json obj;
     const std::vector<std::string> protocol = {"tlsv1", "tlsv1.1", "tlsv1_1",
                                                "tlsv1.2", "tlsv1_2"};
     for (const auto& p : protocol) {
         // Ensure that we accept a string
-        unique_cJSON_ptr obj(cJSON_CreateObject());
-        cJSON_AddStringToObject(obj.get(), "ssl_minimum_protocol", p.c_str());
+        obj["ssl_minimum_protocol"] = p;
         try {
             Settings settings(obj);
             EXPECT_EQ(p, settings.getSslMinimumProtocol());
@@ -761,8 +760,7 @@ TEST_F(SettingsTest, SslMinimumProtocol) {
     }
 
     // An empty string is also allowed
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "ssl_minimum_protocol", "");
+    obj["ssl_minimum_protocol"] = "";
     try {
         Settings settings(obj);
         EXPECT_EQ("", settings.getSslMinimumProtocol());
@@ -772,9 +770,8 @@ TEST_F(SettingsTest, SslMinimumProtocol) {
     }
 
     // But random strings shouldn't be allowed
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "ssl_minimum_protocol", "foo");
-    expectFail(obj);
+    obj["ssl_minimum_protocol"] = "foo";
+    expectFail<std::invalid_argument>(obj);
 }
 
 TEST_F(SettingsTest, Breakpad) {
@@ -809,9 +806,11 @@ TEST_F(SettingsTest, Breakpad) {
 TEST_F(SettingsTest, max_packet_size) {
     nonNumericValuesShouldFail("max_packet_size");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
+    nlohmann::json obj;
     // the config file specifies it in MB, we're keeping it as bytes internally
-    cJSON_AddNumberToObject(obj.get(), "max_packet_size", 30);
+    // Explicitly make maxPacketSize and unsigned int
+    uint8_t maxPacketSize = 30;
+    obj["max_packet_size"] = maxPacketSize;
     try {
         Settings settings(obj);
         EXPECT_EQ(30 * 1024 * 1024, settings.getMaxPacketSize());
@@ -825,8 +824,8 @@ TEST_F(SettingsTest, SaslMechanisms) {
     nonStringValuesShouldFail("sasl_mechanisms");
 
     // Ensure that we accept a string
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "sasl_mechanisms", "SCRAM-SHA1");
+    nlohmann::json obj;
+    obj["sasl_mechanisms"] = "SCRAM-SHA1";
     try {
         Settings settings(obj);
         EXPECT_EQ("SCRAM-SHA1", settings.getSaslMechanisms());
@@ -836,8 +835,7 @@ TEST_F(SettingsTest, SaslMechanisms) {
     }
 
     // An empty string is also allowed
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "sasl_mechanisms", "");
+    obj["sasl_mechanisms"] = "";
     try {
         Settings settings(obj);
         EXPECT_EQ("", settings.getSaslMechanisms());
@@ -850,8 +848,8 @@ TEST_F(SettingsTest, SaslMechanisms) {
 TEST_F(SettingsTest, DedupeNmvbMaps) {
     nonBooleanValuesShouldFail("dedupe_nmvb_maps");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "dedupe_nmvb_maps");
+    nlohmann::json obj;
+    obj["dedupe_nmvb_maps"] = true;
     try {
         Settings settings(obj);
         EXPECT_TRUE(settings.isDedupeNmvbMaps());
@@ -860,8 +858,7 @@ TEST_F(SettingsTest, DedupeNmvbMaps) {
         FAIL() << exception.what();
     }
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "dedupe_nmvb_maps");
+    obj["dedupe_nmvb_maps"] = false;
     try {
         Settings settings(obj);
         EXPECT_FALSE(settings.isDedupeNmvbMaps());
@@ -874,8 +871,8 @@ TEST_F(SettingsTest, DedupeNmvbMaps) {
 TEST_F(SettingsTest, XattrEnabled) {
     nonBooleanValuesShouldFail("xattr_enabled");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "xattr_enabled");
+    nlohmann::json obj;
+    obj["xattr_enabled"] = true;
     try {
         Settings settings(obj);
         EXPECT_TRUE(settings.isXattrEnabled());
@@ -884,8 +881,7 @@ TEST_F(SettingsTest, XattrEnabled) {
         FAIL() << exception.what();
     }
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "xattr_enabled");
+    obj["xattr_enabled"] = false;
     try {
         Settings settings(obj);
         EXPECT_FALSE(settings.isXattrEnabled());
@@ -898,8 +894,8 @@ TEST_F(SettingsTest, XattrEnabled) {
 TEST_F(SettingsTest, TracingEnabled) {
     nonBooleanValuesShouldFail("tracing_enabled");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "tracing_enabled");
+    nlohmann::json obj;
+    obj["tracing_enabled"] = true;
     try {
         Settings settings(obj);
         EXPECT_TRUE(settings.isTracingEnabled());
@@ -908,8 +904,7 @@ TEST_F(SettingsTest, TracingEnabled) {
         FAIL() << exception.what();
     }
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "tracing_enabled");
+    obj["tracing_enabled"] = false;
     try {
         Settings settings(obj);
         EXPECT_FALSE(settings.isTracingEnabled());
@@ -922,8 +917,8 @@ TEST_F(SettingsTest, TracingEnabled) {
 TEST_F(SettingsTest, ExternalAuthService) {
     nonBooleanValuesShouldFail("external_auth_service");
 
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "external_auth_service");
+    nlohmann::json obj;
+    obj["external_auth_service"] = true;
     try {
         Settings settings(obj);
         EXPECT_TRUE(settings.isExternalAuthServiceEnabled());
@@ -932,8 +927,7 @@ TEST_F(SettingsTest, ExternalAuthService) {
         FAIL() << exception.what();
     }
 
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "external_auth_service");
+    obj["external_auth_service"] = false;
     try {
         Settings settings(obj);
         EXPECT_FALSE(settings.isExternalAuthServiceEnabled());
@@ -945,9 +939,8 @@ TEST_F(SettingsTest, ExternalAuthService) {
 
 TEST_F(SettingsTest, ScramshaFallbackSalt) {
     nonStringValuesShouldFail("scramsha_fallback_salt");
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(
-            obj.get(), "scramsha_fallback_salt", "JKouEmqRFI+Re/AA");
+    nlohmann::json obj;
+    obj["scramsha_fallback_salt"] = "JKouEmqRFI+Re/AA";
     try {
         Settings settings(obj);
         EXPECT_EQ("JKouEmqRFI+Re/AA", settings.getScramshaFallbackSalt());
