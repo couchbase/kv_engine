@@ -82,7 +82,7 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
                                    cb::mcbp::Status status);
 
 ::testing::AssertionResult mcbp_validate_response_header(
-        const protocol_binary_response_header* header,
+        const cb::mcbp::Response& response,
         cb::mcbp::ClientOpcode cmd,
         cb::mcbp::Status status,
         bool mutation_seqno_enabled);
