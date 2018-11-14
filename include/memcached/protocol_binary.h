@@ -1256,6 +1256,40 @@ protected:
 };
 static_assert(sizeof(DcpDeletionV1Payload) == 18, "Unexpected struct size");
 
+class DcpDeleteRequestV1 {
+public:
+    DcpDeleteRequestV1(uint32_t opaque,
+                       Vbid vbucket,
+                       uint64_t cas,
+                       uint16_t keyLen,
+                       uint32_t valueLen,
+                       protocol_binary_datatype_t datatype,
+                       uint64_t bySeqno,
+                       uint64_t revSeqno,
+                       uint16_t nmeta)
+        : req{} {
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+        req.setExtlen(gsl::narrow<uint8_t>(sizeof(body)));
+        req.setKeylen(keyLen);
+        req.setBodylen(gsl::narrow<uint32_t>(sizeof(body) + keyLen + nmeta +
+                                             valueLen));
+        req.setOpaque(opaque);
+        req.setVBucket(vbucket);
+        req.setCas(cas);
+        req.setDatatype(cb::mcbp::Datatype(datatype));
+
+        body.setBySeqno(bySeqno);
+        body.setRevSeqno(revSeqno);
+        body.setNmeta(nmeta);
+    }
+
+protected:
+    cb::mcbp::Request req;
+    DcpDeletionV1Payload body;
+};
+static_assert(sizeof(DcpDeleteRequestV1) == 42, "Unexpected struct size");
+
 class DcpDeletionV2Payload {
 public:
     uint64_t getBySeqno() const {
@@ -1291,91 +1325,44 @@ protected:
 };
 static_assert(sizeof(DcpDeletionV2Payload) == 21, "Unexpected struct size");
 
+class DcpDeleteRequestV2 {
+public:
+    DcpDeleteRequestV2(uint32_t opaque,
+                       Vbid vbucket,
+                       uint64_t cas,
+                       uint16_t keyLen,
+                       uint32_t valueLen,
+                       protocol_binary_datatype_t datatype,
+                       uint64_t bySeqno,
+                       uint64_t revSeqno,
+                       uint32_t deleteTime)
+        : req{} {
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
+        req.setExtlen(gsl::narrow<uint8_t>(sizeof(body)));
+        req.setKeylen(keyLen);
+        req.setBodylen(gsl::narrow<uint32_t>(sizeof(body) + keyLen + valueLen));
+        req.setOpaque(opaque);
+        req.setVBucket(vbucket);
+        req.setCas(cas);
+        req.setDatatype(cb::mcbp::Datatype(datatype));
+
+        body.setBySeqno(bySeqno);
+        body.setRevSeqno(revSeqno);
+        body.setDeleteTime(deleteTime);
+        body.setCollectionLen(0);
+    }
+
+protected:
+    cb::mcbp::Request req;
+    DcpDeletionV2Payload body;
+};
+static_assert(sizeof(DcpDeleteRequestV2) == 45, "Unexpected struct size");
+
 #pragma pack()
 } // namespace request
 } // namespace mcbp
 } // namespace cb
-
-union protocol_binary_request_dcp_deletion {
-    static constexpr size_t extlen = 18;
-    protocol_binary_request_dcp_deletion(uint32_t opaque,
-                                         Vbid vbucket,
-                                         uint64_t cas,
-                                         uint16_t keyLen,
-                                         uint32_t valueLen,
-                                         protocol_binary_datatype_t datatype,
-                                         uint64_t bySeqno,
-                                         uint64_t revSeqno,
-                                         uint16_t nmeta) {
-        auto& req = message.header.request;
-        req.setMagic(cb::mcbp::Magic::ClientRequest);
-        req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
-        req.setExtlen(extlen);
-        req.setKeylen(keyLen);
-        req.setBodylen(
-                gsl::narrow<uint32_t>(extlen + keyLen + nmeta + valueLen));
-        req.setOpaque(opaque);
-        req.setVBucket(vbucket);
-        req.setCas(cas);
-        req.setDatatype(cb::mcbp::Datatype(datatype));
-
-        auto& body = message.body;
-        body.by_seqno = htonll(bySeqno);
-        body.rev_seqno = htonll(revSeqno);
-        body.nmeta = htons(nmeta);
-    }
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t by_seqno;
-            uint64_t rev_seqno;
-            uint16_t nmeta;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + extlen];
-};
-
-union protocol_binary_request_dcp_deletion_v2 {
-    static constexpr size_t extlen = 21;
-    protocol_binary_request_dcp_deletion_v2(uint32_t opaque,
-                                            Vbid vbucket,
-                                            uint64_t cas,
-                                            uint16_t keyLen,
-                                            uint32_t valueLen,
-                                            protocol_binary_datatype_t datatype,
-                                            uint64_t bySeqno,
-                                            uint64_t revSeqno,
-                                            uint32_t deleteTime,
-                                            uint8_t collectionLen) {
-        auto& req = message.header.request;
-        req.setMagic(cb::mcbp::Magic::ClientRequest);
-        req.setOpcode(cb::mcbp::ClientOpcode::DcpDeletion);
-        req.setExtlen(extlen);
-        req.setKeylen(keyLen);
-        req.setBodylen(extlen + keyLen + valueLen);
-        req.setOpaque(opaque);
-        req.setVBucket(vbucket);
-        req.setCas(cas);
-        req.setDatatype(cb::mcbp::Datatype(datatype));
-
-        auto& body = message.body;
-        body.by_seqno = htonll(bySeqno);
-        body.rev_seqno = htonll(revSeqno);
-        body.delete_time = htonl(deleteTime);
-        body.collection_len = collectionLen;
-    }
-
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t by_seqno;
-            uint64_t rev_seqno;
-            uint32_t delete_time;
-            uint8_t collection_len;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + extlen];
-};
 
 union protocol_binary_request_dcp_expiration {
     static const size_t extlen = (2 * sizeof(uint64_t)) + sizeof(uint32_t);

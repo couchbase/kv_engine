@@ -1605,7 +1605,7 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
                              {/*no extended meta in v2*/},
                              key);
     } else {
-        protocol_binary_request_dcp_deletion_v2 packet(
+        cb::mcbp::request::DcpDeleteRequestV2 packet(
                 opaque,
                 vbucket,
                 info.cas,
@@ -1614,11 +1614,11 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
                 info.datatype,
                 by_seqno,
                 rev_seqno,
-                delete_time,
-                0 /*unused*/);
+                delete_time);
+
         return deletionInner(info,
                              {reinterpret_cast<const uint8_t*>(&packet),
-                              sizeof(packet.bytes)},
+                              sizeof(packet)},
                              {/*no extended meta in v2*/},
                              key);
     }
@@ -1918,7 +1918,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
     // the item.
     item.release();
     auto key = info.key.makeDocKeyWithoutCollectionID();
-    protocol_binary_request_dcp_deletion packet(
+    cb::mcbp::request::DcpDeleteRequestV1 packet(
             opaque,
             vbucket,
             info.cas,
@@ -1930,7 +1930,7 @@ ENGINE_ERROR_CODE Connection::deletion(uint32_t opaque,
             nmeta);
 
     cb::const_byte_buffer packetBuffer{
-            reinterpret_cast<const uint8_t*>(&packet), sizeof(packet.bytes)};
+            reinterpret_cast<const uint8_t*>(&packet), sizeof(packet)};
     cb::const_byte_buffer extendedMeta{reinterpret_cast<const uint8_t*>(meta),
                                        nmeta};
 

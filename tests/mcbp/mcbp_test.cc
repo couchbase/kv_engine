@@ -2035,7 +2035,10 @@ protected:
     class Request {
     public:
         virtual ~Request() = default;
-        virtual protocol_binary_request_header& getHeader() = 0;
+        protocol_binary_request_header& getHeader() {
+            return *reinterpret_cast<protocol_binary_request_header*>(
+                    getBytes());
+        }
 
         virtual uint8_t* getBytes() = 0;
 
@@ -2055,20 +2058,17 @@ protected:
                       0 /*revSeqno*/,
                       0 /*nmeta*/) {
         }
-        protocol_binary_request_header& getHeader() override {
-            return request.message.header;
-        }
 
         uint8_t* getBytes() override {
-            return request.bytes;
+            return reinterpret_cast<uint8_t*>(&request);
         }
 
         size_t getSizeofBytes() override {
-            return sizeof(request.bytes);
+            return sizeof(request);
         }
 
     private:
-        protocol_binary_request_dcp_deletion request;
+        cb::mcbp::request::DcpDeleteRequestV1 request;
     };
 
     class RequestV2 : public Request {
@@ -2082,23 +2082,18 @@ protected:
                       PROTOCOL_BINARY_RAW_BYTES,
                       0 /*bySeqno*/,
                       0 /*revSeqno*/,
-                      0, /*deleteTime*/
-                      0 /*collectionLen*/) {
+                      0 /*deleteTime*/) {
         }
-        protocol_binary_request_header& getHeader() override {
-            return request.message.header;
-        }
-
         uint8_t* getBytes() override {
-            return request.bytes;
+            return reinterpret_cast<uint8_t*>(&request);
         }
 
         size_t getSizeofBytes() override {
-            return sizeof(request.bytes);
+            return sizeof(request);
         }
 
     private:
-        protocol_binary_request_dcp_deletion_v2 request;
+        cb::mcbp::request::DcpDeleteRequestV2 request;
     };
 
     std::unique_ptr<Request> makeV1() {
@@ -2161,8 +2156,8 @@ TEST_P(DcpDeletionValidatorTest, InvalidExtlenCollections) {
     // Flip extlen, so when not collections, set the length collections uses
     header.request.extlen =
             isCollectionsEnabled()
-                    ? protocol_binary_request_dcp_deletion::extlen
-                    : protocol_binary_request_dcp_deletion_v2::extlen;
+                    ? sizeof(cb::mcbp::request::DcpDeletionV1Payload)
+                    : sizeof(cb::mcbp::request::DcpDeletionV2Payload);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3488,7 +3483,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpMutation) {
 
 TEST_P(CommandSpecificErrorContextTest, DcpDeletion) {
     // JSON is not a valid datatype for DcpDeletion
-    uint8_t extlen = protocol_binary_request_dcp_deletion::extlen;
+    uint8_t extlen = sizeof(cb::mcbp::request::DcpDeletionV1Payload);
     header.setExtlen(extlen);
     header.setKeylen(8);
     header.setBodylen(extlen + 8);
@@ -3505,7 +3500,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpDeletion) {
 
 TEST_P(CommandSpecificErrorContextTest, DcpDeletionV2) {
     // JSON is not a valid datatype for DcpDeletion
-    uint8_t extlen = protocol_binary_request_dcp_deletion_v2::extlen;
+    uint8_t extlen = sizeof(cb::mcbp::request::DcpDeletionV2Payload);
     header.setExtlen(extlen);
     header.setKeylen(8);
     header.setBodylen(extlen + 8);

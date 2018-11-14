@@ -263,7 +263,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion(uint32_t opaque,
                          meta,
                          nmeta,
                          0,
-                         protocol_binary_request_dcp_deletion::extlen,
+                         sizeof(cb::mcbp::request::DcpDeletionV1Payload),
                          DeleteSource::Explicit);
 }
 
@@ -281,7 +281,7 @@ ENGINE_ERROR_CODE MockDcpMessageProducers::deletion_v2(uint32_t opaque,
                          nullptr,
                          0,
                          deleteTime,
-                         protocol_binary_request_dcp_deletion_v2::extlen,
+                         sizeof(cb::mcbp::request::DcpDeletionV2Payload),
                          DeleteSource::Explicit);
 }
 
