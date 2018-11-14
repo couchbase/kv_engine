@@ -686,47 +686,19 @@ static ENGINE_ERROR_CODE initalize_configuration(struct default_engine *se,
    return ret;
 }
 
-static bool set_vbucket(struct default_engine *e,
+static bool set_vbucket(struct default_engine* e,
                         const void* cookie,
-                        protocol_binary_request_set_vbucket *req,
+                        cb::mcbp::Request& request,
                         ADD_RESPONSE response) {
     vbucket_state_t state;
-    size_t bodylen = ntohl(req->message.header.request.bodylen)
-        - ntohs(req->message.header.request.keylen);
-    if (bodylen != sizeof(vbucket_state_t)) {
-        const char *msg = "Incorrect packet format";
-        return response(NULL,
-                        0,
-                        NULL,
-                        0,
-                        msg,
-                        (uint32_t)strlen(msg),
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status::Einval,
-                        0,
-                        cookie);
-    }
-    memcpy(&state, &req->message.body.state, sizeof(state));
+    auto extras = request.getExtdata();
+    std::copy(extras.begin(), extras.end(), reinterpret_cast<uint8_t*>(&state));
     state = vbucket_state_t(ntohl(state));
 
-    if (!is_valid_vbucket_state_t(state)) {
-        const char *msg = "Invalid vbucket state";
-        return response(NULL,
-                        0,
-                        NULL,
-                        0,
-                        msg,
-                        (uint32_t)strlen(msg),
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status::Einval,
-                        0,
-                        cookie);
-    }
-
-    set_vbucket_state(e, req->message.header.request.vbucket.ntoh(), state);
-    return response(NULL,
+    set_vbucket_state(e, request.getVBucket(), state);
+    return response(nullptr,
                     0,
-                    NULL,
+                    nullptr,
                     0,
                     &state,
                     sizeof(state),
@@ -736,17 +708,17 @@ static bool set_vbucket(struct default_engine *e,
                     cookie);
 }
 
-static bool get_vbucket(struct default_engine *e,
+static bool get_vbucket(struct default_engine* e,
                         const void* cookie,
-                        protocol_binary_request_get_vbucket *req,
+                        cb::mcbp::Request& request,
                         ADD_RESPONSE response) {
     vbucket_state_t state;
-    state = get_vbucket_state(e, req->message.header.request.vbucket.ntoh());
+    state = get_vbucket_state(e, request.getVBucket());
     state = vbucket_state_t(ntohl(state));
 
-    return response(NULL,
+    return response(nullptr,
                     0,
-                    NULL,
+                    nullptr,
                     0,
                     &state,
                     sizeof(state),
@@ -756,16 +728,16 @@ static bool get_vbucket(struct default_engine *e,
                     cookie);
 }
 
-static bool rm_vbucket(struct default_engine *e,
-                       const void *cookie,
-                       protocol_binary_request_header *req,
+static bool rm_vbucket(struct default_engine* e,
+                       const void* cookie,
+                       cb::mcbp::Request& request,
                        ADD_RESPONSE response) {
-    set_vbucket_state(e, req->request.vbucket.ntoh(), vbucket_state_dead);
-    return response(NULL,
+    set_vbucket_state(e, request.getVBucket(), vbucket_state_dead);
+    return response(nullptr,
                     0,
-                    NULL,
+                    nullptr,
                     0,
-                    NULL,
+                    nullptr,
                     0,
                     PROTOCOL_BINARY_RAW_BYTES,
                     cb::mcbp::Status::Success,
@@ -799,27 +771,25 @@ static bool scrub_cmd(struct default_engine *e,
  */
 static bool set_param(struct default_engine* e,
                       const void* cookie,
-                      protocol_binary_request_set_param* req,
+                      cb::mcbp::Request& request,
                       ADD_RESPONSE response) {
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    uint8_t extlen = req->message.header.request.extlen;
-    size_t vallen = ntohl(req->message.header.request.bodylen);
-    protocol_binary_engine_param_t paramtype =
-            static_cast<protocol_binary_engine_param_t>(
-                    ntohl(req->message.body.param_type));
+    auto extras = request.getExtdata();
 
-    if (keylen == 0 || (vallen - keylen - extlen) == 0) {
-        return false;
-    }
+    protocol_binary_engine_param_t paramtype;
+    std::copy(extras.begin(),
+              extras.end(),
+              reinterpret_cast<uint8_t*>(&paramtype));
+    paramtype = static_cast<protocol_binary_engine_param_t>(ntohl(paramtype));
 
     // Only support protocol_binary_engine_param_flush with xattr_enabled
     if (paramtype == protocol_binary_engine_param_flush) {
-        const char* keyp =
-                reinterpret_cast<const char*>(req->bytes) + sizeof(req->bytes);
-        const char* valuep = keyp + keylen;
-        vallen -= (keylen + extlen);
-        cb::const_char_buffer key(keyp, keylen);
-        cb::const_char_buffer value(valuep, vallen);
+        auto k = request.getKey();
+        auto v = request.getValue();
+
+        cb::const_char_buffer key{reinterpret_cast<const char*>(k.data()),
+                                  k.size()};
+        cb::const_char_buffer value{reinterpret_cast<const char*>(v.data()),
+                                    v.size()};
 
         if (key == "xattr_enabled") {
             if (value == "true") {
@@ -846,11 +816,11 @@ static bool set_param(struct default_engine* e,
             e->config.min_compression_ratio = min_comp_ratio;
         }
 
-        return response(NULL,
+        return response(nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
@@ -871,37 +841,23 @@ ENGINE_ERROR_CODE default_engine::unknown_command(
         sent = scrub_cmd(this, cookie, response);
         break;
     case cb::mcbp::ClientOpcode::DelVbucket:
-        sent = rm_vbucket(this, cookie, request, response);
+        sent = rm_vbucket(this, cookie, request->request, response);
         break;
     case cb::mcbp::ClientOpcode::SetVbucket:
-        sent = set_vbucket(
-                this,
-                cookie,
-                reinterpret_cast<protocol_binary_request_set_vbucket*>(
-                        request.get()),
-                response);
+        sent = set_vbucket(this, cookie, request->request, response);
         break;
     case cb::mcbp::ClientOpcode::GetVbucket:
-        sent = get_vbucket(
-                this,
-                cookie,
-                reinterpret_cast<protocol_binary_request_get_vbucket*>(
-                        request.get()),
-                response);
+        sent = get_vbucket(this, cookie, request->request, response);
         break;
     case cb::mcbp::ClientOpcode::SetParam:
-        sent = set_param(this,
-                         cookie,
-                         reinterpret_cast<protocol_binary_request_set_param*>(
-                                 request.get()),
-                         response);
+        sent = set_param(this, cookie, request->request, response);
         break;
     default:
-        sent = response(NULL,
+        sent = response(nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
-                        NULL,
+                        nullptr,
                         0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::UnknownCommand,
