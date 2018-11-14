@@ -35,9 +35,8 @@
 using Status = cb::mcbp::Status;
 
 static inline bool may_accept_xattr(const Cookie& cookie) {
-    auto* req = static_cast<protocol_binary_request_header*>(
-            cookie.getPacketAsVoidPtr());
-    if (mcbp::datatype::is_xattr(req->request.datatype)) {
+    auto& req = cookie.getHeader();
+    if (mcbp::datatype::is_xattr(req.getDatatype())) {
         return cookie.getConnection().isXattrEnabled();
     }
 
@@ -370,17 +369,12 @@ static Status dcp_system_event_validator(Cookie& cookie) {
     return verify_common_dcp_restrictions(cookie);
 }
 
-static bool is_valid_xattr_blob(const protocol_binary_request_header& header) {
-    const uint32_t extlen{header.request.extlen};
-    const uint32_t keylen{ntohs(header.request.keylen)};
-    const uint32_t bodylen{ntohl(header.request.bodylen)};
-
-    auto* ptr = reinterpret_cast<const char*>(header.bytes);
-    ptr += sizeof(header.bytes) + extlen + keylen;
-
+static bool is_valid_xattr_blob(const cb::mcbp::Request& request) {
+    auto value = request.getValue();
     cb::compression::Buffer buffer;
-    cb::const_char_buffer xattr{ptr, bodylen - keylen - extlen};
-    if (mcbp::datatype::is_snappy(header.request.datatype)) {
+    cb::const_char_buffer xattr{reinterpret_cast<const char*>(value.data()),
+                                value.size()};
+    if (mcbp::datatype::is_snappy(uint8_t(request.getDatatype()))) {
         // Inflate the xattr data and validate that.
         if (!cb::compression::inflate(
                     cb::compression::Algorithm::Snappy, xattr, buffer)) {
@@ -393,10 +387,6 @@ static bool is_valid_xattr_blob(const protocol_binary_request_header& header) {
 }
 
 static Status dcp_mutation_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_dcp_mutation*>(
-            cookie.getPacketAsVoidPtr());
-    const auto datatype = req->message.header.request.datatype;
-
     if (!verify_header(cookie,
                        protocol_binary_request_dcp_mutation::getExtrasLength(),
                        ExpectedKeyLen::NonZero,
@@ -414,8 +404,11 @@ static Status dcp_mutation_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
+    auto& header = cookie.getHeader();
+    const auto datatype = header.getDatatype();
+
     if (mcbp::datatype::is_xattr(datatype) &&
-        !is_valid_xattr_blob(req->message.header)) {
+        !is_valid_xattr_blob(header.getRequest())) {
         cookie.setErrorContext("Xattr blob not valid");
         return Status::XattrEinval;
     }
@@ -448,21 +441,19 @@ static bool valid_dcp_delete_datatype(protocol_binary_datatype_t datatype) {
 }
 
 static Status dcp_deletion_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_dcp_deletion*>(
-            cookie.getPacketAsVoidPtr());
-
-    const uint8_t expectedExtlen =
+    const size_t expectedExtlen =
             may_accept_dcp_deleteV2(cookie)
                     ? sizeof(cb::mcbp::request::DcpDeletionV2Payload)
                     : sizeof(cb::mcbp::request::DcpDeletionV1Payload);
 
     if (!verify_header(cookie,
-                       expectedExtlen,
+                       gsl::narrow<uint8_t>(expectedExtlen),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::Any)) {
         return Status::Einval;
     }
-    if (!valid_dcp_delete_datatype(req->message.header.request.datatype)) {
+
+    if (!valid_dcp_delete_datatype(cookie.getHeader().getDatatype())) {
         cookie.setErrorContext("Request datatype invalid");
         return Status::Einval;
     }
@@ -493,9 +484,6 @@ static Status dcp_expiration_validator(Cookie& cookie) {
 }
 
 static Status dcp_set_vbucket_state_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_dcp_set_vbucket_state*>(
-            cookie.getPacketAsVoidPtr());
-
     if (!verify_header(cookie,
                        1,
                        ExpectedKeyLen::Zero,
@@ -505,7 +493,8 @@ static Status dcp_set_vbucket_state_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (req->message.body.state < 1 || req->message.body.state > 4) {
+    auto extras = cookie.getHeader().getRequest().getExtdata();
+    if (extras[0] < 1 || extras[0] > 4) {
         cookie.setErrorContext("Request body state invalid");
         return Status::Einval;
     }
@@ -967,16 +956,14 @@ static Status ioctl_set_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    auto req = static_cast<protocol_binary_request_ioctl_set*>(
-            cookie.getPacketAsVoidPtr());
-    uint16_t klen = ntohs(req->message.header.request.keylen);
-    size_t vallen = ntohl(req->message.header.request.bodylen) - klen;
+    auto req = cookie.getHeader().getRequest();
 
-    if (klen > IOCTL_KEY_LENGTH) {
+    if (req.getKey().size() > IOCTL_KEY_LENGTH) {
         cookie.setErrorContext("Request key length exceeds maximum");
         return Status::Einval;
     }
-    if (vallen > IOCTL_VAL_LENGTH) {
+
+    if (req.getValue().size() > IOCTL_VAL_LENGTH) {
         cookie.setErrorContext("Request value length exceeds maximum");
         return Status::Einval;
     }
@@ -1147,14 +1134,12 @@ static Status select_bucket_validator(Cookie& cookie) {
 }
 
 static Status get_all_vb_seqnos_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_get_all_vb_seqnos*>(
-            cookie.getPacketAsVoidPtr());
-    uint8_t extlen = req->message.header.request.extlen;
+    auto& header = cookie.getHeader();
 
     // We check extlen below so pass actual extlen as expected_extlen to bypass
     // the check in verify_header
     if (!verify_header(cookie,
-                       extlen,
+                       header.getExtlen(),
                        ExpectedKeyLen::Zero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::NotSet,
@@ -1162,16 +1147,20 @@ static Status get_all_vb_seqnos_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (extlen != 0) {
+    auto extras = header.getRequest().getExtdata();
+
+    if (!extras.empty()) {
         // extlen is optional, and if non-zero it contains the vbucket
         // state to report
-        if (extlen != sizeof(vbucket_state_t)) {
+        if (extras.size() != sizeof(vbucket_state_t)) {
             cookie.setErrorContext("Request extras must be of length 0 or " +
                                    std::to_string(sizeof(vbucket_state_t)));
             return Status::Einval;
         }
         vbucket_state_t state;
-        memcpy(&state, &req->message.body.state, sizeof(vbucket_state_t));
+        std::copy(extras.begin(),
+                  extras.end(),
+                  reinterpret_cast<uint8_t*>(&state));
         state = static_cast<vbucket_state_t>(ntohl(state));
         if (!is_valid_vbucket_state_t(state)) {
             cookie.setErrorContext("Request vbucket state invalid");
@@ -1195,14 +1184,12 @@ static Status shutdown_validator(Cookie& cookie) {
 }
 
 static Status get_meta_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_no_extras*>(
-            cookie.getPacketAsVoidPtr());
-    uint32_t extlen = req->message.header.request.extlen;
+    auto& header = cookie.getHeader();
 
     // We check extlen below so pass actual extlen as expected_extlen to bypass
     // the check in verify_header
     if (!verify_header(cookie,
-                       extlen,
+                       header.getExtlen(),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::NotSet,
@@ -1210,17 +1197,20 @@ static Status get_meta_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (extlen > 1) {
+    auto extras = header.getRequest().getExtdata();
+
+    if (extras.size() > 1) {
         cookie.setErrorContext("Request extras must be of length 0 or 1");
         return Status::Einval;
     }
+
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
-    if (extlen == 1) {
-        const uint8_t* extdata = req->bytes + sizeof(req->bytes);
-        if (*extdata > 2) {
+
+    if (extras.size() == 1) {
+        if (extras[0] > 2) {
             // 1 == return conflict resolution mode
             // 2 == return datatype
             cookie.setErrorContext("Request extras invalid");
@@ -1232,16 +1222,12 @@ static Status get_meta_validator(Cookie& cookie) {
 }
 
 static Status mutate_with_meta_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_get_meta*>(
-            cookie.getPacketAsVoidPtr());
-
-    const uint32_t extlen = req->message.header.request.extlen;
-    const auto datatype = req->message.header.request.datatype;
+    auto& header = cookie.getHeader();
 
     // We check extlen below so pass actual extlen as expected_extlen to bypass
     // the check in verify_header
     if (!verify_header(cookie,
-                       extlen,
+                       header.getExtlen(),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::Any)) {
         return Status::Einval;
@@ -1257,7 +1243,7 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
 
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
     // extlen, the size dicates what is encoded.
-    switch (extlen) {
+    switch (header.getExtlen()) {
     case 24: // no nmeta and no options
     case 26: // nmeta
     case 28: // options (4-byte field)
@@ -1268,8 +1254,8 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if (mcbp::datatype::is_xattr(datatype) &&
-        !is_valid_xattr_blob(req->message.header)) {
+    if (mcbp::datatype::is_xattr(header.getDatatype()) &&
+        !is_valid_xattr_blob(header.getRequest())) {
         cookie.setErrorContext("Xattr blob invalid");
         return Status::XattrEinval;
     }
@@ -1287,14 +1273,13 @@ static Status get_errmap_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    const auto& hdr = *static_cast<const protocol_binary_request_header*>(
-            cookie.getPacketAsVoidPtr());
-
-    if (hdr.request.vbucket != Vbid(0)) {
+    auto& request = cookie.getHeader().getRequest();
+    if (request.getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
         return Status::Einval;
     }
-    if (hdr.request.getBodylen() != 2) {
+
+    if (request.getValue().size() != 2) {
         cookie.setErrorContext("Request value must be of length 2");
         return Status::Einval;
     }
@@ -1302,9 +1287,7 @@ static Status get_errmap_validator(Cookie& cookie) {
 }
 
 static Status get_locked_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_no_extras*>(
-            cookie.getPacketAsVoidPtr());
-    uint32_t extlen = req->message.header.request.extlen;
+    const auto extlen = cookie.getHeader().getExtlen();
 
     // We check extlen below so pass actual extlen as expected extlen to bypass
     // the check in verify header
