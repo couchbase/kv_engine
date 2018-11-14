@@ -87,5 +87,5 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
         cb::mcbp::Status status,
         bool mutation_seqno_enabled);
 
-void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
+void mcbp_validate_arithmetic(const cb::mcbp::Response& response,
                               uint64_t expected);

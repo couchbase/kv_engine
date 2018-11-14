@@ -490,8 +490,7 @@ TEST_P(McdTestappTest, GetKQ) {
 static void test_incr_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response_header;
-        protocol_binary_response_incr response;
+        cb::mcbp::Response response;
         char bytes[1024];
     } send, receive;
     size_t len = mcbp_arithmetic_command(send.bytes, sizeof(send.bytes), cmd,
@@ -503,8 +502,11 @@ static void test_incr_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
         if (cmd == cb::mcbp::ClientOpcode::Increment) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             mcbp_validate_response_header(
-                    &receive.response_header, cmd, cb::mcbp::Status::Success);
-            mcbp_validate_arithmetic(&receive.response, ii);
+                    reinterpret_cast<protocol_binary_response_no_extras*>(
+                            &receive.response),
+                    cmd,
+                    cb::mcbp::Status::Success);
+            mcbp_validate_arithmetic(receive.response, ii);
         }
     }
 
@@ -562,8 +564,7 @@ TEST_P(McdTestappTest, InvalidCASDecrQ) {
 static void test_decr_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     union {
         protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response_header;
-        protocol_binary_response_decr response;
+        cb::mcbp::Response response;
         char bytes[1024];
     } send, receive;
     size_t len = mcbp_arithmetic_command(send.bytes, sizeof(send.bytes), cmd,
@@ -575,8 +576,11 @@ static void test_decr_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
         if (cmd == cb::mcbp::ClientOpcode::Decrement) {
             safe_recv_packet(receive.bytes, sizeof(receive.bytes));
             mcbp_validate_response_header(
-                    &receive.response_header, cmd, cb::mcbp::Status::Success);
-            mcbp_validate_arithmetic(&receive.response, ii);
+                    reinterpret_cast<protocol_binary_response_no_extras*>(
+                            &receive.response),
+                    cmd,
+                    cb::mcbp::Status::Success);
+            mcbp_validate_arithmetic(receive.response, ii);
         }
     }
 
@@ -585,8 +589,11 @@ static void test_decr_impl(const char* key, cb::mcbp::ClientOpcode cmd) {
     if (cmd == cb::mcbp::ClientOpcode::Decrement) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         mcbp_validate_response_header(
-                &receive.response_header, cmd, cb::mcbp::Status::Success);
-        mcbp_validate_arithmetic(&receive.response, 0);
+                reinterpret_cast<protocol_binary_response_no_extras*>(
+                        &receive.response),
+                cmd,
+                cb::mcbp::Status::Success);
+        mcbp_validate_arithmetic(receive.response, 0);
     } else {
         test_noop();
     }

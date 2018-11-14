@@ -177,17 +177,20 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
             rsp, cmd, status, mutation_seqno_enabled));
 }
 
-void mcbp_validate_arithmetic(const protocol_binary_response_incr* incr,
+void mcbp_validate_arithmetic(const cb::mcbp::Response& response,
                               uint64_t expected) {
-    const uint8_t* ptr = incr->bytes + sizeof(incr->message.header) +
-                         incr->message.header.response.getExtlen();
-    const uint64_t result = ntohll(*(uint64_t*)ptr);
+    auto value = response.getValue();
+    ASSERT_EQ(sizeof(expected), value.size());
+    uint64_t result;
+    std::copy(value.begin(), value.end(), reinterpret_cast<uint8_t*>(&result));
+    result = ntohll(result);
     EXPECT_EQ(expected, result);
 
     /* Check for extras - if present should be {vbucket_uuid, seqno) pair for
      * mutation seqno support. */
-    if (incr->message.header.response.getExtlen() != 0) {
-        EXPECT_EQ(16, incr->message.header.response.getExtlen());
+    auto extras = response.getExtdata();
+    if (!extras.empty()) {
+        EXPECT_EQ(16, extras.size());
     }
 }
 
