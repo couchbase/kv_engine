@@ -89,33 +89,6 @@ off_t mcbp_raw_command(char* buf,
                    request->message.header.request.extlen);
 }
 
-off_t mcbp_flush_command(char* buf,
-                         size_t bufsz,
-                         cb::mcbp::ClientOpcode cmd,
-                         uint32_t exptime,
-                         bool use_extra) {
-    off_t size;
-    protocol_binary_request_flush* request =
-        reinterpret_cast<protocol_binary_request_flush*>(buf);
-    cb_assert(bufsz > sizeof(*request));
-
-    memset(request, 0, sizeof(*request));
-    request->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request->message.header.request.setOpcode(cmd);
-
-    size = sizeof(protocol_binary_request_no_extras);
-    if (use_extra) {
-        request->message.header.request.extlen = 4;
-        request->message.body.expiration = htonl(exptime);
-        request->message.header.request.bodylen = htonl(4);
-        size += 4;
-    }
-
-    request->message.header.request.opaque = 0xdeadbeef;
-
-    return size;
-}
-
 off_t mcbp_arithmetic_command(char* buf,
                               size_t bufsz,
                               cb::mcbp::ClientOpcode cmd,

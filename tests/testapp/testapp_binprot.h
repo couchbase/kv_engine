@@ -42,12 +42,6 @@ off_t mcbp_raw_command(char* buf,
                        const void* dta,
                        size_t dtalen);
 
-off_t mcbp_flush_command(char* buf,
-                         size_t bufsz,
-                         cb::mcbp::ClientOpcode cmd,
-                         uint32_t exptime,
-                         bool use_extra);
-
 off_t mcbp_arithmetic_command(char* buf,
                               size_t bufsz,
                               cb::mcbp::ClientOpcode cmd,
