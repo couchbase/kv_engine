@@ -27,24 +27,6 @@
 static cb::mcbp::ClientOpcode read_command = cb::mcbp::ClientOpcode::Invalid;
 static cb::mcbp::ClientOpcode write_command = cb::mcbp::ClientOpcode::Invalid;
 
-off_t mcbp_raw_command(Frame& frame,
-                       cb::mcbp::ClientOpcode cmd,
-                       const void* key,
-                       size_t keylen,
-                       const void* data,
-                       size_t datalen) {
-    frame.reset();
-    // 255 is the max amount of data that may fit in extdata. The underlying
-    // mcbp_raw_command method magically injects extdata depending on the
-    // opcode called, so just make room for it..
-    frame.payload.resize(keylen + datalen + 255);
-    off_t size = mcbp_raw_command(reinterpret_cast<char*>(frame.payload.data()),
-                                  frame.payload.size(), cmd,
-                                  key, keylen, data, datalen);
-    frame.payload.resize(size);
-    return size;
-}
-
 off_t mcbp_raw_command(char* buf,
                        size_t bufsz,
                        cb::mcbp::ClientOpcode cmd,
