@@ -1224,6 +1224,78 @@ union protocol_binary_request_dcp_mutation {
     }
 };
 
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class DcpDeletionV1Payload {
+public:
+    uint64_t getBySeqno() const {
+        return ntohll(by_seqno);
+    }
+    void setBySeqno(uint64_t by_seqno) {
+        DcpDeletionV1Payload::by_seqno = htonll(by_seqno);
+    }
+    uint64_t getRevSeqno() const {
+        return ntohll(rev_seqno);
+    }
+    void setRevSeqno(uint64_t rev_seqno) {
+        DcpDeletionV1Payload::rev_seqno = htonll(rev_seqno);
+    }
+    uint16_t getNmeta() const {
+        return ntohs(nmeta);
+    }
+    void setNmeta(uint16_t nmeta) {
+        DcpDeletionV1Payload::nmeta = htons(nmeta);
+    }
+
+protected:
+    uint64_t by_seqno = 0;
+    uint64_t rev_seqno = 0;
+    uint16_t nmeta = 0;
+};
+static_assert(sizeof(DcpDeletionV1Payload) == 18, "Unexpected struct size");
+
+class DcpDeletionV2Payload {
+public:
+    uint64_t getBySeqno() const {
+        return ntohll(by_seqno);
+    }
+    void setBySeqno(uint64_t by_seqno) {
+        DcpDeletionV2Payload::by_seqno = htonll(by_seqno);
+    }
+    uint64_t getRevSeqno() const {
+        return ntohll(rev_seqno);
+    }
+    void setRevSeqno(uint64_t rev_seqno) {
+        DcpDeletionV2Payload::rev_seqno = htonll(rev_seqno);
+    }
+    uint32_t getDeleteTime() const {
+        return ntohl(delete_time);
+    }
+    void setDeleteTime(uint32_t delete_time) {
+        DcpDeletionV2Payload::delete_time = htonl(delete_time);
+    }
+    uint8_t getCollectionLen() const {
+        return collection_len;
+    }
+    void setCollectionLen(uint8_t collection_len) {
+        DcpDeletionV2Payload::collection_len = collection_len;
+    }
+
+protected:
+    uint64_t by_seqno = 0;
+    uint64_t rev_seqno = 0;
+    uint32_t delete_time = 0;
+    uint8_t collection_len = 0;
+};
+static_assert(sizeof(DcpDeletionV2Payload) == 21, "Unexpected struct size");
+
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
+
 union protocol_binary_request_dcp_deletion {
     static constexpr size_t extlen = 18;
     protocol_binary_request_dcp_deletion(uint32_t opaque,

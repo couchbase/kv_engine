@@ -453,8 +453,8 @@ static Status dcp_deletion_validator(Cookie& cookie) {
 
     const uint8_t expectedExtlen =
             may_accept_dcp_deleteV2(cookie)
-                    ? protocol_binary_request_dcp_deletion_v2::extlen
-                    : protocol_binary_request_dcp_deletion::extlen;
+                    ? sizeof(cb::mcbp::request::DcpDeletionV2Payload)
+                    : sizeof(cb::mcbp::request::DcpDeletionV1Payload);
 
     if (!verify_header(cookie,
                        expectedExtlen,

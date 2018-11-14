@@ -18,32 +18,43 @@
 #include "../../mcbp.h"
 #include "engine_wrapper.h"
 #include "utilities.h"
+#include <mcbp/protocol/header.h>
+#include <mcbp/protocol/request.h>
 #include <memcached/protocol_binary.h>
 
-static ENGINE_ERROR_CODE dcp_deletion_v1_executor(
-        Cookie& cookie, const protocol_binary_request_dcp_deletion& request) {
-    const uint16_t nkey = ntohs(request.message.header.request.keylen);
-    // The V1 delete is not collection aware, so lock to the DefaultCollection
-    const DocKey key{request.bytes + sizeof(request.bytes),
-                     nkey,
-                     DocKeyEncodesCollectionId::No};
+static ENGINE_ERROR_CODE dcp_deletion_v1_executor(Cookie& cookie) {
+    auto& request = cookie.getHeader().getRequest();
+    auto keybuffer = request.getKey();
 
-    const auto opaque = request.message.header.request.opaque;
-    const auto datatype = request.message.header.request.datatype;
-    const auto cas = request.message.header.request.getCas();
-    const Vbid vbucket = request.message.header.request.vbucket.ntoh();
-    const uint64_t by_seqno = ntohll(request.message.body.by_seqno);
-    const uint64_t rev_seqno = ntohll(request.message.body.rev_seqno);
-    const uint16_t nmeta = ntohs(request.message.body.nmeta);
-    const uint32_t valuelen = ntohl(request.message.header.request.bodylen) -
-                              nkey - request.message.header.request.extlen -
-                              nmeta;
-    cb::const_byte_buffer value{request.bytes + sizeof(request.bytes) + nkey,
-                                valuelen};
-    cb::const_byte_buffer meta{value.buf + valuelen, nmeta};
+    // The V1 delete is not collection aware, so lock to the DefaultCollection
+    const DocKey key{
+            keybuffer.data(), keybuffer.size(), DocKeyEncodesCollectionId::No};
+
+    const auto opaque = request.getOpaque();
+    const auto datatype = uint8_t(request.getDatatype());
+    const auto cas = request.getCas();
+    const Vbid vbucket = request.getVBucket();
+
+    auto extras = request.getExtdata();
+    using cb::mcbp::request::DcpDeletionV1Payload;
+
+    if (extras.size() != sizeof(DcpDeletionV1Payload)) {
+        return ENGINE_EINVAL;
+    }
+    auto* payload =
+            reinterpret_cast<const DcpDeletionV1Payload*>(extras.data());
+
+    const uint64_t by_seqno = payload->getBySeqno();
+    const uint64_t rev_seqno = payload->getRevSeqno();
+    const uint16_t nmeta = payload->getNmeta();
+
+    auto value = request.getValue();
+    cb::const_byte_buffer meta{value.data() + value.size() - nmeta, nmeta};
+    value = {value.data(), value.size() - nmeta};
+
     uint32_t priv_bytes = 0;
     if (mcbp::datatype::is_xattr(datatype)) {
-        priv_bytes = valuelen;
+        priv_bytes = gsl::narrow<uint32_t>(value.size());
     }
     if (priv_bytes <= COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
         return dcpDeletion(cookie,
@@ -57,36 +68,40 @@ static ENGINE_ERROR_CODE dcp_deletion_v1_executor(
                            by_seqno,
                            rev_seqno,
                            meta);
-    } else {
-        return ENGINE_E2BIG;
     }
-    return ENGINE_DISCONNECT;
+    return ENGINE_E2BIG;
 }
 
 // The updated deletion sends no extended meta, but does send a deletion time
 // and the collection_len
-static ENGINE_ERROR_CODE dcp_deletion_v2_executor(
-        Cookie& cookie,
-        const protocol_binary_request_dcp_deletion_v2& request) {
-    const uint16_t nkey = ntohs(request.message.header.request.keylen);
-    auto& connection = cookie.getConnection();
-    const auto key = connection.makeDocKey(
-            {request.bytes + sizeof(request.bytes), nkey});
+static ENGINE_ERROR_CODE dcp_deletion_v2_executor(Cookie& cookie) {
+    auto& request = cookie.getHeader().getRequest();
 
-    const auto opaque = request.message.header.request.opaque;
-    const auto datatype = request.message.header.request.datatype;
-    const auto cas = request.message.header.request.getCas();
-    const Vbid vbucket = request.message.header.request.vbucket.ntoh();
-    const uint64_t by_seqno = ntohll(request.message.body.by_seqno);
-    const uint64_t rev_seqno = ntohll(request.message.body.rev_seqno);
-    const uint32_t delete_time = ntohl(request.message.body.delete_time);
-    const uint32_t valuelen = ntohl(request.message.header.request.bodylen) -
-                              nkey - request.message.header.request.extlen;
-    cb::const_byte_buffer value{request.bytes + sizeof(request.bytes) + nkey,
-                                valuelen};
+    auto& connection = cookie.getConnection();
+    const auto key = connection.makeDocKey(request.getKey());
+
+    const auto opaque = request.getOpaque();
+    const auto datatype = uint8_t(request.getDatatype());
+    const auto cas = request.getCas();
+    const Vbid vbucket = request.getVBucket();
+
+    auto extras = request.getExtdata();
+    using cb::mcbp::request::DcpDeletionV2Payload;
+
+    if (extras.size() != sizeof(DcpDeletionV2Payload)) {
+        return ENGINE_EINVAL;
+    }
+    auto* payload =
+            reinterpret_cast<const DcpDeletionV2Payload*>(extras.data());
+
+    const uint64_t by_seqno = payload->getBySeqno();
+    const uint64_t rev_seqno = payload->getRevSeqno();
+    const uint32_t delete_time = payload->getDeleteTime();
+
+    auto value = request.getValue();
     uint32_t priv_bytes = 0;
     if (mcbp::datatype::is_xattr(datatype)) {
-        priv_bytes = valuelen;
+        priv_bytes = gsl::narrow<uint32_t>(value.size());
     }
 
     if (priv_bytes <= COUCHBASE_MAX_ITEM_PRIVILEGED_BYTES) {
@@ -101,31 +116,20 @@ static ENGINE_ERROR_CODE dcp_deletion_v2_executor(
                              by_seqno,
                              rev_seqno,
                              delete_time);
-    } else {
-        return ENGINE_E2BIG;
     }
+    return ENGINE_E2BIG;
 }
 
 void dcp_deletion_executor(Cookie& cookie) {
-    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-
     auto& connection = cookie.getConnection();
 
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     if (ret == ENGINE_SUCCESS) {
         if (connection.isDcpDeleteV2()) {
-            ret = dcp_deletion_v2_executor(
-                    cookie,
-                    *reinterpret_cast<
-                            const protocol_binary_request_dcp_deletion_v2*>(
-                            packet.data()));
+            ret = dcp_deletion_v2_executor(cookie);
         } else {
-            ret = dcp_deletion_v1_executor(
-                    cookie,
-                    *reinterpret_cast<
-                            const protocol_binary_request_dcp_deletion*>(
-                            packet.data()));
+            ret = dcp_deletion_v1_executor(cookie);
         }
     }
 
