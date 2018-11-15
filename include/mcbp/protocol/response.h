@@ -25,10 +25,11 @@
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/sized_buffer.h>
-#include <cstdint>
+
 #ifndef WIN32
 #include <arpa/inet.h>
 #endif
+#include <cstdint>
 
 namespace cb {
 namespace mcbp {
@@ -37,18 +38,8 @@ namespace mcbp {
  * Definition of the header structure for a response packet.
  * See section 2
  */
-struct Response {
-    uint8_t magic;
-    uint8_t opcode;
-    uint8_t frame_extlen;
-    uint8_t keylen;
-    uint8_t extlen;
-    uint8_t datatype;
-    uint16_t status;
-    uint32_t bodylen;
-    uint32_t opaque;
-    uint64_t cas;
-
+class Response {
+public:
     // Convenience methods to get/set the various fields in the header (in
     // the correct byteorder)
 
@@ -173,51 +164,28 @@ struct Response {
         cas = htonll(val);
     }
 
-    uint32_t getValuelen() const {
-        return getBodylen() -
-               (getKeylen() + getExtlen() + getFramingExtraslen());
-    }
+    uint32_t getValuelen() const;
 
-    size_t getHeaderlen() const {
-        return sizeof(*this);
-    }
+    size_t getHeaderlen() const;
 
     // offsets from payload begin
-    const uint8_t* begin() const {
-        return reinterpret_cast<const uint8_t*>(this);
-    }
+    const uint8_t* begin() const;
 
-    size_t getFramingExtrasOffset() const {
-        return getHeaderlen();
-    }
+    size_t getFramingExtrasOffset() const;
 
-    size_t getExtOffset() const {
-        return getFramingExtrasOffset() + getFramingExtraslen();
-    }
+    size_t getExtOffset() const;
 
-    size_t getKeyOffset() const {
-        return getExtOffset() + getExtlen();
-    }
+    size_t getKeyOffset() const;
 
-    size_t getValueOffset() const {
-        return getKeyOffset() + getKeylen();
-    }
+    size_t getValueOffset() const;
 
-    cb::const_byte_buffer getFramingExtras() const {
-        return {begin() + getFramingExtrasOffset(), getFramingExtraslen()};
-    }
+    cb::const_byte_buffer getFramingExtras() const;
 
-    cb::const_byte_buffer getKey() const {
-        return {begin() + getKeyOffset(), getKeylen()};
-    }
+    cb::const_byte_buffer getKey() const;
 
-    cb::const_byte_buffer getExtdata() const {
-        return {begin() + getExtOffset(), getExtlen()};
-    }
+    cb::const_byte_buffer getExtdata() const;
 
-    cb::const_byte_buffer getValue() const {
-        return {begin() + getValueOffset(), getValuelen()};
-    }
+    cb::const_byte_buffer getValue() const;
 
     nlohmann::json toJSON() const;
 
@@ -225,17 +193,18 @@ struct Response {
      * Validate that the header is "sane" (correct magic, and extlen+keylen
      * doesn't exceed the body size)
      */
-    bool isValid() const {
-        auto m = Magic(magic);
-        if (m != Magic::ClientResponse && m != Magic::ServerResponse &&
-            m != Magic::AltClientResponse) {
-            return false;
-        }
+    bool isValid() const;
 
-        return (size_t(getExtlen()) +
-                        size_t(getKeylen() + getFramingExtraslen()) <=
-                size_t(getBodylen()));
-    }
+    uint8_t magic;
+    uint8_t opcode;
+    uint8_t frame_extlen;
+    uint8_t keylen;
+    uint8_t extlen;
+    uint8_t datatype;
+    uint16_t status;
+    uint32_t bodylen;
+    uint32_t opaque;
+    uint64_t cas;
 };
 
 static_assert(sizeof(Response) == 24, "Incorrect compiler padding");

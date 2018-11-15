@@ -49,7 +49,7 @@ class RollbackResult;
 
 namespace cb {
 namespace mcbp {
-struct Request;
+class Request;
 }
 } // namespace cb
 

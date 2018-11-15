@@ -17,11 +17,35 @@
 
 #include <mcbp/mcbp.h>
 #include <nlohmann/json.hpp>
-
-#include <stdexcept>
+#include <platform/platform.h>
 
 namespace cb {
 namespace mcbp {
+
+bool Header::isRequest() const {
+    const auto m = Magic(magic);
+    return (m == Magic::ClientRequest || m == Magic::ServerRequest);
+}
+
+const Request& Header::getRequest() const {
+    if (isRequest()) {
+        return *reinterpret_cast<const Request*>(this);
+    }
+    throw std::logic_error("Header::getRequest(): Header is not a request");
+}
+
+bool Header::isResponse() const {
+    const auto m = Magic(magic);
+    return (m == Magic::ClientResponse || m == Magic::ServerResponse ||
+            m == Magic::AltClientResponse);
+}
+
+const Response& Header::getResponse() const {
+    if (isResponse()) {
+        return *reinterpret_cast<const Response*>(this);
+    }
+    throw std::logic_error("Header::getResponse(): Header is not a response");
+}
 
 bool Header::isValid() const {
     if (isRequest()) {

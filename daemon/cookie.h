@@ -33,8 +33,8 @@ class CommandContext;
 namespace cb {
 namespace mcbp {
 class Header;
-struct Request;
-struct Response;
+class Request;
+class Response;
 } // namespace mcbp
 } // namespace cb
 

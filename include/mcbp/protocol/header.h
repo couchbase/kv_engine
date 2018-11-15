@@ -21,7 +21,6 @@
 #include "magic.h"
 
 #include <nlohmann/json_fwd.hpp>
-#include <platform/platform.h>
 
 #ifndef WIN32
 #include <arpa/inet.h>
@@ -33,8 +32,8 @@ namespace mcbp {
 
 #define MCBP_TRACING_RESPONSE_SIZE 0x03
 
-struct Request;
-struct Response;
+class Request;
+class Response;
 
 /**
  * The header struct is a representation of the header in a binary protocol.
@@ -86,44 +85,26 @@ public:
     /**
      * Does this packet represent a request packet?
      */
-    bool isRequest() const {
-        const auto m = Magic(magic);
-        return (m == Magic::ClientRequest || m == Magic::ServerRequest);
-    }
+    bool isRequest() const;
 
     /**
      * Get a request object from this packet. Note that the entire
      * object may not be present (if called while we're still spooling
      * data for the object). The entire header is however available
      */
-    const cb::mcbp::Request& getRequest() const {
-        if (isRequest()) {
-            return *reinterpret_cast<const cb::mcbp::Request*>(this);
-        }
-        throw std::logic_error("Header::getRequest(): Header is not a request");
-    }
+    const cb::mcbp::Request& getRequest() const;
 
     /**
      * Does this packet represent a response packet?
      */
-    bool isResponse() const {
-        const auto m = Magic(magic);
-        return (m == Magic::ClientResponse || m == Magic::ServerResponse ||
-                m == Magic::AltClientResponse);
-    }
+    bool isResponse() const;
 
     /**
      * Get a response object from this packet. Note that the entire
      * object may not be present (if called while we're still spooling
      * data for the object). The entire header is however available
      */
-    const cb::mcbp::Response& getResponse() const {
-        if (isResponse()) {
-            return *reinterpret_cast<const cb::mcbp::Response*>(this);
-        }
-        throw std::logic_error(
-                "Header::getResponse(): Header is not a response");
-    }
+    const cb::mcbp::Response& getResponse() const;
 
     bool isValid() const;
 

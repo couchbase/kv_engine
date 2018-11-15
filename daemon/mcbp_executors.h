@@ -21,8 +21,8 @@ class Connection;
 class Cookie;
 namespace cb {
 namespace mcbp {
-struct Request;
-struct Response;
+class Request;
+class Response;
 } // namespace mcbp
 } // namespace cb
 

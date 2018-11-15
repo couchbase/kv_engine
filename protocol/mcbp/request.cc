@@ -18,8 +18,39 @@
 #include <mcbp/protocol/request.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
+#include <cctype>
 
-bool cb::mcbp::Request::isQuiet() const {
+namespace cb {
+namespace mcbp {
+
+cb::const_byte_buffer Request::getKey() const {
+    return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this) + extlen,
+            getKeylen()};
+}
+
+std::string Request::getPrintableKey() const {
+    const auto key = getKey();
+
+    std::string buffer{reinterpret_cast<const char*>(key.data()), key.size()};
+    for (auto& ii : buffer) {
+        if (!std::isgraph(ii)) {
+            ii = '.';
+        }
+    }
+
+    return buffer;
+}
+
+cb::const_byte_buffer Request::getExtdata() const {
+    return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this), extlen};
+}
+
+cb::const_byte_buffer Request::getValue() const {
+    const auto buf = getKey();
+    return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
+}
+
+bool Request::isQuiet() const {
     if (getMagic() == Magic::ClientRequest) {
         switch (getClientOpcode()) {
         case ClientOpcode::Get:
@@ -194,13 +225,13 @@ bool cb::mcbp::Request::isQuiet() const {
     throw std::invalid_argument("Request::isQuiet: Uknown opcode");
 }
 
-nlohmann::json cb::mcbp::Request::toJSON() const {
+nlohmann::json Request::toJSON() const {
     if (!isValid()) {
         throw std::logic_error("Request::toJSON(): Invalid packet");
     }
 
     nlohmann::json ret;
-    auto m = cb::mcbp::Magic(magic);
+    auto m = Magic(magic);
     ret["magic"] = ::to_string(m);
 
     if (m == Magic::ClientRequest) {
@@ -220,3 +251,15 @@ nlohmann::json cb::mcbp::Request::toJSON() const {
 
     return ret;
 }
+
+bool Request::isValid() const {
+    auto m = Magic(magic);
+    if (m != Magic::ClientRequest && m != Magic::ServerRequest) {
+        return false;
+    }
+
+    return (size_t(extlen) + size_t(getKeylen()) <= size_t(getBodylen()));
+}
+
+} // namespace mcbp
+} // namespace cb

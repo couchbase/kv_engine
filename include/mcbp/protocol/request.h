@@ -29,7 +29,7 @@
 #ifndef WIN32
 #include <arpa/inet.h>
 #endif
-#include <cctype>
+
 #include <cstdint>
 
 namespace cb {
@@ -39,17 +39,8 @@ namespace mcbp {
  * Definition of the header structure for a request packet.
  * See section 2
  */
-struct Request {
-    uint8_t magic;
-    uint8_t opcode;
-    uint16_t keylen;
-    uint8_t extlen;
-    uint8_t datatype;
-    Vbid vbucket;
-    uint32_t bodylen;
-    uint32_t opaque;
-    uint64_t cas;
-
+class Request {
+public:
     // Convenience methods to get/set the various fields in the header (in
     // the correct byteorder)
 
@@ -147,37 +138,17 @@ struct Request {
         cas = htonll(val);
     }
 
-    cb::const_byte_buffer getKey() const {
-        return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this) + extlen,
-                getKeylen()};
-    }
+    cb::const_byte_buffer getKey() const;
 
     /**
      * Get a printable version of the key (non-printable characters replaced
      * with a '.'
      */
-    std::string getPrintableKey() const {
-        const auto key = getKey();
+    std::string getPrintableKey() const;
 
-        std::string buffer{reinterpret_cast<const char*>(key.data()),
-                           key.size()};
-        for (auto& ii : buffer) {
-            if (!std::isgraph(ii)) {
-                ii = '.';
-            }
-        }
+    cb::const_byte_buffer getExtdata() const;
 
-        return buffer;
-    }
-
-    cb::const_byte_buffer getExtdata() const {
-        return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this), extlen};
-    }
-
-    cb::const_byte_buffer getValue() const {
-        const auto buf = getKey();
-        return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
-    }
+    cb::const_byte_buffer getValue() const;
 
     /**
      * Is this a quiet command or not
@@ -190,14 +161,17 @@ struct Request {
      * Validate that the header is "sane" (correct magic, and extlen+keylen
      * doesn't exceed the body size)
      */
-    bool isValid() const {
-        auto m = Magic(magic);
-        if (m != Magic::ClientRequest && m != Magic::ServerRequest) {
-            return false;
-        }
+    bool isValid() const;
 
-        return (size_t(extlen) + size_t(getKeylen()) <= size_t(getBodylen()));
-    }
+    uint8_t magic;
+    uint8_t opcode;
+    uint16_t keylen;
+    uint8_t extlen;
+    uint8_t datatype;
+    Vbid vbucket;
+    uint32_t bodylen;
+    uint32_t opaque;
+    uint64_t cas;
 };
 
 static_assert(sizeof(Request) == 24, "Incorrect compiler padding");

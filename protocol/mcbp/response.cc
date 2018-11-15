@@ -19,7 +19,55 @@
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>
 
-nlohmann::json cb::mcbp::Response::toJSON() const {
+namespace cb {
+namespace mcbp {
+
+uint32_t Response::getValuelen() const {
+    return getBodylen() - (getKeylen() + getExtlen() + getFramingExtraslen());
+}
+
+size_t Response::getHeaderlen() const {
+    return sizeof(*this);
+}
+
+// offsets from payload begin
+const uint8_t* Response::begin() const {
+    return reinterpret_cast<const uint8_t*>(this);
+}
+
+size_t Response::getFramingExtrasOffset() const {
+    return getHeaderlen();
+}
+
+size_t Response::getExtOffset() const {
+    return getFramingExtrasOffset() + getFramingExtraslen();
+}
+
+size_t Response::getKeyOffset() const {
+    return getExtOffset() + getExtlen();
+}
+
+size_t Response::getValueOffset() const {
+    return getKeyOffset() + getKeylen();
+}
+
+cb::const_byte_buffer Response::getFramingExtras() const {
+    return {begin() + getFramingExtrasOffset(), getFramingExtraslen()};
+}
+
+cb::const_byte_buffer Response::getKey() const {
+    return {begin() + getKeyOffset(), getKeylen()};
+}
+
+cb::const_byte_buffer Response::getExtdata() const {
+    return {begin() + getExtOffset(), getExtlen()};
+}
+
+cb::const_byte_buffer Response::getValue() const {
+    return {begin() + getValueOffset(), getValuelen()};
+}
+
+nlohmann::json Response::toJSON() const {
     if (!isValid()) {
         throw std::logic_error("Response::toJSON(): Invalid packet");
     }
@@ -50,3 +98,17 @@ nlohmann::json cb::mcbp::Response::toJSON() const {
 
     return ret;
 }
+
+bool Response::isValid() const {
+    auto m = Magic(magic);
+    if (m != Magic::ClientResponse && m != Magic::ServerResponse &&
+        m != Magic::AltClientResponse) {
+        return false;
+    }
+
+    return (size_t(getExtlen()) + size_t(getKeylen() + getFramingExtraslen()) <=
+            size_t(getBodylen()));
+}
+
+} // namespace mcbp
+} // namespace cb
