@@ -1651,22 +1651,29 @@ ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
                                          uint64_t vbucket_uuid,
                                          uint64_t snap_start_seqno,
                                          uint64_t snap_end_seqno) {
-    protocol_binary_request_dcp_stream_req packet = {};
-    auto& req = packet.message.header.request;
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-    req.setExtlen(48);
-    req.setBodylen(48);
-    req.setOpaque(opaque);
-    req.setVBucket(vbucket);
-    packet.message.body.flags = ntohl(flags);
-    packet.message.body.start_seqno = ntohll(start_seqno);
-    packet.message.body.end_seqno = ntohll(end_seqno);
-    packet.message.body.vbucket_uuid = ntohll(vbucket_uuid);
-    packet.message.body.snap_start_seqno = ntohll(snap_start_seqno);
-    packet.message.body.snap_end_seqno = ntohll(snap_end_seqno);
+    using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
+    using cb::mcbp::Request;
+    using cb::mcbp::request::DcpStreamReqPayload;
+    uint8_t buffer[sizeof(Request) + sizeof(DcpStreamReqPayload)];
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    Framebuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
+
+    DcpStreamReqPayload payload;
+    payload.setFlags(flags);
+    payload.setStartSeqno(start_seqno);
+    payload.setEndSeqno(end_seqno);
+    payload.setVbucketUuid(vbucket_uuid);
+    payload.setSnapStartSeqno(snap_start_seqno);
+    payload.setSnapEndSeqno(snap_end_seqno);
+
+    builder.setExtras(
+            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,

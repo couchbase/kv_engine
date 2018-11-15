@@ -1097,22 +1097,69 @@ typedef protocol_binary_request_no_extras
 typedef protocol_binary_response_no_extras
         protocol_binary_response_dcp_close_stream;
 
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t flags;
-            uint32_t reserved;
-            uint64_t start_seqno;
-            uint64_t end_seqno;
-            uint64_t vbucket_uuid;
-            uint64_t snap_start_seqno;
-            uint64_t snap_end_seqno;
-        } body;
-        /* Group ID is specified in the key */
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 48];
-} protocol_binary_request_dcp_stream_req;
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class DcpStreamReqPayload {
+public:
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    void setFlags(uint32_t flags) {
+        DcpStreamReqPayload::flags = htonl(flags);
+    }
+    uint32_t getReserved() const {
+        return ntohl(reserved);
+    }
+    void setReserved(uint32_t reserved) {
+        DcpStreamReqPayload::reserved = htonl(reserved);
+    }
+    uint64_t getStartSeqno() const {
+        return ntohll(start_seqno);
+    }
+    void setStartSeqno(uint64_t start_seqno) {
+        DcpStreamReqPayload::start_seqno = htonll(start_seqno);
+    }
+    uint64_t getEndSeqno() const {
+        return ntohll(end_seqno);
+    }
+    void setEndSeqno(uint64_t end_seqno) {
+        DcpStreamReqPayload::end_seqno = htonll(end_seqno);
+    }
+    uint64_t getVbucketUuid() const {
+        return ntohll(vbucket_uuid);
+    }
+    void setVbucketUuid(uint64_t vbucket_uuid) {
+        DcpStreamReqPayload::vbucket_uuid = htonll(vbucket_uuid);
+    }
+    uint64_t getSnapStartSeqno() const {
+        return ntohll(snap_start_seqno);
+    }
+    void setSnapStartSeqno(uint64_t snap_start_seqno) {
+        DcpStreamReqPayload::snap_start_seqno = htonll(snap_start_seqno);
+    }
+    uint64_t getSnapEndSeqno() const {
+        return ntohll(snap_end_seqno);
+    }
+    void setSnapEndSeqno(uint64_t snap_end_seqno) {
+        DcpStreamReqPayload::snap_end_seqno = htonll(snap_end_seqno);
+    }
+
+protected:
+    uint32_t flags = 0;
+    uint32_t reserved = 0;
+    uint64_t start_seqno = 0;
+    uint64_t end_seqno = 0;
+    uint64_t vbucket_uuid = 0;
+    uint64_t snap_start_seqno = 0;
+    uint64_t snap_end_seqno = 0;
+};
+static_assert(sizeof(DcpStreamReqPayload) == 48, "Unexpected struct size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 typedef union {
     struct {

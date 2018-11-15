@@ -42,29 +42,26 @@ void dcp_stream_req_executor(Cookie& cookie) {
 
     if (ret == ENGINE_SUCCESS) {
         const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
-        const auto* req =
-                reinterpret_cast<const protocol_binary_request_dcp_stream_req*>(
-                        &request);
+        auto extras = request.getExtdata();
+        using cb::mcbp::request::DcpStreamReqPayload;
+        const auto* payload =
+                reinterpret_cast<const DcpStreamReqPayload*>(extras.data());
 
-        uint32_t flags = ntohl(req->message.body.flags);
-        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
-        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
-        uint64_t vbucket_uuid = ntohll(req->message.body.vbucket_uuid);
-        uint64_t snap_start_seqno = ntohll(req->message.body.snap_start_seqno);
-        uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
+        uint32_t flags = payload->getFlags();
+        uint64_t start_seqno = payload->getStartSeqno();
+        uint64_t end_seqno = payload->getEndSeqno();
+        uint64_t vbucket_uuid = payload->getVbucketUuid();
+        uint64_t snap_start_seqno = payload->getSnapStartSeqno();
+        uint64_t snap_end_seqno = payload->getSnapEndSeqno();
 
         // Collection enabled DCP allows a value containing stream config data.
-        const uint32_t valuelen = ntohl(req->message.header.request.bodylen) -
-                                  req->message.header.request.extlen;
-
         boost::optional<cb::const_char_buffer> collections;
         // Initialise the optional only if collections is enabled and even
         // if valuelen is 0
         if (cookie.getConnection().isCollectionsSupported()) {
+            auto value = request.getValue();
             collections = cb::const_char_buffer{
-                    reinterpret_cast<const char*>(req->bytes +
-                                                  sizeof(req->bytes)),
-                    valuelen};
+                    reinterpret_cast<const char*>(value.data()), value.size()};
         }
 
         ret = dcpStreamReq(cookie,

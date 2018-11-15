@@ -301,15 +301,12 @@ static Status dcp_get_failover_log_validator(Cookie& cookie) {
 }
 
 static Status dcp_stream_req_validator(Cookie& cookie) {
-    constexpr uint8_t expected_extlen =
-            5 * sizeof(uint64_t) + 2 * sizeof(uint32_t);
-
     auto vlen = cookie.getConnection().isCollectionsSupported()
                         ? ExpectedValueLen::Any
                         : ExpectedValueLen::Zero;
 
     if (!verify_header(cookie,
-                       expected_extlen,
+                       sizeof(cb::mcbp::request::DcpStreamReqPayload),
                        ExpectedKeyLen::Zero,
                        vlen,
                        ExpectedCas::Any,
