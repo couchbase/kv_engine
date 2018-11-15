@@ -200,11 +200,10 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
 }
 
 static Status dcp_open_validator(Cookie& cookie) {
-    auto req = static_cast<protocol_binary_request_dcp_open*>(
-            cookie.getPacketAsVoidPtr());
+    using cb::mcbp::request::DcpOpenPayload;
 
     if (!verify_header(cookie,
-                       8,
+                       sizeof(DcpOpenPayload),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::Any,
@@ -216,7 +215,9 @@ static Status dcp_open_validator(Cookie& cookie) {
                       DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_NO_VALUE |
                       DCP_OPEN_INCLUDE_DELETE_TIMES;
 
-    const auto flags = ntohl(req->message.body.flags);
+    auto ext = cookie.getHeader().getExtdata();
+    const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
+    const auto flags = payload->getFlags();
 
     if (flags & ~mask) {
         LOG_INFO(

@@ -1039,11 +1039,33 @@ typedef protocol_binary_response_no_extras
         protocol_binary_response_get_ctrl_token;
 
 /* DCP related stuff */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t seqno;
+
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class DcpOpenPayload {
+public:
+    uint32_t getSeqno() const {
+        return ntohl(seqno);
+    }
+    void setSeqno(uint32_t seqno) {
+        DcpOpenPayload::seqno = htonl(seqno);
+    }
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    void setFlags(uint32_t flags) {
+        DcpOpenPayload::flags = htonl(flags);
+    }
+
+protected:
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+};
+static_assert(sizeof(DcpOpenPayload) == 8, "Unexpected struct size");
+#pragma pack()
+
 /*
  * The following flags are defined
  */
@@ -1070,14 +1092,9 @@ typedef union {
  * will have a delete time of 0
  */
 #define DCP_OPEN_INCLUDE_DELETE_TIMES 32
-
-            uint32_t flags;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
-} protocol_binary_request_dcp_open;
-
-typedef protocol_binary_response_no_extras protocol_binary_response_dcp_open;
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 typedef union {
     struct {

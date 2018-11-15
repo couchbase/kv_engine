@@ -1554,12 +1554,12 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-        request.message.header.request.extlen = 8;
-        request.message.header.request.keylen = htons(2);
-        request.message.header.request.bodylen = htonl(10);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        memset(blob, 0, sizeof(blob));
+        request.magic = PROTOCOL_BINARY_REQ;
+        request.extlen = 8;
+        request.keylen = htons(2);
+        request.bodylen = htonl(10);
+        request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
 protected:
@@ -1568,7 +1568,7 @@ protected:
                                        static_cast<void*>(&request));
     }
 
-    protocol_binary_request_dcp_open &request = *reinterpret_cast<protocol_binary_request_dcp_open*>(blob);
+    cb::mcbp::Request& request = *reinterpret_cast<cb::mcbp::Request*>(blob);
 };
 
 TEST_P(DcpOpenValidatorTest, CorrectMessage) {
@@ -1576,29 +1576,29 @@ TEST_P(DcpOpenValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpOpenValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    request.magic = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpOpenValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 9;
-    request.message.header.request.bodylen = htonl(11);
+    request.extlen = 9;
+    request.bodylen = htonl(11);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpOpenValidatorTest, InvalidKeylen) {
-    request.message.header.request.keylen = 0;
-    request.message.header.request.bodylen = htonl(8);
+    request.keylen = 0;
+    request.bodylen = htonl(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpOpenValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpOpenValidatorTest, Value) {
-    request.message.header.request.bodylen = htonl(10 + 20);
+    request.bodylen = htonl(10 + 20);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3399,13 +3399,15 @@ TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
 
     // DCP_OPEN_UNUSED flag is invalid
     header.setBodylen(18);
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_open*>(blob);
-    req->message.body.flags = htonl(DCP_OPEN_UNUSED);
+    auto extras = header.getExtdata();
+    auto* payload = reinterpret_cast<cb::mcbp::request::DcpOpenPayload*>(
+            const_cast<uint8_t*>(extras.data()));
+    payload->setFlags(DCP_OPEN_UNUSED);
     EXPECT_EQ("Request contains invalid flags",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
 
     // DCP_OPEN_NOTIFIER cannot be used in conjunction with other flags
-    req->message.body.flags = htonl(DCP_OPEN_NOTIFIER | DCP_OPEN_PRODUCER);
+    payload->setFlags(DCP_OPEN_NOTIFIER | DCP_OPEN_PRODUCER);
     EXPECT_EQ("Request contains invalid flags combination",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
 }

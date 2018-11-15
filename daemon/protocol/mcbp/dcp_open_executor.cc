@@ -25,16 +25,18 @@
 #include <string>
 
 void dcp_open_executor(Cookie& cookie) {
-    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-    const auto* req = reinterpret_cast<const protocol_binary_request_dcp_open*>(
-            packet.data());
+    using cb::mcbp::request::DcpOpenPayload;
+
+    auto& request = cookie.getHeader().getRequest();
+    auto ext = request.getExtdata();
+    const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
+    const uint32_t flags = payload->getFlags();
 
     auto ret = cookie.swapAiostat(ENGINE_SUCCESS);
 
     auto& connection = cookie.getConnection();
     connection.enableDatatype(cb::mcbp::Feature::JSON);
 
-    uint32_t flags = ntohl(req->message.body.flags);
     const bool dcpNotifier = (flags & DCP_OPEN_NOTIFIER) == DCP_OPEN_NOTIFIER;
 
     if (ret == ENGINE_SUCCESS) {
@@ -46,15 +48,14 @@ void dcp_open_executor(Cookie& cookie) {
         ret = mcbp::checkPrivilege(cookie, privilege);
 
         if (ret == ENGINE_SUCCESS) {
-            const uint16_t nkey = ntohs(req->message.header.request.keylen);
-            const auto* name = reinterpret_cast<const char*>(
-                    req->bytes + sizeof(req->bytes));
+            auto key = request.getKey();
 
-            ret = dcpOpen(cookie,
-                          req->message.header.request.opaque,
-                          ntohl(req->message.body.seqno),
-                          flags,
-                          {name, nkey});
+            ret = dcpOpen(
+                    cookie,
+                    request.getOpaque(),
+                    payload->getSeqno(),
+                    flags,
+                    {reinterpret_cast<const char*>(key.data()), key.size()});
         }
     }
 
