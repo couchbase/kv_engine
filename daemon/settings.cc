@@ -68,19 +68,18 @@ Settings::Settings()
     memset(&has, 0, sizeof(has));
 }
 
-Settings::Settings(const unique_cJSON_ptr& json)
-    : Settings() {
-    reconfigure(json);
+Settings::Settings(const unique_cJSON_ptr& json) : Settings() {
+    reconfigure(nlohmann::json::parse(to_string(json)));
 }
 
 Settings::Settings(const nlohmann::json& json) : Settings() {
-    reconfigure(unique_cJSON_ptr{cJSON_Parse(json.dump().c_str())});
+    reconfigure(json);
 }
 
 /**
  * Handle deprecated tags in the settings by simply ignoring them
  */
-static void ignore_entry(Settings&, cJSON*) {
+static void ignore_entry(Settings&, const nlohmann::json&) {
 }
 
 enum class FileError {
@@ -112,13 +111,6 @@ static void throw_file_exception(const std::string &key,
     }
 }
 
-static void throw_missing_file_exception(const std::string &key,
-                                         const cJSON *obj) {
-    throw_file_exception(key,
-                         obj->valuestring == nullptr ? "null" : obj->valuestring,
-                         FileError::Missing);
-}
-
 static void throw_missing_file_exception(const std::string& key,
                                          const std::string& filename) {
     throw_file_exception(key, filename, FileError::Missing);
@@ -132,16 +124,14 @@ static void throw_missing_file_exception(const std::string& key,
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_rbac_file(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"rbac_file\" must be a string");
+static void handle_rbac_file(Settings& s, const nlohmann::json& obj) {
+    std::string file = obj.get<std::string>();
+
+    if (!cb::io::isFile(file)) {
+        throw_missing_file_exception("rbac_file", file);
     }
 
-    if (!cb::io::isFile(obj->valuestring)) {
-        throw_missing_file_exception("rbac_file", obj);
-    }
-
-    s.setRbacFile(obj->valuestring);
+    s.setRbacFile(file);
 }
 
 /**
@@ -152,15 +142,8 @@ static void handle_rbac_file(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_privilege_debug(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setPrivilegeDebug(true);
-    } else if (obj->type == cJSON_False) {
-        s.setPrivilegeDebug(false);
-    } else {
-        throw std::invalid_argument(
-            "\"privilege_debug\" must be a boolean value");
-    }
+static void handle_privilege_debug(Settings& s, const nlohmann::json& obj) {
+    s.setPrivilegeDebug(obj.get<bool>());
 }
 
 /**
@@ -171,23 +154,18 @@ static void handle_privilege_debug(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_audit_file(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"audit_file\" must be a string");
+static void handle_audit_file(Settings& s, const nlohmann::json& obj) {
+    std::string file = obj.get<std::string>();
+
+    if (!cb::io::isFile(file)) {
+        throw_missing_file_exception("audit_file", file);
     }
 
-    if (!cb::io::isFile(obj->valuestring)) {
-        throw_missing_file_exception("audit_file", obj);
-    }
-
-    s.setAuditFile(obj->valuestring);
+    s.setAuditFile(file);
 }
 
-static void handle_error_maps_dir(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"error_maps_dir\" must be a string");
-    }
-    s.setErrorMapsDir(obj->valuestring);
+static void handle_error_maps_dir(Settings& s, const nlohmann::json& obj) {
+    s.setErrorMapsDir(obj.get<std::string>());
 }
 
 /**
@@ -198,15 +176,11 @@ static void handle_error_maps_dir(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_threads(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument("\"threads\" must be an integer");
+static void handle_threads(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError("\"threads\" must be an unsigned int");
     }
-    if (obj->valueint < 0) {
-        throw std::invalid_argument("\"threads\" must be non-negative");
-    } else {
-        s.setNumWorkerThreads(gsl::narrow_cast<size_t>(obj->valueint));
-    }
+    s.setNumWorkerThreads(gsl::narrow_cast<size_t>(obj.get<unsigned int>()));
 }
 
 /**
@@ -217,53 +191,38 @@ static void handle_threads(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_topkeys_enabled(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setTopkeysEnabled(true);
-    } else if (obj->type == cJSON_False) {
-        s.setTopkeysEnabled(false);
-    } else {
-        throw std::invalid_argument(
-                "\"topkeys_enabled\" must be a boolean value");
-    }
+static void handle_topkeys_enabled(Settings& s, const nlohmann::json& obj) {
+    s.setTopkeysEnabled(obj.get<bool>());
 }
 
-static void handle_scramsha_fallback_salt(Settings&s, cJSON* obj) {
-    if (obj->type == cJSON_String) {
-        // Try to base64 decode it to validate that it is a legal value..
-        cb::base64::decode(obj->valuestring);
-        s.setScramshaFallbackSalt(obj->valuestring);
-    } else {
-        throw std::invalid_argument(
-            R"("scramsha_fallback_salt" must be a string value)");
-    }
-
+static void handle_scramsha_fallback_salt(Settings& s,
+                                          const nlohmann::json& obj) {
+    // Try to base64 decode it to validate that it is a legal value..
+    std::string salt = obj.get<std::string>();
+    cb::base64::decode(salt);
+    s.setScramshaFallbackSalt(salt);
 }
 
-static void handle_external_auth_service(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setExternalAuthServiceEnabled(true);
-    } else if (obj->type == cJSON_False) {
-        s.setExternalAuthServiceEnabled(false);
-    } else {
-        throw std::invalid_argument(
-                R"("external_auth_service" must be a boolean value)");
-    }
+static void handle_external_auth_service(Settings& s,
+                                         const nlohmann::json& obj) {
+    s.setExternalAuthServiceEnabled(obj.get<bool>());
 }
 
-static void handle_active_external_users_push_interval(Settings& s,
-                                                       cJSON* obj) {
-    if (obj->type == cJSON_Number) {
+static void handle_active_external_users_push_interval(
+        Settings& s, const nlohmann::json& obj) {
+    switch (obj.type()) {
+    case nlohmann::json::value_t::number_unsigned:
         s.setActiveExternalUsersPushInterval(
-                std::chrono::seconds(obj->valueint));
-    } else if (obj->type == cJSON_String) {
-        using std::chrono::duration_cast;
-        using std::chrono::microseconds;
-        auto us = duration_cast<microseconds>(cb::text2time(obj->valuestring));
-        s.setActiveExternalUsersPushInterval(us);
-    } else {
-        throw std::invalid_argument(
-                R"("active_external_users_push_interval" must be a number or string)");
+                std::chrono::seconds(obj.get<int>()));
+        break;
+    case nlohmann::json::value_t::string:
+        s.setActiveExternalUsersPushInterval(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        cb::text2time(obj.get<std::string>())));
+        break;
+    default:
+        cb::throwJsonTypeError(R"("active_external_users_push_interval" must
+                                be a number or string)");
     }
 }
 
@@ -275,15 +234,8 @@ static void handle_active_external_users_push_interval(Settings& s,
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_tracing_enabled(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setTracingEnabled(true);
-    } else if (obj->type == cJSON_False) {
-        s.setTracingEnabled(false);
-    } else {
-        throw std::invalid_argument(
-                "\"tracing_enabled\" must be a boolean value");
-    }
+static void handle_tracing_enabled(Settings& s, const nlohmann::json& obj) {
+    s.setTracingEnabled(obj.get<bool>());
 }
 
 /**
@@ -294,15 +246,8 @@ static void handle_tracing_enabled(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_stdin_listener(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setStdinListenerEnabled(true);
-    } else if (obj->type == cJSON_False) {
-        s.setStdinListenerEnabled(false);
-    } else {
-        throw std::invalid_argument(
-                R"("stdin_listener" must be a boolean value)");
-    }
+static void handle_stdin_listener(Settings& s, const nlohmann::json& obj) {
+    s.setStdinListenerEnabled(obj.get<bool>());
 }
 
 /**
@@ -315,28 +260,38 @@ static void handle_stdin_listener(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_reqs_event(Settings& s, cJSON* obj) {
-    std::string name(obj->string);
-
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument("\"" + name + "\" must be an integer");
+static void handle_reqs_event(Settings& s,
+                              const nlohmann::json& obj,
+                              EventPriority priority,
+                              std::string msg) {
+    // Throw if not an unsigned int. Bool values can be converted to an int
+    // in an nlohmann::json.get<unsigned int>() so we need to check this
+    // explicitly.
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError(msg + " must be an unsigned int");
     }
 
-    EventPriority priority;
-
-    if (name == "default_reqs_per_event") {
-        priority = EventPriority::Default;
-    } else if (name == "reqs_per_event_high_priority") {
-        priority = EventPriority::High;
-    } else if (name == "reqs_per_event_med_priority") {
-        priority = EventPriority::Medium;
-    } else if (name == "reqs_per_event_low_priority") {
-        priority = EventPriority::Low;
-    } else {
-        throw std::invalid_argument("Invalid key specified: " + name);
-    }
-    s.setRequestsPerEventNotification(gsl::narrow<int>(obj->valueint),
+    s.setRequestsPerEventNotification(gsl::narrow<int>(obj.get<unsigned int>()),
                                       priority);
+}
+
+static void handle_default_reqs_event(Settings& s, const nlohmann::json& obj) {
+    handle_reqs_event(s, obj, EventPriority::Default, "default_reqs_per_event");
+}
+
+static void handle_high_reqs_event(Settings& s, const nlohmann::json& obj) {
+    handle_reqs_event(
+            s, obj, EventPriority::High, "reqs_per_event_high_priority");
+}
+
+static void handle_med_reqs_event(Settings& s, const nlohmann::json& obj) {
+    handle_reqs_event(
+            s, obj, EventPriority::Medium, "reqs_per_event_med_priority");
+}
+
+static void handle_low_reqs_event(Settings& s, const nlohmann::json& obj) {
+    handle_reqs_event(
+            s, obj, EventPriority::Low, "reqs_per_event_low_priority");
 }
 
 /**
@@ -347,11 +302,11 @@ static void handle_reqs_event(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_verbosity(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument("\"verbosity\" must be an integer");
+static void handle_verbosity(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError("\"verbosity\" must be an unsigned int");
     }
-    s.setVerbose(gsl::narrow<int>(obj->valueint));
+    s.setVerbose(gsl::narrow<int>(obj.get<unsigned int>()));
 }
 
 /**
@@ -362,12 +317,14 @@ static void handle_verbosity(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_connection_idle_time(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument(
-            "\"connection_idle_time\" must be an integer");
+static void handle_connection_idle_time(Settings& s,
+                                        const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError(
+                "\"connection_idle_time\" must be an unsigned "
+                "int");
     }
-    s.setConnectionIdleTime(obj->valueint);
+    s.setConnectionIdleTime(obj.get<unsigned int>());
 }
 
 /**
@@ -378,12 +335,13 @@ static void handle_connection_idle_time(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_bio_drain_buffer_sz(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument(
-            "\"bio_drain_buffer_sz\" must be an integer");
+static void handle_bio_drain_buffer_sz(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError(
+                "\"bio_drain_buffer_sz\" must be an unsigned "
+                "int");
     }
-    s.setBioDrainBufferSize(gsl::narrow<unsigned int>(obj->valueint));
+    s.setBioDrainBufferSize(gsl::narrow<unsigned int>(obj.get<unsigned int>()));
 }
 
 /**
@@ -394,15 +352,8 @@ static void handle_bio_drain_buffer_sz(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_datatype_json(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setDatatypeJsonEnabled(true);
-    } else if (obj->type == cJSON_False) {
-        s.setDatatypeJsonEnabled(false);
-    } else {
-        throw std::invalid_argument(
-                "\"datatype_json\" must be a boolean value");
-    }
+static void handle_datatype_json(Settings& s, const nlohmann::json& obj) {
+    s.setDatatypeJsonEnabled(obj.get<bool>());
 }
 
 /**
@@ -413,15 +364,8 @@ static void handle_datatype_json(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_datatype_snappy(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setDatatypeSnappyEnabled(true);
-    } else if (obj->type == cJSON_False) {
-        s.setDatatypeSnappyEnabled(false);
-    } else {
-        throw std::invalid_argument(
-                "\"datatype_snappy\" must be a boolean value");
-    }
+static void handle_datatype_snappy(Settings& s, const nlohmann::json& obj) {
+    s.setDatatypeSnappyEnabled(obj.get<bool>());
 }
 
 /**
@@ -432,16 +376,14 @@ static void handle_datatype_snappy(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_root(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"root\" must be a string");
+static void handle_root(Settings& s, const nlohmann::json& obj) {
+    std::string dir = obj.get<std::string>();
+
+    if (!cb::io::isDirectory(dir)) {
+        throw_missing_file_exception("root", dir);
     }
 
-    if (!cb::io::isDirectory(obj->valuestring)) {
-        throw_missing_file_exception("root", obj);
-    }
-
-    s.setRoot(obj->valuestring);
+    s.setRoot(dir);
 }
 
 /**
@@ -452,11 +394,8 @@ static void handle_root(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_ssl_cipher_list(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"ssl_cipher_list\" must be a string");
-    }
-    s.setSslCipherList(obj->valuestring);
+static void handle_ssl_cipher_list(Settings& s, const nlohmann::json& obj) {
+    s.setSslCipherList(obj.get<std::string>());
 }
 
 /**
@@ -468,19 +407,16 @@ static void handle_ssl_cipher_list(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_ssl_minimum_protocol(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument(
-            "\"ssl_minimum_protocol\" must be a string");
-    }
-
+static void handle_ssl_minimum_protocol(Settings& s,
+                                        const nlohmann::json& obj) {
+    std::string protocol = obj.get<std::string>();
     try {
-        decode_ssl_protocol(obj->valuestring);
+        decode_ssl_protocol(protocol);
     } catch (const std::exception& e) {
         throw std::invalid_argument(
             "\"ssl_minimum_protocol\"" + std::string(e.what()));
     }
-    s.setSslMinimumProtocol(obj->valuestring);
+    s.setSslMinimumProtocol(protocol);
 }
 
 /**
@@ -491,12 +427,12 @@ static void handle_ssl_minimum_protocol(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_max_packet_size(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Number) {
-        throw std::invalid_argument(
-            "\"max_packet_size\" must be an integer");
+static void handle_max_packet_size(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_number_unsigned()) {
+        cb::throwJsonTypeError("\"max_packet_size\" must be an unsigned int");
     }
-    s.setMaxPacketSize(gsl::narrow<uint32_t>(obj->valueint) * 1024 * 1024);
+    s.setMaxPacketSize(gsl::narrow<uint32_t>(obj.get<unsigned int>()) * 1024 *
+                       1024);
 }
 
 /**
@@ -507,11 +443,8 @@ static void handle_max_packet_size(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_sasl_mechanisms(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"sasl_mechanisms\" must be a string");
-    }
-    s.setSaslMechanisms(obj->valuestring);
+static void handle_sasl_mechanisms(Settings& s, const nlohmann::json& obj) {
+    s.setSaslMechanisms(obj.get<std::string>());
 }
 
 /**
@@ -522,13 +455,9 @@ static void handle_sasl_mechanisms(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_ssl_sasl_mechanisms(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"ssl_sasl_mechanisms\" must be a string");
-    }
-    s.setSslSaslMechanisms(obj->valuestring);
+static void handle_ssl_sasl_mechanisms(Settings& s, const nlohmann::json& obj) {
+    s.setSslSaslMechanisms(obj.get<std::string>());
 }
-
 
 /**
  * Handle the "dedupe_nmvb_maps" tag in the settings
@@ -538,15 +467,8 @@ static void handle_ssl_sasl_mechanisms(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_dedupe_nmvb_maps(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setDedupeNmvbMaps(true);
-    } else if (obj->type == cJSON_False) {
-        s.setDedupeNmvbMaps(false);
-    } else {
-        throw std::invalid_argument(
-            "\"dedupe_nmvb_maps\" must be a boolean value");
-    }
+static void handle_dedupe_nmvb_maps(Settings& s, const nlohmann::json& obj) {
+    s.setDedupeNmvbMaps(obj.get<bool>());
 }
 
 /**
@@ -557,15 +479,8 @@ static void handle_dedupe_nmvb_maps(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_xattr_enabled(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setXattrEnabled(true);
-    } else if (obj->type == cJSON_False) {
-        s.setXattrEnabled(false);
-    } else {
-        throw std::invalid_argument(
-            "\"xattr_enabled\" must be a boolean value");
-    }
+static void handle_xattr_enabled(Settings& s, const nlohmann::json& obj) {
+    s.setXattrEnabled(obj.get<bool>());
 }
 
 /**
@@ -576,16 +491,9 @@ static void handle_xattr_enabled(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_client_cert_auth(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_Object && obj->child != nullptr) {
-        // TODO MB-30041: Remove when we migrate settings
-        std::string json_str = ::to_string(obj, false);
-        nlohmann::json json = nlohmann::json::parse(json_str);
-        auto config = cb::x509::ClientCertConfig::create(json);
-        s.reconfigureClientCertAuth(config);
-    } else {
-        throw std::invalid_argument(R"("client_cert_auth" must be an object)");
-    }
+static void handle_client_cert_auth(Settings& s, const nlohmann::json& obj) {
+    auto config = cb::x509::ClientCertConfig::create(obj);
+    s.reconfigureClientCertAuth(config);
 }
 
 /**
@@ -596,41 +504,29 @@ static void handle_client_cert_auth(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_collections_enabled(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setCollectionsPrototype(true);
-    } else if (obj->type == cJSON_False) {
-        s.setCollectionsPrototype(false);
-    } else {
-        throw std::invalid_argument(
-                "\"collections_enabled\" must be a boolean value");
-    }
+static void handle_collections_enabled(Settings& s, const nlohmann::json& obj) {
+    s.setCollectionsPrototype(obj.get<bool>());
 }
 
-static void handle_opcode_attributes_override(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_NULL) {
-        s.setOpcodeAttributesOverride("");
-        return;
-    }
-
-    if (obj->type != cJSON_Object) {
+static void handle_opcode_attributes_override(Settings& s,
+                                              const nlohmann::json& obj) {
+    if (obj.type() != nlohmann::json::value_t::object) {
         throw std::invalid_argument(
                 R"("opcode_attributes_override" must be an object)");
     }
-    s.setOpcodeAttributesOverride(to_string(obj));
+    s.setOpcodeAttributesOverride(obj.dump());
 }
 
-static void handle_extensions(Settings& s, cJSON* obj) {
+static void handle_extensions(Settings& s, const nlohmann::json& obj) {
     LOG_INFO("Extensions ignored");
 }
 
-static void handle_logger(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Object) {
-        throw std::invalid_argument("\"logger\" must be an object");
+static void handle_logger(Settings& s, const nlohmann::json& obj) {
+    if (!obj.is_object()) {
+        cb::throwJsonTypeError(R"("opcode_attributes_override" must be an
+                              object)");
     }
-    // TODO MB-30041: Remove when we have finished refactoring settings
-    nlohmann::json json = nlohmann::json::parse(to_string(obj));
-    cb::logger::Config config(json);
+    cb::logger::Config config(obj);
     s.setLoggerConfig(config);
 }
 
@@ -642,14 +538,12 @@ static void handle_logger(Settings& s, cJSON* obj) {
  * @param s the settings object to update
  * @param obj the object in the configuration
  */
-static void handle_interfaces(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Array) {
-        throw std::invalid_argument("\"interfaces\" must be an array");
+static void handle_interfaces(Settings& s, const nlohmann::json& obj) {
+    if (obj.type() != nlohmann::json::value_t::array) {
+        cb::throwJsonTypeError("\"interfaces\" must be an array");
     }
 
-    // TODO MB-30041: Remove when we have finished refactoring settings
-    auto json = nlohmann::json::parse(to_string(obj, false));
-    for (const auto& obj : json) {
+    for (const auto& obj : obj) {
         if (obj.type() != nlohmann::json::value_t::object) {
             throw std::invalid_argument(
                     "Elements in the \"interfaces\" array must be objects");
@@ -659,18 +553,12 @@ static void handle_interfaces(Settings& s, cJSON* obj) {
     }
 }
 
-static void handle_breakpad(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_Object) {
-        throw std::invalid_argument(R"("breakpad" must be an object)");
-    }
-
-    // TODO MB-30041: Remove when we have finished refactoring settings
-    nlohmann::json json = nlohmann::json::parse(to_string(obj));
-    cb::breakpad::Settings breakpad(json);
+static void handle_breakpad(Settings& s, const nlohmann::json& obj) {
+    cb::breakpad::Settings breakpad(obj);
     s.setBreakpadSettings(breakpad);
 }
 
-void Settings::reconfigure(const unique_cJSON_ptr& json) {
+void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
     // use the ones in the configuration file.. (this is a bit messy)
     interfaces.clear();
@@ -687,10 +575,10 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
          *
          * @param settings the Settings object to update
          * @param obj the current object in the configuration we're looking at
-         * @throws std::invalid_argument if it something is wrong with the
-         *         entry
+         * @throws nlohmann::json::exception if the json cannot be parsed
+         * @throws std::invalid_argument for other json input errors
          */
-        void (* handler)(Settings& settings, cJSON* obj);
+        void (*handler)(Settings& settings, const nlohmann::json& obj);
     };
 
     std::vector<settings_config_tokens> handlers = {
@@ -703,10 +591,10 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"interfaces", handle_interfaces},
             {"extensions", handle_extensions},
             {"logger", handle_logger},
-            {"default_reqs_per_event", handle_reqs_event},
-            {"reqs_per_event_high_priority", handle_reqs_event},
-            {"reqs_per_event_med_priority", handle_reqs_event},
-            {"reqs_per_event_low_priority", handle_reqs_event},
+            {"default_reqs_per_event", handle_default_reqs_event},
+            {"reqs_per_event_high_priority", handle_high_reqs_event},
+            {"reqs_per_event_med_priority", handle_med_reqs_event},
+            {"reqs_per_event_low_priority", handle_low_reqs_event},
             {"verbosity", handle_verbosity},
             {"connection_idle_time", handle_connection_idle_time},
             {"bio_drain_buffer_sz", handle_bio_drain_buffer_sz},
@@ -732,24 +620,19 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
             {"active_external_users_push_interval",
              handle_active_external_users_push_interval}};
 
-    cJSON* obj = json->child;
-    while (obj != nullptr) {
-        std::string key(obj->string);
+    for (const auto& obj : json.items()) {
         bool found = false;
         for (auto& handler : handlers) {
-            if (handler.key == key) {
-                handler.handler(*this, obj);
+            if (handler.key == obj.key()) {
+                handler.handler(*this, obj.value());
                 found = true;
                 break;
             }
         }
 
         if (!found) {
-            LOG_WARNING(R"(Unknown token "{}" in config ignored.)",
-                        obj->string);
+            LOG_WARNING(R"(Unknown key "{}" in config ignored.)", obj.key());
         }
-
-        obj = obj->next;
     }
 }
 

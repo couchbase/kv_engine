@@ -21,26 +21,8 @@
 
 #include <JSON_checker.h>
 #include <logger/logger.h>
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-
-/**
- * Load the configuration file from disk and parse it to JSON
- *
- * @param file the name of the file to load
- * @return A handle to a JSON representing the config file
- * @throws std::bad_alloc for memory allocation failures
- *         std::system_error for failures reading the file
- *         std::invalid_argument if the file content isn't JSON
- */
-static unique_cJSON_ptr load_config_file(const char* file) {
-    auto content = cb::io::loadFile(file);
-    if (!checkUTF8JSON((const uint8_t*)content.data(), content.size())) {
-        throw std::invalid_argument("load_config_file(): " + std::string(file) +
-                                    " does not contain valid JSON");
-    }
-
-    return unique_cJSON_ptr{cJSON_Parse(content.c_str())};
-}
 
 /******************************************************************************
  * Public functions
@@ -48,7 +30,8 @@ static unique_cJSON_ptr load_config_file(const char* file) {
 
 void load_config_file(const char *file, Settings& settings)
 {
-    settings.reconfigure(load_config_file(file));
+    auto content = cb::io::loadFile(file);
+    settings.reconfigure(nlohmann::json::parse(content));
 }
 
 bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors) {
@@ -79,7 +62,8 @@ void reload_config_file() {
     LOG_INFO("Reloading config file {}", get_config_file());
 
     try {
-        Settings new_settings(load_config_file(get_config_file()));
+        auto content = cb::io::loadFile(get_config_file());
+        Settings new_settings(nlohmann::json::parse(content));
         settings.updateSettings(new_settings, true);
     } catch (const std::exception& exception) {
         LOG_WARNING(

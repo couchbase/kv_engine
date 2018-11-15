@@ -51,7 +51,7 @@ public:
      * array containing single interface object with the given properties.
      */
     nlohmann::json makeInterfacesConfig(const char* protocolMode);
-    template <typename T = std::invalid_argument>
+    template <typename T = nlohmann::json::exception>
     void expectFail(const nlohmann::json& json) {
         EXPECT_THROW(Settings settings(json), T) << json.dump();
     }

@@ -59,6 +59,13 @@ public:
      */
     explicit Settings(const unique_cJSON_ptr& json);
 
+    /**
+     * Create and initialize a settings object from the given JSON
+     *
+     * @param json
+     * @throws nlohmann::json::exception for parsing errors
+     * @throws std::invalid_argument for JSON structure errors
+     */
     explicit Settings(const nlohmann::json& json);
 
     Settings(const Settings&) = delete;
@@ -74,7 +81,7 @@ public:
      *
      * @param other
      */
-    void reconfigure(const unique_cJSON_ptr& json);
+    void reconfigure(const nlohmann::json& json);
 
     /**
      * Get the name of the file containing the RBAC data
