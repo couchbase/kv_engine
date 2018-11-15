@@ -31,6 +31,7 @@
 
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
@@ -1686,16 +1687,16 @@ ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
 
 ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque,
                                          cb::mcbp::Status status) {
-    protocol_binary_response_dcp_snapshot_marker packet = {};
-    packet.message.header.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    packet.message.header.response.setOpcode(
-            cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    packet.message.header.response.setExtlen(0);
-    packet.message.header.response.setStatus(status);
-    packet.message.header.response.setBodylen(0);
-    packet.message.header.response.setOpaque(opaque);
+    cb::mcbp::Response response{};
+    response.setMagic(cb::mcbp::Magic::ClientResponse);
+    response.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    response.setExtlen(0);
+    response.setStatus(status);
+    response.setBodylen(0);
+    response.setOpaque(opaque);
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_send_pipe(
+            {reinterpret_cast<const uint8_t*>(&response), sizeof(response)});
 }
 
 ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
@@ -1733,20 +1734,26 @@ ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,
                                      uint64_t start_seqno,
                                      uint64_t end_seqno,
                                      uint32_t flags) {
-    protocol_binary_request_dcp_snapshot_marker packet = {};
+    using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
+    using cb::mcbp::Request;
+    using cb::mcbp::request::DcpSnapshotMarkerPayload;
+    uint8_t buffer[sizeof(Request) + sizeof(DcpSnapshotMarkerPayload)];
 
-    auto& req = packet.message.header.request;
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    req.setExtlen(20);
-    req.setBodylen(20);
-    req.setOpaque(opaque);
-    req.setVBucket(vbucket);
-    packet.message.body.start_seqno = htonll(start_seqno);
-    packet.message.body.end_seqno = htonll(end_seqno);
-    packet.message.body.flags = htonl(flags);
+    Framebuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    DcpSnapshotMarkerPayload payload;
+    payload.setStartSeqno(start_seqno);
+    payload.setEndSeqno(end_seqno);
+    payload.setFlags(flags);
+
+    builder.setExtras(
+            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::mutation(uint32_t opaque,

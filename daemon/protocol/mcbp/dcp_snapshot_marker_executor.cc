@@ -27,19 +27,18 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-        const auto* req = reinterpret_cast<
-                const protocol_binary_request_dcp_snapshot_marker*>(
-                packet.data());
+        auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        using cb::mcbp::request::DcpSnapshotMarkerPayload;
+        auto extra = request.getExtdata();
+        const auto* payload =
+                reinterpret_cast<const DcpSnapshotMarkerPayload*>(extra.data());
 
-        Vbid vbucket = req->message.header.request.vbucket.ntoh();
-        uint32_t opaque = req->message.header.request.opaque;
-        uint32_t flags = ntohl(req->message.body.flags);
-        uint64_t start_seqno = ntohll(req->message.body.start_seqno);
-        uint64_t end_seqno = ntohll(req->message.body.end_seqno);
-
-        ret = dcpSnapshotMarker(
-                cookie, opaque, vbucket, start_seqno, end_seqno, flags);
+        ret = dcpSnapshotMarker(cookie,
+                                request.getOpaque(),
+                                request.getVBucket(),
+                                payload->getStartSeqno(),
+                                payload->getEndSeqno(),
+                                payload->getFlags());
     }
 
     ret = connection.remapErrorCode(ret);

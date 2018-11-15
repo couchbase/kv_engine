@@ -1148,20 +1148,41 @@ typedef union {
 typedef protocol_binary_response_no_extras
         protocol_binary_response_dcp_stream_end;
 
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t start_seqno;
-            uint64_t end_seqno;
-            uint32_t flags;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 20];
-} protocol_binary_request_dcp_snapshot_marker;
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class DcpSnapshotMarkerPayload {
+public:
+    uint64_t getStartSeqno() const {
+        return ntohll(start_seqno);
+    }
+    void setStartSeqno(uint64_t start_seqno) {
+        DcpSnapshotMarkerPayload::start_seqno = htonll(start_seqno);
+    }
+    uint64_t getEndSeqno() const {
+        return ntohll(end_seqno);
+    }
+    void setEndSeqno(uint64_t end_seqno) {
+        DcpSnapshotMarkerPayload::end_seqno = htonll(end_seqno);
+    }
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    void setFlags(uint32_t flags) {
+        DcpSnapshotMarkerPayload::flags = htonl(flags);
+    }
 
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_dcp_snapshot_marker;
+protected:
+    uint64_t start_seqno = 0;
+    uint64_t end_seqno = 0;
+    uint32_t flags = 0;
+};
+static_assert(sizeof(DcpSnapshotMarkerPayload) == 20, "Unexpected struct size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 union protocol_binary_request_dcp_mutation {
     protocol_binary_request_dcp_mutation(uint32_t opaque,
