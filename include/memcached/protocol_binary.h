@@ -1221,13 +1221,6 @@ typedef union {
     uint8_t bytes[sizeof(protocol_binary_request_header)];
 } protocol_binary_response_dcp_stream_req;
 
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_dcp_get_failover_log;
-
-/* The body of the message contains UUID/SEQNO pairs */
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_dcp_get_failover_log;
-
 namespace cb {
 namespace mcbp {
 namespace request {

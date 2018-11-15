@@ -1632,15 +1632,13 @@ ENGINE_ERROR_CODE Connection::deletionOrExpirationV2(
 ////////////////////////////////////////////////////////////////////////////
 
 ENGINE_ERROR_CODE Connection::get_failover_log(uint32_t opaque, Vbid vbucket) {
-    protocol_binary_request_dcp_get_failover_log packet = {};
-    auto& req = packet.message.header.request;
-
+    cb::mcbp::Request req = {};
     req.setMagic(cb::mcbp::Magic::ClientRequest);
     req.setOpcode(cb::mcbp::ClientOpcode::DcpGetFailoverLog);
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_send_pipe(req.getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
