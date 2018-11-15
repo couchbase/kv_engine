@@ -24,9 +24,8 @@ TEST(Request_ParseFrameExtras, Reorder_LegalPacket) {
     fe.push_back(0x00); // ID 0, length 0
     std::vector<uint8_t> packet(27);
     cb::mcbp::RequestBuilder builder({packet.data(), packet.size()});
-    builder.setValue({fe.data(), fe.size()});
-    packet[0] = 0x08;
-    packet[2] = uint8_t(fe.size()); // Set FrameExtlen == 1
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
 
     auto* req = reinterpret_cast<cb::mcbp::Request*>(packet.data());
     bool found = false;
@@ -50,9 +49,8 @@ TEST(Request_ParseFrameExtras, Reorder_InvalidLength) {
     fe.push_back(0x00); // Add the 0 byte
     std::vector<uint8_t> packet(27);
     cb::mcbp::RequestBuilder builder({packet.data(), packet.size()});
-    builder.setValue({fe.data(), fe.size()});
-    packet[0] = 0x08;
-    packet[2] = uint8_t(fe.size()); // Set FrameExtlen == 1
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
 
     try {
         auto* req = reinterpret_cast<cb::mcbp::Request*>(packet.data());
@@ -74,9 +72,8 @@ TEST(Request_ParseFrameExtras, Reorder_BufferOverflow) {
     fe.push_back(0x00); // Add the 0 byte (1 byte too little)
     std::vector<uint8_t> packet(27);
     cb::mcbp::RequestBuilder builder({packet.data(), packet.size()});
-    builder.setValue({fe.data(), fe.size()});
-    packet[0] = 0x08;
-    packet[2] = uint8_t(fe.size()); // Set FrameExtlen == 1
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
 
     try {
         auto* req = reinterpret_cast<cb::mcbp::Request*>(packet.data());
@@ -98,9 +95,8 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_LegalPacket) {
     fe.push_back(0x00); // level 0
     std::vector<uint8_t> packet(30);
     cb::mcbp::RequestBuilder builder({packet.data(), packet.size()});
-    builder.setValue({fe.data(), fe.size()});
-    packet[0] = 0x08;
-    packet[2] = uint8_t(fe.size());
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
 
     auto* req = reinterpret_cast<cb::mcbp::Request*>(packet.data());
     bool found = false;
@@ -118,11 +114,10 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_LegalPacket) {
     EXPECT_TRUE(found);
 
     std::fill(packet.begin(), packet.end(), 0);
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
     fe.resize(4); // 1 byte magic, 3 bytes value
     fe[0] = 0x31;
-    builder.setValue({fe.data(), fe.size()});
-    packet[0] = 0x08;
-    packet[2] = uint8_t(fe.size());
+    builder.setFramingExtras({fe.data(), fe.size()});
     found = false;
     req->parseFrameExtras([&found](cb::mcbp::request::FrameInfoId id,
                                    cb::const_byte_buffer data) -> bool {
@@ -143,9 +138,8 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_InvalidLength) {
     fe[0] = 0x41; // ID 1, length 4
     std::vector<uint8_t> packet(30);
     cb::mcbp::RequestBuilder builder({packet.data(), packet.size()});
-    builder.setValue({fe.data(), fe.size()});
-    packet[0] = 0x08;
-    packet[2] = uint8_t(fe.size());
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
 
     try {
         auto* req = reinterpret_cast<cb::mcbp::Request*>(packet.data());
@@ -171,9 +165,8 @@ TEST(Request_ParseFrameExtras, MultipleEncoding) {
     fe[4] = 0x00; // Reorder
     std::vector<uint8_t> packet(30);
     cb::mcbp::RequestBuilder builder({packet.data(), packet.size()});
-    builder.setValue({fe.data(), fe.size()});
-    packet[0] = 0x08;
-    packet[2] = uint8_t(fe.size());
+    builder.setMagic(cb::mcbp::Magic::AltClientRequest);
+    builder.setFramingExtras({fe.data(), fe.size()});
 
     auto* req = reinterpret_cast<cb::mcbp::Request*>(packet.data());
     bool durability_found = false;

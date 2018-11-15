@@ -23,9 +23,19 @@
 namespace cb {
 namespace mcbp {
 
-cb::const_byte_buffer Request::getKey() const {
-    return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this) + extlen,
-            getKeylen()};
+void Request::setKeylen(uint16_t value) {
+    if (is_alternative_encoding(getMagic())) {
+        reinterpret_cast<uint8_t*>(this)[3] = gsl::narrow<uint8_t>(value);
+    } else {
+        keylen = htons(value);
+    }
+}
+
+void Request::setFramingExtraslen(uint8_t len) {
+    setMagic(cb::mcbp::Magic::AltClientRequest);
+    // @todo Split the member once we know all the tests pass with the
+    //       current layout (aka: noone tries to set it htons()
+    reinterpret_cast<uint8_t*>(this)[2] = len;
 }
 
 std::string Request::getPrintableKey() const {
@@ -41,22 +51,8 @@ std::string Request::getPrintableKey() const {
     return buffer;
 }
 
-cb::const_byte_buffer Request::getExtdata() const {
-    return {reinterpret_cast<const uint8_t*>(this) + sizeof(*this), extlen};
-}
-
-cb::const_byte_buffer Request::getValue() const {
-    const auto buf = getKey();
-    return {buf.data() + buf.size(), getBodylen() - getKeylen() - extlen};
-}
-
 void Request::parseFrameExtras(FrameInfoCallback callback) const {
-    if (getMagic() != Magic::AltClientRequest) {
-        return;
-    }
-
-    const auto* data = reinterpret_cast<const uint8_t*>(this);
-    cb::const_byte_buffer fe = {data + sizeof(*this), data[2]};
+    auto fe = getFramingExtras();
     if (fe.empty()) {
         return;
     }

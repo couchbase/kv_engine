@@ -27,8 +27,8 @@ static cb::const_byte_buffer buffer(const std::string& value) {
 
 static void compare(const std::string& expected, cb::const_byte_buffer value) {
     std::string provided{(const char*)value.data(), value.size()};
-    EXPECT_EQ(expected.size(), value.size());
-    EXPECT_EQ(expected, provided);
+    ASSERT_EQ(expected.size(), value.size());
+    ASSERT_EQ(expected, provided);
 }
 
 TEST(ResponseBuilder, check_range) {
@@ -42,10 +42,16 @@ TEST(ResponseBuilder, check_range) {
             FrameBuilder<Response> builder({blob.data(), sizeof(Response)}));
 
     FrameBuilder<Response> builder({blob.data(), sizeof(Response) + 10});
+    builder.setMagic(Magic::AltClientResponse);
 
-    // We should be able to add 10 bytes of extras
-    builder.setExtras({blob.data(), 10});
+    // We should be able to add 10 bytes of frame extras
+    builder.setFramingExtras({blob.data(), 10});
     // But not 11!
+    EXPECT_THROW(builder.setFramingExtras({blob.data(), 11}), std::logic_error);
+    builder.setFramingExtras({blob.data(), 0});
+
+    // Same goes for extras
+    builder.setExtras({blob.data(), 10});
     EXPECT_THROW(builder.setExtras({blob.data(), 11}), std::logic_error);
     builder.setExtras({blob.data(), 0});
 
@@ -61,8 +67,16 @@ TEST(ResponseBuilder, check_range) {
 }
 
 TEST(ResponseBuilder, SetFields) {
+    const std::string value{"Hello world"};
+    const std::string key{"key"};
+    const std::string extras{"extras"};
+    const std::string frame_extras{"frame extras"};
+    const auto expected_size = sizeof(Request) + frame_extras.size() +
+                               extras.size() + key.size() + value.size();
+
     std::vector<uint8_t> backing_store(1024);
     ResponseBuilder builder({backing_store.data(), backing_store.size()});
+    builder.setMagic(Magic::AltClientResponse);
 
     auto* response = builder.getFrame();
 
@@ -74,42 +88,63 @@ TEST(ResponseBuilder, SetFields) {
 
     // Insert the data from the end (so that we can check that it is
     // correctly moved...
-    const std::string value{"Hello world"};
     builder.setValue(buffer(value));
-    EXPECT_EQ(value.size(), response->getBodylen());
+    ASSERT_EQ(value.size(), response->getBodylen());
+    ASSERT_EQ(value.back(), backing_store[sizeof(Request) + value.size() - 1]);
 
-    const std::string key{"key"};
     builder.setKey(buffer(key));
-    EXPECT_EQ(key.size(), response->getKeylen());
-    EXPECT_EQ(value.size() + key.size(), response->getBodylen());
+    ASSERT_EQ(key.size(), response->getKeylen());
+    ASSERT_EQ(value.size() + key.size(), response->getBodylen());
+    ASSERT_EQ(value.back(),
+              backing_store[sizeof(Request) + value.size() + key.size() - 1]);
 
-    const std::string extras{"extras"};
     builder.setExtras(buffer(extras));
-    EXPECT_EQ(extras.size(), response->getExtlen());
-    EXPECT_EQ(key.size(), response->getKeylen());
-    EXPECT_EQ(value.size() + key.size() + extras.size(),
+    ASSERT_EQ(extras.size(), response->getExtlen());
+    ASSERT_EQ(key.size(), response->getKeylen());
+    ASSERT_EQ(value.size() + key.size() + extras.size(),
+              response->getBodylen());
+    ASSERT_EQ(value.back(),
+              backing_store[sizeof(Request) + value.size() + key.size() +
+                            extras.size() - 1]);
+
+    builder.setFramingExtras(buffer(frame_extras));
+    ASSERT_EQ(frame_extras.size(), response->getFramingExtraslen());
+    ASSERT_EQ(extras.size(), response->getExtlen());
+    ASSERT_EQ(key.size(), response->getKeylen());
+    ASSERT_EQ(value.size() + key.size() + extras.size() + frame_extras.size(),
               response->getBodylen());
 
+    ASSERT_EQ(expected_size, builder.getFrame()->getFrame().size());
+    ASSERT_EQ('z', backing_store[expected_size]);
+    ASSERT_EQ(value.back(), backing_store[expected_size - 1]);
+
+    compare(frame_extras, response->getFramingExtras());
     compare(extras, response->getExtdata());
     compare(key, response->getKey());
     compare(value, response->getValue());
 
     // nuke the key, and the value should be correct
     builder.setKey({nullptr, 0});
-    EXPECT_EQ(0, response->getKeylen());
-    EXPECT_EQ(value.size() + extras.size(), response->getBodylen());
+    ASSERT_EQ(0, response->getKeylen());
+    ASSERT_EQ(value.size() + extras.size() + frame_extras.size(),
+              response->getBodylen());
+    compare(value, response->getValue());
+
+    // Nuke the frame extras, value and extras should be correct
+    builder.setFramingExtras({nullptr, 0});
+    compare(extras, response->getExtdata());
     compare(value, response->getValue());
 
     // nuke the extras.. value should be correct
     builder.setExtras({nullptr, 0});
-    EXPECT_EQ(value.size(), response->getBodylen());
+    ASSERT_EQ(value.size(), response->getBodylen());
     compare(value, response->getValue());
-    EXPECT_EQ(backing_store.data() + sizeof(*response),
+    ASSERT_EQ(backing_store.data() + sizeof(*response),
               response->getValue().data());
 
     // setStatus should only be available for Response packets
     builder.setStatus(Status::Einval);
-    EXPECT_EQ(Status::Einval, Status(response->getStatus()));
+    ASSERT_EQ(Status::Einval, Status(response->getStatus()));
 }
 
 TEST(RequestBuilder, check_range) {
@@ -124,10 +159,16 @@ TEST(RequestBuilder, check_range) {
             FrameBuilder<Request> builder({blob.data(), sizeof(Request)}));
 
     RequestBuilder builder({blob.data(), sizeof(Request) + 10});
+    builder.setMagic(Magic::AltClientRequest);
 
-    // We should be able to add 10 bytes of extras
-    builder.setExtras({blob.data(), 10});
+    // We should be able to add 10 bytes of frame extras
+    builder.setFramingExtras({blob.data(), 10});
     // But not 11!
+    EXPECT_THROW(builder.setFramingExtras({blob.data(), 11}), std::logic_error);
+    builder.setFramingExtras({blob.data(), 0});
+
+    // Same goes for extras
+    builder.setExtras({blob.data(), 10});
     EXPECT_THROW(builder.setExtras({blob.data(), 11}), std::logic_error);
     builder.setExtras({blob.data(), 0});
 
@@ -145,6 +186,7 @@ TEST(RequestBuilder, check_range) {
 TEST(RequestBuilder, SetFields) {
     std::vector<uint8_t> backing_store(1024);
     FrameBuilder<Request> builder({backing_store.data(), backing_store.size()});
+    builder.setMagic(Magic::AltClientRequest);
     auto* request = builder.getFrame();
 
     // Fill the payload with 'z' to make it easier to detect that it works
@@ -156,37 +198,52 @@ TEST(RequestBuilder, SetFields) {
     // correctly moved...
     const std::string value{"Hello world"};
     builder.setValue(buffer(value));
-    EXPECT_EQ(value.size(), request->getBodylen());
+    ASSERT_EQ(value.size(), request->getBodylen());
 
     const std::string key{"key"};
     builder.setKey(buffer(key));
-    EXPECT_EQ(key.size(), request->getKeylen());
-    EXPECT_EQ(value.size() + key.size(), request->getBodylen());
+    ASSERT_EQ(key.size(), request->getKeylen());
+    ASSERT_EQ(value.size() + key.size(), request->getBodylen());
 
     const std::string extras{"extras"};
     builder.setExtras(buffer(extras));
-    EXPECT_EQ(extras.size(), request->getExtlen());
-    EXPECT_EQ(key.size(), request->getKeylen());
-    EXPECT_EQ(value.size() + key.size() + extras.size(), request->getBodylen());
+    ASSERT_EQ(extras.size(), request->getExtlen());
+    ASSERT_EQ(key.size(), request->getKeylen());
+    ASSERT_EQ(value.size() + key.size() + extras.size(), request->getBodylen());
 
+    const std::string frame_extras{"frame extras"};
+    builder.setFramingExtras(buffer(frame_extras));
+    ASSERT_EQ(frame_extras.size(), request->getFramingExtraslen());
+    ASSERT_EQ(extras.size(), request->getExtlen());
+    ASSERT_EQ(key.size(), request->getKeylen());
+    ASSERT_EQ(value.size() + key.size() + extras.size() + frame_extras.size(),
+              request->getBodylen());
+
+    compare(frame_extras, request->getFramingExtras());
     compare(extras, request->getExtdata());
     compare(key, request->getKey());
     compare(value, request->getValue());
 
     // nuke the key, and the value should be correct
     builder.setKey({nullptr, 0});
-    EXPECT_EQ(0, request->getKeylen());
-    EXPECT_EQ(value.size() + extras.size(), request->getBodylen());
+    ASSERT_EQ(0, request->getKeylen());
+    ASSERT_EQ(value.size() + extras.size() + request->getFramingExtraslen(),
+              request->getBodylen());
+    compare(value, request->getValue());
+
+    // Nuke the frame extras, value and extras should be correct
+    builder.setFramingExtras({nullptr, 0});
+    compare(extras, request->getExtdata());
     compare(value, request->getValue());
 
     // nuke the extras.. value should be correct
     builder.setExtras({nullptr, 0});
-    EXPECT_EQ(value.size(), request->getBodylen());
+    ASSERT_EQ(value.size(), request->getBodylen());
     compare(value, request->getValue());
-    EXPECT_EQ(backing_store.data() + sizeof(*request),
+    ASSERT_EQ(backing_store.data() + sizeof(*request),
               request->getValue().data());
 
     // setVBucket should only be available for Request packets
     builder.setVBucket(Vbid(0xfeed));
-    EXPECT_EQ(uint16_t(0xfeed), request->getVBucket().get());
+    ASSERT_EQ(uint16_t(0xfeed), request->getVBucket().get());
 }

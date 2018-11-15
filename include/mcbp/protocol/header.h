@@ -21,6 +21,7 @@
 #include "magic.h"
 
 #include <nlohmann/json_fwd.hpp>
+#include <platform/sized_buffer.h>
 
 #ifndef WIN32
 #include <arpa/inet.h>
@@ -36,13 +37,17 @@ class Request;
 class Response;
 
 /**
- * The header struct is a representation of the header in a binary protocol.
+ * The header class is a representation of the header in a binary protocol.
  * It is (slightly) different for a request and a response packet, but the
  * size is the same.
  *
- * The header struct allows us to pick out the header, and inspect the
+ * The header class allows us to pick out the header, and inspect the
  * common fields (without first determining if the packet is a request
  * or a response).
+ *
+ * If you receive a packet from an external source you should call
+ * isValid() on the packet first to check if the magic is valid and
+ * that the length fields in the packet adds up.
  */
 class Header {
 public:
@@ -55,7 +60,18 @@ public:
     }
 
     uint16_t getKeylen() const {
+        if (is_alternative_encoding(Magic(magic))) {
+            return uint16_t(reinterpret_cast<const uint8_t*>(this)[3]);
+        }
         return ntohs(keylen);
+    }
+
+    uint8_t getFramingExtraslen() const {
+        if (is_alternative_encoding(Magic(magic))) {
+            return reinterpret_cast<const uint8_t*>(this)[2];
+        }
+
+        return uint8_t(0);
     }
 
     uint8_t getExtlen() const {
@@ -84,28 +100,108 @@ public:
 
     /**
      * Does this packet represent a request packet?
+     *
+     * @throws std::invalid_argument if the magic byte isn't a legal
+     *         value
      */
-    bool isRequest() const;
+    bool isRequest() const {
+        return is_request(Magic(magic));
+    }
 
     /**
      * Get a request object from this packet. Note that the entire
      * object may not be present (if called while we're still spooling
      * data for the object). The entire header is however available
      */
-    const cb::mcbp::Request& getRequest() const;
+    const cb::mcbp::Request& getRequest() const {
+        if (isRequest()) {
+            return *reinterpret_cast<const Request*>(this);
+        }
+        throw std::logic_error("Header::getRequest(): Header is not a request");
+    }
 
     /**
      * Does this packet represent a response packet?
+     *
+     * @throws std::invalid_argument if the magic byte isn't a legal
+     *         value
      */
-    bool isResponse() const;
+    bool isResponse() const {
+        return is_response(Magic(magic));
+    }
 
     /**
      * Get a response object from this packet. Note that the entire
      * object may not be present (if called while we're still spooling
      * data for the object). The entire header is however available
      */
-    const cb::mcbp::Response& getResponse() const;
+    const cb::mcbp::Response& getResponse() const {
+        if (isResponse()) {
+            return *reinterpret_cast<const Response*>(this);
+        }
+        throw std::logic_error(
+                "Header::getResponse(): Header is not a response");
+    }
 
+    /**
+     * Get the byte buffer containing the framing extras for this
+     * packet.
+     *
+     * To simplify the use of the code an empty buffer is returned
+     * for packets which isn't using the framing extras.
+     */
+    cb::const_byte_buffer getFramingExtras() const {
+        const auto* base = reinterpret_cast<const uint8_t*>(this);
+        size_t length = 0;
+        if (is_alternative_encoding(Magic(magic))) {
+            length = base[2];
+        }
+        // This packet does not have any Framing Extras
+        return {base + sizeof(*this), length};
+    }
+
+    /**
+     * Get the byte buffer containing the extras
+     */
+    cb::const_byte_buffer getExtdata() const {
+        auto loc = getFramingExtras();
+        return {loc.data() + loc.size(), getExtlen()};
+    }
+
+    /**
+     * Get the byte buffer containing the key
+     */
+    cb::const_byte_buffer getKey() const {
+        auto loc = getExtdata();
+        return {loc.data() + loc.size(), getKeylen()};
+    }
+
+    /**
+     * Get the byte buffer containing the value (this is not the entire
+     * payload of the message, but the portion after the key in the packet)
+     */
+    cb::const_byte_buffer getValue() const {
+        auto fe = getFramingExtras();
+        auto ex = getExtdata();
+        auto key = getKey();
+        return {key.data() + key.size(),
+                getBodylen() - key.size() - ex.size() - fe.size()};
+    }
+
+    /**
+     * Get the byte buffer of the entire packet where this header and body
+     * spans
+     */
+    cb::const_byte_buffer getFrame() const {
+        return {reinterpret_cast<const uint8_t*>(this),
+                sizeof(*this) + getBodylen()};
+    }
+
+    /**
+     * Do basic validation of the packet by verifying that the magic is
+     * legal and that the length fields adds up.
+     * @return
+     */
     bool isValid() const;
 
     /**
@@ -125,6 +221,8 @@ protected:
      */
     uint8_t magic;
     uint8_t opcode;
+    // In the alternative encoding the first byte is the frame extras,
+    // followed by the encoding. getKeylen() hides the difference
     uint16_t keylen;
     uint8_t extlen;
     uint8_t datatype;

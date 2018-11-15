@@ -46,6 +46,47 @@ enum class Magic : uint8_t {
  */
 bool is_legal(Magic magic);
 
+/**
+ * Test to check if the magic represents one of the available request
+ * magic's
+ *
+ * @throws std::invalid_argument for invalid magic
+ */
+bool is_request(Magic magic);
+
+/**
+ * Test to check if the magic represents one of the available response
+ * magic's
+ *
+ * @throws std::invalid_argument for invalid magic
+ */
+inline bool is_response(Magic magic) {
+    return !is_request(magic);
+}
+
+/**
+ * Return true if the magic represents one of the client magics.
+ *
+ * @throws std::invalid_argument for invalid magic
+ */
+bool is_client_magic(Magic magic);
+
+/**
+ * Return true if the magic represents one of the server magics.
+ *
+ * @throws std::invalid_argument for invalid magic
+ */
+inline bool is_server_magic(Magic magic) {
+    return !is_client_magic(magic);
+}
+
+/**
+ * Is the packet using the alternative packet encoding form
+ *
+ * @throws std::invalid_argument for invalid magic
+ */
+bool is_alternative_encoding(Magic magic);
+
 } // namespace mcbp
 } // namespace cb
 

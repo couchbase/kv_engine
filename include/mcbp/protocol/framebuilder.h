@@ -30,6 +30,36 @@ namespace mcbp {
  * FrameBuilder allows you to build up a request / response frame in
  * a provided memory area. It provides helper methods which makes sure
  * that the fields is formatted in the correct byte order etc.
+ *
+ * The frame looks like:
+ *
+ *
+ *     Byte/     0       |       1       |       2       |       3       |
+ *        /              |               |               |               |
+ *       |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+ *       +---------------+---------------+---------------+---------------+
+ *      0| Magic         |               | Framing extras| Key Length    |
+ *       +---------------+---------------+---------------+---------------+
+ *      4| Extras length |               |                               |
+ *       +---------------+---------------+---------------+---------------+
+ *      8| Total body length                                             |
+ *       +---------------+---------------+---------------+---------------+
+ *     12|                                                               |
+ *       +---------------+---------------+---------------+---------------+
+ *     16|                                                               |
+ *       |                                                               |
+ *       +---------------+---------------+---------------+---------------+
+ *     24| Optional section containing framing extras Max 255 bytes      |
+ *       +---------------------------------------------------------------+
+ *       | Optional section containing command extras                    |
+ *       +---------------------------------------------------------------+
+ *       | Optional section containing the key                           |
+ *       +---------------------------------------------------------------+
+ *       | Optional section containing the value.                        |
+ *       | The size of the value is the total body length minus the      |
+ *       | size of the optional framing extras, extras and key.          |
+ *       +---------------------------------------------------------------+
+ *
  */
 template <typename T>
 class FrameBuilder {
@@ -72,73 +102,55 @@ public:
     }
 
     /**
-     * Insert the provided extras in the appropriate location (right after
-     * the header) and updates the extlen and bodylen field.
-     *
-     * @param extras the extra field to insert
+     * Insert/replace the Framing extras section and move the rest of the
+     * sections to their new locations.
      */
-    void setExtras(cb::const_byte_buffer extras) {
+    void setFramingExtras(cb::const_byte_buffer val) {
+        if (!is_alternative_encoding(getFrame()->getMagic())) {
+            throw std::logic_error(
+                    R"(setFramingExtras: Magic needs to be one of the alternative packet encodings)");
+        }
         auto* req = getFrame();
-
-        // can we fit the extras?
-        checkSize(req->getExtlen(), extras.size());
-
-        // Start by moving key and body to where it belongs
-        const auto old_body_size = req->getBodylen() - req->getExtlen();
-        auto* start = buffer.data() + sizeof(*req);
-        uint8_t* old_start = start + req->getExtlen();
-        uint8_t* new_start = start + extras.size();
-        memmove(new_start, old_start, old_body_size);
-
-        // Insert the new extras:
-        std::copy(extras.begin(), extras.end(), start);
-        req->setExtlen(uint8_t(extras.size()));
-        req->setBodylen(gsl::narrow<uint32_t>(old_body_size + extras.size()));
+        auto existing = req->getFramingExtras();
+        // can we fit the data?
+        checkSize(existing.size(), val.size());
+        moveAndInsert(existing, val, req->getBodylen() - existing.size());
+        req->setFramingExtraslen(gsl::narrow<uint8_t>(val.size()));
     }
 
     /**
-     * Insert the provided key in the appropriate location (right after
-     * the extras field) and updates the keylen and bodylen field.
-     *
-     * @param key the key field to insert
+     * Insert/replace the Extras section and move the rest of the sections
+     * to their new locations.
      */
-    void setKey(cb::const_byte_buffer key) {
+    void setExtras(cb::const_byte_buffer val) {
         auto* req = getFrame();
-        checkSize(req->getKeylen(), key.size());
-
-        // Start by moving the body to where it belongs
-        const auto old_body_size =
-                req->getBodylen() - req->getKeylen() - req->getExtlen();
-        auto* start = buffer.data() + sizeof(*req) + req->getExtlen();
-        uint8_t* old_start = start + req->getKeylen();
-        uint8_t* new_start = start + key.size();
-        memmove(new_start, old_start, old_body_size);
-
-        // Insert the new key:
-        std::copy(key.begin(), key.end(), start);
-        req->setKeylen(uint16_t(key.size()));
-        req->setBodylen(gsl::narrow<uint32_t>(old_body_size + req->getExtlen() +
-                                              key.size()));
+        auto existing = req->getExtdata();
+        checkSize(existing.size(), val.size());
+        auto move_size = req->getKey().size() + req->getValue().size();
+        moveAndInsert(existing, val, move_size);
+        req->setExtlen(gsl::narrow<uint8_t>(val.size()));
     }
 
     /**
-     * Insert the provided value in the appropriate location (right after
-     * the key field) and update the bodylen field.
-     *
-     * @param value the value to insert into the body
+     * Insert/replace the Key section and move the value section to the new
+     * location.
      */
-    void setValue(cb::const_byte_buffer value) {
+    void setKey(cb::const_byte_buffer val) {
         auto* req = getFrame();
+        auto existing = req->getKey();
+        checkSize(existing.size(), val.size());
+        moveAndInsert(existing, val, req->getValue().size());
+        req->setKeylen(gsl::narrow<uint16_t>(val.size()));
+    }
 
-        const auto old_size =
-                req->getBodylen() - req->getKeylen() - req->getExtlen();
-        checkSize(old_size, value.size());
-
-        auto* start = buffer.data() + sizeof(*req) + req->getExtlen() +
-                      req->getKeylen();
-        std::copy(value.begin(), value.end(), start);
-        req->setBodylen(gsl::narrow<uint32_t>(value.size() + req->getKeylen() +
-                                              req->getExtlen()));
+    /**
+     * Insert/replace the value section.
+     */
+    void setValue(cb::const_byte_buffer val) {
+        auto* req = getFrame();
+        auto existing = req->getValue();
+        checkSize(existing.size(), val.size());
+        moveAndInsert(existing, val, 0);
     }
 
     /**
@@ -170,6 +182,26 @@ protected:
      */
     void checkSize(size_t oldfield, size_t newfield) {
         checkSize(sizeof(T) + getFrame()->getBodylen() - oldfield + newfield);
+    }
+
+    /**
+     * Move the rest of the packet to the new location and insert the
+     * new value
+     */
+    void moveAndInsert(cb::const_byte_buffer existing,
+                       cb::const_byte_buffer value,
+                       size_t size) {
+        auto* location = const_cast<uint8_t*>(existing.data());
+        if (size > 0 && existing.size() != value.size()) {
+            // we need to move the data following this entry to a different
+            // location.
+            memmove(location + value.size(), location + existing.size(), size);
+        }
+        std::copy(value.begin(), value.end(), location);
+        auto* req = getFrame();
+        // Update the total length
+        req->setBodylen(gsl::narrow<uint32_t>(req->getBodylen() -
+                                              existing.size() + value.size()));
     }
 
     cb::byte_buffer buffer;

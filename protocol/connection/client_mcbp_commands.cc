@@ -765,7 +765,9 @@ void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
 
     if (isSuccess()) {
         // Ensure body length is even
-        if (((getBodylen() - getFramingExtraslen()) & 1) != 0) {
+        auto value = getResponse().getValue();
+
+        if ((value.size() & 1) != 0) {
             throw std::runtime_error(
                     "BinprotHelloResponse::assign: "
                     "Invalid response returned. "
@@ -773,9 +775,8 @@ void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
         }
 
         auto const* end =
-                reinterpret_cast<const uint16_t*>(getPayload() + getBodylen());
-        auto const* cur = reinterpret_cast<const uint16_t*>(
-                begin() + getResponse().getValueOffset());
+                reinterpret_cast<const uint16_t*>(value.data() + value.size());
+        auto const* cur = reinterpret_cast<const uint16_t*>(value.data());
 
         for (; cur != end; ++cur) {
             features.push_back(cb::mcbp::Feature(htons(*cur)));

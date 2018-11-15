@@ -16,56 +16,13 @@
  */
 
 #include <mcbp/protocol/response.h>
+
+#include <mcbp/protocol/header.h>
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>
 
 namespace cb {
 namespace mcbp {
-
-uint32_t Response::getValuelen() const {
-    return getBodylen() - (getKeylen() + getExtlen() + getFramingExtraslen());
-}
-
-size_t Response::getHeaderlen() const {
-    return sizeof(*this);
-}
-
-// offsets from payload begin
-const uint8_t* Response::begin() const {
-    return reinterpret_cast<const uint8_t*>(this);
-}
-
-size_t Response::getFramingExtrasOffset() const {
-    return getHeaderlen();
-}
-
-size_t Response::getExtOffset() const {
-    return getFramingExtrasOffset() + getFramingExtraslen();
-}
-
-size_t Response::getKeyOffset() const {
-    return getExtOffset() + getExtlen();
-}
-
-size_t Response::getValueOffset() const {
-    return getKeyOffset() + getKeylen();
-}
-
-cb::const_byte_buffer Response::getFramingExtras() const {
-    return {begin() + getFramingExtrasOffset(), getFramingExtraslen()};
-}
-
-cb::const_byte_buffer Response::getKey() const {
-    return {begin() + getKeyOffset(), getKeylen()};
-}
-
-cb::const_byte_buffer Response::getExtdata() const {
-    return {begin() + getExtOffset(), getExtlen()};
-}
-
-cb::const_byte_buffer Response::getValue() const {
-    return {begin() + getValueOffset(), getValuelen()};
-}
 
 nlohmann::json Response::toJSON() const {
     if (!isValid()) {
@@ -76,7 +33,7 @@ nlohmann::json Response::toJSON() const {
     auto m = cb::mcbp::Magic(magic);
     ret["magic"] = ::to_string(m);
 
-    if (m == Magic::ClientResponse || m == Magic::AltClientResponse) {
+    if (is_client_magic(m)) {
         ret["opcode"] = ::to_string(getClientOpcode());
 
     } else {
@@ -87,7 +44,7 @@ nlohmann::json Response::toJSON() const {
     ret["extlen"] = getExtlen();
 
     if (m == Magic::AltClientResponse) {
-        ret["framingextra"] = getFramingExtraslen();
+        ret["framingextra"] = getFramingExtras().size();
     }
 
     ret["datatype"] = ::toJSON(getDatatype());
@@ -101,8 +58,7 @@ nlohmann::json Response::toJSON() const {
 
 bool Response::isValid() const {
     auto m = Magic(magic);
-    if (m != Magic::ClientResponse && m != Magic::ServerResponse &&
-        m != Magic::AltClientResponse) {
+    if (!is_legal(m) || !is_response(m)) {
         return false;
     }
 

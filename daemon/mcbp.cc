@@ -83,7 +83,7 @@ static cb::const_byte_buffer mcbp_add_header(Cookie& cookie,
     } else {
         header->response.setMagic(cb::mcbp::Magic::ClientResponse);
         header->response.setKeylen(key_len);
-        header->response.setFrameExtlen(0);
+        header->response.setFramingExtraslen(0);
         header->response.setBodylen(body_len);
     }
 

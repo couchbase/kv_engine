@@ -16,6 +16,7 @@
  */
 
 #include <mcbp/protocol/magic.h>
+#include <platform/string_hex.h>
 #include <stdexcept>
 #include <string>
 
@@ -40,7 +41,10 @@ std::string to_string(cb::mcbp::Magic magic) {
             std::to_string(uint8_t(magic)));
 }
 
-bool cb::mcbp::is_legal(cb::mcbp::Magic magic) {
+namespace cb {
+namespace mcbp {
+
+bool is_legal(Magic magic) {
     switch (magic) {
     case Magic::ClientRequest:
     case Magic::AltClientRequest:
@@ -53,3 +57,53 @@ bool cb::mcbp::is_legal(cb::mcbp::Magic magic) {
 
     return false;
 }
+
+bool is_request(Magic magic) {
+    switch (magic) {
+    case Magic::ClientRequest:
+    case Magic::AltClientRequest:
+    case Magic::ServerRequest:
+        return true;
+    case Magic::ClientResponse:
+    case Magic::AltClientResponse:
+    case Magic::ServerResponse:
+        return false;
+    }
+    throw std::invalid_argument("cb::mcbp::is_request(): Invalid magic: " +
+                                cb::to_hex(uint8_t(magic)));
+}
+
+bool is_client_magic(Magic magic) {
+    switch (magic) {
+    case Magic::ClientRequest:
+    case Magic::AltClientRequest:
+    case Magic::ClientResponse:
+    case Magic::AltClientResponse:
+        return true;
+    case Magic::ServerRequest:
+    case Magic::ServerResponse:
+        return false;
+    }
+    throw std::invalid_argument("cb::mcbp::is_client_magic(): Invalid magic: " +
+                                cb::to_hex(uint8_t(magic)));
+}
+
+bool is_alternative_encoding(Magic magic) {
+    switch (magic) {
+    case Magic::AltClientRequest:
+    case Magic::AltClientResponse:
+        return true;
+
+    case Magic::ClientRequest:
+    case Magic::ClientResponse:
+    case Magic::ServerRequest:
+    case Magic::ServerResponse:
+        return false;
+    }
+    throw std::invalid_argument(
+            "cb::mcbp::is_alternative_encoding(): Invalid magic: " +
+            cb::to_hex(uint8_t(magic)));
+}
+
+} // namespace mcbp
+} // namespace cb

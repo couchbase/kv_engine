@@ -19,7 +19,7 @@
 #include "config.h"
 #include "datatype.h"
 
-#include <cJSON_utils.h>
+#include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <memcached/vbucket.h>
@@ -46,11 +46,8 @@ enum class FrameInfoId { Reorder = 0, DurabilityRequirement = 1 };
  */
 class Request {
 public:
-    // Convenience methods to get/set the various fields in the header (in
-    // the correct byteorder)
-
     void setMagic(Magic magic) {
-        if (magic == Magic::ClientRequest || magic == Magic::ServerRequest) {
+        if (is_request(magic)) {
             Request::magic = uint8_t(magic);
         } else {
             throw std::invalid_argument(
@@ -69,7 +66,7 @@ public:
     }
 
     ClientOpcode getClientOpcode() const {
-        if (getMagic() != Magic::ClientRequest) {
+        if (is_server_magic(getMagic())) {
             throw std::logic_error("getClientOpcode: magic != client request");
         }
         return ClientOpcode(opcode);
@@ -81,26 +78,30 @@ public:
     }
 
     ServerOpcode getServerOpcode() const {
-        if (getMagic() != Magic::ServerRequest) {
+        if (is_client_magic(getMagic())) {
             throw std::logic_error("getServerOpcode: magic != server request");
         }
         return ServerOpcode(opcode);
     }
 
-    void setKeylen(uint16_t value) {
-        keylen = htons(value);
-    }
+    void setKeylen(uint16_t value);
 
     uint16_t getKeylen() const {
-        return ntohs(keylen);
+        return reinterpret_cast<const Header*>(this)->getKeylen();
     }
+
+    uint8_t getFramingExtraslen() const {
+        return reinterpret_cast<const Header*>(this)->getFramingExtraslen();
+    }
+
+    void setFramingExtraslen(uint8_t len);
 
     void setExtlen(uint8_t extlen) {
         Request::extlen = extlen;
     }
 
     uint8_t getExtlen() const {
-        return extlen;
+        return reinterpret_cast<const Header*>(this)->getExtlen();
     }
 
     void setDatatype(Datatype datatype) {
@@ -120,7 +121,7 @@ public:
     }
 
     uint32_t getBodylen() const {
-        return ntohl(bodylen);
+        return reinterpret_cast<const Header*>(this)->getBodylen();
     }
 
     void setBodylen(uint32_t value) {
@@ -132,11 +133,11 @@ public:
     }
 
     uint32_t getOpaque() const {
-        return opaque;
+        return reinterpret_cast<const Header*>(this)->getOpaque();
     }
 
     uint64_t getCas() const {
-        return ntohll(cas);
+        return reinterpret_cast<const Header*>(this)->getCas();
     }
 
     void setCas(uint64_t val) {
@@ -149,11 +150,25 @@ public:
      */
     std::string getPrintableKey() const;
 
-    cb::const_byte_buffer getExtdata() const;
+    cb::const_byte_buffer getFramingExtras() const {
+        return reinterpret_cast<const Header*>(this)->getFramingExtras();
+    }
 
-    cb::const_byte_buffer getKey() const;
+    cb::const_byte_buffer getExtdata() const {
+        return reinterpret_cast<const Header*>(this)->getExtdata();
+    }
 
-    cb::const_byte_buffer getValue() const;
+    cb::const_byte_buffer getKey() const {
+        return reinterpret_cast<const Header*>(this)->getKey();
+    }
+
+    cb::const_byte_buffer getValue() const {
+        return reinterpret_cast<const Header*>(this)->getValue();
+    }
+
+    cb::const_byte_buffer getFrame() const {
+        return reinterpret_cast<const Header*>(this)->getFrame();
+    }
 
     /**
      * Callback function to use while parsing the FrameExtras section

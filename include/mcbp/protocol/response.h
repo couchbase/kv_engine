@@ -20,6 +20,7 @@
 
 #include "datatype.h"
 
+#include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/status.h>
@@ -40,13 +41,8 @@ namespace mcbp {
  */
 class Response {
 public:
-    // Convenience methods to get/set the various fields in the header (in
-    // the correct byteorder)
-
     void setMagic(Magic magic) {
-        if (magic == Magic::ClientResponse ||
-            magic == Magic::AltClientResponse ||
-            magic == Magic::ServerResponse) {
+        if (is_response(magic)) {
             Response::magic = uint8_t(magic);
         } else {
             throw std::invalid_argument(
@@ -65,8 +61,7 @@ public:
     }
 
     ClientOpcode getClientOpcode() const {
-        if (getMagic() != Magic::ClientResponse &&
-            getMagic() != Magic::AltClientResponse) {
+        if (is_server_magic(getMagic())) {
             throw std::logic_error(
                     "getClientOpcode: magic != [Alt]client response");
         }
@@ -85,19 +80,12 @@ public:
         return ServerOpcode(opcode);
     }
 
-    bool isAltClientResponse() const {
-        return getMagic() == Magic::AltClientResponse;
-    }
-
     uint8_t getFramingExtraslen() const {
-        if (!isAltClientResponse()) {
-            return 0;
-        }
-        return begin()[2];
+        return reinterpret_cast<const Header*>(this)->getFramingExtraslen();
     }
 
     uint16_t getKeylen() const {
-        return keylen;
+        return reinterpret_cast<const Header*>(this)->getKeylen();
     }
 
     void setKeylen(uint16_t value) {
@@ -108,16 +96,12 @@ public:
         keylen = uint8_t(value);
     }
 
-    uint8_t getFrameExtlen() const {
-        return frame_extlen;
-    }
-
-    void setFrameExtlen(uint8_t len) {
+    void setFramingExtraslen(uint8_t len) {
         frame_extlen = len;
     }
 
     uint8_t getExtlen() const {
-        return extlen;
+        return reinterpret_cast<const Header*>(this)->getExtlen();
     }
 
     void setExtlen(uint8_t extlen) {
@@ -141,7 +125,7 @@ public:
     }
 
     uint32_t getBodylen() const {
-        return ntohl(bodylen);
+        return reinterpret_cast<const Header*>(this)->getBodylen();
     }
 
     void setBodylen(uint32_t value) {
@@ -153,39 +137,36 @@ public:
     }
 
     uint32_t getOpaque() const {
-        return opaque;
+        return reinterpret_cast<const Header*>(this)->getOpaque();
     }
 
     uint64_t getCas() const {
-        return ntohll(cas);
+        return reinterpret_cast<const Header*>(this)->getCas();
     }
 
     void setCas(uint64_t val) {
         cas = htonll(val);
     }
 
-    uint32_t getValuelen() const;
+    cb::const_byte_buffer getFramingExtras() const {
+        return reinterpret_cast<const Header*>(this)->getFramingExtras();
+    }
 
-    size_t getHeaderlen() const;
+    cb::const_byte_buffer getExtdata() const {
+        return reinterpret_cast<const Header*>(this)->getExtdata();
+    }
 
-    // offsets from payload begin
-    const uint8_t* begin() const;
+    cb::const_byte_buffer getKey() const {
+        return reinterpret_cast<const Header*>(this)->getKey();
+    }
 
-    size_t getFramingExtrasOffset() const;
+    cb::const_byte_buffer getValue() const {
+        return reinterpret_cast<const Header*>(this)->getValue();
+    }
 
-    size_t getExtOffset() const;
-
-    size_t getKeyOffset() const;
-
-    size_t getValueOffset() const;
-
-    cb::const_byte_buffer getFramingExtras() const;
-
-    cb::const_byte_buffer getKey() const;
-
-    cb::const_byte_buffer getExtdata() const;
-
-    cb::const_byte_buffer getValue() const;
+    cb::const_byte_buffer getFrame() const {
+        return reinterpret_cast<const Header*>(this)->getFrame();
+    }
 
     nlohmann::json toJSON() const;
 
