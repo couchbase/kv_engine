@@ -172,6 +172,17 @@ public:
     }
 
     /**
+     * Attempt to lookup the collection-id of the path
+     *
+     * path is in the form scope.collection
+     * _default scope/collection can be specified explcitly or by omission
+     * e.g. .beer == _default.beer
+     *      .     == _default._default
+     * @throws cb::engine_error for invalid input or unknown collection
+     */
+    CollectionID getCollectionID(const std::string& path) const;
+
+    /**
      * @returns this manifest as a std::string (JSON formatted)
      */
     std::string toJson() const;
@@ -231,6 +242,12 @@ private:
      * Check if the CollectionID is invalid for a Manifest
      */
     static bool invalidCollectionID(CollectionID identifier);
+
+    /**
+     * validate the path as per getCollectionID(const std::string&)
+     * @throws cb::engine_error::invalid_argument
+     */
+    static void validatePath(const std::string& path);
 
     friend std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 

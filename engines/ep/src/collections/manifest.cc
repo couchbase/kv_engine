@@ -24,6 +24,7 @@
 #include <json_utilities.h>
 
 #include <JSON_checker.h>
+#include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <gsl/gsl>
@@ -330,6 +331,50 @@ void Manifest::addScopeStats(const void* cookie, ADD_STAT add_stat) const {
                 "exception:{}",
                 e.what());
     }
+}
+
+void Manifest::validatePath(const std::string& path) {
+    if (std::count(path.begin(), path.end(), '.') != 1) {
+        throw cb::engine_error(
+                cb::engine_errc::invalid_arguments,
+                "Manifest::validatePath: path must have 1 separator path:" +
+                        path);
+    }
+}
+
+CollectionID Manifest::getCollectionID(const std::string& path) const {
+    validatePath(path); // throws on engine_error
+    int pos = path.find_first_of('.');
+    std::string scope = path.substr(0, pos);
+    std::string collection = path.substr(pos + 1);
+    if (scope.empty()) {
+        scope = cb::to_string(DefaultScopeIdentifier);
+    }
+    if (collection.empty()) {
+        collection = cb::to_string(DefaultCollectionIdentifier);
+    }
+
+    if (!(validName(scope) && validName(collection))) {
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "Manifest::getCollectionID invalid scope:" +
+                                       scope + " or collection:" + collection);
+    }
+
+    for (const auto& s : scopes) {
+        if (s.second.name == scope) {
+            for (const auto& c : s.second.collections) {
+                auto cItr = collections.find(c.id);
+                if (cItr != collections.end()) {
+                    if (cItr->second == collection) {
+                        return c.id;
+                    }
+                }
+            }
+        }
+    }
+    throw cb::engine_error(cb::engine_errc::unknown_collection,
+                           "Failed getCollectionID path:" + path + ", scope:" +
+                                   scope + ", collection:" + collection);
 }
 
 void Manifest::dump() const {

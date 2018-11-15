@@ -19,6 +19,7 @@
 #include "tests/module_tests/collections/test_manifest.h"
 
 #include <gtest/gtest.h>
+#include <memcached/engine_error.h>
 
 #include <cctype>
 #include <limits>
@@ -688,4 +689,82 @@ TEST(ManifestTest, findCollectionByName) {
     // We do not expect to find collections that do not exist in scopes that
     // do not exist
     EXPECT_EQ(cm.findCollection("fruit", "a_scope_name"), cm.end());
+}
+
+TEST(ManifestTest, getCollectionID) {
+    std::string manifest = R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                                "collections":[
+                                    {"name":"_default", "uid":"0"},
+                                    {"name":"meat", "uid":"8"}]},
+                          {"name":"brewerA", "uid":"8",
+                                "collections":[
+                                    {"name":"beer", "uid":"9"},
+                                    {"name":"meat", "uid":"a"}]}]})";
+    Collections::Manifest cm(manifest);
+
+    EXPECT_EQ(CollectionID::Default, cm.getCollectionID("."));
+    EXPECT_EQ(CollectionID::Default, cm.getCollectionID("_default."));
+    EXPECT_EQ(8, cm.getCollectionID(".meat"));
+    EXPECT_EQ(8, cm.getCollectionID("_default.meat"));
+    EXPECT_EQ(9, cm.getCollectionID("brewerA.beer"));
+    EXPECT_EQ(0xa, cm.getCollectionID("brewerA.meat"));
+
+    try {
+        cm.getCollectionID("bogus");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments,
+                  cb::engine_errc(e.code().value()));
+    }
+    try {
+        cm.getCollectionID("");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments,
+                  cb::engine_errc(e.code().value()));
+    }
+    try {
+        cm.getCollectionID("..");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments,
+                  cb::engine_errc(e.code().value()));
+    }
+    try {
+        cm.getCollectionID("a.b.c");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments,
+                  cb::engine_errc(e.code().value()));
+    }
+
+    try {
+        // Illegal names
+        cm.getCollectionID("invalid***.collection&");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::invalid_arguments,
+                  cb::engine_errc(e.code().value()));
+    }
+
+    try {
+        // Unknown names
+        cm.getCollectionID("unknown.collection");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::unknown_collection,
+                  cb::engine_errc(e.code().value()));
+    }
+
+    try {
+        // Unknown scope
+        cm.getCollectionID("unknown.beer");
+    } catch (const cb::engine_error& e) {
+        // We still yield this error code for unknown scopes
+        EXPECT_EQ(cb::engine_errc::unknown_collection,
+                  cb::engine_errc(e.code().value()));
+    }
+
+    try {
+        // Unknown collection
+        cm.getCollectionID("brewerA.ale");
+    } catch (const cb::engine_error& e) {
+        EXPECT_EQ(cb::engine_errc::unknown_collection,
+                  cb::engine_errc(e.code().value()));
+    }
 }
