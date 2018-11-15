@@ -92,13 +92,6 @@ class VBucket;
  * When a CheckpointCursor reaches the end of Checkpoint, the CheckpointManager
  * will move it to the next Checkpoint.
  *
- * To assist in accounting how many items remain in a Checkpoint series, a
- * cursor also records its `offset` - the count of items (non-meta and meta) it
- * has already 'consumed' from the Checkpoint series. Note that this `offset`
- * count is not cumulative - when the CheckpointManager removes checkpoints
- * the offset will be decremented. To put it another way - the number of items
- * a CheckpointCursor has left to consume can be calcuated as
- * `CheckpointManager::numItems - CheckpointCursor::offset`.
  */
 class CheckpointCursor {
     friend class CheckpointManager;
@@ -110,28 +103,16 @@ public:
     CheckpointCursor(const std::string& n)
         : name(n),
           currentCheckpoint(),
-          currentPos(),
-          offset(0),
-          ckptMetaItemsRead(0) {
+          currentPos() {
     }
 
-    /**
-     * @param offset_ Count of items (normal+meta) already read for *all*
-     *                checkpoints in the series.
-     * @param meta_items_read Count of meta_items already read for the
-     *                        given checkpoint.
-     */
     CheckpointCursor(const std::string& n,
                      CheckpointList::iterator checkpoint,
-                     CheckpointQueue::iterator pos,
-                     size_t offset_,
-                     size_t meta_items_read)
+                     CheckpointQueue::iterator pos)
         : name(n),
           currentCheckpoint(checkpoint),
           currentPos(pos),
-          numVisits(0),
-          offset(offset_),
-          ckptMetaItemsRead(meta_items_read) {
+          numVisits(0) {
     }
 
     // We need to define the copy construct explicitly due to the fact
@@ -140,9 +121,7 @@ public:
         : name(other.name),
           currentCheckpoint(other.currentCheckpoint),
           currentPos(other.currentPos),
-          numVisits(other.numVisits.load()),
-          offset(other.offset.load()),
-          ckptMetaItemsRead(other.ckptMetaItemsRead) {
+          numVisits(other.numVisits.load()) {
     }
 
     CheckpointCursor &operator=(const CheckpointCursor &other) {
@@ -150,55 +129,29 @@ public:
         currentCheckpoint = other.currentCheckpoint;
         currentPos = other.currentPos;
         numVisits = other.numVisits.load();
-        offset.store(other.offset.load());
-        setMetaItemOffset(other.ckptMetaItemsRead);
         return *this;
     }
 
-    /**
-     * Decrement the offsets for this cursor.
-     * @param items Count of all items (meta and non-meta) to decrement by.
-     */
-    void decrOffset(size_t decr);
-
     void decrPos();
-
-    /**
-     * Return the count of meta items processed (i.e. moved past) for the
-     * current checkpoint.
-     * This value is reset to zero when a new checkpoint
-     * is entered.
-     */
-    size_t getCurrentCkptMetaItemsRead() const;
 
     /// @returns the id of the current checkpoint the cursor is on
     uint64_t getId() const;
 
-protected:
-    void incrMetaItemOffset(size_t incr) {
-        ckptMetaItemsRead += incr;
-    }
-
-    void setMetaItemOffset(size_t val) {
-        ckptMetaItemsRead = val;
-    }
-
 private:
+    /*
+     * Calculate the number of items (excluding meta-items) remaining to be
+     * processed in the checkpoint the cursor is currently in.
+     *
+     * @return number of items remaining to be processed.
+     */
+    size_t getRemainingItemsCount() const;
+
     std::string                      name;
     CheckpointList::iterator currentCheckpoint;
     CheckpointQueue::iterator currentPos;
 
     // Number of times a cursor has been moved or processed.
     std::atomic<size_t>              numVisits;
-
-    // The offset (in terms of items) this cursor is from the start of the
-    // checkpoint list. Includes meta and non-meta items. Used to calculate
-    // how many items this cursor has remaining by subtracting
-    // offset from CheckpointManager::numItems.
-    std::atomic<size_t>              offset;
-    // Count of the number of meta items which have been read (processed) for
-    // the *current* checkpoint.
-    size_t ckptMetaItemsRead;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 };

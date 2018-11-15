@@ -49,15 +49,6 @@ std::string to_string(queue_dirty_t value) {
                                 std::to_string(int(value)));
 }
 
-void CheckpointCursor::decrOffset(size_t decr) {
-    if (offset >= decr) {
-        offset.fetch_sub(decr);
-    } else {
-        offset = 0;
-        EP_LOG_DEBUG("{} cursor offset is negative. Reset it to 0.", name);
-    }
-}
-
 void CheckpointCursor::decrPos() {
     if (currentPos != (*currentCheckpoint)->begin()) {
         --currentPos;
@@ -68,8 +59,20 @@ uint64_t CheckpointCursor::getId() const {
     return (*currentCheckpoint)->getId();
 }
 
-size_t CheckpointCursor::getCurrentCkptMetaItemsRead() const {
-    return ckptMetaItemsRead;
+size_t CheckpointCursor::getRemainingItemsCount() const {
+    size_t remaining = 0;
+    CheckpointQueue::iterator itr = currentPos;
+    // Start counting from the next item
+    if (itr != (*currentCheckpoint)->end()) {
+        ++itr;
+    }
+    while (itr != (*currentCheckpoint)->end()) {
+        if (!(*itr)->isCheckPointMetaItem()) {
+            ++remaining;
+        }
+        ++itr;
+    }
+    return remaining;
 }
 
 std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
@@ -77,9 +80,7 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
        << " name:" << c.name
        << " currentCkpt:{id:" << (*c.currentCheckpoint)->getId()
        << " state:" << to_string((*c.currentCheckpoint)->getState())
-       << "} currentPos:" << (*c.currentPos)->getBySeqno()
-       << " offset:" << c.offset.load()
-       << " ckptMetaItemsRead:" << c.getCurrentCkptMetaItemsRead();
+       << "} currentPos:" << (*c.currentPos)->getBySeqno();
     return os;
 }
 
@@ -154,10 +155,7 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
 
             // Given the key already exists, need to check all cursors in this
             // Checkpoint and see if the existing item for this key is to
-            // the "left" of the cursor (i.e. has already been processed) - in
-            // which case we need to adjust the cursor's offset to ensure that
-            // we correctly account for the updated item which will need to be
-            // iterated over.
+            // the "left" of the cursor (i.e. has already been processed).
             for (auto& cursor : checkpointManager->connCursors) {
                 if ((*(cursor.second->currentCheckpoint)).get() == this) {
                     queued_item& cursor_item = *(cursor.second->currentPos);
@@ -179,29 +177,29 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                                 " in current checkpoint.");
                     }
 
-                    // If the cursor item is non-meta, then we need to decrement
-                    // offset if existing item is either before or on the cursor
-                    // - as the cursor points to the "last processed" item.
-                    // However if the cursor item is meta, then we only
-                    // decrement if the the existing item is strictly less than
-                    // the cursor, as meta-items can share a seqno with
-                    // a non-meta item but are logically before them.
-                    int64_t cursor_mutation_id{cursor_item_idx->second.mutation_id};
-                    if (cursor_item->isCheckPointMetaItem()) {
-                        --cursor_mutation_id;
-                    }
-                    if (currMutationId <= cursor_mutation_id) {
-                        // Cursor has already processed the previous value for
-                        // this key - need to logically move the cursor
-                        // backwards one so it will pick up the new value for
-                        // this key.
-                        cursor.second->decrOffset(1);
-                        if (cursor.second->name ==
-                            CheckpointManager::pCursorName) {
+                    if (cursor.second->name == CheckpointManager::pCursorName) {
+                        int64_t cursor_mutation_id{
+                                cursor_item_idx->second.mutation_id};
+
+                        // If the cursor item is non-meta, then we need to
+                        // return persist again if the existing item is
+                        // either before or on the cursor - as the cursor
+                        // points to the "last processed" item.
+                        // However if the cursor item is meta, then we only
+                        // need to return persist again if the existing item
+                        // is strictly less than the cursor, as meta-items
+                        // can share a seqno with a non-meta item but are
+                        // logically before them.
+                        if (cursor_item->isCheckPointMetaItem()) {
+                            --cursor_mutation_id;
+                        }
+                        if (currMutationId <= cursor_mutation_id) {
+                            // Cursor has already processed the previous
+                            // value for this key so need to persist again.
                             rv = queue_dirty_t::PERSIST_AGAIN;
                         }
                     }
-                    /* If an TAP cursor points to the existing item for the same
+                    /* If a cursor points to the existing item for the same
                        key, shift it left by 1 */
                     if (cursor.second->currentPos == currPos) {
                         cursor.second->decrPos();

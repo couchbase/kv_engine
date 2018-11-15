@@ -171,8 +171,6 @@ void CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
                     queue_op::checkpoint_end) {
             /* checkpoint_end meta item is skipped for persistence and
              * DCP cursors */
-            ++(cursor.offset);
-            cursor.incrMetaItemOffset(1);
             ++(cursor.currentPos); // cursor now reaches to the checkpoint end
         }
 
@@ -241,7 +239,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                 std::to_string(openCkpt.getHighSeqno()) + ")");
     }
 
-    size_t skipped = 0;
     CursorRegResult result;
     result.seqno = std::numeric_limits<uint64_t>::max();
     result.tryBackfill = false;
@@ -256,9 +253,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
             // checkpoint, position cursor at the checkpoint start.
             auto cursor = std::make_shared<CheckpointCursor>(name,
                                                              itr,
-                                                             (*itr)->begin(),
-                                                             skipped,
-                                                             /*meta_offset*/ 0);
+                                                             (*itr)->begin());
             connCursors[name] = cursor;
             (*itr)->registerCursorName(name);
             result.seqno = (*itr)->getLowSeqno();
@@ -267,15 +262,10 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
         } else if (startBySeqno <= en) {
             // Requested sequence number lies within this checkpoint.
             // Calculate which item to position the cursor at.
-            size_t ckpt_meta_skipped{0};
             CheckpointQueue::iterator iitr = (*itr)->begin();
             while (++iitr != (*itr)->end() &&
                     (startBySeqno >=
                      static_cast<uint64_t>((*iitr)->getBySeqno()))) {
-                skipped++;
-                if ((*iitr)->isNonEmptyCheckpointMetaItem()) {
-                    ckpt_meta_skipped++;
-                }
             }
 
             if (iitr == (*itr)->end()) {
@@ -286,16 +276,12 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                 --iitr;
             }
 
-            auto cursor = std::make_shared<CheckpointCursor>(
-                    name, itr, iitr, skipped, ckpt_meta_skipped);
+            auto cursor =
+                    std::make_shared<CheckpointCursor>(name, itr, iitr);
             connCursors[name] = cursor;
             (*itr)->registerCursorName(name);
             result.cursor.setCursor(cursor);
             break;
-        } else {
-            // Whole (closed) checkpoint skipped, increment by it's number
-            // of items + meta_items.
-            skipped += (*itr)->getNumItems() + (*itr)->getNumMetaItems();
         }
     }
 
@@ -459,11 +445,6 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
         }
         size_t total_items = numUnrefItems + numMetaItems;
         numItems.fetch_sub(total_items);
-        if (total_items > 0) {
-            for (auto& cursor : connCursors) {
-                cursor.second->decrOffset(total_items);
-            }
-        }
         unrefCheckpointList.splice(unrefCheckpointList.begin(),
                                    checkpointList,
                                    checkpointList.begin(),
@@ -752,10 +733,6 @@ queued_item CheckpointManager::nextItem(CheckpointCursor* constCursor,
 
 bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
     if (++(cursor.currentPos) != (*(cursor.currentCheckpoint))->end()) {
-        ++(cursor.offset);
-        if ((*cursor.currentPos)->isNonEmptyCheckpointMetaItem()) {
-            cursor.incrMetaItemOffset(1);
-        }
         return true;
     }
     if (!moveCursorToNextCheckpoint(cursor)) {
@@ -803,8 +780,6 @@ void CheckpointManager::resetCursors(bool resetPersistenceCursor) {
         }
         cit.second->currentCheckpoint = checkpointList.begin();
         cit.second->currentPos = checkpointList.front()->begin();
-        cit.second->offset = 0;
-        cit.second->setMetaItemOffset(0);
         checkpointList.front()->registerCursorName(cit.second->name);
     }
 }
@@ -826,9 +801,6 @@ bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
     cursor.currentPos = (*it)->begin();
     // Register the cursor's name to its new current checkpoint.
     (*it)->registerCursorName(cursor.name);
-
-    // Reset metaItemOffset as we're entering a new checkpoint.
-    cursor.setMetaItemOffset(0);
 
     return true;
 }
@@ -871,54 +843,25 @@ size_t CheckpointManager::getNumItemsForCursor(
 
 size_t CheckpointManager::getNumItemsForCursor_UNLOCKED(
         const CheckpointCursor* cursor) const {
-    size_t remains = 0;
     if (cursor) {
-        size_t offset = cursor->offset + getNumOfMetaItemsFromCursor(*cursor);
-        if (numItems >= offset) {
-            remains = numItems - offset;
-        } else {
-            EP_LOG_WARN(
-                    "For cursor \"{}\" the offset {} is greater than  "
-                    "numItems {} on {}",
-                    cursor->name,
-                    offset,
-                    numItems.load(),
-                    vbucketId);
+        size_t items = cursor->getRemainingItemsCount();
+        CheckpointList::const_iterator chkptIterator =
+                cursor->currentCheckpoint;
+        if (chkptIterator != checkpointList.end()) {
+            ++chkptIterator;
         }
-    } else {
-        EP_LOG_WARN(
-                "getNumItemsForCursor_UNLOCKED(): Cursor not found in "
-                "the "
-                "checkpoint manager on {}",
-                vbucketId);
+
+        // Now add the item counts for all the subsequent checkpoints
+        auto result = std::accumulate(
+                chkptIterator,
+                checkpointList.end(),
+                items,
+                [](size_t a, const std::unique_ptr<Checkpoint>& b) {
+                    return a + b->getNumItems();
+                });
+        return result;
     }
-    return remains;
-}
-
-size_t CheckpointManager::getNumOfMetaItemsFromCursor(const CheckpointCursor &cursor) const {
-    // Get the number of meta items that can be skipped by a given cursor.
-    size_t meta_items = 0;
-
-
-    // For current checkpoint, number of meta item is the total meta items
-    // for this checkpoint minus how many the cursor has already processed.
-    CheckpointList::const_iterator ckpt_it = cursor.currentCheckpoint;
-    if (ckpt_it != checkpointList.end()) {
-        meta_items = (*ckpt_it)->getNumMetaItems() -
-                     cursor.getCurrentCkptMetaItemsRead();
-    }
-
-    // For remaining checkpoint(s), number of meta items is simply the total
-    // meta items for that checkpoint.
-    ++ckpt_it;
-    auto result =
-            std::accumulate(ckpt_it,
-                            checkpointList.end(),
-                            meta_items,
-                            [](size_t a, const std::unique_ptr<Checkpoint>& b) {
-                                return a + b->getNumMetaItems();
-                            });
-    return result;
+    return 0;
 }
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(

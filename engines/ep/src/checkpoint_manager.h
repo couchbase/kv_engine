@@ -471,11 +471,6 @@ protected:
                                      Vbid vbid,
                                      queue_op checkpoint_op);
 
-    /**
-     * Return the number of meta Items remaining for this cursor.
-     */
-    size_t getNumOfMetaItemsFromCursor(const CheckpointCursor &cursor) const;
-
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
     mutable std::mutex       queueLock;
