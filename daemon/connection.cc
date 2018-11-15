@@ -1723,17 +1723,24 @@ ENGINE_ERROR_CODE Connection::set_vbucket_state_rsp(uint32_t opaque,
 ENGINE_ERROR_CODE Connection::stream_end(uint32_t opaque,
                                          Vbid vbucket,
                                          uint32_t flags) {
-    protocol_binary_request_dcp_stream_end packet = {};
-    auto& req = packet.message.header.request;
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
-    req.setExtlen(4);
-    req.setBodylen(4);
-    req.setOpaque(opaque);
-    req.setVBucket(vbucket);
-    packet.message.body.flags = ntohl(flags);
+    using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
+    using cb::mcbp::Request;
+    using cb::mcbp::request::DcpStreamEndPayload;
+    uint8_t buffer[sizeof(Request) + sizeof(DcpStreamEndPayload)];
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    Framebuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
+
+    DcpStreamEndPayload payload;
+    payload.setFlags(flags);
+
+    builder.setExtras(
+            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
+
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::marker(uint32_t opaque,

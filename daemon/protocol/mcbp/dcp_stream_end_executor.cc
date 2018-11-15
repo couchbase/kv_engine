@@ -26,14 +26,15 @@ void dcp_stream_end_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-        const auto* req =
-                reinterpret_cast<const protocol_binary_request_dcp_stream_end*>(
-                        packet.data());
+        auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        auto extras = request.getExtdata();
+        using cb::mcbp::request::DcpStreamEndPayload;
+        const auto* payload =
+                reinterpret_cast<const DcpStreamEndPayload*>(extras.data());
         ret = dcpStreamEnd(cookie,
-                           req->message.header.request.opaque,
-                           req->message.header.request.vbucket.ntoh(),
-                           ntohl(req->message.body.flags));
+                           request.getOpaque(),
+                           request.getVBucket(),
+                           payload->getFlags());
     }
 
     ret = connection.remapErrorCode(ret);

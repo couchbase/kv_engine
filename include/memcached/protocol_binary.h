@@ -1211,26 +1211,29 @@ typedef protocol_binary_request_no_extras
 typedef protocol_binary_response_no_extras
         protocol_binary_response_dcp_get_failover_log;
 
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            /**
-             * All flags set to 0 == OK,
-             * 1: state changed
-             */
-            uint32_t flags;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_dcp_stream_end;
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_dcp_stream_end;
-
 namespace cb {
 namespace mcbp {
 namespace request {
 #pragma pack(1)
+
+class DcpStreamEndPayload {
+public:
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    void setFlags(uint32_t flags) {
+        DcpStreamEndPayload::flags = htonl(flags);
+    }
+
+protected:
+    /**
+     * All flags set to 0 == OK,
+     * 1: state changed
+     */
+    uint32_t flags = 0;
+};
+static_assert(sizeof(DcpStreamEndPayload) == 4, "Unexpected struct size");
+
 class DcpSnapshotMarkerPayload {
 public:
     uint64_t getStartSeqno() const {

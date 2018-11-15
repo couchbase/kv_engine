@@ -318,7 +318,7 @@ static Status dcp_stream_req_validator(Cookie& cookie) {
 
 static Status dcp_stream_end_validator(Cookie& cookie) {
     if (!verify_header(cookie,
-                       4,
+                       sizeof(cb::mcbp::request::DcpStreamEndPayload),
                        ExpectedKeyLen::Zero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::Any,
