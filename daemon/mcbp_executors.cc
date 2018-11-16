@@ -425,15 +425,15 @@ static void config_validate_executor(Cookie& cookie) {
     // the config validator needs a null-terminated string...
     std::string val_buffer(reinterpret_cast<const char*>(value.data()),
                            value.size());
-    unique_cJSON_ptr errors(cJSON_CreateArray());
 
-    if (validate_proposed_config_changes(val_buffer.c_str(), errors.get())) {
+    auto errors = validate_proposed_config_changes(val_buffer.c_str());
+    if (!errors) {
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
     }
 
     // problem(s). Send the errors back to the client.
-    cookie.setErrorContext(to_string(errors, false));
+    cookie.setErrorContext(errors->dump());
     cookie.sendResponse(cb::mcbp::Status::Einval);
 }
 

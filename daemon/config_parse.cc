@@ -19,7 +19,6 @@
 #include "cmdline.h"
 #include "settings.h"
 
-#include <JSON_checker.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -34,7 +33,9 @@ void load_config_file(const char *file, Settings& settings)
     settings.reconfigure(nlohmann::json::parse(content));
 }
 
-bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors) {
+boost::optional<nlohmann::json> validate_proposed_config_changes(
+        const char* new_cfg) {
+    nlohmann::json errors = nlohmann::json::array();
     // Earlier we returned all of the errors, now I'm terminating on
     // the first... Ideally all of the errors would be best, but
     // the code is easier if we can use exceptions to abort the parsing
@@ -44,12 +45,12 @@ bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors) {
         auto json = nlohmann::json::parse(new_cfg);
         Settings new_settings(json);
         settings.updateSettings(new_settings, false);
-        return true;
+        return {};
     } catch (const std::exception& exception) {
-        cJSON_AddItemToArray(errors, cJSON_CreateString(exception.what()));
+        errors.push_back(exception.what());
     }
 
-    return false;
+    return errors;
 }
 
 void reload_config_file() {
