@@ -48,6 +48,7 @@ class MetaData {
 public:
     MetaData()
         : deleted(0),
+          deleteSource(static_cast<uint8_t>(DeleteSource::Explicit)),
           version(0),
           datatype(0),
           flags(0),
@@ -57,6 +58,7 @@ public:
           revSeqno(0),
           bySeqno(0){};
     MetaData(bool deleted,
+             uint8_t deleteSource,
              uint8_t version,
              uint8_t datatype,
              uint32_t flags,
@@ -66,6 +68,7 @@ public:
              uint64_t revSeqno,
              int64_t bySeqno)
         : deleted(deleted),
+          deleteSource(deleteSource),
           version(version),
           datatype(datatype),
           flags(flags),
@@ -80,7 +83,10 @@ public:
 // platforms.
 #pragma pack(1)
     uint8_t deleted : 1;
-    uint8_t version : 7;
+    uint8_t deleteSource : 1;
+    // Note: to utilise deleteSource properly, casting to the type DeleteSource
+    // is strongly recommended. It is stored as a uint8_t for better packing.
+    uint8_t version : 6;
     uint8_t datatype;
     uint32_t flags;
     uint32_t valueSize;
@@ -112,6 +118,8 @@ public:
           docBody(item.getValue()) {
         docMeta = rockskv::MetaData(
                 item.isDeleted(),
+                (item.isDeleted() ? static_cast<uint8_t>(item.deletionSource())
+                                  : 0),
                 0,
                 item.getDataType(),
                 item.getFlags(),
@@ -928,7 +936,7 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
                                        meta.revSeqno);
 
     if (meta.deleted) {
-        item->setDeleted();
+        item->setDeleted(static_cast<DeleteSource>(meta.deleteSource));
     }
 
     return item;

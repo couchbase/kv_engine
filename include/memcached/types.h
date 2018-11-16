@@ -153,4 +153,4 @@ static const ExpiryLimit NoExpiryLimit{};
  * DeleteSource denotes the source of an item's deletion;
  * either explicitly or TTL (expired).
  */
-enum class DeleteSource : uint8_t { Explicit = 0, TTL = 1 };
+enum class DeleteSource : uint8_t { Explicit = 0, TTL = 1, LAST = TTL };
