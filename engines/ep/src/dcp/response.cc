@@ -62,6 +62,10 @@ const char* DcpResponse::to_string() const {
 }
 
 uint32_t MutationResponse::getDeleteLength() const {
+    if ((enableExpiryOutput == EnableExpiryOutput::Yes) &&
+        (item_->deletionSource() == DeleteSource::TTL)) {
+        return expirationBaseMsgBytes;
+    }
     if (includeDeleteTime == IncludeDeleteTime::Yes) {
         return deletionV2BaseMsgBytes;
     }

@@ -68,6 +68,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeCollectionID(filter.isLegacyFilter()
                                   ? DocKeyEncodesCollectionId::No
                                   : DocKeyEncodesCollectionId::Yes),
+      enableExpiryOutput(p->isDCPExpiryEnabled() ? EnableExpiryOutput::Yes
+                                                 : EnableExpiryOutput::No),
       snappyEnabled(p->isSnappyEnabled() ? SnappyEnabled::Yes
                                          : SnappyEnabled::No),
       forceValueCompression(p->isForceValueCompressionEnabled()
@@ -920,7 +922,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                       includeValue,
                                                       includeXattributes,
                                                       includeDeleteTime,
-                                                      includeCollectionID);
+                                                      includeCollectionID,
+                                                      enableExpiryOutput);
         }
 
         // Item unmodified - construct response from original.
@@ -929,7 +932,8 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                   includeValue,
                                                   includeXattributes,
                                                   includeDeleteTime,
-                                                  includeCollectionID);
+                                                  includeCollectionID,
+                                                  enableExpiryOutput);
     }
     return SystemEventProducerMessage::make(opaque_, item);
 }

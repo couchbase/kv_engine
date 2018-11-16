@@ -378,18 +378,20 @@ public:
                      IncludeValue includeVal,
                      IncludeXattrs includeXattrs,
                      IncludeDeleteTime includeDeleteTime,
-                     DocKeyEncodesCollectionId includeCollectionID)
+                     DocKeyEncodesCollectionId includeCollectionID,
+                     EnableExpiryOutput enableExpiryOut)
         : DcpResponse(item->isDeleted()
                               ? ((item->deletionSource() == DeleteSource::TTL)
-                                           ? Event::Expiration
-                                           : Event::Deletion)
+                                         ? Event::Expiration
+                                         : Event::Deletion)
                               : Event::Mutation,
                       opaque),
           item_(std::move(item)),
           includeValue(includeVal),
           includeXattributes(includeXattrs),
           includeDeleteTime(includeDeleteTime),
-          includeCollectionID(includeCollectionID) {
+          includeCollectionID(includeCollectionID),
+          enableExpiryOutput(enableExpiryOut) {
     }
 
     queued_item& getItem() {
@@ -440,10 +442,14 @@ public:
     DocKeyEncodesCollectionId getDocKeyEncodesCollectionId() const {
         return includeCollectionID;
     }
+    EnableExpiryOutput getEnableExpiryOutput() const {
+        return enableExpiryOutput;
+    }
 
     static const uint32_t mutationBaseMsgBytes = 55;
     static const uint32_t deletionBaseMsgBytes = 42;
     static const uint32_t deletionV2BaseMsgBytes = 45;
+    static const uint32_t expirationBaseMsgBytes = 44;
 
 protected:
     uint32_t getDeleteLength() const;
@@ -458,6 +464,8 @@ protected:
     IncludeDeleteTime includeDeleteTime;
     // Whether the response includes the collection-ID
     DocKeyEncodesCollectionId includeCollectionID;
+    // Whether the response should utilise expiry opcode output
+    EnableExpiryOutput enableExpiryOutput;
 };
 
 /**
@@ -482,7 +490,8 @@ public:
                            includeVal,
                            includeXattrs,
                            includeDeleteTime,
-                           includeCollectionID),
+                           includeCollectionID,
+                           EnableExpiryOutput::No),
           emd(e) {
     }
 
@@ -493,7 +502,8 @@ public:
                            response.getIncludeValue(),
                            response.getIncludeXattrs(),
                            response.getIncludeDeleteTime(),
-                           response.getDocKeyEncodesCollectionId()),
+                           response.getDocKeyEncodesCollectionId(),
+                           response.getEnableExpiryOutput()),
           emd(nullptr) {
     }
 

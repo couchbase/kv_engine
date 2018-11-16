@@ -126,3 +126,11 @@ enum class ForceValueCompression : bool {
     No,
 };
 
+/*
+ * EnableExpiryOutput is used to state whether an active stream should
+ * support outputting expiry messages.
+ */
+enum class EnableExpiryOutput : bool {
+    Yes,
+    No,
+};

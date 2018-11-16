@@ -324,6 +324,9 @@ private:
     // Will the stream encode the CollectionID in the key?
     DocKeyEncodesCollectionId includeCollectionID;
 
+    // Will the stream be able to output expiry opcodes?
+    EnableExpiryOutput enableExpiryOutput;
+
     /// Is Snappy compression supported on this connection?
     SnappyEnabled snappyEnabled;
 
