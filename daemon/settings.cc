@@ -1109,29 +1109,21 @@ static size_t parseErrorMap(const std::string& filename,
         throw std::runtime_error(errkey + ": " + "Couldn't read");
     }
 
-    unique_cJSON_ptr json(cJSON_Parse(contents.c_str()));
-    if (json.get() == nullptr) {
+    auto json = nlohmann::json::parse(contents);
+    if (json.empty()) {
         throw_file_exception(errkey, filename, FileError::Invalid,
                              "Invalid JSON");
     }
 
-    if (json->type != cJSON_Object) {
+    if (json.type() != nlohmann::json::value_t::object) {
         throw_file_exception(errkey, filename, FileError::Invalid,
                              "Top-level contents must be objects");
     }
-    // Find the 'version' field
-    const cJSON *verobj = cJSON_GetObjectItem(json.get(), "version");
-    if (verobj == nullptr) {
-        throw_file_exception(errkey, filename, FileError::Invalid,
-                             "Cannot find 'version' field");
-    }
-    if (verobj->type != cJSON_Number) {
-        throw_file_exception(errkey, filename, FileError::Invalid,
-                             "'version' must be numeric");
-    }
+
+    // Get the 'version' value
+    auto version = cb::jsonGet<unsigned int>(json, "version");
 
     static const size_t max_version = 200;
-    size_t version = verobj->valueint;
 
     if (version > max_version) {
         throw_file_exception(errkey, filename, FileError::Invalid,
