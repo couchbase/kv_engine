@@ -23,6 +23,8 @@
 #include "item.h"
 #include "stats.h"
 
+#include <platform/non_negative_counter.h>
+
 #include <list>
 #include <map>
 #include <set>
@@ -324,43 +326,20 @@ public:
      */
     void setState_UNLOCKED(checkpoint_state state);
 
-    /**
-     * Return the number of cursors that are currently walking through this checkpoint.
-     */
-    size_t getNumberOfCursors() const {
-        LockHolder lh(lock);
-        return cursors.size();
+    void incNumOfCursorsInCheckpoint() {
+        ++numOfCursorsInCheckpoint;
     }
 
-    /**
-     * Register a cursor's name to this checkpoint
-     */
-    void registerCursorName(const std::string &name) {
-        LockHolder lh(lock);
-        cursors.insert(name);
+    void decNumOfCursorsInCheckpoint() {
+        --numOfCursorsInCheckpoint;
     }
 
-    /**
-     * Remove a cursor's name from this checkpoint
-     */
-    void removeCursorName(const std::string &name) {
-        LockHolder lh(lock);
-        cursors.erase(name);
+    bool isNoCursorsInCheckpoint() const {
+        return (numOfCursorsInCheckpoint == 0);
     }
 
-    /**
-     * Return true if the cursor with a given name exists in this checkpoint
-     */
-    bool hasCursorName(const std::string &name) const {
-        LockHolder lh(lock);
-        return cursors.find(name) != cursors.end();
-    }
-
-    /**
-     * Return the list of all cursor names in this checkpoint
-     */
-    const std::set<std::string> &getCursorNameList() const {
-        return cursors;
+    size_t getNumCursorsInCheckpoint() const {
+        return numOfCursorsInCheckpoint;
     }
 
     /**
@@ -437,13 +416,6 @@ public:
     }
 
     /**
-     * Function invoked by the cursor-dropper which checks if the
-     * peristence cursor is currently in the given checkpoint, in
-     * which case returns false, otherwise true.
-     */
-    bool isEligibleToBeUnreferenced();
-
-    /**
      * Invoked by the checkpoint manager whenever an item is queued
      * into the given checkpoint.
      * @param Amount of memory being added to current usage
@@ -483,7 +455,10 @@ private:
     size_t                         numItems;
     /// Number of meta items (see Item::isCheckPointMetaItem).
     size_t numMetaItems;
-    std::set<std::string>          cursors; // List of cursors with their unique names.
+
+    // Count of the number of cursors that reside in the checkpoint
+    cb::NonNegativeCounter<size_t> numOfCursorsInCheckpoint = 0;
+
     CheckpointQueue                toWrite;
     checkpoint_index               keyIndex;
     /* Index for meta keys like "dummy_key" */
