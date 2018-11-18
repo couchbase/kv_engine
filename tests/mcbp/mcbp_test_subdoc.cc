@@ -39,7 +39,7 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.message.header.request.extlen = 3;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(/*keylen*/ 10 +

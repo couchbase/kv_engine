@@ -117,7 +117,8 @@ public:
 private:
     template <typename T>
     std::string formatArg(const T& arg) const {
-        return std::to_string(arg);
+        using namespace std;
+        return to_string(arg);
     }
 
     // Don't call this variant iff the first argument is an enum and the second

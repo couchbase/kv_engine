@@ -271,7 +271,7 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
     bodylen += key.size();
 
     protocol_binary_request_set_with_meta header;
-    header.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    header.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     header.message.header.request.setOpcode(opcode);
     header.message.header.request.keylen = htons(key.size());
     header.message.header.request.extlen = uint8_t(extlen);

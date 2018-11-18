@@ -69,10 +69,6 @@
 
 // For backward compatibility with old sources
 
-// Magic
-const uint8_t PROTOCOL_BINARY_REQ = uint8_t(cb::mcbp::Magic::ClientRequest);
-const uint8_t PROTOCOL_BINARY_RES = uint8_t(cb::mcbp::Magic::ClientResponse);
-
 /**
  * Definition of the header structure for a request packet.
  * See section 2

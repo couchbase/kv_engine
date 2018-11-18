@@ -36,7 +36,7 @@ BinprotCommand::Encoded BinprotCommand::encode() const {
 void BinprotCommand::fillHeader(protocol_binary_request_header& header,
                                 size_t payload_len,
                                 size_t extlen) const {
-    header.request.magic = PROTOCOL_BINARY_REQ;
+    header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     header.request.setOpcode(opcode);
     header.request.keylen = htons(gsl::narrow<uint16_t>(key.size()));
     header.request.extlen = gsl::narrow<uint8_t>(extlen);
@@ -1366,7 +1366,8 @@ BinprotDcpStreamRequestCommand::setDcpSnapEndSeqno(uint64_t value) {
 void BinprotDcpMutationCommand::reset(const std::vector<uint8_t>& packet) {
     clear();
     const auto* cmd = reinterpret_cast<const protocol_binary_request_dcp_mutation*>(packet.data());
-    if (cmd->message.header.request.magic != uint8_t(PROTOCOL_BINARY_REQ)) {
+    if (cmd->message.header.request.getMagic() !=
+        cb::mcbp::Magic::ClientRequest) {
         throw std::invalid_argument(
             "BinprotDcpMutationCommand::reset: packet is not a request");
     }

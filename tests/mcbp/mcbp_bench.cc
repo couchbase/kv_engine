@@ -30,7 +30,7 @@ class McbpValidatorBench : public ::benchmark::Fixture {
 public:
     void SetUp(benchmark::State& st) override {
         memset(request.bytes, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 

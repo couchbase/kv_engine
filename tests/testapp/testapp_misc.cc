@@ -37,7 +37,7 @@ TEST_P(MiscTest, GetFailoverLog) {
     // Test existing VBucket
     auto response = connection.getFailoverLog(Vbid(0));
     auto header = response.getResponse();
-    EXPECT_EQ(PROTOCOL_BINARY_RES, uint8_t(header.getMagic()));
+    EXPECT_EQ(cb::mcbp::Magic::ClientResponse, header.getMagic());
     EXPECT_EQ(cb::mcbp::ClientOpcode::GetFailoverLog, header.getClientOpcode());
     EXPECT_EQ(0, header.getKeylen());
     EXPECT_EQ(0, header.getExtlen());
@@ -52,7 +52,7 @@ TEST_P(MiscTest, GetFailoverLog) {
     // Test non-existing VBucket
     response = connection.getFailoverLog(Vbid(1));
     header = response.getResponse();
-    EXPECT_EQ(PROTOCOL_BINARY_RES, uint8_t(header.getMagic()));
+    EXPECT_EQ(cb::mcbp::Magic::ClientResponse, header.getMagic());
     EXPECT_EQ(cb::mcbp::ClientOpcode::GetFailoverLog, header.getClientOpcode());
     EXPECT_EQ(0, header.getKeylen());
     EXPECT_EQ(0, header.getExtlen());

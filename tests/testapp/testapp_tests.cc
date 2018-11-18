@@ -1699,7 +1699,7 @@ static void get_object_w_datatype(const std::string& key,
     uint32_t len;
 
     memset(request.bytes, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     request.message.header.request.setOpcode(cb::mcbp::ClientOpcode::Get);
     request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     request.message.header.request.keylen = htons((uint16_t)key.size());
@@ -1797,7 +1797,7 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
     set_datatype_feature(false);
 
     memset(request.bytes, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     request.message.header.request.setOpcode(cb::mcbp::ClientOpcode::Noop);
     request.message.header.request.datatype = 1;
 
@@ -1828,7 +1828,8 @@ static uint64_t get_session_ctrl_token(void) {
     uint64_t ret;
 
     memset(buffer.bytes, 0, sizeof(buffer));
-    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    buffer.request.message.header.request.setMagic(
+            cb::mcbp::Magic::ClientRequest);
     buffer.request.message.header.request.setOpcode(
             cb::mcbp::ClientOpcode::GetCtrlToken);
 
@@ -1848,7 +1849,7 @@ static void prepare_set_session_ctrl_token(protocol_binary_request_set_ctrl_toke
                                            uint64_t old, uint64_t new_cas)
 {
     memset(req, 0, sizeof(*req));
-    req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    req->message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     req->message.header.request.setOpcode(cb::mcbp::ClientOpcode::SetCtrlToken);
     req->message.header.request.extlen = sizeof(uint64_t);
     req->message.header.request.bodylen = htonl(sizeof(uint64_t));

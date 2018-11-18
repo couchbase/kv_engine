@@ -42,7 +42,7 @@ void ValidatorTest::SetUp() {
     settings.setXattrEnabled(true);
     connection.setCollectionsSupported(collectionsEnabled);
     memset(request.bytes, 0, sizeof(request));
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
 }
 
@@ -88,7 +88,7 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.message.header.request.extlen = 0;
         request.message.header.request.keylen = htons(10);
         request.message.header.request.bodylen = htonl(10);
@@ -1555,7 +1555,7 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(blob, 0, sizeof(blob));
-        request.magic = PROTOCOL_BINARY_REQ;
+        request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.extlen = 8;
         request.keylen = htons(2);
         request.bodylen = htonl(10);
@@ -2245,7 +2245,7 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.message.header.request.extlen = 1;
         request.message.header.request.bodylen = htonl(1);
         request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
@@ -2808,7 +2808,7 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.message.header.request.extlen = 8;
         request.message.header.request.bodylen = htonl(8);
         request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
@@ -2875,7 +2875,7 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     }
 
@@ -3273,7 +3273,7 @@ TEST_P(ErrorContextTest, InvalidHeader) {
               validate_error_context(cb::mcbp::ClientOpcode::Noop));
 
     // Extlen + Keylen > Bodylen
-    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     request.message.header.request.setExtlen(8);
     request.message.header.request.setKeylen(10);
     request.message.header.request.setBodylen(12);
@@ -3369,7 +3369,7 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(blob, 0, sizeof(blob));
-        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
         connection.enableDatatype(cb::mcbp::Feature::XATTR);
         connection.enableDatatype(cb::mcbp::Feature::SNAPPY);

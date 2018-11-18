@@ -163,7 +163,7 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
     const uint16_t pathlen = ntohs(req->message.extras.pathlen);
     const uint32_t valuelen = bodylen - keylen - extlen - pathlen;
 
-    if (header->request.magic != PROTOCOL_BINARY_REQ) {
+    if (header->request.getMagic() != cb::mcbp::Magic::ClientRequest) {
         cookie.setErrorContext("Request magic value invalid");
         return cb::mcbp::Status::Einval;
     }
@@ -491,7 +491,7 @@ static cb::mcbp::Status subdoc_multi_validator(
     const size_t minimum_body_len = ntohs(req->request.keylen) +
                                     req->request.extlen + traits.min_value_len;
 
-    if (req->request.magic != PROTOCOL_BINARY_REQ) {
+    if (req->request.getMagic() != cb::mcbp::Magic::ClientRequest) {
         cookie.setErrorContext("Request magic value invalid");
         return cb::mcbp::Status::Einval;
     }

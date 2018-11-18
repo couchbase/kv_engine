@@ -801,7 +801,8 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
 
     // Fill in the header at the start of the buffer.
     memset(buffer.bytes, 0, sizeof(buffer.request.message.header));
-    buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    buffer.request.message.header.request.setMagic(
+            cb::mcbp::Magic::ClientRequest);
     buffer.request.message.header.request.setOpcode(
             cb::mcbp::ClientOpcode::Hello);
     buffer.request.message.header.request.keylen = htons((uint16_t)agentlen);

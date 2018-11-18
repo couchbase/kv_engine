@@ -61,7 +61,7 @@ protected:
         req = reinterpret_cast<protocol_binary_request_subdocument*>(
             blob.data());
 
-        req->message.header.request.magic = PROTOCOL_BINARY_REQ;
+        req->message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
         req->message.header.request.extlen =
                 gsl::narrow_cast<uint8_t>(3 + extlen);
         req->message.header.request.keylen =

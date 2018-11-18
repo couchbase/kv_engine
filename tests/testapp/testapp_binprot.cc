@@ -51,7 +51,7 @@ off_t mcbp_raw_command(char* buf,
     } else if (cmd == cb::mcbp::ClientOpcode::SetCtrlToken) {
         request->message.header.request.extlen = 8;
     }
-    request->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request->message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
     request->message.header.request.setOpcode(cmd);
     request->message.header.request.keylen = htons((uint16_t)keylen);
     request->message.header.request.bodylen = htonl(
@@ -186,7 +186,7 @@ void mcbp_validate_arithmetic(const cb::mcbp::Response& response,
     AssertHelper result;
 
     TESTAPP_EXPECT_EQ(
-            result, PROTOCOL_BINARY_RES, uint8_t(response.getMagic()));
+            result, cb::mcbp::Magic::ClientResponse, response.getMagic());
     TESTAPP_EXPECT_EQ(result, cmd, response.getClientOpcode());
     TESTAPP_EXPECT_EQ(result, status, response.getStatus());
     TESTAPP_EXPECT_EQ(result, 0xdeadbeef, response.getOpaque());
