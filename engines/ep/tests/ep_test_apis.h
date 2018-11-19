@@ -258,7 +258,7 @@ ENGINE_ERROR_CODE observe(EngineIface* h, std::map<std::string, Vbid> obskeys);
 ENGINE_ERROR_CODE observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid);
 
 bool set_param(EngineIface* h,
-               protocol_binary_engine_param_t paramtype,
+               cb::mcbp::request::SetParamPayload::Type paramtype,
                const char* param,
                const char* val,
                Vbid vb = Vbid(0));

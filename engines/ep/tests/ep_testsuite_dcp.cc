@@ -1456,7 +1456,10 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
     const uint32_t seqno = 0;
     const uint32_t flags = 0;
     /* Check the min limit */
-    set_param(h, protocol_binary_engine_param_flush, "max_size", "500000000");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "max_size",
+              "500000000");
     checkeq(500000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
     auto dcp = requireDcpIface(h);
@@ -1472,7 +1475,10 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
 
     /* Check the size as percentage of the bucket memory */
     const auto* cookie2 = testHarness->create_cookie();
-    set_param(h, protocol_binary_engine_param_flush, "max_size", "2000000000");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "max_size",
+              "2000000000");
     checkeq(2000000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
 
     checkeq(ENGINE_SUCCESS,
@@ -1507,7 +1513,10 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(EngineIface* h) {
 
     /* Check the max limit */
     const auto* cookie4 = testHarness->create_cookie();
-    set_param(h, protocol_binary_engine_param_flush, "max_size", "7000000000");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "max_size",
+              "7000000000");
     checkeq(static_cast<uint64_t>(7000000000),
             get_ull_stat(h, "ep_max_size"),
             "Incorrect new size.");
@@ -1533,7 +1542,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
     const auto ep_max_size = 1200000000;
     const auto bucketMemQuotaFraction = 0.05;
     set_param(h,
-              protocol_binary_engine_param_flush,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
               "max_size",
               std::to_string(ep_max_size).c_str());
     checkeq(ep_max_size, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
@@ -1853,7 +1862,7 @@ static void test_dcp_noop_mandatory_combo(EngineIface* h,
 
     // Configure manditory noop as requested.
     set_param(h,
-              protocol_binary_engine_param_flush,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
               "dcp_noop_mandatory_for_v5_features",
               noopManditory ? "true" : "false");
     checkeq(noopManditory,
@@ -2355,7 +2364,10 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h) {
             "Expected at least 50% of items to be non-resident");
 
     // Reduce max_size from 6291456 to 6000000
-    set_param(h, protocol_binary_engine_param_flush, "max_size", "6000000");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "max_size",
+              "6000000");
     checkgt(50,
             get_int_stat(h, "vb_active_perc_mem_resident"),
             "Too high percentage of memory resident");
@@ -3696,7 +3708,7 @@ static enum test_result test_dcp_add_stream(EngineIface* h) {
 
 static enum test_result test_consumer_backoff_stat(EngineIface* h) {
     set_param(h,
-              protocol_binary_engine_param_replication,
+              cb::mcbp::request::SetParamPayload::Type::Replication,
               "replication_throttle_queue_cap",
               "10");
     checkeq(10,
@@ -6205,7 +6217,10 @@ static enum test_result test_mb19153(EngineIface* h) {
 
     // Set max num AUX IO to 0, so no backfill would start
     // immediately
-    set_param(h, protocol_binary_engine_param_flush, "num_auxio_threads", "0");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "num_auxio_threads",
+              "0");
 
     int num_items = 10000;
 
@@ -6257,7 +6272,10 @@ static enum test_result test_mb19153(EngineIface* h) {
 
     // Set auxIO threads to 1, so the backfill for the closed producer
     // is picked up, and begins to run.
-    set_param(h, protocol_binary_engine_param_flush, "num_auxio_threads", "1");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "num_auxio_threads",
+              "1");
 
     // Terminate engine
     return SUCCESS;
@@ -6362,11 +6380,12 @@ static enum test_result test_set_dcp_param(EngineIface* h) {
         std::string statKey = "ep_" + key;
         size_t param = get_int_stat(h, statKey.c_str());
         std::string value = std::to_string(newValue);
-        checkeq(expectedSetParam, set_param(h,
-                                            protocol_binary_engine_param_dcp,
-                                            key.c_str(),
-                                            value.c_str()),
-              "Set param not expected");
+        checkeq(expectedSetParam,
+                set_param(h,
+                          cb::mcbp::request::SetParamPayload::Type::Dcp,
+                          key.c_str(),
+                          value.c_str()),
+                "Set param not expected");
         checkne(newValue, param,
                 "Forcing failure as nothing will change");
 

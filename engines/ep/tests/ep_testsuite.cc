@@ -354,7 +354,7 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h) {
 
     /* trigger persist vb state task */
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "vb_state_persist_run",
                     "0"),
           "Failed to trigger vb state persist");
@@ -635,7 +635,10 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     checkeq(3600,
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not expected");
-    set_param(h, protocol_binary_engine_param_flush, "exp_pager_stime", "1");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "exp_pager_stime",
+              "1");
     checkeq(1,
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
@@ -645,8 +648,10 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
             get_int_stat(h, "ep_num_expiry_pager_runs"),
             "Expiry pager run count is not zero");
 
-    set_param(
-            h, protocol_binary_engine_param_flush, "exp_pager_enabled", "true");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "exp_pager_enabled",
+              "true");
     checkeq(1,
             get_int_stat(h, "ep_exp_pager_stime"),
             "Expiry pager sleep time not updated");
@@ -663,8 +668,10 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     cb_assert(!get_bool_stat(h, "ep_exp_pager_enabled"));
 
     // Enable expiry pager again
-    set_param(
-            h, protocol_binary_engine_param_flush, "exp_pager_enabled", "true");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "exp_pager_enabled",
+              "true");
 
     checkeq(get_int_stat(h, "ep_exp_pager_initial_run_time"),
             -1,
@@ -673,7 +680,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     std::string err_msg;
     // Update exp_pager_initial_run_time and ensure the update is successful
     set_param(h,
-              protocol_binary_engine_param_flush,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
               "exp_pager_initial_run_time",
               "3");
     std::string expected_time = "03:00";
@@ -694,7 +701,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
                                                  update_by)};
 
     set_param(h,
-              protocol_binary_engine_param_flush,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
               "exp_pager_stime",
               std::to_string(update_by.count() * 60).c_str());
     str = get_str_stat(h, "ep_expiry_pager_task_time");
@@ -914,7 +921,7 @@ static enum test_result test_expiry_loader(EngineIface* h) {
 static enum test_result test_expiration_on_compaction(EngineIface* h) {
     if (get_bool_stat(h, "ep_exp_pager_enabled")) {
         set_param(h,
-                  protocol_binary_engine_param_flush,
+                  cb::mcbp::request::SetParamPayload::Type::Flush,
                   "exp_pager_enabled",
                   "false");
     }
@@ -1027,7 +1034,7 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
 
     const auto* cookie = testHarness->create_cookie();
     set_param(h,
-              protocol_binary_engine_param_flush,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
               "exp_pager_enabled",
               "false");
     int pager_runs = get_int_stat(h, "ep_num_expiry_pager_runs");
@@ -1492,7 +1499,7 @@ static enum test_result test_compaction_config(EngineIface* h) {
             get_int_stat(h, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 10000");
     set_param(h,
-              protocol_binary_engine_param_flush,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
               "compaction_write_queue_cap",
               "100000");
     checkeq(100000,
@@ -2453,23 +2460,23 @@ static enum test_result test_warmup_conf(EngineIface* h) {
             "Incorrect initial warmup min memory threshold.");
 
     check(!set_param(h,
-                     protocol_binary_engine_param_flush,
+                     cb::mcbp::request::SetParamPayload::Type::Flush,
                      "warmup_min_items_threshold",
                      "a"),
           "Set warmup_min_items_threshold should have failed");
     check(!set_param(h,
-                     protocol_binary_engine_param_flush,
+                     cb::mcbp::request::SetParamPayload::Type::Flush,
                      "warmup_min_items_threshold",
                      "a"),
           "Set warmup_min_memory_threshold should have failed");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "warmup_min_items_threshold",
                     "80"),
           "Set warmup_min_items_threshold should have worked");
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "warmup_min_memory_threshold",
                     "80"),
           "Set warmup_min_memory_threshold should have worked");
@@ -2524,7 +2531,7 @@ static enum test_result test_warmup_conf(EngineIface* h) {
 // can be set.
 static enum test_result test_itempager_conf(EngineIface* h) {
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "pager_active_vb_pcnt",
                     "50"),
           "Setting pager_active_vb_pcnt should have worked");
@@ -2533,7 +2540,7 @@ static enum test_result test_itempager_conf(EngineIface* h) {
             "pager_active_vb_pcnt did not get set to the correct value");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "pager_sleep_time_ms",
                     "1000"),
           "Setting pager_sleep_time_ms should have worked");
@@ -2542,7 +2549,7 @@ static enum test_result test_itempager_conf(EngineIface* h) {
             "pager_sleep_time_ms did not get set to the correct value");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "ht_eviction_policy",
                     "2-bit_lru"),
           "Setting ht_eviction_policy should have worked");
@@ -2551,7 +2558,7 @@ static enum test_result test_itempager_conf(EngineIface* h) {
             "ht_eviction_policy did not get set to the correct value");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "item_eviction_age_percentage",
                     "100"),
           "Set item_eviction_age_percentage should have worked");
@@ -2561,7 +2568,7 @@ static enum test_result test_itempager_conf(EngineIface* h) {
             "value");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "item_eviction_freq_counter_age_threshold",
                     "10"),
           "Set item_eviction_freq_counter_age_threshold should have worked");
@@ -2571,7 +2578,7 @@ static enum test_result test_itempager_conf(EngineIface* h) {
             "correct value");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "item_freq_decayer_chunk_duration",
                     "1000"),
           "Set item_freq_decayer_chunk_duration should have worked");
@@ -2581,7 +2588,7 @@ static enum test_result test_itempager_conf(EngineIface* h) {
             "value");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "item_freq_decayer_percent",
                     "100"),
           "Set item_freq_decayer_percent should have worked");
@@ -2595,7 +2602,7 @@ static enum test_result test_itempager_conf(EngineIface* h) {
 static enum test_result test_bloomfilter_conf(EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         check(set_param(h,
-                        protocol_binary_engine_param_flush,
+                        cb::mcbp::request::SetParamPayload::Type::Flush,
                         "bfilter_enabled",
                         "true"),
               "Set bloomfilter_enabled should have worked");
@@ -2608,12 +2615,12 @@ static enum test_result test_bloomfilter_conf(EngineIface* h) {
             "Incorrect initial bfilter_residency_threshold.");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "bfilter_enabled",
                     "false"),
           "Set bloomfilter_enabled should have worked.");
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "bfilter_residency_threshold",
                     "0.15"),
           "Set bfilter_residency_threshold should have worked.");
@@ -2630,7 +2637,7 @@ static enum test_result test_bloomfilter_conf(EngineIface* h) {
 static enum test_result test_bloomfilters(EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         check(set_param(h,
-                        protocol_binary_engine_param_flush,
+                        cb::mcbp::request::SetParamPayload::Type::Flush,
                         "bfilter_enabled",
                         "true"),
               "Set bloomfilter_enabled should have worked");
@@ -2770,7 +2777,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
 static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         check(set_param(h,
-                        protocol_binary_engine_param_flush,
+                        cb::mcbp::request::SetParamPayload::Type::Flush,
                         "bfilter_enabled",
                         "true"),
               "Set bloomfilter_enabled should have worked");
@@ -2867,7 +2874,7 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
         EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         check(set_param(h,
-                        protocol_binary_engine_param_flush,
+                        cb::mcbp::request::SetParamPayload::Type::Flush,
                         "bfilter_enabled",
                         "true"),
               "Set bloomfilter_enabled should have worked");
@@ -3114,7 +3121,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     //  may not have been initialized at the time of call
     repeat_till_true([&]() {
         set_param(h,
-                  protocol_binary_engine_param_flush,
+                  cb::mcbp::request::SetParamPayload::Type::Flush,
                   "alog_task_time",
                   "5");
         str = get_str_stat(h, "ep_access_scanner_task_time");
@@ -3131,7 +3138,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
                                                  update_by)};
 
     set_param(h,
-              protocol_binary_engine_param_flush,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
               "alog_sleep_time",
               std::to_string(update_by.count()).c_str());
     str = get_str_stat(h, "ep_access_scanner_task_time");
@@ -3261,7 +3268,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
 
     /* Run access scanner task once and expect it to generate access log */
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "access_scanner_run",
                     "true"),
           "Failed to trigger access scanner");
@@ -3283,7 +3290,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
     const int access_scanner_skips =
             get_int_stat(h, "ep_num_access_scanner_skips");
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "access_scanner_run",
                     "true"),
           "Failed to trigger access scanner");
@@ -3300,7 +3307,10 @@ static enum test_result test_access_scanner(EngineIface* h) {
 }
 
 static enum test_result test_set_param_message(EngineIface* h) {
-    set_param(h, protocol_binary_engine_param_flush, "alog_task_time", "50");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "alog_task_time",
+              "50");
 
     checkeq(cb::mcbp::Status::Einval, last_status.load(),
         "Expected an invalid value error for an out of bounds alog_task_time");
@@ -4260,7 +4270,10 @@ extern "C" {
 static enum test_result test_disk_gt_ram_set_race(EngineIface* h) {
     wait_for_persisted_value(h, "k1", "some value");
 
-    set_param(h, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "bg_fetch_delay",
+              "3");
 
     evict_key(h, "k1");
 
@@ -4282,7 +4295,10 @@ static enum test_result test_disk_gt_ram_set_race(EngineIface* h) {
 static enum test_result test_disk_gt_ram_rm_race(EngineIface* h) {
     wait_for_persisted_value(h, "k1", "some value");
 
-    set_param(h, protocol_binary_engine_param_flush, "bg_fetch_delay", "3");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "bg_fetch_delay",
+              "3");
 
     evict_key(h, "k1");
 
@@ -5184,12 +5200,12 @@ static enum test_result test_item_pager(EngineIface* h) {
         int mem_used = get_int_stat(h, "mem_used");
         int new_low_wat = mem_used * 0.75;
         set_param(h,
-                  protocol_binary_engine_param_flush,
+                  cb::mcbp::request::SetParamPayload::Type::Flush,
                   "mem_low_wat",
                   std::to_string(new_low_wat).c_str());
         int new_high_wat = mem_used * 0.85;
         set_param(h,
-                  protocol_binary_engine_param_flush,
+                  cb::mcbp::request::SetParamPayload::Type::Flush,
                   "mem_high_wat",
                   std::to_string(new_high_wat).c_str());
     }

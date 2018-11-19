@@ -1695,32 +1695,52 @@ typedef protocol_binary_request_no_extras protocol_binary_request_delete_bucket;
 typedef protocol_binary_request_no_extras protocol_binary_request_list_buckets;
 typedef protocol_binary_request_no_extras protocol_binary_request_select_bucket;
 
-/*
- * Parameter types of CMD_SET_PARAM command.
- */
-typedef enum : int {
-    protocol_binary_engine_param_flush = 1, /* flusher-related param type */
-    protocol_binary_engine_param_replication, /* replication param type */
-    protocol_binary_engine_param_checkpoint, /* checkpoint-related param type */
-    protocol_binary_engine_param_dcp, /* dcp param type */
-    protocol_binary_engine_param_vbucket /* vbucket param type */
-} protocol_binary_engine_param_t;
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class SetParamPayload {
+public:
+    enum class Type : uint32_t {
+        Flush = 1,
+        Replication,
+        Checkpoint,
+        Dcp,
+        Vbucket
+    };
 
-/**
- * CMD_SET_PARAM command message to set engine parameters.
- * flush, checkpoint, dcp and vbucket parameter types are currently
- * supported.
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            protocol_binary_engine_param_t param_type;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) +
-                  sizeof(protocol_binary_engine_param_t)];
-} protocol_binary_request_set_param;
+    Type getParamType() const {
+        return static_cast<Type>(ntohl(param_type));
+    }
+
+    void setParamType(Type param_type) {
+        SetParamPayload::param_type = htonl(static_cast<uint32_t>(param_type));
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+    bool validate() const {
+        switch (getParamType()) {
+        case Type::Flush:
+        case Type::Replication:
+        case Type::Checkpoint:
+        case Type::Dcp:
+        case Type::Vbucket:
+            return true;
+        }
+        return false;
+    }
+
+protected:
+    uint32_t param_type = 0;
+};
+static_assert(sizeof(SetParamPayload) == 4, "Unexpected size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 typedef union {
     struct {

@@ -62,27 +62,40 @@ static enum test_result test_create_new_checkpoint(EngineIface* h) {
 
 static enum test_result test_validate_checkpoint_params(EngineIface* h) {
     set_param(h,
-              protocol_binary_engine_param_checkpoint,
+              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
               "chk_max_items",
               "1000");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failed to set checkpoint_max_item param");
-    set_param(h, protocol_binary_engine_param_checkpoint, "chk_period", "100");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
+              "chk_period",
+              "100");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failed to set checkpoint_period param");
-    set_param(
-            h, protocol_binary_engine_param_checkpoint, "max_checkpoints", "2");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
+              "max_checkpoints",
+              "2");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failed to set max_checkpoints param");
 
-    set_param(h, protocol_binary_engine_param_checkpoint, "chk_max_items", "5");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
+              "chk_max_items",
+              "5");
     checkeq(cb::mcbp::Status::Einval, last_status.load(),
             "Expected to have an invalid value error for checkpoint_max_items param");
-    set_param(h, protocol_binary_engine_param_checkpoint, "chk_period", "0");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
+              "chk_period",
+              "0");
     checkeq(cb::mcbp::Status::Einval, last_status.load(),
             "Expected to have an invalid value error for checkpoint_period param");
-    set_param(
-            h, protocol_binary_engine_param_checkpoint, "max_checkpoints", "6");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Checkpoint,
+              "max_checkpoints",
+              "6");
     checkeq(cb::mcbp::Status::Einval, last_status.load(),
             "Expected to have an invalid value error for max_checkpoints param");
 

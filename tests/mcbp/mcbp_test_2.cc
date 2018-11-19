@@ -453,7 +453,7 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
-        req.setExtlen(sizeof(protocol_binary_engine_param_t));
+        req.setExtlen(sizeof(cb::mcbp::request::SetParamPayload));
         req.setKeylen(2);
         req.setBodylen(req.getExtlen() + req.getKeylen() + 2);
     }

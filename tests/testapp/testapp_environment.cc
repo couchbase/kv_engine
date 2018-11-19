@@ -49,7 +49,8 @@ void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
     BinprotResponse resp;
     cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("xattr_enabled");
-    cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
+    cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+            cb::mcbp::request::SetParamPayload::Type::Flush)));
     if (value) {
         cmd.setValue("true");
     } else {
@@ -70,7 +71,8 @@ void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
     BinprotResponse resp;
     cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("compression_mode");
-    cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
+    cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+            cb::mcbp::request::SetParamPayload::Type::Flush)));
     cmd.setValue(value);
 
     conn.executeCommand(cmd, resp);
@@ -87,7 +89,8 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
     BinprotResponse resp;
     cmd.setOp(cb::mcbp::ClientOpcode::SetParam);
     cmd.setKey("min_compression_ratio");
-    cmd.setExtrasValue<uint32_t>(htonl(protocol_binary_engine_param_flush));
+    cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+            cb::mcbp::request::SetParamPayload::Type::Flush)));
     cmd.setValue(value);
 
     conn.executeCommand(cmd, resp);

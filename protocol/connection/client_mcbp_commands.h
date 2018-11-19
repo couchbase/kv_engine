@@ -870,14 +870,14 @@ public:
 class BinprotSetParamCommand
     : public BinprotGenericCommand {
 public:
-    BinprotSetParamCommand(protocol_binary_engine_param_t type_,
+    BinprotSetParamCommand(cb::mcbp::request::SetParamPayload::Type type_,
                            const std::string& key_,
                            const std::string& value_);
 
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:
-    const protocol_binary_engine_param_t type;
+    const cb::mcbp::request::SetParamPayload::Type type;
     const std::string value;
 };
 

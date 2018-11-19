@@ -773,16 +773,12 @@ static bool set_param(struct default_engine* e,
                       const void* cookie,
                       cb::mcbp::Request& request,
                       ADD_RESPONSE response) {
+    using cb::mcbp::request::SetParamPayload;
     auto extras = request.getExtdata();
-
-    protocol_binary_engine_param_t paramtype;
-    std::copy(extras.begin(),
-              extras.end(),
-              reinterpret_cast<uint8_t*>(&paramtype));
-    paramtype = static_cast<protocol_binary_engine_param_t>(ntohl(paramtype));
+    auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
 
     // Only support protocol_binary_engine_param_flush with xattr_enabled
-    if (paramtype == protocol_binary_engine_param_flush) {
+    if (payload->getParamType() == SetParamPayload::Type::Flush) {
         auto k = request.getKey();
         auto v = request.getValue();
 

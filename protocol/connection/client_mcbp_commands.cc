@@ -1417,12 +1417,15 @@ const std::string& BinprotDcpMutationCommand::getValue() const {
 
 void BinprotSetParamCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, value.size(), 4);
-    append(buf, uint32_t(type));
+    cb::mcbp::request::SetParamPayload payload;
+    payload.setParamType(type);
+    auto extra = payload.getBuffer();
+    buf.insert(buf.end(), extra.begin(), extra.end());
     buf.insert(buf.end(), key.begin(), key.end());
     buf.insert(buf.end(), value.begin(), value.end());
 }
 BinprotSetParamCommand::BinprotSetParamCommand(
-        protocol_binary_engine_param_t type_,
+        cb::mcbp::request::SetParamPayload::Type type_,
         const std::string& key_,
         const std::string& value_)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetParam),

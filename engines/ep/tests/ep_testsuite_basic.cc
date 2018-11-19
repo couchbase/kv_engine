@@ -93,7 +93,10 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect initial high wat. percent");
 
-    set_param(h, protocol_binary_engine_param_flush, "max_size", "1000000");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "max_size",
+              "1000000");
 
     checkeq(1000000, get_int_stat(h, "ep_max_size"), "Incorrect new size.");
     check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750000),
@@ -107,8 +110,14 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect larger high wat. percent");
 
-    set_param(h, protocol_binary_engine_param_flush, "mem_low_wat", "700000");
-    set_param(h, protocol_binary_engine_param_flush, "mem_high_wat", "800000");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "mem_low_wat",
+              "700000");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "mem_high_wat",
+              "800000");
 
     checkeq(700000,
             get_int_stat(h, "ep_mem_low_wat"),
@@ -123,7 +132,10 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect even larger high wat. percent");
 
-    set_param(h, protocol_binary_engine_param_flush, "max_size", "100");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "max_size",
+              "100");
 
     checkeq(100, get_int_stat(h, "ep_max_size"), "Incorrect smaller size.");
     check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 70),
@@ -137,8 +149,14 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect smaller high wat. percent");
 
-    set_param(h, protocol_binary_engine_param_flush, "mem_low_wat", "50");
-    set_param(h, protocol_binary_engine_param_flush, "mem_high_wat", "70");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "mem_low_wat",
+              "50");
+    set_param(h,
+              cb::mcbp::request::SetParamPayload::Type::Flush,
+              "mem_high_wat",
+              "70");
 
     checkeq(50,
             get_int_stat(h, "ep_mem_low_wat"),
@@ -1786,7 +1804,7 @@ static enum test_result set_max_cas_mb21190(EngineIface* h) {
     uint64_t max_cas = get_ull_stat(h, "vb_0:max_cas", "vbucket-details 0");
     std::string max_cas_str = std::to_string(max_cas+1);
     set_param(h,
-              protocol_binary_engine_param_vbucket,
+              cb::mcbp::request::SetParamPayload::Type::Vbucket,
               "max_cas",
               max_cas_str.data(),
               Vbid(0));
@@ -1796,14 +1814,14 @@ static enum test_result set_max_cas_mb21190(EngineIface* h) {
             get_ull_stat(h, "vb_0:max_cas", "vbucket-details 0"),
             "max_cas didn't change");
     set_param(h,
-              protocol_binary_engine_param_vbucket,
+              cb::mcbp::request::SetParamPayload::Type::Vbucket,
               "max_cas",
               max_cas_str.data(),
               Vbid(1));
     checkeq(cb::mcbp::Status::NotMyVbucket, last_status.load(),
             "Expected not my vbucket for vb 1");
     set_param(h,
-              protocol_binary_engine_param_vbucket,
+              cb::mcbp::request::SetParamPayload::Type::Vbucket,
               "max_cas",
               "JUNK",
               Vbid(0));
@@ -1980,10 +1998,13 @@ static test_result get_if(EngineIface* h) {
 
 static test_result max_ttl_out_of_range(EngineIface* h) {
     // Test absolute first as this is the bigger time travel
-    check(!set_param(h, protocol_binary_engine_param_flush, "max_ttl", "-1"),
+    check(!set_param(h,
+                     cb::mcbp::request::SetParamPayload::Type::Flush,
+                     "max_ttl",
+                     "-1"),
           "Should not be allowed to set a negative value");
     check(!set_param(h,
-                     protocol_binary_engine_param_flush,
+                     cb::mcbp::request::SetParamPayload::Type::Flush,
                      "max_ttl",
                      "2147483648"),
           "Should not be allowed to set > int32::max");
@@ -2004,7 +2025,7 @@ static test_result max_ttl(EngineIface* h) {
 
     // Test absolute first as this is the bigger time travel
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "max_ttl",
                     absoluteExpiryStr.c_str()),
           "Failed to set max_ttl");
@@ -2040,7 +2061,7 @@ static test_result max_ttl(EngineIface* h) {
             "Failed, expected no_such_key.");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "max_ttl",
                     relativeExpiryStr.c_str()),
           "Failed to set max_ttl");
@@ -2092,7 +2113,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
 
     // Test absolute first as this is the bigger time travel
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "max_ttl",
                     absoluteExpiryStr.c_str()),
           "Failed to set max_ttl");
@@ -2128,7 +2149,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
             "Failed, expected no_such_key.");
 
     check(set_param(h,
-                    protocol_binary_engine_param_flush,
+                    cb::mcbp::request::SetParamPayload::Type::Flush,
                     "max_ttl",
                     relativeExpiryStr.c_str()),
           "Failed to set max_ttl");

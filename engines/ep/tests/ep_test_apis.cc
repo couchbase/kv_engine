@@ -766,22 +766,22 @@ protocol_binary_request_header* prepare_get_replica(EngineIface* h,
 }
 
 bool set_param(EngineIface* h,
-               protocol_binary_engine_param_t paramtype,
+               cb::mcbp::request::SetParamPayload::Type paramtype,
                const char* param,
                const char* val,
                Vbid vb) {
-    char ext[4];
-    protocol_binary_request_header *pkt;
-    encodeExt(ext, static_cast<uint32_t>(paramtype));
-    pkt = createPacket(cb::mcbp::ClientOpcode::SetParam,
-                       vb,
-                       0,
-                       ext,
-                       sizeof(protocol_binary_engine_param_t),
-                       param,
-                       strlen(param),
-                       val,
-                       strlen(val));
+    cb::mcbp::request::SetParamPayload payload;
+    payload.setParamType(paramtype);
+    auto buffer = payload.getBuffer();
+    auto* pkt = createPacket(cb::mcbp::ClientOpcode::SetParam,
+                             vb,
+                             0,
+                             reinterpret_cast<const char*>(buffer.data()),
+                             buffer.size(),
+                             param,
+                             strlen(param),
+                             val,
+                             strlen(val));
 
     if (h->unknown_command(nullptr, pkt, add_response) != ENGINE_SUCCESS) {
         cb_free(pkt);

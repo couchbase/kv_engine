@@ -726,9 +726,9 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
 
 cb::mcbp::Status EventuallyPersistentEngine::setParam(cb::mcbp::Request& req,
                                                       std::string& msg) {
+    using cb::mcbp::request::SetParamPayload;
     auto extras = req.getExtdata();
-    auto paramtype = static_cast<protocol_binary_engine_param_t>(
-            ntohl(*reinterpret_cast<const uint32_t*>(extras.data())));
+    auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
 
     auto key = req.getKey();
     auto val = req.getValue();
@@ -738,16 +738,16 @@ cb::mcbp::Status EventuallyPersistentEngine::setParam(cb::mcbp::Request& req,
     const std::string valz(reinterpret_cast<const char*>(val.data()),
                            val.size());
 
-    switch (paramtype) {
-    case protocol_binary_engine_param_flush:
+    switch (payload->getParamType()) {
+    case SetParamPayload::Type::Flush:
         return setFlushParam(keyz, valz, msg);
-    case protocol_binary_engine_param_replication:
+    case SetParamPayload::Type::Replication:
         return setReplicationParam(keyz, valz, msg);
-    case protocol_binary_engine_param_checkpoint:
+    case SetParamPayload::Type::Checkpoint:
         return setCheckpointParam(keyz, valz, msg);
-    case protocol_binary_engine_param_dcp:
+    case SetParamPayload::Type::Dcp:
         return setDcpParam(keyz, valz, msg);
-    case protocol_binary_engine_param_vbucket:
+    case SetParamPayload::Type::Vbucket:
         return setVbucketParam(req.getVBucket(), keyz, valz, msg);
     }
 

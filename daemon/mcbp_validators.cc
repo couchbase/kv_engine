@@ -1561,16 +1561,20 @@ static Status get_keys_validator(Cookie& cookie) {
 }
 
 static Status set_param_validator(Cookie& cookie) {
-    static_assert(sizeof(protocol_binary_engine_param_t) == 4,
-                  "Unexpected size for protocol_binary_engine_param_t");
-
+    using cb::mcbp::request::SetParamPayload;
     if (!verify_header(cookie,
-                       sizeof(protocol_binary_engine_param_t),
+                       sizeof(SetParamPayload),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::NonZero,
                        ExpectedCas::Any,
                        PROTOCOL_BINARY_RAW_BYTES)) {
         return Status::Einval;
+    }
+
+    auto extras = cookie.getHeader().getExtdata();
+    auto* payload = reinterpret_cast<const SetParamPayload*>(extras.data());
+    if (!payload->validate()) {
+        cookie.setErrorContext("Invalid param type specified");
     }
 
     return Status::Success;
