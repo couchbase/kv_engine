@@ -245,6 +245,8 @@ ENGINE_ERROR_CODE AppendPrependCommandContext::storeItem() {
         state = State::Done;
     } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
         state = State::Reset;
+        // We need to return ENGINE_SUCCESS in order to continue processing
+        ret = ENGINE_SUCCESS;
     }
 
     return ret;
