@@ -1535,7 +1535,6 @@ TEST_P(McdTestappTest, Audit_ConfigReload) {
 
 TEST_P(McdTestappTest, Verbosity) {
     union {
-        protocol_binary_request_verbosity request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
@@ -1543,17 +1542,18 @@ TEST_P(McdTestappTest, Verbosity) {
 
     int ii;
     for (ii = 10; ii > -1; --ii) {
-        size_t len = mcbp_raw_command(buffer.bytes,
-                                      sizeof(buffer.bytes),
-                                      cb::mcbp::ClientOpcode::Verbosity,
-                                      NULL,
-                                      0,
-                                      NULL,
-                                      0);
-        buffer.request.message.header.request.extlen = 4;
-        buffer.request.message.header.request.bodylen = ntohl(4);
-        buffer.request.message.body.level = (uint32_t)ntohl(ii);
-        safe_send(buffer.bytes, len + sizeof(4), false);
+        cb::mcbp::request::VerbosityPayload extras;
+        extras.setLevel(ii);
+
+        cb::mcbp::Request req{};
+        req.setMagic(cb::mcbp::Magic::ClientRequest);
+        req.setExtlen(sizeof(extras));
+        req.setBodylen(sizeof(extras));
+        req.setOpcode(cb::mcbp::ClientOpcode::Verbosity);
+        req.setOpaque(0xdeadbeef);
+
+        safe_send(&req, sizeof(req), false);
+        safe_send(&extras, sizeof(extras), false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         mcbp_validate_response_header(&buffer.response,
                                       cb::mcbp::ClientOpcode::Verbosity,

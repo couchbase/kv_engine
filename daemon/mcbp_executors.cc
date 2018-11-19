@@ -210,8 +210,10 @@ static void ssl_certs_refresh_executor(Cookie& cookie) {
 }
 
 static void verbosity_executor(Cookie& cookie) {
+    using cb::mcbp::request::VerbosityPayload;
     auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
-    int level = ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
+    auto* payload = reinterpret_cast<const VerbosityPayload*>(extras.data());
+    int level = payload->getLevel();
     if (level < 0 || level > MAX_VERBOSITY_LEVEL) {
         level = MAX_VERBOSITY_LEVEL;
     }

@@ -612,7 +612,7 @@ static Status set_cluster_config_validator(Cookie& cookie) {
 
 static Status verbosity_validator(Cookie& cookie) {
     if (!verify_header(cookie,
-                       4,
+                       sizeof(cb::mcbp::request::VerbosityPayload),
                        ExpectedKeyLen::Zero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::NotSet,

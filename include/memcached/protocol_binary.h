@@ -351,20 +351,32 @@ typedef protocol_binary_response_no_extras protocol_binary_response_stats;
 /**
  * Definition of the packet used by the verbosity command
  */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t level;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_verbosity;
 
-/**
- * Definition of the packet returned from the verbosity command
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_verbosity;
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class VerbosityPayload {
+public:
+    uint32_t getLevel() const {
+        return ntohl(level);
+    }
+    void setLevel(uint32_t level) {
+        VerbosityPayload::level = htonl(level);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint32_t level = 0;
+};
+static_assert(sizeof(VerbosityPayload) == 4, "Unexpected size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 /**
  * Definition of the packet used by the touch command.
