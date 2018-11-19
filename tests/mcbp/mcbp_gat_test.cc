@@ -49,7 +49,8 @@ protected:
     cb::mcbp::Status validateExtendedExtlen(uint8_t version) {
         bodylen = htonl(ntohl(bodylen) + 1);
         request.message.header.request.extlen = 1;
-        blob[sizeof(protocol_binary_request_gat)] = version;
+        blob[sizeof(cb::mcbp::Request) +
+             sizeof(cb::mcbp::request::GatPayload)] = version;
         return validate();
     }
 

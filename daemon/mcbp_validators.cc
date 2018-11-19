@@ -817,7 +817,7 @@ static Status get_validator(Cookie& cookie) {
 
 static Status gat_validator(Cookie& cookie) {
     if (!verify_header(cookie,
-                       4,
+                       sizeof(cb::mcbp::request::GatPayload),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::NotSet,
@@ -1302,7 +1302,7 @@ static Status get_locked_validator(Cookie& cookie) {
         cookie.setErrorContext("Request key invalid");
         return Status::Einval;
     }
-    if (extlen != 0 && extlen != 4) {
+    if (extlen != 0 && extlen != sizeof(cb::mcbp::request::GetLockedPayload)) {
         cookie.setErrorContext("Request extras must be of length 0 or 4");
         return Status::Einval;
     }

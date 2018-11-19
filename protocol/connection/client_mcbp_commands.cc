@@ -494,10 +494,10 @@ void BinprotGetCommand::encode(std::vector<uint8_t>& buf) const {
 
 void BinprotGetAndLockCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, sizeof(lock_timeout));
-    protocol_binary_request_getl *req;
-    buf.resize(sizeof(req->bytes));
-    req = reinterpret_cast<protocol_binary_request_getl*>(buf.data());
-    req->message.body.expiration = htonl(lock_timeout);
+    cb::mcbp::request::GetLockedPayload payload;
+    payload.setExpiration(lock_timeout);
+    auto extras = payload.getBuffer();
+    buf.insert(buf.end(), extras.begin(), extras.end());
     buf.insert(buf.end(), key.begin(), key.end());
 }
 BinprotGetAndLockCommand::BinprotGetAndLockCommand()
@@ -511,10 +511,10 @@ BinprotGetAndLockCommand& BinprotGetAndLockCommand::setLockTimeout(
 
 void BinprotGetAndTouchCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, sizeof(expirytime));
-    protocol_binary_request_gat *req;
-    buf.resize(sizeof(req->bytes));
-    req = reinterpret_cast<protocol_binary_request_gat*>(buf.data());
-    req->message.body.expiration = htonl(expirytime);
+    cb::mcbp::request::GatPayload extras;
+    extras.setExpiration(expirytime);
+    auto buffer = extras.getBuffer();
+    buf.insert(buf.end(), buffer.begin(), buffer.end());
     buf.insert(buf.end(), key.begin(), key.end());
 }
 BinprotGetAndTouchCommand::BinprotGetAndTouchCommand()
@@ -535,10 +535,10 @@ BinprotGetAndTouchCommand& BinprotGetAndTouchCommand::setExpirytime(
 
 void BinprotTouchCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, sizeof(expirytime));
-    protocol_binary_request_touch *req;
-    buf.resize(sizeof(req->bytes));
-    req = reinterpret_cast<protocol_binary_request_touch*>(buf.data());
-    req->message.body.expiration = htonl(expirytime);
+    cb::mcbp::request::TouchPayload extras;
+    extras.setExpiration(expirytime);
+    auto buffer = extras.getBuffer();
+    buf.insert(buf.end(), buffer.begin(), buffer.end());
     buf.insert(buf.end(), key.begin(), key.end());
 }
 BinprotTouchCommand& BinprotTouchCommand::setExpirytime(uint32_t timeout) {

@@ -32,9 +32,8 @@ uint32_t GatCommandContext::getExptime(Cookie& cookie) {
     if (extras.size() != sizeof(uint32_t)) {
         throw std::invalid_argument("GatCommandContext: Invalid extdata size");
     }
-
-    const auto* exp = reinterpret_cast<const uint32_t*>(extras.data());
-    return ntohl(*exp);
+    using cb::mcbp::request::GatPayload;
+    return reinterpret_cast<const GatPayload*>(extras.data())->getExpiration();
 }
 
 GatCommandContext::GatCommandContext(Cookie& cookie)

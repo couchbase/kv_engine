@@ -193,36 +193,30 @@ protected:
     uint32_t level = 0;
 };
 static_assert(sizeof(VerbosityPayload) == 4, "Unexpected size");
+
+class TouchPayload {
+public:
+    uint32_t getExpiration() const {
+        return ntohl(expiration);
+    }
+    void setExpiration(uint32_t expiration) {
+        TouchPayload::expiration = htonl(expiration);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint32_t expiration = 0;
+};
+static_assert(sizeof(TouchPayload) == 4, "Unexpected size");
+using GatPayload = TouchPayload;
+using GetLockedPayload = TouchPayload;
 #pragma pack()
 } // namespace request
 } // namespace mcbp
 } // namespace cb
-
-/**
- * Definition of the packet used by the touch command.
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t expiration;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_touch;
-
-/**
- * Definition of the packet used by the GAT(Q) command.
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t expiration;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_gat;
 
 /**
  * Definitions for extended (flexible) metadata
@@ -1623,11 +1617,6 @@ typedef union {
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 24];
 } protocol_binary_request_delete_with_meta;
-
-/**
- * The message format for getLocked engine API
- */
-typedef protocol_binary_request_gat protocol_binary_request_getl;
 
 /**
  * The physical layout for a CMD_GET_META command returns the meta-data
