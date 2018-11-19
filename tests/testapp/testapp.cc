@@ -781,8 +781,8 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
 
     // Now send the new HELLO message to the server.
     union {
-        protocol_binary_request_hello request;
-        protocol_binary_response_hello response;
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
     const char *useragent = "testapp";

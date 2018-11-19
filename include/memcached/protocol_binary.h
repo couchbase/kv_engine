@@ -486,315 +486,6 @@ typedef union {
 } protocol_binary_response_subdoc_multi_mutation;
 
 /**
- * Definition of a request for a range operation.
- * See http://code.google.com/p/memcached/wiki/RangeOps
- *
- * These types are used for range operations and exist within
- * this header for use in other projects.  Range operations are
- * not expected to be implemented in the memcached server itself.
- */
-typedef union {
-    struct {
-        protocol_binary_response_header header;
-        struct {
-            uint16_t size;
-            uint8_t reserved;
-            uint8_t flags;
-            uint32_t max_results;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_rangeop;
-
-typedef protocol_binary_request_rangeop protocol_binary_request_rget;
-typedef protocol_binary_request_rangeop protocol_binary_request_rset;
-typedef protocol_binary_request_rangeop protocol_binary_request_rsetq;
-typedef protocol_binary_request_rangeop protocol_binary_request_rappend;
-typedef protocol_binary_request_rangeop protocol_binary_request_rappendq;
-typedef protocol_binary_request_rangeop protocol_binary_request_rprepend;
-typedef protocol_binary_request_rangeop protocol_binary_request_rprependq;
-typedef protocol_binary_request_rangeop protocol_binary_request_rdelete;
-typedef protocol_binary_request_rangeop protocol_binary_request_rdeleteq;
-typedef protocol_binary_request_rangeop protocol_binary_request_rincr;
-typedef protocol_binary_request_rangeop protocol_binary_request_rincrq;
-typedef protocol_binary_request_rangeop protocol_binary_request_rdecr;
-typedef protocol_binary_request_rangeop protocol_binary_request_rdecrq;
-
-/**
- * Definition of tap commands - Note: TAP removed in 5.0
- * See To be written
- *
- */
-
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            /**
-             * flags is a bitmask used to set properties for the
-             * the connection. Please In order to be forward compatible
-             * you should set all undefined bits to 0.
-             *
-             * If the bit require extra userdata, it will be stored
-             * in the user-data field of the body (passed to the engine
-             * as enginespeciffic). That means that when you parse the
-             * flags and the engine-specific data, you have to work your
-             * way from bit 0 and upwards to find the correct offset for
-             * the data.
-             *
-             */
-            uint32_t flags;
-
-/**
- * Backfill age
- *
- * By using this flag you can limit the amount of data being
- * transmitted. If you don't specify a backfill age, the
- * server will transmit everything it contains.
- *
- * The first 8 bytes in the engine specific data contains
- * the oldest entry (from epoc) you're interested in.
- * Specifying a time in the future (for the server you are
- * connecting to), will cause it to start streaming current
- * changes.
- */
-#define TAP_CONNECT_FLAG_BACKFILL 0x01
-/**
- * Dump will cause the server to send the data stored on the
- * server, but disconnect when the keys stored in the server
- * are transmitted.
- */
-#define TAP_CONNECT_FLAG_DUMP 0x02
-/**
- * The body contains a list of 16 bits words in network byte
- * order specifying the vbucket ids to monitor. The first 16
- * bit word contains the number of buckets. The number of 0
- * means "all buckets"
- */
-#define TAP_CONNECT_FLAG_LIST_VBUCKETS 0x04
-/**
- * The responsibility of the vbuckets is to be transferred
- * over to the caller when all items are transferred.
- */
-#define TAP_CONNECT_FLAG_TAKEOVER_VBUCKETS 0x08
-/**
- * The tap consumer supports ack'ing of tap messages
- */
-#define TAP_CONNECT_SUPPORT_ACK 0x10
-/**
- * The tap consumer would prefer to just get the keys
- * back. If the engine supports this it will set
- * the TAP_FLAG_NO_VALUE flag in each of the
- * tap packets returned.
- */
-#define TAP_CONNECT_REQUEST_KEYS_ONLY 0x20
-/**
- * The body contains a list of (vbucket_id, last_checkpoint_id)
- * pairs. This provides the checkpoint support in TAP streams.
- * The last checkpoint id represents the last checkpoint that
- * was successfully persisted.
- */
-#define TAP_CONNECT_CHECKPOINT 0x40
-/**
- * The tap consumer is a registered tap client, which means that
- * the tap server will maintain its checkpoint cursor permanently.
- */
-#define TAP_CONNECT_REGISTERED_CLIENT 0x80
-
-/**
- * The initial TAP implementation convert flags to/from network
- * byte order, but the values isn't stored in host local order
- * causing them to change if you mix platforms..
- */
-#define TAP_CONNECT_TAP_FIX_FLAG_BYTEORDER 0x100
-
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_tap_connect;
-
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            struct {
-                uint16_t enginespecific_length;
-/*
- * The flag section support the following flags
- */
-/**
- * Request that the consumer send a response packet
- * for this packet. The opaque field must be preserved
- * in the response.
- */
-#define TAP_FLAG_ACK 0x01
-/**
- * The value for the key is not included in the packet
- */
-#define TAP_FLAG_NO_VALUE 0x02
-/**
- * The flags are in network byte order
- */
-#define TAP_FLAG_NETWORK_BYTE_ORDER 0x04
-
-                uint16_t flags;
-                uint8_t ttl;
-                uint8_t res1;
-                uint8_t res2;
-                uint8_t res3;
-            } tap;
-            struct {
-                uint32_t flags;
-                uint32_t expiration;
-            } item;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 16];
-} protocol_binary_request_tap_mutation;
-
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            struct {
-                uint16_t enginespecific_length;
-                /**
-                 * See the definition of the flags for
-                 * protocol_binary_request_tap_mutation for a description
-                 * of the available flags.
-                 */
-                uint16_t flags;
-                uint8_t ttl;
-                uint8_t res1;
-                uint8_t res2;
-                uint8_t res3;
-            } tap;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
-} protocol_binary_request_tap_no_extras;
-
-typedef protocol_binary_request_tap_no_extras
-        protocol_binary_request_tap_delete;
-typedef protocol_binary_request_tap_no_extras protocol_binary_request_tap_flush;
-
-/**
- * TAP OPAQUE command list
- */
-#define TAP_OPAQUE_ENABLE_AUTO_NACK 0
-#define TAP_OPAQUE_INITIAL_VBUCKET_STREAM 1
-#define TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC 2
-#define TAP_OPAQUE_OPEN_CHECKPOINT 3
-#define TAP_OPAQUE_COMPLETE_VB_FILTER_CHANGE 4
-#define TAP_OPAQUE_CLOSE_TAP_STREAM 7
-#define TAP_OPAQUE_CLOSE_BACKFILL 8
-
-typedef protocol_binary_request_tap_no_extras
-        protocol_binary_request_tap_opaque;
-typedef protocol_binary_request_tap_no_extras
-        protocol_binary_request_tap_vbucket_set;
-
-/**
- * Definition of the packet used by the scrub.
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_scrub;
-
-/**
- * Definition of the packet returned from scrub.
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_scrub;
-
-/**
- * Definition of the packet used by set vbucket
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            vbucket_state_t state;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) +
-                  sizeof(vbucket_state_t)];
-} protocol_binary_request_set_vbucket;
-/**
- * Definition of the packet returned from set vbucket
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_set_vbucket;
-/**
- * Definition of the packet used by del vbucket
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_del_vbucket;
-/**
- * Definition of the packet returned from del vbucket
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_del_vbucket;
-
-/**
- * Definition of the packet used by get vbucket
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_get_vbucket;
-
-/**
- * Definition of the packet returned from get vbucket
- */
-typedef union {
-    struct {
-        protocol_binary_response_header header;
-        struct {
-            vbucket_state_t state;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_response_header) +
-                  sizeof(vbucket_state_t)];
-} protocol_binary_response_get_vbucket;
-
-/**
- * The HELLO command is used by the client and the server to agree
- * upon the set of features the other end supports. It is initiated
- * by the client by sending its agent string and the list of features
- * it would like to use. The server will then reply with the list
- * of the requested features it supports.
- *
- * ex:
- * Client ->  HELLO [myclient 2.0] datatype, tls
- * Server ->  HELLO SUCCESS datatype
- *
- * In this example the server responds that it allows the client to
- * use the datatype extension, but not the tls extension.
- */
-
-/**
- * Definition of the packet requested by hello cmd.
- * Key: This is a client-specific identifier (not really used by
- *      the server, except for logging the HELLO and may therefore
- *      be used to identify the client at a later time)
- * Body: Contains all features supported by client. Each feature is
- *       specified as an uint16_t in network byte order.
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_hello;
-
-/**
- * Definition of the packet returned by hello cmd.
- * Body: Contains all features requested by the client that the
- *       server agrees to ssupport. Each feature is
- *       specified as an uint16_t in network byte order.
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_hello;
-
-/**
- * The SET_CTRL_TOKEN command will be used by ns_server and ns_server alone
- * to set the session cas token in memcached which will be used to
- * recognize the particular instance on ns_server. The previous token will
- * be passed in the cas section of the request header for the CAS operation,
- * and the new token will be part of ext (8B).
- *
- * The response to this request will include the cas as it were set,
- * and a SUCCESS as status, or a KEY_EEXISTS with the existing token in
- * memcached if the CAS operation were to fail.
- */
-
-/**
  * Definition of the request packet for SET_CTRL_TOKEN.
  * Body: new session_cas_token of uint64_t type.
  */
@@ -813,26 +504,6 @@ typedef union {
  */
 typedef protocol_binary_response_no_extras
         protocol_binary_response_set_ctrl_token;
-
-/**
- * The GET_CTRL_TOKEN command will be used by ns_server to fetch the current
- * session cas token held in memcached.
- *
- * The response to this request will include the token currently held in
- * memcached in the cas field of the header.
- */
-
-/**
- * Definition of the request packet for GET_CTRL_TOKEN.
- */
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_get_ctrl_token;
-
-/**
- * Definition of the response packet for GET_CTRL_TOKEN
- */
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_get_ctrl_token;
 
 /* DCP related stuff */
 
@@ -1663,34 +1334,13 @@ enum class GetMetaVersion : uint8_t {
 };
 
 /**
- * The response for CMD_SET_WITH_META does not carry any user-data and the
- * status of the operation is signalled in the status bits.
- */
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_set_with_meta;
-
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t file_version;
-            uint64_t header_offset;
-            uint32_t vbucket_state_updated;
-            uint32_t state;
-            uint64_t checkpoint;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 32];
-} protocol_binary_request_notify_vbucket_update;
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_notify_vbucket_update;
-
-/**
  * The physical layout for the CMD_RETURN_META
  */
 namespace cb {
 namespace mcbp {
 namespace request {
+
+#pragma pack(1)
 
 enum class ReturnMetaType : uint32_t { Set = 1, Add = 2, Del = 3 };
 
@@ -1717,97 +1367,12 @@ public:
     }
 
 protected:
-    uint32_t mutation_type;
-    uint32_t flags;
-    uint32_t expiration;
+    uint32_t mutation_type = 0;
+    uint32_t flags = 0;
+    uint32_t expiration = 0;
 };
 static_assert(sizeof(ReturnMetaPayload) == 12, "Unexpected struct size");
-} // namespace request
-} // namespace mcbp
-} // namespace cb
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t mutation_type;
-            uint32_t flags;
-            uint32_t expiration;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 12];
-} protocol_binary_request_return_meta;
 
-/**
- * Message format for CMD_SET_CONFIG
- */
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_set_cluster_config;
-
-/**
- * Message format for CMD_GET_CONFIG
- */
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_get_cluster_config;
-
-/**
- * Message format for CMD_GET_ADJUSTED_TIME
- *
- * The PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME command will be
- * used by XDCR to retrieve the vbucket's latest adjusted_time
- * which is calculated based on the driftCounter if timeSync
- * has been enabled.
- *
- * Request:-
- *
- * Header: Contains a vbucket id.
- *
- * Response:-
- *
- * The response will contain the adjusted_time (type: int64_t)
- * as part of the body if in case of a SUCCESS, or else a NOTSUP
- * in case of timeSync not being enabled.
- *
- * The request packet's header will contain the vbucket_id.
- */
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_get_adjusted_time;
-
-/**
- * Message format for CMD_SET_DRIFT_COUNTER_STATE
- *
- * The PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE command will be
- * used by GO-XDCR to set the initial drift counter and enable/disable
- * the time synchronization for the vbucket.
- *
- * Request:-
- *
- * Header: Contains a vbucket id.
- * Extras: Contains the initial drift value which is of type int64_t and
- * the time sync state (0x00 for disable, 0x01 for enable),
- *
- * Response:-
- *
- * The response will return a SUCCESS after saving the settings, the
- * body will contain the vbucket uuid (type: uint64_t) and the vbucket
- * high seqno (type: int64_t).
- * A NOT_MY_VBUCKET (along with cluster config) is returned if the
- * vbucket isn't found.
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            int64_t initial_drift;
-            uint8_t time_sync;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 9];
-} protocol_binary_request_set_drift_counter_state;
-
-namespace cb {
-namespace mcbp {
-namespace request {
-#pragma pack(1)
 /**
  * Message format for CMD_COMPACT_DB
  *
@@ -1873,7 +1438,7 @@ protected:
     uint64_t purge_before_seq = 0;
     uint8_t drop_deletes = 0;
     uint8_t align_pad1 = 0;
-    Vbid db_file_id;
+    Vbid db_file_id = Vbid{0};
     uint32_t align_pad3 = 0;
 };
 #pragma pack()

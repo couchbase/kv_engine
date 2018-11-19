@@ -501,8 +501,8 @@ information about a given command.
 | 0xf1 | Isasl refresh |
 | 0xf2 | Ssl certs refresh |
 | 0xf3 | Get cmd timer |
-| 0xf4 | Set ctrl token |
-| 0xf5 | Get ctrl token |
+| 0xf4 | [Set ctrl token](#0xf4-set-ctrl-token)  |
+| 0xf5 | [Get ctrl token](#0xf5-get-ctrl-token) |
 | 0xf6 | [Update External User Permissions](ExternalAuthProvider.md#updateexternaluserpermission) |
 | 0xf7 | RBAC refresh |
 | 0xf8 | AUTH provider |
@@ -1917,9 +1917,82 @@ The following example shows that the server agreed to enable 0x0003 and
 
 
 ### 0x3d Set VBucket
+
+The `set vbucket` command is used to set the state of vbucket.
+
+Request:
+
+* MUST have extra
+* MUST NOT have key
+* MUST NOT have value
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| vbucket state in network byte order                           |
+        +---------------+---------------+---------------+---------------+
+        Total 4 bytes
+
+State may be one of:
+
+    1 - Active
+    2 - Replica
+    3 - Pending
+    4 - Dead
+
+Response:
+
+* MUST NOT have extras
+* MUST NOT have key
+* MUST NOT have value
+
 ### 0x3e Get VBucket
+
+The `get vbucket` command is used to get the current state of a vbucket
+
+Reuest:
+
+* MUST NOT have extras
+* MUST NOT have key
+* MUST NOT have value
+
+Response:
+
+* MUST NOT have extras
+* MUST NOT have key
+* MUST have value
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| vbucket state in network byte order                           |
+        +---------------+---------------+---------------+---------------+
+        Total 4 bytes
+
+State may be one of:
+
+    1 - Active
+    2 - Replica
+    3 - Pending
+    4 - Dead
+
 ### 0x3f Del VBucket
-**TODO: add me**
+
+The `del vbucket` command is used to delete a vbucket
+
+Reuest:
+
+* MUST NOT have extras
+* MUST NOT have key
+* MUST NOT have value
+
+Response:
+
+* MUST NOT have extras
+* MUST NOT have key
+* MUST NOT have value
 
 ### 0x87 List Buckets
 
@@ -2224,6 +2297,44 @@ If the VBucket the failover log is requested for does not exist.
 **PROTOCOL_BINARY_RESPONSE_ENOMEM (0x82)**
 
 If the failover log could not be sent to due a failure to allocate memory.
+
+### 0xf4 Set Ctrl Token
+
+The `set ctrl token` will be used by ns_server and ns_server alone
+to set the session cas token in memcached which will be used to
+recognize the particular instance on ns_server.
+The previous token will be passed in the cas section of the request
+header for the CAS operation, and the new token will be part of extras.
+
+Request:
+
+* MUST have extra
+* MUST NOT have key
+* MUST NOT have value
+
+The response to this request will include the cas as it were set,
+and a SUCCESS as status, or a KEY_EEXISTS with the existing token in
+memcached if the CAS operation were to fail.
+
+### 0xf5 Get Ctrl Token
+
+The `get ctrl token` command will be used by ns_server to fetch the current
+session cas token held in memcached.
+
+Request:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST NOT have value
+
+Response:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST NOT have value
+
+The response to this request will include the token currently held in
+memcached in the cas field of the header.
 
 ## Server Commands
 

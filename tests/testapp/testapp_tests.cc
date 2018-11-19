@@ -1562,8 +1562,8 @@ TEST_P(McdTestappTest, Verbosity) {
 
 TEST_P(McdTestappTest, Hello) {
     union {
-        protocol_binary_request_hello request;
-        protocol_binary_response_hello response;
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
     const char *useragent = "hello world";
@@ -1664,7 +1664,7 @@ TEST_P(McdTestappTest, Hello) {
 // cb::mcbp::Status::NotSupported
 TEST_P(McdTestappTest, TapConnect) {
     union {
-        protocol_binary_request_tap_connect request;
+        protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
@@ -1820,8 +1820,8 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
 
 static uint64_t get_session_ctrl_token(void) {
     union {
-        protocol_binary_request_get_ctrl_token request;
-        protocol_binary_response_get_ctrl_token response;
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
     uint64_t ret;
