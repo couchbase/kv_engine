@@ -1389,10 +1389,8 @@ static Status collections_get_manifest_validator(Cookie& cookie) {
 }
 
 static Status adjust_timeofday_validator(Cookie& cookie) {
-    constexpr uint8_t expected_extlen = sizeof(uint64_t) + sizeof(uint8_t);
-
     if (!verify_header(cookie,
-                       expected_extlen,
+                       sizeof(cb::mcbp::request::AdjustTimePayload),
                        ExpectedKeyLen::Zero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::NotSet,
@@ -1404,6 +1402,13 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
     if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
         cookie.setErrorContext("Only available for unit tests");
         return Status::NotSupported;
+    }
+
+    auto extras = cookie.getHeader().getExtdata();
+    using cb::mcbp::request::AdjustTimePayload;
+    auto* payload = reinterpret_cast<const AdjustTimePayload*>(extras.data());
+    if (!payload->isValid()) {
+        cookie.setErrorContext("Unexpected value for TimeType");
     }
 
     return Status::Success;

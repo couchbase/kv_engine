@@ -1539,39 +1539,52 @@ typedef protocol_binary_response_no_extras
  */
 typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
 
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
 
-enum class TimeType : uint8_t {
-    TimeOfDay,
-    Uptime
+class AdjustTimePayload {
+public:
+    enum class TimeType : uint8_t { TimeOfDay = 0, Uptime = 1 };
+
+    uint64_t getOffset() const {
+        return ntohll(offset);
+    }
+    void setOffset(uint64_t offset) {
+        AdjustTimePayload::offset = htonll(offset);
+    }
+    TimeType getTimeType() const {
+        return time_type;
+    }
+    void setTimeType(TimeType time_type) {
+        AdjustTimePayload::time_type = time_type;
+    }
+
+    bool isValid() const {
+        switch (getTimeType()) {
+        case TimeType::TimeOfDay:
+        case TimeType::Uptime:
+            return true;
+        }
+        return false;
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t offset = 0;
+    TimeType time_type = TimeType::TimeOfDay;
 };
-/**
- * Definition of the packet used to adjust timeofday and memcached uptime
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t offset;
-            TimeType timeType;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + sizeof(uint64_t) + sizeof(TimeType)];
-} protocol_binary_adjust_time;
-
-/**
- * Definition of the packet returned by adjust_timeofday
- */
-typedef protocol_binary_response_no_extras protocol_binary_adjust_time_response;
+static_assert(sizeof(AdjustTimePayload) == 9, "Unexpected struct size");
 
 /**
  * Message format for PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL
  *
  * See engines/ewouldblock_engine for more information.
  */
-
-namespace cb {
-namespace mcbp {
-namespace request {
 class EWB_Payload {
 public:
     uint32_t getMode() const {
@@ -1593,12 +1606,18 @@ public:
         inject_error = htonl(ie);
     }
 
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
 protected:
     uint32_t mode = 0; // See EWB_Engine_Mode
     uint32_t value = 0;
     uint32_t inject_error = 0; // ENGINE_ERROR_CODE to inject.
 };
-static_assert(sizeof(EWB_Payload) == 12, "Invalid size for WEB_Payload");
+static_assert(sizeof(EWB_Payload) == 12, "Unepected struct size");
+
+#pragma pack()
 } // namespace request
 } // namespace mcbp
 } // namespace cb

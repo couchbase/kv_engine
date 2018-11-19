@@ -1641,28 +1641,27 @@ uint64_t extract_single_stat(const stats_response_t& stats,
 /*
     Using a memcached protocol extesnsion, shift the time
 */
-void adjust_memcached_clock(int64_t clock_shift, TimeType timeType) {
+void adjust_memcached_clock(
+        int64_t clock_shift,
+        cb::mcbp::request::AdjustTimePayload::TimeType timeType) {
+    cb::mcbp::request::AdjustTimePayload payload;
+    payload.setOffset(uint64_t(clock_shift));
+    payload.setTimeType(timeType);
+
+    uint8_t blob[sizeof(cb::mcbp::Request) + sizeof(payload)];
+    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder({blob, sizeof(blob)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::AdjustTimeofday);
+    builder.setExtras(payload.getBuffer());
+    builder.setOpaque(0xdeadbeef);
+
+    auto request = builder.getFrame()->getFrame();
+    safe_send(request.data(), request.size(), false);
+
     union {
-        protocol_binary_adjust_time request;
-        protocol_binary_adjust_time_response response;
+        protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
-
-    auto extlen = sizeof(uint64_t) + sizeof(uint8_t);
-    size_t len = mcbp_raw_command(buffer.bytes,
-                                  sizeof(buffer.bytes),
-                                  cb::mcbp::ClientOpcode::AdjustTimeofday,
-                                  NULL,
-                                  0,
-                                  NULL,
-                                  extlen);
-
-    buffer.request.message.header.request.extlen =
-            gsl::narrow_cast<uint8_t>(extlen);
-    buffer.request.message.body.offset = htonll(clock_shift);
-    buffer.request.message.body.timeType = timeType;
-
-    safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response,
                                   cb::mcbp::ClientOpcode::AdjustTimeofday,

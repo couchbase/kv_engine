@@ -461,4 +461,6 @@ uint64_t extract_single_stat(const stats_response_t& stats,
 
 ssize_t socket_recv(SOCKET s, char *buf, size_t len);
 ssize_t socket_send(SOCKET s, const char *buf, size_t len);
-void adjust_memcached_clock(int64_t clock_shift, TimeType timeType);
+void adjust_memcached_clock(
+        int64_t clock_shift,
+        cb::mcbp::request::AdjustTimePayload::TimeType timeType);

@@ -98,7 +98,8 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     testBodyAndXattrCmd(cmd);
 
     // Jump forward in time to expire item
-    adjust_memcached_clock(4, TimeType::Uptime);
+    adjust_memcached_clock(
+            4, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
     auto& conn = getConnection();
     BinprotSubdocMultiLookupCommand getCmd;
@@ -111,7 +112,8 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getResp.getStatus());
 
     // Restore time.
-    adjust_memcached_clock(0, TimeType::Uptime);
+    adjust_memcached_clock(
+            0, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 }
 
 TEST_P(XattrTest, SetXattrAndBodyExistingDoc) {

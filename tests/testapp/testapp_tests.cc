@@ -2178,7 +2178,9 @@ static void test_expiry(const char* key, time_t expiry,
                                   cb::mcbp::ClientOpcode::Set,
                                   cb::mcbp::Status::Success);
 
-    adjust_memcached_clock(clock_shift, TimeType::TimeOfDay);
+    adjust_memcached_clock(
+            clock_shift,
+            cb::mcbp::request::AdjustTimePayload::TimeType::TimeOfDay);
 
     memset(send.bytes, 0, 1024);
     len = mcbp_raw_command(send.bytes,
