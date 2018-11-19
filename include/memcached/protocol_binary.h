@@ -108,80 +108,6 @@ typedef union {
 } protocol_binary_response_no_extras;
 
 /**
- * Definition of the packet used by the get, getq, getk and getkq command.
- * See section 4
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_get;
-typedef protocol_binary_request_no_extras protocol_binary_request_getq;
-typedef protocol_binary_request_no_extras protocol_binary_request_getk;
-typedef protocol_binary_request_no_extras protocol_binary_request_getkq;
-
-/**
- * Definition of the packet returned from a successful get, getq, getk and
- * getkq.
- * See section 4
- */
-typedef union {
-    struct {
-        protocol_binary_response_header header;
-        struct {
-            uint32_t flags;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_response_header) + 4];
-} protocol_binary_response_get;
-
-typedef protocol_binary_response_get protocol_binary_response_getq;
-typedef protocol_binary_response_get protocol_binary_response_getk;
-typedef protocol_binary_response_get protocol_binary_response_getkq;
-
-/**
- * Definition of the packet used by the delete command
- * See section 4
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_delete;
-
-/**
- * Definition of the packet returned by the delete command
- * See section 4
- *
- * extlen should be either zero, or 16 if the client has enabled the
- * MUTATION_SEQNO feature, with the following format:
- *
- *   Header:           (0-23): <protocol_binary_response_header>
- *   Extras:
- *     Vbucket UUID   (24-31): 0x0000000000003039
- *     Seqno          (32-39): 0x000000000000002D
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_delete;
-
-/**
- * Definition of the packet used by the flush command
- * See section 4
- * Please note that the expiration field is optional, so remember to see
- * check the header.bodysize to see if it is present.
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            /*
-             * Specifying a non-null expiration time is no longer
-             * supported
-             */
-            uint32_t expiration;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_flush;
-
-/**
- * Definition of the packet returned by the flush command
- * See section 4
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_flush;
-
-/**
  * Definition of the packet used by set, add and replace
  * See section 4
  */
@@ -221,32 +147,7 @@ protected:
     uint32_t expiration = 0;
 };
 static_assert(sizeof(MutationPayload) == 8, "Unexpected struct size");
-#pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
 
-/**
- * Definition of the noop packet
- * See section 4
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_noop;
-
-/**
- * Definition of the packet returned by the noop command
- * See section 4
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_noop;
-
-/**
- * Definition of the structure used by the increment and decrement
- * command.
- * See section 4
- */
-namespace cb {
-namespace mcbp {
-namespace request {
-#pragma pack(1)
 class ArithmeticPayload {
 public:
     uint64_t getDelta() const {
@@ -274,88 +175,7 @@ private:
     uint32_t expiration = 0;
 };
 static_assert(sizeof(ArithmeticPayload) == 20, "Unexpected struct size");
-#pragma pack()
-} // namespace request
-} // namespace mcbp
-} // namespace cb
 
-/**
- * Definition of the response from an incr or decr command
- * command.
- *
- * The result of the incr/decr is a uint64_t placed at header + extlen.
- *
- * extlen should be either zero, or 16 if the client has enabled the
- * MUTATION_SEQNO feature, with the following format:
- *
- *   Header:           (0-23): <protocol_binary_response_header>
- *   Extras:
- *     Vbucket UUID   (24-31): 0x0000000000003039
- *     Seqno          (32-39): 0x000000000000002D
- *   Value:           (40-47): ....
- *
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_incr;
-typedef protocol_binary_response_no_extras protocol_binary_response_decr;
-
-/**
- * Definition of the quit
- * See section 4
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_quit;
-
-/**
- * Definition of the packet returned by the quit command
- * See section 4
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_quit;
-
-/**
- * Definition of the packet used by append and prepend command
- * See section 4
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_append;
-typedef protocol_binary_request_no_extras protocol_binary_request_prepend;
-
-/**
- * Definition of the packet returned from a successful append or prepend
- * See section 4
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_append;
-typedef protocol_binary_response_no_extras protocol_binary_response_prepend;
-
-/**
- * Definition of the packet used by the version command
- * See section 4
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_version;
-
-/**
- * Definition of the packet returned from a successful version command
- * See section 4
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_version;
-
-/**
- * Definition of the packet used by the stats command.
- * See section 4
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_stats;
-
-/**
- * Definition of the packet returned from a successful stats command
- * See section 4
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_stats;
-
-/**
- * Definition of the packet used by the verbosity command
- */
-
-namespace cb {
-namespace mcbp {
-namespace request {
-#pragma pack(1)
 class VerbosityPayload {
 public:
     uint32_t getLevel() const {
@@ -392,11 +212,6 @@ typedef union {
 } protocol_binary_request_touch;
 
 /**
- * Definition of the packet returned from the touch command
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_touch;
-
-/**
  * Definition of the packet used by the GAT(Q) command.
  */
 typedef union {
@@ -408,15 +223,6 @@ typedef union {
     } message;
     uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
 } protocol_binary_request_gat;
-
-typedef protocol_binary_request_gat protocol_binary_request_gatq;
-
-/**
- * Definition of the packet returned from the GAT(Q)
- */
-typedef protocol_binary_response_get protocol_binary_response_gat;
-typedef protocol_binary_response_get protocol_binary_response_gatq;
-
 
 /**
  * Definitions for extended (flexible) metadata
@@ -2086,8 +1892,6 @@ static_assert(sizeof(CompactDbPayload) == 24, "Unexpected struct size");
 } // namespace request
 } // namespace mcbp
 } // namespace cb
-
-typedef protocol_binary_request_get protocol_binary_request_get_random;
 
 #define OBS_STATE_NOT_PERSISTED 0x00
 #define OBS_STATE_PERSISTED 0x01

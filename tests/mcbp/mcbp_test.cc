@@ -113,7 +113,7 @@ protected:
     cb::mcbp::Status validateExtendedExtlen(uint8_t version) {
         bodylen = htonl(ntohl(bodylen) + 1);
         request.message.header.request.extlen = 1;
-        blob[sizeof(protocol_binary_request_get)] = version;
+        blob[sizeof(protocol_binary_request_no_extras)] = version;
         return validate();
     }
 
@@ -3552,8 +3552,10 @@ TEST_P(CommandSpecificErrorContextTest, Flush) {
     header.setExtlen(4);
     header.setKeylen(0);
     header.setBodylen(4);
-    auto* req = reinterpret_cast<protocol_binary_request_flush*>(blob);
-    req->message.body.expiration = 10;
+    // right after the header one may specify a timestamp for when
+    // the flush should happen (but that's not supported by couchbase)
+    // Insert a value and verify that we reject such packets
+    *reinterpret_cast<uint32_t*>(blob + sizeof(header)) = 10;
     EXPECT_EQ("Delayed flush no longer supported",
               validate_error_context(cb::mcbp::ClientOpcode::Flush));
 }

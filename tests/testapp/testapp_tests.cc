@@ -530,7 +530,6 @@ static void test_incr_invalid_cas_impl(const char* key,
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response_header;
-        protocol_binary_response_incr response;
         char bytes[1024];
     } send, receive;
     size_t len = mcbp_arithmetic_command(send.bytes, sizeof(send.bytes), cmd,
@@ -2326,7 +2325,8 @@ void test_pipeline_impl(cb::mcbp::ClientOpcode cmd,
         in_message_len = sizeof(protocol_binary_response_no_extras);
     } else if (cmd == cb::mcbp::ClientOpcode::Get) {
         /* get sends key */
-        out_message_len = sizeof(protocol_binary_request_get) + key_root_len + key_digit_len;
+        out_message_len =
+                sizeof(cb::mcbp::Request) + key_root_len + key_digit_len;
 
         if (result == cb::mcbp::Status::Success) {
             /* receives a response + flags + value */
@@ -2337,7 +2337,8 @@ void test_pipeline_impl(cb::mcbp::ClientOpcode cmd,
         }
     } else if (cmd == cb::mcbp::ClientOpcode::Delete) {
         /* delete sends key */
-        out_message_len = sizeof(protocol_binary_request_get) + key_root_len + key_digit_len;
+        out_message_len =
+                sizeof(cb::mcbp::Request) + key_root_len + key_digit_len;
         /* receives a plain response, no extra */
         in_message_len = sizeof(protocol_binary_response_no_extras);
     } else {

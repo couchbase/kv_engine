@@ -20,6 +20,7 @@
 #include <platform/compress.h>
 #include <fstream>
 
+#include <include/memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <atomic>
 #include <csignal>
@@ -906,9 +907,11 @@ void validate_flags(const char *key, uint32_t expected_flags) {
     auto* response = reinterpret_cast<protocol_binary_response_no_extras*>(receive.data());
     mcbp_validate_response_header(
             response, cb::mcbp::ClientOpcode::Get, cb::mcbp::Status::Success);
-    const auto* get_response =
-            reinterpret_cast<protocol_binary_response_get*>(receive.data());
-    const uint32_t actual_flags = ntohl(get_response->message.body.flags);
+
+    auto extras = response->message.header.response.getExtdata();
+    EXPECT_EQ(4, extras.size());
+    uint32_t actual_flags =
+            ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
     EXPECT_EQ(expected_flags, actual_flags);
 }
 
