@@ -75,6 +75,14 @@ def main():
                              help='An optional string which gets added to the '
                                   'start of each test suite name. For example'
                                   '"Logger/".')
+    optional_args.add_option('--cbnt_metric', action='store',
+                             dest='cbnt_metric', type='string', default='',
+                             help='An optional string marking which named '
+                                  'value should be taken as the result. '
+                                  'If specified, this will override the time '
+                                  'results, however if it is specified and it '
+                                  'does not exist in the test results, '
+                                  'then the \'real_time\' value will be used.')
     parser.add_option_group(optional_args)
     (options, args) = parser.parse_args()
 
@@ -144,26 +152,39 @@ def main():
         sys.exit(-1)
 
     # Write the XML data to the output file in the format used within CBNT.
+    testcase_string = '    <testcase name="{}" time="%f" classname="{}{}"/>\n'
     output_file.write('<testsuites timestamp="{}">\n'.format(timestamp))
     for test_suite in test_suites:
         output_file.write('  <testsuite name="{}{}">\n'.
                           format(options.suite_name, test_suite))
         for test in test_suites[test_suite]:
-            for stat in test_cases:
-                if stat not in test:
-                    continue
-                name = options.separator.join(
-                    test['name'].split(options.separator.strip())[1:])
-                if not name:
-                    name = test['name']
-                if test_cases[stat]:
-                    name = options.separator.join([name, stat])
-                time = float(convert_time(test[stat], test['time_unit'],
-                                          options.time_format.strip()))
-                output_file.write('    <testcase name="{}" time="%f" '
-                                  'classname="{}{}"/>\n'.
-                                  format(name, options.suite_name, test_suite)
-                                  % time)
+            name = options.separator.join(
+                test['name'].split(options.separator.strip())[1:])
+            if not name:
+                name = test['name']
+            if options.cbnt_metric:
+                if options.cbnt_metric in test:
+                    # Use cbnt_metric result
+                    time = test[options.cbnt_metric]
+                else:
+                    # Use real time by default
+                    time = float(convert_time(test['real_time'],
+                                              test['time_unit'],
+                                              options.time_format.strip()))
+                output_file.write(
+                    testcase_string.format(name, options.suite_name,
+                                           test_suite) % time)
+            else:
+                for stat in test_cases:
+                    if stat not in test:
+                        continue
+                    if test_cases[stat]:
+                        name = options.separator.join([name, stat])
+                    time = float(convert_time(test[stat], test['time_unit'],
+                                              options.time_format.strip()))
+                    output_file.write(
+                        testcase_string.format(name, options.suite_name,
+                                               test_suite) % time)
         output_file.write('  </testsuite>\n')
     output_file.write('</testsuites>\n')
 
