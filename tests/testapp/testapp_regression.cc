@@ -206,3 +206,33 @@ TEST_P(RegressionTest, MB_31149) {
 
     EXPECT_NE(0, info.cas);
 }
+
+/**
+ * MB-32078: When the user hasn't specified a cas for the operation, if another
+ * thread changes the key between the append state machine reading the key and
+ * attempting to store the new value, the storeItem function should reset the
+ * state machine and retry the operation. MB-32078 causes the function to return
+ * the KEY_EEXISTS error, this prevents the state machine from continuing,
+ * causing the operation to fail by returning the KEY_EEXISTS error to client.
+ * We use ewouldblock engine to simulate this scenario by blindly returning
+ * KEY_EEXISTS to the first store request.
+ */
+TEST_P(RegressionTest, MB_32078) {
+    auto& connection = getConnection();
+    connection.store("MB-32078-testkey", 0, "value");
+
+    connection.configureEwouldBlockEngine(
+            EWBEngineMode::CasMismatch, ENGINE_KEY_EEXISTS, 1);
+
+    BinprotGenericCommand cmd(
+            PROTOCOL_BINARY_CMD_APPEND, "MB-32078-testkey", "+");
+    connection.sendCommand(cmd);
+
+    BinprotResponse response;
+    connection.recvResponse(response);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, response.getStatus());
+    EXPECT_STREQ("value+", connection.get("MB-32078-testkey", 0).value.c_str());
+
+    connection.remove("MB-32078-testkey", 0);
+}
