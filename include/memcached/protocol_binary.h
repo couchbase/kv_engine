@@ -1121,50 +1121,6 @@ union protocol_binary_request_dcp_system_event {
     }
 };
 
-/**
- * IOCTL_GET command message to get/set control parameters.
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_ioctl_get;
-typedef protocol_binary_request_no_extras protocol_binary_request_ioctl_set;
-
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_config_validate;
-typedef protocol_binary_request_no_extras protocol_binary_request_config_reload;
-
-typedef protocol_binary_request_no_extras protocol_binary_request_ssl_refresh;
-typedef protocol_binary_response_no_extras protocol_binary_response_ssl_refresh;
-
-/**
- * Request command timings for a bucket from memcached. Privileged
- * connections may specify the name of the bucket in the "key" field,
- * or the aggregated timings for the entire server by using the
- * special name <code>/all/</code>.
- *
- * The returned payload is a json document of the following format:
- *    { "us" : [ x, x, x, x, ... ],
- *      "ms" : [ y, y, y, ...],
- *      "500ms" : [ z, z, z, ...],
- *      "wayout" : nnn
- *    }
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint8_t opcode;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 1];
-} protocol_binary_request_get_cmd_timer;
-
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_get_cmd_timer;
-
-typedef protocol_binary_request_no_extras protocol_binary_request_create_bucket;
-typedef protocol_binary_request_no_extras protocol_binary_request_delete_bucket;
-typedef protocol_binary_request_no_extras protocol_binary_request_list_buckets;
-typedef protocol_binary_request_no_extras protocol_binary_request_select_bucket;
-
 namespace cb {
 namespace mcbp {
 namespace request {
@@ -1211,16 +1167,6 @@ static_assert(sizeof(SetParamPayload) == 4, "Unexpected size");
 } // namespace request
 } // namespace mcbp
 } // namespace cb
-
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t size;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_set_batch_count;
 
 /**
  * This flag is used by the setWithMeta/addWithMeta/deleteWithMeta packets
@@ -1465,24 +1411,6 @@ typedef union {
 } protocol_binary_request_audit_put;
 
 typedef protocol_binary_response_no_extras protocol_binary_response_audit_put;
-
-/**
- * The shutdown message is sent from ns_server to memcached to tell
- * memcached to initiate a clean shutdown. This is a privileged
- * command and carries no payload, but the CAS field needs to be
- * set to the current session token (see GET/SET_CTRL_TOKEN)
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_shutdown;
-typedef protocol_binary_response_no_extras protocol_binary_response_shutdown;
-
-/**
- * The rbac_refresh message is sent from ns_server to memcached to tell
- * memcached to reload the RBAC configuration file. This is a privileged
- * command and carries no payload.
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_rbac_refresh;
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_rbac_refresh;
 
 /**
  * The PROTOCOL_BINARY_CMD_OBSERVE_SEQNO command is used by the
