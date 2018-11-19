@@ -893,10 +893,9 @@ static Status get_cmd_timer_validator(Cookie& cookie) {
 }
 
 static Status set_ctrl_token_validator(Cookie& cookie) {
-    constexpr uint8_t expected_extlen = sizeof(uint64_t);
-
+    using cb::mcbp::request::SetCtrlTokenPayload;
     if (!verify_header(cookie,
-                       expected_extlen,
+                       sizeof(SetCtrlTokenPayload),
                        ExpectedKeyLen::Zero,
                        ExpectedValueLen::Zero,
                        ExpectedCas::Any,
@@ -905,8 +904,8 @@ static Status set_ctrl_token_validator(Cookie& cookie) {
     }
 
     auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
-    auto new_cas = ntohll(*reinterpret_cast<const uint64_t*>(extras.data()));
-    if (new_cas == 0) {
+    auto* payload = reinterpret_cast<const SetCtrlTokenPayload*>(extras.data());
+    if (payload->getCas() == 0) {
         cookie.setErrorContext("New CAS must be set");
         return Status::Einval;
     }

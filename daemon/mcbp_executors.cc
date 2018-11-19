@@ -310,9 +310,11 @@ static void arithmetic_executor(Cookie& cookie) {
 }
 
 static void set_ctrl_token_executor(Cookie& cookie) {
+    using cb::mcbp::request::SetCtrlTokenPayload;
     auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     auto extras = req.getExtdata();
-    auto newval = ntohll(*reinterpret_cast<const uint64_t*>(extras.data()));
+    auto* payload = reinterpret_cast<const SetCtrlTokenPayload*>(extras.data());
+    auto newval = payload->getCas();
     const auto casval = req.getCas();
     uint64_t value;
 

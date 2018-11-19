@@ -213,6 +213,25 @@ protected:
 static_assert(sizeof(TouchPayload) == 4, "Unexpected size");
 using GatPayload = TouchPayload;
 using GetLockedPayload = TouchPayload;
+
+class SetCtrlTokenPayload {
+public:
+    uint64_t getCas() const {
+        return ntohll(cas);
+    }
+    void setCas(uint64_t cas) {
+        SetCtrlTokenPayload::cas = htonll(cas);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t cas = 0;
+};
+static_assert(sizeof(SetCtrlTokenPayload) == 8, "Unexpected size");
+
 #pragma pack()
 } // namespace request
 } // namespace mcbp
@@ -484,26 +503,6 @@ typedef union {
     } message;
     uint8_t bytes[sizeof(protocol_binary_response_header)];
 } protocol_binary_response_subdoc_multi_mutation;
-
-/**
- * Definition of the request packet for SET_CTRL_TOKEN.
- * Body: new session_cas_token of uint64_t type.
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t new_cas;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
-} protocol_binary_request_set_ctrl_token;
-
-/**
- * Definition of the response packet for SET_CTRL_TOKEN
- */
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_set_ctrl_token;
 
 /* DCP related stuff */
 

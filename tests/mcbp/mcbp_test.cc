@@ -2808,11 +2808,10 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
-        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.extlen = 8;
-        request.message.header.request.bodylen = htonl(8);
-        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-        request.message.body.new_cas = 1;
+        request.setMagic(cb::mcbp::Magic::ClientRequest);
+        request.setExtlen(sizeof(extras));
+        request.setBodylen(sizeof(extras));
+        extras.setCas(1);
     }
 
 protected:
@@ -2821,8 +2820,10 @@ protected:
                                        static_cast<void*>(&request));
     }
 
-    protocol_binary_request_set_ctrl_token &request =
-        *reinterpret_cast<protocol_binary_request_set_ctrl_token*>(blob);
+    cb::mcbp::Request& request = *reinterpret_cast<cb::mcbp::Request*>(blob);
+    cb::mcbp::request::SetCtrlTokenPayload& extras =
+            *reinterpret_cast<cb::mcbp::request::SetCtrlTokenPayload*>(
+                    blob + sizeof(cb::mcbp::Request));
 };
 
 TEST_P(SetCtrlTokenValidatorTest, CorrectMessage) {
@@ -2830,39 +2831,39 @@ TEST_P(SetCtrlTokenValidatorTest, CorrectMessage) {
 }
 
 TEST_P(SetCtrlTokenValidatorTest, Cas) {
-    request.message.header.request.cas = 1;
+    request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidMagic) {
-    request.message.header.request.magic = 0;
+    request.magic = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidExtlen) {
-    request.message.header.request.extlen = 2;
-    request.message.header.request.bodylen = htonl(10);
+    request.setExtlen(2);
+    request.setBodylen(10);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidKey) {
-    request.message.header.request.keylen = 10;
-    request.message.header.request.bodylen = htonl(18);
+    request.setKeylen(10);
+    request.setBodylen(18);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidDatatype) {
-    request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidNewCas) {
-    request.message.body.new_cas = 0;
+    extras.setCas(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(SetCtrlTokenValidatorTest, InvalidBody) {
-    request.message.header.request.bodylen = htonl(12);
+    request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -3635,8 +3636,8 @@ TEST_P(CommandSpecificErrorContextTest, SetCtrlToken) {
     header.setExtlen(8);
     header.setKeylen(0);
     header.setBodylen(8);
-    auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(blob);
-    req->message.body.new_cas = 0;
+    auto* req = reinterpret_cast<uint64_t*>(blob + sizeof(cb::mcbp::Request));
+    *req = 0;
     EXPECT_EQ("New CAS must be set",
               validate_error_context(cb::mcbp::ClientOpcode::SetCtrlToken));
 }

@@ -37,6 +37,10 @@
 #include "testapp.h"
 #include "testapp_subdoc_common.h"
 
+#include "daemon/topkeys.h"
+#include "memcached/openssl.h"
+#include "utilities.h"
+#include <mcbp/protocol/framebuilder.h>
 #include <memcached/config_parser.h>
 #include <memcached/util.h>
 #include <platform/backtrace.h>
@@ -47,9 +51,6 @@
 #include <platform/socket.h>
 #include <fstream>
 #include <gsl/gsl>
-#include "daemon/topkeys.h"
-#include "memcached/openssl.h"
-#include "utilities.h"
 
 // Note: retained as a seperate function as other tests call this.
 void test_noop(void) {
@@ -1844,23 +1845,25 @@ static uint64_t get_session_ctrl_token(void) {
     return ret;
 }
 
-static void prepare_set_session_ctrl_token(protocol_binary_request_set_ctrl_token *req,
-                                           uint64_t old, uint64_t new_cas)
-{
-    memset(req, 0, sizeof(*req));
-    req->message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    req->message.header.request.setOpcode(cb::mcbp::ClientOpcode::SetCtrlToken);
-    req->message.header.request.extlen = sizeof(uint64_t);
-    req->message.header.request.bodylen = htonl(sizeof(uint64_t));
-    req->message.header.request.cas = htonll(old);
-    req->message.body.new_cas = htonll(new_cas);
+static size_t prepare_set_session_ctrl_token(cb::byte_buffer buf,
+                                             uint64_t old,
+                                             uint64_t new_cas) {
+    cb::mcbp::request::SetCtrlTokenPayload payload;
+    payload.setCas(new_cas);
+
+    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder(buf);
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::SetCtrlToken);
+    builder.setCas(old);
+    builder.setExtras(payload.getBuffer());
+    return builder.getFrame()->getFrame().size();
 }
 
 TEST_P(McdTestappTest, SessionCtrlToken) {
     union {
-        protocol_binary_request_set_ctrl_token request;
-        protocol_binary_response_set_ctrl_token response;
-        char bytes[1024];
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        uint8_t bytes[1024];
     } buffer;
 
     sasl_auth("@admin", "password");
@@ -1869,8 +1872,9 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
     uint64_t new_token = 0x0102030405060708;
 
     /* Validate that you may successfully set the token to a legal value */
-    prepare_set_session_ctrl_token(&buffer.request, old_token, new_token);
-    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    auto size = prepare_set_session_ctrl_token(
+            {buffer.bytes, sizeof(buffer.bytes)}, old_token, new_token);
+    safe_send(buffer.bytes, size, false);
     cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
 
     cb_assert(buffer.response.message.header.response.getStatus() ==
@@ -1879,8 +1883,9 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
     old_token = new_token;
 
     /* Validate that you can't set it to 0 */
-    prepare_set_session_ctrl_token(&buffer.request, old_token, 0);
-    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    size = prepare_set_session_ctrl_token(
+            {buffer.bytes, sizeof(buffer.bytes)}, old_token, 0);
+    safe_send(buffer.bytes, size, false);
     cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
     cb_assert(buffer.response.message.header.response.getStatus() ==
               cb::mcbp::Status::Einval);
@@ -1890,8 +1895,9 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
     cb_assert(old_token == get_session_ctrl_token());
 
     /* Validate that you can't set it by providing an incorrect cas */
-    prepare_set_session_ctrl_token(&buffer.request, old_token + 1, new_token - 1);
-    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    size = prepare_set_session_ctrl_token(
+            {buffer.bytes, sizeof(buffer.bytes)}, old_token + 1, new_token - 1);
+    safe_send(buffer.bytes, size, false);
     cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
 
     cb_assert(buffer.response.message.header.response.getStatus() ==
@@ -1900,8 +1906,9 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
     cb_assert(new_token == get_session_ctrl_token());
 
     /* Validate that you may set it by overriding the cas with 0 */
-    prepare_set_session_ctrl_token(&buffer.request, 0, 0xdeadbeef);
-    safe_send(buffer.bytes, sizeof(buffer.request), false);
+    size = prepare_set_session_ctrl_token(
+            {buffer.bytes, sizeof(buffer.bytes)}, 0, 0xdeadbeef);
+    safe_send(buffer.bytes, size, false);
     cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
     cb_assert(buffer.response.message.header.response.getStatus() ==
               cb::mcbp::Status::Success);
