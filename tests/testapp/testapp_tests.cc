@@ -2211,20 +2211,26 @@ void McdTestappTest::test_set_huge_impl(const char* key,
     // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
     ewouldblock_engine_disable();
-
+    auto len = sizeof(cb::mcbp::Request) +
+               sizeof(cb::mcbp::request::MutationPayload) + strlen(key) +
+               message_size;
     /* some error case may return a body in the response */
     char receive[sizeof(protocol_binary_response_no_extras) + 32];
-    const size_t len = message_size + sizeof(protocol_binary_request_set) + strlen(key);
     std::vector<char> set_message(len);
-    char* message = set_message.data() + (sizeof(protocol_binary_request_set) + strlen(key));
-    int ii;
-    memset(message, 0xb0, message_size);
+    std::vector<uint8_t> payload(message_size);
+    std::fill(payload.begin(), payload.end(), 0xb0);
 
-    cb_assert(len == mcbp_storage_command(set_message.data(), len, cmd, key,
-                                          strlen(key), NULL, message_size,
-                                          0, 0));
+    len = mcbp_storage_command(set_message.data(),
+                               set_message.size(),
+                               cmd,
+                               key,
+                               strlen(key),
+                               payload.data(),
+                               payload.size(),
+                               0,
+                               0);
 
-    for (ii = 0; ii < iterations; ++ii) {
+    for (int ii = 0; ii < iterations; ++ii) {
         safe_send(set_message.data(), len, false);
         if (!pipeline) {
             if (cmd == cb::mcbp::ClientOpcode::Set) {
@@ -2236,7 +2242,7 @@ void McdTestappTest::test_set_huge_impl(const char* key,
     }
 
     if (pipeline && cmd == cb::mcbp::ClientOpcode::Set) {
-        for (ii = 0; ii < iterations; ++ii) {
+        for (int ii = 0; ii < iterations; ++ii) {
             safe_recv_packet(&receive, sizeof(receive));
             mcbp_validate_response_header(
                 (protocol_binary_response_no_extras*)receive, cmd, result);
@@ -2291,7 +2297,10 @@ void test_pipeline_impl(cb::mcbp::ClientOpcode cmd,
                         const char* key_root,
                         uint32_t messages_in_stream,
                         size_t value_size) {
-    size_t largest_protocol_packet = sizeof(protocol_binary_request_set); /* set has the largest protocol message */
+    size_t largest_protocol_packet =
+            sizeof(cb::mcbp::Request) +
+            sizeof(cb::mcbp::request::MutationPayload); /* set has the largest
+                                                           protocol message */
     size_t key_root_len = strlen(key_root);
     size_t key_digit_len = 5; /*append 00001, 00002 etc.. to key_root */
     const size_t buffer_len = (largest_protocol_packet + key_root_len +
@@ -2309,7 +2318,9 @@ void test_pipeline_impl(cb::mcbp::ClientOpcode cmd,
     /* now figure out the correct send and receive lengths */
     if (cmd == cb::mcbp::ClientOpcode::Set) {
         /* set, sends key and a value */
-        out_message_len = sizeof(protocol_binary_request_set) + key_root_len + key_digit_len + value_size;
+        out_message_len = sizeof(cb::mcbp::Request) +
+                          sizeof(cb::mcbp::request::MutationPayload) +
+                          key_root_len + key_digit_len + value_size;
         /* receives a plain response, no extra */
         in_message_len = sizeof(protocol_binary_response_no_extras);
     } else if (cmd == cb::mcbp::ClientOpcode::Get) {
@@ -2336,27 +2347,34 @@ void test_pipeline_impl(cb::mcbp::ClientOpcode cmd,
     send_len    = out_message_len * messages_in_stream;
     receive_len = in_message_len * messages_in_stream;
 
-    /* entire buffer and thus any values are 0xaf */
-    std::fill(buffer.begin(), buffer.end(), 0xaf);
+    // Fill the entire buffer with 0xfa (to make sure that we initialize
+    // all fields in the stream)
+    std::fill(buffer.begin(), buffer.end(), 0xfa);
+    std::vector<uint8_t> value(value_size);
+    // Use a value of 0xaf for all data we set (we verify the value of the
+    // responses that they contain this pattern)
+    std::fill(value.begin(), value.end(), 0xaf);
 
     for (uint32_t ii = 0; ii < messages_in_stream; ii++) {
         snprintf(key.data(), key_root_len + key_digit_len + 1, "%s%05d", key_root, ii);
+        auto* this_req = reinterpret_cast<cb::mcbp::Request*>(current_message);
         if (cb::mcbp::ClientOpcode::Set == cmd) {
-            protocol_binary_request_set* this_req = (protocol_binary_request_set*)current_message;
             current_message += mcbp_storage_command((char*)current_message,
-                                                    out_message_len, cmd,
+                                                    out_message_len,
+                                                    cmd,
                                                     key.data(),
                                                     strlen(key.data()),
-                                                    NULL, value_size, 0, 0);
-            this_req->message.header.request.opaque = htonl((session << 8) | ii);
+                                                    value.data(),
+                                                    value.size(),
+                                                    0,
+                                                    0);
         } else {
-            protocol_binary_request_no_extras* this_req = (protocol_binary_request_no_extras*)current_message;
             current_message += mcbp_raw_command((char*)current_message,
                                                 out_message_len, cmd,
                                                 key.data(), strlen(key.data()),
                                                 NULL, 0);
-            this_req->message.header.request.opaque = htonl((session << 8) | ii);
         }
+        this_req->setOpaque(htonl((session << 8) | ii));
     }
 
     cb_assert(buffer.size() >= send_len);

@@ -956,22 +956,28 @@ void store_object_w_datatype(const std::string& key,
                              uint32_t flags,
                              uint32_t expiration,
                              cb::mcbp::Datatype datatype) {
-    protocol_binary_request_set request = {};
+    cb::mcbp::request::MutationPayload extras;
+    static_assert(sizeof(extras) == 8, "Unexpected extras size");
+    extras.setFlags(flags);
+    extras.setExpiration(expiration);
 
-    request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    request.message.header.request.setOpcode(cb::mcbp::ClientOpcode::Set);
-    request.message.header.request.setDatatype(datatype);
-    request.message.header.request.setExtlen(8);
-    request.message.header.request.setKeylen(gsl::narrow<uint16_t>(key.size()));
-    request.message.header.request.setBodylen(
-            gsl::narrow<uint32_t>(key.size() + value.size() + 8));
-    request.message.header.request.setOpaque(0xdeadbeef);
-    request.message.body.expiration = htonl(expiration);
-    request.message.body.flags = htonl(flags);
+    std::vector<uint8_t> buffer(sizeof(cb::mcbp::Request) + sizeof(extras) +
+                                key.size() + value.size());
+    cb::mcbp::FrameBuilder<cb::mcbp::Request> builder(
+            {buffer.data(), buffer.size()});
 
-    safe_send(&request.bytes, sizeof(request.bytes), false);
-    safe_send(key.data(), key.size(), false);
-    safe_send(value.data(), value.size(), false);
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Set);
+    builder.setDatatype(datatype);
+    builder.setOpaque(0xdeadbeef);
+    builder.setExtras(extras.getBuffer());
+    builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});
+    builder.setValue(
+            {reinterpret_cast<const uint8_t*>(value.data()), value.size()});
+
+    auto frame = builder.getFrame()->getFrame();
+
+    safe_send(frame.data(), frame.size(), false);
 
     union {
         protocol_binary_response_no_extras response;

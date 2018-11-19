@@ -642,13 +642,11 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
 
     if (extlen != 0) {
         // Write the extras:
-
-        protocol_binary_request_set *req;
-        buf.resize(sizeof(req->bytes));
-        req = reinterpret_cast<protocol_binary_request_set*>(buf.data());
-
-        req->message.body.expiration = htonl(expiry.getValue());
-        req->message.body.flags = htonl(flags);
+        cb::mcbp::request::MutationPayload mp;
+        mp.setFlags(flags);
+        mp.setExpiration(expiry.getValue());
+        auto buffer = mp.getBuffer();
+        buf.insert(buf.end(), buffer.begin(), buffer.end());
     }
 }
 

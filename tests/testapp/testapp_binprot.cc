@@ -126,38 +126,22 @@ size_t mcbp_storage_command(char* buf,
                             size_t dtalen,
                             uint32_t flags,
                             uint32_t exp) {
-    /* all of the storage commands use the same command layout */
-    size_t key_offset;
-
-    auto* request = reinterpret_cast<protocol_binary_request_set*>(buf);
-    cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
-
-    memset(request, 0, sizeof(*request));
-    request->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request->message.header.request.setOpcode(cmd);
-    request->message.header.request.keylen = htons((uint16_t)keylen);
-    request->message.header.request.opaque = 0xdeadbeef;
-    key_offset = sizeof(protocol_binary_request_no_extras);
+    using namespace cb::mcbp;
+    FrameBuilder<Request> builder({reinterpret_cast<uint8_t*>(buf), bufsz});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cmd);
+    builder.setOpaque(0xdeadbeef);
 
     if (cmd != cb::mcbp::ClientOpcode::Append &&
         cmd != cb::mcbp::ClientOpcode::Prepend) {
-        request->message.header.request.extlen = 8;
-        request->message.header.request.bodylen = htonl(
-            (uint32_t)(keylen + 8 + dtalen));
-        request->message.body.flags = htonl(flags);
-        request->message.body.expiration = htonl(exp);
-        key_offset += 8;
-    } else {
-        request->message.header.request.bodylen = htonl(
-            (uint32_t)(keylen + dtalen));
+        request::MutationPayload extras;
+        extras.setFlags(flags);
+        extras.setExpiration(exp);
+        builder.setExtras(extras.getBuffer());
     }
-
-    memcpy(buf + key_offset, key, keylen);
-    if (dta != nullptr) {
-        memcpy(buf + key_offset + keylen, dta, dtalen);
-    }
-
-    return key_offset + keylen + dtalen;
+    builder.setKey({reinterpret_cast<const uint8_t*>(key), keylen});
+    builder.setValue({reinterpret_cast<const uint8_t*>(dta), dtalen});
+    return builder.getFrame()->getFrame().size();
 }
 
 /* Validate the specified response header against the expected cmd and status.

@@ -201,6 +201,11 @@ public:
     uint32_t getFlagsInNetworkByteOrder() const {
         return flags;
     }
+
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+
     void setFlags(uint32_t flags) {
         MutationPayload::flags = htonl(flags);
     }
@@ -209,6 +214,10 @@ public:
     }
     void setExpiration(uint32_t expiration) {
         MutationPayload::expiration = htonl(expiration);
+    }
+
+    cb::const_byte_buffer getBuffer() {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
@@ -220,27 +229,6 @@ static_assert(sizeof(MutationPayload) == 8, "Unexpected struct size");
 } // namespace request
 } // namespace mcbp
 } // namespace cb
-
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t flags;
-            uint32_t expiration;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
-} protocol_binary_request_set;
-typedef protocol_binary_request_set protocol_binary_request_add;
-typedef protocol_binary_request_set protocol_binary_request_replace;
-
-/**
- * Definition of the packet returned by set, add and replace
- * See section 4
- */
-typedef protocol_binary_response_no_extras protocol_binary_response_set;
-typedef protocol_binary_response_no_extras protocol_binary_response_add;
-typedef protocol_binary_response_no_extras protocol_binary_response_replace;
 
 /**
  * Definition of the noop packet
