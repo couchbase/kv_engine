@@ -803,7 +803,7 @@ Extra data for set/add/replace:
 Response:
 
 * MUST have CAS
-* MUST NOT have extras
+* MAY have extras
 * MUST NOT have key
 * MUST NOT have value
 
@@ -819,6 +819,22 @@ value.
 Quiet mutations only return responses on failure. Success is considered the
 general case and is suppressed when in quiet mode, but errors should not be
 allowed to go unnoticed.
+
+If the client enabled the Mutation Seqno feature the extras should be
+set to 16 bytes containing the vbucket UUID in the first 8 bytes (network
+byte order) followed by 8 bytes sequence number (network byte order):
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+      24| Vbucket UUID                                                  |
+      28|                                                               |
+        +---------------+---------------+---------------+---------------+
+      32| Seqno                                                         |
+      36|                                                               |
+        +---------------+---------------+---------------+---------------+
+      Total 16 bytes
 
 #### Example
 The following figure shows an add-command for with key = "Hello", value =
@@ -919,13 +935,29 @@ Request:
 
 Response:
 
-* MUST NOT have extras
+* MAY have extras
 * MUST NOT have key
 * MUST NOT have value
 
 Delete the item with the specific key. Quiet deletions only return responses
 on failure. Success is considered the general case and is suppressed when in
 quiet mode, but errors should not be allowed to go unnoticed.
+
+If the client enabled the Mutation Seqno feature the extras should be
+set to 16 bytes containing the vbucket UUID in the first 8 bytes (network
+byte order) followed by 8 bytes sequence number (network byte order):
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+      24| Vbucket UUID                                                  |
+      28|                                                               |
+        +---------------+---------------+---------------+---------------+
+      32| Seqno                                                         |
+      36|                                                               |
+        +---------------+---------------+---------------+---------------+
+      Total 16 bytes
 
 #### Example
 The following figure shows a delete message for the item "Hello".
@@ -999,9 +1031,27 @@ Extra data for incr/decr:
 
 Response:
 
-* MUST NOT have extras.
+* MAY have extras.
 * MUST NOT have key.
 * MUST have value.
+
+If the client enabled the Mutation Seqno feature the extras should be
+set to 16 bytes containing the vbucket UUID in the first 8 bytes (network
+byte order) followed by 8 bytes sequence number (network byte order):
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+      24| Vbucket UUID                                                  |
+      28|                                                               |
+        +---------------+---------------+---------------+---------------+
+      32| Seqno                                                         |
+      36|                                                               |
+        +---------------+---------------+---------------+---------------+
+      Total 16 bytes
+
+The body contains the value:
 
       Byte/     0       |       1       |       2       |       3       |
          /              |               |               |               |
@@ -1205,6 +1255,8 @@ Extra data for flush:
        0| Expiration                                                    |
         +---------------+---------------+---------------+---------------+
       Total 4 bytes
+
+If extras is present it must be set to 0
 
 Response:
 
@@ -1426,13 +1478,29 @@ Request:
 
 Response:
 
-* MUST NOT have extras.
+* MAY have extras.
 * MUST NOT have key.
 * MUST NOT have value.
 * MUST have CAS
 
 These commands will either append or prepend the specified value to the
 requested key.
+
+If the client enabled the Mutation Seqno feature the extras should be
+set to 16 bytes containing the vbucket UUID in the first 8 bytes (network
+byte order) followed by 8 bytes sequence number (network byte order):
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+      24| Vbucket UUID                                                  |
+      28|                                                               |
+        +---------------+---------------+---------------+---------------+
+      32| Seqno                                                         |
+      36|                                                               |
+        +---------------+---------------+---------------+---------------+
+      Total 16 bytes
 
 #### Example
 
