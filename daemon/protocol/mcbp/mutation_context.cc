@@ -36,10 +36,8 @@ MutationCommandContext::MutationCommandContext(Cookie& cookie,
       value(req.getValue()),
       vbucket(req.getVBucket()),
       input_cas(req.getCas()),
-      expiration(ntohl(reinterpret_cast<const protocol_binary_request_set&>(req)
-                               .message.body.expiration)),
-      flags(reinterpret_cast<const protocol_binary_request_set&>(req)
-                    .message.body.flags),
+      extras(*reinterpret_cast<const cb::mcbp::request::MutationPayload*>(
+              req.getExtdata().data())),
       datatype(req.datatype),
       state(State::ValidateInput),
       store_if_predicate(cookie.getConnection().selectedBucketIsXattrEnabled()
@@ -238,8 +236,8 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
                                       key,
                                       total_size,
                                       existingXattrs.get_system_size(),
-                                      flags,
-                                      expiration,
+                                      extras.getFlagsInNetworkByteOrder(),
+                                      extras.getExpiration(),
                                       dtype,
                                       vbucket);
         if (!ret.first) {

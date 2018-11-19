@@ -189,6 +189,38 @@ typedef protocol_binary_response_no_extras protocol_binary_response_flush;
  * Definition of the packet used by set, add and replace
  * See section 4
  */
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+class MutationPayload {
+public:
+    /// The memcached core keep the flags stored in network byte order
+    /// internally as it does not use them for anything else than sending
+    /// them back to the client
+    uint32_t getFlagsInNetworkByteOrder() const {
+        return flags;
+    }
+    void setFlags(uint32_t flags) {
+        MutationPayload::flags = htonl(flags);
+    }
+    uint32_t getExpiration() const {
+        return ntohl(expiration);
+    }
+    void setExpiration(uint32_t expiration) {
+        MutationPayload::expiration = htonl(expiration);
+    }
+
+protected:
+    uint32_t flags = 0;
+    uint32_t expiration = 0;
+};
+static_assert(sizeof(MutationPayload) == 8, "Unexpected struct size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
+
 typedef union {
     struct {
         protocol_binary_request_header header;

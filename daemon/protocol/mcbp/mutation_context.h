@@ -120,8 +120,7 @@ private:
 
     const Vbid vbucket;
     const uint64_t input_cas;
-    const rel_time_t expiration;
-    const uint32_t flags;
+    const cb::mcbp::request::MutationPayload extras;
 
     // The datatype for the document to be created.
     // For each field in here, we either trust the client, or re-calculate it

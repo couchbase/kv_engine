@@ -743,7 +743,7 @@ static Status add_validator(Cookie& cookie) {
                                                PROTOCOL_BINARY_DATATYPE_SNAPPY;
     /* Must have extras and key, may have value */
     if (!verify_header(cookie,
-                       8,
+                       sizeof(cb::mcbp::request::MutationPayload),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::Any,
                        ExpectedCas::NotSet,
@@ -763,7 +763,7 @@ static Status set_replace_validator(Cookie& cookie) {
                                                PROTOCOL_BINARY_DATATYPE_SNAPPY;
     /* Must have extras and key, may have value */
     if (!verify_header(cookie,
-                       8,
+                       sizeof(cb::mcbp::request::MutationPayload),
                        ExpectedKeyLen::NonZero,
                        ExpectedValueLen::Any,
                        ExpectedCas::Any,
