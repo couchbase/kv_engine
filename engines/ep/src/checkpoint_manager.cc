@@ -258,8 +258,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
                                                              itr,
                                                              (*itr)->begin(),
                                                              skipped,
-                                                             /*meta_offset*/ 0,
-                                                             false);
+                                                             /*meta_offset*/ 0);
             connCursors[name] = cursor;
             (*itr)->registerCursorName(name);
             result.seqno = (*itr)->getLowSeqno();
@@ -288,7 +287,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
             }
 
             auto cursor = std::make_shared<CheckpointCursor>(
-                    name, itr, iitr, skipped, ckpt_meta_skipped, false);
+                    name, itr, iitr, skipped, ckpt_meta_skipped);
             connCursors[name] = cursor;
             (*itr)->registerCursorName(name);
             result.cursor.setCursor(cursor);

@@ -112,8 +112,7 @@ public:
           currentCheckpoint(),
           currentPos(),
           offset(0),
-          ckptMetaItemsRead(0),
-          fromBeginningOnChkCollapse(false) {
+          ckptMetaItemsRead(0) {
     }
 
     /**
@@ -126,15 +125,13 @@ public:
                      CheckpointList::iterator checkpoint,
                      CheckpointQueue::iterator pos,
                      size_t offset_,
-                     size_t meta_items_read,
-                     bool beginningOnChkCollapse)
+                     size_t meta_items_read)
         : name(n),
           currentCheckpoint(checkpoint),
           currentPos(pos),
           numVisits(0),
           offset(offset_),
-          ckptMetaItemsRead(meta_items_read),
-          fromBeginningOnChkCollapse(beginningOnChkCollapse) {
+          ckptMetaItemsRead(meta_items_read) {
     }
 
     // We need to define the copy construct explicitly due to the fact
@@ -145,8 +142,7 @@ public:
           currentPos(other.currentPos),
           numVisits(other.numVisits.load()),
           offset(other.offset.load()),
-          ckptMetaItemsRead(other.ckptMetaItemsRead),
-          fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse) {
+          ckptMetaItemsRead(other.ckptMetaItemsRead) {
     }
 
     CheckpointCursor &operator=(const CheckpointCursor &other) {
@@ -156,7 +152,6 @@ public:
         numVisits = other.numVisits.load();
         offset.store(other.offset.load());
         setMetaItemOffset(other.ckptMetaItemsRead);
-        fromBeginningOnChkCollapse = other.fromBeginningOnChkCollapse;
         return *this;
     }
 
@@ -204,7 +199,6 @@ private:
     // Count of the number of meta items which have been read (processed) for
     // the *current* checkpoint.
     size_t ckptMetaItemsRead;
-    bool                             fromBeginningOnChkCollapse;
 
     friend std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c);
 };
