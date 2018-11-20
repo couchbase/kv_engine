@@ -270,6 +270,30 @@ bool Request::isQuiet() const {
     throw std::invalid_argument("Request::isQuiet: Uknown opcode");
 }
 
+boost::optional<cb::durability::Requirements>
+Request::getDurabilityRequirements() const {
+    using cb::durability::Level;
+    using cb::durability::Requirements;
+    Requirements ret;
+    bool found = false;
+
+    parseFrameExtras([&ret, &found](cb::mcbp::request::FrameInfoId id,
+                                    cb::const_byte_buffer data) -> bool {
+        if (id == cb::mcbp::request::FrameInfoId::DurabilityRequirement) {
+            ret = Requirements{data};
+            found = true;
+            // stop parsing
+            return false;
+        }
+        // Continue parsing
+        return true;
+    });
+    if (found) {
+        return {ret};
+    }
+    return {};
+}
+
 nlohmann::json Request::toJSON() const {
     if (!isValid()) {
         throw std::logic_error("Request::toJSON(): Invalid packet");

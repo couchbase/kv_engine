@@ -19,9 +19,11 @@
 #include "config.h"
 #include "datatype.h"
 
+#include <boost/optional.hpp>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/magic.h>
 #include <mcbp/protocol/opcode.h>
+#include <memcached/durability_spec.h>
 #include <memcached/vbucket.h>
 #include <platform/platform.h>
 #include <platform/sized_buffer.h>
@@ -190,6 +192,16 @@ public:
      *                            or if there is other errors in there.
      */
     void parseFrameExtras(FrameInfoCallback callback) const;
+
+    /**
+     * Parse the Frame Extras section and pick out the optional Durability
+     * spec associated with the command.
+     *
+     * This method may throw exceptions iff the request object has not been
+     * inspected by the packet validators.
+     */
+    boost::optional<cb::durability::Requirements> getDurabilityRequirements()
+            const;
 
     /**
      * Is this a quiet command or not

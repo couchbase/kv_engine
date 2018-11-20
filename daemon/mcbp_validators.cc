@@ -65,6 +65,173 @@ static inline std::string get_peer_description(const Cookie& cookie) {
     return cookie.getConnection().getDescription();
 }
 
+static bool supportsDurability(cb::mcbp::ClientOpcode opcode) {
+    using cb::mcbp::ClientOpcode;
+
+    switch (opcode) {
+    case ClientOpcode::Set:
+    case ClientOpcode::Add:
+    case ClientOpcode::Replace:
+    case ClientOpcode::Delete:
+    case ClientOpcode::Increment:
+    case ClientOpcode::Decrement:
+    case ClientOpcode::Append:
+    case ClientOpcode::Prepend:
+    case ClientOpcode::Touch:
+    case ClientOpcode::Gat:
+    case ClientOpcode::SubdocDictAdd:
+    case ClientOpcode::SubdocDictUpsert:
+    case ClientOpcode::SubdocDelete:
+    case ClientOpcode::SubdocReplace:
+    case ClientOpcode::SubdocArrayPushLast:
+    case ClientOpcode::SubdocArrayPushFirst:
+    case ClientOpcode::SubdocArrayInsert:
+    case ClientOpcode::SubdocArrayAddUnique:
+    case ClientOpcode::SubdocCounter:
+    case ClientOpcode::SubdocMultiMutation:
+        return true;
+
+    case ClientOpcode::Get:
+    case ClientOpcode::Quit:
+    case ClientOpcode::Flush:
+    case ClientOpcode::Getq:
+    case ClientOpcode::Noop:
+    case ClientOpcode::Version:
+    case ClientOpcode::Getk:
+    case ClientOpcode::Getkq:
+    case ClientOpcode::Stat:
+    case ClientOpcode::Setq:
+    case ClientOpcode::Addq:
+    case ClientOpcode::Replaceq:
+    case ClientOpcode::Deleteq:
+    case ClientOpcode::Incrementq:
+    case ClientOpcode::Decrementq:
+    case ClientOpcode::Quitq:
+    case ClientOpcode::Flushq:
+    case ClientOpcode::Appendq:
+    case ClientOpcode::Prependq:
+    case ClientOpcode::Verbosity:
+    case ClientOpcode::Gatq:
+    case ClientOpcode::Hello:
+    case ClientOpcode::SaslListMechs:
+    case ClientOpcode::SaslAuth:
+    case ClientOpcode::SaslStep:
+    case ClientOpcode::IoctlGet:
+    case ClientOpcode::IoctlSet:
+    case ClientOpcode::ConfigValidate:
+    case ClientOpcode::ConfigReload:
+    case ClientOpcode::AuditPut:
+    case ClientOpcode::AuditConfigReload:
+    case ClientOpcode::Shutdown:
+    case ClientOpcode::Rget:
+    case ClientOpcode::Rset:
+    case ClientOpcode::Rsetq:
+    case ClientOpcode::Rappend:
+    case ClientOpcode::Rappendq:
+    case ClientOpcode::Rprepend:
+    case ClientOpcode::Rprependq:
+    case ClientOpcode::Rdelete:
+    case ClientOpcode::Rdeleteq:
+    case ClientOpcode::Rincr:
+    case ClientOpcode::Rincrq:
+    case ClientOpcode::Rdecr:
+    case ClientOpcode::Rdecrq:
+    case ClientOpcode::SetVbucket:
+    case ClientOpcode::GetVbucket:
+    case ClientOpcode::DelVbucket:
+    case ClientOpcode::TapConnect:
+    case ClientOpcode::TapMutation:
+    case ClientOpcode::TapDelete:
+    case ClientOpcode::TapFlush:
+    case ClientOpcode::TapOpaque:
+    case ClientOpcode::TapVbucketSet:
+    case ClientOpcode::TapCheckpointStart:
+    case ClientOpcode::TapCheckpointEnd:
+    case ClientOpcode::GetAllVbSeqnos:
+    case ClientOpcode::DcpOpen:
+    case ClientOpcode::DcpAddStream:
+    case ClientOpcode::DcpCloseStream:
+    case ClientOpcode::DcpStreamReq:
+    case ClientOpcode::DcpGetFailoverLog:
+    case ClientOpcode::DcpStreamEnd:
+    case ClientOpcode::DcpSnapshotMarker:
+    case ClientOpcode::DcpMutation:
+    case ClientOpcode::DcpDeletion:
+    case ClientOpcode::DcpExpiration:
+    case ClientOpcode::DcpSetVbucketState:
+    case ClientOpcode::DcpNoop:
+    case ClientOpcode::DcpBufferAcknowledgement:
+    case ClientOpcode::DcpControl:
+    case ClientOpcode::DcpSystemEvent:
+    case ClientOpcode::StopPersistence:
+    case ClientOpcode::StartPersistence:
+    case ClientOpcode::SetParam:
+    case ClientOpcode::GetReplica:
+    case ClientOpcode::CreateBucket:
+    case ClientOpcode::DeleteBucket:
+    case ClientOpcode::ListBuckets:
+    case ClientOpcode::SelectBucket:
+    case ClientOpcode::ObserveSeqno:
+    case ClientOpcode::Observe:
+    case ClientOpcode::EvictKey:
+    case ClientOpcode::GetLocked:
+    case ClientOpcode::UnlockKey:
+    case ClientOpcode::GetFailoverLog:
+    case ClientOpcode::LastClosedCheckpoint:
+    case ClientOpcode::ResetReplicationChain:
+    case ClientOpcode::DeregisterTapClient:
+    case ClientOpcode::GetMeta:
+    case ClientOpcode::GetqMeta:
+    case ClientOpcode::SetWithMeta:
+    case ClientOpcode::SetqWithMeta:
+    case ClientOpcode::AddWithMeta:
+    case ClientOpcode::AddqWithMeta:
+    case ClientOpcode::SnapshotVbStates:
+    case ClientOpcode::VbucketBatchCount:
+    case ClientOpcode::DelWithMeta:
+    case ClientOpcode::DelqWithMeta:
+    case ClientOpcode::CreateCheckpoint:
+    case ClientOpcode::NotifyVbucketUpdate:
+    case ClientOpcode::EnableTraffic:
+    case ClientOpcode::DisableTraffic:
+    case ClientOpcode::ChangeVbFilter:
+    case ClientOpcode::CheckpointPersistence:
+    case ClientOpcode::ReturnMeta:
+    case ClientOpcode::CompactDb:
+    case ClientOpcode::SetClusterConfig:
+    case ClientOpcode::GetClusterConfig:
+    case ClientOpcode::GetRandomKey:
+    case ClientOpcode::SeqnoPersistence:
+    case ClientOpcode::GetKeys:
+    case ClientOpcode::CollectionsSetManifest:
+    case ClientOpcode::CollectionsGetManifest:
+    case ClientOpcode::CollectionsGetID:
+    case ClientOpcode::SetDriftCounterState:
+    case ClientOpcode::GetAdjustedTime:
+    case ClientOpcode::SubdocGet:
+    case ClientOpcode::SubdocExists:
+    case ClientOpcode::SubdocMultiLookup:
+    case ClientOpcode::SubdocGetCount:
+    case ClientOpcode::Scrub:
+    case ClientOpcode::IsaslRefresh:
+    case ClientOpcode::SslCertsRefresh:
+    case ClientOpcode::GetCmdTimer:
+    case ClientOpcode::SetCtrlToken:
+    case ClientOpcode::GetCtrlToken:
+    case ClientOpcode::UpdateExternalUserPermissions:
+    case ClientOpcode::RbacRefresh:
+    case ClientOpcode::AuthProvider:
+    case ClientOpcode::DropPrivilege:
+    case ClientOpcode::AdjustTimeofday:
+    case ClientOpcode::EwouldblockCtl:
+    case ClientOpcode::GetErrorMap:
+    case ClientOpcode::Invalid:
+        return false;
+    }
+
+    throw std::runtime_error("supportsDurability: Unknown command");
+}
+
 enum class ExpectedKeyLen { Zero, NonZero, Any };
 enum class ExpectedValueLen { Zero, NonZero, Any };
 enum class ExpectedCas { Set, NotSet, Any };
@@ -118,17 +285,18 @@ static Status verify_header(
         break;
     }
 
-    uint32_t valuelen =
-            header.getBodylen() - header.getKeylen() - header.getExtlen();
+    const auto& request = header.getRequest();
+    const auto value = request.getValue();
+
     switch (expected_valuelen) {
     case ExpectedValueLen::Zero:
-        if (valuelen != 0) {
+        if (!value.empty()) {
             cookie.setErrorContext("Request must not include value");
             return Status::Einval;
         }
         break;
     case ExpectedValueLen::NonZero:
-        if (valuelen == 0) {
+        if (value.empty()) {
             cookie.setErrorContext("Request must include value");
             return Status::Einval;
         }
@@ -159,7 +327,46 @@ static Status verify_header(
         return Status::Einval;
     }
 
-    return Status::Success;
+    // Validate the frame id's
+    auto status = Status::Success;
+    auto opcode = request.getClientOpcode();
+
+    request.parseFrameExtras([&status, &cookie, &opcode](
+                                     cb::mcbp::request::FrameInfoId id,
+                                     cb::const_byte_buffer data) -> bool {
+        switch (id) {
+        case cb::mcbp::request::FrameInfoId::Reorder:
+            status = Status::NotSupported;
+            cookie.setErrorContext("OoO is currently not supported");
+            return false;
+        case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
+            try {
+                cb::durability::Requirements req(data);
+                if (!supportsDurability(opcode)) {
+                    status = Status::Einval;
+                    cookie.setErrorContext(
+                            R"(The requested command does not support durability requirements)");
+                    // terminate parsing
+                    return false;
+                }
+                return true;
+            } catch (const std::exception& exception) {
+                status = Status::Einval;
+                std::string msg(exception.what());
+                // trim off the exception prefix
+                const std::string prefix{"Requirements(): "};
+                if (msg.find(prefix) == 0) {
+                    msg = msg.substr(prefix.size());
+                }
+                cookie.setErrorContext(msg);
+                return false;
+            }
+        } // switch (id)
+        status = Status::UnknownFrameInfo;
+        return false;
+    });
+
+    return status;
 }
 
 /******************************************************************************

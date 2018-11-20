@@ -46,7 +46,13 @@ GatCommandContext::GatCommandContext(Cookie& cookie)
 }
 
 ENGINE_ERROR_CODE GatCommandContext::getAndTouchItem() {
-    auto ret = bucket_get_and_touch(cookie, key, vbucket, exptime, {});
+    auto ret =
+            bucket_get_and_touch(cookie,
+                                 key,
+                                 vbucket,
+                                 exptime,
+                                 cookie.getRequest(Cookie::PacketContent::Full)
+                                         .getDurabilityRequirements());
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(connection, it.get(), &info)) {
