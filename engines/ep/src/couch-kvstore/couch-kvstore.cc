@@ -152,10 +152,22 @@ static bool allDigit(std::string &input) {
 }
 
 static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
-    return (err == COUCHSTORE_ERROR_OPEN_FILE ||
-            err == COUCHSTORE_ERROR_READ ||
-            err == COUCHSTORE_ERROR_WRITE ||
-            err == COUCHSTORE_ERROR_FILE_CLOSE) ? getStrError(db) : "none";
+    switch (err) {
+    case COUCHSTORE_ERROR_OPEN_FILE:
+    case COUCHSTORE_ERROR_READ:
+    case COUCHSTORE_ERROR_WRITE:
+    case COUCHSTORE_ERROR_FILE_CLOSE:
+        return getStrError(db);
+
+    case COUCHSTORE_ERROR_CORRUPT:
+    case COUCHSTORE_ERROR_CHECKSUM_FAIL: {
+        char buffer[256];
+        couchstore_last_internal_error(db, buffer, sizeof(buffer));
+        return std::string(buffer);
+    }
+    default:
+        return "none";
+    }
 }
 
 static DocKey makeDocKey(const sized_buf buf, bool restoreNamespace) {
