@@ -73,7 +73,9 @@ TEST_P(SubdocSingleTest, Get_Baseline) {
 
 TEST_P(SubdocSingleTest, Get_InvalidBody) {
     // Need a non-zero body.
-    request.message.header.request.bodylen = htonl(0);
+    request.message.header.request.extlen = 0;
+    request.message.header.request.bodylen =
+            ntohl(htons(request.message.header.request.keylen));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SubdocGet));
     EXPECT_EQ("Request must include extra fields",
@@ -82,10 +84,11 @@ TEST_P(SubdocSingleTest, Get_InvalidBody) {
     // Make sure we detect if it won't fit in the packet (extlen + key + path
     // is bigger than in the full packet
     request.message.header.request.extlen = 7;
+    request.message.header.request.keylen = htons(10);
     request.message.header.request.bodylen = htonl(10 + 5);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SubdocGet));
-    EXPECT_EQ("Value length must not be greater than request body",
+    EXPECT_EQ("Request header invalid",
               validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
 }
 
@@ -190,7 +193,7 @@ TEST_P(SubdocMultiLookupTest, InvalidMagic) {
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.magic = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
-    EXPECT_EQ("Request magic value invalid", validate_error_context(payload));
+    EXPECT_EQ("Request header invalid", validate_error_context(payload));
 }
 
 TEST_P(SubdocMultiLookupTest, InvalidDatatype) {
@@ -438,7 +441,7 @@ TEST_P(SubdocMultiMutationTest, InvalidMagic) {
         reinterpret_cast<protocol_binary_request_header*>(payload.data());
     header->request.magic = 0;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
-    EXPECT_EQ("Request magic value invalid", validate_error_context(payload));
+    EXPECT_EQ("Request header invalid", validate_error_context(payload));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidDatatype) {

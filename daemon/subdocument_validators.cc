@@ -31,6 +31,37 @@
 
 #include <memcached/protocol_binary.h>
 
+static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
+    auto& header = cookie.getHeader();
+    if (!header.isValid()) {
+        cookie.setErrorContext("Request header invalid");
+        return cb::mcbp::Status::Einval;
+    }
+
+    if (!header.isRequest()) {
+        cookie.setErrorContext("Frame is not a request");
+        return cb::mcbp::Status::Einval;
+    }
+
+    auto& request = header.getRequest();
+    if (request.getMagic() == cb::mcbp::Magic::AltClientRequest) {
+        cookie.setErrorContext("Flexible extras not supported yet");
+        return cb::mcbp::Status::NotSupported;
+    }
+
+    if (request.getDatatype() != cb::mcbp::Datatype::Raw) {
+        cookie.setErrorContext("Request datatype invalid");
+        return cb::mcbp::Status::Einval;
+    }
+
+    if (!is_document_key_valid(cookie)) {
+        cookie.setErrorContext("Request key invalid");
+        return cb::mcbp::Status::Einval;
+    }
+
+    return cb::mcbp::Status::Success;
+}
+
 static inline bool validMutationSemantics(mcbp::subdoc::doc_flag a) {
     // Can't have both the Add flag and Mkdoc flag set as this doesn't mean
     // anything at the moment.
@@ -142,6 +173,11 @@ static inline cb::mcbp::Status validate_xattr_section(
 
 static cb::mcbp::Status subdoc_validator(Cookie& cookie,
                                          const SubdocCmdTraits traits) {
+    auto header_status = validate_basic_header_fields(cookie);
+    if (header_status != cb::mcbp::Status::Success) {
+        return header_status;
+    }
+
     auto req = reinterpret_cast<const protocol_binary_request_subdocument*>(
             cookie.getPacketAsVoidPtr());
     const protocol_binary_request_header* header = &req->message.header;
@@ -150,8 +186,8 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
     const uint8_t extlen = header->request.extlen;
     const uint32_t bodylen = ntohl(header->request.bodylen);
 
-    if (bodylen < (sizeof(req->message.extras.subdoc_flags) +
-                   sizeof(req->message.extras.pathlen))) {
+    if (extlen < (sizeof(req->message.extras.subdoc_flags) +
+                  sizeof(req->message.extras.pathlen))) {
         // the mandatory extra fields isn't present
         cookie.setErrorContext("Request must include extra fields");
         return cb::mcbp::Status::Einval;
@@ -162,16 +198,6 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
     const uint16_t pathlen = ntohs(req->message.extras.pathlen);
     const uint32_t valuelen = bodylen - keylen - extlen - pathlen;
 
-    if (header->request.getMagic() != cb::mcbp::Magic::ClientRequest) {
-        cookie.setErrorContext("Request magic value invalid");
-        return cb::mcbp::Status::Einval;
-    }
-
-    if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
-        return cb::mcbp::Status::Einval;
-    }
-
     if (valuelen > bodylen) {
         cookie.setErrorContext(
                 "Value length must not be greater than request body");
@@ -180,11 +206,6 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
 
     if (pathlen > SUBDOC_PATH_MAX_LENGTH) {
         cookie.setErrorContext("Request path length exceeds maximum");
-        return cb::mcbp::Status::Einval;
-    }
-
-    if (header->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        cookie.setErrorContext("Request datatype invalid");
         return cb::mcbp::Status::Einval;
     }
 
@@ -479,32 +500,22 @@ static cb::mcbp::Status is_valid_multipath_spec(
 // for them.
 static cb::mcbp::Status subdoc_multi_validator(
         Cookie& cookie, const SubdocMultiCmdTraits traits) {
-    auto req = static_cast<protocol_binary_request_header*>(
-            cookie.getPacketAsVoidPtr());
 
     // 1. Check simple static values.
+    auto header_status = validate_basic_header_fields(cookie);
+    if (header_status != cb::mcbp::Status::Success) {
+        return header_status;
+    }
+
+    auto req = static_cast<protocol_binary_request_header*>(
+            cookie.getPacketAsVoidPtr());
 
     // Must have at least one lookup spec
     const size_t minimum_body_len = ntohs(req->request.keylen) +
                                     req->request.extlen + traits.min_value_len;
 
-    if (req->request.getMagic() != cb::mcbp::Magic::ClientRequest) {
-        cookie.setErrorContext("Request magic value invalid");
-        return cb::mcbp::Status::Einval;
-    }
-
-    if (!is_document_key_valid(cookie)) {
-        cookie.setErrorContext("Request key invalid");
-        return cb::mcbp::Status::Einval;
-    }
-
     if (req->request.bodylen < minimum_body_len) {
         cookie.setErrorContext("Request body too short");
-        return cb::mcbp::Status::Einval;
-    }
-
-    if (req->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        cookie.setErrorContext("Request datatype invalid");
         return cb::mcbp::Status::Einval;
     }
 
