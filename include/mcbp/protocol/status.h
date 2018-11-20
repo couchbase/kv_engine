@@ -77,6 +77,8 @@ enum class Status : uint16_t {
      * node, and the Cluster manager has not yet granted all
      * users access to the cluster. */
     NotInitialized = 0x25,
+    /// The server don't know about the frame info, and can't use it
+    UnknownFrameInfo = 0x80,
     /** The server have no idea what this command is for */
     UnknownCommand = 0x81,
     /** Not enough memory */

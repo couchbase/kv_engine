@@ -44,6 +44,7 @@ bool isStatusSuccess(Status status) {
     case Status::Erange:
     case Status::Eaccess:
     case Status::NotInitialized:
+    case Status::UnknownFrameInfo:
     case Status::UnknownCommand:
     case Status::Enomem:
     case Status::NotSupported:
@@ -144,6 +145,8 @@ std::string to_string(cb::mcbp::Status status) {
         return "No access";
     case Status::NotInitialized:
         return "Node not initialized";
+    case Status::UnknownFrameInfo:
+        return "Unknown frame info";
     case Status::UnknownCommand:
         return "Unknown command";
     case Status::Enomem:

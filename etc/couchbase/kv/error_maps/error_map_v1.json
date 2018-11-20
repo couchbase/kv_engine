@@ -131,6 +131,13 @@
                 "conn-state-invalidated"
             ]
         },
+        "80": {
+            "name": "UNKNOWN_FRAME_INFO",
+            "desc": "Unknown frame info identifier encountered. Maybe a newer server version knows about it",
+            "attrs": [
+                "support"
+            ]
+        },
         "81": {
             "name": "UNKNOWN_COMMAND",
             "desc": "Unknown command. Maybe a newer server version knows about it",
