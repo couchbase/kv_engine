@@ -84,7 +84,6 @@ static inline cb::mcbp::Status validate_xattr_section(
         Cookie& cookie,
         bool mutator,
         protocol_binary_subdoc_flag flags,
-        mcbp::subdoc::doc_flag doc_flags,
         cb::const_char_buffer path,
         cb::const_char_buffer value,
         cb::const_char_buffer& xattr_key) {
@@ -246,7 +245,6 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
     const auto status = validate_xattr_section(cookie,
                                                traits.is_mutator,
                                                subdoc_flags,
-                                               doc_flags,
                                                path,
                                                macro,
                                                xattr_key);
@@ -444,7 +442,6 @@ static cb::mcbp::Status is_valid_multipath_spec(
     const auto status = validate_xattr_section(cookie,
                                                traits.is_mutator,
                                                flags,
-                                               doc_flags,
                                                path,
                                                macro,
                                                xattr_key);
