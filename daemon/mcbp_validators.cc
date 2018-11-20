@@ -32,7 +32,7 @@
 #include <platform/compress.h>
 #include <platform/string_hex.h>
 
-using Status = cb::mcbp::Status;
+using cb::mcbp::Status;
 
 static inline bool may_accept_xattr(const Cookie& cookie) {
     auto& req = cookie.getHeader();
@@ -73,7 +73,7 @@ enum class ExpectedCas { Set, NotSet, Any };
  * Verify the header meets basic sanity checks and fields length
  * match the provided expected lengths.
  */
-static bool verify_header(
+static Status verify_header(
         Cookie& cookie,
         uint8_t expected_extlen,
         ExpectedKeyLen expected_keylen,
@@ -84,34 +84,34 @@ static bool verify_header(
 
     if (!header.isValid()) {
         cookie.setErrorContext("Request header invalid");
-        return false;
+        return Status::Einval;
     }
     if (!mcbp::datatype::is_valid(header.getDatatype())) {
         cookie.setErrorContext("Request datatype invalid");
-        return false;
+        return Status::Einval;
     }
 
     if ((expected_extlen == 0) && (header.getExtlen() != 0)) {
         cookie.setErrorContext("Request must not include extras");
-        return false;
+        return Status::Einval;
     }
     if ((expected_extlen != 0) && (header.getExtlen() != expected_extlen)) {
         cookie.setErrorContext("Request must include extras of length " +
                                std::to_string(expected_extlen));
-        return false;
+        return Status::Einval;
     }
 
     switch (expected_keylen) {
     case ExpectedKeyLen::Zero:
         if (header.getKeylen() != 0) {
             cookie.setErrorContext("Request must not include key");
-            return false;
+            return Status::Einval;
         }
         break;
     case ExpectedKeyLen::NonZero:
         if (header.getKeylen() == 0) {
             cookie.setErrorContext("Request must include key");
-            return false;
+            return Status::Einval;
         }
         break;
     case ExpectedKeyLen::Any:
@@ -124,13 +124,13 @@ static bool verify_header(
     case ExpectedValueLen::Zero:
         if (valuelen != 0) {
             cookie.setErrorContext("Request must not include value");
-            return false;
+            return Status::Einval;
         }
         break;
     case ExpectedValueLen::NonZero:
         if (valuelen == 0) {
             cookie.setErrorContext("Request must include value");
-            return false;
+            return Status::Einval;
         }
         break;
     case ExpectedValueLen::Any:
@@ -141,13 +141,13 @@ static bool verify_header(
     case ExpectedCas::NotSet:
         if (header.getCas() != 0) {
             cookie.setErrorContext("Request CAS must not be set");
-            return false;
+            return Status::Einval;
         }
         break;
     case ExpectedCas::Set:
         if (header.getCas() == 0) {
             cookie.setErrorContext("Request CAS must be set");
-            return false;
+            return Status::Einval;
         }
         break;
     case ExpectedCas::Any:
@@ -156,10 +156,10 @@ static bool verify_header(
 
     if ((~expected_datatype_mask) & header.getDatatype()) {
         cookie.setErrorContext("Request datatype invalid");
-        return false;
+        return Status::Einval;
     }
 
-    return true;
+    return Status::Success;
 }
 
 /******************************************************************************
@@ -202,13 +202,14 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
 static Status dcp_open_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpOpenPayload;
 
-    if (!verify_header(cookie,
-                       sizeof(DcpOpenPayload),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(DcpOpenPayload),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     const auto mask = DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER |
@@ -241,13 +242,14 @@ static Status dcp_open_validator(Cookie& cookie) {
 }
 
 static Status dcp_add_stream_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       4,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                4,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto& req = cookie.getRequest(Cookie::PacketContent::Full);
@@ -278,25 +280,27 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
 }
 
 static Status dcp_close_stream_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
 
 static Status dcp_get_failover_log_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
@@ -306,37 +310,40 @@ static Status dcp_stream_req_validator(Cookie& cookie) {
                         ? ExpectedValueLen::Any
                         : ExpectedValueLen::Zero;
 
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::DcpStreamReqPayload),
-                       ExpectedKeyLen::Zero,
-                       vlen,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::DcpStreamReqPayload),
+                                ExpectedKeyLen::Zero,
+                                vlen,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
 
 static Status dcp_stream_end_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::DcpStreamEndPayload),
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::DcpStreamEndPayload),
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
 
 static Status dcp_snapshot_marker_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       20,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                20,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
@@ -346,12 +353,13 @@ static Status dcp_system_event_validator(Cookie& cookie) {
     auto req = static_cast<protocol_binary_request_dcp_system_event*>(
             cookie.getPacketAsVoidPtr());
 
-    if (!verify_header(
-                cookie,
-                protocol_binary_request_dcp_system_event::getExtrasLength(),
-                ExpectedKeyLen::Any,
-                ExpectedValueLen::Any)) {
-        return Status::Einval;
+    auto status = verify_header(
+            cookie,
+            protocol_binary_request_dcp_system_event::getExtrasLength(),
+            ExpectedKeyLen::Any,
+            ExpectedValueLen::Any);
+    if (status != Status::Success) {
+        return status;
     }
 
     if (!mcbp::systemevent::validate_id(ntohl(req->message.body.event))) {
@@ -385,11 +393,13 @@ static bool is_valid_xattr_blob(const cb::mcbp::Request& request) {
 }
 
 static Status dcp_mutation_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       protocol_binary_request_dcp_mutation::getExtrasLength(),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any)) {
-        return Status::Einval;
+    auto status = verify_header(
+            cookie,
+            protocol_binary_request_dcp_mutation::getExtrasLength(),
+            ExpectedKeyLen::NonZero,
+            ExpectedValueLen::Any);
+    if (status != Status::Success) {
+        return status;
     }
 
     if (!is_document_key_valid(cookie)) {
@@ -444,11 +454,12 @@ static Status dcp_deletion_validator(Cookie& cookie) {
                     ? sizeof(cb::mcbp::request::DcpDeletionV2Payload)
                     : sizeof(cb::mcbp::request::DcpDeletionV1Payload);
 
-    if (!verify_header(cookie,
-                       gsl::narrow<uint8_t>(expectedExtlen),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                gsl::narrow<uint8_t>(expectedExtlen),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Any);
+    if (status != Status::Success) {
+        return status;
     }
 
     if (!valid_dcp_delete_datatype(cookie.getHeader().getDatatype())) {
@@ -464,15 +475,16 @@ static Status dcp_deletion_validator(Cookie& cookie) {
 }
 
 static Status dcp_expiration_validator(Cookie& cookie) {
-    if (!verify_header(
-                cookie,
-                gsl::narrow<uint8_t>(protocol_binary_request_dcp_expiration::
-                                             getExtrasLength()),
-                ExpectedKeyLen::NonZero,
-                ExpectedValueLen::Zero,
-                ExpectedCas::Any,
-                PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(
+            cookie,
+            gsl::narrow<uint8_t>(
+                    protocol_binary_request_dcp_expiration::getExtrasLength()),
+            ExpectedKeyLen::NonZero,
+            ExpectedValueLen::Zero,
+            ExpectedCas::Any,
+            PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -482,13 +494,14 @@ static Status dcp_expiration_validator(Cookie& cookie) {
 }
 
 static Status dcp_set_vbucket_state_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       1,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                1,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto extras = cookie.getHeader().getRequest().getExtdata();
@@ -500,137 +513,117 @@ static Status dcp_set_vbucket_state_validator(Cookie& cookie) {
 }
 
 static Status dcp_noop_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
 
 static Status dcp_buffer_acknowledgement_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       4,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                4,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
 
 static Status dcp_control_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::NonZero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::NonZero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
 
 static Status update_user_permissions_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::NonZero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::NonZero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status configuration_refresh_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status auth_provider_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status drop_privilege_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::NonZero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status get_cluster_config_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status set_cluster_config_validator(Cookie& cookie) {
-    if (!verify_header(
-                cookie,
-                0,
-                ExpectedKeyLen::Zero,
-                ExpectedValueLen::NonZero,
-                ExpectedCas::Any,
-                PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(
+            cookie,
+            0,
+            ExpectedKeyLen::Zero,
+            ExpectedValueLen::NonZero,
+            ExpectedCas::Any,
+            PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
 }
 
 static Status verbosity_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::VerbosityPayload),
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         sizeof(cb::mcbp::request::VerbosityPayload),
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status hello_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Any,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Any,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto& req = cookie.getRequest(Cookie::PacketContent::Full);
@@ -644,68 +637,48 @@ static Status hello_validator(Cookie& cookie) {
 }
 
 static Status version_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status quit_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status sasl_list_mech_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status sasl_auth_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::NonZero,
+                         ExpectedValueLen::Any,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status noop_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status flush_validator(Cookie& cookie) {
@@ -717,13 +690,14 @@ static Status flush_validator(Cookie& cookie) {
         return Status::Einval;
     }
     // We've already checked extlen so pass actual extlen as expected extlen
-    if (!verify_header(cookie,
-                       extlen,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                extlen,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     if (extlen == 4) {
@@ -743,13 +717,14 @@ static Status add_validator(Cookie& cookie) {
                                                PROTOCOL_BINARY_DATATYPE_JSON |
                                                PROTOCOL_BINARY_DATATYPE_SNAPPY;
     /* Must have extras and key, may have value */
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::MutationPayload),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::NotSet,
-                       expected_datatype_mask)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::MutationPayload),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::NotSet,
+                                expected_datatype_mask);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -763,13 +738,14 @@ static Status set_replace_validator(Cookie& cookie) {
                                                PROTOCOL_BINARY_DATATYPE_JSON |
                                                PROTOCOL_BINARY_DATATYPE_SNAPPY;
     /* Must have extras and key, may have value */
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::MutationPayload),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::Any,
-                       expected_datatype_mask)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::MutationPayload),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::Any,
+                                expected_datatype_mask);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -783,13 +759,14 @@ static Status append_prepend_validator(Cookie& cookie) {
                                                PROTOCOL_BINARY_DATATYPE_JSON |
                                                PROTOCOL_BINARY_DATATYPE_SNAPPY;
     /* Must not have extras, must have key, may have value */
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::Any,
-                       expected_datatype_mask)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::Any,
+                                expected_datatype_mask);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -799,13 +776,14 @@ static Status append_prepend_validator(Cookie& cookie) {
 }
 
 static Status get_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -816,14 +794,17 @@ static Status get_validator(Cookie& cookie) {
 }
 
 static Status gat_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::GatPayload),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::GatPayload),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+
+    if (status != Status::Success) {
+        return status;
     }
+
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
         return Status::Einval;
@@ -833,13 +814,14 @@ static Status gat_validator(Cookie& cookie) {
 }
 
 static Status delete_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -850,26 +832,23 @@ static Status delete_validator(Cookie& cookie) {
 }
 
 static Status stat_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Any,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Any,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status arithmetic_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::ArithmeticPayload),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::ArithmeticPayload),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -880,27 +859,24 @@ static Status arithmetic_validator(Cookie& cookie) {
 }
 
 static Status get_cmd_timer_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       1,
-                       ExpectedKeyLen::Any,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         1,
+                         ExpectedKeyLen::Any,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status set_ctrl_token_validator(Cookie& cookie) {
     using cb::mcbp::request::SetCtrlTokenPayload;
-    if (!verify_header(cookie,
-                       sizeof(SetCtrlTokenPayload),
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(SetCtrlTokenPayload),
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto extras = cookie.getRequest(Cookie::PacketContent::Full).getExtdata();
@@ -914,26 +890,23 @@ static Status set_ctrl_token_validator(Cookie& cookie) {
 }
 
 static Status get_ctrl_token_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status ioctl_get_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (cookie.getHeader().getKeylen() > IOCTL_KEY_LENGTH) {
         cookie.setErrorContext("Request key length exceeds maximum");
@@ -944,16 +917,17 @@ static Status ioctl_get_validator(Cookie& cookie) {
 }
 
 static Status ioctl_set_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
-    auto req = cookie.getHeader().getRequest();
+    auto& req = cookie.getHeader().getRequest();
 
     if (req.getKey().size() > IOCTL_KEY_LENGTH) {
         cookie.setErrorContext("Request key length exceeds maximum");
@@ -969,49 +943,41 @@ static Status ioctl_set_validator(Cookie& cookie) {
 }
 
 static Status audit_put_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       4,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::NonZero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         4,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::NonZero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status audit_config_reload_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status config_reload_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status config_validate_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::NonZero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::NonZero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     auto& header = cookie.getHeader();
     const auto bodylen = header.getBodylen();
@@ -1024,13 +990,14 @@ static Status config_validate_validator(Cookie& cookie) {
 }
 
 static Status observe_seqno_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (cookie.getHeader().getBodylen() != 8) {
         cookie.setErrorContext("Request value must be of length 8");
@@ -1040,29 +1007,23 @@ static Status observe_seqno_validator(Cookie& cookie) {
 }
 
 static Status get_adjusted_time_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status set_drift_counter_state_validator(Cookie& cookie) {
     constexpr uint8_t expected_extlen = sizeof(uint8_t) + sizeof(int64_t);
 
-    if (!verify_header(cookie,
-                       expected_extlen,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         expected_extlen,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::Any,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 /**
@@ -1071,13 +1032,14 @@ static Status set_drift_counter_state_validator(Cookie& cookie) {
  *    body: module\nconfig
  */
 static Status create_bucket_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::NonZero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::NonZero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (cookie.getHeader().getKeylen() > MAX_BUCKET_NAME_LENGTH) {
         cookie.setErrorContext("Request key length exceeds maximum");
@@ -1088,39 +1050,32 @@ static Status create_bucket_validator(Cookie& cookie) {
 }
 
 static Status list_bucket_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::Any,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status delete_bucket_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::NonZero,
+                         ExpectedValueLen::Any,
+                         ExpectedCas::Any,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status select_bucket_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Any,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Any,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (cookie.getHeader().getKeylen() > 1023) {
         cookie.setErrorContext("Request key length exceeds maximum");
@@ -1135,13 +1090,14 @@ static Status get_all_vb_seqnos_validator(Cookie& cookie) {
 
     // We check extlen below so pass actual extlen as expected_extlen to bypass
     // the check in verify_header
-    if (!verify_header(cookie,
-                       header.getExtlen(),
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                header.getExtlen(),
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto extras = header.getRequest().getExtdata();
@@ -1169,15 +1125,12 @@ static Status get_all_vb_seqnos_validator(Cookie& cookie) {
 }
 
 static Status shutdown_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Set,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::Set,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status get_meta_validator(Cookie& cookie) {
@@ -1185,13 +1138,14 @@ static Status get_meta_validator(Cookie& cookie) {
 
     // We check extlen below so pass actual extlen as expected_extlen to bypass
     // the check in verify_header
-    if (!verify_header(cookie,
-                       header.getExtlen(),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                header.getExtlen(),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto extras = header.getRequest().getExtdata();
@@ -1223,11 +1177,12 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
 
     // We check extlen below so pass actual extlen as expected_extlen to bypass
     // the check in verify_header
-    if (!verify_header(cookie,
-                       header.getExtlen(),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                header.getExtlen(),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Any);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -1261,13 +1216,14 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
 }
 
 static Status get_errmap_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto& request = cookie.getHeader().getRequest();
@@ -1288,13 +1244,14 @@ static Status get_locked_validator(Cookie& cookie) {
 
     // We check extlen below so pass actual extlen as expected extlen to bypass
     // the check in verify header
-    if (!verify_header(cookie,
-                       extlen,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                extlen,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     if (!is_document_key_valid(cookie)) {
@@ -1310,13 +1267,14 @@ static Status get_locked_validator(Cookie& cookie) {
 }
 
 static Status unlock_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::Set,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::Set,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -1327,13 +1285,14 @@ static Status unlock_validator(Cookie& cookie) {
 }
 
 static Status evict_key_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (!is_document_key_valid(cookie)) {
         cookie.setErrorContext("Request key invalid");
@@ -1343,13 +1302,14 @@ static Status evict_key_validator(Cookie& cookie) {
 }
 
 static Status collections_set_manifest_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::NonZero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::NonZero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
@@ -1368,13 +1328,14 @@ static Status collections_set_manifest_validator(Cookie& cookie) {
 }
 
 static Status collections_get_manifest_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
@@ -1393,13 +1354,14 @@ static Status collections_get_manifest_validator(Cookie& cookie) {
 }
 
 static Status collections_get_id_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                0,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
     if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
@@ -1418,13 +1380,14 @@ static Status collections_get_id_validator(Cookie& cookie) {
 }
 
 static Status adjust_timeofday_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::AdjustTimePayload),
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::AdjustTimePayload),
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     // The method should only be available for unit tests
@@ -1444,13 +1407,14 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
 }
 
 static Status ewb_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::EWB_Payload),
-                       ExpectedKeyLen::Any,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::EWB_Payload),
+                                ExpectedKeyLen::Any,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     // The method should only be available for unit tests
@@ -1463,40 +1427,33 @@ static Status ewb_validator(Cookie& cookie) {
 }
 
 static Status scrub_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status get_random_key_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status set_vbucket_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
-    if (!verify_header(cookie,
-                       header.getExtlen(),
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                header.getExtlen(),
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto& request = header.getRequest();
@@ -1523,64 +1480,51 @@ static Status set_vbucket_validator(Cookie& cookie) {
 }
 
 static Status del_vbucket_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Any,
+                         ExpectedCas::Any,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status get_vbucket_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Any,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Any,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status start_stop_persistence_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status enable_disable_traffic_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status get_keys_validator(Cookie& cookie) {
     const auto extlen = cookie.getHeader().getExtlen();
-    if (!verify_header(cookie,
-                       extlen,
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                extlen,
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     if (extlen != 0 && extlen != sizeof(uint32_t)) {
@@ -1595,13 +1539,15 @@ static Status get_keys_validator(Cookie& cookie) {
 
 static Status set_param_validator(Cookie& cookie) {
     using cb::mcbp::request::SetParamPayload;
-    if (!verify_header(cookie,
-                       sizeof(SetParamPayload),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::NonZero,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(SetParamPayload),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::NonZero,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+
+    if (status != Status::Success) {
+        return status;
     }
 
     auto extras = cookie.getHeader().getExtdata();
@@ -1614,13 +1560,14 @@ static Status set_param_validator(Cookie& cookie) {
 }
 
 static Status return_meta_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       sizeof(cb::mcbp::request::ReturnMetaPayload),
-                       ExpectedKeyLen::NonZero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(cb::mcbp::request::ReturnMetaPayload),
+                                ExpectedKeyLen::NonZero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     using cb::mcbp::request::ReturnMetaPayload;
@@ -1640,54 +1587,43 @@ static Status return_meta_validator(Cookie& cookie) {
 }
 
 static Status seqno_persistence_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       8,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         8,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status last_closed_checkpoint_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status create_checkpoint_validator(Cookie& cookie) {
-    if (!verify_header(cookie,
-                       0,
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return verify_header(cookie,
+                         0,
+                         ExpectedKeyLen::Zero,
+                         ExpectedValueLen::Zero,
+                         ExpectedCas::NotSet,
+                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status chekpoint_persistence_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
-    if (!verify_header(cookie,
-                       header.getExtlen(),
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                header.getExtlen(),
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     auto& req = header.getRequest();
@@ -1709,13 +1645,14 @@ static Status chekpoint_persistence_validator(Cookie& cookie) {
 static Status compact_db_validator(Cookie& cookie) {
     using cb::mcbp::request::CompactDbPayload;
 
-    if (!verify_header(cookie,
-                       sizeof(CompactDbPayload),
-                       ExpectedKeyLen::Zero,
-                       ExpectedValueLen::Zero,
-                       ExpectedCas::NotSet,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                sizeof(CompactDbPayload),
+                                ExpectedKeyLen::Zero,
+                                ExpectedValueLen::Zero,
+                                ExpectedCas::NotSet,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     const auto extras = cookie.getHeader().getRequest().getExtdata();
@@ -1731,13 +1668,14 @@ static Status compact_db_validator(Cookie& cookie) {
 
 static Status not_supported_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
-    if (!verify_header(cookie,
-                       header.getExtlen(),
-                       ExpectedKeyLen::Any,
-                       ExpectedValueLen::Any,
-                       ExpectedCas::Any,
-                       PROTOCOL_BINARY_RAW_BYTES)) {
-        return Status::Einval;
+    auto status = verify_header(cookie,
+                                header.getExtlen(),
+                                ExpectedKeyLen::Any,
+                                ExpectedValueLen::Any,
+                                ExpectedCas::Any,
+                                PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
 
     return Status::NotSupported;
