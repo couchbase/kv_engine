@@ -45,10 +45,10 @@ protected:
      * parameters
      *
      * @param level the minimum logging level
-     * @param cyclesize the size to use before switching file (default 20MB)
+     * @param cyclesize the size to use before switching file (default 100MB)
      */
     virtual void setUpLogger(const spdlog::level::level_enum level,
-                             const size_t cyclesize = 20 * 1024);
+                             const size_t cyclesize = 100 * 1024 * 1024);
 
     /**
      * Helper function - removes the files in the test working directory that

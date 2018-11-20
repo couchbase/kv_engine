@@ -86,10 +86,6 @@ boost::optional<std::string> cb::logger::initialize(
         cyclesz = 1024 * 1024 * 1024; // use up to 1 GB log file size
     }
 
-    if (getenv("CB_MAXIMIZE_LOGGER_BUFFER_SIZE") != nullptr) {
-        buffersz = 8 * 1024 * 1024; // use an 8MB log buffer
-    }
-
     try {
         // Initialise the loggers.
         //

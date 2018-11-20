@@ -36,8 +36,8 @@ struct LOGGER_PUBLIC_API Config {
     /// The base name of the log files (we'll append: .000000.txt where
     /// the numbers is a sequence counter. The higher the newer ;)
     std::string filename;
-    /// 2 MB for the logging queue
-    size_t buffersize = 2048 * 1024;
+    /// 8192 item size for the logging queue. This is equivalent to 2 MB
+    size_t buffersize = 8192;
     /// 100 MB per cycled file
     size_t cyclesize = 100 * 1024 * 1024;
     /// if running in a unit test or not

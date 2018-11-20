@@ -143,10 +143,6 @@ May be set to let `engine_testapp` use colors in its output.
 
 If set the logger will use 1GB file sizes
 
-## `CB_MAXIMIZE_LOGGER_BUFFER_SIZE`
-
-If set the logger will use 8MB internal buffers
-
 ## `TESTAPP_PACKET_DUMP`
 
 By setting this variable testapp dumps data sent/received in the old-style

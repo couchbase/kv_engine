@@ -42,7 +42,7 @@ void SpdloggerTest::setUpLogger(const spdlog::level::level_enum level,
     cb::logger::Config config;
     config.filename = filename;
     config.cyclesize = cyclesize;
-    config.buffersize = 8192;
+    config.buffersize = 8192; // 8192 items (the default)
     config.unit_test = true;
     config.console = false;
 
