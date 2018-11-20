@@ -21,13 +21,14 @@
 
 #pragma once
 
-
-#include "subdocument_traits.h"
-
-#include <memcached/protocol_binary.h>
-
 #include <cstddef>
+#include <cstdint>
 
+namespace cb {
+namespace mcbp {
+enum class Status : uint16_t;
+} // namespace mcbp
+} // namespace cb
 class Cookie;
 
 /* Maximum sub-document path length */
@@ -73,7 +74,3 @@ cb::mcbp::Status subdoc_counter_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_get_count_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_multi_lookup_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_multi_mutation_validator(Cookie& cookie);
-
-/* Decode the doc flags from a packet */
-mcbp::subdoc::doc_flag subdoc_decode_doc_flags(
-        const protocol_binary_request_header* header, SubdocPath path);

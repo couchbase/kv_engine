@@ -178,69 +178,60 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
         return header_status;
     }
 
-    auto req = reinterpret_cast<const protocol_binary_request_subdocument*>(
-            cookie.getPacketAsVoidPtr());
-    const protocol_binary_request_header* header = &req->message.header;
-    // Extract the various fields from the header.
-    const uint16_t keylen = ntohs(header->request.keylen);
-    const uint8_t extlen = header->request.extlen;
-    const uint32_t bodylen = ntohl(header->request.bodylen);
-
-    if (extlen < (sizeof(req->message.extras.subdoc_flags) +
-                  sizeof(req->message.extras.pathlen))) {
-        // the mandatory extra fields isn't present
-        cookie.setErrorContext("Request must include extra fields");
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    auto extras = request.getExtdata();
+    cb::mcbp::request::SubdocPayloadParser parser(extras);
+    if (!parser.isValid()) {
+        cookie.setErrorContext("Invalid extras section");
         return cb::mcbp::Status::Einval;
     }
 
-    const protocol_binary_subdoc_flag subdoc_flags =
-            static_cast<protocol_binary_subdoc_flag>(req->message.extras.subdoc_flags);
-    const uint16_t pathlen = ntohs(req->message.extras.pathlen);
-    const uint32_t valuelen = bodylen - keylen - extlen - pathlen;
-
-    if (valuelen > bodylen) {
-        cookie.setErrorContext(
-                "Value length must not be greater than request body");
-        return cb::mcbp::Status::Einval;
-    }
-
+    const auto pathlen = parser.getPathlen();
     if (pathlen > SUBDOC_PATH_MAX_LENGTH) {
         cookie.setErrorContext("Request path length exceeds maximum");
         return cb::mcbp::Status::Einval;
     }
 
-    const mcbp::subdoc::doc_flag doc_flags =
-        subdoc_decode_doc_flags(header, traits.path);
+    auto value = request.getValue();
+    if (pathlen > value.size()) {
+        cookie.setErrorContext("Path length can't exceed value");
+        return cb::mcbp::Status::Einval;
+    }
 
+    cb::const_char_buffer path = {reinterpret_cast<const char*>(value.data()),
+                                  pathlen};
+    value = {value.data() + pathlen, value.size() - pathlen};
 
     // Now command-trait specific stuff:
 
     // valuelen should be non-zero iff the request has a value.
     if (traits.request_has_value) {
-        if (valuelen == 0) {
+        if (value.empty()) {
             cookie.setErrorContext("Request must include value");
             return cb::mcbp::Status::Einval;
         }
     } else {
-        if (valuelen != 0) {
+        if (!value.empty()) {
             cookie.setErrorContext("Request must not include value");
             return cb::mcbp::Status::Einval;
         }
     }
 
     // Check only valid flags are specified.
+    const auto subdoc_flags = parser.getSubdocFlags();
     if ((subdoc_flags & ~traits.valid_flags) != 0) {
         cookie.setErrorContext("Request flags invalid");
         return cb::mcbp::Status::Einval;
     }
 
+    const auto doc_flags = parser.getDocFlag();
     if ((doc_flags & ~traits.valid_doc_flags) != mcbp::subdoc::doc_flag::None) {
         cookie.setErrorContext("Request document flags invalid");
         return cb::mcbp::Status::Einval;
     }
 
     // If the Add flag is set, check the cas is 0
-    if (hasAdd(doc_flags) && req->message.header.request.getCas() != 0) {
+    if (hasAdd(doc_flags) && request.getCas() != 0) {
         cookie.setErrorContext("Request with add flag must have CAS 0");
         return cb::mcbp::Status::Einval;
     }
@@ -250,17 +241,8 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
                 "Request must not contain both add and mkdoc flags");
         return cb::mcbp::Status::Einval;
     }
-
-    cb::const_char_buffer path{
-            reinterpret_cast<const char*>(req->message.header.bytes +
-                                          sizeof(req->message.header.bytes) +
-                                          keylen + extlen),
-            pathlen};
-    cb::const_char_buffer macro{
-            reinterpret_cast<const char*>(req->message.header.bytes +
-                                          sizeof(req->message.header.bytes) +
-                                          keylen + extlen + pathlen),
-            valuelen};
+    cb::const_char_buffer macro = {reinterpret_cast<const char*>(value.data()),
+                                   value.size()};
     cb::const_char_buffer xattr_key;
 
     const auto status = validate_xattr_section(cookie,
@@ -283,16 +265,16 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
     // for lookups must be one of two values depending on whether doc flags
     // are encoded in the request.
     if (traits.is_mutator) {
-        if ((extlen != SUBDOC_BASIC_EXTRAS_LEN) &&
-            (extlen != SUBDOC_EXPIRY_EXTRAS_LEN) &&
-            (extlen != SUBDOC_DOC_FLAG_EXTRAS_LEN) &&
-            (extlen != SUBDOC_ALL_EXTRAS_LEN)) {
+        if ((extras.size() != SUBDOC_BASIC_EXTRAS_LEN) &&
+            (extras.size() != SUBDOC_EXPIRY_EXTRAS_LEN) &&
+            (extras.size() != SUBDOC_DOC_FLAG_EXTRAS_LEN) &&
+            (extras.size() != SUBDOC_ALL_EXTRAS_LEN)) {
             cookie.setErrorContext("Request extras invalid");
             return cb::mcbp::Status::Einval;
         }
     } else {
-        if (extlen != SUBDOC_BASIC_EXTRAS_LEN &&
-            extlen != SUBDOC_DOC_FLAG_EXTRAS_LEN) {
+        if (extras.size() != SUBDOC_BASIC_EXTRAS_LEN &&
+            extras.size() != SUBDOC_DOC_FLAG_EXTRAS_LEN) {
             cookie.setErrorContext("Request extras invalid");
             return cb::mcbp::Status::Einval;
         }
@@ -507,41 +489,29 @@ static cb::mcbp::Status subdoc_multi_validator(
         return header_status;
     }
 
-    auto req = static_cast<protocol_binary_request_header*>(
-            cookie.getPacketAsVoidPtr());
-
-    // Must have at least one lookup spec
-    const size_t minimum_body_len = ntohs(req->request.keylen) +
-                                    req->request.extlen + traits.min_value_len;
-
-    if (req->request.bodylen < minimum_body_len) {
-        cookie.setErrorContext("Request body too short");
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    auto extras = request.getExtdata();
+    cb::mcbp::request::SubdocMultiPayloadParser parser(extras);
+    if (!parser.isValid()) {
+        cookie.setErrorContext("Request extras invalid");
         return cb::mcbp::Status::Einval;
     }
 
     // 1a. extlen can be either 0 or 1 for lookups, can be 0, 1, 4 or 5 for
     // mutations. Mutations can have expiry (4) and both mutations and lookups
-    // can have doc_flags (1)
-    if (traits.is_mutator) {
-        if ((req->request.extlen != 0) &&
-            (req->request.extlen != sizeof(uint32_t)) &&
-            (req->request.extlen != 1) && (req->request.extlen != 5)) {
-            cookie.setErrorContext("Request extras invalid");
-            return cb::mcbp::Status::Einval;
-        }
-    } else {
-        if ((req->request.extlen != 0) && (req->request.extlen != 1)) {
+    // can have doc_flags (1). We've already validated that the extras
+    // size is one of the legal values, but the lookups cannot carry expiry
+    if (!traits.is_mutator) {
+        if ((extras.size() > 1)) {
             cookie.setErrorContext("Request extras invalid");
             return cb::mcbp::Status::Einval;
         }
     }
 
-    // Can only decode only after we've checked the extlen is valid
-    const mcbp::subdoc::doc_flag doc_flags =
-            subdoc_decode_doc_flags(req, SubdocPath::MULTI);
+    const auto doc_flags = parser.getDocFlag();
 
     // If an add command, check that the CAS is 0:
-    if (hasAdd(doc_flags) && req->request.getCas() != 0) {
+    if (hasAdd(doc_flags) && request.getCas() != 0) {
         cookie.setErrorContext("Request with add flag must have CAS 0");
         return cb::mcbp::Status::Einval;
     }
@@ -558,13 +528,11 @@ static cb::mcbp::Status subdoc_multi_validator(
     //    normal paths given that they operate on different segments of
     //    the packet. Let's force the client to sort all of the xattrs
     //    operations _first_.
+    const auto value = request.getValue();
     bool xattrs_allowed = true;
-    const char* const body_ptr =
-            reinterpret_cast<const char*>(cookie.getPacketAsVoidPtr()) +
-            sizeof(*req);
-    const size_t keylen = ntohs(req->request.keylen);
-    const size_t bodylen = ntohl(req->request.bodylen);
-    size_t body_validated = keylen + req->request.extlen;
+    const char* const body_ptr = reinterpret_cast<const char*>(value.data());
+
+    size_t body_validated = 0;
     unsigned int path_index;
 
     cb::const_char_buffer xattr_key;
@@ -573,7 +541,7 @@ static cb::mcbp::Status subdoc_multi_validator(
 
     for (path_index = 0;
          (path_index < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) &&
-         (body_validated < bodylen);
+         (body_validated < value.size());
          path_index++) {
         if (!body_commands_allowed) {
             cookie.setErrorContext(
@@ -614,7 +582,6 @@ static cb::mcbp::Status subdoc_multi_validator(
         }
 
         body_validated += spec_len;
-
     }
 
     // Only valid if we found at least one path and the validated
@@ -623,7 +590,7 @@ static cb::mcbp::Status subdoc_multi_validator(
         cookie.setErrorContext("Request must contain at least one path");
         return cb::mcbp::Status::SubdocInvalidCombo;
     }
-    if (body_validated != bodylen) {
+    if (body_validated != value.size()) {
         cookie.setErrorContext(
                 "Request must contain at most " +
                 std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) +
@@ -644,33 +611,4 @@ cb::mcbp::Status subdoc_multi_mutation_validator(Cookie& cookie) {
     return subdoc_multi_validator(
             cookie,
             get_multi_traits<cb::mcbp::ClientOpcode::SubdocMultiMutation>());
-}
-
-using namespace mcbp::subdoc;
-
-doc_flag subdoc_decode_doc_flags(const protocol_binary_request_header* header,
-                                 SubdocPath path) {
-    const char* extras_ptr =
-            reinterpret_cast<const char*>(header) + sizeof(*header);
-    switch (path) {
-    case SubdocPath::MULTI:
-        switch (header->request.extlen) {
-        case SUBDOC_MULTI_DOC_FLAG_EXTRAS_LEN:
-            return *reinterpret_cast<const doc_flag*>(extras_ptr);
-        case SUBDOC_MULTI_ALL_EXTRAS_LEN:
-            return *reinterpret_cast<const doc_flag*>(
-                    extras_ptr + SUBDOC_MULTI_EXPIRY_EXTRAS_LEN);
-        }
-            return doc_flag::None;
-    case SubdocPath::SINGLE:
-        switch (header->request.extlen) {
-        case SUBDOC_DOC_FLAG_EXTRAS_LEN:
-            return *reinterpret_cast<const doc_flag*>(extras_ptr +
-                                                      SUBDOC_BASIC_EXTRAS_LEN);
-        case SUBDOC_ALL_EXTRAS_LEN:
-            return *reinterpret_cast<const doc_flag*>(extras_ptr +
-                                                      SUBDOC_EXPIRY_EXTRAS_LEN);
-        }
-    }
-    return doc_flag::None;
 }

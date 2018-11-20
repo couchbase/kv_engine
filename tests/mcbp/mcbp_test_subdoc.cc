@@ -78,7 +78,7 @@ TEST_P(SubdocSingleTest, Get_InvalidBody) {
             ntohl(htons(request.message.header.request.keylen));
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SubdocGet));
-    EXPECT_EQ("Request must include extra fields",
+    EXPECT_EQ("Invalid extras section",
               validate_error_context(cb::mcbp::ClientOpcode::SubdocGet));
 
     // Make sure we detect if it won't fit in the packet (extlen + key + path
@@ -118,7 +118,7 @@ TEST_P(SubdocSingleTest, DictAdd_InvalidExtras) {
     request.message.header.request.bodylen = htonl(100);
     EXPECT_EQ(cb::mcbp::Status::Einval,
               validate(cb::mcbp::ClientOpcode::SubdocDictAdd));
-    EXPECT_EQ("Request extras invalid",
+    EXPECT_EQ("Invalid extras section",
               validate_error_context(cb::mcbp::ClientOpcode::SubdocDictAdd));
 
     request.message.header.request.extlen = 7;

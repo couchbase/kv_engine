@@ -57,8 +57,7 @@ using namespace mcbp::subdoc;
 static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
                          ENGINE_ERROR_CODE ret,
-                         const char* key,
-                         size_t keylen,
+                         cb::const_byte_buffer key,
                          Vbid vbucket,
                          uint64_t cas);
 
@@ -66,8 +65,7 @@ static bool subdoc_operate(SubdocCmdContext& context);
 
 static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        ENGINE_ERROR_CODE ret,
-                                       const char* key,
-                                       size_t keylen,
+                                       cb::const_byte_buffer key,
                                        Vbid vbucket,
                                        uint32_t expiration);
 static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
@@ -320,39 +318,6 @@ static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
     }
 }
 
-/* Decode the specified expiration value for the specified request.
- */
-uint32_t subdoc_decode_expiration(const protocol_binary_request_header* header,
-                                  const SubdocCmdTraits traits) {
-    // Expiration is zero (never expire) unless an (optional) 4-byte expiry
-    // value was included in the extras.
-    const char* expiration_ptr = nullptr;
-
-    // Single-path and multi-path have different extras encodings:
-    switch (traits.path) {
-    case SubdocPath::SINGLE:
-        if (header->request.extlen == SUBDOC_EXPIRY_EXTRAS_LEN) {
-            expiration_ptr = reinterpret_cast<const char*>(header) +
-                             sizeof(*header) + SUBDOC_BASIC_EXTRAS_LEN;
-        }
-        break;
-
-    case SubdocPath::MULTI:
-        if ((header->request.extlen == SUBDOC_MULTI_EXPIRY_EXTRAS_LEN) ||
-            (header->request.extlen == SUBDOC_MULTI_ALL_EXTRAS_LEN)) {
-            expiration_ptr = reinterpret_cast<const char*>(header) +
-                             sizeof(*header);
-        }
-        break;
-    }
-
-    if (expiration_ptr != nullptr) {
-        return ntohl(*reinterpret_cast<const uint32_t*>(expiration_ptr));
-    } else {
-        return 0;
-    }
-}
-
 /**
  * Main function which handles execution of all sub-document
  * commands: fetches, operates on, updates and finally responds to the client.
@@ -365,25 +330,28 @@ uint32_t subdoc_decode_expiration(const protocol_binary_request_header* header,
  */
 static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     // 0. Parse the request and log it if debug enabled.
-    auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-    const auto* req =
-            reinterpret_cast<const protocol_binary_request_subdocument*>(
-                    packet.data());
-    const protocol_binary_request_header* header = &req->message.header;
+    const auto packet = cookie.getPacket(Cookie::PacketContent::Full);
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
 
-    const uint8_t extlen = header->request.extlen;
-    const uint16_t keylen = ntohs(header->request.keylen);
-    const uint32_t bodylen = ntohl(header->request.bodylen);
-    const Vbid vbucket = header->request.vbucket.ntoh();
-    const auto cas = header->request.getCas();
+    const auto vbucket = request.getVBucket();
+    const auto cas = request.getCas();
 
-    const char* key = (char*)packet.data() + sizeof(*header) + extlen;
+    const auto key = request.getKey();
+    auto value = request.getValue();
+    auto extras = request.getExtdata();
 
-    const char* value = key + keylen;
-    const uint32_t vallen = bodylen - keylen - extlen;
+    uint32_t expiration;
+    doc_flag doc_flags;
 
-    const uint32_t expiration = subdoc_decode_expiration(header, traits);
-    const doc_flag doc_flags = subdoc_decode_doc_flags(header, traits.path);
+    if (traits.path == SubdocPath::SINGLE) {
+        cb::mcbp::request::SubdocPayloadParser parser(extras);
+        expiration = parser.getExpiry();
+        doc_flags = parser.getDocFlag();
+    } else {
+        cb::mcbp::request::SubdocMultiPayloadParser parser(extras);
+        expiration = parser.getExpiry();
+        doc_flags = parser.getDocFlag();
+    }
 
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
@@ -414,7 +382,8 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         auto* context =
                 dynamic_cast<SubdocCmdContext*>(cookie.getCommandContext());
         if (context == nullptr) {
-            cb::const_char_buffer value_buf{value, vallen};
+            cb::const_char_buffer value_buf{
+                    reinterpret_cast<const char*>(value.data()), value.size()};
             context = subdoc_create_context(
                     cookie, traits, packet.data(), value_buf, doc_flags);
             if (context == nullptr) {
@@ -428,7 +397,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         // continue if it returned true, otherwise return from this function
         // (which may result in it being called again later in the EWOULDBLOCK
         // case).
-        if (!subdoc_fetch(cookie, *context, ret, key, keylen, vbucket, cas)) {
+        if (!subdoc_fetch(cookie, *context, ret, key, vbucket, cas)) {
             return;
         }
 
@@ -438,7 +407,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         }
 
         // 3. Update the document in the engine (mutations only).
-        ret = subdoc_update(*context, ret, key, keylen, vbucket, expiration);
+        ret = subdoc_update(*context, ret, key, vbucket, expiration);
         if (ret == ENGINE_KEY_EEXISTS) {
             if (auto_retry) {
                 // Retry the operation. Reset the command context and related
@@ -483,7 +452,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 
     // Hit maximum attempts - this theoretically could happen but shouldn't
     // in reality.
-    const auto mcbp_cmd = cb::mcbp::ClientOpcode(header->request.opcode);
+    const auto mcbp_cmd = request.getClientOpcode();
 
     auto& c = cookie.getConnection();
     LOG_WARNING(
@@ -502,14 +471,12 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 static bool subdoc_fetch(Cookie& cookie,
                          SubdocCmdContext& ctx,
                          ENGINE_ERROR_CODE ret,
-                         const char* key,
-                         size_t keylen,
+                         cb::const_byte_buffer key,
                          Vbid vbucket,
                          uint64_t cas) {
     if (!ctx.fetchedItem && !ctx.needs_new_doc) {
         if (ret == ENGINE_SUCCESS) {
-            auto get_key = cookie.getConnection().makeDocKey(
-                    {reinterpret_cast<const uint8_t*>(key), keylen});
+            auto get_key = cookie.getConnection().makeDocKey(key);
             DocStateFilter state = DocStateFilter::Alive;
             if (ctx.do_allow_deleted_docs) {
                 state = DocStateFilter::AliveOrDeleted;
@@ -1201,8 +1168,7 @@ static bool subdoc_operate(SubdocCmdContext& context) {
 // else false.
 static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
                                        ENGINE_ERROR_CODE ret,
-                                       const char* key,
-                                       size_t keylen,
+                                       cb::const_byte_buffer key,
                                        Vbid vbucket,
                                        uint32_t expiration) {
     auto& connection = context.connection;
@@ -1236,9 +1202,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
 
         if (ret == ENGINE_SUCCESS) {
             context.out_doc_len = context.in_doc.len;
-            auto allocate_key = cookie.getConnection().makeDocKey(
-                    {reinterpret_cast<const uint8_t*>(key), keylen});
-
+            auto allocate_key = cookie.getConnection().makeDocKey(key);
             const size_t priv_bytes =
                 cb::xattr::get_system_xattr_size(context.in_datatype,
                                                  context.in_doc);
@@ -1307,8 +1271,7 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     auto new_op = context.needs_new_doc ? OPERATION_ADD : OPERATION_CAS;
     if (context.do_delete_doc && context.no_sys_xattrs) {
         new_cas = context.in_cas;
-        auto docKey = connection.makeDocKey(
-                {reinterpret_cast<const uint8_t*>(key), keylen});
+        auto docKey = connection.makeDocKey(key);
         ret = bucket_remove(cookie, docKey, new_cas, vbucket, mdt);
     } else {
         ret = bucket_store(cookie,
