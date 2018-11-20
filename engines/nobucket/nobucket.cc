@@ -74,11 +74,13 @@ public:
         throw cb::engine_error(cb::engine_errc::no_bucket, "no bucket");
     }
 
-    ENGINE_ERROR_CODE remove(gsl::not_null<const void*>,
-                             const DocKey&,
-                             uint64_t&,
-                             Vbid,
-                             mutation_descr_t&) override {
+    ENGINE_ERROR_CODE remove(
+            gsl::not_null<const void*>,
+            const DocKey&,
+            uint64_t&,
+            Vbid,
+            boost::optional<cb::durability::Requirements> durability,
+            mutation_descr_t&) override {
         return ENGINE_NO_BUCKET;
     }
 
@@ -123,10 +125,12 @@ public:
         return ENGINE_NO_BUCKET;
     }
 
-    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
-                                          const DocKey&,
-                                          Vbid,
-                                          uint32_t) override {
+    cb::EngineErrorItemPair get_and_touch(
+            gsl::not_null<const void*> cookie,
+            const DocKey&,
+            Vbid,
+            uint32_t,
+            boost::optional<cb::durability::Requirements>) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
@@ -134,16 +138,19 @@ public:
                             gsl::not_null<item*>,
                             uint64_t&,
                             ENGINE_STORE_OPERATION,
+                            boost::optional<cb::durability::Requirements>,
                             DocumentState) override {
         return ENGINE_NO_BUCKET;
     }
 
-    cb::EngineErrorCasPair store_if(gsl::not_null<const void*>,
-                                    gsl::not_null<item*>,
-                                    uint64_t,
-                                    ENGINE_STORE_OPERATION,
-                                    cb::StoreIfPredicate,
-                                    DocumentState) override {
+    cb::EngineErrorCasPair store_if(
+            gsl::not_null<const void*>,
+            gsl::not_null<item*>,
+            uint64_t,
+            ENGINE_STORE_OPERATION,
+            cb::StoreIfPredicate,
+            boost::optional<cb::durability::Requirements>,
+            DocumentState) override {
         return {cb::engine_errc::no_bucket, 0};
     }
 

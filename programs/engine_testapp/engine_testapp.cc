@@ -48,11 +48,13 @@ struct mock_engine : public EngineIface, public DcpIface {
             uint8_t datatype,
             Vbid vbucket) override;
 
-    ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
-                             const DocKey& key,
-                             uint64_t& cas,
-                             Vbid vbucket,
-                             mutation_descr_t& mut_info) override;
+    ENGINE_ERROR_CODE remove(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint64_t& cas,
+            Vbid vbucket,
+            boost::optional<cb::durability::Requirements> durability,
+            mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
 
@@ -80,16 +82,20 @@ struct mock_engine : public EngineIface, public DcpIface {
                              Vbid vbucket,
                              uint64_t cas) override;
 
-    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
-                                          const DocKey& key,
-                                          Vbid vbucket,
-                                          uint32_t expirytime) override;
+    cb::EngineErrorItemPair get_and_touch(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            uint32_t expirytime,
+            boost::optional<cb::durability::Requirements> durability) override;
 
-    ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
-                            gsl::not_null<item*> item,
-                            uint64_t& cas,
-                            ENGINE_STORE_OPERATION operation,
-                            DocumentState document_state) override;
+    ENGINE_ERROR_CODE store(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<item*> item,
+            uint64_t& cas,
+            ENGINE_STORE_OPERATION operation,
+            boost::optional<cb::durability::Requirements> durability,
+            DocumentState document_state) override;
 
     ENGINE_ERROR_CODE flush(gsl::not_null<const void*> cookie) override;
 
@@ -430,17 +436,20 @@ std::pair<cb::unique_item_ptr, item_info> mock_engine::allocate_ex(
     throw std::logic_error("mock_allocate_ex: Should never get here");
 }
 
-ENGINE_ERROR_CODE mock_engine::remove(gsl::not_null<const void*> cookie,
-                                      const DocKey& key,
-                                      uint64_t& cas,
-                                      Vbid vbucket,
-                                      mutation_descr_t& mut_info) {
+ENGINE_ERROR_CODE mock_engine::remove(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint64_t& cas,
+        Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durability,
+        mutation_descr_t& mut_info) {
     auto engine_fn = std::bind(&EngineIface::remove,
                                the_engine,
                                cookie,
                                key,
                                std::ref(cas),
                                vbucket,
+                               durability,
                                std::ref(mut_info));
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
@@ -486,13 +495,15 @@ cb::EngineErrorItemPair mock_engine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         Vbid vbucket,
-        uint32_t expiry_time) {
+        uint32_t expiry_time,
+        boost::optional<cb::durability::Requirements> durability) {
     auto engine_fn = std::bind(&EngineIface::get_and_touch,
                                the_engine,
                                cookie,
                                key,
                                vbucket,
-                               expiry_time);
+                               expiry_time,
+                               durability);
 
     auto* construct =
             reinterpret_cast<mock_connstruct*>(const_cast<void*>(cookie.get()));
@@ -555,17 +566,20 @@ ENGINE_ERROR_CODE mock_engine::get_stats(gsl::not_null<const void*> cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE mock_engine::store(gsl::not_null<const void*> cookie,
-                                     gsl::not_null<item*> item,
-                                     uint64_t& cas,
-                                     ENGINE_STORE_OPERATION operation,
-                                     DocumentState document_state) {
+ENGINE_ERROR_CODE mock_engine::store(
+        gsl::not_null<const void*> cookie,
+        gsl::not_null<item*> item,
+        uint64_t& cas,
+        ENGINE_STORE_OPERATION operation,
+        boost::optional<cb::durability::Requirements> durability,
+        DocumentState document_state) {
     auto engine_fn = std::bind(&EngineIface::store,
                                the_engine,
                                cookie,
                                item,
                                std::ref(cas),
                                operation,
+                               durability,
                                document_state);
 
     auto* construct =

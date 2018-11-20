@@ -214,7 +214,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durability,
         mutation_descr_t& mut_info) {
+    if (durability) {
+        return ENGINE_ENOTSUP;
+    }
     return acquireEngine(this)->itemDelete(
             cookie, key, cas, vbucket, nullptr, mut_info);
 }
@@ -270,7 +274,11 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         Vbid vbucket,
-        uint32_t expiry_time) {
+        uint32_t expiry_time,
+        boost::optional<cb::durability::Requirements> durability) {
+    if (durability) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
+    }
     return acquireEngine(this)->getAndTouchInner(
             cookie, key, vbucket, expiry_time);
 }
@@ -307,7 +315,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(
         gsl::not_null<item*> itm,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
+        boost::optional<cb::durability::Requirements> durability,
         DocumentState document_state) {
+    if (durability) {
+        return ENGINE_ENOTSUP;
+    }
     if (document_state == DocumentState::Deleted) {
         Item* item = static_cast<Item*>(itm.get());
         item->setDeleted();
@@ -322,7 +334,12 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
+        boost::optional<cb::durability::Requirements> durability,
         DocumentState document_state) {
+    if (durability) {
+        return {cb::engine_errc::not_supported, 0};
+    }
+
     Item& item = static_cast<Item&>(*static_cast<Item*>(itm.get()));
 
     if (document_state == DocumentState::Deleted) {

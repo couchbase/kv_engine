@@ -403,6 +403,7 @@ ENGINE_ERROR_CODE del(EngineIface* h,
                          DocKey(key, DocKeyEncodesCollectionId::No),
                          *cas,
                          vbucket,
+                         {},
                          *mut_info);
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -596,7 +597,7 @@ cb::EngineErrorItemPair gat(EngineIface* h,
                             uint32_t exp) {
     const auto* cookie = testHarness->create_cookie();
     auto ret = h->get_and_touch(
-            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp);
+            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
     testHarness->destroy_cookie(cookie);
 
     if (ret.first == cb::engine_errc::success) {
@@ -1175,7 +1176,7 @@ ENGINE_ERROR_CODE storeCasOut(EngineIface* h,
     check(h->get_item_info(ret.second.get(), &info), "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     ENGINE_ERROR_CODE res = h->store(
-            cookie, ret.second.get(), out_cas, OPERATION_SET, docState);
+            cookie, ret.second.get(), out_cas, OPERATION_SET, {}, docState);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1217,7 +1218,7 @@ cb::EngineErrorItemPair storeCasVb11(EngineIface* h,
         create_cookie = true;
     }
 
-    auto storeRet = h->store(cookie, rv.second.get(), cas, op, docState);
+    auto storeRet = h->store(cookie, rv.second.get(), cas, op, {}, docState);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1232,7 +1233,7 @@ ENGINE_ERROR_CODE touch(EngineIface* h,
                         uint32_t exp) {
     const auto* cookie = testHarness->create_cookie();
     auto result = h->get_and_touch(
-            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp);
+            cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
     testHarness->destroy_cookie(cookie);
 
     // Update the global cas value (used by some tests)

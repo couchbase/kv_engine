@@ -62,11 +62,13 @@ public:
             uint8_t datatype,
             Vbid vbucket) override;
 
-    ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
-                             const DocKey& key,
-                             uint64_t& cas,
-                             Vbid vbucket,
-                             mutation_descr_t& mut_info) override;
+    ENGINE_ERROR_CODE remove(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint64_t& cas,
+            Vbid vbucket,
+            boost::optional<cb::durability::Requirements> durability,
+            mutation_descr_t& mut_info) override;
 
     void release(gsl::not_null<item*> item) override;
 
@@ -94,16 +96,20 @@ public:
                              Vbid vbucket,
                              uint64_t cas) override;
 
-    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
-                                          const DocKey& key,
-                                          Vbid vbucket,
-                                          uint32_t expirytime) override;
+    cb::EngineErrorItemPair get_and_touch(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            uint32_t expirytime,
+            boost::optional<cb::durability::Requirements>) override;
 
-    ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
-                            gsl::not_null<item*> item,
-                            uint64_t& cas,
-                            ENGINE_STORE_OPERATION operation,
-                            DocumentState document_state) override;
+    ENGINE_ERROR_CODE store(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<item*> item,
+            uint64_t& cas,
+            ENGINE_STORE_OPERATION operation,
+            boost::optional<cb::durability::Requirements> durability,
+            DocumentState document_state) override;
 
     ENGINE_ERROR_CODE get_stats(gsl::not_null<const void*> cookie,
                                 cb::const_char_buffer key,
@@ -202,11 +208,13 @@ std::pair<cb::unique_item_ptr, item_info> CrashEngine::allocate_ex(
     throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
 }
 
-ENGINE_ERROR_CODE CrashEngine::remove(gsl::not_null<const void*> cookie,
-                                      const DocKey& key,
-                                      uint64_t& cas,
-                                      Vbid vbucket,
-                                      mutation_descr_t& mut_info) {
+ENGINE_ERROR_CODE CrashEngine::remove(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint64_t& cas,
+        Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durability,
+        mutation_descr_t& mut_info) {
     return ENGINE_FAILED;
 }
 
@@ -234,7 +242,11 @@ cb::EngineErrorMetadataPair CrashEngine::get_meta(
 }
 
 cb::EngineErrorItemPair CrashEngine::get_and_touch(
-        gsl::not_null<const void*> cookie, const DocKey&, Vbid, uint32_t) {
+        gsl::not_null<const void*> cookie,
+        const DocKey&,
+        Vbid,
+        uint32_t,
+        boost::optional<cb::durability::Requirements>) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
 }
 
@@ -259,11 +271,13 @@ ENGINE_ERROR_CODE CrashEngine::get_stats(gsl::not_null<const void*> cookie,
     return ENGINE_FAILED;
 }
 
-ENGINE_ERROR_CODE CrashEngine::store(gsl::not_null<const void*> cookie,
-                                     gsl::not_null<item*> item,
-                                     uint64_t& cas,
-                                     ENGINE_STORE_OPERATION operation,
-                                     DocumentState) {
+ENGINE_ERROR_CODE CrashEngine::store(
+        gsl::not_null<const void*> cookie,
+        gsl::not_null<item*> item,
+        uint64_t& cas,
+        ENGINE_STORE_OPERATION operation,
+        boost::optional<cb::durability::Requirements> durability,
+        DocumentState) {
     return ENGINE_FAILED;
 }
 

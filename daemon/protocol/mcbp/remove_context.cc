@@ -130,6 +130,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
                             deleted.get(),
                             new_cas,
                             OPERATION_CAS,
+                            {},
                             DocumentState::Deleted);
 
     if (ret == ENGINE_SUCCESS) {
@@ -156,7 +157,7 @@ ENGINE_ERROR_CODE RemoveCommandContext::storeItem() {
 
 ENGINE_ERROR_CODE RemoveCommandContext::removeItem() {
     uint64_t new_cas = input_cas;
-    auto ret = bucket_remove(cookie, key, new_cas, vbucket, mutation_descr);
+    auto ret = bucket_remove(cookie, key, new_cas, vbucket, {}, mutation_descr);
 
     if (ret == ENGINE_SUCCESS) {
         cookie.setCas(new_cas);

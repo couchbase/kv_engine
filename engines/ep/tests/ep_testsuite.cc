@@ -834,8 +834,12 @@ static enum test_result test_expiry(EngineIface* h) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(
-            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h->store(cookie,
+                       ret.second.get(),
+                       cas,
+                       OPERATION_SET,
+                       {},
+                       DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
 
@@ -893,8 +897,12 @@ static enum test_result test_expiry_loader(EngineIface* h) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(
-            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h->store(cookie,
+                       ret.second.get(),
+                       cas,
+                       OPERATION_SET,
+                       {},
+                       DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
 
@@ -1059,8 +1067,12 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(
-            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h->store(cookie,
+                       ret.second.get(),
+                       cas,
+                       OPERATION_SET,
+                       {},
+                       DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     ret.second.reset();
@@ -1134,8 +1146,12 @@ static enum test_result test_bug3454(EngineIface* h) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(
-            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h->store(cookie,
+                       ret.second.get(),
+                       cas,
+                       OPERATION_SET,
+                       {},
+                       DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h);
@@ -1162,8 +1178,12 @@ static enum test_result test_bug3454(EngineIface* h) {
 
     cas = 0;
     // Add a new item with the same key.
-    rv = h->store(
-            cookie, ret.second.get(), cas, OPERATION_ADD, DocumentState::Alive);
+    rv = h->store(cookie,
+                  ret.second.get(),
+                  cas,
+                  OPERATION_ADD,
+                  {},
+                  DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Add failed.");
     check_key_value(h, key, data, strlen(data));
     ret.second.reset();
@@ -1214,8 +1234,12 @@ static enum test_result test_bug3522(EngineIface* h) {
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
-    auto rv = h->store(
-            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
+    auto rv = h->store(cookie,
+                       ret.second.get(),
+                       cas,
+                       OPERATION_SET,
+                       {},
+                       DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, data, strlen(data));
     wait_for_flusher_to_settle(h);
@@ -1239,8 +1263,12 @@ static enum test_result test_bug3522(EngineIface* h) {
 
     int pager_runs = get_int_stat(h, "ep_num_expiry_pager_runs");
     cas = 0;
-    rv = h->store(
-            cookie, ret.second.get(), cas, OPERATION_SET, DocumentState::Alive);
+    rv = h->store(cookie,
+                  ret.second.get(),
+                  cas,
+                  OPERATION_SET,
+                  {},
+                  DocumentState::Alive);
     checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, key, new_data, strlen(new_data));
     ret.second.reset();

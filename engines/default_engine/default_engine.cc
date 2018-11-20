@@ -242,11 +242,17 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocate_ex(
     }
 }
 
-ENGINE_ERROR_CODE default_engine::remove(gsl::not_null<const void*> cookie,
-                                         const DocKey& key,
-                                         uint64_t& cas,
-                                         Vbid vbucket,
-                                         mutation_descr_t& mut_info) {
+ENGINE_ERROR_CODE default_engine::remove(
+        gsl::not_null<const void*> cookie,
+        const DocKey& key,
+        uint64_t& cas,
+        Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durability,
+        mutation_descr_t& mut_info) {
+    if (durability) {
+        return ENGINE_ENOTSUP;
+    }
+
     hash_item* it;
     uint64_t cas_in = cas;
     VBUCKET_GUARD(this, vbucket);
@@ -375,7 +381,12 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
         gsl::not_null<const void*> cookie,
         const DocKey& key,
         Vbid vbucket,
-        uint32_t expiry_time) {
+        uint32_t expiry_time,
+        boost::optional<cb::durability::Requirements> durability) {
+    if (durability) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
+    }
+
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
@@ -523,11 +534,17 @@ ENGINE_ERROR_CODE default_engine::get_stats(gsl::not_null<const void*> cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE default_engine::store(gsl::not_null<const void*> cookie,
-                                        gsl::not_null<item*> item,
-                                        uint64_t& cas,
-                                        ENGINE_STORE_OPERATION operation,
-                                        DocumentState document_state) {
+ENGINE_ERROR_CODE default_engine::store(
+        gsl::not_null<const void*> cookie,
+        gsl::not_null<item*> item,
+        uint64_t& cas,
+        ENGINE_STORE_OPERATION operation,
+        boost::optional<cb::durability::Requirements> durability,
+        DocumentState document_state) {
+    if (durability) {
+        return ENGINE_ENOTSUP;
+    }
+
     auto* it = get_real_item(item);
 
     if (document_state == DocumentState::Deleted && !config.keep_deleted) {
@@ -543,7 +560,12 @@ cb::EngineErrorCasPair default_engine::store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
+        boost::optional<cb::durability::Requirements> durability,
         DocumentState document_state) {
+    if (durability) {
+        return {cb::engine_errc::not_supported, 0};
+    }
+
     if (predicate) {
         // Check for an existing item and call the item predicate on it.
         auto* it = get_real_item(item);

@@ -623,6 +623,7 @@ static enum test_result test_getl(EngineIface* h) {
                      ret.second.get(),
                      cas,
                      OPERATION_SET,
+                     {},
                      DocumentState::Alive),
             "Failed to Store item");
     check_key_value(h, ekey, edata, strlen(edata));
@@ -779,6 +780,7 @@ static enum test_result test_set_with_cas_non_existent(EngineIface* h) {
                      ret.second.get(),
                      cas,
                      OPERATION_SET,
+                     {},
                      DocumentState::Alive),
             "Expected not found");
 

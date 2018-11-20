@@ -53,7 +53,8 @@ static void storeItem(EngineIface* h, ENGINE_STORE_OPERATION op) {
     memcpy(info.value[0].iov_base, value, vlen);
     h->item_set_cas(ret.second.get(), 0);
 
-    auto rv = h->store(cookie, ret.second.get(), cas, op, DocumentState::Alive);
+    auto rv = h->store(
+            cookie, ret.second.get(), cas, op, {}, DocumentState::Alive);
 
     testHarness->destroy_cookie(cookie);
     hasError = rv != ENGINE_SUCCESS;
@@ -73,7 +74,8 @@ void del(EngineIface* h) {
     uint64_t cas = 0;
     mutation_descr_t mut_info;
     const auto* cookie = testHarness->create_cookie();
-    hasError = h->remove(cookie, key, cas, Vbid(0), mut_info) != ENGINE_SUCCESS;
+    hasError = h->remove(cookie, key, cas, Vbid(0), {}, mut_info) !=
+               ENGINE_SUCCESS;
     testHarness->destroy_cookie(cookie);
 }
 

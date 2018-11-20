@@ -104,7 +104,8 @@ static ENGINE_ERROR_CODE storeCasVb11(EngineIface* h,
     memcpy(info.value[0].iov_base, value, vlen);
     h->item_set_cas(ret.second.get(), casIn);
 
-    auto rv = h->store(cookie, ret.second.get(), cas, op, DocumentState::Alive);
+    auto rv = h->store(
+            cookie, ret.second.get(), cas, op, {}, DocumentState::Alive);
 
     if (outitem) {
         *outitem = ret.second.release();

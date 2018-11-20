@@ -1272,12 +1272,13 @@ static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext& context,
     if (context.do_delete_doc && context.no_sys_xattrs) {
         new_cas = context.in_cas;
         auto docKey = connection.makeDocKey(key);
-        ret = bucket_remove(cookie, docKey, new_cas, vbucket, mdt);
+        ret = bucket_remove(cookie, docKey, new_cas, vbucket, {}, mdt);
     } else {
         ret = bucket_store(cookie,
                            context.out_doc.get(),
                            new_cas,
                            new_op,
+                           {},
                            context.do_delete_doc ? DocumentState::Deleted
                                                  : context.in_document_state);
     }

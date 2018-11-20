@@ -95,6 +95,7 @@ static enum test_result set_test(EngineIface* h) {
                            ret.second.get(),
                            cas,
                            OPERATION_SET,
+                           {},
                            DocumentState::Alive) == ENGINE_SUCCESS);
         cb_assert(cas != prev_cas);
     }
@@ -120,6 +121,7 @@ static enum test_result add_test(EngineIface* h) {
                                         ret.second.get(),
                                         cas,
                                         OPERATION_ADD,
+                                        {},
                                         DocumentState::Alive);
         if (ii == 0) {
             cb_assert(rv == ENGINE_SUCCESS);
@@ -156,6 +158,7 @@ static enum test_result replace_test(EngineIface* h) {
                            ret.second.get(),
                            cas,
                            OPERATION_REPLACE,
+                           {},
                            DocumentState::Alive) == ENGINE_SUCCESS);
         cb_assert(cas != prev_cas);
     }
@@ -185,6 +188,7 @@ static enum test_result store_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(cas != 0);
     test_harness->destroy_cookie(cookie);
@@ -206,6 +210,7 @@ static enum test_result get_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
     ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
@@ -228,6 +233,7 @@ static enum test_result get_deleted_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
     ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::success);
@@ -239,7 +245,8 @@ static enum test_result get_deleted_test(EngineIface* h) {
 
     // remove it
     mutation_descr_t mut_info;
-    cb_assert(h->remove(cookie, key, cas, Vbid(0), mut_info) == ENGINE_SUCCESS);
+    cb_assert(h->remove(cookie, key, cas, Vbid(0), {}, mut_info) ==
+              ENGINE_SUCCESS);
     ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
@@ -264,6 +271,7 @@ static enum test_result expiry_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
     test_harness->time_travel(11);
     ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
@@ -288,6 +296,7 @@ static enum test_result release_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
     test_harness->destroy_cookie(cookie);
     return SUCCESS;
@@ -310,8 +319,10 @@ static enum test_result remove_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
-    cb_assert(h->remove(cookie, key, cas, Vbid(0), mut_info) == ENGINE_SUCCESS);
+    cb_assert(h->remove(cookie, key, cas, Vbid(0), {}, mut_info) ==
+              ENGINE_SUCCESS);
     ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
     cb_assert(ret.first == cb::engine_errc::no_such_key);
     cb_assert(ret.second == nullptr);
@@ -337,6 +348,7 @@ static enum test_result flush_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
     cb_assert(h->flush(cookie) == ENGINE_SUCCESS);
     ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
@@ -365,6 +377,7 @@ static enum test_result get_item_info_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
     /* Had this been actual code, there'd be a connection here */
     cb_assert(h->get_item_info(ret.second.get(), &ii));
@@ -398,6 +411,7 @@ static enum test_result item_set_cas_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
     newcas = cas + 1;
     h->item_set_cas(ret.second.get(), newcas);
@@ -435,6 +449,7 @@ static enum test_result lru_test(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
 
     for (ii = 0; ii < 250; ++ii) {
@@ -460,6 +475,7 @@ static enum test_result lru_test(EngineIface* h) {
                            ret.second.get(),
                            cas,
                            OPERATION_SET,
+                           {},
                            DocumentState::Alive) == ENGINE_SUCCESS);
         cb_assert(h->get_stats(cookie, {}, eviction_stats_handler) ==
                   ENGINE_SUCCESS);
@@ -520,6 +536,7 @@ static enum test_result test_datatype(EngineIface* h) {
                        ret.second.get(),
                        cas,
                        OPERATION_SET,
+                       {},
                        DocumentState::Alive) == ENGINE_SUCCESS);
 
     ret = h->get(cookie, key, Vbid(0), DocStateFilter::Alive);
@@ -569,6 +586,7 @@ static enum test_result test_n_bucket_destroy(engine_test_t *test) {
                                            ret.second.get(),
                                            cas,
                                            OPERATION_SET,
+                                           {},
                                            DocumentState::Alive) ==
                       ENGINE_SUCCESS);
         }
@@ -612,6 +630,7 @@ static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
                                ret.second.get(),
                                cas,
                                OPERATION_SET,
+                               {},
                                DocumentState::Alive) == ENGINE_SUCCESS);
         }
 

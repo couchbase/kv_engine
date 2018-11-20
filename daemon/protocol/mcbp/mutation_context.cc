@@ -286,8 +286,12 @@ ENGINE_ERROR_CODE MutationCommandContext::allocateNewItem() {
 }
 
 ENGINE_ERROR_CODE MutationCommandContext::storeItem() {
-    auto ret = bucket_store_if(
-            cookie, newitem.get(), input_cas, operation, store_if_predicate);
+    auto ret = bucket_store_if(cookie,
+                               newitem.get(),
+                               input_cas,
+                               operation,
+                               store_if_predicate,
+                               {});
     if (ret.status == cb::engine_errc::success) {
         cookie.setCas(ret.cas);
         state = State::SendResponse;

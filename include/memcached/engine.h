@@ -25,6 +25,8 @@
 #include "memcached/types.h"
 #include "memcached/vbucket.h"
 
+#include "durability_spec.h"
+
 /*! \mainpage memcached public API
  *
  * \section intro_sec Introduction
@@ -236,17 +238,21 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *
      * @param cookie The cookie provided by the frontend
      * @param key the key identifying the item to be removed
+     * @param cas The cas to value to use for delete (or 0 as wildcard)
      * @param vbucket the virtual bucket id
+     * @param durability the durability specifier for the command
      * @param mut_info On a successful remove write the mutation details to
      *                 this address.
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    virtual ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
-                                     const DocKey& key,
-                                     uint64_t& cas,
-                                     Vbid vbucket,
-                                     mutation_descr_t& mut_info) = 0;
+    virtual ENGINE_ERROR_CODE remove(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint64_t& cas,
+            Vbid vbucket,
+            boost::optional<cb::durability::Requirements> durability,
+            mutation_descr_t& mut_info) = 0;
 
     /**
      * Indicate that a caller who received an item no longer needs
@@ -350,13 +356,15 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param key the key to look up
      * @param vbucket the virtual bucket id
      * @param expirytime the new expiry time for the object
+     * @param durability An optional durability requirement
      * @return A pair of the error code and (optionally) the item
      */
     virtual cb::EngineErrorItemPair get_and_touch(
             gsl::not_null<const void*> cookie,
             const DocKey& key,
             Vbid vbucket,
-            uint32_t expirytime) = 0;
+            uint32_t expirytime,
+            boost::optional<cb::durability::Requirements> durability) = 0;
 
     /**
      * Store an item into the underlying engine with the given
@@ -369,16 +377,19 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      * @param item the item to store
      * @param cas the CAS value for conditional sets
      * @param operation the type of store operation to perform.
+     * @param durability An optional durability requirement
      * @param document_state The state the document should have after
      *                       the update
      *
      * @return ENGINE_SUCCESS if all goes well
      */
-    virtual ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
-                                    gsl::not_null<item*> item,
-                                    uint64_t& cas,
-                                    ENGINE_STORE_OPERATION operation,
-                                    DocumentState document_state) = 0;
+    virtual ENGINE_ERROR_CODE store(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<item*> item,
+            uint64_t& cas,
+            ENGINE_STORE_OPERATION operation,
+            boost::optional<cb::durability::Requirements> durability,
+            DocumentState document_state) = 0;
 
     /**
      * Store an item into the underlying engine with the given
@@ -405,17 +416,20 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
      *                  or the predicate can return ::Continue and the rest of
      *                  the store_if will execute (and possibly fail for other
      *                  reasons).
+     * @param durability An optional durability requirement
      * @param document_state The state the document should have after
      *                       the update
      *
      * @return a std::pair containing the engine_error code and new CAS
      */
-    virtual cb::EngineErrorCasPair store_if(gsl::not_null<const void*> cookie,
-                                            gsl::not_null<item*> item,
-                                            uint64_t cas,
-                                            ENGINE_STORE_OPERATION operation,
-                                            cb::StoreIfPredicate predicate,
-                                            DocumentState document_state) {
+    virtual cb::EngineErrorCasPair store_if(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<item*> item,
+            uint64_t cas,
+            ENGINE_STORE_OPERATION operation,
+            cb::StoreIfPredicate predicate,
+            boost::optional<cb::durability::Requirements> durability,
+            DocumentState document_state) {
         return {cb::engine_errc::not_supported, 0};
     }
 

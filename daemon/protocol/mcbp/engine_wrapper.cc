@@ -84,14 +84,16 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
-                               gsl::not_null<item*> item_,
-                               uint64_t& cas,
-                               ENGINE_STORE_OPERATION operation,
-                               DocumentState document_state) {
+ENGINE_ERROR_CODE bucket_store(
+        Cookie& cookie,
+        gsl::not_null<item*> item_,
+        uint64_t& cas,
+        ENGINE_STORE_OPERATION operation,
+        boost::optional<cb::durability::Requirements> durability,
+        DocumentState document_state) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->store(
-            &cookie, item_, cas, operation, document_state);
+            &cookie, item_, cas, operation, durability, document_state);
     if (ret == ENGINE_SUCCESS) {
         using namespace cb::audit::document;
         add(cookie,
@@ -106,15 +108,22 @@ ENGINE_ERROR_CODE bucket_store(Cookie& cookie,
     return ret;
 }
 
-cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
-                                       gsl::not_null<item*> item_,
-                                       uint64_t cas,
-                                       ENGINE_STORE_OPERATION operation,
-                                       cb::StoreIfPredicate predicate,
-                                       DocumentState document_state) {
+cb::EngineErrorCasPair bucket_store_if(
+        Cookie& cookie,
+        gsl::not_null<item*> item_,
+        uint64_t cas,
+        ENGINE_STORE_OPERATION operation,
+        cb::StoreIfPredicate predicate,
+        boost::optional<cb::durability::Requirements> durability,
+        DocumentState document_state) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine()->store_if(
-            &cookie, item_, cas, operation, predicate, document_state);
+    auto ret = c.getBucketEngine()->store_if(&cookie,
+                                             item_,
+                                             cas,
+                                             operation,
+                                             predicate,
+                                             durability,
+                                             document_state);
     if (ret.status == cb::engine_errc::success) {
         using namespace cb::audit::document;
         add(cookie,
@@ -129,14 +138,16 @@ cb::EngineErrorCasPair bucket_store_if(Cookie& cookie,
     return ret;
 }
 
-ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
-                                const DocKey& key,
-                                uint64_t& cas,
-                                Vbid vbucket,
-                                mutation_descr_t& mut_info) {
+ENGINE_ERROR_CODE bucket_remove(
+        Cookie& cookie,
+        const DocKey& key,
+        uint64_t& cas,
+        Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durability,
+        mutation_descr_t& mut_info) {
     auto& c = cookie.getConnection();
-    auto ret =
-            c.getBucketEngine()->remove(&cookie, key, cas, vbucket, mut_info);
+    auto ret = c.getBucketEngine()->remove(
+            &cookie, key, cas, vbucket, durability, mut_info);
     if (ret == ENGINE_SUCCESS) {
         cb::audit::document::add(cookie,
                                  cb::audit::document::Operation::Delete);
@@ -189,13 +200,15 @@ cb::EngineErrorItemPair bucket_get_if(
     return ret;
 }
 
-cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
-                                             const DocKey& key,
-                                             Vbid vbucket,
-                                             uint32_t expiration) {
+cb::EngineErrorItemPair bucket_get_and_touch(
+        Cookie& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        uint32_t expiration,
+        boost::optional<cb::durability::Requirements> durability) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine()->get_and_touch(
-            &cookie, key, vbucket, expiration);
+            &cookie, key, vbucket, expiration, durability);
 
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_and_touch return ENGINE_DISCONNECT",

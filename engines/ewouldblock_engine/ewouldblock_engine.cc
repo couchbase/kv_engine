@@ -372,16 +372,19 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE remove(gsl::not_null<const void*> cookie,
-                             const DocKey& key,
-                             uint64_t& cas,
-                             Vbid vbucket,
-                             mutation_descr_t& mut_info) override {
+    ENGINE_ERROR_CODE remove(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            uint64_t& cas,
+            Vbid vbucket,
+            boost::optional<cb::durability::Requirements> durability,
+            mutation_descr_t& mut_info) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::REMOVE, cookie, err)) {
             return err;
         } else {
-            return real_engine->remove(cookie, key, cas, vbucket, mut_info);
+            return real_engine->remove(
+                    cookie, key, cas, vbucket, durability, mut_info);
         }
     }
 
@@ -423,15 +426,18 @@ public:
         }
     }
 
-    cb::EngineErrorItemPair get_and_touch(gsl::not_null<const void*> cookie,
-                                          const DocKey& key,
-                                          Vbid vbucket,
-                                          uint32_t exptime) override {
+    cb::EngineErrorItemPair get_and_touch(
+            gsl::not_null<const void*> cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            uint32_t exptime,
+            boost::optional<cb::durability::Requirements> durability) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         if (should_inject_error(Cmd::GET, cookie, err)) {
             return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
         } else {
-            return real_engine->get_and_touch(cookie, key, vbucket, exptime);
+            return real_engine->get_and_touch(
+                    cookie, key, vbucket, exptime, durability);
         }
     }
 
@@ -470,34 +476,43 @@ public:
         }
     }
 
-    ENGINE_ERROR_CODE store(gsl::not_null<const void*> cookie,
-                            gsl::not_null<item*> item,
-                            uint64_t& cas,
-                            ENGINE_STORE_OPERATION operation,
-                            DocumentState document_state) override {
+    ENGINE_ERROR_CODE store(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<item*> item,
+            uint64_t& cas,
+            ENGINE_STORE_OPERATION operation,
+            boost::optional<cb::durability::Requirements> durability,
+            DocumentState document_state) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
         if (should_inject_error(opcode, cookie, err)) {
             return err;
         } else {
             return real_engine->store(
-                    cookie, item, cas, operation, document_state);
+                    cookie, item, cas, operation, durability, document_state);
         }
     }
 
-    cb::EngineErrorCasPair store_if(gsl::not_null<const void*> cookie,
-                                    gsl::not_null<item*> item,
-                                    uint64_t cas,
-                                    ENGINE_STORE_OPERATION operation,
-                                    cb::StoreIfPredicate predicate,
-                                    DocumentState document_state) override {
+    cb::EngineErrorCasPair store_if(
+            gsl::not_null<const void*> cookie,
+            gsl::not_null<item*> item,
+            uint64_t cas,
+            ENGINE_STORE_OPERATION operation,
+            cb::StoreIfPredicate predicate,
+            boost::optional<cb::durability::Requirements> durability,
+            DocumentState document_state) override {
         ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
         Cmd opcode = (operation == OPERATION_CAS) ? Cmd::CAS : Cmd::STORE;
         if (should_inject_error(opcode, cookie, err)) {
             return {cb::engine_errc(err), 0};
         } else {
-            return real_engine->store_if(
-                    cookie, item, cas, operation, predicate, document_state);
+            return real_engine->store_if(cookie,
+                                         item,
+                                         cas,
+                                         operation,
+                                         predicate,
+                                         durability,
+                                         document_state);
         }
     }
 

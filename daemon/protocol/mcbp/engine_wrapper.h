@@ -58,6 +58,7 @@ ENGINE_ERROR_CODE bucket_store(
         gsl::not_null<item*> item_,
         uint64_t& cas,
         ENGINE_STORE_OPERATION operation,
+        boost::optional<cb::durability::Requirements> durability,
         DocumentState document_state = DocumentState::Alive);
 
 cb::EngineErrorCasPair bucket_store_if(
@@ -66,13 +67,16 @@ cb::EngineErrorCasPair bucket_store_if(
         uint64_t cas,
         ENGINE_STORE_OPERATION operation,
         cb::StoreIfPredicate predicate,
+        boost::optional<cb::durability::Requirements> durability,
         DocumentState document_state = DocumentState::Alive);
 
-ENGINE_ERROR_CODE bucket_remove(Cookie& cookie,
-                                const DocKey& key,
-                                uint64_t& cas,
-                                Vbid vbucket,
-                                mutation_descr_t& mut_info);
+ENGINE_ERROR_CODE bucket_remove(
+        Cookie& cookie,
+        const DocKey& key,
+        uint64_t& cas,
+        Vbid vbucket,
+        boost::optional<cb::durability::Requirements> durability,
+        mutation_descr_t& mut_info);
 
 cb::EngineErrorItemPair bucket_get(
         Cookie& cookie,
@@ -86,10 +90,12 @@ cb::EngineErrorItemPair bucket_get_if(
         Vbid vbucket,
         std::function<bool(const item_info&)> filter);
 
-cb::EngineErrorItemPair bucket_get_and_touch(Cookie& cookie,
-                                             const DocKey& key,
-                                             Vbid vbucket,
-                                             uint32_t expiration);
+cb::EngineErrorItemPair bucket_get_and_touch(
+        Cookie& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        uint32_t expiration,
+        boost::optional<cb::durability::Requirements> durability);
 
 BucketCompressionMode bucket_get_compression_mode(Cookie& cookie);
 
