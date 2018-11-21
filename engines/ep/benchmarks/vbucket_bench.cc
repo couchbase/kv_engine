@@ -377,7 +377,11 @@ BENCHMARK_DEFINE_F(CheckpointBench, QueueDirtyWithManyClosedUnrefCheckpoints)
     state.counters["NumCheckpointsRemovedPerIteration"] =
             numUnrefItems / numCkptRemoverRuns;
     state.counters["ItemsEnqueued"] = itemsQueuedTotal;
-    state.counters["AvgQueueDirtyRuntime"] = runtime / itemsQueuedTotal;
+    // Clang-scan-build complains about a possible division on 0.. guess
+    // it doesn't know that the ASSERT_TRUE above would terminate the method
+    if (itemsQueuedTotal > 0) {
+        state.counters["AvgQueueDirtyRuntime"] = runtime / itemsQueuedTotal;
+    }
 
     bgThread.join();
 }
