@@ -725,7 +725,7 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat,
 
     size_t del_items = 0;
     try {
-        del_items = engine->getKVBucket()->getNumPersistedDeletes(vb_);
+        del_items = vb.getNumPersistedDeletes();
     } catch (std::runtime_error& e) {
         log(spdlog::level::level_enum::warn,
             "ActiveStream:addTakeoverStats: exception while getting num "

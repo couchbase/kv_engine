@@ -743,18 +743,6 @@ public:
                                 const VBNotifyCtx& notifyCtx) = 0;
 
     /**
-     * Get the number of deleted items that are persisted to a vbucket file
-     *
-     * @param vbid The vbucket id of the file to get the number of deletes for.
-     *
-     * @returns the number of deletes which are persisted
-     *
-     * @throws std::runtime_error (and subclasses) if it was not possible to
-     *         obtain a count of persisted deletes.
-     */
-    virtual size_t getNumPersistedDeletes(Vbid vbid) = 0;
-
-    /**
      * @return true if the bucket supports 'get_all_keys'; else false
      */
     virtual bool isGetAllKeysSupported() const = 0;

@@ -207,6 +207,14 @@ public:
      */
     void scheduleDeferredDeletion(EventuallyPersistentEngine& engine) override;
 
+    /**
+     * in ephemeral buckets the equivalent meaning is the number of deletes seen
+     * by the vbucket.
+     * Note: This stat is needed by ns-server during vb-takeover
+     * @return the number of deletes seen by this vbucket
+     */
+    size_t getNumPersistedDeletes() const override;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;

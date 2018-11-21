@@ -102,8 +102,6 @@ public:
         // No op
     }
 
-    size_t getNumPersistedDeletes(Vbid vbid) override;
-
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
 
     /**

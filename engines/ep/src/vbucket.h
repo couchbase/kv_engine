@@ -1289,6 +1289,17 @@ public:
                    int64_t bySeqno,
                    Collections::VB::Manifest::CachingReadHandle& cHandle);
 
+    /**
+     * Get the number of deleted items that are "persisted". 
+     * Note1: This stat is used by ns_server during takeover.
+     *
+     * Note2: the virtual method allows ephemeral vb to return something 
+     * logically equivalent
+     *
+     * @returns the number of deletes which are persisted
+     */
+    virtual size_t getNumPersistedDeletes() const = 0;
+
     static std::chrono::seconds getCheckpointFlushTimeout();
 
     /**

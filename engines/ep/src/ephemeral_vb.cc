@@ -628,3 +628,11 @@ SequenceList::UpdateStatus EphemeralVBucket::modifySeqList(
         return seqList->updateListElem(seqLock, writeLock, osv);
     }
 }
+
+size_t EphemeralVBucket::getNumPersistedDeletes() const {
+    /* the name is getNumPersistedDeletes, in ephemeral buckets the equivalent
+       meaning is the number of deletes seen by the vbucket.
+       This is needed by ns-server during vb-takeover */
+
+    return getNumInMemoryDeletes();
+}

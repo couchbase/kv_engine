@@ -397,18 +397,27 @@ void EPVBucket::addStats(bool details, ADD_STAT add_stat, const void* c) {
     _addStats(details, add_stat, c);
 
     if (details) {
-        try {
-            DBFileInfo fileInfo =
-                    shard->getRWUnderlying()->getDbFileInfo(getId());
-            addStat("db_data_size", fileInfo.spaceUsed, add_stat, c);
-            addStat("db_file_size", fileInfo.fileSize, add_stat, c);
-        } catch (std::runtime_error& e) {
-            EP_LOG_WARN(
-                    "VBucket::addStats: Exception caught during getDbFileInfo "
-                    "for {} - what(): {}",
-                    getId(),
-                    e.what());
+        uint64_t spaceUsed = 0;
+        uint64_t fileSize = 0;
+
+        // Only try to read disk if we believe the file has been created
+        if (!isBucketCreation()) {
+            try {
+                DBFileInfo fileInfo =
+                        shard->getRWUnderlying()->getDbFileInfo(getId());
+                spaceUsed = fileInfo.spaceUsed;
+                fileSize = fileInfo.fileSize;
+            } catch (std::runtime_error& e) {
+                EP_LOG_WARN(
+                        "VBucket::addStats: Exception caught during "
+                        "getDbFileInfo "
+                        "for {} - what(): {}",
+                        getId(),
+                        e.what());
+            }
         }
+        addStat("db_data_size", spaceUsed, add_stat, c);
+        addStat("db_file_size", fileSize, add_stat, c);
     }
 }
 
@@ -662,4 +671,12 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
 size_t EPVBucket::estimateNewMemoryUsage(EPStats& st, const Item& item) {
     return st.getEstimatedTotalMemoryUsed() +
            StoredValue::getRequiredStorage(item.getKey());
+}
+
+size_t EPVBucket::getNumPersistedDeletes() const {
+    if (isBucketCreation()) {
+        // If creation is true then no disk file exists
+        return 0;
+    }
+    return shard->getROUnderlying()->getNumPersistedDeletes(getId());
 }

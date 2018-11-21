@@ -168,6 +168,8 @@ public:
                                     bool eject,
                                     bool keyMetaDataOnly);
 
+    size_t getNumPersistedDeletes() const override;
+
 protected:
     /**
      * queue a background fetch of the specified item.

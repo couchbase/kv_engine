@@ -133,10 +133,6 @@ public:
 
     void rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) override;
 
-    size_t getNumPersistedDeletes(Vbid vbid) override {
-        return getROUnderlying(vbid)->getNumPersistedDeletes(vbid);
-    }
-
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
 
     virtual bool isGetAllKeysSupported() const override {

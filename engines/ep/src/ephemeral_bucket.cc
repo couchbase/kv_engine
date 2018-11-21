@@ -249,19 +249,6 @@ void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
     config.setWarmup(false);
 }
 
-size_t EphemeralBucket::getNumPersistedDeletes(Vbid vbid) {
-    /* the name is getNumPersistedDeletes, in ephemeral buckets the equivalent
-       meaning is the number of deletes seen by the vbucket.
-       This is needed by ns-server during vb-takeover */
-    VBucketPtr vb = getVBucket(vbid);
-    if (vb) {
-        return vb->getNumInMemoryDeletes();
-    }
-    throw std::runtime_error(
-            "EphemeralBucket::getNumPersistedDeletes: No vbucket with id '" +
-            vbid.to_string() + "' in vbMap");
-}
-
 void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
                                      const VBNotifyCtx& notifyCtx) {
     if (notifyCtx.notifyFlusher) {
