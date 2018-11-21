@@ -27,7 +27,8 @@
 #include "memcached_audit_events.h"
 #include "runtime.h"
 #include "settings.h"
-#include <cJSON.h>
+
+#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>

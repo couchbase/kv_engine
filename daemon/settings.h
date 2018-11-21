@@ -24,7 +24,6 @@
 #include "network_interface.h"
 #include <utilities/breakpad_settings.h>
 
-#include <cJSON_utils.h>
 #include <memcached/engine.h>
 #include <platform/dynamic.h>
 #include <relaxed_atomic.h>
@@ -51,14 +50,6 @@ enum class EventPriority {
 class Settings {
 public:
     Settings();
-    /**
-     * Create and initialize a settings object from the given JSON
-     *
-     * @param json
-     * @throws std::invalid_argument if for syntax errors
-     */
-    explicit Settings(const unique_cJSON_ptr& json);
-
     /**
      * Create and initialize a settings object from the given JSON
      *

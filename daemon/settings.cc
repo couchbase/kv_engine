@@ -68,10 +68,6 @@ Settings::Settings()
     memset(&has, 0, sizeof(has));
 }
 
-Settings::Settings(const unique_cJSON_ptr& json) : Settings() {
-    reconfigure(nlohmann::json::parse(to_string(json)));
-}
-
 Settings::Settings(const nlohmann::json& json) : Settings() {
     reconfigure(json);
 }

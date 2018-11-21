@@ -19,6 +19,8 @@
 #include "memcached.h"
 #include "runtime.h"
 #include "settings.h"
+
+#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/socket.h>

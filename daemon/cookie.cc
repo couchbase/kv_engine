@@ -22,6 +22,7 @@
 #include "mcbp_executors.h"
 #include "settings.h"
 
+#include <cJSON_utils.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>

@@ -35,20 +35,14 @@ void load_config_file(const char *file, Settings& settings)
 }
 
 bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors) {
-
-    unique_cJSON_ptr config(cJSON_Parse(new_cfg));
-    if (config.get() == nullptr) {
-        cJSON_AddItemToArray(errors, cJSON_CreateString("JSON parse error"));
-        return false;
-    }
-
     // Earlier we returned all of the errors, now I'm terminating on
     // the first... Ideally all of the errors would be best, but
     // the code is easier if we can use exceptions to abort the parsing
     // when we hit an error. Given that this isn't something that the
     // user would be calling every time I don't think it is a big problem..
     try {
-        Settings new_settings(config);
+        auto json = nlohmann::json::parse(new_cfg);
+        Settings new_settings(json);
         settings.updateSettings(new_settings, false);
         return true;
     } catch (const std::exception& exception) {
