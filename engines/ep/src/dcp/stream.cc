@@ -1130,7 +1130,8 @@ static bool shouldModifyItem(const queued_item& item,
         /**
          * If value needs to be included
          */
-        if (includeValue == IncludeValue::No) {
+        if ((includeValue == IncludeValue::No) ||
+            (includeValue == IncludeValue::NoWithUnderlyingDatatype)) {
             return true;
         }
 
