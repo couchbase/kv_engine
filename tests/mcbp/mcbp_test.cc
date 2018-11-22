@@ -3858,6 +3858,11 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsGetManifest) {
     header.setExtlen(0);
     header.setKeylen(0);
     header.setBodylen(0);
+    header.setVBucket(Vbid(1));
+    EXPECT_EQ("Request vbucket id must be 0",
+              validate_error_context(
+                      cb::mcbp::ClientOpcode::CollectionsGetManifest));
+    header.setVBucket(Vbid(0));
     EXPECT_EQ("Attached bucket does not support collections",
               validate_error_context(
                       cb::mcbp::ClientOpcode::CollectionsGetManifest));

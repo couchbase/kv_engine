@@ -1372,8 +1372,12 @@ static Status collections_get_manifest_validator(Cookie& cookie) {
                        0,
                        ExpectedKeyLen::Zero,
                        ExpectedValueLen::Zero,
-                       ExpectedCas::Any,
+                       ExpectedCas::NotSet,
                        PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+    if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
+        cookie.setErrorContext("Request vbucket id must be 0");
         return Status::Einval;
     }
 
