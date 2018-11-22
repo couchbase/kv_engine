@@ -1627,6 +1627,12 @@ static cb::EngineErrorStringPair EvpCollectionsGetManifest(
     return engine->getKVBucket()->getCollections();
 }
 
+static cb::EngineErrorGetCollectionIDResult EvpCollectionsGetCollectionID(
+        gsl::not_null<EngineIface*> handle, cb::const_char_buffer path) {
+    auto engine = acquireEngine(handle);
+    return engine->getKVBucket()->getCollectionID(path);
+}
+
 bool EventuallyPersistentEngine::isXattrEnabled() {
     return getKVBucket()->isXattrEnabled();
 }
@@ -1645,6 +1651,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       minCompressionRatio(default_min_compression_ratio) {
     EngineIface::collections.set_manifest = EvpCollectionsSetManifest;
     EngineIface::collections.get_manifest = EvpCollectionsGetManifest;
+    EngineIface::collections.get_collection_id = EvpCollectionsGetCollectionID;
 
     serverApi = getServerApiFunc();
 }

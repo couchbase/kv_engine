@@ -361,6 +361,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
 
     /// all clients may need to read the manifest
     setup(cb::mcbp::ClientOpcode::CollectionsGetManifest, empty);
+    setup(cb::mcbp::ClientOpcode::CollectionsGetID, empty);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension

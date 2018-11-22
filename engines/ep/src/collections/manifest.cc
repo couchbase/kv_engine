@@ -384,6 +384,7 @@ void Manifest::dump() const {
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
     os << "Collections::Manifest"
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
+       << ", uid:" << manifest.uid
        << ", collections.size:" << manifest.collections.size() << std::endl;
     for (const auto& entry : manifest.scopes) {
         os << "scope:{" << std::hex << entry.first << ", " << entry.second.name

@@ -58,6 +58,16 @@ public:
     cb::EngineErrorStringPair getManifest() const;
 
     /**
+     * Lookup collection id from path
+     *
+     * @throws cb::engine_error
+     * @return EngineErrorGetCollectionIDResult which is status, manifest-uid
+     *  and collection-cid
+     */
+    cb::EngineErrorGetCollectionIDResult getCollectionID(
+            cb::const_char_buffer path) const;
+
+    /**
      * Update the vbucket's manifest with the current Manifest
      * The Manager is locked to prevent current changing whilst this update
      * occurs.

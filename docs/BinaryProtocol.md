@@ -481,6 +481,9 @@ information about a given command.
 | 0xb6 | Get random key |
 | 0xb7 | Seqno persistence |
 | 0xb8 | Get keys |
+| 0xb9 | Collections: set manifest |
+| 0xba | Collections: get manifest |
+| 0xbb | Collections: get collection id |
 | 0xc1 | Set drift counter state |
 | 0xc2 | Get adjusted time |
 | 0xc5 | Subdoc get |

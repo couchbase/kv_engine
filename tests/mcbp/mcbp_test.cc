@@ -3868,6 +3868,22 @@ TEST_P(CommandSpecificErrorContextTest, CollectionsGetManifest) {
                       cb::mcbp::ClientOpcode::CollectionsGetManifest));
 }
 
+TEST_P(CommandSpecificErrorContextTest, CollectionsGetID) {
+    connection.setCollectionsSupported(true);
+    header.setExtlen(0);
+    header.setKeylen(0);
+    EXPECT_EQ("Request must include key",
+              validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID));
+    header.setKeylen(1);
+    header.setBodylen(1);
+    header.setVBucket(Vbid(1));
+    EXPECT_EQ("Request vbucket id must be 0",
+              validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID));
+    header.setVBucket(Vbid(0));
+    EXPECT_EQ("Attached bucket does not support collections",
+              validate_error_context(cb::mcbp::ClientOpcode::CollectionsGetID));
+}
+
 class GetRandomKeyValidatorTest : public ::testing::WithParamInterface<bool>,
                                   public ValidatorTest {
 public:

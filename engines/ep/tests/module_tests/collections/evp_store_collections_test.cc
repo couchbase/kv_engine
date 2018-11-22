@@ -354,6 +354,41 @@ TEST_F(CollectionsTest, GET_unknown_collection_errors) {
     EXPECT_EQ(ENGINE_UNKNOWN_COLLECTION, gv.getStatus());
 }
 
+TEST_F(CollectionsTest, get_collection_id) {
+    auto rv = store->getCollectionID("");
+    EXPECT_EQ(cb::engine_errc::no_collections_manifest, rv.result);
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::dairy);
+    std::string json = cm;
+    store->setCollections(json);
+    // Check bad 'paths'
+    rv = store->getCollectionID("");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    rv = store->getCollectionID("..");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+    rv = store->getCollectionID("dairy");
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, rv.result);
+
+    // Success cases next
+    rv = store->getCollectionID(".");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(2, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(CollectionEntry::defaultC.getId(),
+              rv.extras.data.collectionId.to_host());
+
+    rv = store->getCollectionID(".dairy");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(2, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(CollectionEntry::dairy.getId(),
+              rv.extras.data.collectionId.to_host());
+
+    rv = store->getCollectionID("_default.dairy");
+    EXPECT_EQ(cb::engine_errc::success, rv.result);
+    EXPECT_EQ(2, ntohll(rv.extras.data.manifestId));
+    EXPECT_EQ(CollectionEntry::dairy.getId(),
+              rv.extras.data.collectionId.to_host());
+}
+
 class CollectionsFlushTest : public CollectionsTest {
 public:
     void SetUp() override {

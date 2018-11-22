@@ -369,6 +369,11 @@ public:
      */
     ENGINE_ERROR_CODE remapErrorCode(ENGINE_ERROR_CODE code) const;
 
+    /// convenience wrapper when working with the newer enum cb::engine_errc
+    cb::engine_errc remapErrorCode(cb::engine_errc code) const {
+        return cb::engine_errc(remapErrorCode(ENGINE_ERROR_CODE(code)));
+    }
+
     /**
      * Add the specified number of ns to the amount of CPU time this
      * connection have used on the CPU (We could alternatively have

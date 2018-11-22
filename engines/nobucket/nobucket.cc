@@ -40,6 +40,8 @@ public:
     NoBucket() {
         EngineIface::collections.set_manifest = collections_set_manifest;
         EngineIface::collections.get_manifest = collections_get_manifest;
+        EngineIface::collections.get_collection_id =
+                collections_get_collection_id;
     };
 
     ENGINE_ERROR_CODE initialize(const char* config_str) override {
@@ -370,6 +372,11 @@ private:
             gsl::not_null<EngineIface*> handle) {
         return {cb::engine_errc::no_bucket,
                 "nobucket::collections_get_manifest"};
+    }
+
+    static cb::EngineErrorGetCollectionIDResult collections_get_collection_id(
+            gsl::not_null<EngineIface*> handle, cb::const_char_buffer path) {
+        return {cb::engine_errc::no_bucket, 0, 0};
     }
 };
 

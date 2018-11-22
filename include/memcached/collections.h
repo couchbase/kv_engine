@@ -20,13 +20,35 @@
 #error "Please include memcached/engine.h instead"
 #endif
 
+#include "dockey.h"
 #include "engine_common.h"
 #include "engine_error.h"
-
 #include <platform/sized_buffer.h>
 
 namespace cb {
 using EngineErrorStringPair = std::pair<engine_errc, std::string>;
+
+struct EngineErrorGetCollectionIDResult {
+    EngineErrorGetCollectionIDResult(engine_errc result,
+                                     uint64_t manifestId,
+                                     CollectionID collectionId)
+        : result(result), extras(manifestId, collectionId) {
+    }
+    engine_errc result;
+    union _extras {
+        _extras(uint64_t manifestId, CollectionID collectionId)
+            : data(manifestId, collectionId) {
+        }
+        struct _data {
+            _data(uint64_t manifestId, CollectionID collectionId)
+                : manifestId(ntohll(manifestId)), collectionId(collectionId) {
+            }
+            uint64_t manifestId{0};
+            CollectionIDNetworkOrder collectionId{0};
+        } data;
+        char bytes[sizeof(uint64_t) + sizeof(CollectionIDNetworkOrder)];
+    } extras;
+};
 }
 
 struct collections_interface {
@@ -41,4 +63,7 @@ struct collections_interface {
      */
     cb::EngineErrorStringPair (*get_manifest)(
             gsl::not_null<EngineIface*> handle);
+
+    cb::EngineErrorGetCollectionIDResult (*get_collection_id)(
+            gsl::not_null<EngineIface*> handle, cb::const_char_buffer path);
 };

@@ -273,6 +273,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "COLLECTIONS_SET_MANIFEST";
     case ClientOpcode::CollectionsGetManifest:
         return "COLLECTIONS_GET_MANIFEST";
+    case ClientOpcode::CollectionsGetID:
+        return "COLLECTIONS_GET_ID";
     case ClientOpcode::SetDriftCounterState:
         return "SET_DRIFT_COUNTER_STATE";
     case ClientOpcode::GetAdjustedTime:

@@ -115,6 +115,19 @@ cb::EngineErrorStringPair Collections::Manager::getManifest() const {
     }
 }
 
+cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
+        cb::const_char_buffer path) const {
+    std::unique_lock<std::mutex> ul(lock);
+    if (current) {
+        cb::EngineErrorGetCollectionIDResult result{
+                cb::engine_errc::success,
+                current->getUid(),
+                current->getCollectionID(cb::to_string(path))};
+        return result;
+    }
+    return {cb::engine_errc::no_collections_manifest, 0, 0};
+}
+
 void Collections::Manager::update(VBucket& vb) const {
     // Lock manager updates
     std::lock_guard<std::mutex> ul(lock);

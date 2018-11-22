@@ -956,6 +956,9 @@ private:
     static cb::EngineErrorStringPair collections_get_manifest(
             gsl::not_null<EngineIface*> handle);
 
+    static cb::EngineErrorGetCollectionIDResult collections_get_collection_id(
+            gsl::not_null<EngineIface*> handle, cb::const_char_buffer path);
+
     // Base class for all fault injection modes.
     struct FaultInjectMode {
         virtual ~FaultInjectMode() = default;
@@ -1262,6 +1265,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     EngineIface::collections = {};
     EngineIface::collections.set_manifest = collections_set_manifest;
     EngineIface::collections.get_manifest = collections_get_manifest;
+    EngineIface::collections.get_collection_id = collections_get_collection_id;
 
     clustermap_revno = 1;
 
@@ -1656,6 +1660,17 @@ cb::EngineErrorStringPair EWB_Engine::collections_get_manifest(
                 "EWB_Engine::collections_get_manifest"};
     } else {
         return ewb->real_engine->collections.get_manifest(ewb->real_engine);
+    }
+}
+
+cb::EngineErrorGetCollectionIDResult EWB_Engine::collections_get_collection_id(
+        gsl::not_null<EngineIface*> handle, cb::const_char_buffer path) {
+    EWB_Engine* ewb = to_engine(handle);
+    if (ewb->real_engine->collections.get_collection_id == nullptr) {
+        return {cb::engine_errc::not_supported, 0, 0};
+    } else {
+        return ewb->real_engine->collections.get_collection_id(ewb->real_engine,
+                                                               path);
     }
 }
 

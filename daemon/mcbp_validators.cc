@@ -1392,6 +1392,31 @@ static Status collections_get_manifest_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status collections_get_id_validator(Cookie& cookie) {
+    if (!verify_header(cookie,
+                       0,
+                       ExpectedKeyLen::NonZero,
+                       ExpectedValueLen::Zero,
+                       ExpectedCas::NotSet,
+                       PROTOCOL_BINARY_RAW_BYTES)) {
+        return Status::Einval;
+    }
+    if (cookie.getHeader().getRequest().getVBucket() != Vbid(0)) {
+        cookie.setErrorContext("Request vbucket id must be 0");
+        return Status::Einval;
+    }
+
+    // We could do these tests before checking the packet, but
+    // it feels cleaner to validate the packet first.
+    auto* engine = cookie.getConnection().getBucket().getEngine();
+    if (engine == nullptr || engine->collections.get_collection_id == nullptr) {
+        cookie.setErrorContext("Attached bucket does not support collections");
+        return Status::NotSupported;
+    }
+
+    return Status::Success;
+}
+
 static Status adjust_timeofday_validator(Cookie& cookie) {
     if (!verify_header(cookie,
                        sizeof(cb::mcbp::request::AdjustTimePayload),
@@ -1862,6 +1887,8 @@ McbpValidator::McbpValidator() {
           collections_set_manifest_validator);
     setup(cb::mcbp::ClientOpcode::CollectionsGetManifest,
           collections_get_manifest_validator);
+    setup(cb::mcbp::ClientOpcode::CollectionsGetID,
+          collections_get_id_validator);
     setup(cb::mcbp::ClientOpcode::AdjustTimeofday, adjust_timeofday_validator);
     setup(cb::mcbp::ClientOpcode::EwouldblockCtl, ewb_validator);
     setup(cb::mcbp::ClientOpcode::GetRandomKey, get_random_key_validator);

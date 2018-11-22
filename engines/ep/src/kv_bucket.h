@@ -833,6 +833,14 @@ public:
      */
     cb::EngineErrorStringPair getCollections() const;
 
+    /**
+     * Method to handle get_collection_id command
+     * @param path A path for scope.collection
+     * @return pair with error status and result if success
+     */
+    cb::EngineErrorGetCollectionIDResult getCollectionID(
+            cb::const_char_buffer path) const;
+
     const Collections::Manager& getCollectionsManager() const;
 
     bool isXattrEnabled() const;

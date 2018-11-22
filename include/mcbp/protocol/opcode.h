@@ -248,6 +248,11 @@ enum class ClientOpcode : uint8_t {
     CollectionsGetManifest = 0xba,
 
     /**
+     * Command to get a collection ID
+     */
+    CollectionsGetID = 0xbb,
+
+    /**
      * Commands for GO-XDCR
      */
     SetDriftCounterState = 0xc1,

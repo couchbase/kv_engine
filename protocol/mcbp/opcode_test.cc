@@ -150,6 +150,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
          {ClientOpcode::GetKeys, "GET_KEYS"},
          {ClientOpcode::CollectionsSetManifest, "COLLECTIONS_SET_MANIFEST"},
          {ClientOpcode::CollectionsGetManifest, "COLLECTIONS_GET_MANIFEST"},
+         {ClientOpcode::CollectionsGetID, "COLLECTIONS_GET_ID"},
          {ClientOpcode::SetDriftCounterState, "SET_DRIFT_COUNTER_STATE"},
          {ClientOpcode::GetAdjustedTime, "GET_ADJUSTED_TIME"},
          {ClientOpcode::SubdocGet, "SUBDOC_GET"},

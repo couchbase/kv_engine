@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -19,29 +19,33 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
-#include <logger/logger.h>
+#include <mcbp/protocol/request.h>
 #include <memcached/engine.h>
 
-void collections_get_manifest_executor(Cookie& cookie) {
+void collections_get_collection_id_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    auto rv = connection.getBucketEngine()->collections.get_manifest(
-            connection.getBucketEngine());
+    auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+    auto key = req.getKey();
+    cb::const_char_buffer path{reinterpret_cast<const char*>(key.data()),
+                               key.size()};
+    auto rv = connection.getBucketEngine()->collections.get_collection_id(
+            connection.getBucketEngine(), path);
 
-    if (rv.first == cb::engine_errc::success) {
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {},
-                            {},
-                            {rv.second.data(), rv.second.size()},
-                            cb::mcbp::Datatype::JSON,
-                            0);
-    } else if (rv.first == cb::engine_errc::disconnect) {
-        LOG_WARNING(
-                "{}: collections_get_manifest_executor - get_manifest returned "
-                "ENGINE_DISCONNECT - closing connection {}",
-                connection.getId(),
-                connection.getDescription());
+    auto remapErr = connection.remapErrorCode(rv.result);
+
+    if (remapErr == cb::engine_errc::disconnect) {
         connection.setState(StateMachine::State::closing);
+        return;
+    }
+
+    if (remapErr == cb::engine_errc::success) {
+        cookie.sendResponse(cb::mcbp::Status::Success,
+                            {rv.extras.bytes, sizeof(rv.extras.bytes)},
+                            {},
+                            {},
+                            cb::mcbp::Datatype::Raw,
+                            0);
     } else {
-        cookie.sendResponse(cb::mcbp::to_status(rv.first));
+        cookie.sendResponse(remapErr);
     }
 }

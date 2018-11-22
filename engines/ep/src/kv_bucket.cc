@@ -2506,6 +2506,19 @@ cb::EngineErrorStringPair KVBucket::getCollections() const {
     return collectionsManager->getManifest();
 }
 
+cb::EngineErrorGetCollectionIDResult KVBucket::getCollectionID(
+        cb::const_char_buffer path) const {
+    try {
+        return collectionsManager->getCollectionID(path);
+    } catch (const cb::engine_error& e) {
+        if (cb::engine_errc(e.code().value()) ==
+            cb::engine_errc::unknown_collection) {
+            // @todo MB-32039, need to return extra info for this errorC
+        }
+        return {cb::engine_errc(e.code().value()), 0, 0};
+    }
+}
+
 const Collections::Manager& KVBucket::getCollectionsManager() const {
     return *collectionsManager.get();
 }
