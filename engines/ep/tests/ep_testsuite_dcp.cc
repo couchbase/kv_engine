@@ -999,8 +999,13 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
                 break;
             default:
                 // Aborting ...
-                std::string err_string("Unexpected DCP operation: " +
-                                       to_string(producers.last_op));
+                std::string err_string(
+                        "Unexpected DCP operation: " +
+                        to_string(producers.last_op) + " last_byseqno: " +
+                        std::to_string(producers.last_byseqno.load()) +
+                        " last_key: " + producers.last_key + " last_value: " +
+                        producers.last_value + " last_flags: " +
+                        std::to_string(producers.last_flags));
                 check(false, err_string.c_str());
             }
             if (producers.last_byseqno >= end) {
