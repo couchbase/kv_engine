@@ -138,7 +138,7 @@ public:
         MutationPayload::expiration = htonl(expiration);
     }
 
-    cb::const_byte_buffer getBuffer() {
+    cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
@@ -167,6 +167,10 @@ public:
     }
     void setExpiration(uint32_t expiration) {
         ArithmeticPayload::expiration = htonl(expiration);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 private:

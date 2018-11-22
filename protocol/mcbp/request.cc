@@ -303,9 +303,8 @@ nlohmann::json Request::toJSON() const {
     auto m = Magic(magic);
     ret["magic"] = ::to_string(m);
 
-    if (m == Magic::ClientRequest) {
+    if (is_client_magic(m)) {
         ret["opcode"] = ::to_string(getClientOpcode());
-
     } else {
         ret["opcode"] = ::to_string(getServerOpcode());
     }
@@ -323,7 +322,7 @@ nlohmann::json Request::toJSON() const {
 
 bool Request::isValid() const {
     auto m = Magic(magic);
-    if (m != Magic::ClientRequest && m != Magic::ServerRequest) {
+    if (!is_legal(m) || !is_request(m)) {
         return false;
     }
 

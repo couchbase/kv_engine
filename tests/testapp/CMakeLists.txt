@@ -36,6 +36,7 @@ set(memcached_testapp_SOURCES
     testapp_client_test.h
     testapp_cluster_config.cc
     testapp_dcp.cc
+    testapp_durability.cc
     testapp_environment.cc
     testapp_environment.h
     testapp_errmap.cc
