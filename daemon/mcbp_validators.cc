@@ -213,7 +213,8 @@ static Status dcp_open_validator(Cookie& cookie) {
 
     const auto mask = DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER |
                       DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_NO_VALUE |
-                      DCP_OPEN_INCLUDE_DELETE_TIMES;
+                      DCP_OPEN_INCLUDE_DELETE_TIMES |
+                      DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE;
 
     auto ext = cookie.getHeader().getExtdata();
     const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
@@ -237,6 +238,21 @@ static Status dcp_open_validator(Cookie& cookie) {
         cookie.setErrorContext("Request contains invalid flags combination");
         return Status::Einval;
     }
+
+    if ((flags & DCP_OPEN_NO_VALUE) &&
+        (flags & DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE)) {
+        LOG_INFO(
+                "Invalid flags combination ({:x}) specified for a DCP "
+                "consumer {} - cannot specify NO_VALUE with "
+                "NO_VALUE_WITH_UNDERLYING_DATATYPE",
+                flags,
+                get_peer_description(cookie));
+        cookie.setErrorContext(
+                "Request contains invalid flags combination (NO_VALUE && "
+                "NO_VALUE_WITH_UNDERLYING_DATATYPE)");
+        return Status::Einval;
+    }
+
     return verify_common_dcp_restrictions(cookie);
 }
 

@@ -308,7 +308,11 @@ void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
         }
     }
 
-    if (includeXattrs == IncludeXattrs::No && includeVal == IncludeValue::No) {
+    const auto originalDatatype = getDataType();
+
+    if (includeXattrs == IncludeXattrs::No &&
+        ((includeVal == IncludeValue::No) ||
+         (includeVal == IncludeValue::NoWithUnderlyingDatatype))) {
         // Don't want the xattributes or value, so just send the key
         setData(nullptr, 0);
         setDataType(PROTOCOL_BINARY_RAW_BYTES);
@@ -341,6 +345,13 @@ void Item::pruneValueAndOrXattrs(IncludeValue includeVal,
                 setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
             }
         }
+    }
+
+    // MB-31967: Restore the complete datatype if
+    // IncludeValue::NoWithUnderlyingDatatype was specified (less disruptive
+    // to above logic to do this once at the end).
+    if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
+        setDataType(originalDatatype);
     }
 }
 

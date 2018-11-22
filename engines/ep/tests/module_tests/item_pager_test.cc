@@ -1090,6 +1090,33 @@ TEST_P(STPersistentExpiryPagerTest, MB_25991_ExpiryNonResident) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, result.getStatus());
 }
 
+// Test that if the eviction policy changes we re-initialise the item pager
+// phase to the correct value.
+TEST_P(STItemPagerTest, phaseWhenPolicyChange) {
+    ASSERT_EQ("hifi_mfu", engine->getConfiguration().getHtEvictionPolicy());
+    ItemPager it(*engine, engine->getEpStats());
+    if (std::get<0>(GetParam()) == "persistent") {
+        ASSERT_EQ(REPLICA_ONLY, it.getPhase());
+    } else {
+        ASSERT_EQ(ACTIVE_AND_PENDING_ONLY, it.getPhase());
+    }
+    // Change from hifi_mfu policy to 2-bit_lru
+    engine->getConfiguration().setHtEvictionPolicy("2-bit_lru");
+    it.run();
+    // The item pager run method should have re-initialised the phase
+    EXPECT_EQ(PAGING_UNREFERENCED, it.getPhase());
+
+    // change from 2-bit_lru policy to hifi_mfu
+    engine->getConfiguration().setHtEvictionPolicy("hifi_mfu");
+    it.run();
+    // The item pager run method should have re-initialised the phase
+    if (std::get<0>(GetParam()) == "persistent") {
+        EXPECT_EQ(REPLICA_ONLY, it.getPhase());
+    } else {
+        EXPECT_EQ(ACTIVE_AND_PENDING_ONLY, it.getPhase());
+    }
+}
+
 // TODO: Ideally all of these tests should run with or without jemalloc,
 // however we currently rely on jemalloc for accurate memory tracking; and
 // hence it is required currently.
