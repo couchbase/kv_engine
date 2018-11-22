@@ -75,16 +75,14 @@ TEST_P(NoAutoselectDefaultBucketTest, NoAutoselect) {
     conn = getConnection();
 
     BinprotGetCommand cmd;
-    cmd.setKey(name);
-    conn.sendCommand(cmd);
+    cmd.setKey("GetKey");
+    auto rsp = conn.execute(cmd);
 
-    BinprotResponse rsp;
-    conn.recvResponse(rsp);
-
-    EXPECT_FALSE(rsp.isSuccess());
+    EXPECT_FALSE(rsp.isSuccess()) << rsp.getDataString();
     // You would have expected NO BUCKET, but we don't have access
     // to this bucket ;)
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus())
+            << rsp.getDataString();
 
     conn = getAdminConnection();
     conn.deleteBucket("default");

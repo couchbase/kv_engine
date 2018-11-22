@@ -403,6 +403,9 @@ enum class ServerOpcode {
     ActiveExternalUsers = 0x03,
 };
 
+bool is_valid_opcode(ClientOpcode opcode);
+bool is_valid_opcode(ServerOpcode opcode);
+
 } // namespace mcbp
 } // namespace cb
 

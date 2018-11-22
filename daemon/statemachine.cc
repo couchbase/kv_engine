@@ -27,9 +27,11 @@
 #include "mcbp.h"
 #include "mcbp_executors.h"
 #include "sasl_tasks.h"
+
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <platform/strerror.h>
+#include <platform/string_hex.h>
 #include <gsl/gsl>
 
 void StateMachine::setCurrentState(State task) {
@@ -75,6 +77,8 @@ const char* StateMachine::getStateName(State state) const {
         return "immediate_close";
     case StateMachine::State::destroyed:
         return "destroyed";
+    case StateMachine::State::validate:
+        return "validate";
     case StateMachine::State::execute:
         return "execute";
     case StateMachine::State::send_data:
@@ -100,6 +104,7 @@ bool StateMachine::isIdleState() const {
     case State::closing:
     case State::immediate_close:
     case State::destroyed:
+    case State::validate:
     case State::execute:
         return false;
     }
@@ -126,6 +131,8 @@ bool StateMachine::execute() {
         return conn_immediate_close();
     case StateMachine::State::destroyed:
         return conn_destroyed();
+    case StateMachine::State::validate:
+        return conn_validate();
     case StateMachine::State::execute:
         return conn_execute();
     case StateMachine::State::send_data:
@@ -347,6 +354,59 @@ bool StateMachine::conn_new_cmd() {
     return true;
 }
 
+bool StateMachine::conn_validate() {
+    if (is_bucket_dying(connection)) {
+        return true;
+    }
+
+    auto& cookie = connection.getCookieObject();
+    const auto& header = cookie.getHeader();
+    // We validated the basics of the header in try_read_mcbp_command
+    // (we needed that in order to know if we could use the length field...
+
+    if (header.isRequest()) {
+        const auto& request = header.getRequest();
+        if (cb::mcbp::is_client_magic(request.getMagic())) {
+            auto opcode = request.getClientOpcode();
+            if (!cb::mcbp::is_valid_opcode(opcode)) {
+                // We don't know about this command so we can stop
+                // processing it. We know that the header adds
+                cookie.sendResponse(cb::mcbp::Status::UnknownCommand);
+                return true;
+            }
+
+            auto& bucket = cookie.getConnection().getBucket();
+            auto result = bucket.validator.validate(opcode, cookie);
+            if (result != cb::mcbp::Status::Success) {
+                LOG_WARNING(
+                        R"({}: Invalid format specified for "{}" - Status: "{}" - Closing connection. Packet:[{}] Reason:"{}")",
+                        connection.getId(),
+                        to_string(opcode),
+                        to_string(result),
+                        request.toJSON().dump(),
+                        cookie.getErrorContext());
+                audit_invalid_packet(cookie);
+                cookie.sendResponse(result);
+                // sendResponse sets the write and go to continue
+                // execute the next command. Instead we want to
+                // close the connection. Override the write and go setting
+                connection.setWriteAndGo(StateMachine::State::closing);
+                return true;
+            }
+        } else {
+            // We should not be receiving a server command.
+            // Audit and log
+            audit_invalid_packet(cookie);
+            LOG_WARNING("{}: Received a server command. Closing connection");
+            connection.setState(StateMachine::State::closing);
+            return true;
+        }
+    } // We don't currently have any validators for response packets
+
+    connection.setState(StateMachine::State::execute);
+    return true;
+}
+
 bool StateMachine::conn_execute() {
     if (is_bucket_dying(connection)) {
         return true;
@@ -418,7 +478,7 @@ bool StateMachine::conn_read_packet_body() {
                              cb::const_byte_buffer{input.data(),
                                                    sizeof(cb::mcbp::Request) +
                                                            req->getBodylen()});
-            connection.setState(StateMachine::State::execute);
+            connection.setState(StateMachine::State::validate);
         }
 
         return true;

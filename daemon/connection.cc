@@ -1361,7 +1361,8 @@ void Connection::runEventLoop(short which) {
         runStateMachinery();
     } catch (const std::exception& e) {
         bool logged = false;
-        if (getState() == StateMachine::State::execute) {
+        if (getState() == StateMachine::State::execute ||
+            getState() == StateMachine::State::validate) {
             try {
                 // Converting the cookie to json -> string could probably
                 // cause too much memory allcation. We don't want that to

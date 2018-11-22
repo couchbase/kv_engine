@@ -812,41 +812,13 @@ void execute_client_request_packet(Cookie& cookie,
 
         if (c->remapErrorCode(ENGINE_EACCESS) == ENGINE_DISCONNECT) {
             c->setState(StateMachine::State::closing);
-            return;
         } else {
             cookie.sendResponse(cb::mcbp::Status::Eaccess);
         }
-
         return;
-    case cb::rbac::PrivilegeAccess::Ok: {
-        // The framing of the packet is valid...
-        // Verify that the actual command is legal
-        auto& bucket = cookie.getConnection().getBucket();
-        auto result = bucket.validator.validate(opcode, cookie);
-        if (result != cb::mcbp::Status::Success) {
-            std::string command;
-            try {
-                command = to_string(opcode);
-            } catch (const std::exception&) {
-                command = "unknown 0x" + cb::to_hex(request.opcode);
-            }
-
-            LOG_WARNING(
-                    R"({}: Invalid format specified for "{}" - Status: "{}" - Closing connection. Raw Extras:[{}] Reason:"{}")",
-                    c->getId(),
-                    command,
-                    to_string(result),
-                    cb::to_hex(request.getExtdata()),
-                    cookie.getErrorContext());
-            audit_invalid_packet(cookie);
-            cookie.sendResponse(result);
-            c->setWriteAndGo(StateMachine::State::closing);
-            return;
-        }
-
+    case cb::rbac::PrivilegeAccess::Ok:
         handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)](
                 cookie);
-    }
         return;
     case cb::rbac::PrivilegeAccess::Stale:
         if (c->remapErrorCode(ENGINE_AUTH_STALE) == ENGINE_DISCONNECT) {
@@ -1055,7 +1027,7 @@ void try_read_mcbp_command(Cookie& cookie) {
                          cb::const_byte_buffer{input.data(),
                                                sizeof(cb::mcbp::Request) +
                                                        header.getBodylen()});
-        c.setState(StateMachine::State::execute);
+        c.setState(StateMachine::State::validate);
     } else {
         // we need to allocate more memory!!
         try {

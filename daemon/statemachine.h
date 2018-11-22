@@ -84,6 +84,18 @@ public:
         read_packet_body,
 
         /**
+         * Validate the packet
+         *
+         * Possible next state
+         *   * closing - If the magic is incorrect or we can't send an error
+         *               message (validate failed on response for instance)
+         (               of if the bucket is being deleted...
+         *   * send_data - If we want to send an error message
+         *   * execute - start executing the packet
+         */
+        validate,
+
+        /**
          * Execute the current command
          *
          * possible next state:
@@ -209,6 +221,7 @@ protected:
     bool conn_pending_close();
     bool conn_immediate_close();
     bool conn_destroyed();
+    bool conn_validate();
     bool conn_execute();
     bool conn_send_data();
     bool conn_ship_log();
