@@ -44,6 +44,9 @@ extern ScopeID dcp_last_scope_id;
 extern mcbp::systemevent::id dcp_last_system_event;
 extern std::vector<uint8_t> dcp_last_system_event_data;
 extern mcbp::systemevent::version dcp_last_system_event_version;
+extern uint64_t dcp_last_snap_start_seqno;
+extern uint64_t dcp_last_snap_end_seqno;
+extern Couchbase::RelaxedAtomic<uint64_t> dcp_last_byseqno;
 
 TEST_F(CollectionsDcpTest, test_dcp_consumer) {
     store->setVBucketState(vbid, vbucket_state_replica, false);
@@ -778,6 +781,148 @@ TEST_F(CollectionsDcpTest, tombstone_replication) {
     // Expect the same data back from vb1 as when we streamed vb0
     testDcpCreateDelete(
             {}, {CollectionEntry::fruit}, 0, false, {}, {ScopeEntry::shop1});
+}
+
+// Test that backfilled streams, which drop logically deleted items returns
+// a snapshot that is consistent with the dropped collection.
+// We need to be sure that in the case we are dropping items the client isn't
+// exposed to a snapshot that doesn't include the drop event
+void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
+    uint64_t uuid = 0;
+    uint64_t highSeqno = 0;
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+
+        // Add two collections and items to default, fruit and dairy
+        // We will end by dropping fruit
+        CollectionsManifest cm;
+        cm.add(CollectionEntry::fruit);
+        cm.add(CollectionEntry::dairy);
+        vb->updateFromManifest({cm});
+        store_item(vbid, StoredDocKey{"d_k1", CollectionEntry::defaultC}, "v");
+        store_item(vbid, StoredDocKey{"d_k2", CollectionEntry::defaultC}, "v");
+        flush_vbucket_to_disk(Vbid(0), 4);
+
+        store_item(vbid, StoredDocKey{"k1", CollectionEntry::fruit}, "v");
+        store_item(vbid, StoredDocKey{"dairy", CollectionEntry::dairy}, "v");
+        store_item(vbid, StoredDocKey{"k2", CollectionEntry::fruit}, "v");
+
+        vb->updateFromManifest({cm.remove(CollectionEntry::fruit)});
+        flush_vbucket_to_disk(Vbid(0), 4);
+
+        uuid = vb->failovers->getLatestUUID();
+        highSeqno = vb->getHighSeqno();
+    }
+
+    // Now the DCP client, we will step the creation events and one of the
+    // default collection items, then disconnect and force backfill
+
+    notifyAndStepToCheckpoint();
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(dcp_last_collection_id, CollectionEntry::fruit.getId());
+    EXPECT_EQ(dcp_last_system_event, mcbp::systemevent::id::CreateCollection);
+
+    // Create collection created a new snapshot
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(dcp_last_collection_id, CollectionEntry::dairy.getId());
+    EXPECT_EQ(dcp_last_system_event, mcbp::systemevent::id::CreateCollection);
+
+    // Create collection created a new snapshot
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    // Record the snapshot we're processing
+    auto ss = dcp_last_snap_start_seqno;
+    auto se = dcp_last_snap_end_seqno;
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(dcp_last_collection_id, CollectionID::Default);
+    auto startSeq = dcp_last_byseqno; // Record the startSeq for the new stream
+
+    // Simulate a disconnect, based on test input
+    if (forceWarmup) {
+        // We want to force backfill, so wipe out everything
+        resetEngineAndWarmup();
+        producer = SingleThreadedKVBucketTest::createDcpProducer(
+                cookieP, IncludeDeleteTime::No);
+        producers->consumer = nullptr;
+    } else {
+        // Just force stream disconnect
+        producer.reset();
+    }
+
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::No);
+    producers->consumer = nullptr;
+
+    uint64_t rollbackSeqno = 0;
+    ASSERT_EQ(ENGINE_SUCCESS,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      startSeq,
+                                      ~0ull, // end_seqno
+                                      uuid,
+                                      ss,
+                                      se,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{nullptr, 0}}));
+
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              !forceWarmup);
+
+    // The next validation is split to show the different sequences we expect
+    if (forceWarmup) {
+        // Critical: The snapshot end must equal the collection drop we queued
+        EXPECT_EQ(highSeqno, dcp_last_snap_end_seqno);
+
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        EXPECT_EQ(dcp_last_key, "d_k2");
+        EXPECT_EQ(dcp_last_collection_id, CollectionID::Default);
+
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        EXPECT_EQ(dcp_last_key, "dairy");
+        EXPECT_EQ(dcp_last_collection_id, CollectionEntry::dairy.getId());
+
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+        EXPECT_EQ(dcp_last_collection_id, CollectionEntry::fruit.getId());
+        EXPECT_EQ(dcp_last_system_event,
+                  mcbp::systemevent::id::DeleteCollection);
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    } else {
+        // We expect to see everything upto the drop of fruit
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        EXPECT_EQ(dcp_last_key, "d_k2");
+        EXPECT_EQ(dcp_last_collection_id, CollectionID::Default);
+
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        EXPECT_EQ(dcp_last_key, "k1");
+        EXPECT_EQ(dcp_last_collection_id, CollectionEntry::fruit.getId());
+
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        EXPECT_EQ(dcp_last_key, "dairy");
+        EXPECT_EQ(dcp_last_collection_id, CollectionEntry::dairy.getId());
+
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+        EXPECT_EQ(dcp_last_key, "k2");
+        EXPECT_EQ(dcp_last_collection_id, CollectionEntry::fruit.getId());
+
+        stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+        EXPECT_EQ(dcp_last_collection_id, CollectionEntry::fruit.getId());
+        EXPECT_EQ(dcp_last_system_event,
+                  mcbp::systemevent::id::DeleteCollection);
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, producer->step(producers.get()));
+    }
+}
+
+TEST_F(CollectionsDcpTest, tombstone_snapshots_disconnect_backfill) {
+    tombstone_snapshots_test(true);
+}
+
+TEST_F(CollectionsDcpTest, tombstone_snapshots_disconnect_memory) {
+    tombstone_snapshots_test(false);
 }
 
 class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {

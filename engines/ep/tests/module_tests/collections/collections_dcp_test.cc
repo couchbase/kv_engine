@@ -129,6 +129,12 @@ void CollectionsDcpTest::notifyAndStepToCheckpoint(
             *producer, *producers, expectedOp, fromMemory);
 }
 
+void CollectionsDcpTest::stepAndExpect(cb::mcbp::ClientOpcode opcode,
+                                       cb::engine_errc err) {
+    EXPECT_EQ(ENGINE_ERROR_CODE(err),
+              producer->stepAndExpect(producers.get(), opcode));
+}
+
 void CollectionsDcpTest::testDcpCreateDelete(
         const std::vector<CollectionEntry::Entry>& expectedCreates,
         const std::vector<CollectionEntry::Entry>& expectedDeletes,

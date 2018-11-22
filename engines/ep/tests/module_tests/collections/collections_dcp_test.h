@@ -70,6 +70,9 @@ public:
                     cb::mcbp::ClientOpcode::DcpSnapshotMarker,
             bool fromMemory = true);
 
+    void stepAndExpect(cb::mcbp::ClientOpcode opcode,
+                       cb::engine_errc err = cb::engine_errc::success);
+
     /// the vectors are ordered, so front() is the first item we expect to see
     void testDcpCreateDelete(
             const std::vector<CollectionEntry::Entry>& expectedCreates,
@@ -80,6 +83,8 @@ public:
             const std::vector<ScopeEntry::Entry>& expectedScopeDrops = {});
 
     void resetEngineAndWarmup(std::string new_config = "");
+
+    void tombstone_snapshots_test(bool forceWarmup);
 
     static ENGINE_ERROR_CODE dcpAddFailoverLog(
             vbucket_failover_t* entry,
