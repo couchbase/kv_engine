@@ -50,7 +50,7 @@ built via the Couchbase
     * [SASL](docs/sasl.md)
     * [Duplex mode](docs/Duplex.md)
     * [External Authentication Provider](docs/ExternalAuthProvider.md)
-    * [DCP](docs/dcp/protocol.md)
+    * [DCP](docs/dcp/documentation/protocol.md)
 
 ### Policies / Guidelines
 
@@ -59,7 +59,7 @@ built via the Couchbase
 
 ## Tools
 
-* [Analyze jemalloc memory statistics](scripts/jemalloc/jemalloc_analyse.md)
+* [Analyze jemalloc memory statistics](scripts/jemalloc/README.md)
 
 ## Related Projects
 
