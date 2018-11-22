@@ -520,11 +520,11 @@ int main(int argc, char** argv) {
             }
         } else {
             for (; optind < argc; ++optind) {
-                const auto opcode = to_opcode(argv[optind]);
-                if (opcode != cb::mcbp::ClientOpcode::Invalid) {
+                try {
+                    const auto opcode = to_opcode(argv[optind]);
                     request_cmd_timings(
                             connection, bucket, opcode, verbose, false, json);
-                } else {
+                } catch (const std::invalid_argument&) {
                     // Not a command timing, try as statistic timing.
                     request_stat_timings(
                             connection, argv[optind], verbose, json);
