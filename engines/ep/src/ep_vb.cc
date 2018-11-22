@@ -550,7 +550,7 @@ std::tuple<StoredValue*, VBNotifyCtx> EPVBucket::softDeleteStoredValue(
         v.setBySeqno(bySeqno);
     }
 
-    return std::make_tuple(&v, queueDirty(v, queueItmCtx, deleteSource));
+    return std::make_tuple(&v, queueDirty(v, queueItmCtx));
 }
 
 void EPVBucket::bgFetch(const DocKey& key,

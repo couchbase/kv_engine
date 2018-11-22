@@ -535,7 +535,7 @@ std::tuple<StoredValue*, VBNotifyCtx> EphemeralVBucket::softDeleteStoredValue(
             newSv->setBySeqno(bySeqno);
         }
 
-        notifyCtx = queueDirty(*newSv, queueItmCtx, deleteSource);
+        notifyCtx = queueDirty(*newSv, queueItmCtx);
 
         /* Update the high seqno in the sequential storage */
         auto& osv = *(newSv->toOrderedStoredValue());

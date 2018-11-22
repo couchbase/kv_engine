@@ -229,8 +229,7 @@ std::unique_ptr<Item> StoredValue::toItem(bool lck, Vbid vbucket) const {
     return itm;
 }
 
-std::unique_ptr<Item> StoredValue::toItemKeyOnly(
-        Vbid vbucket, DeleteSource deleteSource) const {
+std::unique_ptr<Item> StoredValue::toItemKeyOnly(Vbid vbucket) const {
     auto itm =
             std::make_unique<Item>(getKey(),
                                    getFlags(),
@@ -246,7 +245,7 @@ std::unique_ptr<Item> StoredValue::toItemKeyOnly(
     itm->setFreqCounterValue(getFreqCounterValue());
 
     if (isDeleted()) {
-        itm->setDeleted(deleteSource);
+        itm->setDeleted(getDeletionSource());
     }
 
     return itm;

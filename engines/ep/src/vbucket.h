@@ -1491,15 +1491,11 @@ protected:
      * @param queueItmCtx holds info needed to queue an item in chkpt or vb
      *                    backfill queue, whether to track cas, generate seqno,
      *                    generate new cas
-     * @param deleteSource If queuing a delete, sets the source of the delete,
-     *                     which defaults to Explicit.
      *
      * @return Notification context containing info needed to notify the
      *         clients (like connections, flusher)
      */
-    VBNotifyCtx queueDirty(StoredValue& v,
-                           const VBQueueItemCtx& queueItmCtx,
-                           DeleteSource deleteSource = DeleteSource::Explicit);
+    VBNotifyCtx queueDirty(StoredValue& v, const VBQueueItemCtx& queueItmCtx);
 
     /**
      * Queue an item for persistence and replication
@@ -1516,8 +1512,6 @@ protected:
      * @param preLinkDocumentContext context object which allows running the
      *        document pre link callback after the cas is assinged (but
      *        but document not available for anyone)
-     * @param deleteSource If queuing a delete, sets the source of the delete,
-     *                     which defaults to Explicit.
      *
      * @return Notification context containing info needed to notify the
      *         clients (like connections, flusher)
@@ -1527,8 +1521,7 @@ protected:
             GenerateBySeqno generateBySeqno = GenerateBySeqno::Yes,
             GenerateCas generateCas = GenerateCas::Yes,
             bool isBackfillItem = false,
-            PreLinkDocumentContext* preLinkDocumentContext = nullptr,
-            DeleteSource deleteSource = DeleteSource::Explicit);
+            PreLinkDocumentContext* preLinkDocumentContext = nullptr);
 
     /**
      * Adds a temporary StoredValue in in-memory data structures like HT.

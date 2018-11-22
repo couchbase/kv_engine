@@ -705,12 +705,12 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
-VBNotifyCtx VBucket::queueDirty(StoredValue& v,
-                                const GenerateBySeqno generateBySeqno,
-                                const GenerateCas generateCas,
-                                const bool isBackfillItem,
-                                PreLinkDocumentContext* preLinkDocumentContext,
-                                DeleteSource deleteSource) {
+VBNotifyCtx VBucket::queueDirty(
+        StoredValue& v,
+        const GenerateBySeqno generateBySeqno,
+        const GenerateCas generateCas,
+        const bool isBackfillItem,
+        PreLinkDocumentContext* preLinkDocumentContext) {
     VBNotifyCtx notifyCtx;
 
     queued_item qi(v.toItem(false, getId()));
@@ -2532,8 +2532,7 @@ VBucket::processExpiredItem(
                                           GenerateBySeqno::Yes,
                                           GenerateCas::Yes,
                                           /*isBackfillItem*/ false,
-                                          /*preLinkDocumentContext*/ nullptr,
-                                          DeleteSource::TTL));
+                                          /*preLinkDocumentContext*/ nullptr));
     }
 
     /* If the datatype is XATTR, mark the item as deleted
@@ -2648,8 +2647,7 @@ int64_t VBucket::queueItem(Item* item, OptionalSeqno seqno) {
 }
 
 VBNotifyCtx VBucket::queueDirty(StoredValue& v,
-                                const VBQueueItemCtx& queueItmCtx,
-                                DeleteSource deleteSource) {
+                                const VBQueueItemCtx& queueItmCtx) {
     if (queueItmCtx.trackCasDrift == TrackCasDrift::Yes) {
         setMaxCasAndTrackDrift(v.getCas());
     }
@@ -2657,8 +2655,7 @@ VBNotifyCtx VBucket::queueDirty(StoredValue& v,
                       queueItmCtx.genBySeqno,
                       queueItmCtx.genCas,
                       queueItmCtx.isBackfillItem,
-                      queueItmCtx.preLinkDocumentContext,
-                      deleteSource);
+                      queueItmCtx.preLinkDocumentContext);
 }
 
 void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {

@@ -615,12 +615,8 @@ public:
      * The item generated will not contain value
      *
      * @param vbucket the vbucket containing this item.
-     * @param deleteSource If the object is deleted, the source of deletion can
-     *                     be set. Defaults to Explicit.
      */
-    std::unique_ptr<Item> toItemKeyOnly(
-            Vbid vbucket,
-            DeleteSource deleteSource = DeleteSource::Explicit) const;
+    std::unique_ptr<Item> toItemKeyOnly(Vbid vbucket) const;
 
     /**
      * Get an item_info from the StoredValue
