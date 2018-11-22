@@ -4674,10 +4674,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(
         GenerateCas genCas,
         cb::const_byte_buffer emd) {
     std::unique_ptr<ExtendedMetaData> extendedMetaData;
-    if (emd.data()) {
+    if (!emd.empty()) {
         extendedMetaData =
                 std::make_unique<ExtendedMetaData>(emd.data(), emd.size());
         if (extendedMetaData->getStatus() == ENGINE_EINVAL) {
+            setErrorContext(cookie, "Invalid extended metadata");
             return ENGINE_EINVAL;
         }
     }
@@ -4855,10 +4856,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
         GenerateCas genCas,
         cb::const_byte_buffer emd) {
     std::unique_ptr<ExtendedMetaData> extendedMetaData;
-    if (emd.data()) {
+    if (!emd.empty()) {
         extendedMetaData =
                 std::make_unique<ExtendedMetaData>(emd.data(), emd.size());
         if (extendedMetaData->getStatus() == ENGINE_EINVAL) {
+            setErrorContext(cookie, "Invalid extended metadata");
             return ENGINE_EINVAL;
         }
     }
