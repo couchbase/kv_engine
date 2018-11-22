@@ -85,10 +85,11 @@ static int get_verbosity(MemcachedConnection& connection) {
  */
 static int set_verbosity(MemcachedConnection& connection,
                          const std::string& value) {
-    std::size_t pos;
-    uint32_t level = std::stoi(value, &pos);
-    if (pos != value.size()) {
-        // Try to map it...
+    uint32_t level;
+
+    try {
+        level = std::stoi(value);
+    } catch (const std::invalid_argument&) {
         if (value == "warning") {
             level = 0;
         } else if (value == "info") {
