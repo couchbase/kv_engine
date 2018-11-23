@@ -966,8 +966,7 @@ public:
 TEST_F(CollectionsFilteredDcpTest, filtering) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat/dairy via the bucket level (filters are
-    // worked out from the bucket manifest)
+    // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
@@ -1017,9 +1016,6 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // Now stream back from disk and check filtering
     resetEngineAndWarmup();
 
-    // In order to create a filter, a manifest needs to be set
-    store->setCollections({cm});
-
     createDcpObjects({{R"({"collections":["c"]})"}});
 
     // Streamed from disk
@@ -1031,8 +1027,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
 TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat/dairy via the bucket level (filters are
-    // worked out from the bucket manifest)
+    // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
     store->setCollections(
             {cm.add(CollectionEntry::meat)
@@ -1095,9 +1090,6 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
 
     // Now stream back from disk and check filtering
     resetEngineAndWarmup();
-
-    // In order to create a filter, a manifest needs to be set
-    store->setCollections({cm});
 
     createDcpObjects({{R"({"scope":"8"})"}});
 
@@ -1175,9 +1167,6 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
     // Now stream back from disk and check filtering
     resetEngineAndWarmup();
 
-    // In order to create a filter, a manifest needs to be set
-    store->setCollections({cm});
-
     createDcpObjects({{R"({"scope":"8"})"}});
 
     // Streamed from disk
@@ -1191,8 +1180,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
 TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat/dairy(shop1) via the bucket level (filters are
-    // worked out from the bucket manifest)
+    // Perform a create of meat/dairy(shop1) via the bucket level
     CollectionsManifest cm;
     store->setCollections(
             {cm.add(CollectionEntry::meat)
@@ -1263,9 +1251,6 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     // Now stream back from disk and check filtering
     resetEngineAndWarmup();
 
-    // In order to create a filter, a manifest needs to be set
-    store->setCollections({cm});
-
     createDcpObjects({{R"({"scope":"8"})"}});
 
     // Streamed from disk
@@ -1283,7 +1268,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat/dairy(shop1)/vegetable(shop1) via the bucket
-    // level (filters are worked out from the bucket manifest)
+    // level
     CollectionsManifest cm;
     store->setCollections(
             {cm.add(CollectionEntry::meat)
@@ -1382,9 +1367,6 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     // Now stream back from disk and check filtering
     resetEngineAndWarmup();
 
-    // In order to create a filter, a manifest needs to be set
-    store->setCollections({cm});
-
     createDcpObjects({{R"({"scope":"8"})"}});
 
     // Streamed from disk
@@ -1404,8 +1386,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
 TEST_F(CollectionsFilteredDcpTest, MB_24572) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat/dairy via the bucket level (filters are
-    // worked out from the bucket manifest)
+    // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
@@ -1441,8 +1422,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_24572) {
 TEST_F(CollectionsFilteredDcpTest, default_only) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat/dairy via the bucket level (filters are
-    // worked out from the bucket manifest)
+    // Perform a create of meat/dairy via the bucket level
     CollectionsManifest cm;
     store->setCollections(
             {cm.add(CollectionEntry::meat).add(CollectionEntry::dairy)});
@@ -1478,8 +1458,7 @@ TEST_F(CollectionsFilteredDcpTest, default_only) {
 TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat via the bucket level (filters are worked out
-    // from the bucket manifest)
+    // Perform a create of meat via the bucket level
     CollectionsManifest cm;
     store->setCollections({cm.add(CollectionEntry::meat)});
 
@@ -1500,8 +1479,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
     // Not dead yet...
     EXPECT_TRUE(vb0Stream->isActive());
 
-    // Perform a delete of meat via the bucket level (filters are worked out
-    // from the bucket manifest)
+    // Perform a delete of meat via the bucket level
     store->setCollections({cm.remove(CollectionEntry::meat)});
 
     notifyAndStepToCheckpoint();
@@ -1522,8 +1500,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes) {
 TEST_F(CollectionsFilteredDcpTest, stream_closes_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat via the bucket level (filters are worked out
-    // from the bucket manifest)
+    // Perform a create of meat via the bucket level
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
@@ -1606,8 +1583,7 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes_scope) {
 TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat via the bucket level (filters are worked out
-    // from the bucket manifest)
+    // Perform a create of meat via the bucket level
     CollectionsManifest cm;
     store->setCollections({cm.add(CollectionEntry::meat)});
 
@@ -1641,8 +1617,7 @@ TEST_F(CollectionsFilteredDcpTest, empty_filter_stream_closes) {
 TEST_F(CollectionsFilteredDcpTest, legacy_stream_closes) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Perform a create of meat via the bucket level (filters are worked out
-    // from the bucket manifest)
+    // Perform a create of meat via the bucket level
     CollectionsManifest cm;
     store->setCollections({cm.add(CollectionEntry::meat)});
 
