@@ -257,6 +257,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/stream.cc
             src/defragmenter.cc
             src/defragmenter_visitor.cc
+            src/durability_monitor.cc
             src/ep_bucket.cc
             src/ep_vb.cc
             src/ep_engine.cc
@@ -378,6 +379,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/dcp_reflection_test.cc
                    tests/module_tests/dcp_test.cc
                    tests/module_tests/dcp_utils.cc
+                   tests/module_tests/durability_monitor_test.cc
                    tests/module_tests/ep_unit_tests_main.cc
                    tests/module_tests/ephemeral_bucket_test.cc
                    tests/module_tests/ephemeral_vb_test.cc
