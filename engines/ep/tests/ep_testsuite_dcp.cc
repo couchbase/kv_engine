@@ -2303,23 +2303,21 @@ static enum test_result test_dcp_producer_stream_req_backfill(EngineIface* h) {
 }
 
 /*
- * Test that expired items (with values) backfill correctly
+ * Test that expired items (with values) backfill correctly with Expiry Output
+ * disabled
  */
-static enum test_result test_dcp_producer_expired_item_backfill(
+static enum test_result test_dcp_producer_expired_item_backfill_delete(
         EngineIface* h) {
-    auto result1 =
-            testDcpProducerExpiredItemBackfill(h, EnableExpiryOutput::Yes);
-    auto result2 =
-            testDcpProducerExpiredItemBackfill(h, EnableExpiryOutput::No);
-    if (result1 == SUCCESS) {
-        if (result2 == SUCCESS) {
-            return SUCCESS;
-        } else {
-            return result2;
-        }
-    } else {
-        return result1;
-    }
+    return testDcpProducerExpiredItemBackfill(h, EnableExpiryOutput::No);
+}
+
+/*
+ * Test that expired items (with values) backfill correctly with Expiry Output
+ * enabled
+ */
+static enum test_result test_dcp_producer_expired_item_backfill_expire(
+        EngineIface* h) {
+    return testDcpProducerExpiredItemBackfill(h, EnableExpiryOutput::Yes);
 }
 
 static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h) {
@@ -7015,12 +7013,20 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test MB-23863 backfill deleted value",
                  test_dcp_producer_deleted_item_backfill, test_setup, teardown,
                  NULL, prepare_ep_bucket, cleanup),
-        TestCase("test MB-26907 backfill expired value",
-                 test_dcp_producer_expired_item_backfill,
+        TestCase("test MB-26907 backfill expired value - ExpiryOutput Disabled",
+                 test_dcp_producer_expired_item_backfill_delete,
                  test_setup,
                  teardown,
                  NULL,
                  /* TODO RDB: curr_items not correct under RocksDB */
+                 prepare_skip_broken_under_rocks_full_eviction,
+                 cleanup),
+        TestCase("test MB-26907 backfill expired value - ExpiryOutput Enabled",
+                 test_dcp_producer_expired_item_backfill_expire,
+                 test_setup,
+                 teardown,
+                 NULL,
+                /* TODO RDB: curr_items not correct under RocksDB */
                  prepare_skip_broken_under_rocks_full_eviction,
                  cleanup),
         TestCase("test noop mandatory",test_dcp_noop_mandatory,
