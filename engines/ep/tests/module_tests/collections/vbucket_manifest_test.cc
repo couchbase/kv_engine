@@ -104,6 +104,9 @@ public:
                 return false;
             }
         }
+        if (rhs.manifestUid != manifestUid) {
+            return false;
+        }
 
         return true;
     }

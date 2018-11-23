@@ -250,6 +250,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
                             eventData.data());
             last_collection_id = ev->cid.to_host();
             last_scope_id = ev->sid.to_host();
+            last_collection_manifest_uid = ev->manifestUid.to_host();
         } else {
             const auto expectedSize =
                     Collections::CreateWithMaxTtlEventDcpData::size;
@@ -259,16 +260,17 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
                     eventData.data());
             last_collection_id = ev->cid.to_host();
             last_scope_id = ev->sid.to_host();
+            last_collection_manifest_uid = ev->manifestUid.to_host();
         }
 
         last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
         break;
     }
     case mcbp::systemevent::id::DeleteCollection: {
-        last_collection_id =
-                reinterpret_cast<const Collections::DropEventDcpData*>(
-                        eventData.data())
-                        ->cid.to_host();
+        const auto* ev = reinterpret_cast<const Collections::DropEventDcpData*>(
+                eventData.data());
+        last_collection_id = ev->cid.to_host();
+        last_collection_manifest_uid = ev->manifestUid.to_host();
         // Using the ::size directly in the EXPECT is failing to link on
         // OSX build, but copying the value works.
         const auto expectedSize = Collections::DropEventDcpData::size;
@@ -281,6 +283,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
                 reinterpret_cast<const Collections::CreateScopeEventDcpData*>(
                         eventData.data());
         last_scope_id = ev->sid.to_host();
+        last_collection_manifest_uid = ev->manifestUid.to_host();
 
         const auto expectedSize = Collections::CreateScopeEventDcpData::size;
         EXPECT_EQ(expectedSize, eventData.size());
@@ -292,6 +295,7 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
                 reinterpret_cast<const Collections::DropScopeEventDcpData*>(
                         eventData.data());
         last_scope_id = ev->sid.to_host();
+        last_collection_manifest_uid = ev->manifestUid.to_host();
 
         const auto expectedSize = Collections::DropScopeEventDcpData::size;
         EXPECT_EQ(expectedSize, eventData.size());

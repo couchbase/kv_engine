@@ -392,6 +392,9 @@ void Manifest::addScope(::VBucket& vb,
 
     scopes.push_back(sid);
 
+    // record the uid of the manifest which added the scope
+    this->manifestUid = manifestUid;
+
     flatbuffers::FlatBufferBuilder builder;
     populateWithSerialisedData(builder, scopeName);
 
@@ -445,6 +448,9 @@ void Manifest::dropScope(::VBucket& vb,
     //    sid to the back
     scopes.remove(sid);
     scopes.push_back(sid);
+
+    // record the uid of the manifest which removed the scope
+    this->manifestUid = manifestUid;
 
     flatbuffers::FlatBufferBuilder builder;
     populateWithSerialisedData(builder, {});

@@ -151,6 +151,7 @@ public:
     mcbp::systemevent::id last_system_event;
     std::vector<uint8_t> last_system_event_data;
     mcbp::systemevent::version last_system_event_version;
+    uint64_t last_collection_manifest_uid;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

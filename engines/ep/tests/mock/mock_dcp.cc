@@ -384,4 +384,5 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_collection_id = 0;
     last_system_event_data.clear();
     last_system_event_version = mcbp::systemevent::version::version0;
+    last_collection_manifest_uid = 0;
 }

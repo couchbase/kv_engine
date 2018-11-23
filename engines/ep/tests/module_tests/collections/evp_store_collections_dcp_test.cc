@@ -222,10 +222,24 @@ TEST_F(CollectionsDcpTest, test_dcp_with_ttl) {
 TEST_F(CollectionsDcpTest, test_dcp_non_default_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
-    // Add a collection, then remove it. This adds events into the CP which
-    // we'll manually replicate with calls to step
+    // Add a scope+collection, then remove then later remove the collection.
+    // The test will step DCP and check the replica is updated.
     CollectionsManifest cm;
+    cm.setUid(88); // set non-zero for better validation
+
     cm.add(ScopeEntry::shop1);
+    vb->updateFromManifest({cm});
+    notifyAndStepToCheckpoint();
+    EXPECT_EQ(ENGINE_SUCCESS,
+              producer->stepAndExpect(producers.get(),
+                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    EXPECT_EQ(producers->last_system_event, mcbp::systemevent::id::CreateScope);
+    EXPECT_EQ(producers->last_scope_id, ScopeEntry::shop1.uid);
+    EXPECT_EQ(producers->last_key, ScopeEntry::shop1.name);
+
+    // MB-32124: check the manifest uid was transferred
+    EXPECT_EQ(88, producers->last_collection_manifest_uid);
+
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
     vb->updateFromManifest({cm});
 
@@ -237,17 +251,6 @@ TEST_F(CollectionsDcpTest, test_dcp_non_default_scope) {
     EXPECT_FALSE(replica->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
-    EXPECT_EQ(ENGINE_SUCCESS,
-              producer->stepAndExpect(producers.get(),
-                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(producers->last_system_event, mcbp::systemevent::id::CreateScope);
-    EXPECT_EQ(producers->last_scope_id, ScopeEntry::shop1.uid);
-    EXPECT_EQ(producers->last_key, ScopeEntry::shop1.name);
-
-    EXPECT_EQ(
-            ENGINE_SUCCESS,
-            producer->stepAndExpect(producers.get(),
-                                    cb::mcbp::ClientOpcode::DcpSnapshotMarker));
 
     EXPECT_EQ(ENGINE_SUCCESS,
               producer->stepAndExpect(producers.get(),
@@ -1541,6 +1544,9 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes_scope) {
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(mcbp::systemevent::id::CreateScope, producers->last_system_event);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
+    // Create scope and the collection are in one update, only the final change
+    // gets the manifest ID of 3, so create scope is 0
+    EXPECT_EQ(0, producers->last_collection_manifest_uid);
 
     EXPECT_EQ(
             ENGINE_SUCCESS,
@@ -1555,6 +1561,8 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes_scope) {
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
     EXPECT_EQ(CollectionEntry::meat.name, producers->last_key);
+    // Final change of the update, moves to the new UID of 3
+    EXPECT_EQ(3, producers->last_collection_manifest_uid);
 
     // Not dead yet...
     EXPECT_TRUE(vb0Stream->isActive());
@@ -1571,6 +1579,9 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes_scope) {
     EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
+    // Drop scope triggers 2 changes, the drop collection doesn't expose the
+    // new manifest yet.
+    EXPECT_EQ(3, producers->last_collection_manifest_uid);
 
     EXPECT_EQ(
             ENGINE_SUCCESS,
@@ -1583,6 +1594,8 @@ TEST_F(CollectionsFilteredDcpTest, stream_closes_scope) {
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(mcbp::systemevent::id::DropScope, producers->last_system_event);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
+    // Now we are fully at the new manifest
+    EXPECT_EQ(4, producers->last_collection_manifest_uid);
 
     // Done... collection deletion of meat has closed the stream
     EXPECT_FALSE(vb0Stream->isActive());
