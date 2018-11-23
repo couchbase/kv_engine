@@ -19,6 +19,7 @@
 
 #include <platform/checked_snprintf.h>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -63,7 +64,7 @@ uint64_t CheckpointCursor::getId() const {
 
 size_t CheckpointCursor::getRemainingItemsCount() const {
     size_t remaining = 0;
-    CheckpointQueue::iterator itr = currentPos;
+    ChkptQueueIterator itr = currentPos;
     // Start counting from the next item
     if (itr != (*currentCheckpoint)->end()) {
         ++itr;
@@ -213,17 +214,22 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
                 }
             }
 
-            addItemToCheckpoint(qi);
-
             // Reduce the size of the checkpoint by the size of the
             // item being removed.
             decrementMemConsumption((*currPos)->size());
-            // Remove the existing item for the same key from the list.
-            toWrite.erase(currPos);
 
+            // Set the pointer to null so we effectively remove the previous
+            // version of the item out of the checkpoint.  However the
+            // entry in the checkpoint remains so we do not require any
+            // special iterator manipulation.  We simply skip past any
+            // entries in the checkpoint queue that have a nullptr.
+            // toWrite[*currPos].reset();
+            (*currPos).reset();
             // Reduce the number of items because addItemToCheckpoint
             // increases the number by one.
             --numItems;
+
+            addItemToCheckpoint(qi);
         } else {
             rv = QueueDirtyStatus::SuccessNewItem;
             addItemToCheckpoint(qi);
@@ -231,16 +237,25 @@ QueueDirtyStatus Checkpoint::queueDirty(const queued_item& qi,
     }
 
     if (qi->getKey().size() > 0) {
-        CheckpointQueue::iterator last = toWrite.end();
+        ChkptQueueIterator last = end();
         // --last is okay as the list is not empty now.
         index_entry entry = {--last, qi->getBySeqno()};
         // Set the index of the key to the new item that is pushed back into
         // the list.
         if (qi->isCheckPointMetaItem()) {
-            // We add a meta item only once to a checkpoint
-            metaKeyIndex[qi->getKey()] = entry;
+            // Insert the new entry into the metaKeyIndex
+            auto result = metaKeyIndex.emplace(qi->getKey(), entry);
+            if (!result.second) {
+                // Did not manage to insert - so update the value directly
+                result.first->second = entry;
+            }
         } else {
-            keyIndex[qi->getKey()] = entry;
+            // Insert the new entry into the keyIndex
+            auto result = keyIndex.emplace(qi->getKey(), entry);
+            if (!result.second) {
+                // Did not manage to insert - so update the value directly
+                result.first->second = entry;
+            }
         }
 
         if (rv == QueueDirtyStatus::SuccessNewItem) {

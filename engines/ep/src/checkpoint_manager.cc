@@ -99,7 +99,7 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(const LockHolder& lh,
     // Update any set_vbstate items to have the same seqno as the
     // checkpoint_start.
     const auto ckpt_start_seqno = (*ckpt_start)->getBySeqno();
-    for (auto item = std::next(ckpt_start); item != openCkpt.end(); item++) {
+    for (auto item = std::next(ckpt_start); item != openCkpt.end(); ++item) {
         if ((*item)->getOperation() == queue_op::set_vbucket_state) {
             (*item)->setBySeqno(ckpt_start_seqno);
         }
@@ -274,7 +274,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno_UNLOCKED(
         } else if (startBySeqno <= en) {
             // Requested sequence number lies within this checkpoint.
             // Calculate which item to position the cursor at.
-            CheckpointQueue::iterator iitr = (*itr)->begin();
+            ChkptQueueIterator iitr = (*itr)->begin();
             while (++iitr != (*itr)->end() &&
                     (startBySeqno >=
                      static_cast<uint64_t>((*iitr)->getBySeqno()))) {
@@ -927,7 +927,7 @@ void CheckpointManager::clear(vbucket_state_t vbState) {
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(
                                                    CheckpointCursor &cursor) {
-    CheckpointQueue::iterator it = cursor.currentPos;
+    ChkptQueueIterator it = cursor.currentPos;
     ++it;
     if (it == (*(cursor.currentCheckpoint))->end() ||
         (*it)->getOperation() == queue_op::checkpoint_end) {

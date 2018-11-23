@@ -1563,12 +1563,10 @@ TYPED_TEST(CheckpointTest, checkpointTrackingMemoryOverheadTest) {
 
     // Re-measure the checkpoint overhead
     const auto updatedOverhead = this->manager->getMemoryOverhead();
-    // Three pointers - forward, backward and pointer to item
-    const auto perElementListOverhead = sizeof(uintptr_t) * 3;
     // Entry to the keyIndex
     const auto keyIndexOverhead = sizeof("key") + sizeof(index_entry);
-    EXPECT_EQ(perElementListOverhead + keyIndexOverhead,
-              updatedOverhead - initialOverhead);
+
+    EXPECT_EQ(initialOverhead + keyIndexOverhead /*+ 24*/, updatedOverhead);
 
     bool isLastMutationItem;
     // Move cursor to checkpoint start

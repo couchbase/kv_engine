@@ -382,6 +382,7 @@ if (NOT EP_BYPASS_TESTS)
                    tests/module_tests/bucket_logger_engine_test.cc
                    tests/module_tests/bucket_logger_test.cc
                    tests/module_tests/checkpoint_durability_test.cc
+                   tests/module_tests/checkpoint_iterator_test.cc
                    tests/module_tests/checkpoint_remover_test.h
                    tests/module_tests/checkpoint_remover_test.cc
                    tests/module_tests/checkpoint_test.h
