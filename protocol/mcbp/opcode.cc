@@ -150,6 +150,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::GetKeys:
     case ClientOpcode::CollectionsSetManifest:
     case ClientOpcode::CollectionsGetManifest:
+    case ClientOpcode::CollectionsGetID:
     case ClientOpcode::SetDriftCounterState:
     case ClientOpcode::GetAdjustedTime:
     case ClientOpcode::SubdocGet:
