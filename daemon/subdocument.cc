@@ -116,17 +116,15 @@ static void subdoc_print_command(Connection& c,
 static void create_single_path_context(SubdocCmdContext& context,
                                        Cookie& cookie,
                                        const SubdocCmdTraits traits,
-                                       const void* packet,
-                                       cb::const_char_buffer value,
                                        doc_flag doc_flags) {
-    const protocol_binary_request_subdocument *req =
-        reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
-
-    auto flags = static_cast<protocol_binary_subdoc_flag>(
-            req->message.extras.subdoc_flags);
-    const auto mcbp_cmd = req->message.header.request.getClientOpcode();
-    const uint16_t pathlen = ntohs(req->message.extras.pathlen);
-
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto extras = request.getExtdata();
+    cb::mcbp::request::SubdocPayloadParser parser(extras);
+    const auto pathlen = parser.getPathlen();
+    auto flags = parser.getSubdocFlags();
+    const auto valbuf = request.getValue();
+    cb::const_char_buffer value{reinterpret_cast<const char*>(valbuf.data()),
+                                valbuf.size()};
     // Path is the first thing in the value; remainder is the operation
     // value.
     auto path = value;
@@ -178,12 +176,12 @@ static void create_single_path_context(SubdocCmdContext& context,
     }
 
     if (settings.getVerbose() > 1) {
-        const uint8_t extlen = req->message.header.request.extlen;
-        const char* key = (char*)packet + sizeof(req->message.header) + extlen;
-        const uint16_t keylen = ntohs(req->message.header.request.keylen);
+        const auto keybuf = request.getKey();
+        const char* key = reinterpret_cast<const char*>(keybuf.data());
+        const auto keylen = gsl::narrow<uint16_t>(keybuf.size());
 
         subdoc_print_command(cookie.getConnection(),
-                             mcbp_cmd,
+                             request.getClientOpcode(),
                              key,
                              keylen,
                              path.buf,
@@ -196,10 +194,13 @@ static void create_single_path_context(SubdocCmdContext& context,
 static void create_multi_path_context(SubdocCmdContext& context,
                                       Cookie& cookie,
                                       const SubdocCmdTraits traits,
-                                      const void* packet,
-                                      cb::const_char_buffer value,
                                       doc_flag doc_flags) {
     // Decode each of lookup specs from the value into our command context.
+    const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+    const auto valbuf = request.getValue();
+    cb::const_char_buffer value{reinterpret_cast<const char*>(valbuf.data()),
+                                valbuf.size()};
+
     context.setMutationSemantics(doc_flags);
     size_t offset = 0;
     while (offset < value.len) {
@@ -272,17 +273,13 @@ static void create_multi_path_context(SubdocCmdContext& context,
     }
 
     if (settings.getVerbose() > 1) {
-        const protocol_binary_request_subdocument *req =
-            reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
-
-        const auto mcbp_cmd = req->message.header.request.getClientOpcode();
-        const uint8_t extlen = req->message.header.request.extlen;
-        const char* key = (char*)packet + sizeof(req->message.header) + extlen;
-        const uint16_t keylen = ntohs(req->message.header.request.keylen);
+        const auto keybuf = request.getKey();
+        const char* key = reinterpret_cast<const char*>(keybuf.data());
+        const auto keylen = gsl::narrow<uint16_t>(keybuf.size());
 
         const char path[] = "<multipath>";
         subdoc_print_command(cookie.getConnection(),
-                             mcbp_cmd,
+                             request.getClientOpcode(),
                              key,
                              keylen,
                              path,
@@ -294,21 +291,19 @@ static void create_multi_path_context(SubdocCmdContext& context,
 
 static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
                                                const SubdocCmdTraits traits,
-                                               const void* packet,
-                                               cb::const_char_buffer value,
                                                doc_flag doc_flags) {
     try {
         std::unique_ptr<SubdocCmdContext> context;
-        context.reset(new SubdocCmdContext(cookie, traits));
+        context = std::make_unique<SubdocCmdContext>(cookie, traits);
         switch (traits.path) {
         case SubdocPath::SINGLE:
             create_single_path_context(
-                    *context.get(), cookie, traits, packet, value, doc_flags);
+                    *context.get(), cookie, traits, doc_flags);
             break;
 
         case SubdocPath::MULTI:
             create_multi_path_context(
-                    *context.get(), cookie, traits, packet, value, doc_flags);
+                    *context.get(), cookie, traits, doc_flags);
             break;
         }
 
@@ -330,14 +325,10 @@ static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
  */
 static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     // 0. Parse the request and log it if debug enabled.
-    const auto packet = cookie.getPacket(Cookie::PacketContent::Full);
     const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
-
     const auto vbucket = request.getVBucket();
     const auto cas = request.getCas();
-
     const auto key = request.getKey();
-    auto value = request.getValue();
     auto extras = request.getExtdata();
 
     uint32_t expiration;
@@ -382,10 +373,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         auto* context =
                 dynamic_cast<SubdocCmdContext*>(cookie.getCommandContext());
         if (context == nullptr) {
-            cb::const_char_buffer value_buf{
-                    reinterpret_cast<const char*>(value.data()), value.size()};
-            context = subdoc_create_context(
-                    cookie, traits, packet.data(), value_buf, doc_flags);
+            context = subdoc_create_context(cookie, traits, doc_flags);
             if (context == nullptr) {
                 cookie.sendResponse(cb::mcbp::Status::Enomem);
                 return;
