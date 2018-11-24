@@ -216,7 +216,7 @@ TEST_P(SubdocMultiLookupTest, InvalidDatatype) {
 TEST_P(SubdocMultiLookupTest, InvalidKey) {
     request.setKey("");
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
-    EXPECT_EQ("Request key invalid", validate_error_context(request));
+    EXPECT_EQ("Request must include key", validate_error_context(request));
 }
 
 TEST_P(SubdocMultiLookupTest, InvalidExtras) {
@@ -464,7 +464,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDatatype) {
 TEST_P(SubdocMultiMutationTest, InvalidKey) {
     request.setKey("");
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
-    EXPECT_EQ("Request key invalid", validate_error_context(request));
+    EXPECT_EQ("Request must include key", validate_error_context(request));
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidExtras) {

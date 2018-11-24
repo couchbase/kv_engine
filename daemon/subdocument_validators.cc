@@ -32,26 +32,15 @@
 #include <memcached/protocol_binary.h>
 
 static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
-    auto& header = cookie.getHeader();
-    if (!header.isValid()) {
-        cookie.setErrorContext("Request header invalid");
-        return cb::mcbp::Status::Einval;
-    }
-
-    if (!header.isRequest()) {
-        cookie.setErrorContext("Frame is not a request");
-        return cb::mcbp::Status::Einval;
-    }
-
-    auto& request = header.getRequest();
-    if (request.getMagic() == cb::mcbp::Magic::AltClientRequest) {
-        cookie.setErrorContext("Flexible extras not supported yet");
-        return cb::mcbp::Status::NotSupported;
-    }
-
-    if (request.getDatatype() != cb::mcbp::Datatype::Raw) {
-        cookie.setErrorContext("Request datatype invalid");
-        return cb::mcbp::Status::Einval;
+    auto status =
+            McbpValidator::verify_header(cookie,
+                                         cookie.getHeader().getExtlen(),
+                                         McbpValidator::ExpectedKeyLen::NonZero,
+                                         McbpValidator::ExpectedValueLen::Any,
+                                         McbpValidator::ExpectedCas::Any,
+                                         PROTOCOL_BINARY_RAW_BYTES);
+    if (status != cb::mcbp::Status::Success) {
+        return status;
     }
 
     if (!is_document_key_valid(cookie)) {

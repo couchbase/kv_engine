@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/status.h>
 #include <array>
@@ -38,6 +39,10 @@ public:
     using ClientOpcode = cb::mcbp::ClientOpcode;
     using Status = cb::mcbp::Status;
 
+    enum class ExpectedKeyLen { Zero, NonZero, Any };
+    enum class ExpectedValueLen { Zero, NonZero, Any };
+    enum class ExpectedCas { Set, NotSet, Any };
+
     McbpValidator();
 
     /**
@@ -45,6 +50,14 @@ public:
      * Success is returned
      */
     Status validate(ClientOpcode command, Cookie& cookie);
+
+    static Status verify_header(
+            Cookie& cookie,
+            uint8_t expected_extlen,
+            ExpectedKeyLen expected_keylen,
+            ExpectedValueLen expected_valuelen,
+            ExpectedCas expected_cas = ExpectedCas::Any,
+            uint8_t expected_datatype_mask = ::mcbp::datatype::highest);
 
 protected:
     /**
