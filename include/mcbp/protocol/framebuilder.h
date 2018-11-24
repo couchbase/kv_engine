@@ -64,9 +64,12 @@ namespace mcbp {
 template <typename T>
 class FrameBuilder {
 public:
-    FrameBuilder(cb::byte_buffer backing) : buffer(backing) {
+    FrameBuilder(cb::byte_buffer backing, bool initialized = false)
+        : buffer(backing) {
         checkSize(sizeof(T));
-        std::fill(backing.begin(), backing.begin() + sizeof(T), 0);
+        if (!initialized) {
+            std::fill(backing.begin(), backing.begin() + sizeof(T), 0);
+        }
     }
 
     T* getFrame() {
@@ -212,7 +215,8 @@ protected:
  */
 class RequestBuilder : public FrameBuilder<Request> {
 public:
-    RequestBuilder(cb::byte_buffer backing) : FrameBuilder<Request>(backing) {
+    explicit RequestBuilder(cb::byte_buffer backing, bool initialized = false)
+        : FrameBuilder<Request>(backing, initialized) {
     }
     void setVbucket(Vbid vbucket) {
         getFrame()->setVBucket(vbucket);
@@ -224,7 +228,8 @@ public:
  */
 class ResponseBuilder : public FrameBuilder<Response> {
 public:
-    ResponseBuilder(cb::byte_buffer backing) : FrameBuilder<Response>(backing) {
+    explicit ResponseBuilder(cb::byte_buffer backing, bool initialized = false)
+        : FrameBuilder<Response>(backing, initialized) {
     }
     void setStatus(Status status) {
         getFrame()->setStatus(status);
