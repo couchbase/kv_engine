@@ -61,7 +61,6 @@ public:
     }
 
     void setOpcode(ClientOpcode opcode) {
-        setMagic(Magic::ClientRequest);
         Request::opcode = uint8_t(opcode);
     }
 
@@ -73,7 +72,6 @@ public:
     }
 
     void setOpcode(ServerOpcode opcode) {
-        setMagic(Magic::ServerRequest);
         Request::opcode = uint8_t(opcode);
     }
 
