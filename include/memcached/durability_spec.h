@@ -19,8 +19,10 @@
 
 #include "config.h"
 
+#include <platform/sized_buffer.h>
 #include <cstdint>
 #include <stdexcept>
+#include <string>
 
 #ifndef WIN32
 #include <arpa/inet.h>

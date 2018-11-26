@@ -20,6 +20,7 @@
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_stream.h"
 #include "dcp/consumer.h"
+#include "vbucket.h"
 
 #include <gtest/gtest.h>
 

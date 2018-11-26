@@ -16,11 +16,14 @@
  */
 
 #include <cstdint>
+#include <memory>
+#include <string>
 
 class DcpConsumer;
 class MockDcpMessageProducers;
 class MockPassiveStream;
 class MutationConsumerMessage;
+class Vbid;
 
 /*
  * Calls DcpConsumer::handleResponse() when it is necessary for the
