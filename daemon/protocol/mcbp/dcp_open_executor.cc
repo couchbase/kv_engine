@@ -37,7 +37,8 @@ void dcp_open_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     connection.enableDatatype(cb::mcbp::Feature::JSON);
 
-    const bool dcpNotifier = (flags & DCP_OPEN_NOTIFIER) == DCP_OPEN_NOTIFIER;
+    const bool dcpNotifier =
+            (flags & DcpOpenPayload::Notifier) == DcpOpenPayload::Notifier;
 
     if (ret == ENGINE_SUCCESS) {
         cb::rbac::Privilege privilege = cb::rbac::Privilege::DcpProducer;
@@ -62,11 +63,12 @@ void dcp_open_executor(Cookie& cookie) {
     ret = connection.remapErrorCode(ret);
     switch (ret) {
     case ENGINE_SUCCESS: {
-        const bool dcpXattrAware = (flags & DCP_OPEN_INCLUDE_XATTRS) != 0 &&
-                                   connection.selectedBucketIsXattrEnabled();
-        const bool dcpNoValue = (flags & DCP_OPEN_NO_VALUE) != 0;
+        const bool dcpXattrAware =
+                (flags & DcpOpenPayload::IncludeXattrs) != 0 &&
+                connection.selectedBucketIsXattrEnabled();
+        const bool dcpNoValue = (flags & DcpOpenPayload::NoValue) != 0;
         const bool dcpDeleteTimes =
-                (flags & DCP_OPEN_INCLUDE_DELETE_TIMES) != 0;
+                (flags & DcpOpenPayload::IncludeDeleteTimes) != 0;
         connection.setDcpXattrAware(dcpXattrAware);
         connection.setDcpNoValue(dcpNoValue);
         connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
@@ -75,7 +77,7 @@ void dcp_open_executor(Cookie& cookie) {
         std::string logBuffer;
 
         const bool dcpProducer =
-                (flags & DCP_OPEN_PRODUCER) == DCP_OPEN_PRODUCER;
+                (flags & DcpOpenPayload::Producer) == DcpOpenPayload::Producer;
         if (dcpProducer) {
             logBuffer.append("PRODUCER, ");
         }

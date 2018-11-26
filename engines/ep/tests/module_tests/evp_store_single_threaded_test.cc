@@ -180,9 +180,9 @@ void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config) {
 std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
         const void* cookie,
         IncludeDeleteTime deleteTime) {
-    int flags = DCP_OPEN_INCLUDE_XATTRS;
+    int flags = cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
     if (deleteTime == IncludeDeleteTime::Yes) {
-        flags |= DCP_OPEN_INCLUDE_DELETE_TIMES;
+        flags |= cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
     }
     auto newProducer = std::make_shared<MockDcpProducer>(*engine,
                                                          cookie,
@@ -1575,7 +1575,7 @@ TEST_F(SingleThreadedEPBucketTest, MB19892_BackfillNotDeleted) {
               engine->dcpOpen(cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
-                              DCP_OPEN_PRODUCER,
+                              cb::mcbp::request::DcpOpenPayload::Producer,
                               name));
 
     uint64_t rollbackSeqno;
@@ -1954,7 +1954,7 @@ TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_del
               engine->dcpOpen(cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
-                              DCP_OPEN_PRODUCER,
+                              cb::mcbp::request::DcpOpenPayload::Producer,
                               name));
 
     // ActiveStreamCheckpointProcessorTask and DCPBackfill task are created
@@ -3610,7 +3610,7 @@ TEST_F(SingleThreadedEPBucketTest, MB_31481) {
 }
 
 void SingleThreadedEPBucketTest::backfillExpiryOutput(bool xattr) {
-    auto flags = xattr ? DCP_OPEN_INCLUDE_XATTRS : 0;
+    auto flags = xattr ? cb::mcbp::request::DcpOpenPayload::IncludeXattrs : 0;
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 

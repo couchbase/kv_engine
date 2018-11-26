@@ -5376,7 +5376,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(
     }
 
     ConnHandler *handler = NULL;
-    if (flags & (DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER)) {
+    if (flags & (cb::mcbp::request::DcpOpenPayload::Producer |
+                 cb::mcbp::request::DcpOpenPayload::Notifier)) {
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
         handler = dcpConnMap_->newConsumer(cookie, connName);

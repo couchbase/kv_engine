@@ -218,7 +218,8 @@ public:
      * producer.
      * @param flags Flags to pass to DCP_OPEN.
      */
-    void openConnection(uint32_t flags = DCP_OPEN_PRODUCER);
+    void openConnection(
+            uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer);
 
     /* This method opens a stream on an existing DCP connection.
        This does not call the dcp step function to get all the items from the
@@ -1304,7 +1305,11 @@ static enum test_result test_dcp_notifier_open(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie1, opaque, seqno, DCP_OPEN_NOTIFIER, name),
+            dcp->open(cookie1,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Notifier,
+                      name),
             "Failed dcp consumer open connection.");
 
     const std::string stat_type("eq_dcpq:" + name + ":type");
@@ -1318,7 +1323,11 @@ static enum test_result test_dcp_notifier_open(EngineIface* h) {
 
     const auto* cookie2 = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie2, opaque, seqno, DCP_OPEN_NOTIFIER, name),
+            dcp->open(cookie2,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Notifier,
+                      name),
             "Failed dcp consumer open connection.");
 
     type = get_str_stat(h, stat_type.c_str(), "dcp");
@@ -1342,7 +1351,11 @@ static enum test_result test_dcp_notifier(EngineIface* h) {
     MockDcpMessageProducers producers(h);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie, opaque, seqno, DCP_OPEN_NOTIFIER, name),
+            dcp->open(cookie,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Notifier,
+                      name),
             "Failed dcp notifier open connection.");
     // Get notification for an old item
     notifier_request(h, cookie, ++opaque, vbucket, start, true);
@@ -1428,7 +1441,11 @@ static enum test_result test_dcp_notifier_equal_to_number_of_items(
     MockDcpMessageProducers producers(h);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie, opaque, seqno, DCP_OPEN_NOTIFIER, name),
+            dcp->open(cookie,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Notifier,
+                      name),
             "Failed dcp notifier open connection.");
     // Should not get a stream end
     notifier_request(h, cookie, ++opaque, vbucket, start, true);
@@ -1725,7 +1742,11 @@ static enum test_result test_dcp_producer_open(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie1, opaque, seqno, DCP_OPEN_PRODUCER, name),
+            dcp->open(cookie1,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Producer,
+                      name),
             "Failed dcp producer open connection.");
     const auto stat_type("eq_dcpq:" + name + ":type");
     auto type = get_str_stat(h, stat_type.c_str(), "dcp");
@@ -1738,7 +1759,11 @@ static enum test_result test_dcp_producer_open(EngineIface* h) {
 
     const auto* cookie2 = testHarness->create_cookie();
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie2, opaque, seqno, DCP_OPEN_PRODUCER, name),
+            dcp->open(cookie2,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Producer,
+                      name),
             "Failed dcp producer open connection.");
     type = get_str_stat(h, stat_type.c_str(), "dcp");
     checkeq(0, type.compare("producer"), "Producer not found");
@@ -1757,7 +1782,11 @@ static enum test_result test_dcp_producer_open_same_cookie(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie, opaque, seqno, DCP_OPEN_PRODUCER, name),
+            dcp->open(cookie,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Producer,
+                      name),
             "Failed dcp producer open connection.");
 
     const auto stat_type("eq_dcpq:" + name + ":type");
@@ -1778,7 +1807,11 @@ static enum test_result test_dcp_producer_open_same_cookie(EngineIface* h) {
     testHarness->store_engine_specific(cookie, nullptr);
 
     checkeq(ENGINE_DISCONNECT,
-            dcp->open(cookie, opaque++, seqno, DCP_OPEN_PRODUCER, name),
+            dcp->open(cookie,
+                      opaque++,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Producer,
+                      name),
             "Failed to return ENGINE_DISCONNECT");
 
     checkeq(2,
@@ -1803,7 +1836,11 @@ static enum test_result test_dcp_noop(EngineIface* h) {
     MockDcpMessageProducers producers(h);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie, opaque, seqno, DCP_OPEN_PRODUCER, name),
+            dcp->open(cookie,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Producer,
+                      name),
             "Failed dcp producer open connection.");
     const std::string param1_name("connection_buffer_size");
     const std::string param1_value("1024");
@@ -1858,7 +1895,11 @@ static enum test_result test_dcp_noop_fail(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie, opaque, seqno, DCP_OPEN_PRODUCER, name),
+            dcp->open(cookie,
+                      opaque,
+                      seqno,
+                      cb::mcbp::request::DcpOpenPayload::Producer,
+                      name),
             "Failed dcp producer open connection.");
     const std::string param1_name("connection_buffer_size");
     const std::string param1_value("1024");
@@ -1952,9 +1993,9 @@ static void test_dcp_noop_mandatory_combo(EngineIface* h,
 
     // Create DCP consumer with requested flags.
     TestDcpConsumer tdc("dcp_noop_manditory_test", cookie, h);
-    uint32_t flags = DCP_OPEN_PRODUCER;
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
     if (enableXAttrs) {
-        flags |= DCP_OPEN_INCLUDE_XATTRS;
+        flags |= cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
     }
     tdc.openConnection(flags);
 
@@ -2269,7 +2310,7 @@ static test_result testDcpProducerExpiredItemBackfill(
 
     const void* cookie = testHarness->create_cookie();
     TestDcpConsumer tdc("unittest", cookie, h);
-    uint32_t flags = DCP_OPEN_PRODUCER;
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
     tdc.openConnection(flags);
 
     if (enableExpiryOutput == EnableExpiryOutput::Yes) {
@@ -2578,7 +2619,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     wait_for_stat_to_be(h, "ep_num_value_ejects", 5);
 
     TestDcpConsumer tdc("unittest", cookie, h);
-    uint32_t flags = DCP_OPEN_PRODUCER;
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
 
     tdc.openConnection(flags);
 
@@ -2983,7 +3024,7 @@ static test_result test_dcp_producer_stream_req_nmvb(EngineIface* h) {
     const void* cookie1 = testHarness->create_cookie();
     uint32_t opaque = 0;
     uint32_t seqno = 0;
-    uint32_t flags = DCP_OPEN_PRODUCER;
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
     const char *name = "unittest";
     auto dcp = requireDcpIface(h);
 
@@ -3276,7 +3317,11 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
     auto dcp = requireDcpIface(h);
 
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie, ++opaque, 0, DCP_OPEN_PRODUCER, name),
+            dcp->open(cookie,
+                      ++opaque,
+                      0,
+                      cb::mcbp::request::DcpOpenPayload::Producer,
+                      name),
             "Failed dcp producer open connection.");
 
     Vbid vbucket = Vbid(0);
@@ -4379,7 +4424,7 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
 static enum test_result test_dcp_buffer_log_size(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
-    uint32_t flags = DCP_OPEN_PRODUCER;
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
     const char *name = "unittest";
     char stats_buffer[50];
     char status_buffer[50];
@@ -4480,7 +4525,7 @@ static enum test_result test_dcp_producer_flow_control(EngineIface* h) {
 static enum test_result test_dcp_get_failover_log(EngineIface* h) {
     const void* cookie = testHarness->create_cookie();
     uint32_t opaque = 0xFFFF0000;
-    uint32_t flags = DCP_OPEN_PRODUCER;
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
     const char *name = "unittest";
 
     // Open consumer connection
@@ -5827,7 +5872,11 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
     uint32_t opaque = 1;
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
-            dcp->open(cookie, ++opaque, 0, DCP_OPEN_PRODUCER, "unittest"),
+            dcp->open(cookie,
+                      ++opaque,
+                      0,
+                      cb::mcbp::request::DcpOpenPayload::Producer,
+                      "unittest"),
             "Failed dcp producer open connection.");
 
     checkeq(ENGINE_SUCCESS,
@@ -6450,7 +6499,7 @@ static enum test_result test_mb19153(EngineIface* h) {
     }
 
     const void* cookie = testHarness->create_cookie();
-    uint32_t flags = DCP_OPEN_PRODUCER;
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::Producer;
     const char *name = "unittest";
 
     uint32_t opaque = 1;

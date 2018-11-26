@@ -627,63 +627,46 @@ public:
         DcpOpenPayload::flags = htonl(flags);
     }
 
+    // Flags is a bitmask where the following values is used
+    static const uint32_t Producer = 1;
+    static const uint32_t Notifier = 2;
+    /**
+     * Indicate that the server include the documents' XATTRs
+     * within mutation and deletion bodies.
+     */
+    static const uint32_t IncludeXattrs = 4;
+    /**
+     * Indicate that the server should strip off the values (note,
+     * if you add INCLUDE_XATTR those will be present)
+     */
+    static const uint32_t NoValue = 8;
+    static const uint32_t Unused = 16;
+    /**
+     * Request that DCP delete message include the time the a delete was
+     * persisted. This only applies to deletes being backfilled from storage,
+     * in-memory deletes will have a delete time of 0
+     */
+    static const uint32_t IncludeDeleteTimes = 32;
+
+    /**
+     * Indicates that the server should strip off the values, but return the
+     * datatype of the underlying document (note, if you add
+     * INCLUDE_XATTR those will be present).
+     * Note this differs from DCP_OPEN_NO_VALUE in that the datatype field will
+     * contain the underlying datatype of the document; not the datatype of the
+     * transmitted payload.
+     * This flag can be used to obtain the full, original datatype for a
+     * document without the user's value. Not valid to specify with
+     * DCP_OPEN_NO_VALUE.
+     */
+    static const uint32_t NoValueWithUnderlyingDatatype = 64;
+
 protected:
     uint32_t seqno = 0;
     uint32_t flags = 0;
 };
 static_assert(sizeof(DcpOpenPayload) == 8, "Unexpected struct size");
-#pragma pack()
-
-/*
- * The following flags are defined
- */
-#define DCP_OPEN_PRODUCER 1
-#define DCP_OPEN_NOTIFIER 2
-
-/**
- * Indicate that the server include the documents' XATTRs
- * within mutation and deletion bodies.
- */
-#define DCP_OPEN_INCLUDE_XATTRS 4
-
-/**
- * Indicate that the server should strip off the values (note,
- * if you add INCLUDE_XATTR those will be present)
- */
-#define DCP_OPEN_NO_VALUE 8
-
-#define DCP_OPEN_UNUSED 16
-
-/**
- * Request that DCP delete message include the time the a delete was persisted.
- * This only applies to deletes being backfilled from storage, in-memory deletes
- * will have a delete time of 0
- */
-#define DCP_OPEN_INCLUDE_DELETE_TIMES 32
-
-/**
- * Indicates that the server should strip off the values, but return the
- * datatype of the underlying document (note, if you add
- * INCLUDE_XATTR those will be present).
- * Note this differs from DCP_OPEN_NO_VALUE in that the datatype field will
- * contain the underlying datatype of the document; not the datatype of the
- * transmitted payload.
- * This flag can be used to obtain the full, original datatype for a document
- * without the user's value.
- * Not valid to specify with DCP_OPEN_NO_VALUE.
- */
-#define DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE 64
 } // namespace request
-} // namespace mcbp
-} // namespace cb
-
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_dcp_close_stream;
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_dcp_close_stream;
-
-namespace cb {
-namespace mcbp {
 
 namespace response {
 class DcpAddStreamPayload {
@@ -706,9 +689,6 @@ static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");
 } // namespace response
 
 namespace request {
-
-#pragma pack(1)
-
 class DcpAddStreamPayload {
 public:
     uint32_t getFlags() const {

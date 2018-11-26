@@ -292,8 +292,8 @@ TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
     // We need to get into the `conn_ship_log` state, and then fill up the
     // connections' write (send) buffer.
 
-    BinprotDcpOpenCommand dcp_open_command("ewb_internal", 0,
-                                           DCP_OPEN_PRODUCER);
+    BinprotDcpOpenCommand dcp_open_command(
+            "ewb_internal", 0, cb::mcbp::request::DcpOpenPayload::Producer);
     mcbp_conn->sendCommand(dcp_open_command);
 
     BinprotDcpStreamRequestCommand dcp_stream_request_command;

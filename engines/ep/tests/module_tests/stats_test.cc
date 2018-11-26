@@ -120,7 +120,9 @@ TEST_F(StatTest, vbucket_takeover_stats_stream_not_active) {
     // Create a new Dcp producer, reserving its cookie.
     get_mock_server_api()->cookie->reserve(cookie);
     DcpProducer* producer = engine->getDcpConnMap().newProducer(
-            cookie, "test_producer", DCP_OPEN_NOTIFIER);
+            cookie,
+            "test_producer",
+            cb::mcbp::request::DcpOpenPayload::Notifier);
 
     uint64_t rollbackSeqno;
     const std::string stat = "dcp-vbtakeover " + std::to_string(vbid.get()) +

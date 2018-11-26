@@ -424,10 +424,10 @@ static Status dcp_open_validator(Cookie& cookie) {
         return status;
     }
 
-    const auto mask = DCP_OPEN_PRODUCER | DCP_OPEN_NOTIFIER |
-                      DCP_OPEN_INCLUDE_XATTRS | DCP_OPEN_NO_VALUE |
-                      DCP_OPEN_INCLUDE_DELETE_TIMES |
-                      DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE;
+    const auto mask = DcpOpenPayload::Producer | DcpOpenPayload::Notifier |
+                      DcpOpenPayload::IncludeXattrs | DcpOpenPayload::NoValue |
+                      DcpOpenPayload::IncludeDeleteTimes |
+                      DcpOpenPayload::NoValueWithUnderlyingDatatype;
 
     auto ext = cookie.getHeader().getExtdata();
     const auto* payload = reinterpret_cast<const DcpOpenPayload*>(ext.data());
@@ -442,7 +442,8 @@ static Status dcp_open_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if ((flags & DCP_OPEN_NOTIFIER) && (flags & ~DCP_OPEN_NOTIFIER)) {
+    if ((flags & DcpOpenPayload::Notifier) &&
+        (flags & ~DcpOpenPayload::Notifier)) {
         LOG_INFO(
                 "Invalid flags combination ({:x}) specified for a DCP "
                 "consumer {}",
@@ -452,8 +453,8 @@ static Status dcp_open_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    if ((flags & DCP_OPEN_NO_VALUE) &&
-        (flags & DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE)) {
+    if ((flags & DcpOpenPayload::NoValue) &&
+        (flags & DcpOpenPayload::NoValueWithUnderlyingDatatype)) {
         LOG_INFO(
                 "Invalid flags combination ({:x}) specified for a DCP "
                 "consumer {} - cannot specify NO_VALUE with "

@@ -188,13 +188,14 @@ protected:
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
             std::vector<std::pair<std::string, std::string>> controls = {}) {
         if (includeVal == IncludeValue::No) {
-            flags |= DCP_OPEN_NO_VALUE;
+            flags |= cb::mcbp::request::DcpOpenPayload::NoValue;
         }
         if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
-            flags |= DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE;
+            flags |= cb::mcbp::request::DcpOpenPayload::
+                    NoValueWithUnderlyingDatatype;
         }
         if (includeXattrs == IncludeXattrs::Yes) {
-            flags |= DCP_OPEN_INCLUDE_XATTRS;
+            flags |= cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
         }
         producer = std::make_shared<MockDcpProducer>(
                 *engine,
@@ -3062,7 +3063,9 @@ TEST_F(DcpConnMapTest, DeleteNotifierConnOnUncleanDCPConnMapDelete) {
     /* Create a new Dcp producer */
     const void* dummyMockCookie = create_mock_cookie();
     DcpProducer* producer = engine.getDcpConnMap().newProducer(
-            dummyMockCookie, "test_producer", DCP_OPEN_NOTIFIER);
+            dummyMockCookie,
+            "test_producer",
+            cb::mcbp::request::DcpOpenPayload::Notifier);
     /* Open notifier stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;

@@ -3479,14 +3479,15 @@ TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
     // DCP_OPEN_UNUSED flag is invalid
     header.setBodylen(18);
     auto extras = header.getExtdata();
-    auto* payload = reinterpret_cast<cb::mcbp::request::DcpOpenPayload*>(
+    using cb::mcbp::request::DcpOpenPayload;
+    auto* payload = reinterpret_cast<DcpOpenPayload*>(
             const_cast<uint8_t*>(extras.data()));
-    payload->setFlags(DCP_OPEN_UNUSED);
+    payload->setFlags(DcpOpenPayload::Unused);
     EXPECT_EQ("Request contains invalid flags",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
 
     // DCP_OPEN_NOTIFIER cannot be used in conjunction with other flags
-    payload->setFlags(DCP_OPEN_NOTIFIER | DCP_OPEN_PRODUCER);
+    payload->setFlags(DcpOpenPayload::Notifier | DcpOpenPayload::Producer);
     EXPECT_EQ("Request contains invalid flags combination",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
 }

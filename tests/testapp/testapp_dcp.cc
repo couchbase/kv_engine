@@ -39,9 +39,11 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
 TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
     auto& conn = getConnection();
 
-    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
-                                           DCP_OPEN_PRODUCER |
-                                           DCP_OPEN_NOTIFIER});
+    conn.sendCommand(BinprotDcpOpenCommand{
+            "ewb_internal:1",
+            0,
+            cb::mcbp::request::DcpOpenPayload::Producer |
+                    cb::mcbp::request::DcpOpenPayload::Notifier});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);
@@ -52,9 +54,11 @@ TEST_P(DcpTest, TestDcpOpenCantBeProducerAndConsumer) {
 TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
     auto& conn = getConnection();
 
-    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
-                                           DCP_OPEN_NO_VALUE |
-                                           DCP_OPEN_NOTIFIER});
+    conn.sendCommand(BinprotDcpOpenCommand{
+            "ewb_internal:1",
+            0,
+            cb::mcbp::request::DcpOpenPayload::NoValue |
+                    cb::mcbp::request::DcpOpenPayload::Notifier});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);
@@ -65,9 +69,11 @@ TEST_P(DcpTest, TestDcpNotfierCantBeNoValue) {
 TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
     auto& conn = getConnection();
 
-    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
-                                           DCP_OPEN_INCLUDE_XATTRS |
-                                           DCP_OPEN_NOTIFIER});
+    conn.sendCommand(BinprotDcpOpenCommand{
+            "ewb_internal:1",
+            0,
+            cb::mcbp::request::DcpOpenPayload::IncludeXattrs |
+                    cb::mcbp::request::DcpOpenPayload::Notifier});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);
@@ -82,8 +88,8 @@ TEST_P(DcpTest, TestDcpNotfierCantIncludeXattrs) {
 TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
     auto& conn = getConnection();
 
-    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
-                                           DCP_OPEN_PRODUCER});
+    conn.sendCommand(BinprotDcpOpenCommand{
+            "ewb_internal:1", 0, cb::mcbp::request::DcpOpenPayload::Producer});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);
@@ -114,8 +120,8 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
     // various commands.
     auto& conn = getConnection();
     conn.setUnorderedExecutionMode(ExecutionMode::Unordered);
-    conn.sendCommand(BinprotDcpOpenCommand{"ewb_internal:1", 0,
-                                           DCP_OPEN_PRODUCER});
+    conn.sendCommand(BinprotDcpOpenCommand{
+            "ewb_internal:1", 0, cb::mcbp::request::DcpOpenPayload::Producer});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);

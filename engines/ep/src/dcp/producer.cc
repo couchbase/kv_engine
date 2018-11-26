@@ -143,10 +143,11 @@ void DcpProducer::BufferLog::addStats(ADD_STAT add_stat, const void *c) {
 
 /// Decode IncludeValue from DCP producer flags.
 static IncludeValue toIncludeValue(uint32_t flags) {
-    if ((flags & DCP_OPEN_NO_VALUE) != 0) {
+    using cb::mcbp::request::DcpOpenPayload;
+    if ((flags & DcpOpenPayload::NoValue) != 0) {
         return IncludeValue::No;
     }
-    if ((flags & DCP_OPEN_NO_VALUE_WITH_UNDERLYING_DATATYPE) != 0) {
+    if ((flags & DcpOpenPayload::NoValueWithUnderlyingDatatype) != 0) {
         return IncludeValue::NoWithUnderlyingDatatype;
     }
     return IncludeValue::Yes;
@@ -158,7 +159,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          uint32_t flags,
                          bool startTask)
     : ConnHandler(e, cookie, name),
-      notifyOnly((flags & DCP_OPEN_NOTIFIER) != 0),
+      notifyOnly((flags & cb::mcbp::request::DcpOpenPayload::Notifier) != 0),
       sendStreamEndOnClientStreamClose(false),
       supportsHifiMFU(false),
       lastSendTime(ep_current_time()),
@@ -167,12 +168,15 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       totalBytesSent(0),
       totalUncompressedDataSize(0),
       includeValue(toIncludeValue(flags)),
-      includeXattrs(((flags & DCP_OPEN_INCLUDE_XATTRS) != 0)
-                            ? IncludeXattrs::Yes
-                            : IncludeXattrs::No),
-      includeDeleteTime(((flags & DCP_OPEN_INCLUDE_DELETE_TIMES) != 0)
-                                ? IncludeDeleteTime::Yes
-                                : IncludeDeleteTime::No),
+      includeXattrs(
+              ((flags & cb::mcbp::request::DcpOpenPayload::IncludeXattrs) != 0)
+                      ? IncludeXattrs::Yes
+                      : IncludeXattrs::No),
+      includeDeleteTime(
+              ((flags &
+                cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes) != 0)
+                      ? IncludeDeleteTime::Yes
+                      : IncludeDeleteTime::No),
       createChkPtProcessorTsk(startTask) {
     setSupportAck(true);
     setReserved(true);
