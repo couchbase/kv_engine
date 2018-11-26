@@ -102,10 +102,9 @@ private:
     }
 
     void initialize(const nlohmann::json& root) {
-        auto obj = root["error"];
-        if (!obj.is_null()) {
+        if (root.find("error") != root.end()) {
             // The server responded with an error.. send that to the user
-            throw std::runtime_error(obj.get<std::string>());
+            throw std::runtime_error(root["error"].get<std::string>());
         }
 
         ns.count = root["ns"].get<uint32_t>();
