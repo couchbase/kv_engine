@@ -27,10 +27,13 @@ void dcp_add_stream_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
         auto& req = cookie.getRequest(Cookie::PacketContent::Full);
+
+        using cb::mcbp::request::DcpAddStreamPayload;
         auto extras = req.getExtdata();
-        const uint32_t flags =
-                ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
-        ret = dcpAddStream(cookie, req.getOpaque(), req.getVBucket(), flags);
+        const auto* payload =
+                reinterpret_cast<const DcpAddStreamPayload*>(extras.data());
+        ret = dcpAddStream(
+                cookie, req.getOpaque(), req.getVBucket(), payload->getFlags());
     }
 
     ret = connection.remapErrorCode(ret);

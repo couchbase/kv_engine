@@ -3483,16 +3483,16 @@ TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
 
 TEST_P(CommandSpecificErrorContextTest, DcpAddStream) {
     // DCP_ADD_STREAM_FLAG_NO_VALUE is no longer used
-    header.setExtlen(4);
-    header.setKeylen(0);
-    header.setBodylen(4);
-    auto* req = reinterpret_cast<protocol_binary_request_dcp_add_stream*>(blob);
-    req->message.body.flags = htonl(DCP_ADD_STREAM_FLAG_NO_VALUE);
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    cb::mcbp::request::DcpAddStreamPayload extras;
+    extras.setFlags(DCP_ADD_STREAM_FLAG_NO_VALUE);
+    builder.setExtras(extras.getBuffer());
     EXPECT_EQ("DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));
 
     // 128 is not a defined flag
-    req->message.body.flags = 128;
+    extras.setFlags(128);
+    builder.setExtras(extras.getBuffer());
     EXPECT_EQ("Request contains invalid flags",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));
 }

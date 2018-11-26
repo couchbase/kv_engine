@@ -677,10 +677,52 @@ static_assert(sizeof(DcpOpenPayload) == 8, "Unexpected struct size");
 } // namespace mcbp
 } // namespace cb
 
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
+typedef protocol_binary_request_no_extras
+        protocol_binary_request_dcp_close_stream;
+typedef protocol_binary_response_no_extras
+        protocol_binary_response_dcp_close_stream;
+
+namespace cb {
+namespace mcbp {
+
+namespace response {
+class DcpAddStreamPayload {
+public:
+    uint32_t getOpaque() const {
+        return ntohl(opaque);
+    }
+    void setOpaque(uint32_t opaque) {
+        DcpAddStreamPayload::opaque = htonl(opaque);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint32_t opaque = 0;
+};
+static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");
+} // namespace response
+
+namespace request {
+
+#pragma pack(1)
+
+class DcpAddStreamPayload {
+public:
+    uint32_t getFlags() const {
+        return ntohl(flags);
+    }
+    void setFlags(uint32_t flags) {
+        DcpAddStreamPayload::flags = htonl(flags);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
 /*
  * The following flags are defined
  */
@@ -706,31 +748,10 @@ typedef union {
  * the server returns ENGINE_ROLLBACK error.
  */
 #define DCP_ADD_STREAM_STRICT_VBUUID 32
-            uint32_t flags;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_dcp_add_stream;
+    uint32_t flags = 0;
+};
+static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");
 
-typedef union {
-    struct {
-        protocol_binary_response_header header;
-        struct {
-            uint32_t opaque;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_response_header) + 4];
-} protocol_binary_response_dcp_add_stream;
-
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_dcp_close_stream;
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_dcp_close_stream;
-
-namespace cb {
-namespace mcbp {
-namespace request {
-#pragma pack(1)
 class DcpStreamReqPayload {
 public:
     uint32_t getFlags() const {

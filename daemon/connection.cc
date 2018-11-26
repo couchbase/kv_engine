@@ -1678,17 +1678,17 @@ ENGINE_ERROR_CODE Connection::stream_req(uint32_t opaque,
 ENGINE_ERROR_CODE Connection::add_stream_rsp(uint32_t opaque,
                                              uint32_t dialogopaque,
                                              cb::mcbp::Status status) {
-    protocol_binary_response_dcp_add_stream packet = {};
-    packet.message.header.response.setMagic(cb::mcbp::Magic::ClientResponse);
-    packet.message.header.response.setOpcode(
-            cb::mcbp::ClientOpcode::DcpAddStream);
-    packet.message.header.response.setExtlen(4);
-    packet.message.header.response.setStatus(status);
-    packet.message.header.response.setBodylen(4);
-    packet.message.header.response.setOpaque(opaque);
-    packet.message.body.opaque = ntohl(dialogopaque);
+    cb::mcbp::response::DcpAddStreamPayload extras;
+    extras.setOpaque(dialogopaque);
+    uint8_t buffer[sizeof(cb::mcbp::Response) + sizeof(extras)];
+    cb::mcbp::ResponseBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpAddStream);
+    builder.setStatus(status);
+    builder.setOpaque(opaque);
+    builder.setExtras(extras.getBuffer());
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::marker_rsp(uint32_t opaque,

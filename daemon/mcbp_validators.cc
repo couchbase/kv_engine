@@ -464,8 +464,9 @@ static Status dcp_open_validator(Cookie& cookie) {
 }
 
 static Status dcp_add_stream_validator(Cookie& cookie) {
+    using cb::mcbp::request::DcpAddStreamPayload;
     auto status = McbpValidator::verify_header(cookie,
-                                               4,
+                                               sizeof(DcpAddStreamPayload),
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
@@ -476,8 +477,10 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
 
     auto& req = cookie.getRequest(Cookie::PacketContent::Full);
     auto extras = req.getExtdata();
-    const uint32_t flags =
-            ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
+    const auto* payload =
+            reinterpret_cast<const DcpAddStreamPayload*>(extras.data());
+
+    const uint32_t flags = payload->getFlags();
     const auto mask = DCP_ADD_STREAM_FLAG_TAKEOVER |
                       DCP_ADD_STREAM_FLAG_DISKONLY |
                       DCP_ADD_STREAM_FLAG_LATEST |
