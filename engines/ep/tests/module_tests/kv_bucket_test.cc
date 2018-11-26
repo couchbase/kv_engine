@@ -338,6 +338,10 @@ void KVBucketTest::setRandomFunction(std::function<long()>& randFunction) {
     store->getRandom = randFunction;
 }
 
+Collections::Manager& KVBucketTest::getCollectionsManager() {
+    return *store->collectionsManager.get();
+}
+
 // getKeyStats tests //////////////////////////////////////////////////////////
 
 // Check that keystats on resident items works correctly.

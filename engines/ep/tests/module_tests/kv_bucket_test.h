@@ -38,6 +38,10 @@
 class KVBucket;
 class SynchronousEPEngine;
 
+namespace Collections {
+class Manager;
+}
+
 /**
  * Test fixture for KVBucket unit tests.
  *
@@ -212,6 +216,11 @@ public:
      * @param randFunction  The random function to be used by the KVBucket.
      */
     void setRandomFunction(std::function<long()>& randFunction);
+
+    /**
+     * @return a non-const version of the store's collections manager object.
+     */
+    Collections::Manager& getCollectionsManager();
 
 private:
     /**

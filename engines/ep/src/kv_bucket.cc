@@ -831,6 +831,13 @@ ENGINE_ERROR_CODE KVBucket::setVBucketState_UNLOCKED(
              * even in a failover scenario.
              */
             vb->checkpointManager->resetSnapshotRange();
+
+            /**
+             * Update the manifest of this vBucket from the
+             * collectionsManager to ensure that it did not miss a manifest
+             * that was not replicated via DCP.
+             */
+            collectionsManager->update(*vb);
         }
 
         if (to == vbucket_state_active && !transfer) {

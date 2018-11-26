@@ -19,6 +19,7 @@
  * Tests for Collection functionality in EPStore.
  */
 #include "bgfetcher.h"
+#include "collections/manager.h"
 #include "dcp/dcpconnmap.h"
 #include "failover-table.h"
 #include "kvstore.h"
@@ -930,6 +931,31 @@ TEST_F(CollectionsDcpTest, tombstone_snapshots_disconnect_backfill) {
 
 TEST_F(CollectionsDcpTest, tombstone_snapshots_disconnect_memory) {
     tombstone_snapshots_test(false);
+}
+
+// Test that we apply the latest manifest when we promote a vBucket from
+// replica to active. We don't expect ns_server to send the manifest again so
+// we need apply it on promotion
+TEST_F(CollectionsDcpTest, vb_promotion_update_manifest) {
+    // Add fruit to the manifest
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+
+    // Get the manager through KVBucketTest so we can get a non-const
+    // version and update it to include fruit. This should update the active
+    // but NOT the replica.
+    KVBucketTest::getCollectionsManager().update(*store,
+                                                 cb::const_char_buffer(cm));
+    auto active = store->getVBucket(vbid);
+    ASSERT_TRUE(active->lockCollections().exists(CollectionEntry::fruit));
+    auto replica = store->getVBucket(replicaVB);
+    ASSERT_FALSE(replica->lockCollections().exists(CollectionEntry::fruit));
+
+    // Active is now aware of fruit, proving that we updated the manifest,
+    // but replica is not. Change the state of replica to active to update
+    // the replica manifest.
+    store->setVBucketState(replicaVB, vbucket_state_active, false);
+    EXPECT_TRUE(replica->lockCollections().exists(CollectionEntry::fruit));
 }
 
 class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {
