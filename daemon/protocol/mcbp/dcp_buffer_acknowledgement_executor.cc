@@ -32,10 +32,13 @@ void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
         if (ret == ENGINE_SUCCESS) {
             auto& req = cookie.getRequest(Cookie::PacketContent::Full);
             auto extras = req.getExtdata();
-            uint32_t bytes =
-                    ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
-            ret = dcpBufferAcknowledgement(
-                    cookie, req.getOpaque(), req.getVBucket(), bytes);
+            using Payload = cb::mcbp::request::DcpBufferAckPayload;
+            const auto* payload =
+                    reinterpret_cast<const Payload*>(extras.data());
+            ret = dcpBufferAcknowledgement(cookie,
+                                           req.getOpaque(),
+                                           req.getVBucket(),
+                                           payload->getBufferBytes());
         }
     }
 

@@ -751,12 +751,13 @@ static Status dcp_noop_validator(Cookie& cookie) {
 }
 
 static Status dcp_buffer_acknowledgement_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               4,
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::Any,
-                                               PROTOCOL_BINARY_RAW_BYTES);
+    auto status = McbpValidator::verify_header(
+            cookie,
+            sizeof(cb::mcbp::request::DcpBufferAckPayload),
+            ExpectedKeyLen::Zero,
+            ExpectedValueLen::Zero,
+            ExpectedCas::Any,
+            PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
     }

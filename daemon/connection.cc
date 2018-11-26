@@ -2021,17 +2021,17 @@ ENGINE_ERROR_CODE Connection::noop(uint32_t opaque) {
 ENGINE_ERROR_CODE Connection::buffer_acknowledgement(uint32_t opaque,
                                                      Vbid vbucket,
                                                      uint32_t buffer_bytes) {
-    protocol_binary_request_dcp_buffer_acknowledgement packet = {};
-    auto& req = packet.message.header.request;
-    req.setMagic(cb::mcbp::Magic::ClientRequest);
-    req.setOpcode(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
-    req.setExtlen(4);
-    req.setBodylen(4);
-    req.setOpaque(opaque);
-    req.setVBucket(vbucket);
-    packet.message.body.buffer_bytes = ntohl(buffer_bytes);
+    cb::mcbp::request::DcpBufferAckPayload extras;
+    extras.setBufferBytes(buffer_bytes);
+    uint8_t buffer[sizeof(cb::mcbp::Request) + sizeof(extras)];
+    cb::mcbp::RequestBuilder builder({buffer, sizeof(buffer)});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement);
+    builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
+    builder.setExtras(extras.getBuffer());
 
-    return add_packet_to_send_pipe({packet.bytes, sizeof(packet.bytes)});
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::control(uint32_t opaque,

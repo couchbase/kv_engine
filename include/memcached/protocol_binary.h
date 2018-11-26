@@ -1131,17 +1131,33 @@ typedef protocol_binary_response_no_extras
 typedef protocol_binary_request_no_extras protocol_binary_request_dcp_noop;
 typedef protocol_binary_response_no_extras protocol_binary_response_dcp_noop;
 
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t buffer_bytes;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_dcp_buffer_acknowledgement;
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_dcp_buffer_acknowledgement;
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+
+class DcpBufferAckPayload {
+public:
+    uint32_t getBufferBytes() const {
+        return ntohl(buffer_bytes);
+    }
+    void setBufferBytes(uint32_t buffer_bytes) {
+        DcpBufferAckPayload::buffer_bytes = htonl(buffer_bytes);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint32_t buffer_bytes = 0;
+};
+
+static_assert(sizeof(DcpBufferAckPayload) == 4, "Unexpected struct size");
+#pragma pack()
+} // namespace request
+} // namespace mcbp
+} // namespace cb
 
 typedef protocol_binary_request_no_extras protocol_binary_request_dcp_control;
 typedef protocol_binary_response_no_extras protocol_binary_response_dcp_control;
