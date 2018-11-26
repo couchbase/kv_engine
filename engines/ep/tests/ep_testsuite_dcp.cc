@@ -1026,6 +1026,48 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
     }
 }
 
+static void dcp_stream_expiries_to_replica(EngineIface* h,
+                                           const void* cookie,
+                                           uint32_t opaque,
+                                           Vbid vbucket,
+                                           uint32_t flags,
+                                           uint64_t start,
+                                           uint64_t end,
+                                           uint64_t snap_start_seqno,
+                                           uint64_t snap_end_seqno,
+                                           uint32_t delTime,
+                                           uint64_t revSeqno = 0,
+                                           uint8_t cas = 0x1) {
+    auto dcp = requireDcpIface(h);
+    checkeq(ENGINE_SUCCESS,
+            dcp->snapshot_marker(cookie,
+                                 opaque,
+                                 vbucket,
+                                 snap_start_seqno,
+                                 snap_end_seqno,
+                                 flags),
+            "Failed to send marker!");
+    const std::string data("data");
+    /* Stream Expiries */
+    for (uint64_t i = start; i <= end; i++) {
+        const std::string key{"key" + std::to_string(i)};
+        const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+        checkeq(ENGINE_SUCCESS,
+                dcp->expiration(cookie,
+                                opaque,
+                                docKey,
+                                {},
+                                0, // priv bytes
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                cas,
+                                vbucket,
+                                i,
+                                revSeqno,
+                                delTime),
+                "Failed dcp expiry");
+    }
+}
+
 struct mb16357_ctx {
     mb16357_ctx(EngineIface* _h, int _items)
         : h(_h), dcp(requireDcpIface(h)), items(_items) {
@@ -3471,6 +3513,11 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                       "send_stream_end_on_client_close_stream") == 0);
     cb_assert(producers.last_opaque != opaque);
 
+    dcp_step(h, cookie, producers);
+    cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
+    cb_assert(producers.last_key.compare("enable_expiry_opcode") == 0);
+    cb_assert(producers.last_opaque != opaque);
+
     auto dcp = requireDcpIface(h);
     checkeq(ENGINE_SUCCESS,
             dcp->add_stream(cookie, opaque, vbucket, flags),
@@ -4983,6 +5030,89 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
 
     return SUCCESS;
 }
+/**
+ * This test drives the consumer during an item's expiration sequence,
+ * ensuring that the correct number of bytes are sent in response as well as
+ * the success of handling the expiration.
+ */
+static enum test_result test_dcp_consumer_expire(EngineIface* h) {
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void* cookie = testHarness->create_cookie();
+    uint32_t opaque = 0;
+    uint8_t cas = 0x1;
+    Vbid vbucket = Vbid(0);
+    uint32_t flags = cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
+    uint64_t bySeqno = 10;
+    uint64_t revSeqno = 0;
+    const char* name = "unittest";
+    uint32_t seqno = 0;
+
+    // Open an DCP connection
+    auto dcp = requireDcpIface(h);
+    checkeq(ENGINE_SUCCESS,
+            dcp->open(cookie, opaque, seqno, flags, name),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
+
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+
+    int exp_unacked_bytes = dcp_snapshot_marker_base_msg_bytes;
+    checkeq(ENGINE_SUCCESS,
+            dcp->snapshot_marker(cookie, opaque, Vbid(0), 10, 10, 1),
+            "Failed to send snapshot marker");
+
+    const std::string key{"key"};
+    const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+    // verify that we don't accept invalid opaque id's
+    checkeq(ENGINE_KEY_ENOENT,
+            dcp->expiration(cookie,
+                            opaque + 1,
+                            docKey,
+                            {},
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cas,
+                            vbucket,
+                            bySeqno,
+                            revSeqno,
+                            {}),
+            "Failed to detect invalid DCP opaque value.");
+    exp_unacked_bytes += dcp_expiration_base_msg_bytes + key.length();
+
+    // Consume an DCP expiration
+    checkeq(ENGINE_SUCCESS,
+            dcp->expiration(cookie,
+                            opaque,
+                            docKey,
+                            {},
+                            0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            cas,
+                            vbucket,
+                            bySeqno,
+                            revSeqno,
+                            {}),
+            "Failed dcp expire.");
+
+    exp_unacked_bytes += dcp_expiration_base_msg_bytes + key.length();
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
+            "Consumer flow ctl expiration bytes not accounted correctly");
+
+    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
+
+    wait_for_stat_change(h, "curr_items", 1);
+    verify_curr_items(h, 0, "one item expired");
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
 
 static enum test_result test_dcp_replica_stream_backfill(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
@@ -5155,6 +5285,91 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
     testHarness->destroy_cookie(cookie);
 
     return SUCCESS;
+}
+/**
+ * A test to check that expiries streamed to a replica behave as expected,
+ * including the difference between enabling an expiryOutput on the consumer
+ * @param enableExpiryOutput This controls whether the test consumer should
+ *                           request DCP expiry opcodes, and hence whether the
+ *                           test should check for expirations or deletions.
+ */
+static test_result test_dcp_replica_stream_expiries(
+        EngineIface* h, EnableExpiryOutput enableExpiryOutput) {
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 5;
+    const char* name = "unittest";
+    const uint32_t expiryTime = 256;
+
+    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void* cookie = testHarness->create_cookie();
+
+    /* Open an DCP consumer connection */
+    auto dcp = requireDcpIface(h);
+    checkeq(ENGINE_SUCCESS,
+            dcp->open(cookie, opaque, seqno, flags, name),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(
+            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+
+    testHarness->time_travel(expiryTime + 100);
+
+    /* Write expiries to replica, with disk flag (0x02) */
+    dcp_stream_expiries_to_replica(h,
+                                   cookie,
+                                   opaque,
+                                   Vbid(0),
+                                   0x02,
+                                   1,
+                                   num_items,
+                                   0,
+                                   num_items,
+                                   expiryTime);
+
+    /* Streaming expiries shouldn't have added any items */
+    checkeq(0, get_int_stat(h, "curr_items"), "curr_items count not 0");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, num_items};
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        ctx.exp_expirations = num_items;
+    } else {
+        ctx.exp_deletions = num_items;
+    }
+    ctx.exp_markers = 1;
+
+    const void* cookie1 = testHarness->create_cookie();
+    TestDcpConsumer tdc("unittest1", cookie1, h);
+    tdc.openConnection();
+    if (enableExpiryOutput == EnableExpiryOutput::Yes) {
+        checkeq(ENGINE_SUCCESS,
+                tdc.sendControlMessage("enable_expiry_opcode", "true"),
+                "Failed to enable_expiry_opcode");
+    }
+    tdc.addStreamCtx(ctx);
+    tdc.run(false);
+
+    testHarness->destroy_cookie(cookie1);
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_replica_stream_expiry_enabled(EngineIface* h) {
+    return test_dcp_replica_stream_expiries(h, EnableExpiryOutput::Yes);
+}
+
+static enum test_result test_dcp_replica_stream_expiry_disabled(
+        EngineIface* h) {
+    return test_dcp_replica_stream_expiries(h, EnableExpiryOutput::No);
 }
 
 static enum test_result test_dcp_persistence_seqno(EngineIface* h) {
@@ -6733,6 +6948,20 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;max_checkpoints=2",
                  prepare,
                  cleanup),
+        TestCase("test dcp replica stream expiries - ExpiryOutput Enabled",
+                 test_dcp_replica_stream_expiry_enabled,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
+        TestCase("test dcp replica stream expiries - ExpiryOutput Disabled",
+                 test_dcp_replica_stream_expiry_disabled,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
         TestCase("test dcp producer stream open",
                  test_dcp_producer_stream_req_open,
                  test_setup,
@@ -7030,6 +7259,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("dcp consumer mutate", test_dcp_consumer_mutate, test_setup,
                  teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp consumer delete", test_dcp_consumer_delete, test_setup,
+                 teardown, "dcp_enable_noop=false", prepare, cleanup),
+        TestCase("dcp consumer expire", test_dcp_consumer_expire, test_setup,
                  teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp failover log",
                  test_failover_log_dcp,

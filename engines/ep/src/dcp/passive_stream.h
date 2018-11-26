@@ -117,7 +117,7 @@ protected:
      * Deal with incoming expiration sent to the DcpConsumer/PassiveStream by
      * passing to processMessage with MessageType::Expiration
      */
-    ENGINE_ERROR_CODE processExpiration(MutationConsumerMessage* deletion);
+    ENGINE_ERROR_CODE processExpiration(MutationConsumerMessage* expiration);
 
     /**
      * Handle DCP system events against this stream.

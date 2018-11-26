@@ -44,6 +44,8 @@ const std::string DcpConsumer::cursorDroppingCtrlMsg =
 const std::string DcpConsumer::sendStreamEndOnClientStreamCloseCtrlMsg =
         "send_stream_end_on_client_close_stream";
 const std::string DcpConsumer::hifiMFUCtrlMsg = "supports_hifi_MFU";
+const std::string DcpConsumer::enableOpcodeExpiryCtrlMsg =
+        "enable_expiry_opcode";
 
 class DcpConsumerTask : public GlobalTask {
 public:
@@ -178,6 +180,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingSupportCursorDropping = true;
     pendingSupportHifiMFU =
             (config.getHtEvictionPolicy() == "hifi_mfu");
+    pendingEnableExpiryOpcode = true;
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -807,6 +810,10 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ret;
     }
 
+    if ((ret = enableExpiryOpcode(producers)) != ENGINE_FAILED) {
+        return ret;
+    }
+
     auto resp = getNextItem();
     if (resp == nullptr) {
         return ENGINE_EWOULDBLOCK;
@@ -1417,6 +1424,20 @@ ENGINE_ERROR_CODE DcpConsumer::sendStreamEndOnClientStreamClose(
         ENGINE_ERROR_CODE ret = producers->control(
                 opaque, sendStreamEndOnClientStreamCloseCtrlMsg, val);
         pendingSendStreamEndOnClientStreamClose = false;
+        return ret;
+    }
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::enableExpiryOpcode(
+        struct dcp_message_producers* producers) {
+    if (pendingEnableExpiryOpcode) {
+        uint32_t opaque = ++opaqueCounter;
+        std::string val("true");
+        NonBucketAllocationGuard guard;
+        ENGINE_ERROR_CODE ret =
+                producers->control(opaque, enableOpcodeExpiryCtrlMsg, val);
+        pendingEnableExpiryOpcode = false;
         return ret;
     }
     return ENGINE_FAILED;

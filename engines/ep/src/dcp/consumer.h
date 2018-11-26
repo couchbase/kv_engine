@@ -310,6 +310,9 @@ protected:
     ENGINE_ERROR_CODE sendStreamEndOnClientStreamClose(
             struct dcp_message_producers* producers);
 
+    ENGINE_ERROR_CODE enableExpiryOpcode(
+            struct dcp_message_producers* producers);
+
     void notifyVbucketReady(Vbid vbucket);
 
     /**
@@ -448,6 +451,7 @@ protected:
     bool pendingSupportCursorDropping;
     bool pendingSendStreamEndOnClientStreamClose;
     bool pendingSupportHifiMFU;
+    bool pendingEnableExpiryOpcode;
 
     /*
      * MB-29441: The following variables are used to set the the proper
@@ -494,6 +498,7 @@ protected:
     static const std::string cursorDroppingCtrlMsg;
     static const std::string sendStreamEndOnClientStreamCloseCtrlMsg;
     static const std::string hifiMFUCtrlMsg;
+    static const std::string enableOpcodeExpiryCtrlMsg;
 };
 
 /*
