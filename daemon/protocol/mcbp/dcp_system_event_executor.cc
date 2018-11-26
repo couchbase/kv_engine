@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2017 Couchbase, Inc.
+ *     Copyright 2018 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,27 +25,20 @@ void dcp_system_event_executor(Cookie& cookie) {
 
     auto& connection = cookie.getConnection();
     if (ret == ENGINE_SUCCESS) {
-        auto packet = cookie.getPacket(Cookie::PacketContent::Full);
-        const auto* req = reinterpret_cast<
-                const protocol_binary_request_dcp_system_event*>(packet.data());
+        using cb::mcbp::request::DcpSystemEventPayload;
+        const auto& request = cookie.getRequest(Cookie::PacketContent::Full);
+        auto extras = request.getExtdata();
+        const auto* payload =
+                reinterpret_cast<const DcpSystemEventPayload*>(extras.data());
 
-        const uint16_t nkey = ntohs(req->message.header.request.keylen);
-        cb::const_byte_buffer key{req->bytes + sizeof(req->bytes), nkey};
-
-        size_t bodylen = ntohl(req->message.header.request.bodylen) -
-                         req->message.header.request.extlen - nkey;
-        cb::const_byte_buffer eventData{req->bytes + sizeof(req->bytes) + nkey,
-                                        bodylen};
-
-        ret = dcpSystemEvent(
-                cookie,
-                req->message.header.request.opaque,
-                req->message.header.request.vbucket.ntoh(),
-                mcbp::systemevent::id(ntohl(req->message.body.event)),
-                ntohll(req->message.body.by_seqno),
-                mcbp::systemevent::version(req->message.body.version),
-                key,
-                eventData);
+        ret = dcpSystemEvent(cookie,
+                             request.getOpaque(),
+                             request.getVBucket(),
+                             mcbp::systemevent::id(payload->getEvent()),
+                             payload->getBySeqno(),
+                             mcbp::systemevent::version(payload->getVersion()),
+                             request.getKey(),
+                             request.getValue());
     }
 
     ret = connection.remapErrorCode(ret);

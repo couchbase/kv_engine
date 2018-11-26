@@ -226,7 +226,10 @@ ENGINE_ERROR_CODE CollectionsDcpTestProducers::system_event(
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSystemEvent;
     last_system_event = event;
-    EXPECT_TRUE(mcbp::systemevent::validate_version(uint8_t(version)));
+    // Validate the provided parameters
+    cb::mcbp::request::DcpSystemEventPayload extras(bySeqno, event, version);
+    EXPECT_TRUE(extras.isValidVersion());
+    EXPECT_TRUE(extras.isValidEvent());
     last_system_event_data.insert(
             last_system_event_data.begin(), eventData.begin(), eventData.end());
     last_system_event_version = version;

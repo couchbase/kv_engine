@@ -1195,85 +1195,84 @@ enum class id : uint32_t {
 };
 
 enum class version : uint8_t { version0 = 0, version1 = 1 };
+} // namespace systemevent
+} // namespace mcbp
 
-/**
- * Validate that the uint32_t represents a valid systemevent::id
- */
-static inline bool validate_id(uint32_t event) {
-    switch (id(event)) {
+namespace cb {
+namespace mcbp {
+namespace request {
+#pragma pack(1)
+
+class DcpSystemEventPayload {
+public:
+    DcpSystemEventPayload() = default;
+    DcpSystemEventPayload(uint64_t by_seqno,
+                          ::mcbp::systemevent::id event,
+                          ::mcbp::systemevent::version version)
+        : by_seqno(htonll(by_seqno)),
+          event(htonl(static_cast<uint32_t>(event))),
+          version(static_cast<uint8_t>(version)) {
+    }
+
+    uint64_t getBySeqno() const {
+        return ntohll(by_seqno);
+    }
+    void setBySeqno(uint64_t by_seqno) {
+        DcpSystemEventPayload::by_seqno = htonll(by_seqno);
+    }
+    uint32_t getEvent() const {
+        return ntohl(event);
+    }
+    void setEvent(uint32_t event) {
+        DcpSystemEventPayload::event = htonl(event);
+    }
+    uint8_t getVersion() const {
+        return version;
+    }
+    void setVersion(uint8_t version) {
+        DcpSystemEventPayload::version = version;
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+    /**
+     * Validate that the uint32_t event field represents a valid systemevent::id
+     */
+    bool isValidEvent() const {
+        using ::mcbp::systemevent::id;
+        switch (id(getEvent())) {
         case id::CreateCollection:
         case id::DeleteCollection:
         case id::FlushCollection:
         case id::CreateScope:
         case id::DropScope:
             return true;
+        }
+        return false;
     }
-    return false;
-}
-
-/**
- * Validate that the uint8_t represents a valid systemevent::version
- */
-static inline bool validate_version(uint8_t event) {
-    switch (version(event)) {
-    case version::version0:
-    case version::version1:
-        return true;
-    }
-    return false;
-}
-}
-}
-
-/**
- * Format for a DCP_SYSTEM_EVENT packet. Encodes a sequence number for the
- * event and the event's identifier.
- */
-union protocol_binary_request_dcp_system_event {
-    protocol_binary_request_dcp_system_event(
-            uint32_t opaque,
-            Vbid vbucket,
-            uint16_t keyLen,
-            size_t valueLen,
-            mcbp::systemevent::id event,
-            uint64_t bySeqno,
-            mcbp::systemevent::version version) {
-        auto& req = message.header.request;
-        req.setMagic(cb::mcbp::Magic::ClientRequest);
-        req.setOpcode(cb::mcbp::ClientOpcode::DcpSystemEvent);
-        req.setExtlen(getExtrasLength());
-        req.setKeylen(keyLen);
-        req.setBodylen(
-                gsl::narrow<uint32_t>(getExtrasLength() + keyLen + valueLen));
-        req.setOpaque(opaque);
-        req.setVBucket(vbucket);
-        req.setDatatype(cb::mcbp::Datatype::Raw);
-        message.body.event = htonl(uint32_t(event));
-        message.body.by_seqno = htonll(bySeqno);
-        message.body.version = uint8_t(version);
-    }
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t by_seqno;
-            uint32_t event;
-            uint8_t version;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 13];
 
     /**
-     * @returns the extlen value that a system_event packet should encode.
+     * Validate that the uint8_t version represents a valid systemevent::version
      */
-    static inline uint8_t getExtrasLength() {
-        return sizeof(uint64_t) + sizeof(uint32_t) + sizeof(uint8_t);
+    bool isValidVersion() const {
+        using ::mcbp::systemevent::version;
+        switch (version(getVersion())) {
+        case version::version0:
+        case version::version1:
+            return true;
+        }
+        return false;
     }
-};
 
-namespace cb {
-namespace mcbp {
-namespace request {
-#pragma pack(1)
+protected:
+    uint64_t by_seqno = 0;
+    uint32_t event = 0;
+    uint8_t version = 0;
+};
+static_assert(sizeof(DcpSystemEventPayload) == 13, "Unexpected struct size");
+
 class SetParamPayload {
 public:
     enum class Type : uint32_t {

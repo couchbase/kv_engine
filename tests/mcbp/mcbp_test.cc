@@ -3524,15 +3524,15 @@ TEST_P(CommandSpecificErrorContextTest, DcpStreamRequest) {
 }
 
 TEST_P(CommandSpecificErrorContextTest, DcpSystemEvent) {
+    cb::mcbp::request::DcpSystemEventPayload extras;
+    extras.setEvent(10);
+
+    cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    builder.setExtras(extras.getBuffer());
+    builder.setKey({});
+    builder.setValue({});
+
     // System event ID must be 0, 1 or 2
-    uint8_t extlen =
-            protocol_binary_request_dcp_system_event::getExtrasLength();
-    header.setExtlen(extlen);
-    header.setKeylen(0);
-    header.setBodylen(extlen);
-    auto* req =
-            reinterpret_cast<protocol_binary_request_dcp_system_event*>(blob);
-    req->message.body.event = htonl(10);
     EXPECT_EQ("Invalid system event id",
               validate_error_context(cb::mcbp::ClientOpcode::DcpSystemEvent));
 }

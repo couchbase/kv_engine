@@ -2057,41 +2057,21 @@ ENGINE_ERROR_CODE Connection::system_event(uint32_t opaque,
                                            mcbp::systemevent::version version,
                                            cb::const_byte_buffer key,
                                            cb::const_byte_buffer eventData) {
-    auto& c = *this;
-    protocol_binary_request_dcp_system_event packet(
-            opaque,
-            vbucket,
-            gsl::narrow<uint16_t>(key.size()),
-            eventData.size(),
-            event,
-            bySeqno,
-            version);
+    cb::mcbp::request::DcpSystemEventPayload extras(bySeqno, event, version);
+    std::vector<uint8_t> buffer;
+    buffer.resize(sizeof(cb::mcbp::Request) + sizeof(extras) + key.size() +
+                  eventData.size());
+    cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    c.write->produce([&c, &packet, &key, &eventData, &ret](
-                             cb::byte_buffer buffer) -> size_t {
-        if (buffer.size() <
-            (sizeof(packet.bytes) + key.size() + eventData.size())) {
-            ret = ENGINE_E2BIG;
-            return 0;
-        }
-
-        std::copy(packet.bytes,
-                  packet.bytes + sizeof(packet.bytes),
-                  buffer.begin());
-
-        std::copy(
-                key.begin(), key.end(), buffer.begin() + sizeof(packet.bytes));
-        std::copy(eventData.begin(),
-                  eventData.end(),
-                  buffer.begin() + sizeof(packet.bytes) + key.size());
-
-        c.addIov(buffer.begin(),
-                 sizeof(packet.bytes) + key.size() + eventData.size());
-        return sizeof(packet.bytes) + key.size() + eventData.size();
-    });
-
-    return ret;
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    builder.setOpaque(opaque);
+    builder.setVBucket(vbucket);
+    builder.setDatatype(cb::mcbp::Datatype::Raw);
+    builder.setExtras(extras.getBuffer());
+    builder.setKey(key);
+    builder.setValue(eventData);
+    return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
 ENGINE_ERROR_CODE Connection::get_error_map(uint32_t opaque, uint16_t version) {

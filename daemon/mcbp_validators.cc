@@ -576,25 +576,25 @@ static Status dcp_snapshot_marker_validator(Cookie& cookie) {
 }
 
 static Status dcp_system_event_validator(Cookie& cookie) {
-    // keylen + bodylen > ??
-    auto req = static_cast<protocol_binary_request_dcp_system_event*>(
-            cookie.getPacketAsVoidPtr());
-
-    auto status = McbpValidator::verify_header(
-            cookie,
-            protocol_binary_request_dcp_system_event::getExtrasLength(),
-            ExpectedKeyLen::Any,
-            ExpectedValueLen::Any);
+    using cb::mcbp::request::DcpSystemEventPayload;
+    auto status = McbpValidator::verify_header(cookie,
+                                               sizeof(DcpSystemEventPayload),
+                                               ExpectedKeyLen::Any,
+                                               ExpectedValueLen::Any);
     if (status != Status::Success) {
         return status;
     }
 
-    if (!mcbp::systemevent::validate_id(ntohl(req->message.body.event))) {
+    auto extras = cookie.getHeader().getExtdata();
+    const auto* payload =
+            reinterpret_cast<const DcpSystemEventPayload*>(extras.data());
+
+    if (!payload->isValidEvent()) {
         cookie.setErrorContext("Invalid system event id");
         return Status::Einval;
     }
 
-    if (!mcbp::systemevent::validate_version(req->message.body.version)) {
+    if (!payload->isValidVersion()) {
         cookie.setErrorContext("Invalid system event version");
         return Status::Einval;
     }
